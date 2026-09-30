@@ -1,0 +1,40 @@
+schema: spec-driven
+
+# Project context shown to AI when creating artifacts.
+context: |
+  Project: Sino — Personal Digital Butler. Current phase: Sino Messages (unified messaging:
+  many accounts, many providers such as Gmail/Telegram, one normalized inbox).
+  Older Notion docs call the product "MessageHub"; it is the same product. Code uses "Sino".
+
+  Monorepo root: this repo. Backend: apps/sino-api (base package dev.sino). Frontend: apps/sino-web (later).
+  Backend stack (inspected): Java 25 (Temurin 25.0.3), Spring Boot 4.1.1 (Spring Framework 7, Spring Security 7),
+  Spring Modulith 2.1.1, Spring Data JPA / Hibernate 7, PostgreSQL, Flyway 12, Jackson 3 (package tools.jackson),
+  JUnit 6, Testcontainers 2, Maven wrapper. Config files are YAML (application.yaml).
+
+  Architecture: Modular Monolith verified by Spring Modulith. Business modules are direct sub-packages of dev.sino:
+  account, provider, conversation, messaging, sync, search, realtime; common is technical-only and minimal.
+  Inside a module: api / application / domain / infrastructure. No cross-module repository/entity access;
+  modules talk through exported application APIs, exported types or events.
+  Provider-specific models never leak into the core; providers declare capabilities; sync is idempotent;
+  credentials live in their own table, encrypted at rest, never logged; PostgreSQL is the source of truth;
+  every schema change goes through Flyway.
+  Not allowed without a real requirement: microservices, Kafka, RabbitMQ, Redis, Kubernetes,
+  Elasticsearch/OpenSearch, MongoDB, GraphQL, WebFlux, WebSocket (SSE first).
+
+  Source-of-truth order when docs conflict (Notion): 01 Functional Requirements > 02/02A/02B/02C System Design >
+  04A Backend Constraints > 04B Planning Instructions > 03 Roadmap > existing code.
+
+  Working mode: TRAINING (see project-mode.yaml). The human implements; the AI mentors, reviews and tests.
+  Design decisions that are not already fixed by the docs belong to the human and are written as
+  "Decision Needed" with options, trade-offs and a recommendation.
+  Documentation language: Vietnamese prose, English technical terms and identifiers.
+
+rules:
+  proposal:
+    - Always include a Non-goals section that names what is deferred to later features (F04+).
+  design:
+    - Record every open architecture choice as "Decision Needed" (ID, options, trade-offs, recommendation, question for the human).
+    - Mark doc conflicts as "Conflict" with the source pages and the resolution rule used.
+  tasks:
+    - Each task is small enough to implement and test on its own and lists Goal, Acceptance criteria, Test, Depends on and Hints.
+    - Hints follow TRAINING levels (Level 1 hint, Level 2 direction); never include complete implementation code.
