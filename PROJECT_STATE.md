@@ -9,10 +9,10 @@
 - Active mode: TRAINING
 - Mode source: `project-mode.yaml` (selected by the user on 2026-09-30)
 - Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: BE-01 — PostgreSQL local via Docker Compose, pinned version (`openspec/changes/be-f01-project-foundation/tasks.md`)
+- Current task: BE-02 — profiles + Flyway V1 (`event_publication`) + green context load (next; not started)
 - Task owner: HUMAN (TRAINING — Human writes the code)
 - Reviewer: CLAUDE (mentor, review, run checks)
-- Current state: IMPLEMENTING BE-01 (blocked until Docker Desktop is running)
+- Current state: BE-01 DONE and committed on `dev`; BE-02 not started
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -21,7 +21,9 @@
 | Task | Owner | Reviewer | Mode | State | Exact files | Updated |
 | --- | --- | --- | --- | --- | --- | --- |
 | F01-F03 planning (spec + plan) | CLAUDE | HUMAN | TRAINING | DONE (F01 approved to implement; D-xx for F02/F03 open) | `openspec/config.yaml`, `openspec/changes/be-f01-project-foundation/**`, `openspec/changes/be-f02-connected-accounts/**`, `openspec/changes/be-f03-provider-contract/**`, `PROJECT_STATE.md` | 2026-09-30 |
-| BE-01 local Postgres + pin | HUMAN | CLAUDE | TRAINING | IMPLEMENTING | `apps/sino-api/compose.yaml`, `apps/sino-api/.env.example`, `apps/sino-api/.gitignore`, `apps/sino-api/src/test/java/dev/sino/TestcontainersConfiguration.java` | 2026-09-30 |
+| BE-01 step 1 env files (branch `dev`) — explicit task-scoped takeover requested by the user ("tạo đi") | CLAUDE | HUMAN | TRAINING | DONE | `apps/sino-api/.env.example`, `apps/sino-api/.gitignore` (+ local `apps/sino-api/.env`, ignored) | 2026-09-30 |
+| BE-01 step 2 compose.yaml (branch `dev`) — explicit task-scoped takeover requested by the user ("tạo compose.yaml luôn đi") | CLAUDE | HUMAN | TRAINING | DONE (container healthy, PostgreSQL 18.6) | `apps/sino-api/compose.yaml` | 2026-09-30 |
+| BE-01 steps 3-4 + D-23 timezone fix (branch `dev`) — Human ran compose; Claude made the D-23 fix and the tag change on explicit request | CLAUDE | HUMAN | TRAINING | DONE | `apps/sino-api/src/test/java/dev/sino/TestcontainersConfiguration.java`, `apps/sino-api/src/main/java/dev/sino/SinoApiApplication.java`, `apps/sino-api/pom.xml` | 2026-09-30 |
 
 ## Completed work
 
@@ -29,6 +31,8 @@
 - 2026-09-30: `apps/sino-web` skeleton committed directly to `main` as `5ad6a2d` (the user approved the direct commit and the push) and pushed to `origin/main`. Only the 19 skeleton files were committed; `node_modules`/`dist` are ignored. Before committing, `pnpm build` (`tsc -b && vite build`) passed.
 
 - 2026-09-30: Read Notion docs 00, 01, 02, 02A, 02B, 02C, 03, 04, 04A, 04B, 04C, 04D (public pages, read-only). Drafted three OpenSpec changes (proposal, specs, design, tasks each): `be-f01-project-foundation` (BE-01..BE-08), `be-f02-connected-accounts` (BE-09..BE-18), `be-f03-provider-contract` (BE-19..BE-26). Decision register D-01..D-21 lives in F01 `design.md` → Open Questions. Filled `openspec/config.yaml` context/rules. No application source changed.
+
+- 2026-09-30: BE-01 done on `dev`: local PostgreSQL 18 via Docker Compose (`127.0.0.1:5432`, named volume, healthcheck), `.env.example` + ignored `.env`, Testcontainers pinned to `postgres:18`, D-23 (JVM in UTC) added after the `Asia/Saigon` connection failure.
 
 ## Architecture summary
 
@@ -41,23 +45,26 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 ## Known issues
 
-- Docker daemon not running on this machine (2026-09-30) → Testcontainers-based tests cannot run until Docker Desktop is started.
+- The user's IntelliJ terminal ran Maven on Java 26.0.1 (baseline and `JAVA_HOME` in PowerShell: Temurin 25.0.3). Check with `.\mvnw.cmd -v` and align.
+- Windows (region Vietnam) gives the JVM the legacy zone id `Asia/Saigon`, which PostgreSQL 18 (Debian 13) rejects. Mitigated by D-23 (JVM runs in UTC); any new launch path (Dockerfile, CI, IDE config) must keep UTC.
 - Spring Security is on the classpath with no configuration → every endpoint is protected by a generated password.
 - `spring-modulith-starter-jpa` requires an event publication table; no Flyway migration exists yet.
-- Testcontainers image is `postgres:latest` (unpinned).
 
 ## Verification evidence
 
 - 2026-09-30 `apps/sino-api`: `./mvnw -B -ntp test-compile` → BUILD SUCCESS (17.6 s). Tests NOT RUN (Docker daemon not running → Testcontainers unavailable). Runtime start NOT VERIFIED.
 - 2026-09-30 `openspec validate --all --strict` → 3 passed, 0 failed.
+- 2026-09-30 BE-01: `docker compose ps` → `sino-api-postgres-1` Up (healthy), `127.0.0.1:5432`; `select version()` → PostgreSQL 18.6; volume `sino-api_pgdata`, `PGDATA=/var/lib/postgresql/18/docker`. `./mvnw test` with `-DargLine=` reproduced `FATAL: invalid value for parameter "TimeZone": "Asia/Saigon"`; with the D-23 fix → BUILD SUCCESS (1 test); after pinning Testcontainers to `postgres:18` → BUILD SUCCESS (1 test). App runtime through `main` NOT separately verified (the user declined the extra check; BE-02 will exercise it).
 
 ## Next task
 
-BE-01 (Human implements; Claude reviews and runs the checks listed in tasks.md). Phase/feature roadmap for the whole MVP (Phase 0–5, F01–F12, decision points incl. new D-22 browser auth) is in `openspec/roadmap.md`. Before BE-03/BE-04 the Human must answer D-03 and D-02. D-05/D-06 proposed defaults apply to BE-01 unless the Human objects.
+BE-02 — `application.yaml` / `application-local.yaml` / `application-test.yaml`, Flyway `V1__modulith_create_event_publication.sql`, green context load (Human implements). Decide A/B for datasource values in the `local` profile (see chat 2026-09-30: A = reuse `POSTGRES_*` from `.env`). D-03 before BE-03, D-02 before BE-04. Roadmap: `openspec/roadmap.md`.
 
 ## Last working checkpoint
 
 - `main` @ `0574c53` — unmodified Spring Initializr skeleton (baseline; the one agreed direct commit to `main`, approved by the user 2026-09-30). Build/tests NOT VERIFIED.
 - `main` @ `5ad6a2d` — adds the unmodified Vite React skeleton for `apps/sino-web`, pushed to `origin/main`. FE build VERIFIED (`pnpm build` exit 0); the BE build is still NOT VERIFIED.
 - Working branch: `feature/be-f01-f03-plan`, based on `main` @ `5ad6a2d`. The user approved switching the shared working tree to this branch and committing (2026-09-30). It holds two commits: workflow setup (OpenSpec + mode + Claude OpenSpec commands) and the F01-F03 spec/plan with this file. Pushed to `origin/feature/be-f01-f03-plan` @ `9ac3693` (user asked, 2026-09-30); no PR opened.
-- Implementation branch: `feature/be-f01-project-foundation`, created from `feature/be-f01-f03-plan` @ `9ac3693`. The shared working tree HEAD is on this branch. Not pushed.
+- PR #1 (`feature/be-f01-f03-plan`) was merged into `main` on GitHub as `16aa8d6` (merge commit; done by the user).
+- `feature/be-f01-project-foundation` @ `12af56b` (roadmap + D-22) pushed to origin (user asked, 2026-09-30).
+- **`dev`**: the user's coding branch (requested 2026-09-30), created from `12af56b`. The shared working tree HEAD is on `dev`. Not pushed. Relative to `origin/main` it is 1 ahead / 1 behind; the missing commit is only the PR #1 merge commit and brings no file changes.

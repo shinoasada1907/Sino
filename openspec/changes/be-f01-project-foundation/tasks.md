@@ -6,7 +6,7 @@
 
 ## 1. Môi trường chạy
 
-- [ ] 1.1 **BE-01 — PostgreSQL local bằng Docker Compose, pin phiên bản**
+- [x] 1.1 **BE-01 — PostgreSQL local bằng Docker Compose, pin phiên bản**
   - **Goal / Why:** DB local bền vững cho dev, cùng phiên bản với Testcontainers để "chạy được ở máy tôi" = "chạy được trong test".
   - **Depends:** D-05, D-06 · Docker Desktop đang chạy.
   - **Files:** `apps/sino-api/compose.yaml`, `apps/sino-api/.env.example`, `apps/sino-api/.gitignore` (thêm `.env`), `src/test/java/dev/sino/TestcontainersConfiguration.java` (đổi tag image).
@@ -15,6 +15,10 @@
   - **AC:** requirement *PostgreSQL local và test dùng cùng phiên bản cố định*, *Không có secret trong repository* (`application-runtime`).
   - **Gợi ý:** `pg_isready`; named volume khác bind mount thế nào; biến trong `.env` được Compose nạp tự động ra sao.
   - **Rollback:** `docker compose down -v`.
+  - **Phát sinh so với kế hoạch (2026-09-30):**
+    - ~~Files chỉ gồm compose, `.env.example`, `.gitignore`, `TestcontainersConfiguration`~~ → sửa thêm `src/main/java/dev/sino/SinoApiApplication.java` và `pom.xml`. **LÝ DO:** `./mvnw test` fail với `FATAL: invalid value for parameter "TimeZone": "Asia/Saigon"`. JVM trên Windows (vùng Việt Nam) dùng tên múi giờ cũ, còn `postgres:18` trên Debian 13 không có `tzdata-legacy`. Human chọn **D-23 = A**: JVM chạy UTC (`main` + Surefire `argLine`).
+    - Theo yêu cầu rõ ràng của Human, Claude làm thay `.env.example`, `.env` (không commit), `.gitignore`, `compose.yaml`, bản sửa D-23 và đổi tag Testcontainers. Human chạy `docker compose up` và kiểm tra trạng thái healthy.
+    - Bằng chứng: container `healthy`, PostgreSQL 18.6, volume `sino-api_pgdata`, `PGDATA=/var/lib/postgresql/18/docker`; khi tắt `argLine` thì lỗi `Asia/Saigon` tái hiện, khi bật thì `./mvnw test` cho BUILD SUCCESS (1/1); sau khi đổi sang `postgres:18` thì BUILD SUCCESS (1/1).
 
 - [ ] 1.2 **BE-02 — Cấu hình theo profile + Flyway V1 (`event_publication`) + context load xanh**
   - **Goal / Why:** ứng dụng start được trên DB thật với schema do Flyway quản lý; Hibernate chỉ validate. Thiếu V1 thì Spring Modulith JPA làm `validate` fail.

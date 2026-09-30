@@ -29,6 +29,8 @@
     <properties>
         <java.version>25</java.version>
         <spring-modulith.version>2.1.1</spring-modulith.version>
+        <!-- D-23: test JVMs run in UTC (tests do not go through SinoApiApplication.main). Read by Surefire. -->
+        <argLine>-Duser.timezone=UTC</argLine>
     </properties>
     <dependencies>
         <dependency>
