@@ -8,11 +8,11 @@
 - Last updated: 2026-09-30
 - Active mode: TRAINING
 - Mode source: `project-mode.yaml` (selected by the user on 2026-09-30)
-- Current phase: Sino Messages — F01-F03 planning (PLAN + SPEC only; no implementation until the user says "APPROVED TO IMPLEMENT")
-- Current task: F01-F03 — Implementation Plan + Technical Spec + missing architecture decisions
-- Task owner: CLAUDE (drafts spec/plan documents only); design decisions owned by HUMAN
-- Reviewer: HUMAN
-- Current state: REVIEWING — F01-F03 spec + plan drafted in OpenSpec, waiting for Human review and decisions (2026-09-30)
+- Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
+- Current task: BE-01 — PostgreSQL local via Docker Compose, pinned version (`openspec/changes/be-f01-project-foundation/tasks.md`)
+- Task owner: HUMAN (TRAINING — Human writes the code)
+- Reviewer: CLAUDE (mentor, review, run checks)
+- Current state: IMPLEMENTING BE-01 (blocked until Docker Desktop is running)
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -20,7 +20,8 @@
 
 | Task | Owner | Reviewer | Mode | State | Exact files | Updated |
 | --- | --- | --- | --- | --- | --- | --- |
-| F01-F03 planning (spec + plan) | CLAUDE | HUMAN | TRAINING | REVIEWING | `openspec/config.yaml`, `openspec/changes/be-f01-project-foundation/**`, `openspec/changes/be-f02-connected-accounts/**`, `openspec/changes/be-f03-provider-contract/**`, `PROJECT_STATE.md` | 2026-09-30 |
+| F01-F03 planning (spec + plan) | CLAUDE | HUMAN | TRAINING | DONE (F01 approved to implement; D-xx for F02/F03 open) | `openspec/config.yaml`, `openspec/changes/be-f01-project-foundation/**`, `openspec/changes/be-f02-connected-accounts/**`, `openspec/changes/be-f03-provider-contract/**`, `PROJECT_STATE.md` | 2026-09-30 |
+| BE-01 local Postgres + pin | HUMAN | CLAUDE | TRAINING | IMPLEMENTING | `apps/sino-api/compose.yaml`, `apps/sino-api/.env.example`, `apps/sino-api/.gitignore`, `apps/sino-api/src/test/java/dev/sino/TestcontainersConfiguration.java` | 2026-09-30 |
 
 ## Completed work
 
@@ -52,10 +53,11 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 ## Next task
 
-Human reviews the three OpenSpec changes and answers the Decision Needed items (at minimum D-02, D-03 before F01; D-01, D-10..D-14 before F02; D-16, D-18 before F03; D-15 before F04). Implementation (TRAINING: Human codes, Claude mentors/reviews) starts only after `APPROVED TO IMPLEMENT`, beginning with BE-01.
+BE-01 (Human implements; Claude reviews and runs the checks listed in tasks.md). Phase/feature roadmap for the whole MVP (Phase 0–5, F01–F12, decision points incl. new D-22 browser auth) is in `openspec/roadmap.md`. Before BE-03/BE-04 the Human must answer D-03 and D-02. D-05/D-06 proposed defaults apply to BE-01 unless the Human objects.
 
 ## Last working checkpoint
 
 - `main` @ `0574c53` — unmodified Spring Initializr skeleton (baseline; the one agreed direct commit to `main`, approved by the user 2026-09-30). Build/tests NOT VERIFIED.
 - `main` @ `5ad6a2d` — adds the unmodified Vite React skeleton for `apps/sino-web`, pushed to `origin/main`. FE build VERIFIED (`pnpm build` exit 0); the BE build is still NOT VERIFIED.
-- Working branch: `feature/be-f01-f03-plan`, based on `main` @ `5ad6a2d`. The user approved switching the shared working tree to this branch and committing (2026-09-30). It holds two commits: workflow setup (OpenSpec + mode + Claude OpenSpec commands) and the F01-F03 spec/plan with this file. Not pushed. The shared working tree HEAD is now on this branch, not `main`.
+- Working branch: `feature/be-f01-f03-plan`, based on `main` @ `5ad6a2d`. The user approved switching the shared working tree to this branch and committing (2026-09-30). It holds two commits: workflow setup (OpenSpec + mode + Claude OpenSpec commands) and the F01-F03 spec/plan with this file. Pushed to `origin/feature/be-f01-f03-plan` @ `9ac3693` (user asked, 2026-09-30); no PR opened.
+- Implementation branch: `feature/be-f01-project-foundation`, created from `feature/be-f01-f03-plan` @ `9ac3693`. The shared working tree HEAD is on this branch. Not pushed.
