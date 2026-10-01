@@ -9,8 +9,9 @@
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01)
 - Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: BE-03 — `ModularityTests` + module public API convention (blocked on D-03)
+- Current task: BE-03 — `ModularityTests` + module public API convention (ready; D-03 = A)
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
+- Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
 - Current state: BE-02 DONE and committed on `dev`; BE-03 next
 - Files currently owned/being modified: see table below
@@ -61,7 +62,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 ## Next task
 
-BE-03 — `ModularityTests` + module public API convention. Needs **D-03** (recommended: base package + `@NamedInterface`). Then BE-04 needs **D-02**. Roadmap: `openspec/roadmap.md`.
+BE-03 — `ModularityTests` + module public API convention (D-03 = A accepted 2026-10-01: base package + `@NamedInterface`, layer packages internal). Then BE-04 needs **D-02**. Roadmap: `openspec/roadmap.md`.
 
 ## Last working checkpoint
 

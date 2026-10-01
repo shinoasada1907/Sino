@@ -110,7 +110,7 @@ flowchart LR
 - Provider **không** phụ thuộc account: `ProviderContext` nhận dữ liệu thuần (ID, credential đã giải mã) do bên gọi truyền vào.
 - Giao tiếp ngược chiều (ví dụ account cần biết khi sync lỗi auth) đi qua **event**, không gọi ngược.
 
-**Decision D-03 — Public API của module nằm ở đâu?** · *Decision Needed (trước BE-03)*
+**Decision D-03 — Public API của module nằm ở đâu?** · **Accepted: A** (2026-10-01, Human chấp nhận đề xuất)
 
 | Phương án | Ưu | Nhược |
 |---|---|---|
@@ -344,7 +344,7 @@ Decision register F01–F03. Mục "Cần trước" cho biết task nào bị ch
 |---|---|---|---|---|
 | D-01 | Thứ tự F02/F03 | Decision Needed | F03 design | bắt đầu F02 |
 | D-02 | Xác thực người dùng Sino / bảo vệ API | Decision Needed | F01 §3 | BE-04 |
-| D-03 | Public API của module | Decision Needed | F01 §2 | BE-03 |
+| D-03 | Public API của module | **Accepted** (A) | F01 §2 | BE-03 |
 | D-04 | Giữ Event Publication Registry từ F01 | Proposed default | F01 §4 | BE-02 |
 | D-05 | Cách chạy DB local | Proposed default | F01 §3 | BE-01 |
 | D-06 | PostgreSQL 18 | Proposed default | F01 §4 | BE-01 |
