@@ -9,11 +9,11 @@
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01)
 - Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: BE-08 — README + F01 acceptance
+- Current task: F01 closed; next is F03 or F02 (decision D-01)
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: BE-07 DONE (first CI run green); BE-08 next
+- Current state: F01 DONE (BE-01…BE-08), OpenSpec change archived; Phase 0 continues
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -32,6 +32,7 @@
 | BE-05 Problem Details error model, D-21 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/common/error/**`, `.../common/web/**`, `.../common/security/SecurityProblemHandler.java`, `SecurityConfig.java`, `src/test/java/dev/sino/common/web/GlobalExceptionHandlerTests.java`, `ApiSecurityTestConfiguration.java`, spec `api-conventions`, design §8 | 2026-10-01 |
 | BE-06 actuator health + safe logging (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `application.yaml`, `application-local.yaml`, `SecurityConfig.java`, `src/test/java/dev/sino/ActuatorEndpointsTests.java`, `ReadinessWhenDatabaseIsDownTests.java`, `GlobalExceptionHandlerTests.java`, spec `operational-health`, design §3 | 2026-10-01 |
 | BE-07 GitHub Actions backend CI (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE (CI run 36837841135 green) | `.github/workflows/backend-ci.yml`, `apps/sino-api/mvnw` (mode 100755) | 2026-10-01 |
+| BE-08 README + F01 acceptance (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/README.md`, F01 design DoD, tasks | 2026-10-01 |
 
 ## Completed work
 
@@ -41,6 +42,8 @@
 - 2026-09-30: Read Notion docs 00, 01, 02, 02A, 02B, 02C, 03, 04, 04A, 04B, 04C, 04D (public pages, read-only). Drafted three OpenSpec changes (proposal, specs, design, tasks each): `be-f01-project-foundation` (BE-01..BE-08), `be-f02-connected-accounts` (BE-09..BE-18), `be-f03-provider-contract` (BE-19..BE-26). Decision register D-01..D-21 lives in F01 `design.md` → Open Questions. Filled `openspec/config.yaml` context/rules. No application source changed.
 
 - 2026-09-30: BE-01 done on `dev`: local PostgreSQL 18 via Docker Compose (`127.0.0.1:5432`, named volume, healthcheck), `.env.example` + ignored `.env`, Testcontainers pinned to `postgres:18`, D-23 (JVM in UTC) added after the `Asia/Saigon` connection failure.
+
+- 2026-10-01: F01 Project Foundation DONE (BE-01…BE-08) on `dev`; README complete; CI green; OpenSpec change `be-f01-project-foundation` archived.
 
 ## Architecture summary
 
@@ -69,10 +72,11 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - 2026-10-01 BE-05: first run 21/22 (`No value at JSON path "$.type"`). Spring 7.0.9 sources show `ProblemDetail.type` defaults to null and is omitted (`NON_EMPTY`), as RFC 9457 §3.1.1 allows; spec and design updated. Then `GlobalExceptionHandlerTests` 12/12, full `./mvnw test` 22/22 BUILD SUCCESS.
 - 2026-10-01 BE-06: `ActuatorEndpointsTests` 5/5, `ReadinessWhenDatabaseIsDownTests` 1/1 (readiness 503 DOWN, liveness 200 UP with a fake DOWN `db` indicator), 2 new log-safety tests, full `./mvnw test` 30/30 BUILD SUCCESS. The actuator 404 scenario was corrected to 401 anonymous / 404 authenticated.
 - 2026-10-01 BE-07: workflow YAML parses; local `./mvnw -B -ntp verify` (the CI command) → BUILD SUCCESS. GitHub Actions: push of `dev` @ `7caf6ac` → run 36837841135, job `verify` success in 1m02s (all steps success).
+- 2026-10-01 BE-08: app jar with profile `local` started in ~4 s; curl: health public UP (components only for the API user), readiness/liveness 200, `/api/accounts` 401 problem+json with `WWW-Authenticate: Basic` / 404 `RESOURCE_NOT_FOUND` with the API user, `/actuator/env` 401/404, `/actuator/modulith` 200 (local), `/internal` 403, password found 0 times in the app log. No `postgres:latest`, `.env` untracked, no committed file contains a real local password.
 
 ## Next task
 
-BE-08 — complete `apps/sino-api/README.md` (commands from design §13, env vars, module conventions, Docker requirement), walk the F01 Definition of Done, then close F01 (archive the OpenSpec change after the Human agrees). Roadmap: `openspec/roadmap.md`.
+Phase 0 continues. Human decides **D-01** (recommended: F03 Provider Contract before F02). F03 needs **D-16** (`ProviderType` value object vs enum) and **D-18** (`GET /api/providers`); F02 needs D-10…D-14. Roadmap: `openspec/roadmap.md`.
 
 ## Last working checkpoint
 

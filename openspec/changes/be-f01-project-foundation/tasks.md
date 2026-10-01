@@ -107,7 +107,7 @@
 
 ## 4. Tài liệu và nghiệm thu
 
-- [ ] 4.1 **BE-08 — README backend + nghiệm thu F01**
+- [x] 4.1 **BE-08 — README backend + nghiệm thu F01**
   - **Goal / Why:** người mới (hoặc chính bạn 6 tháng sau) clone về chạy được chỉ bằng README.
   - **Depends:** BE-01…BE-06 (BE-07 nếu có).
   - **Files:** `apps/sino-api/README.md`, `PROJECT_STATE.md`, file này (tick task).
@@ -115,3 +115,8 @@
   - **Test:** thử từ đầu: `docker compose down -v` → làm theo README từng bước → app start, `./mvnw verify` xanh.
   - **AC:** toàn bộ checklist *Definition of Done — F01* trong `design.md`.
   - **Learning gate (Human tự trả lời trước khi đóng F01):** (1) Kể lại thứ tự khởi động: config → datasource → Flyway → Hibernate validate → Modulith. (2) Vì sao tắt Open Session In View? (3) Public API của một module gồm những gì, và điều gì xảy ra nếu vi phạm? (4) Muốn thêm một bảng mới thì làm những bước nào? (5) Rủi ro lớn nhất của cấu hình security đang chọn là gì?
+  - **Ghi chú thực hiện (2026-10-01, AUTO):**
+    - README đầy đủ: điều kiện cần, setup lần đầu, bảng biến môi trường, lệnh chạy và test (kèm biến thể PowerShell), các endpoint hiện có, định dạng lỗi, quy ước module, CI, xử lý sự cố (Asia/Saigon, Docker, thiếu biến môi trường, trùng cổng).
+    - ~~Thử từ đầu bằng `docker compose down -v`~~ → chạy jar theo README với profile `local` trên DB hiện có, kết hợp với CI chạy trên máy sạch. **LÝ DO:** không xóa DB local của Human; CI đã chứng minh build được từ trạng thái sạch.
+    - Bằng chứng khi chạy app thật: start trong ~4 giây; `/actuator/health` khi ẩn danh = `{"groups":["liveness","readiness"],"status":"UP"}`; user API thấy `db` UP; readiness/liveness 200/200; `/api/accounts` khi ẩn danh → 401 `application/problem+json`, `WWW-Authenticate: Basic`, `code` UNAUTHORIZED; khi có user API → 404 `RESOURCE_NOT_FOUND`; `/actuator/env` 401/404; `/actuator/modulith` (local) 200; `/internal` 403; mật khẩu xuất hiện trong log 0 lần. Kiểm tra tĩnh: không còn `postgres:latest`, `.env` không bị track, không file nào được commit chứa mật khẩu thật.
+    - Learning gate: không áp dụng (HYBRID/AUTO).

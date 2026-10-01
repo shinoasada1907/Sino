@@ -1,7 +1,7 @@
 # F01 — Project Foundation · Technical Design
 
-> Mode: **TRAINING** — Human implement, AI mentor/review/test. Mọi mục **Decision Needed** thuộc về Human; mục **Proposed default** áp dụng nếu Human không phản đối khi review.
-> Trạng thái: DRAFT chờ Human review. Không implement trước `APPROVED TO IMPLEMENT`.
+> Mode: viết ở **TRAINING** (2026-09-30). Từ 2026-10-01 chuyển sang **HYBRID** (task chạy AUTO). Mọi mục **Decision Needed** thuộc về Human; mục **Proposed default** áp dụng nếu Human không phản đối.
+> Trạng thái: **DONE** (2026-10-01). BE-01…BE-08 đã làm; Definition of Done ở cuối file đã đánh dấu kèm bằng chứng.
 
 ## Context
 
@@ -369,12 +369,12 @@ Decision register F01–F03. Mục "Cần trước" cho biết task nào bị ch
 
 ## Definition of Done — F01
 
-- [ ] `docker compose up -d` chạy PostgreSQL phiên bản cố định, healthy; `.env` bị ignore, `.env.example` được commit.
-- [ ] `./mvnw spring-boot:run -Dspring-boot.run.profiles=local` start thành công trên DB compose; `flyway_schema_history` có V1.
-- [ ] `./mvnw verify` xanh trên máy dev có Docker (context load, JPA validate, `ModularityTests`, web slice test của error model + security, health test).
-- [ ] `GET /actuator/health` → 200 không cần auth; `/actuator/env` → 404; `/api/**` không auth → 401 Problem Details.
-- [ ] Không còn `postgres:latest`; không secret nào trong file được commit.
-- [ ] README `apps/sino-api` có đúng các lệnh ở §13 và đã được chạy thử.
-- [ ] (Nếu D-07 = có) workflow CI xanh trên branch đã push.
-- [ ] Human giải thích được: luồng start (config → datasource → Flyway → JPA validate → Modulith), vì sao OSIV tắt, public API của một module là gì (Learning gate của TRAINING).
-- [ ] `tasks.md` tick đủ; chỗ làm khác kế hoạch được gạch và ghi lý do; `PROJECT_STATE.md` cập nhật.
+- [x] `docker compose up -d` chạy PostgreSQL phiên bản cố định, healthy; `.env` bị ignore, `.env.example` được commit. *(BE-01: `postgres:18` → 18.6, healthy)*
+- [x] `./mvnw spring-boot:run -Dspring-boot.run.profiles=local` start thành công trên DB compose; `flyway_schema_history` có V1. *(BE-02; BE-08: jar chạy profile `local` start trong ~4 giây, "Schema up to date")*
+- [x] `./mvnw verify` xanh trên máy dev có Docker (context load, JPA validate, `ModularityTests`, web slice test của error model + security, health test). *(30 test, BUILD SUCCESS)*
+- [x] `GET /actuator/health` → 200 không cần auth; ~~`/actuator/env` → 404~~ `/actuator/env` → 401 khi ẩn danh, 404 với user API (sửa ở BE-06); `/api/**` không auth → 401 Problem Details. *(BE-08: gọi bằng curl trên app thật)*
+- [x] Không còn `postgres:latest`; không secret nào trong file được commit. *(BE-08: `git grep` → 0; `.env` không bị track; không file nào được commit chứa mật khẩu thật)*
+- [x] README `apps/sino-api` có đúng các lệnh ở §13 và đã được chạy thử. *(BE-08)*
+- [x] (Nếu D-07 = có) workflow CI xanh trên branch đã push. *(run 36837841135)*
+- [x] ~~Human giải thích được: luồng start (config → datasource → Flyway → JPA validate → Modulith), vì sao OSIV tắt, public API của một module là gì (Learning gate của TRAINING).~~ **Không áp dụng:** từ 2026-10-01 mode là HYBRID và các task F01 chạy AUTO. Human có thể yêu cầu một buổi giải thích bất cứ lúc nào.
+- [x] `tasks.md` tick đủ; chỗ làm khác kế hoạch được gạch và ghi lý do; `PROJECT_STATE.md` cập nhật.
