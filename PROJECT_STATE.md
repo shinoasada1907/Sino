@@ -76,7 +76,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 ## Next task
 
-Phase 0 continues. Human decides **D-01** (recommended: F03 Provider Contract before F02). F03 needs **D-16** (`ProviderType` value object vs enum) and **D-18** (`GET /api/providers`); F02 needs D-10…D-14. Roadmap: `openspec/roadmap.md`.
+Phase 0 continues. The decision register (D-01…D-23) is in `openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md` (Open Questions); open items are repeated here. Human decides **D-01** (recommended: F03 Provider Contract before F02). F03 needs **D-16** (`ProviderType` value object vs enum) and **D-18** (`GET /api/providers`); F02 needs D-10…D-14. Roadmap: `openspec/roadmap.md`.
 
 ## Last working checkpoint
 

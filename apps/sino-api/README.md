@@ -60,7 +60,7 @@ Every error is an RFC 9457 problem response (`application/problem+json`) with a 
   "instance": "/api/accounts", "code": "UNAUTHORIZED" }
 ```
 
-The error code catalog is in `openspec/specs/api-conventions/spec.md` and in each feature's design.
+The error code catalog is in the F01 design (`openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`, section 8) and in each feature's design; the behaviour is specified in `openspec/specs/api-conventions/spec.md`.
 
 ## Test
 

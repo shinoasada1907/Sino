@@ -55,7 +55,7 @@ Luật từ Notion 03: F01–F03 làm **BE trước**; từ F04 trở đi mỗi 
 
 Mục tiêu: backend có nền móng vững, contract provider rõ, account được lưu an toàn. Chưa có provider thật, chưa có frontend.
 
-#### F01 — Project Foundation · `openspec/changes/be-f01-project-foundation` · ~L
+#### F01 — Project Foundation · ✅ DONE 2026-10-01 · `openspec/changes/archive/2026-10-01-be-f01-project-foundation` · ~L
 
 | Bước code | Task | Bạn sẽ học |
 |---|---|---|
@@ -205,6 +205,5 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 
 ## 5. Vị trí hiện tại
 
-- **Phase 0 → F01 → BE-01** trên nhánh `feature/be-f01-project-foundation`.
-- Cần làm trước: bật Docker Desktop.
+- **Phase 0:** F01 xong (2026-10-01, nhánh `dev`, CI xanh). Tiếp theo F03 hoặc F02, tùy **D-01**.
 - `PROJECT_STATE.md` là nơi ghi trạng thái thật; file này chỉ là bản đồ và được cập nhật khi xong mỗi phase.

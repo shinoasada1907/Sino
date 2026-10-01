@@ -1,7 +1,7 @@
 # F03 — Provider Contract · Technical Design
 
 > Mode: **TRAINING**. Trạng thái: DRAFT chờ Human review. Tương ứng 04D §6 (Provider Contract), §7 (API — providers), §14 (DoD F03).
-> Convention chung (module, error model, transaction, test) nằm ở `be-f01-project-foundation/design.md`.
+> Convention chung (module, error model, transaction, test) nằm ở `openspec/specs/` và design F01 đã archive (`openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`).
 
 ## Context
 
