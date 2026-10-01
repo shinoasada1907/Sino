@@ -23,7 +23,7 @@ Mọi request tới `/api/**` MUST được xác thực theo cơ chế chốt �
 - **THEN** request được chuyển tới handler và response không có header `Set-Cookie` tạo session
 
 ### Requirement: Lỗi theo RFC 9457 Problem Details
-Mọi lỗi từ API MUST có body Problem Details gồm `type`, `title`, `status`, `detail`, `instance` và extension `code` (UPPER_SNAKE_CASE, ổn định, dùng được cho frontend). Body lỗi MUST NOT chứa stack trace, tên class exception, câu SQL hay giá trị secret.
+Mọi lỗi từ API MUST có body Problem Details gồm `title`, `status`, `detail`, `instance` và extension `code` (UPPER_SNAKE_CASE, ổn định, dùng được cho frontend). `type` được bỏ qua khi bằng `about:blank`; RFC 9457 §3.1.1 quy định thiếu `type` nghĩa là `about:blank`, và đây là hành vi mặc định của Spring Framework 7. Body lỗi MUST NOT chứa stack trace, tên class exception, câu SQL hay giá trị secret.
 
 #### Scenario: Request body không hợp lệ theo validation
 - **WHEN** client gửi body vi phạm ràng buộc Bean Validation

@@ -62,7 +62,7 @@
     - Bổ sung so với kế hoạch: request ở `DispatcherType.ERROR` được cho qua, để response lỗi không bị biến thành 401/403.
     - Bằng chứng: `SecurityConfigTests` 4/4 (không credential → 401 kèm `WWW-Authenticate: Basic`; sai mật khẩu → 401; đúng → 200 và không tạo session; `/internal/probe` dù đã xác thực → 403). `ApiUserPropertiesTests` 3/3 (thiếu user → context fail; bind được; `toString()` không lộ mật khẩu). Toàn bộ `./mvnw test` 10/10. Chưa kiểm tra bằng curl trên app thật; body Problem Details của 401 làm ở BE-05.
 
-- [ ] 2.3 **BE-05 — Error model Problem Details + error code catalog**
+- [x] 2.3 **BE-05 — Error model Problem Details + error code catalog**
   - **Goal / Why:** frontend nhận một định dạng lỗi duy nhất có `code` ổn định; domain báo lỗi mà không biết HTTP.
   - **Depends:** BE-04 · D-21.
   - **Files:** `common/error/package-info.java` (`@NamedInterface("error")`), `common/error/ErrorCode.java`, `common/error/ErrorCategory.java`, `common/error/SinoException.java`, `common/web/GlobalExceptionHandler.java`, entry point + access denied handler trả Problem Details trong `common/security`, test controller trong test sources.
@@ -70,6 +70,11 @@
   - **Test:** web test cho từng scenario của requirement *Lỗi theo RFC 9457 Problem Details* (400 validation, 400 malformed, 404 domain, 404 route, 405, 415, 500 không lộ tên exception, 401 có `code`); `Content-Type` là `application/problem+json`; một response có `Instant` được serialize thành chuỗi ISO-8601 kết thúc bằng `Z`.
   - **AC:** requirement *Lỗi theo RFC 9457 Problem Details*, *Error code catalog*, *Quy ước JSON* (`api-conventions`).
   - **Gợi ý:** `ProblemDetail.setProperty`; các hook `handleMethodArgumentNotValid` / `handleExceptionInternal`; `NoResourceFoundException`; mặc định serialize ngày giờ của Jackson 3 — hãy kiểm chứng bằng test thay vì tin tutorial.
+  - **Ghi chú thực hiện (2026-10-01, AUTO, D-21 mặc định):**
+    - Public API (`@NamedInterface("error")`): `ErrorCode` (enum của module implement; code = tên hằng), `ErrorCategory` (NOT_FOUND 404, CONFLICT 409, INVALID 422, DEPENDENCY_UNAVAILABLE 503, RATE_LIMITED 429), `SinoException`. Nội bộ: `common/web/GlobalExceptionHandler` (kế thừa `ResponseEntityExceptionHandler`), `common/web/ProblemCodes`, `common/security/SecurityProblemHandler` (401/403 đi qua `HandlerExceptionResolver` nên cùng định dạng).
+    - ~~Response luôn có `type: about:blank`~~ → `type` không xuất hiện. **LÝ DO:** test lần đầu fail `No value at JSON path "$.type"`. Mã nguồn Spring Framework 7.0.9 cho thấy `ProblemDetail.type` mặc định là `null`, và mixin `@JsonInclude(NON_EMPTY)` bỏ qua trường null. RFC 9457 §3.1.1 cho phép (thiếu `type` nghĩa là `about:blank`). Đã sửa spec `api-conventions` và design §8.
+    - Phát sinh: thêm `ApiSecurityTestConfiguration` (test sources) để test ở package khác nạp được `SecurityConfig` mà không phải mở nó thành public.
+    - Bằng chứng: `GlobalExceptionHandlerTests` 12/12 (400 validation có `errors`, 400 JSON hỏng, 404 do module, 422, 404 đường dẫn, 405, 415, 409 optimistic lock, 500 không lộ tên exception hay message, 401/403 dạng `application/problem+json` có `code`, `Instant` ra `2026-10-01T00:00:00Z`). Toàn bộ `./mvnw test` 22/22.
 
 ## 3. Vận hành
 

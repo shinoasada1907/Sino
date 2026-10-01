@@ -9,11 +9,11 @@
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01)
 - Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: BE-05 — Problem Details error model + error code catalog
+- Current task: BE-06 — Actuator health baseline + safe logging
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: BE-04 DONE and committed on `dev`; BE-05 next
+- Current state: BE-05 DONE and committed on `dev`; BE-06 next
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -29,6 +29,7 @@
 | BE-02 V1 migration + local run checks (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/resources/db/migration/V1__modulith_create_event_publication.sql` | 2026-09-30 |
 | BE-03 ModularityTests + module conventions (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/test/java/dev/sino/ModularityTests.java`, `apps/sino-api/README.md` | 2026-10-01 |
 | BE-04 security baseline, D-02 A (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/common/**`, `application.yaml`, `application-test.yaml`, `.env.example`, `TestSinoApiApplication.java`, `src/test/java/dev/sino/common/security/**` | 2026-10-01 |
+| BE-05 Problem Details error model, D-21 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/common/error/**`, `.../common/web/**`, `.../common/security/SecurityProblemHandler.java`, `SecurityConfig.java`, `src/test/java/dev/sino/common/web/GlobalExceptionHandlerTests.java`, `ApiSecurityTestConfiguration.java`, spec `api-conventions`, design §8 | 2026-10-01 |
 
 ## Completed work
 
@@ -63,10 +64,11 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - 2026-10-01 BE-02: without V1 `./mvnw test` → red `Schema validation: missing table [event_publication]`; with V1 → BUILD SUCCESS (1 test, `Successfully applied 1 migration`). `spring-boot:run` profile `local` (web off) → run 1 applied V1 and started in 8.6 s, run 2 `Schema "public" is up to date` (this also exercises D-23 through `main`). Compose DB has `event_publication` and `flyway_schema_history` (V1 success). No profile and no env → fails at bean `dataSource`: `'url' must start with "jdbc"`.
 - 2026-10-01 BE-03: `./mvnw test -Dtest=ModularityTests` → 2/2 green, docs in `target/spring-modulith-docs`. Temporary violation (`demob` → `demoa.internal.Hidden`) → red with `Module 'demob' depends on non-exposed type dev.sino.demoa.internal.Hidden within module 'demoa'!`; removed, green again. Full `./mvnw test` → 3/3, BUILD SUCCESS.
 - 2026-10-01 BE-04: `SecurityConfigTests` 4/4 (401 without credentials + `WWW-Authenticate: Basic`, 401 wrong password, 200 valid without session, 403 for `/internal/**` even when authenticated), `ApiUserPropertiesTests` 3/3, full `./mvnw test` 10/10 BUILD SUCCESS. Not checked with curl against a running app; `spring-boot:test-run` after the `TestSinoApiApplication` change NOT run.
+- 2026-10-01 BE-05: first run 21/22 (`No value at JSON path "$.type"`). Spring 7.0.9 sources show `ProblemDetail.type` defaults to null and is omitted (`NON_EMPTY`), as RFC 9457 §3.1.1 allows; spec and design updated. Then `GlobalExceptionHandlerTests` 12/12, full `./mvnw test` 22/22 BUILD SUCCESS.
 
 ## Next task
 
-BE-05 — Problem Details error model + error code catalog (D-21 proposed default: `ErrorCode` + category). Then BE-06 actuator, BE-07 CI, BE-08 README. Roadmap: `openspec/roadmap.md`.
+BE-06 — Actuator health baseline (health/liveness/readiness public, readiness includes DB, only health+info exposed, `modulith` in `local`) + safe logging test. Then BE-07 CI (D-07 default: yes), BE-08 README. Roadmap: `openspec/roadmap.md`.
 
 ## Last working checkpoint
 

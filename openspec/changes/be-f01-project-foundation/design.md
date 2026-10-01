@@ -221,7 +221,6 @@ Response lỗi (RFC 9457, `Content-Type: application/problem+json`):
 
 ```json
 {
-  "type": "about:blank",
   "title": "Bad Request",
   "status": 400,
   "detail": "Request validation failed",
@@ -232,9 +231,9 @@ Response lỗi (RFC 9457, `Content-Type: application/problem+json`):
 ```
 
 - `code` là khóa ổn định cho frontend; `title`/`detail` chỉ để người đọc.
-- `type` để `about:blank` trong MVP (chưa có trang tài liệu lỗi).
+- ~~`type` để `about:blank`~~ → `type` **không xuất hiện** trong response. **LÝ DO (phát hiện ở BE-05):** từ Spring Framework 7, `ProblemDetail.type` mặc định là `null` và bị bỏ qua khi serialize; theo RFC 9457 §3.1.1, thiếu `type` nghĩa là `about:blank`. Frontend dựa vào `code`.
 
-**D-21 — Cách domain báo lỗi** · *Proposed default*: `common.error` export một interface `ErrorCode` (`code()`, `category()`) và exception gốc `SinoException(ErrorCode, message)`. Mỗi module định nghĩa enum code riêng implement `ErrorCode` (ví dụ `AccountErrorCode.ACCOUNT_NOT_FOUND`). `GlobalExceptionHandler` (trong `common.web`, kế thừa `ResponseEntityExceptionHandler`) map **category → HTTP status**, nên domain không biết HTTP.
+**D-21 — Cách domain báo lỗi** · **Accepted (mặc định, làm ở BE-05)**: `common.error` export một interface `ErrorCode` (`code()`, `category()`) và exception gốc `SinoException(ErrorCode, message)`. Mỗi module định nghĩa enum code riêng implement `ErrorCode` (ví dụ `AccountErrorCode.ACCOUNT_NOT_FOUND`). `GlobalExceptionHandler` (trong `common.web`, kế thừa `ResponseEntityExceptionHandler`) map **category → HTTP status**, nên domain không biết HTTP.
 
 | Category | HTTP |
 |---|---|
@@ -259,6 +258,8 @@ Phương án khác: mỗi category một class exception (`NotFoundException`, `
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | |
 | `CONCURRENT_MODIFICATION` | 409 | Optimistic locking fail |
 | `INTERNAL_ERROR` | 500 | Exception không được map (log đầy đủ phía server) |
+
+Lỗi Spring MVC không có trong bảng (ví dụ 406) nhận `code` bằng tên `HttpStatus` (`NOT_ACCEPTABLE`). 401/403 từ security đi qua cùng handler (`SecurityProblemHandler` chuyển cho `HandlerExceptionResolver`), nên có cùng định dạng.
 
 F02/F03 bổ sung code của mình vào catalog trong design tương ứng.
 
@@ -362,7 +363,7 @@ Decision register F01–F03. Mục "Cần trước" cho biết task nào bị ch
 | D-18 | Thêm `GET /api/providers` | Decision Needed | F03 design | BE-25 |
 | D-19 | Capability tĩnh theo provider | Proposed default | F03 design | BE-19 |
 | D-20 | Vị trí enum chuẩn hóa | Proposed default | F03 design | BE-20 |
-| D-21 | Cách domain báo lỗi (ErrorCode + category) | Proposed default | F01 §8 | BE-05 |
+| D-21 | Cách domain báo lỗi (ErrorCode + category) | **Accepted** | F01 §8 | BE-05 (đã làm) |
 | D-22 | Xác thực cho trình duyệt (thay HTTP Basic) | Decision Needed | `openspec/roadmap.md` | Phase 1 (FE nền), trước F08 |
 | D-23 | JVM chạy ở UTC | **Accepted** (A) | F01 §3 | BE-01 (đã làm) |
 
