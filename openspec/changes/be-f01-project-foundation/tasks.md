@@ -78,7 +78,7 @@
 
 ## 3. Vận hành
 
-- [ ] 3.1 **BE-06 — Actuator health baseline + logging an toàn**
+- [x] 3.1 **BE-06 — Actuator health baseline + logging an toàn**
   - **Goal / Why:** có health/liveness/readiness cho vận hành, không lộ endpoint nhạy cảm, log không chứa secret.
   - **Depends:** BE-04, BE-05.
   - **Files:** `application.yaml`, `application-local.yaml` (expose thêm `modulith`), test `src/test/java/dev/sino/common/ActuatorEndpointsTests.java` (hoặc tên tương đương).
@@ -86,6 +86,11 @@
   - **Test:** full-context test: health/liveness/readiness 200 không auth, body không có `components`; `/actuator/env` → 404; request có `Authorization` → output log không chứa giá trị header. Kiểm tra tay (ghi kết quả vào PR/commit): dừng container DB khi app đang chạy → readiness 503, liveness 200.
   - **AC:** toàn bộ requirement của `operational-health`.
   - **Gợi ý:** `OutputCaptureExtension`; health group; vì sao liveness **không** nên phụ thuộc DB.
+  - **Ghi chú thực hiện (2026-10-01, AUTO):**
+    - Cấu hình: chỉ expose `health,info` (profile `local` thêm `modulith`); bật probes; `show-details: when-authorized`; nhóm readiness = `readinessState,db`.
+    - ~~Spec: gọi `/actuator/env` → 404~~ → chưa xác thực **401**, đã xác thực **404**; thêm luật security `/actuator/**` cần user API. **LÝ DO:** luật `denyAll` của BE-04 chặn request trước khi tới actuator nên không bao giờ ra 404. Luật mới cũng giúp xem `/actuator/modulith` ở profile `local`. Đã sửa spec `operational-health` và design.
+    - ~~Kiểm tra tay bằng cách dừng container DB~~ → test tự động `ReadinessWhenDatabaseIsDownTests` thay health indicator `db` bằng bản giả luôn báo DOWN. **LÝ DO:** lặp lại được, không đụng DB local của Human.
+    - Bằng chứng: `ActuatorEndpointsTests` 5/5 (health 200 không có `components` khi ẩn danh; user API thấy `components.db` UP; liveness và readiness 200; chỉ expose `health`, `info`; `/actuator/env|configprops|heapdump` → 401 rồi 404). `ReadinessWhenDatabaseIsDownTests` 1/1 (readiness 503 DOWN, liveness 200 UP). `GlobalExceptionHandlerTests` thêm 2 test log (lỗi 500 được log kèm method và path nhưng không có mật khẩu hay token Basic; credential bị từ chối không xuất hiện trong log). Toàn bộ `./mvnw test` 30/30.
 
 - [ ] 3.2 **BE-07 — GitHub Actions cho backend** *(chỉ làm nếu D-07 = có)*
   - **Goal / Why:** mỗi push/PR chạy `./mvnw verify` để bắt lỗi boundary/migration/test sớm.

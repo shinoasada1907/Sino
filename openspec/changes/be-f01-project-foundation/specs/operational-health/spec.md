@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Health, liveness và readiness công khai
-`/actuator/health`, `/actuator/health/liveness` và `/actuator/health/readiness` MUST truy cập được không cần xác thực và MUST NOT hiển thị chi tiết component cho client chưa xác thực.
+`/actuator/health`, `/actuator/health/liveness` và `/actuator/health/readiness` MUST truy cập được không cần xác thực và MUST NOT hiển thị chi tiết component cho client chưa xác thực. User API đã xác thực MAY xem chi tiết component để chẩn đoán.
 
 #### Scenario: Kiểm tra health khi hệ thống ổn
 - **WHEN** client chưa xác thực gọi `/actuator/health`
@@ -17,9 +17,13 @@ Readiness MUST bao gồm trạng thái kết nối database; liveness MUST NOT p
 ### Requirement: Chỉ expose endpoint Actuator cần thiết
 Qua HTTP, Actuator MUST chỉ expose `health` và `info` ở mọi profile trừ `local`; profile `local` MAY expose thêm `modulith` để quan sát cấu trúc module.
 
-#### Scenario: Gọi endpoint nhạy cảm
-- **WHEN** client gọi `/actuator/env`, `/actuator/configprops` hoặc `/actuator/heapdump`
-- **THEN** response là `404`
+#### Scenario: Gọi endpoint nhạy cảm khi chưa xác thực
+- **WHEN** client chưa xác thực gọi `/actuator/env`, `/actuator/configprops` hoặc `/actuator/heapdump`
+- **THEN** response là `401`
+
+#### Scenario: Gọi endpoint nhạy cảm khi đã xác thực
+- **WHEN** user API đã xác thực gọi `/actuator/env`, `/actuator/configprops` hoặc `/actuator/heapdump`
+- **THEN** response là `404`, vì các endpoint này không được expose qua HTTP
 
 ### Requirement: Log không chứa secret
 Log MUST NOT chứa giá trị header `Authorization`, mật khẩu, access/refresh token, encryption key hay bind parameter SQL. Logging bind parameter của Hibernate MUST NOT được bật trong file cấu hình được commit.

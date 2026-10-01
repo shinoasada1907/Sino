@@ -16,6 +16,23 @@ spring:
     problemdetails:
       enabled: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # Everything else (env, configprops, heapdump...) stays unreachable over HTTP.
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      # Anonymous callers only see the overall status; the API user also sees the components.
+      show-details: when-authorized
+      group:
+        readiness:
+          # Ready only when the database answers. Liveness deliberately ignores the database.
+          include: readinessState,db
+
 sino:
   security:
     api-user:

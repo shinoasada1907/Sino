@@ -1,5 +1,6 @@
 package dev.sino.common.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
@@ -15,13 +16,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -43,6 +49,7 @@ import dev.sino.common.security.ApiSecurityTestConfiguration;
 @WebMvcTest
 @Import({ ApiSecurityTestConfiguration.class, GlobalExceptionHandlerTests.ErrorProbeController.class })
 @ActiveProfiles("test")
+@ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerTests {
 
     @Autowired
@@ -143,6 +150,24 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void unexpectedErrorIsLoggedWithoutTheCredentials(CapturedOutput output) throws Exception {
+        mvc.perform(get("/api/probe/boom").with(apiUser())).andExpect(status().isInternalServerError());
+
+        assertThat(output).contains("Unhandled exception for GET /api/probe/boom")
+                .doesNotContain("test-password")
+                .doesNotContain(basicToken("test-user", "test-password"));
+    }
+
+    @Test
+    void rejectedCredentialsAreNotLogged(CapturedOutput output) throws Exception {
+        mvc.perform(get("/api/probe/things/1").with(httpBasic("test-user", "Wr0ng-Secret-Value")))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(output).doesNotContain("Wr0ng-Secret-Value")
+                .doesNotContain(basicToken("test-user", "Wr0ng-Secret-Value"));
+    }
+
+    @Test
     void instantIsWrittenAsIsoStringInUtc() throws Exception {
         mvc.perform(get("/api/probe/time").with(apiUser()))
                 .andExpect(status().isOk())
@@ -151,6 +176,10 @@ class GlobalExceptionHandlerTests {
 
     private static RequestPostProcessor apiUser() {
         return httpBasic("test-user", "test-password");
+    }
+
+    private static String basicToken(String username, String password) {
+        return Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8));
     }
 
     enum ProbeErrorCode implements ErrorCode {

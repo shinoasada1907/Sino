@@ -9,6 +9,13 @@ spring:
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # `modulith` shows the module structure at runtime (API user required).
+        include: health,info,modulith
+
 logging:
   level:
     dev.sino: DEBUG

@@ -141,7 +141,7 @@ Thuộc tính chính (`application.yaml`):
 | `spring.mvc.problemdetails.enabled` | `true` | RFC 9457 cho lỗi của Spring MVC |
 | `management.endpoints.web.exposure.include` | `health,info` | Tối thiểu |
 | `management.endpoint.health.probes.enabled` | `true` | liveness/readiness |
-| `management.endpoint.health.show-details` | `never` (có thể `when-authorized`) | Không lộ chi tiết |
+| `management.endpoint.health.show-details` | `when-authorized` (chốt ở BE-06) | Ẩn danh chỉ thấy trạng thái tổng; user API thấy từng component để chẩn đoán |
 | `management.endpoint.health.group.readiness.include` | `readinessState,db` | Readiness phản ánh DB |
 | ~~`spring.security.user.name/password`~~ → `sino.security.api-user.username/password` | `${SINO_API_USERNAME:}` / `${SINO_API_PASSWORD:}` | D-02 A. **Đổi khi làm BE-04:** khi thiếu biến môi trường, Boot giữ nguyên chuỗi `${...}` và dùng nó làm mật khẩu (credential đoán được). Properties riêng có `@NotBlank` cùng giá trị mặc định rỗng khiến app không start khi thiếu biến |
 
@@ -273,7 +273,7 @@ F02/F03 bổ sung code của mình vào catalog trong design tương ứng.
 
 ### Security baseline (phần F01 của 04D §9)
 
-- `SecurityFilterChain` trong `common.security`: `/actuator/health/**`, `/actuator/info` public; `/api/**` authenticated; còn lại `denyAll`.
+- `SecurityFilterChain` trong `common.security`: `/actuator/health/**`, `/actuator/info` public; các `/actuator/**` khác cần user API (endpoint không expose sẽ trả 404 sau khi xác thực; thêm ở BE-06); `/api/**` authenticated; còn lại `denyAll`.
 - Stateless (`SessionCreationPolicy.STATELESS`), không form login, không redirect.
 - 401/403 trả Problem Details (custom `AuthenticationEntryPoint` + `AccessDeniedHandler`).
 - Chưa cấu hình CORS (chưa có frontend gọi API); thêm khi làm tích hợp FE.

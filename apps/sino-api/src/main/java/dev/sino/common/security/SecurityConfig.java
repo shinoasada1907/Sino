@@ -29,6 +29,8 @@ class SecurityConfig {
                         // Let error responses through instead of turning them into 401/403.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                        // Other actuator endpoints need the API user; unexposed ones then answer 404.
+                        .requestMatchers("/actuator/**").authenticated()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 .httpBasic(basic -> basic.authenticationEntryPoint(problemHandler))
