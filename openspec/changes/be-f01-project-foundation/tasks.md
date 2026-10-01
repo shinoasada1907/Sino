@@ -37,7 +37,7 @@
 
 ## 2. Boundary và convention
 
-- [ ] 2.1 **BE-03 — Module verification test (`ModularityTests`) + convention public API**
+- [x] 2.1 **BE-03 — Module verification test (`ModularityTests`) + convention public API**
   - **Goal / Why:** mọi task sau được lưới boundary bảo vệ ngay từ đầu.
   - **Depends:** BE-02 · **D-03** (chốt cách export public API).
   - **Files:** `src/test/java/dev/sino/ModularityTests.java`; mục "Module conventions" trong `apps/sino-api/README.md` (tạo sơ bộ, hoàn thiện ở BE-08).
@@ -45,6 +45,7 @@
   - **Test:** `./mvnw test -Dtest=ModularityTests` xanh. Thí nghiệm (không commit): tạo hai package module giả phụ thuộc vòng hoặc truy cập package nội bộ của nhau → quan sát test fail và đọc thông báo → xóa.
   - **AC:** requirement *Kiểm tra boundary tự động trong mọi build*, *Business module là package con trực tiếp của `dev.sino`*.
   - **Gợi ý:** Spring Modulith reference: "Verifying Application Module Structure", "Named Interfaces", `allowedDependencies`.
+  - **Ghi chú thực hiện (2026-10-01, AUTO):** `ModularityTests` có 2 test: `verify()` và `Documenter.writeDocumentation()` (xuất ra `target/spring-modulith-docs`). README có mục "Module conventions" theo D-03 = A. Bằng chứng: test xanh (2/2). Thí nghiệm với module tạm `demob` → `demoa.internal` cho ĐỎ: `Module 'demob' depends on non-exposed type dev.sino.demoa.internal.Hidden within module 'demoa'!`. Đã xóa code thí nghiệm, test xanh lại. Toàn bộ `./mvnw test` xanh (3/3).
 
 - [ ] 2.2 **BE-04 — Security baseline**
   - **Goal / Why:** thay mật khẩu tự sinh bằng chính sách rõ ràng: health public, `/api/**` cần xác thực, còn lại từ chối.

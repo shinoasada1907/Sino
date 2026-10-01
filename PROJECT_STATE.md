@@ -9,11 +9,11 @@
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01)
 - Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: BE-03 — `ModularityTests` + module public API convention (ready; D-03 = A)
+- Current task: BE-04 — security baseline (blocked on **D-02**)
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: BE-02 DONE and committed on `dev`; BE-03 next
+- Current state: BE-03 DONE and committed on `dev`; BE-04 waits for D-02
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -27,6 +27,7 @@
 | BE-01 steps 3-4 + D-23 timezone fix (branch `dev`) — Human ran compose; Claude made the D-23 fix and the tag change on explicit request | CLAUDE | HUMAN | TRAINING | DONE | `apps/sino-api/src/test/java/dev/sino/TestcontainersConfiguration.java`, `apps/sino-api/src/main/java/dev/sino/SinoApiApplication.java`, `apps/sino-api/pom.xml` | 2026-09-30 |
 | BE-02 config (branch `dev`) | CLAUDE | HUMAN | TRAINING → HYBRID | DONE | `apps/sino-api/src/main/resources/application.yaml`, `apps/sino-api/src/main/resources/application-local.yaml`, `apps/sino-api/src/test/resources/application-test.yaml`, `apps/sino-api/src/test/java/dev/sino/SinoApiApplicationTests.java` (`@ActiveProfiles("test")`) | 2026-09-30 |
 | BE-02 V1 migration + local run checks (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/resources/db/migration/V1__modulith_create_event_publication.sql` | 2026-09-30 |
+| BE-03 ModularityTests + module conventions (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/test/java/dev/sino/ModularityTests.java`, `apps/sino-api/README.md` | 2026-10-01 |
 
 ## Completed work
 
@@ -59,10 +60,11 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - 2026-09-30 `openspec validate --all --strict` → 3 passed, 0 failed.
 - 2026-09-30 BE-01: `docker compose ps` → `sino-api-postgres-1` Up (healthy), `127.0.0.1:5432`; `select version()` → PostgreSQL 18.6; volume `sino-api_pgdata`, `PGDATA=/var/lib/postgresql/18/docker`. `./mvnw test` with `-DargLine=` reproduced `FATAL: invalid value for parameter "TimeZone": "Asia/Saigon"`; with the D-23 fix → BUILD SUCCESS (1 test); after pinning Testcontainers to `postgres:18` → BUILD SUCCESS (1 test). App runtime through `main` NOT separately verified (the user declined the extra check; BE-02 will exercise it).
 - 2026-10-01 BE-02: without V1 `./mvnw test` → red `Schema validation: missing table [event_publication]`; with V1 → BUILD SUCCESS (1 test, `Successfully applied 1 migration`). `spring-boot:run` profile `local` (web off) → run 1 applied V1 and started in 8.6 s, run 2 `Schema "public" is up to date` (this also exercises D-23 through `main`). Compose DB has `event_publication` and `flyway_schema_history` (V1 success). No profile and no env → fails at bean `dataSource`: `'url' must start with "jdbc"`.
+- 2026-10-01 BE-03: `./mvnw test -Dtest=ModularityTests` → 2/2 green, docs in `target/spring-modulith-docs`. Temporary violation (`demob` → `demoa.internal.Hidden`) → red with `Module 'demob' depends on non-exposed type dev.sino.demoa.internal.Hidden within module 'demoa'!`; removed, green again. Full `./mvnw test` → 3/3, BUILD SUCCESS.
 
 ## Next task
 
-BE-03 — `ModularityTests` + module public API convention (D-03 = A accepted 2026-10-01: base package + `@NamedInterface`, layer packages internal). Then BE-04 needs **D-02**. Roadmap: `openspec/roadmap.md`.
+BE-04 — security baseline. Needs **D-02** (recommended A: one configured user + HTTP Basic, stateless, health public; interim until D-22 at Phase 1). Then BE-05 error model, BE-06 actuator, BE-07 CI, BE-08 README. Roadmap: `openspec/roadmap.md`.
 
 ## Last working checkpoint
 
