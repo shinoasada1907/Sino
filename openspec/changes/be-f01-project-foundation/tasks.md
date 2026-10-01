@@ -47,7 +47,7 @@
   - **Gợi ý:** Spring Modulith reference: "Verifying Application Module Structure", "Named Interfaces", `allowedDependencies`.
   - **Ghi chú thực hiện (2026-10-01, AUTO):** `ModularityTests` có 2 test: `verify()` và `Documenter.writeDocumentation()` (xuất ra `target/spring-modulith-docs`). README có mục "Module conventions" theo D-03 = A. Bằng chứng: test xanh (2/2). Thí nghiệm với module tạm `demob` → `demoa.internal` cho ĐỎ: `Module 'demob' depends on non-exposed type dev.sino.demoa.internal.Hidden within module 'demoa'!`. Đã xóa code thí nghiệm, test xanh lại. Toàn bộ `./mvnw test` xanh (3/3).
 
-- [ ] 2.2 **BE-04 — Security baseline**
+- [x] 2.2 **BE-04 — Security baseline**
   - **Goal / Why:** thay mật khẩu tự sinh bằng chính sách rõ ràng: health public, `/api/**` cần xác thực, còn lại từ chối.
   - **Depends:** BE-02 · **D-02**.
   - **Files:** `src/main/java/dev/sino/common/package-info.java` (module `common`, không dependency), `src/main/java/dev/sino/common/security/SecurityConfig.java`, `application.yaml` / `application-test.yaml` / `.env.example` (thông tin user API nếu D-02 = A), controller thử nghiệm trong **test sources** dưới `/api/...`.
@@ -55,6 +55,12 @@
   - **Test:** web test với controller thử: không credential → 401; sai mật khẩu → 401; đúng → 200 và không có `Set-Cookie`; đường dẫn ngoài `/api` và actuator → bị từ chối.
   - **AC:** requirement *`/api/**` yêu cầu xác thực* (phần status code; body Problem Details hoàn thiện ở BE-05).
   - **Gợi ý:** Security 7 chỉ còn lambda DSL; `SessionCreationPolicy.STATELESS`; `@WebMvcTest` không tự nạp `SecurityFilterChain` của bạn — cần import config.
+  - **Ghi chú thực hiện (2026-10-01, AUTO, D-02 = A):**
+    - Đã làm: `common/package-info.java` (`allowedDependencies = {}`; đã kiểm tra rằng mảng rỗng tường minh nghĩa là không phụ thuộc module nào, vì mặc định là `OPEN_TOKEN`), `common/security/SecurityConfig.java`, `common/security/ApiUserProperties.java`, `.env.example`, `application.yaml`, `application-test.yaml`.
+    - ~~Dùng `spring.security.user.*`~~ → `sino.security.api-user.*` có `@NotBlank`. **LÝ DO:** khi thiếu biến môi trường, Boot giữ nguyên chuỗi `${SINO_API_PASSWORD}` và dùng nó làm mật khẩu, tức là một credential đoán được. Thiếu biến giờ khiến app không start. `toString()` che mật khẩu.
+    - Phát sinh: `TestSinoApiApplication` bật thêm profile `test`, để `spring-boot:test-run` vẫn chạy được (profile này cung cấp user giả). Lệnh `test-run` chưa được chạy thử sau thay đổi này.
+    - Bổ sung so với kế hoạch: request ở `DispatcherType.ERROR` được cho qua, để response lỗi không bị biến thành 401/403.
+    - Bằng chứng: `SecurityConfigTests` 4/4 (không credential → 401 kèm `WWW-Authenticate: Basic`; sai mật khẩu → 401; đúng → 200 và không tạo session; `/internal/probe` dù đã xác thực → 403). `ApiUserPropertiesTests` 3/3 (thiếu user → context fail; bind được; `toString()` không lộ mật khẩu). Toàn bộ `./mvnw test` 10/10. Chưa kiểm tra bằng curl trên app thật; body Problem Details của 401 làm ở BE-05.
 
 - [ ] 2.3 **BE-05 — Error model Problem Details + error code catalog**
   - **Goal / Why:** frontend nhận một định dạng lỗi duy nhất có `code` ổn định; domain báo lỗi mà không biết HTTP.

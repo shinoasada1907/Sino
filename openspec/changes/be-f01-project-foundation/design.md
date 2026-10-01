@@ -143,7 +143,7 @@ Thuộc tính chính (`application.yaml`):
 | `management.endpoint.health.probes.enabled` | `true` | liveness/readiness |
 | `management.endpoint.health.show-details` | `never` (có thể `when-authorized`) | Không lộ chi tiết |
 | `management.endpoint.health.group.readiness.include` | `readinessState,db` | Readiness phản ánh DB |
-| `spring.security.user.name/password` | `${SINO_API_USERNAME}` / `${SINO_API_PASSWORD}` | Chỉ khi D-02 chọn phương án A |
+| ~~`spring.security.user.name/password`~~ → `sino.security.api-user.username/password` | `${SINO_API_USERNAME:}` / `${SINO_API_PASSWORD:}` | D-02 A. **Đổi khi làm BE-04:** khi thiếu biến môi trường, Boot giữ nguyên chuỗi `${...}` và dùng nó làm mật khẩu (credential đoán được). Properties riêng có `@NotBlank` cùng giá trị mặc định rỗng khiến app không start khi thiếu biến |
 
 Biến môi trường (`.env.example`, dùng chung cho Docker Compose và profile `local`):
 
@@ -156,7 +156,7 @@ Biến môi trường (`.env.example`, dùng chung cho Docker Compose và profil
 
 Custom property của Sino dùng prefix `sino.*`, bind bằng `@ConfigurationProperties` (record) + `@Validated` để fail-fast; `spring-boot-configuration-processor` đã có sẵn để sinh metadata.
 
-**Decision D-02 — Người dùng Sino và bảo vệ API ở MVP** · *Decision Needed (trước BE-04)*
+**Decision D-02 — Người dùng Sino và bảo vệ API ở MVP** · **Accepted: A** (2026-10-01)
 
 | Phương án | Mô tả | Ưu | Nhược |
 |---|---|---|---|
@@ -343,7 +343,7 @@ Decision register F01–F03. Mục "Cần trước" cho biết task nào bị ch
 | ID | Chủ đề | Loại | Nằm ở | Cần trước |
 |---|---|---|---|---|
 | D-01 | Thứ tự F02/F03 | Decision Needed | F03 design | bắt đầu F02 |
-| D-02 | Xác thực người dùng Sino / bảo vệ API | Decision Needed | F01 §3 | BE-04 |
+| D-02 | Xác thực người dùng Sino / bảo vệ API | **Accepted** (A) | F01 §3 | BE-04 (đã làm) |
 | D-03 | Public API của module | **Accepted** (A) | F01 §2 | BE-03 |
 | D-04 | Giữ Event Publication Registry từ F01 | Proposed default | F01 §4 | BE-02 |
 | D-05 | Cách chạy DB local | Proposed default | F01 §3 | BE-01 |

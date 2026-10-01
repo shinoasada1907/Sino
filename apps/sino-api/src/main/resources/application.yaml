@@ -15,3 +15,10 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+
+sino:
+  security:
+    api-user:
+      # D-02 A. The empty default turns a missing variable into a validation error at startup.
+      username: ${SINO_API_USERNAME:}
+      password: ${SINO_API_PASSWORD:}

@@ -4,3 +4,9 @@
 spring:
   application:
     name: sino-api
+
+sino:
+  security:
+    api-user:
+      username: test-user
+      password: test-password
