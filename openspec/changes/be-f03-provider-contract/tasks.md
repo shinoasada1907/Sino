@@ -1,6 +1,6 @@
 # F03 — Provider Contract · Implementation Plan
 
-> **TRAINING mode:** Human viết code; AI review/test. **Hướng làm** = Level 2, **Gợi ý** = Level 1; code tham khảo chỉ khi yêu cầu rõ.
+> **HYBRID mode (từ 2026-10-01):** mặc định AUTO — Claude làm từng task nhỏ, kiểm chứng, báo lại rồi dừng. Task nào Human nhận ("để tôi làm BE-xx") thì chạy TRAINING: Human code theo **Hướng làm** (Level 2) và **Gợi ý** (Level 1), Claude review/test.
 > Phụ thuộc: F01 hoàn tất. Thứ tự so với F02 theo **D-01**. Một task = một commit logic, `./mvnw verify` xanh trước khi sang task sau.
 > Chặn: không bắt đầu trước `APPROVED TO IMPLEMENT`.
 

@@ -24,7 +24,8 @@ context: |
   Source-of-truth order when docs conflict (Notion): 01 Functional Requirements > 02/02A/02B/02C System Design >
   04A Backend Constraints > 04B Planning Instructions > 03 Roadmap > existing code.
 
-  Working mode: TRAINING (see project-mode.yaml). The human implements; the AI mentors, reviews and tests.
+  Working mode: HYBRID (see project-mode.yaml). Default AUTO: the AI implements one small task at a time,
+  verifies it and reports. Any task the human claims runs in TRAINING (human codes, AI hints/reviews).
   Design decisions that are not already fixed by the docs belong to the human and are written as
   "Decision Needed" with options, trade-offs and a recommendation.
   Documentation language: Vietnamese prose, English technical terms and identifiers.
@@ -37,4 +38,4 @@ rules:
     - Mark doc conflicts as "Conflict" with the source pages and the resolution rule used.
   tasks:
     - Each task is small enough to implement and test on its own and lists Goal, Acceptance criteria, Test, Depends on and Hints.
-    - Hints follow TRAINING levels (Level 1 hint, Level 2 direction); never include complete implementation code.
+    - Hints follow TRAINING levels (Level 1 hint, Level 2 direction) so the human can take any task over; keep complete implementation code out of tasks.md.

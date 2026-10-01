@@ -1,5 +1,15 @@
-# Operating mode for the Sino project (selected by the user on 2026-09-30).
+# Operating mode for the Sino project.
+# 2026-09-30: TRAINING (initial choice). 2026-10-01: switched to HYBRID at the user's request.
 # Operating modes: AUTO | TRAINING | HYBRID
-mode: TRAINING
-# Only used when mode is HYBRID.
-areas: {}
+mode: HYBRID
+# Areas not listed below follow `default`.
+default: AUTO
+areas:
+  backend: AUTO           # Claude implements one small task at a time, verifies, reports, then waits
+  frontend: AUTO
+  config-devops: AUTO     # yaml, compose, env files, pom configuration, CI
+  docs: AUTO              # OpenSpec tasks/spec upkeep, PROJECT_STATE
+  architecture: TRAINING  # "Decision Needed" items: Claude proposes options + recommendation, the user decides
+# Task-level override: when the user says they will code a task themselves ("để tôi làm BE-xx"),
+# that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
+task_overrides: {}
