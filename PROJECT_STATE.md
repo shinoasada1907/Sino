@@ -77,7 +77,13 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 ## Next task
 
-F03 in TRAINING (user codes, Claude explains/reviews/runs tests). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. Current: BE-19. The decision register (D-01…D-23) is in `openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`. F02 still needs D-10…D-14.
+F03 in TRAINING (user codes, Claude explains/reviews/runs tests). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. Current: BE-19.
+
+BE-19 guidance already given to the user (2026-10-01), who is typing it in `apps/sino-api/src/main/java/dev/sino/provider/`:
+- `ProviderCapability` — public enum with the 7 capabilities READ_MESSAGES, SEND_MESSAGES, ATTACHMENTS, MARK_READ, REACTIONS, PUSH_WEBHOOK, THREADS (Javadoc per constant).
+- `ProviderType` — `public record ProviderType(String value)`; compact constructor: `requireNonNull`, `trim().toLowerCase(Locale.ROOT)`, must match `[a-z][a-z0-9-]{1,31}` else `IllegalArgumentException`; `static of(String)`; `toString()` returns the value.
+- Self-check questions asked: value of `of(" GMAIL ")`, `==` vs `equals`, why validate in the constructor.
+- Next when the user reports `.\mvnw.cmd compile` green: review both files, then guide `ProviderCapabilities` (immutable `EnumSet` copy, `supports`, `require`) and the user's first JUnit tests (`ProviderTypeTests`, `ProviderCapabilitiesTests`), then run `ModularityTests` (new module `provider`). The decision register (D-01…D-23) is in `openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`. F02 still needs D-10…D-14.
 
 ## Last working checkpoint
 
