@@ -19,7 +19,10 @@
 
 ## 2. Contract dữ liệu
 
-- [ ] 2.1 **BE-20 — Kiểu chuẩn hóa + enum + validation + `SkippedItem`**
+- [x] 2.1 **BE-20 — Kiểu chuẩn hóa + enum + validation + `SkippedItem`**
+  - **Thực hiện (2026-10-01, AUTO):** `spi/package-info.java` (`@NamedInterface("spi")`), 4 enum, 4 record `Normalized*`, `SkippedItem` (+ `Kind`), helper nội bộ `PayloadChecks`. Quy tắc validation ghi ở design ("Quy tắc validation"): `type`/`status` null → `UNKNOWN`; thiếu dữ liệu bắt buộc → `ProviderException(PAYLOAD_NORMALIZATION_FAILED)`.
+  - **Làm khác kế hoạch:** ~~`ProviderErrorCode`, `ProviderException` thuộc BE-22~~ → tạo bản tối thiểu ngay ở BE-20. **LÝ DO:** `SkippedItem.reason` có kiểu `ProviderErrorCode`, và lỗi validation phải phân loại được là `PAYLOAD_NORMALIZATION_FAILED` ngay khi record bị tạo sai; không có hai kiểu này thì BE-20 không làm đúng AC được.
+  - **Kiểm chứng:** `./mvnw -B -ntp verify` → 96/96, BUILD SUCCESS (40 test mới trong `provider.spi`). Modulith thấy named interface `spi` của module `provider`. Kiểm tra ngược trên bản sao: bỏ kiểm tra `sentAt`, bỏ sao chép `participants`, bỏ mặc định `UNKNOWN`, bỏ vòng kiểm tra phần tử null → đúng 6 test tương ứng đỏ.
   - **Goal / Why:** connector trả về dữ liệu của Sino, tự bảo vệ tính hợp lệ.
   - **Depends:** BE-19 · D-20.
   - **Files:** `src/main/java/dev/sino/provider/spi/package-info.java` (`@NamedInterface("spi")`), các record/enum trong bảng "Kiểu dữ liệu trong `spi`" (trừ context/credential/SPI).
@@ -41,6 +44,7 @@
   - **Goal / Why:** mọi lỗi provider có cùng ngôn ngữ để sync/messaging phản ứng nhất quán (FR-08).
   - **Depends:** BE-21 · error model F01 (D-21).
   - **Files:** `spi/ProviderException.java`, `spi/ProviderErrorCode.java`; bổ sung `UNKNOWN_PROVIDER` vào error catalog (design F03).
+  - **Đổi phạm vi (2026-10-01):** ~~tạo `ProviderErrorCode` + `ProviderException`~~ đã có từ BE-20 (LÝ DO ở BE-20); cờ retryable đã có test (`ProviderErrorCodeTests`). BE-22 còn: `retryAfter` cho `RATE_LIMITED`, quyết định kế thừa `SinoException` hay không, đổi `ProviderCapabilities.require` (và test của nó) sang `ProviderException(CAPABILITY_NOT_SUPPORTED)`, `UNKNOWN_PROVIDER` vào catalog.
   - **Hướng làm:** mã theo bảng "Phân loại lỗi provider", cờ retryable gắn với mã; `RATE_LIMITED` có `retryAfter` tùy chọn; message không chứa secret. Cân nhắc có nên để `ProviderException` là `SinoException` hay tách riêng — ghi lý do lựa chọn.
   - **Test:** unit — cờ retryable đúng theo bảng; `retryAfter` chỉ có ý nghĩa với `RATE_LIMITED`.
   - **AC:** requirement *Phân loại lỗi provider*.

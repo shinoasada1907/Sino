@@ -121,6 +121,14 @@ Enum (02B): `ConversationType` = DIRECT, GROUP, THREAD, CHANNEL, UNKNOWN · `Mes
 
 `metadata` (`Map<String, String>`) chỉ dành cho vài giá trị nhỏ khó chuẩn hóa (tương ứng cột `jsonb metadata` của 02B); không chứa payload thô, không chứa secret, key được liệt kê trong tài liệu của connector.
 
+**Quy tắc validation (chốt ở BE-20, 2026-10-01):**
+- Thiếu dữ liệu bắt buộc (external ID null/rỗng; `direction`, `sentAt` null) → `ProviderException(PAYLOAD_NORMALIZATION_FAILED)`. Message chỉ nêu tên trường, không lặp lại giá trị.
+- `type`/`status` null → `UNKNOWN`, không từ chối. Lý do: spec yêu cầu giá trị không map được dùng `UNKNOWN`; connector không biết loại cũng là "không biết"; từ chối thì mất cả message hợp lệ chỉ vì một trường phụ. Bug mapping có hệ thống do contract test (BE-24) bắt.
+- List/map null → rỗng; phần tử null (hoặc key/value null) → từ chối; list/map luôn được sao chép chỉ-đọc.
+- External ID giữ nguyên, không trim: ID của provider là opaque.
+- `SkippedItem` do connector tự tạo, không phải dữ liệu từ provider → tham số sai là lỗi lập trình (`NullPointerException`/`IllegalArgumentException`), không phải `PAYLOAD_NORMALIZATION_FAILED`.
+- `ProviderErrorCode` và `ProviderException` bản tối thiểu (mã + message, kế thừa `RuntimeException`) có từ BE-20, vì `SkippedItem.reason` và việc phân loại lỗi validation cần chúng. BE-22 quyết định có kế thừa `SinoException` hay không.
+
 **D-20 — Enum chuẩn hóa nằm ở đâu** · *Proposed default*: trong `provider.spi` — đây là "từ vựng chung" giữa connector và core. Khi module `conversation`/`messaging` ra đời (F05/F06), domain của chúng dùng lại các enum này; nếu domain cần hành vi riêng thì map sang kiểu của mình. Phương án khác: một module shared-kernel riêng — thêm module khi chưa có nhu cầu thật.
 
 ### Phân loại lỗi provider
