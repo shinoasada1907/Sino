@@ -321,7 +321,7 @@ Chạy trong `apps/sino-api` (PowerShell dùng `.\mvnw.cmd`, tham số `-D...` �
 | Gọi API | `curl -u "$SINO_API_USERNAME:$SINO_API_PASSWORD" http://localhost:8080/api/...` |
 | Tắt DB (giữ dữ liệu) / xóa sạch | `docker compose down` / `docker compose down -v` |
 
-**D-07 — CI trong F01** · *Proposed default*: có. `.github/workflows/backend-ci.yml` ở repo root, chạy khi push/PR thay đổi `apps/sino-api/**`: setup Temurin 25, cache Maven, `./mvnw -B verify` (runner Ubuntu có sẵn Docker cho Testcontainers). Chi phí thấp, bắt lỗi boundary/migration sớm. Workflow chỉ chạy được sau khi branch được push — push vẫn phải hỏi Human trước.
+**D-07 — CI trong F01** · **Accepted: có** (làm ở BE-07). `.github/workflows/backend-ci.yml` ở repo root, chạy khi push/PR thay đổi `apps/sino-api/**`: setup Temurin 25, cache Maven, `./mvnw -B verify` (runner Ubuntu có sẵn Docker cho Testcontainers). Chi phí thấp, bắt lỗi boundary/migration sớm. Workflow chỉ chạy được sau khi branch được push — push vẫn phải hỏi Human trước.
 
 ## Risks / Trade-offs
 
@@ -349,7 +349,7 @@ Decision register F01–F03. Mục "Cần trước" cho biết task nào bị ch
 | D-04 | Giữ Event Publication Registry từ F01 | Proposed default | F01 §4 | BE-02 |
 | D-05 | Cách chạy DB local | Proposed default | F01 §3 | BE-01 |
 | D-06 | PostgreSQL 18 | Proposed default | F01 §4 | BE-01 |
-| D-07 | CI GitHub Actions trong F01 | Proposed default | F01 §13 | BE-07 |
+| D-07 | CI GitHub Actions trong F01 | **Accepted** | F01 §13 | BE-07 |
 | D-08 | UUIDv7 sinh ở app | Proposed default | F01 §4 | F02 |
 | D-09 | Enum = varchar + CHECK | Proposed default | F01 §4 | F02 |
 | D-10 | `app_user` thuộc module nào | Decision Needed | F02 design | BE-09 |

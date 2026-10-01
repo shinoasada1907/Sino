@@ -13,7 +13,7 @@
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: BE-06 DONE and committed on `dev`; BE-07 next
+- Current state: BE-07 committed on `dev`; waiting for a push to see the first GitHub Actions run (not ticked yet)
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -31,6 +31,7 @@
 | BE-04 security baseline, D-02 A (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/common/**`, `application.yaml`, `application-test.yaml`, `.env.example`, `TestSinoApiApplication.java`, `src/test/java/dev/sino/common/security/**` | 2026-10-01 |
 | BE-05 Problem Details error model, D-21 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/common/error/**`, `.../common/web/**`, `.../common/security/SecurityProblemHandler.java`, `SecurityConfig.java`, `src/test/java/dev/sino/common/web/GlobalExceptionHandlerTests.java`, `ApiSecurityTestConfiguration.java`, spec `api-conventions`, design §8 | 2026-10-01 |
 | BE-06 actuator health + safe logging (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `application.yaml`, `application-local.yaml`, `SecurityConfig.java`, `src/test/java/dev/sino/ActuatorEndpointsTests.java`, `ReadinessWhenDatabaseIsDownTests.java`, `GlobalExceptionHandlerTests.java`, spec `operational-health`, design §3 | 2026-10-01 |
+| BE-07 GitHub Actions backend CI (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | IMPLEMENTED — CI run pending push | `.github/workflows/backend-ci.yml`, `apps/sino-api/mvnw` (mode 100755) | 2026-10-01 |
 
 ## Completed work
 
@@ -67,6 +68,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - 2026-10-01 BE-04: `SecurityConfigTests` 4/4 (401 without credentials + `WWW-Authenticate: Basic`, 401 wrong password, 200 valid without session, 403 for `/internal/**` even when authenticated), `ApiUserPropertiesTests` 3/3, full `./mvnw test` 10/10 BUILD SUCCESS. Not checked with curl against a running app; `spring-boot:test-run` after the `TestSinoApiApplication` change NOT run.
 - 2026-10-01 BE-05: first run 21/22 (`No value at JSON path "$.type"`). Spring 7.0.9 sources show `ProblemDetail.type` defaults to null and is omitted (`NON_EMPTY`), as RFC 9457 §3.1.1 allows; spec and design updated. Then `GlobalExceptionHandlerTests` 12/12, full `./mvnw test` 22/22 BUILD SUCCESS.
 - 2026-10-01 BE-06: `ActuatorEndpointsTests` 5/5, `ReadinessWhenDatabaseIsDownTests` 1/1 (readiness 503 DOWN, liveness 200 UP with a fake DOWN `db` indicator), 2 new log-safety tests, full `./mvnw test` 30/30 BUILD SUCCESS. The actuator 404 scenario was corrected to 401 anonymous / 404 authenticated.
+- 2026-10-01 BE-07: workflow YAML parses; local `./mvnw -B -ntp verify` (the CI command) → BUILD SUCCESS. GitHub Actions run NOT VERIFIED yet (needs a push).
 
 ## Next task
 

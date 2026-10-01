@@ -100,6 +100,10 @@
   - **Test:** push branch → workflow xanh; cố ý làm hỏng một test ở branch nháp → workflow đỏ.
   - **AC:** workflow xanh trên branch feature.
   - **Gợi ý:** file `mvnw` hiện được lưu trong Git với mode `100644` (đã kiểm tra 2026-09-30) → trên runner Linux sẽ `Permission denied`; tìm hiểu `git update-index --chmod=+x`.
+  - **Ghi chú thực hiện (2026-10-01, AUTO):**
+    - Đã làm: `.github/workflows/backend-ci.yml`. Chạy khi push lên `main`, `dev`, `feature/**`, hoặc khi có PR đụng tới `apps/sino-api/**` hay chính file workflow. Dùng `actions/checkout@v7` và `actions/setup-java@v6` (bản mới nhất ngày 2026-10-01), Temurin 25, cache Maven, `./mvnw -B -ntp verify`; `permissions: contents: read`; `concurrency` hủy lần chạy cũ trên cùng ref; timeout 20 phút. `apps/sino-api/mvnw` đổi mode trong Git `100644` → `100755`.
+    - Bằng chứng tại máy: YAML parse được; `./mvnw -B -ntp verify` (đúng lệnh CI) → BUILD SUCCESS, jar được repackage.
+    - **Chưa tick:** tiêu chí "workflow xanh" chỉ kiểm được sau khi push `dev` (chờ Human cho phép push).
 
 ## 4. Tài liệu và nghiệm thu
 
