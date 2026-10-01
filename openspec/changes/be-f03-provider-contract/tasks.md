@@ -42,7 +42,9 @@
   - **AC:** requirement *Contract lấy cập nhật (sync)*, *Contract gửi tin*, *Contract lấy hồ sơ account*, *Credential chỉ nằm trong bộ nhớ và luôn bị che*.
   - **Gợi ý:** sealed interface + `permits`; default method trong interface; `toString()` tự sinh của record in **mọi** component.
 
-- [ ] 2.3 **BE-22 — `ProviderException` + `ProviderErrorCode`**
+- [x] 2.3 **BE-22 — `ProviderException` + `ProviderErrorCode`**
+  - **Thực hiện (2026-10-01, TRAINING):** Human code `ProviderException` (`retryAfter`, factory `rateLimited`, constructor 3 tham số `private` sau review) và đổi `ProviderCapabilities.require`; Claude viết test theo yêu cầu (`ProviderExceptionTests` mới, `ProviderErrorCodeTests` chỉ còn cờ retryable, `ProviderCapabilitiesTests.requireFailsWhenNotSupported`), thêm Javadoc và format theo yêu cầu. Quyết định **D-24 = B** (không kế thừa `SinoException`) ghi ở design. `UNKNOWN_PROVIDER` đã có trong catalog của design; mã trong code tạo ở BE-23, nơi dùng nó. Ba câu tự kiểm tra (constructor `private`, `Optional`, lỗi lọt lên web) chưa được trả lời.
+  - **Kiểm chứng:** `./mvnw -B -ntp verify` → 138/138, BUILD SUCCESS.
   - **Goal / Why:** mọi lỗi provider có cùng ngôn ngữ để sync/messaging phản ứng nhất quán (FR-08).
   - **Depends:** BE-21 · error model F01 (D-21).
   - **Files:** `spi/ProviderException.java`, `spi/ProviderErrorCode.java`; bổ sung `UNKNOWN_PROVIDER` vào error catalog (design F03).

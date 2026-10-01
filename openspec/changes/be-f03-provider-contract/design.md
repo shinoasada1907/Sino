@@ -150,6 +150,15 @@ Enum (02B): `ConversationType` = DIRECT, GROUP, THREAD, CHANNEL, UNKNOWN · `Mes
 
 `SYNC_FAILED`, `SEND_FAILED` của FR-08 là mã **ở mức thao tác**, do `sync` (F07) và `messaging` (F10) định nghĩa, mang `ProviderErrorCode` làm nguyên nhân. Cách map `ProviderException` ra HTTP được chốt khi có endpoint gọi provider (F10).
 
+**D-24 — `ProviderException` có kế thừa `SinoException` không** · **Accepted: B — tách riêng** (2026-10-01, BE-22)
+
+| Phương án | Ưu | Nhược |
+|---|---|---|
+| A. Kế thừa `SinoException`, `ProviderErrorCode` gắn `ErrorCategory` | Lỡ lọt lên web thì tự ra đúng mã HTTP | Phải gắn mã HTTP từ bây giờ, trái với việc hẹn chốt ở F10; `AUTH_EXPIRED` không có mã hợp lệ (401 làm FE tưởng người dùng Sino bị đăng xuất); `PAYLOAD_NORMALIZATION_FAILED` không bao giờ nên tới client; message của provider hiện thẳng cho người dùng |
+| **B. Tách riêng, kế thừa `RuntimeException`** (đã chọn) | Lỗi provider là chuyện giữa Sino và provider; F07/F10 đổi thành lỗi mức thao tác của mình. Lỡ lọt lên web thì ra `500 INTERNAL_ERROR` chung chung, chi tiết chỉ ở log | F07/F10 phải viết đoạn chuyển đổi |
+
+`retryAfter` (`Duration`, tùy chọn) chỉ tạo được qua `ProviderException.rateLimited(message, retryAfter)`, và phải dương; constructor 3 tham số là `private` nên mã khác không thể mang `retryAfter`. `ProviderCapabilities.require` ném `ProviderException(CAPABILITY_NOT_SUPPORTED)`.
+
 ### Registry
 
 - Interface `ProviderRegistry` ở base package; `DefaultProviderRegistry` (nội bộ, `application`) nhận `List<MessageProvider>` từ Spring khi khởi tạo.

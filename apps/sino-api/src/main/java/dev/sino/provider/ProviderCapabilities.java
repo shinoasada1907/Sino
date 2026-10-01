@@ -5,6 +5,9 @@ import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
 
+import dev.sino.provider.spi.ProviderErrorCode;
+import dev.sino.provider.spi.ProviderException;
+
 /**
  * The capabilities one provider supports. Immutable: the set is copied on creation and cannot be changed
  * afterwards. Iteration follows the declaration order of {@link ProviderCapability}.
@@ -31,8 +34,8 @@ public record ProviderCapabilities(Set<ProviderCapability> values) {
 
     public void require(ProviderCapability capability) {
         if (!supports(capability)) {
-            // Replaced by ProviderException(CAPABILITY_NOT_SUPPORTED) in BE-22.
-            throw new UnsupportedOperationException("Provider does not support " + capability);
+            throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
+                    "Provider does not support " + capability);
         }
     }
 

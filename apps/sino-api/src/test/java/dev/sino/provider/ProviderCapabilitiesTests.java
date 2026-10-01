@@ -4,6 +4,7 @@ import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static dev.sino.provider.ProviderCapability.THREADS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -11,6 +12,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+
+import dev.sino.provider.spi.ProviderErrorCode;
+import dev.sino.provider.spi.ProviderException;
 
 class ProviderCapabilitiesTests {
 
@@ -74,9 +78,11 @@ class ProviderCapabilitiesTests {
     void requireFailsWhenNotSupported() {
         ProviderCapabilities capabilities = ProviderCapabilities.of(READ_MESSAGES);
 
-        assertThatThrownBy(() -> capabilities.require(SEND_MESSAGES))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("SEND_MESSAGES");
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> capabilities.require(SEND_MESSAGES))
+                .withMessageContaining("SEND_MESSAGES")
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
     }
 
     @Test

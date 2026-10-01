@@ -14,4 +14,5 @@ areas:
 # that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
 task_overrides: {}
   # 2026-10-01: F03 (BE-19..BE-26) started in TRAINING (the user coded BE-19 to learn Java), then the user
-  # switched it to AUTO the same day ("chuyển qua auto đi"). F03 now follows `backend: AUTO`.
+  # switched it to AUTO the same day ("chuyển qua auto đi"). BE-22 ran in TRAINING ("step này tôi sẽ tự làm")
+  # and is done; F03 follows `backend: AUTO` again.
