@@ -22,7 +22,7 @@
 
 ## Decisions
 
-### D-01 — Thứ tự F02 / F03 · *Decision Needed (trước khi bắt đầu F02)*
+### D-01 — Thứ tự F02 / F03 · **Accepted: A — F03 trước** (2026-10-01)
 
 | Phương án | Ưu | Nhược |
 |---|---|---|
@@ -56,7 +56,7 @@ dev.sino.provider                    # public API cho module khác
 
 `provider` chỉ phụ thuộc `common` (error model). Không phụ thuộc `account`.
 
-### D-16 — `ProviderType` là value object hay enum · *Decision Needed (trước BE-19)*
+### D-16 — `ProviderType` là value object hay enum · **Accepted: A — value object** (2026-10-01)
 
 | Phương án | Ưu | Nhược |
 |---|---|---|
@@ -150,7 +150,7 @@ Enum (02B): `ConversationType` = DIRECT, GROUP, THREAD, CHANNEL, UNKNOWN · `Mes
 - `FakeMessageProvider` (test sources) cấu hình được type, capability và các batch dựng sẵn → dùng cho registry test, contract test, và test của F02.
 - F04: connector Gmail kế thừa contract test, HTTP của Gmail được giả lập ở tầng client (công cụ chốt ở F04).
 
-### D-18 — `GET /api/providers` ở F03 · *Decision Needed (trước BE-25)*
+### D-18 — `GET /api/providers` ở F03 · **Accepted: A — có** (2026-10-01)
 
 | Phương án | Ưu | Nhược |
 |---|---|---|

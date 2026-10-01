@@ -9,11 +9,11 @@
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01)
 - Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: F01 closed; next is F03 or F02 (decision D-01)
+- Current task: F03 Provider Contract, BE-19 (`ProviderCapability`, `ProviderType`, `ProviderCapabilities`)
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: F01 DONE (BE-01…BE-08), OpenSpec change archived; Phase 0 continues
+- Current state: F03 started; the user codes it in TRAINING (task override), Claude explains/reviews/tests
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -33,6 +33,7 @@
 | BE-06 actuator health + safe logging (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `application.yaml`, `application-local.yaml`, `SecurityConfig.java`, `src/test/java/dev/sino/ActuatorEndpointsTests.java`, `ReadinessWhenDatabaseIsDownTests.java`, `GlobalExceptionHandlerTests.java`, spec `operational-health`, design §3 | 2026-10-01 |
 | BE-07 GitHub Actions backend CI (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE (CI run 36837841135 green) | `.github/workflows/backend-ci.yml`, `apps/sino-api/mvnw` (mode 100755) | 2026-10-01 |
 | BE-08 README + F01 acceptance (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/README.md`, F01 design DoD, tasks | 2026-10-01 |
+| F03 Provider Contract BE-19..BE-26 (branch `dev`) — user claimed the feature to learn | HUMAN | CLAUDE | TRAINING (task override) | IMPLEMENTING BE-19 | `apps/sino-api/src/main/java/dev/sino/provider/**`, `apps/sino-api/src/test/java/dev/sino/provider/**` | 2026-10-01 |
 
 ## Completed work
 
@@ -76,7 +77,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 ## Next task
 
-Phase 0 continues. The decision register (D-01…D-23) is in `openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md` (Open Questions); open items are repeated here. Human decides **D-01** (recommended: F03 Provider Contract before F02). F03 needs **D-16** (`ProviderType` value object vs enum) and **D-18** (`GET /api/providers`); F02 needs D-10…D-14. Roadmap: `openspec/roadmap.md`.
+F03 in TRAINING (user codes, Claude explains/reviews/runs tests). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. Current: BE-19. The decision register (D-01…D-23) is in `openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`. F02 still needs D-10…D-14.
 
 ## Last working checkpoint
 

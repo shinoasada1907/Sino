@@ -12,4 +12,6 @@ areas:
   architecture: TRAINING  # "Decision Needed" items: Claude proposes options + recommendation, the user decides
 # Task-level override: when the user says they will code a task themselves ("để tôi làm BE-xx"),
 # that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
-task_overrides: {}
+task_overrides:
+  # 2026-10-01: the user codes F03 to learn Java and Spring Boot (Claude explains, reviews, runs tests).
+  F03 (BE-19..BE-26): TRAINING
