@@ -82,7 +82,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 F03 in AUTO (the user removed the TRAINING override on 2026-10-01). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. BE-19 done; next **BE-20** (normalized types + enums + validation + `SkippedItem`), one task at a time, stop and report after each.
 
 - `ProviderCapabilities.require` throws `UnsupportedOperationException` until BE-22 adds `ProviderException(CAPABILITY_NOT_SUPPORTED)`; BE-22 must update `ProviderCapabilitiesTests.requireFailsWhenNotSupported` too.
-- `ProviderCapabilities.java` keeps Vietnamese explanatory comments the user asked for while learning; the rest of the code base uses English Javadoc only.
+- Code comments stay sparse (user, 2026-10-01: "hạn chế comment quá nhiều"): English Javadoc plus a line comment only for a non-obvious reason; explanations go in chat.
 - The decision register (D-01…D-23) is in `openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`. F02 still needs D-10…D-14.
 
 ## Last working checkpoint

@@ -7,7 +7,7 @@
 ## 1. Định danh và capability
 
 - [x] 1.1 **BE-19 — Module `provider`: `ProviderType`, `ProviderCapability`, `ProviderCapabilities`**
-  - **Thực hiện (2026-10-01):** Human gõ 3 class (TRAINING, code tham khảo Level 4), rồi chuyển F03 sang AUTO; Claude dọn, thêm Javadoc và 2 file test (`ProviderTypeTests` 17, `ProviderCapabilitiesTests` 9, gồm giá trị biên 2/32/33 ký tự). `ProviderCapabilities` là record bọc `EnumSet` chỉ-đọc (bản sao phòng thủ, duyệt theo thứ tự khai báo); `require` tạm ném `UnsupportedOperationException`, BE-22 đổi sang `ProviderException(CAPABILITY_NOT_SUPPORTED)` (đúng ghi chú "hoàn thiện sau BE-22"). `ProviderCapabilities.java` giữ comment giải thích tiếng Việt theo yêu cầu người dùng.
+  - **Thực hiện (2026-10-01):** Human gõ 3 class (TRAINING, code tham khảo Level 4), rồi chuyển F03 sang AUTO; Claude dọn, thêm Javadoc và 2 file test (`ProviderTypeTests` 17, `ProviderCapabilitiesTests` 9, gồm giá trị biên 2/32/33 ký tự). `ProviderCapabilities` là record bọc `EnumSet` chỉ-đọc (bản sao phòng thủ, duyệt theo thứ tự khai báo); `require` tạm ném `UnsupportedOperationException`, BE-22 đổi sang `ProviderException(CAPABILITY_NOT_SUPPORTED)` (đúng ghi chú "hoàn thiện sau BE-22"). Comment giải thích tiếng Việt thêm lúc học đã bỏ theo yêu cầu người dùng ("hạn chế comment quá nhiều"); code chỉ giữ Javadoc và comment lý do.
   - **Kiểm chứng:** `./mvnw -B -ntp verify` → 56/56, BUILD SUCCESS; `ModularityTests` 2/2, Modulith nhận module `provider` (`target/spring-modulith-docs/module-provider.*`). Bỏ 2 dòng bản sao/chỉ-đọc → đúng 2 test đỏ (`copiesTheSetItWasGiven`, `cannotBeChangedFromOutside`).
   - **Goal / Why:** từ vựng cơ bản để mọi module nói về provider mà không biết provider cụ thể.
   - **Depends:** F01 · **D-16**, D-19.
