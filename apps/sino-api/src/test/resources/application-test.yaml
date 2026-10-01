@@ -1,0 +1,6 @@
+# Test profile, activated by the tests with @ActiveProfiles("test").
+# The datasource comes from Testcontainers (@ServiceConnection). Only fake, non-secret test values belong here.
+# Do not create src/test/resources/application.yaml: it would hide src/main/resources/application.yaml.
+spring:
+  application:
+    name: sino-api

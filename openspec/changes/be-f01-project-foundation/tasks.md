@@ -1,6 +1,6 @@
 # F01 — Project Foundation · Implementation Plan
 
-> **TRAINING mode:** Human viết code; AI review, chạy test, debug cùng. Mỗi task có **Hướng làm** (Level 2 — hướng đi, không code hoàn chỉnh) và **Gợi ý** (Level 1 — khái niệm/tài liệu cần đọc). Muốn xem code tham khảo (Level 4) thì yêu cầu rõ ràng theo từng task.
+> **HYBRID mode (từ 2026-10-01):** mặc định AUTO — Claude làm từng task nhỏ, kiểm chứng, báo lại rồi dừng. Task nào Human nhận ("để tôi làm BE-xx") thì chạy TRAINING: Human code theo **Hướng làm** (Level 2) và **Gợi ý** (Level 1), Claude review/test.
 > Mỗi task = một commit logic trên nhánh feature, build + test xanh trước khi sang task sau. Làm khác kế hoạch → gạch task cũ và ghi **LÝ DO** ngay tại chỗ.
 > Chặn: không bắt đầu trước `APPROVED TO IMPLEMENT`. Decision cần chốt được ghi ở từng task.
 
@@ -20,7 +20,7 @@
     - Theo yêu cầu rõ ràng của Human, Claude làm thay `.env.example`, `.env` (không commit), `.gitignore`, `compose.yaml`, bản sửa D-23 và đổi tag Testcontainers. Human chạy `docker compose up` và kiểm tra trạng thái healthy.
     - Bằng chứng: container `healthy`, PostgreSQL 18.6, volume `sino-api_pgdata`, `PGDATA=/var/lib/postgresql/18/docker`; khi tắt `argLine` thì lỗi `Asia/Saigon` tái hiện, khi bật thì `./mvnw test` cho BUILD SUCCESS (1/1); sau khi đổi sang `postgres:18` thì BUILD SUCCESS (1/1).
 
-- [ ] 1.2 **BE-02 — Cấu hình theo profile + Flyway V1 (`event_publication`) + context load xanh**
+- [x] 1.2 **BE-02 — Cấu hình theo profile + Flyway V1 (`event_publication`) + context load xanh**
   - **Goal / Why:** ứng dụng start được trên DB thật với schema do Flyway quản lý; Hibernate chỉ validate. Thiếu V1 thì Spring Modulith JPA làm `validate` fail.
   - **Depends:** BE-01, D-04.
   - **Files:** `src/main/resources/application.yaml`, `src/main/resources/application-local.yaml`, `src/test/resources/application-test.yaml`, `src/main/resources/db/migration/V1__modulith_create_event_publication.sql`, `src/test/java/dev/sino/SinoApiApplicationTests.java` (bật profile `test`).
@@ -29,6 +29,11 @@
   - **AC:** requirement *Cấu hình theo profile và environment*, *Flyway quản lý toàn bộ schema*, *Hibernate chỉ kiểm tra schema*, *Bảng cho Event Publication Registry*, *Không mở persistence context xuyên suốt HTTP request*.
   - **Gợi ý:** cú pháp `optional:file:.env[.properties]` của `spring.config.import`; vì sao **không** được tạo `src/test/resources/application.yaml`; Flyway `validateOnMigrate`.
   - **Risk:** chưa có BE-04 nên Spring Security vẫn in generated password — bình thường ở bước này.
+  - **Ghi chú thực hiện (2026-10-01):**
+    - Claude viết phần cấu hình theo yêu cầu của Human (2026-09-30). Sau khi mode chuyển sang HYBRID (2026-10-01), Claude làm tiếp V1 ở chế độ AUTO. Datasource của profile `local` dùng lại `POSTGRES_*` trong `.env` (cách A).
+    - Bằng chứng: chưa có V1 thì `./mvnw test` đỏ với `Schema validation: missing table [event_publication]`; có V1 thì xanh (1/1, `Successfully applied 1 migration`). Chạy profile `local` lần 1 → áp V1, start trong 8,6 giây; lần 2 → `Schema "public" is up to date`. Không bật profile, không có env → dừng ở bean `dataSource`: `'url' must start with "jdbc"`.
+    - ~~Thí nghiệm sửa V1 sau khi đã áp để thấy lỗi checksum~~ → không chạy. **LÝ DO:** đây là hành vi có sẵn của Flyway (`validateOnMigrate`), không phải code của dự án.
+    - Điểm còn mở: thông báo khi thiếu env chưa nêu tên biến `SINO_DB_URL`. Spec chỉ yêu cầu nêu rõ là lỗi datasource; muốn rõ hơn thì làm ở BE-06 hoặc F12.
 
 ## 2. Boundary và convention
 

@@ -6,13 +6,13 @@
 - Remote: `origin` = https://github.com/shinoasada1907/Sino.git (`main` pushed @ `5ad6a2d`)
 - Frontend: `apps/sino-web` (Vite + React skeleton)
 - Last updated: 2026-09-30
-- Active mode: TRAINING
-- Mode source: `project-mode.yaml` (selected by the user on 2026-09-30)
+- Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
+- Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01)
 - Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: BE-02 — profiles + Flyway V1 (`event_publication`) + green context load (next; not started)
-- Task owner: HUMAN (TRAINING — Human writes the code)
-- Reviewer: CLAUDE (mentor, review, run checks)
-- Current state: BE-01 DONE and committed on `dev`; BE-02 not started
+- Current task: BE-03 — `ModularityTests` + module public API convention (blocked on D-03)
+- Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
+- Reviewer: HUMAN
+- Current state: BE-02 DONE and committed on `dev`; BE-03 next
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -24,6 +24,8 @@
 | BE-01 step 1 env files (branch `dev`) — explicit task-scoped takeover requested by the user ("tạo đi") | CLAUDE | HUMAN | TRAINING | DONE | `apps/sino-api/.env.example`, `apps/sino-api/.gitignore` (+ local `apps/sino-api/.env`, ignored) | 2026-09-30 |
 | BE-01 step 2 compose.yaml (branch `dev`) — explicit task-scoped takeover requested by the user ("tạo compose.yaml luôn đi") | CLAUDE | HUMAN | TRAINING | DONE (container healthy, PostgreSQL 18.6) | `apps/sino-api/compose.yaml` | 2026-09-30 |
 | BE-01 steps 3-4 + D-23 timezone fix (branch `dev`) — Human ran compose; Claude made the D-23 fix and the tag change on explicit request | CLAUDE | HUMAN | TRAINING | DONE | `apps/sino-api/src/test/java/dev/sino/TestcontainersConfiguration.java`, `apps/sino-api/src/main/java/dev/sino/SinoApiApplication.java`, `apps/sino-api/pom.xml` | 2026-09-30 |
+| BE-02 config (branch `dev`) | CLAUDE | HUMAN | TRAINING → HYBRID | DONE | `apps/sino-api/src/main/resources/application.yaml`, `apps/sino-api/src/main/resources/application-local.yaml`, `apps/sino-api/src/test/resources/application-test.yaml`, `apps/sino-api/src/test/java/dev/sino/SinoApiApplicationTests.java` (`@ActiveProfiles("test")`) | 2026-09-30 |
+| BE-02 V1 migration + local run checks (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/resources/db/migration/V1__modulith_create_event_publication.sql` | 2026-09-30 |
 
 ## Completed work
 
@@ -55,10 +57,11 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - 2026-09-30 `apps/sino-api`: `./mvnw -B -ntp test-compile` → BUILD SUCCESS (17.6 s). Tests NOT RUN (Docker daemon not running → Testcontainers unavailable). Runtime start NOT VERIFIED.
 - 2026-09-30 `openspec validate --all --strict` → 3 passed, 0 failed.
 - 2026-09-30 BE-01: `docker compose ps` → `sino-api-postgres-1` Up (healthy), `127.0.0.1:5432`; `select version()` → PostgreSQL 18.6; volume `sino-api_pgdata`, `PGDATA=/var/lib/postgresql/18/docker`. `./mvnw test` with `-DargLine=` reproduced `FATAL: invalid value for parameter "TimeZone": "Asia/Saigon"`; with the D-23 fix → BUILD SUCCESS (1 test); after pinning Testcontainers to `postgres:18` → BUILD SUCCESS (1 test). App runtime through `main` NOT separately verified (the user declined the extra check; BE-02 will exercise it).
+- 2026-10-01 BE-02: without V1 `./mvnw test` → red `Schema validation: missing table [event_publication]`; with V1 → BUILD SUCCESS (1 test, `Successfully applied 1 migration`). `spring-boot:run` profile `local` (web off) → run 1 applied V1 and started in 8.6 s, run 2 `Schema "public" is up to date` (this also exercises D-23 through `main`). Compose DB has `event_publication` and `flyway_schema_history` (V1 success). No profile and no env → fails at bean `dataSource`: `'url' must start with "jdbc"`.
 
 ## Next task
 
-BE-02 — `application.yaml` / `application-local.yaml` / `application-test.yaml`, Flyway `V1__modulith_create_event_publication.sql`, green context load (Human implements). Decide A/B for datasource values in the `local` profile (see chat 2026-09-30: A = reuse `POSTGRES_*` from `.env`). D-03 before BE-03, D-02 before BE-04. Roadmap: `openspec/roadmap.md`.
+BE-03 — `ModularityTests` + module public API convention. Needs **D-03** (recommended: base package + `@NamedInterface`). Then BE-04 needs **D-02**. Roadmap: `openspec/roadmap.md`.
 
 ## Last working checkpoint
 

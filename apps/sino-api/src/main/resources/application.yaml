@@ -1,3 +1,17 @@
 spring:
   application:
     name: sino-api
+  datasource:
+    # No defaults on purpose: outside the `local` profile the environment must provide these.
+    url: ${SINO_DB_URL}
+    username: ${SINO_DB_USERNAME}
+    password: ${SINO_DB_PASSWORD}
+  jpa:
+    # Transactions and the persistence context end in the application service, not in the web layer.
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks that entities match it.
+      ddl-auto: validate
+  mvc:
+    problemdetails:
+      enabled: true

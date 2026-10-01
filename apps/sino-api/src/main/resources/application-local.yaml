@@ -1,0 +1,14 @@
+# Developer machine profile: ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+# Values come from .env (shared with compose.yaml). `file:.env` is resolved against the working
+# directory, so run from apps/sino-api (IntelliJ: set the Run Configuration working directory).
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+
+logging:
+  level:
+    dev.sino: DEBUG
