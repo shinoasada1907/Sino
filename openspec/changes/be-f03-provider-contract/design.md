@@ -129,6 +129,12 @@ Enum (02B): `ConversationType` = DIRECT, GROUP, THREAD, CHANNEL, UNKNOWN · `Mes
 - `SkippedItem` do connector tự tạo, không phải dữ liệu từ provider → tham số sai là lỗi lập trình (`NullPointerException`/`IllegalArgumentException`), không phải `PAYLOAD_NORMALIZATION_FAILED`.
 - `ProviderErrorCode` và `ProviderException` bản tối thiểu (mã + message, kế thừa `RuntimeException`) có từ BE-20, vì `SkippedItem.reason` và việc phân loại lỗi validation cần chúng. BE-22 quyết định có kế thừa `SinoException` hay không.
 
+**Loại lỗi theo nguồn dữ liệu (chốt ở BE-21, 2026-10-01):**
+- Dữ liệu **đến từ provider** (`Normalized*`, `AccountProfile`, `SendMessageResult`) → `ProviderException(PAYLOAD_NORMALIZATION_FAILED)`; `status` không map được → `UNKNOWN`. `AccountProfile.displayName` bắt buộc (spec: "trả `externalAccountId` không rỗng và tên hiển thị"); connector tự chọn giá trị thay thế, ví dụ email, nếu provider không có tên.
+- Đối tượng **do Sino hoặc connector tự dựng** (`ProviderContext`, credential, `SyncCursor`, `SyncBatch`, `SendMessageCommand`, `SkippedItem`) → tham số sai là lỗi lập trình: `NullPointerException`/`IllegalArgumentException`. Vì thế list của `SyncBatch` null thì bị từ chối (khác với `Normalized*`, nơi null nghĩa là rỗng).
+- `SyncCursor.value` null nghĩa là lần sync đầu (`initial()`); chuỗi rỗng bị từ chối.
+- `OAuth2Credentials`, `TokenCredentials` là hai file riêng, `ProviderCredentials` là sealed interface `permits` hai kiểu đó. `toString()` của cả hai và của `ProviderContext` in `****` thay cho secret.
+
 **D-20 — Enum chuẩn hóa nằm ở đâu** · *Proposed default*: trong `provider.spi` — đây là "từ vựng chung" giữa connector và core. Khi module `conversation`/`messaging` ra đời (F05/F06), domain của chúng dùng lại các enum này; nếu domain cần hành vi riêng thì map sang kiểu của mình. Phương án khác: một module shared-kernel riêng — thêm module khi chưa có nhu cầu thật.
 
 ### Phân loại lỗi provider

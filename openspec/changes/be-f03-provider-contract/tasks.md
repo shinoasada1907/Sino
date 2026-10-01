@@ -31,7 +31,9 @@
   - **AC:** requirement *Dữ liệu chuẩn hóa tự kiểm tra tính hợp lệ*.
   - **Gợi ý:** defensive copy (`List.copyOf`); phân biệt "không biết" (UNKNOWN) với "thiếu dữ liệu bắt buộc".
 
-- [ ] 2.2 **BE-21 — SPI `MessageProvider` + context/credential + profile/cursor/batch/send**
+- [x] 2.2 **BE-21 — SPI `MessageProvider` + context/credential + profile/cursor/batch/send**
+  - **Thực hiện (2026-10-01, AUTO):** đúng danh sách file; `OAuth2Credentials` và `TokenCredentials` là file riêng. `sendMessage` mặc định ném luôn `ProviderException(CAPABILITY_NOT_SUPPORTED)` vì `ProviderException` đã có từ BE-20. Quy tắc chọn loại lỗi theo nguồn dữ liệu ghi ở design ("Loại lỗi theo nguồn dữ liệu").
+  - **Kiểm chứng:** `./mvnw -B -ntp verify` → 133/133, BUILD SUCCESS (37 test mới). Kiểm tra ngược trên bản sao: bỏ `toString()` che secret, cho `sendMessage` mặc định trả `null`, bỏ kiểm tra `nextCursor` → đúng 7 test tương ứng đỏ.
   - **Goal / Why:** chốt contract mà connector Gmail (F04) sẽ implement.
   - **Depends:** BE-20 · D-17.
   - **Files:** `spi/MessageProvider.java`, `spi/ProviderContext.java`, `spi/ProviderCredentials.java` (+ các record con), `spi/AccountProfile.java`, `spi/SyncCursor.java`, `spi/SyncBatch.java`, `spi/SendMessageCommand.java`, `spi/SendMessageResult.java`.

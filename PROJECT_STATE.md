@@ -9,11 +9,11 @@
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01; the F03 TRAINING override was removed by the user the same day: "chuyển qua auto đi")
 - Current phase: Phase 0 (backend foundation) — F01 done and archived; F03 Provider Contract in progress; F02 after F03 (D-01 = A)
-- Current task: F03 Provider Contract — BE-19, BE-20 DONE; next BE-21
+- Current task: F03 Provider Contract — BE-19…BE-21 DONE; next BE-22
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: F03 in AUTO; BE-20 committed on `dev`, waiting for the user before BE-21
+- Current state: F03 in AUTO; BE-21 committed on `dev`, waiting for the user before BE-22
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -35,7 +35,8 @@
 | BE-08 README + F01 acceptance (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/README.md`, F01 design DoD, tasks | 2026-10-01 |
 | BE-19 `ProviderType`, `ProviderCapability`, `ProviderCapabilities` (branch `dev`) — the user typed the classes in TRAINING, then switched F03 to AUTO | CLAUDE | HUMAN | TRAINING → AUTO | DONE | `apps/sino-api/src/main/java/dev/sino/provider/{ProviderType,ProviderCapability,ProviderCapabilities}.java`, `apps/sino-api/src/test/java/dev/sino/provider/{ProviderTypeTests,ProviderCapabilitiesTests}.java`, `project-mode.yaml` | 2026-10-01 |
 | BE-20 normalized types, enums, `SkippedItem` + minimal `ProviderErrorCode`/`ProviderException` (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/provider/spi/**`, `apps/sino-api/src/test/java/dev/sino/provider/spi/**`, F03 `design.md`, `tasks.md` | 2026-10-01 |
-| F03 Provider Contract BE-21..BE-26 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | TODO (next: BE-21) | `apps/sino-api/src/main/java/dev/sino/provider/**`, `apps/sino-api/src/test/java/dev/sino/provider/**` | 2026-10-01 |
+| BE-21 SPI `MessageProvider`, context/credentials, profile/cursor/batch/send (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/provider/spi/**`, `apps/sino-api/src/test/java/dev/sino/provider/spi/**`, F03 `design.md`, `tasks.md` | 2026-10-01 |
+| F03 Provider Contract BE-22..BE-26 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | TODO (next: BE-22) | `apps/sino-api/src/main/java/dev/sino/provider/**`, `apps/sino-api/src/test/java/dev/sino/provider/**` | 2026-10-01 |
 
 ## Completed work
 
@@ -78,10 +79,11 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - 2026-10-01 BE-08: app jar with profile `local` started in ~4 s; curl: health public UP (components only for the API user), readiness/liveness 200, `/api/accounts` 401 problem+json with `WWW-Authenticate: Basic` / 404 `RESOURCE_NOT_FOUND` with the API user, `/actuator/env` 401/404, `/actuator/modulith` 200 (local), `/internal` 403, password found 0 times in the app log. No `postgres:latest`, `.env` untracked, no committed file contains a real local password.
 - 2026-10-01 BE-19: `./mvnw -B -ntp verify` → 56/56 (30 existing + `ProviderTypeTests` 17 + `ProviderCapabilitiesTests` 9), BUILD SUCCESS; `ModularityTests` 2/2 and Modulith documents the new module (`target/spring-modulith-docs/module-provider.adoc`). Mutation check in a scratch copy: removing the defensive copy and the unmodifiable wrapper turns exactly `copiesTheSetItWasGiven` and `cannotBeChangedFromOutside` red.
 - 2026-10-01 BE-20: `./mvnw -B -ntp verify` → 96/96 (40 new in `dev.sino.provider.spi`), BUILD SUCCESS. A temporary test (deleted afterwards) printed the named interfaces of module `provider`: `<<UNNAMED>>`, `spi`. Mutation check in a scratch copy (dropping the `sentAt` check, the participants copy, the `UNKNOWN` default and the null-element loop) turned exactly the 6 matching tests red.
+- 2026-10-01 BE-21: `./mvnw -B -ntp verify` → 133/133 (37 new), BUILD SUCCESS. Mutation check in a scratch copy (record-default `toString()` on both credential types, default `sendMessage` returning `null`, no `nextCursor` check) turned exactly the 7 matching tests red, including both "token never printed" tests for the context.
 
 ## Next task
 
-F03 in AUTO (the user removed the TRAINING override on 2026-10-01). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. BE-19, BE-20 done; next **BE-21** (SPI `MessageProvider`, context/credential, profile/cursor/batch/send), one task at a time, stop and report after each.
+F03 in AUTO (the user removed the TRAINING override on 2026-10-01). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. BE-19…BE-21 done; next **BE-22** (complete `ProviderException`: `retryAfter`, `SinoException` question, switch `require`, `UNKNOWN_PROVIDER` in the catalog), one task at a time, stop and report after each.
 
 - BE-20 pulled a minimal `ProviderErrorCode` + `ProviderException` forward from BE-22 (reason in `tasks.md`). BE-22 keeps `retryAfter`, the `SinoException` question, switching `require`, and `UNKNOWN_PROVIDER` in the catalog.
 
