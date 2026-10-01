@@ -5,15 +5,15 @@
 - Project/root: `D:\Code\Product\MessageHub\Sino` (monorepo; backend at `apps/sino-api`)
 - Remote: `origin` = https://github.com/shinoasada1907/Sino.git (`main` pushed @ `5ad6a2d`)
 - Frontend: `apps/sino-web` (Vite + React skeleton)
-- Last updated: 2026-09-30
+- Last updated: 2026-10-01
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
-- Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01)
-- Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: F03 Provider Contract, BE-19 (`ProviderCapability`, `ProviderType`, `ProviderCapabilities`)
+- Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01; the F03 TRAINING override was removed by the user the same day: "chuyển qua auto đi")
+- Current phase: Phase 0 (backend foundation) — F01 done and archived; F03 Provider Contract in progress; F02 after F03 (D-01 = A)
+- Current task: F03 Provider Contract — BE-19 DONE; next BE-20
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: F03 started; the user codes it in TRAINING (task override), Claude explains/reviews/tests
+- Current state: F03 in AUTO; BE-19 committed on `dev`, waiting for the user before BE-20
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -33,7 +33,8 @@
 | BE-06 actuator health + safe logging (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `application.yaml`, `application-local.yaml`, `SecurityConfig.java`, `src/test/java/dev/sino/ActuatorEndpointsTests.java`, `ReadinessWhenDatabaseIsDownTests.java`, `GlobalExceptionHandlerTests.java`, spec `operational-health`, design §3 | 2026-10-01 |
 | BE-07 GitHub Actions backend CI (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE (CI run 36837841135 green) | `.github/workflows/backend-ci.yml`, `apps/sino-api/mvnw` (mode 100755) | 2026-10-01 |
 | BE-08 README + F01 acceptance (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/README.md`, F01 design DoD, tasks | 2026-10-01 |
-| F03 Provider Contract BE-19..BE-26 (branch `dev`) — user claimed the feature to learn | HUMAN | CLAUDE | TRAINING (task override) | IMPLEMENTING BE-19 | `apps/sino-api/src/main/java/dev/sino/provider/**`, `apps/sino-api/src/test/java/dev/sino/provider/**` | 2026-10-01 |
+| BE-19 `ProviderType`, `ProviderCapability`, `ProviderCapabilities` (branch `dev`) — the user typed the classes in TRAINING, then switched F03 to AUTO | CLAUDE | HUMAN | TRAINING → AUTO | DONE | `apps/sino-api/src/main/java/dev/sino/provider/{ProviderType,ProviderCapability,ProviderCapabilities}.java`, `apps/sino-api/src/test/java/dev/sino/provider/{ProviderTypeTests,ProviderCapabilitiesTests}.java`, `project-mode.yaml` | 2026-10-01 |
+| F03 Provider Contract BE-20..BE-26 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | TODO (next: BE-20) | `apps/sino-api/src/main/java/dev/sino/provider/**`, `apps/sino-api/src/test/java/dev/sino/provider/**` | 2026-10-01 |
 
 ## Completed work
 
@@ -74,16 +75,15 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - 2026-10-01 BE-06: `ActuatorEndpointsTests` 5/5, `ReadinessWhenDatabaseIsDownTests` 1/1 (readiness 503 DOWN, liveness 200 UP with a fake DOWN `db` indicator), 2 new log-safety tests, full `./mvnw test` 30/30 BUILD SUCCESS. The actuator 404 scenario was corrected to 401 anonymous / 404 authenticated.
 - 2026-10-01 BE-07: workflow YAML parses; local `./mvnw -B -ntp verify` (the CI command) → BUILD SUCCESS. GitHub Actions: push of `dev` @ `7caf6ac` → run 36837841135, job `verify` success in 1m02s (all steps success).
 - 2026-10-01 BE-08: app jar with profile `local` started in ~4 s; curl: health public UP (components only for the API user), readiness/liveness 200, `/api/accounts` 401 problem+json with `WWW-Authenticate: Basic` / 404 `RESOURCE_NOT_FOUND` with the API user, `/actuator/env` 401/404, `/actuator/modulith` 200 (local), `/internal` 403, password found 0 times in the app log. No `postgres:latest`, `.env` untracked, no committed file contains a real local password.
+- 2026-10-01 BE-19: `./mvnw -B -ntp verify` → 56/56 (30 existing + `ProviderTypeTests` 17 + `ProviderCapabilitiesTests` 9), BUILD SUCCESS; `ModularityTests` 2/2 and Modulith documents the new module (`target/spring-modulith-docs/module-provider.adoc`). Mutation check in a scratch copy: removing the defensive copy and the unmodifiable wrapper turns exactly `copiesTheSetItWasGiven` and `cannotBeChangedFromOutside` red.
 
 ## Next task
 
-F03 in TRAINING (user codes, Claude explains/reviews/runs tests). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. Current: BE-19.
+F03 in AUTO (the user removed the TRAINING override on 2026-10-01). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. BE-19 done; next **BE-20** (normalized types + enums + validation + `SkippedItem`), one task at a time, stop and report after each.
 
-BE-19 guidance already given to the user (2026-10-01), who is typing it in `apps/sino-api/src/main/java/dev/sino/provider/`:
-- `ProviderCapability` — public enum with the 7 capabilities READ_MESSAGES, SEND_MESSAGES, ATTACHMENTS, MARK_READ, REACTIONS, PUSH_WEBHOOK, THREADS (Javadoc per constant).
-- `ProviderType` — `public record ProviderType(String value)`; compact constructor: `requireNonNull`, `trim().toLowerCase(Locale.ROOT)`, must match `[a-z][a-z0-9-]{1,31}` else `IllegalArgumentException`; `static of(String)`; `toString()` returns the value.
-- Self-check questions asked: value of `of(" GMAIL ")`, `==` vs `equals`, why validate in the constructor.
-- Next when the user reports `.\mvnw.cmd compile` green: review both files, then guide `ProviderCapabilities` (immutable `EnumSet` copy, `supports`, `require`) and the user's first JUnit tests (`ProviderTypeTests`, `ProviderCapabilitiesTests`), then run `ModularityTests` (new module `provider`). The decision register (D-01…D-23) is in `openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`. F02 still needs D-10…D-14.
+- `ProviderCapabilities.require` throws `UnsupportedOperationException` until BE-22 adds `ProviderException(CAPABILITY_NOT_SUPPORTED)`; BE-22 must update `ProviderCapabilitiesTests.requireFailsWhenNotSupported` too.
+- `ProviderCapabilities.java` keeps Vietnamese explanatory comments the user asked for while learning; the rest of the code base uses English Javadoc only.
+- The decision register (D-01…D-23) is in `openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`. F02 still needs D-10…D-14.
 
 ## Last working checkpoint
 
