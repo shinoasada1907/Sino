@@ -9,11 +9,11 @@
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01)
 - Current phase: Sino Messages — F01 Project Foundation implementation (user approved starting implementation on 2026-09-30: "ok giờ bắt đầu code được ồi", scoped to F01; F02/F03 decisions still open)
-- Current task: BE-07 — GitHub Actions for the backend (D-07 default: yes)
+- Current task: BE-08 — README + F01 acceptance
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: BE-07 committed on `dev`; waiting for a push to see the first GitHub Actions run (not ticked yet)
+- Current state: BE-07 DONE (first CI run green); BE-08 next
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -31,7 +31,7 @@
 | BE-04 security baseline, D-02 A (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/common/**`, `application.yaml`, `application-test.yaml`, `.env.example`, `TestSinoApiApplication.java`, `src/test/java/dev/sino/common/security/**` | 2026-10-01 |
 | BE-05 Problem Details error model, D-21 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/common/error/**`, `.../common/web/**`, `.../common/security/SecurityProblemHandler.java`, `SecurityConfig.java`, `src/test/java/dev/sino/common/web/GlobalExceptionHandlerTests.java`, `ApiSecurityTestConfiguration.java`, spec `api-conventions`, design §8 | 2026-10-01 |
 | BE-06 actuator health + safe logging (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `application.yaml`, `application-local.yaml`, `SecurityConfig.java`, `src/test/java/dev/sino/ActuatorEndpointsTests.java`, `ReadinessWhenDatabaseIsDownTests.java`, `GlobalExceptionHandlerTests.java`, spec `operational-health`, design §3 | 2026-10-01 |
-| BE-07 GitHub Actions backend CI (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | IMPLEMENTED — CI run pending push | `.github/workflows/backend-ci.yml`, `apps/sino-api/mvnw` (mode 100755) | 2026-10-01 |
+| BE-07 GitHub Actions backend CI (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE (CI run 36837841135 green) | `.github/workflows/backend-ci.yml`, `apps/sino-api/mvnw` (mode 100755) | 2026-10-01 |
 
 ## Completed work
 
@@ -68,11 +68,11 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - 2026-10-01 BE-04: `SecurityConfigTests` 4/4 (401 without credentials + `WWW-Authenticate: Basic`, 401 wrong password, 200 valid without session, 403 for `/internal/**` even when authenticated), `ApiUserPropertiesTests` 3/3, full `./mvnw test` 10/10 BUILD SUCCESS. Not checked with curl against a running app; `spring-boot:test-run` after the `TestSinoApiApplication` change NOT run.
 - 2026-10-01 BE-05: first run 21/22 (`No value at JSON path "$.type"`). Spring 7.0.9 sources show `ProblemDetail.type` defaults to null and is omitted (`NON_EMPTY`), as RFC 9457 §3.1.1 allows; spec and design updated. Then `GlobalExceptionHandlerTests` 12/12, full `./mvnw test` 22/22 BUILD SUCCESS.
 - 2026-10-01 BE-06: `ActuatorEndpointsTests` 5/5, `ReadinessWhenDatabaseIsDownTests` 1/1 (readiness 503 DOWN, liveness 200 UP with a fake DOWN `db` indicator), 2 new log-safety tests, full `./mvnw test` 30/30 BUILD SUCCESS. The actuator 404 scenario was corrected to 401 anonymous / 404 authenticated.
-- 2026-10-01 BE-07: workflow YAML parses; local `./mvnw -B -ntp verify` (the CI command) → BUILD SUCCESS. GitHub Actions run NOT VERIFIED yet (needs a push).
+- 2026-10-01 BE-07: workflow YAML parses; local `./mvnw -B -ntp verify` (the CI command) → BUILD SUCCESS. GitHub Actions: push of `dev` @ `7caf6ac` → run 36837841135, job `verify` success in 1m02s (all steps success).
 
 ## Next task
 
-BE-07 — `.github/workflows/backend-ci.yml` (Temurin 25, Maven cache, `./mvnw -B verify`, paths `apps/sino-api/**`) + make `apps/sino-api/mvnw` executable in Git (mode is 100644). The workflow only runs after a push (the user asks for pushes). Then BE-08 README + F01 acceptance. Roadmap: `openspec/roadmap.md`.
+BE-08 — complete `apps/sino-api/README.md` (commands from design §13, env vars, module conventions, Docker requirement), walk the F01 Definition of Done, then close F01 (archive the OpenSpec change after the Human agrees). Roadmap: `openspec/roadmap.md`.
 
 ## Last working checkpoint
 

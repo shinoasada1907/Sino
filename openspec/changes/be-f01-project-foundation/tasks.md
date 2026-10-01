@@ -92,7 +92,7 @@
     - ~~Kiểm tra tay bằng cách dừng container DB~~ → test tự động `ReadinessWhenDatabaseIsDownTests` thay health indicator `db` bằng bản giả luôn báo DOWN. **LÝ DO:** lặp lại được, không đụng DB local của Human.
     - Bằng chứng: `ActuatorEndpointsTests` 5/5 (health 200 không có `components` khi ẩn danh; user API thấy `components.db` UP; liveness và readiness 200; chỉ expose `health`, `info`; `/actuator/env|configprops|heapdump` → 401 rồi 404). `ReadinessWhenDatabaseIsDownTests` 1/1 (readiness 503 DOWN, liveness 200 UP). `GlobalExceptionHandlerTests` thêm 2 test log (lỗi 500 được log kèm method và path nhưng không có mật khẩu hay token Basic; credential bị từ chối không xuất hiện trong log). Toàn bộ `./mvnw test` 30/30.
 
-- [ ] 3.2 **BE-07 — GitHub Actions cho backend** *(chỉ làm nếu D-07 = có)*
+- [x] 3.2 **BE-07 — GitHub Actions cho backend** *(chỉ làm nếu D-07 = có)*
   - **Goal / Why:** mỗi push/PR chạy `./mvnw verify` để bắt lỗi boundary/migration/test sớm.
   - **Depends:** BE-02…BE-06 xanh ở local · D-07 · Human đồng ý push branch.
   - **Files:** `.github/workflows/backend-ci.yml` (repo root); đổi mode của `apps/sino-api/mvnw` trong Git sang executable.
@@ -103,7 +103,7 @@
   - **Ghi chú thực hiện (2026-10-01, AUTO):**
     - Đã làm: `.github/workflows/backend-ci.yml`. Chạy khi push lên `main`, `dev`, `feature/**`, hoặc khi có PR đụng tới `apps/sino-api/**` hay chính file workflow. Dùng `actions/checkout@v7` và `actions/setup-java@v6` (bản mới nhất ngày 2026-10-01), Temurin 25, cache Maven, `./mvnw -B -ntp verify`; `permissions: contents: read`; `concurrency` hủy lần chạy cũ trên cùng ref; timeout 20 phút. `apps/sino-api/mvnw` đổi mode trong Git `100644` → `100755`.
     - Bằng chứng tại máy: YAML parse được; `./mvnw -B -ntp verify` (đúng lệnh CI) → BUILD SUCCESS, jar được repackage.
-    - **Chưa tick:** tiêu chí "workflow xanh" chỉ kiểm được sau khi push `dev` (chờ Human cho phép push).
+    - Bằng chứng trên GitHub (2026-10-01): push `dev` @ `7caf6ac` → run `36837841135` (https://github.com/shinoasada1907/Sino/actions/runs/36837841135), job `verify` **success** sau 1 phút 02 giây, mọi bước success (checkout, setup-java, "Build and test").
 
 ## 4. Tài liệu và nghiệm thu
 
