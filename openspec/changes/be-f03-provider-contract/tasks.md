@@ -57,6 +57,8 @@
 ## 3. Registry và kiểm chứng contract
 
 - [ ] 3.1 **BE-23 — `ProviderRegistry` + `ProviderDescriptor`**
+  - **Thực hiện (2026-10-02, AUTO, chưa kiểm chứng):** code + test đã viết, chưa chạy `./mvnw verify` (người dùng yêu cầu dừng sau khi code, tự quyết bước tiếp).
+  - **Làm khác kế hoạch:** ngoài danh sách Files có thêm `spi/MessageProvider.java` (`default displayName()`), `ProviderRegistryErrorCode.java`, `ProviderDescriptorTests.java`. **LÝ DO:** descriptor cần tên hiển thị mà SPI chưa có (người dùng chọn default method, ghi ở D-17); `UNKNOWN_PROVIDER` cần một enum `ErrorCode` và tên `ProviderErrorCode` đã thuộc `spi`.
   - **Goal / Why:** một nơi duy nhất resolve connector theo `ProviderType`.
   - **Depends:** BE-21, BE-22.
   - **Files:** `provider/ProviderRegistry.java`, `provider/ProviderDescriptor.java`, `provider/application/DefaultProviderRegistry.java`, test registry.

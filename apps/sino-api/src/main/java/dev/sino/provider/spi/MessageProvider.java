@@ -12,6 +12,11 @@ public interface MessageProvider {
 
     ProviderType type();
 
+    /** Name shown to users, for example {@code Gmail}; defaults to the type. */
+    default String displayName() {
+        return type().value();
+    }
+
     /** Only what the connector really supports. */
     ProviderCapabilities capabilities();
 

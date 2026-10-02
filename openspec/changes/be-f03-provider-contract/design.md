@@ -80,7 +80,8 @@ public interface MessageProvider {
 }
 ```
 
-- Chỉ 5 method của 02A. `sendMessage` có default implementation ném `ProviderException(CAPABILITY_NOT_SUPPORTED)` để connector chỉ-đọc không phải viết method rỗng. Bên gọi vẫn MUST kiểm tra capability trước (FR-06).
+- ~~Chỉ 5 method của 02A.~~ → thêm method thứ 6 `default String displayName()` (trả `type().value()`, connector override, ví dụ Gmail → `"Gmail"`). **LÝ DO (BE-23, 2026-10-02, người dùng chọn):** `ProviderDescriptor` và `GET /api/providers` cần tên hiển thị, mà chỉ connector biết tên đúng; có default nên connector cũ và fake không phải sửa. Phương án bị loại: method bắt buộc (phải sửa mọi connector), registry tự viết hoa từ `type` (không đặt được tên như "Microsoft Outlook").
+- `sendMessage` có default implementation ném `ProviderException(CAPABILITY_NOT_SUPPORTED)` để connector chỉ-đọc không phải viết method rỗng. Bên gọi vẫn MUST kiểm tra capability trước (FR-06).
 - Để sau, thiết kế cùng feature dùng tới: SPI kết nối/OAuth + refresh token (F04, D-15), mark-read/reaction (F06/F10), webhook (F07), tải attachment (F06), idempotency key khi gửi (F10), tùy chọn cửa sổ initial sync (F07).
 - Phương án khác: thiết kế trước toàn bộ method → đoán trước nhu cầu của provider chưa làm, rủi ro sai cao hơn lợi ích.
 
@@ -164,6 +165,8 @@ Enum (02B): `ConversationType` = DIRECT, GROUP, THREAD, CHANNEL, UNKNOWN · `Mes
 - Interface `ProviderRegistry` ở base package; `DefaultProviderRegistry` (nội bộ, `application`) nhận `List<MessageProvider>` từ Spring khi khởi tạo.
 - Dựng map bất biến theo `ProviderType`; trùng type → ném lỗi ngay khi khởi tạo (ứng dụng không start), thông báo có tên hai class.
 - `get(type)` ném `SinoException` mã `UNKNOWN_PROVIDER` (category `NOT_FOUND` → 404 theo F01); `find(type)` trả `Optional`; `isSupported(type)`; `descriptors()` sắp theo `type`.
+- `UNKNOWN_PROVIDER` nằm trong enum `ProviderRegistryErrorCode implements ErrorCode` ở base package (tên `ProviderErrorCode` đã thuộc `spi`, là lỗi của provider chứ không phải lỗi trả cho client — D-24).
+- Descriptor lấy `displayName` từ `MessageProvider.displayName()` (xem D-17). Connector trả `type()` null → không start, thông báo có tên class.
 - Không cache ngoài map khởi tạo, không trạng thái thay đổi → thread-safe.
 
 ### Contract test kit
