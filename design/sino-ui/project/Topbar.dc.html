@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · App shell · Top bar</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<header class="{{rootClass}}">
+<div class="input-wrap topbar-search"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg><input class="input" type="search" placeholder="Tìm thư, người, tài khoản, đăng ký…" aria-label="Tìm trong Sino"><span class="kbd">Ctrl K</span></div>
+<div class="topbar-right">
+<span class="status"><span class="{{dotClass}}"></span><span class="{{statusClass}}">{{statusText}}</span></span>
+<span class="vsep" aria-hidden="true"></span>
+<a class="{{bellClass}}" href="Notifications.dc.html" aria-label="Thông báo, 3 mới" style="position: relative;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><span class="dot dot-unread" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px;"></span></a>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="{{themeAction}}">
+<sc-if value="{{isDark}}" hint-placeholder-val="{{true}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></sc-if>
+<sc-if value="{{isLight}}" hint-placeholder-val="{{false}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg></sc-if>
+</button>
+<button class="lang" type="button" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"status":{"editor":"enum","options":["ok","idle","syncing","offline","error"],"default":"ok"},"bell":{"editor":"enum","options":["closed","open"],"default":"closed"},"$preview":{"width":1192,"height":72}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const statuses = {
+      ok: { dot: 'dot dot-ok', cls: '', text: 'Đồng bộ 2 phút trước' },
+      idle: { dot: 'dot dot-off', cls: '', text: 'Chưa có nguồn nào' },
+      syncing: { dot: 'dot dot-warn', cls: '', text: 'Đang đồng bộ lần đầu · 35%' },
+      offline: { dot: 'dot dot-err', cls: 'ink-err', text: 'Ngoại tuyến · dữ liệu lúc 13:58' },
+      error: { dot: 'dot dot-err', cls: 'ink-err', text: 'Không kết nối được máy chủ Sino' },
+    };
+    const st = statuses[this.props.status] || statuses.ok;
+    return {
+      rootClass: `sino theme-${theme} topbar`,
+      dotClass: st.dot,
+      statusClass: st.cls,
+      statusText: st.text,
+      isDark: theme === 'dark',
+      isLight: theme === 'light',
+      bellClass: this.props.bell === 'open' ? 'btn btn-ghost btn-icon btn-sm is-hover' : 'btn btn-ghost btn-icon btn-sm',
+      themeAction: theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối',
+    };
+  }
+}
+</script>
+</body>
+</html>

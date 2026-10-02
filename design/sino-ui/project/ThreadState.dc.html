@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Hội thoại · Trạng thái</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Sidebar" theme="{{theme}}" active="inbox" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
+<div class="convo">
+
+<section class="chat" aria-label="Cuộc trò chuyện">
+
+<sc-if value="{{is.reconnect}}" hint-placeholder-val="{{true}}">
+<header class="thread-head">
+<div style="display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+<a class="btn btn-ghost btn-sm back" href="Inbox.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Hộp thư</a>
+<div style="display: flex; align-items: center; gap: 14px;"><span class="avatar av-b"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span></span><div class="who-text"><h1 class="t-large">Lê Hoàng</h1><span class="t-small c-muted">Messenger · qua an.nguyen.92</span></div><span class="status" style="margin-left: 8px;"><span class="dot dot-err"></span><span class="ink-err">Ngắt kết nối từ 21:04 hôm qua</span></span></div>
+</div>
+</header>
+<div class="chat-body">
+<span class="day-sep">HÔM QUA</span>
+<div class="bubble-row"><span class="avatar av-b avatar-sm" aria-hidden="true"></span><div class="bubble-col"><div class="bubble">Bản thiết kế cuối cậu xem chưa?</div><span class="bubble-meta">20:48</span></div></div>
+<div class="bubble-row out"><div class="bubble-col"><div class="bubble">Xem rồi, ổn đấy. Cậu gửi file gốc giúp mình nhé.</div><span class="bubble-meta">20:55 · Đã xem</span></div></div>
+<div class="bubble-row"><span class="avatar av-b avatar-sm" aria-hidden="true"></span><div class="bubble-col"><div class="bubble">Ok, mai mình gửi file thiết kế bản cuối cho bạn.</div><span class="bubble-meta">21:02</span></div></div>
+<span class="sys-msg">Tin nhắn sau 21:04 chưa về Sino</span>
+</div>
+<div class="composer">
+<div class="blocked" role="alert"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg><div class="alert-body"><span class="t-small" style="font-weight: 600;">Cần đăng nhập lại Messenger để nhận và gửi tin</span><span class="t-small c-muted">Quyền truy cập đã hết hạn. Tin cũ vẫn đọc được ở đây.</span></div><button class="btn btn-primary btn-sm" type="button">Kết nối lại</button></div>
+</div>
+</sc-if>
+
+<sc-if value="{{is.permission}}" hint-placeholder-val="{{false}}">
+<header class="thread-head">
+<div style="display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+<a class="btn btn-ghost btn-sm back" href="Inbox.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Hộp thư</a>
+<div style="display: flex; align-items: center; gap: 14px;"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><h1 class="t-large">Hợp đồng thuê văn phòng — bản sửa lần 2</h1><span class="t-small c-muted">Gmail · an.nguyen@gmail.com · 3 thư</span></div></div>
+</div>
+</header>
+<div class="chat-body">
+<article class="mail"><div class="mail-head"><span class="avatar av-c" style="width: 32px; height: 32px;"></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Trần Minh Anh</span><span class="spec">tới An Nguyễn</span></div><span class="spec c-text">09:41 hôm nay</span></div><div class="mail-text t-body"><p>Chào anh An,</p><p>Em gửi lại bản đã sửa điều khoản 4 và phụ lục giá theo trao đổi hôm thứ Tư. Anh xem giúp và phản hồi trước thứ Tư 07/10 để bên em kịp trình ký nhé.</p><p>Cảm ơn anh,<br>Minh Anh</p></div></article>
+</div>
+<div class="composer">
+<div class="blocked is-warn" role="status"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><div class="alert-body"><span class="t-small" style="font-weight: 600;">Quyền gửi thư của an.nguyen@gmail.com đã hết hạn</span><span class="t-small c-muted">Bạn vẫn đọc thư bình thường. Cấp lại riêng quyền gửi để trả lời từ Sino.</span></div><div style="display: flex; gap: 8px; flex: none;"><button class="btn btn-ghost btn-sm" type="button">Trả lời trong Gmail</button><button class="btn btn-secondary btn-sm" type="button">Cấp lại quyền gửi</button></div></div>
+</div>
+</sc-if>
+
+</section>
+
+<aside class="info" aria-label="Thông tin">
+<div class="info-sec">
+<span class="micro-label">Tài khoản dùng</span>
+<sc-if value="{{is.reconnect}}" hint-placeholder-val="{{true}}">
+<div class="acc-row"><span class="avatar av-b"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="spec">an.nguyen.92</span></div><span class="status"><span class="dot dot-err"></span><span class="ink-err">Ngắt</span></span></div>
+</sc-if>
+<sc-if value="{{is.permission}}" hint-placeholder-val="{{false}}">
+<div class="acc-row"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="spec">an.nguyen@gmail.com</span></div><span class="status"><span class="dot dot-ok"></span>Đồng bộ</span></div>
+</sc-if>
+</div>
+<div class="info-sec">
+<span class="micro-label">Quyền</span>
+<sc-if value="{{is.reconnect}}" hint-placeholder-val="{{true}}">
+<div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--danger);"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg><span class="t-small">Đọc tin nhắn · <span class="ink-err">hết hạn</span></span></div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--danger);"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg><span class="t-small">Gửi tin nhắn · <span class="ink-err">hết hạn</span></span></div>
+</div>
+<span class="t-small c-muted">1.204 tin đã lưu vẫn còn trong Sino.</span>
+</sc-if>
+<sc-if value="{{is.permission}}" hint-placeholder-val="{{false}}">
+<div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span class="t-small">Đọc thư và nhãn</span></div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--warning);"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><span class="t-small">Gửi thư thay bạn · <span class="ink-warn">hết hạn 01/10</span></span></div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span class="t-small">Xem địa chỉ email</span></div>
+</div>
+</sc-if>
+</div>
+<div class="info-sec">
+<label class="toggle"><input type="checkbox"><span>Tắt thông báo cuộc trò chuyện này</span></label>
+</div>
+</aside>
+
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"state":{"editor":"enum","options":["reconnect","permission"],"default":"reconnect"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const state = this.props.state === 'permission' ? 'permission' : 'reconnect';
+    return {
+      theme,
+      rootClass: `sino theme-${theme} app`,
+      is: { reconnect: state === 'reconnect', permission: state === 'permission' },
+    };
+  }
+}
+</script>
+</body>
+</html>

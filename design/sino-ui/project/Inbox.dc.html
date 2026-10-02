@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Hộp thư</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}" style="position: relative;">
+<dc-import name="Sidebar" theme="{{theme}}" active="inbox" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
+<div class="inbox">
+
+<aside class="pane" aria-label="Nguồn và bộ lọc">
+<div class="pane-pad">
+<div class="pane-sec">
+<span class="micro-label">Nguồn</span>
+<a class="src-item is-active" href="#tat-ca" aria-current="page"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span>Tất cả</span><span class="nav-count">12</span></a>
+<a class="src-item" href="#gmail"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><span>Gmail</span><span class="nav-count">7</span></a>
+<a class="src-item" href="#zalo"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span>Zalo</span><span class="nav-count">4</span></a>
+<a class="src-item" href="#messenger"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><span>Messenger</span><span class="dot dot-err"></span><span class="sr">cần đăng nhập lại</span></a>
+</div>
+<div class="pane-sec">
+<span class="micro-label">Lọc nhanh</span>
+<a class="src-item" href="#chua-doc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9"></path><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path><circle cx="19" cy="18" r="3"></circle></svg><span>Chưa đọc</span><span class="nav-count">12</span></a>
+<a class="src-item" href="#can-tra-loi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg><span>Cần trả lời</span><span class="nav-count">3</span></a>
+<a class="src-item" href="#co-tep"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg><span>Có tệp</span><span class="nav-count">5</span></a>
+<a class="src-item" href="#da-hen-gio"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h5"></path><path d="M17.5 17.5 16 16.3V14"></path><circle cx="16" cy="16" r="6"></circle></svg><span>Đã hẹn giờ</span><span class="nav-count">1</span></a>
+<a class="src-item" href="#dang-tam-an"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Đang tạm ẩn</span><span class="nav-count">1</span></a>
+<a class="src-item" href="#luu-tru"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg><span>Đã lưu trữ</span><span></span></a>
+</div>
+<div class="pane-sec">
+<span class="micro-label">Tài khoản</span>
+<a class="src-item" href="#acc-gmail"><span class="dot dot-ok"></span><span class="spec ellipsis c-text">an.nguyen@gmail.com</span><span></span></a>
+<a class="src-item" href="#acc-zalo"><span class="dot dot-warn"></span><span class="spec ellipsis c-text">+84 9•• ••• 218</span><span class="spec">64%</span></a>
+<a class="src-item" href="#acc-messenger"><span class="dot dot-err"></span><span class="spec ellipsis c-text">an.nguyen.92</span><span></span></a>
+<button class="btn btn-ghost btn-sm" type="button" style="justify-content: flex-start; margin-top: 6px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Thêm nguồn</button>
+</div>
+</div>
+</aside>
+
+<section class="pane" aria-label="Danh sách cuộc trò chuyện">
+<div class="list-head">
+<div class="card-head"><h1 class="t-large">Hộp thư</h1><span class="spec">12 chưa đọc</span></div>
+<div class="seg" role="group" aria-label="Lọc danh sách" style="align-self: flex-start;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3"><button type="button" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}">{{t.label}}</button></sc-for>
+</div>
+</div>
+
+<div class="day-sep">HÔM NAY</div>
+<div class="list-flat">
+<div class="mrow">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Nhóm chạy bộ Hồ Tây</span><span class="spec ellipsis">Zalo</span></div><span class="mrow-preview ellipsis">Tuấn: Sáng Chủ nhật 6 giờ, điểm hẹn cũ nhé mọi người.</span><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Hiện lại theo hẹn · 14:00</span></div>
+<div class="mrow-meta"><span class="spec">Hôm qua</span></div>
+</div>
+<div class="mrow is-selected">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Trần Minh Anh</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-subject ellipsis">Hợp đồng thuê văn phòng — bản sửa lần 2</span><span class="mrow-preview ellipsis">Em gửi lại bản đã sửa điều khoản 4 và phụ lục giá theo trao đổi.</span><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg>Task · hạn T4 07/10</span></div>
+<div class="mrow-meta"><span class="spec c-text">09:41</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></div>
+</div>
+<a class="mrow is-unread" href="Conversation.dc.html">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span><span class="spec ellipsis">Zalo · nhóm 6 người</span></div><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg>Task · Lịch hẹn</span></div>
+<div class="mrow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div>
+</a>
+<div class="mrow is-unread">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Phòng khám Ánh Dương</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-subject ellipsis">Nhắc lịch khám thứ Hai 05/10</span><span class="mrow-preview ellipsis">Quý khách có lịch khám lúc 08:30. Vui lòng đến trước 15 phút.</span><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg>Lịch hẹn · T2 05/10 08:30</span></div>
+<div class="mrow-meta"><span class="spec c-text">07:30</span><span class="dot dot-unread"></span></div>
+</div>
+</div>
+
+<div class="day-sep">HÔM QUA</div>
+<div class="list-flat">
+<div class="mrow">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Lê Hoàng</span><span class="spec ellipsis">Messenger</span></div><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối cho bạn.</span><span class="mrow-flag"><span class="ink-err" style="display: inline-flex; align-items: center; gap: 5px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>Thư hẹn giờ không gửi được</span></span></div>
+<div class="mrow-meta"><span class="spec">21:02</span></div>
+</div>
+<div class="mrow">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Thu Trang</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-subject ellipsis">Ảnh chuyến đi Đà Lạt</span><span class="mrow-preview ellipsis">Mình gửi trước 40 tấm, phần còn lại để trong thư mục chung.</span><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h5"></path><path d="M17.5 17.5 16 16.3V14"></path><circle cx="16" cy="16" r="6"></circle></svg>Hẹn gửi trả lời · T7 03/10 08:00</span></div>
+<div class="mrow-meta"><span class="spec">10:15</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></div>
+</div>
+</div>
+
+<div class="day-sep">TUẦN NÀY</div>
+<div class="list-flat">
+<div class="mrow">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Điện lực Hà Nội</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-subject ellipsis">Hóa đơn tiền điện tháng 9</span><span class="mrow-preview ellipsis">Số tiền cần thanh toán 1.284.000 đ, hạn thanh toán 10/10/2026.</span></div>
+<div class="mrow-meta"><span class="spec">Thứ 3</span></div>
+</div>
+</div>
+</section>
+
+<section class="thread" aria-label="Cuộc trò chuyện đang mở" style="position: relative;">
+<header class="thread-head">
+<div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+<h2 class="t-large">Hợp đồng thuê văn phòng — bản sửa lần 2</h2>
+<div class="gap-row" style="gap: 10px;"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><span class="t-small c-muted">Gmail · an.nguyen@gmail.com</span><span class="spec">3 thư · 2 tệp</span></div>
+</div>
+<div class="thread-tools">
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Tìm trong cuộc trò chuyện"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đánh dấu chưa đọc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9"></path><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path><circle cx="19" cy="18" r="3"></circle></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Lưu trữ"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg></button>
+<button class="{{toolCls.snooze}}" type="button" aria-label="Tạm ẩn" title="Tạm ẩn" onClick="{{tg.snooze}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></button>
+<span class="vsep" aria-hidden="true"></span>
+<button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>Mở trong Gmail</button>
+</div>
+</header>
+
+<div class="thread-body">
+<div class="linked" aria-label="Việc và ghi chú của cuộc trò chuyện này">
+<a class="lchip" href="Tasks.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><span class="ellipsis">Trả lời: Hợp đồng thuê văn phòng</span><span class="spec">hạn T4 07/10 · nhắc T2 09:00</span></a>
+<a class="lchip" href="Calendar.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><span class="ellipsis">Ký hợp đồng</span><span class="spec">T5 08/10 14:00</span></a>
+<a class="lchip" href="Notes.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"></path><path d="M15 3v4a2 2 0 0 0 2 2h4"></path></svg><span class="ellipsis">Điều khoản 4 — thời hạn thanh toán</span></a>
+</div>
+<div class="mail is-collapsed"><div class="mail-head"><span class="avatar av-a" style="width: 32px; height: 32px;"></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Bạn</span><span class="t-small c-muted ellipsis">Gửi anh bản hợp đồng đầu tiên, anh xem trước phần thời hạn và giá thuê nhé.</span></div><span class="spec">28/09</span></div></div>
+<div class="mail is-collapsed"><div class="mail-head"><span class="avatar av-c" style="width: 32px; height: 32px;"></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Trần Minh Anh</span><span class="t-small c-muted ellipsis">Em đã xem, có hai điểm cần sửa ở điều khoản 4 và phụ lục.</span></div><span class="spec">30/09</span></div></div>
+<article class="mail" style="position: relative;">
+<div class="mail-head has-tools"><span class="avatar av-c" style="width: 32px; height: 32px;"></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Trần Minh Anh</span><span class="spec ellipsis">tới An Nguyễn</span></div>
+<div class="mail-tools" role="toolbar" aria-label="Thao tác với thư này"><button class="{{toolCls.task}}" type="button" aria-label="Tạo task" title="Tạo task" onClick="{{tg.task}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg></button><button class="{{toolCls.remind}}" type="button" aria-label="Nhắc tôi" title="Nhắc tôi" onClick="{{tg.remind}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3 2 6"></path><path d="m22 6-3-3"></path><path d="M6.38 18.7 4 21"></path><path d="M17.64 18.67 20 21"></path></svg></button><button class="{{toolCls.event}}" type="button" aria-label="Lịch hẹn" title="Lịch hẹn" onClick="{{tg.event}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="M16 19h6"></path><path d="M19 16v6"></path></svg></button><button class="{{toolCls.note}}" type="button" aria-label="Ghi chú" title="Ghi chú" onClick="{{tg.note}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"></path><path d="M15 3v4a2 2 0 0 0 2 2h4"></path></svg></button></div>
+<span class="spec c-text">09:41 hôm nay</span></div>
+<div class="mail-text t-body">
+<p>Chào anh An,</p>
+<p>Em gửi lại bản đã sửa <span class="{{hlCls}}">điều khoản 4 (thời hạn thanh toán)</span> và phụ lục giá theo trao đổi hôm thứ Tư. Các chỗ thay đổi em đã đánh dấu trong file.</p>
+<p>Anh xem giúp và phản hồi trước thứ Tư 07/10 để bên em kịp trình ký nhé.</p>
+<p>Cảm ơn anh,<br>Minh Anh</p>
+</div>
+<div class="gap-row" style="gap: 10px;">
+<a class="attach" href="#tep-1"><span class="file-ic">PDF</span><span class="who-text"><span class="t-small" style="font-weight: 600;">Hop-dong-thue-VP-v2.pdf</span><span class="spec">1,4 MB</span></span></a>
+<a class="attach" href="#tep-2"><span class="file-ic">XLSX</span><span class="who-text"><span class="t-small" style="font-weight: 600;">Phu-luc-gia.xlsx</span><span class="spec">86 KB</span></span></a>
+</div>
+<sc-if value="{{is.remind}}" hint-placeholder-val="{{false}}">
+<div class="menu pop" role="menu" aria-label="Nhắc tôi trả lời" style="top: 58px; right: 62px; width: 280px;"><span class="menu-title">Nhắc tôi trả lời</span><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Chiều nay</span><span class="spec">17:00</span></button><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Tối nay</span><span class="spec">20:00</span></button><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Sáng mai</span><span class="spec">T7 09:00</span></button><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Thứ Hai tới</span><span class="spec">05/10 09:00</span></button><div class="menu-sep"></div><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><span>Chọn ngày giờ…</span><span class="spec"></span></button><p class="menu-foot">Tạo task “Trả lời: Hợp đồng thuê văn phòng…” trong Việc cần làm, có nhắc nhở.</p></div>
+</sc-if>
+<sc-if value="{{is.note}}" hint-placeholder-val="{{false}}">
+<div class="float-bar" style="top: 62px; left: 150px;" role="toolbar" aria-label="Với đoạn đã chọn"><button class="fb-btn is-on" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"></path><path d="M15 3v4a2 2 0 0 0 2 2h4"></path></svg>Ghi chú</button><button class="fb-btn" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg>Tạo task</button><button class="fb-btn" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>Sao chép</button></div>
+<div class="note-pop pop" style="top: 188px; left: 20px;" role="dialog" aria-label="Ghi chú mới">
+<div class="card-head"><span class="micro-label">Ghi chú mới · gắn với thư này</span><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đóng" onClick="{{close}}" style="margin: -8px -8px -8px 0;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div>
+<blockquote class="quote" style="margin: 0; padding: 10px 12px;"><p style="font-size: 13px; line-height: 18px;">“điều khoản 4 (thời hạn thanh toán)”</p></blockquote>
+<textarea aria-label="Nội dung ghi chú" defaultValue="Thời hạn thanh toán đổi từ 15 xuống 10 ngày — hỏi lại kế toán."></textarea>
+<div class="card-head"><span class="spec">58 / 20.000</span><div class="gap-row"><button class="btn btn-ghost btn-sm" type="button" onClick="{{close}}">Hủy</button><button class="btn btn-primary btn-sm" type="button" onClick="{{close}}">Lưu ghi chú</button></div></div>
+</div>
+</sc-if>
+</article>
+</div>
+
+<div class="composer">
+<div class="composer-box">
+<label class="sr" for="reply-box">Trả lời Trần Minh Anh</label>
+<textarea id="reply-box" rows="2" placeholder="Trả lời Trần Minh Anh…" defaultValue="{{draft}}"></textarea>
+<div class="composer-bar">
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đính kèm tệp"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+<button class="from-pick" type="button" aria-label="Gửi từ an.nguyen@gmail.com">Gửi từ an.nguyen@gmail.com<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span class="kbd" style="margin-left: auto;">Ctrl Enter</span>
+<div class="split"><button class="btn btn-primary btn-sm" type="button">Gửi<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></button><button class="{{sendCls}}" type="button" aria-label="Tùy chọn gửi: Gửi lúc…" aria-expanded="{{is.send}}" onClick="{{tg.send}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+</div>
+</div>
+</div>
+<sc-if value="{{is.snooze}}" hint-placeholder-val="{{false}}">
+<div class="menu pop" role="menu" aria-label="Tạm ẩn tới…" style="top: 64px; right: 168px; width: 264px;"><span class="menu-title">Tạm ẩn tới…</span><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Chiều nay</span><span class="spec">17:00</span></button><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Tối nay</span><span class="spec">20:00</span></button><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Sáng mai</span><span class="spec">T7 08:00</span></button><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Thứ Hai tới</span><span class="spec">05/10 08:00</span></button><div class="menu-sep"></div><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><span>Chọn ngày giờ…</span><span class="spec"></span></button><p class="menu-foot">Hiện lại sớm hơn nếu có tin mới.</p></div>
+</sc-if>
+<sc-if value="{{is.send}}" hint-placeholder-val="{{false}}">
+<div class="menu pop" role="menu" aria-label="Gửi lúc…" style="bottom: 74px; right: 24px; width: 268px;"><span class="menu-title">Gửi lúc…</span><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h5"></path><path d="M17.5 17.5 16 16.3V14"></path><circle cx="16" cy="16" r="6"></circle></svg><span>Sáng mai</span><span class="spec">T7 08:00</span></button><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h5"></path><path d="M17.5 17.5 16 16.3V14"></path><circle cx="16" cy="16" r="6"></circle></svg><span>Thứ Hai tới</span><span class="spec">05/10 08:00</span></button><div class="menu-sep"></div><button class="menu-item has-meta" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><span>Chọn ngày giờ…</span><span class="spec"></span></button><p class="menu-foot">Giờ Việt Nam (GMT+7). Sửa hoặc hủy được trước giờ gửi.</p></div>
+</sc-if>
+</section>
+
+</div>
+</div>
+<sc-if value="{{is.task}}" hint-placeholder-val="{{false}}">
+<div class="wiz-scrim" style="z-index: 10;">
+<div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Task mới">
+<div class="modal-head"><div style="display: flex; flex-direction: column; gap: 6px;"><span class="micro-label">Tạo task từ thư</span><h2 class="t-large">Task mới</h2></div><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đóng" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div>
+<div class="modal-body">
+<div class="field"><label class="field-label" for="tk-title">Tiêu đề</label><input class="input" id="tk-title" type="text" defaultValue="Trả lời: Hợp đồng thuê văn phòng — bản sửa lần 2"></div>
+<div class="form-grid">
+<div class="field"><label class="field-label" for="tk-due">Hạn</label><div class="input-wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><input class="input" id="tk-due" type="text" defaultValue="Thứ Tư, 07/10/2026"></div></div>
+<div class="field"><label class="field-label" for="tk-time">Giờ</label><div class="input-wrap select-wrap"><select class="input" id="tk-time" defaultValue="17"><option value="allday">Cả ngày</option><option value="9">09:00</option><option value="17">17:00</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+<div class="field"><label class="field-label" for="tk-remind">Nhắc tôi</label><div class="input-wrap select-wrap"><select class="input" id="tk-remind" defaultValue="mon"><option value="none">Không nhắc</option><option value="due">Lúc đến hạn</option><option value="mon">Thứ Hai 05/10 · 09:00</option><option value="pick">Chọn ngày giờ…</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+<div class="field"><label class="field-label" for="tk-repeat">Lặp lại</label><div class="input-wrap select-wrap"><select class="input" id="tk-repeat" defaultValue="none"><option value="none">Không lặp</option><option value="d">Hằng ngày</option><option value="w">Hằng tuần</option><option value="m">Hằng tháng</option><option value="y">Hằng năm</option><option value="c">Tùy chỉnh…</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+</div>
+<div class="field"><label class="field-label" for="tk-note">Ghi chú</label><textarea class="input" id="tk-note" rows="2" placeholder="Thêm ghi chú cho task (không bắt buộc)"></textarea></div>
+<div class="src-card"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Liên kết với thư</span><span class="t-small c-muted ellipsis">Trần Minh Anh · Hợp đồng thuê văn phòng — bản sửa lần 2</span></div><button class="btn btn-ghost btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7"></path><path d="M15 7h2a5 5 0 0 1 4 8"></path><path d="M8 12h4"></path><path d="m2 2 20 20"></path></svg>Bỏ liên kết</button></div>
+</div>
+<div class="modal-foot"><span class="spec" style="margin-right: auto;">Giờ Việt Nam · GMT+7</span><button class="btn btn-ghost btn-sm" type="button" onClick="{{close}}">Hủy</button><button class="btn btn-primary btn-sm" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Tạo task</button></div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{is.event}}" hint-placeholder-val="{{false}}">
+<div class="wiz-scrim" style="z-index: 10;">
+<div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Lịch hẹn mới">
+<div class="modal-head"><div style="display: flex; flex-direction: column; gap: 6px;"><span class="micro-label">Tạo lịch hẹn từ thư</span><h2 class="t-large">Lịch hẹn mới</h2></div><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đóng" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div>
+<div class="modal-body">
+<div class="field"><label class="field-label" for="ev-title">Tiêu đề</label><input class="input" id="ev-title" type="text" defaultValue="Ký hợp đồng thuê văn phòng"></div>
+<div class="form-grid">
+<div class="field"><label class="field-label" for="ev-day">Ngày</label><div class="input-wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><input class="input" id="ev-day" type="text" defaultValue="Thứ Năm, 08/10/2026"></div></div>
+<div class="field"><label class="field-label" for="ev-time">Thời gian</label><div class="input-wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><input class="input" id="ev-time" type="text" defaultValue="14:00 – 15:00"></div></div>
+<div class="field span-2"><label class="field-label" for="ev-place">Địa điểm</label><div class="input-wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg><input class="input" id="ev-place" type="text" defaultValue="Văn phòng bên cho thuê"></div></div>
+<div class="field"><label class="field-label" for="ev-remind">Nhắc tôi</label><div class="input-wrap select-wrap"><select class="input" id="ev-remind" defaultValue="30"><option value="none">Không nhắc</option><option value="15">15 phút trước</option><option value="30">30 phút trước</option><option value="60">1 giờ trước</option><option value="day">1 ngày trước</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+<div class="field"><label class="field-label" for="ev-repeat">Lặp lại</label><div class="input-wrap select-wrap"><select class="input" id="ev-repeat" defaultValue="none"><option value="none">Không lặp</option><option value="w">Hằng tuần</option><option value="m">Hằng tháng</option><option value="c">Tùy chỉnh…</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+</div>
+<div class="src-card"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Liên kết với thư</span><span class="t-small c-muted ellipsis">Trần Minh Anh · Hợp đồng thuê văn phòng — bản sửa lần 2</span></div><button class="btn btn-ghost btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7"></path><path d="M15 7h2a5 5 0 0 1 4 8"></path><path d="M8 12h4"></path><path d="m2 2 20 20"></path></svg>Bỏ liên kết</button></div>
+<p class="why">Lịch hẹn chỉ nằm trong Sino, không gửi lời mời cho ai.</p>
+</div>
+<div class="modal-foot"><span class="spec" style="margin-right: auto;">Giờ Việt Nam · GMT+7</span><button class="btn btn-ghost btn-sm" type="button" onClick="{{close}}">Hủy</button><button class="btn btn-primary btn-sm" type="button" onClick="{{close}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="M16 19h6"></path><path d="M19 16v6"></path></svg>Tạo lịch hẹn</button></div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"overlay":{"editor":"enum","options":["none","remind","task","event","note","snooze","send"],"default":"none"},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    const tab = s.tab || 'all';
+    const fromProp = this.props.overlay && this.props.overlay !== 'none' ? this.props.overlay : null;
+    const open = 'menu' in s ? s.menu : fromProp;
+    const tabs = [
+      { id: 'all', label: 'Tất cả' },
+      { id: 'unread', label: 'Chưa đọc' },
+      { id: 'reply', label: 'Cần trả lời' },
+    ].map((t) => ({ ...t, pressed: t.id === tab, pick: () => this.setState({ tab: t.id }) }));
+    const keys = ['task', 'remind', 'event', 'note', 'snooze', 'send'];
+    const is = {};
+    const tg = {};
+    const toolCls = {};
+    keys.forEach((k) => {
+      is[k] = open === k;
+      tg[k] = () => this.setState({ menu: open === k ? null : k });
+      toolCls[k] = open === k ? 'btn btn-ghost btn-icon btn-sm is-on' : 'btn btn-ghost btn-icon btn-sm';
+    });
+    const draft = open === 'send'
+      ? 'Chào em, anh đã xem bản sửa. Điều khoản 4 anh đồng ý; phụ lục giá anh gửi góp ý sau nhé.'
+      : '';
+    return {
+      theme,
+      rootClass: `sino theme-${theme} app`,
+      tabs,
+      is,
+      tg,
+      toolCls,
+      close: () => this.setState({ menu: null }),
+      hlCls: open === 'note' ? 'hl' : '',
+      sendCls: open === 'send' ? 'btn btn-primary btn-sm is-on' : 'btn btn-primary btn-sm',
+      draft,
+    };
+  }
+}
+</script>
+</body>
+</html>

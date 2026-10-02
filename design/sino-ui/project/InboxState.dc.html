@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Hộp thư · Trạng thái</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Sidebar" theme="{{theme}}" active="inbox" counts="{{sidebarCounts}}" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" status="{{topStatus}}" hint-size="100%,72px"></dc-import>
+<div style="display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0;">
+
+<div>
+<sc-if value="{{is.offline}}" hint-placeholder-val="{{false}}">
+<div class="banner" role="status"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h.01"></path><path d="M8.5 16.43a5 5 0 0 1 7 0"></path><path d="M2 8.82a15 15 0 0 1 4.17-2.65"></path><path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"></path><path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"></path><path d="M5 13a10 10 0 0 1 5.24-2.76"></path><path d="m2 2 20 20"></path></svg><span><span style="font-weight: 600;">Bạn đang ngoại tuyến.</span> <span class="c-muted">Đang hiện dữ liệu đã lưu lúc 13:58. Thư bạn soạn sẽ gửi khi có mạng.</span></span><button class="btn btn-ghost btn-sm" type="button" style="margin-left: auto;">Thử kết nối lại</button></div>
+</sc-if>
+</div>
+
+<div style="display: grid; min-height: 0;">
+
+<sc-if value="{{is.empty}}" hint-placeholder-val="{{true}}">
+<main class="app-scroll dotbg" style="display: grid; place-items: center;">
+<div class="empty-hero">
+<div style="display: flex; flex-direction: column; gap: 20px;">
+<div class="empty-art" aria-hidden="true"><span class="ea-1"></span><span class="ea-2"></span><span class="ea-3"><svg class="ic ic-20" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></span></div>
+<span class="t-mono c-muted">HỘP THƯ · CHƯA CÓ NGUỒN</span>
+<h1 class="t-page">Hộp thư đang trống.</h1>
+<p class="t-body c-muted">Kết nối một tài khoản để thư và tin nhắn bắt đầu về đây. Sino chỉ đọc qua quyền bạn cấp, và bạn ngắt kết nối được bất cứ lúc nào.</p>
+<span class="t-small c-muted">Bấm <span class="kbd">N</span> ở bất cứ đâu để kết nối nhanh.</span>
+</div>
+<div class="quick-list">
+<div class="quick"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="t-small c-muted">Thư điện tử</span></div><a class="btn btn-primary btn-sm" href="ConnectWizard.dc.html">Kết nối</a></div>
+<div class="quick"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="t-small c-muted">Tin nhắn cá nhân và nhóm</span></div><button class="btn btn-secondary btn-sm" type="button">Kết nối</button></div>
+<div class="quick"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="t-small c-muted">Tin nhắn Facebook</span></div><button class="btn btn-secondary btn-sm" type="button">Kết nối</button></div>
+</div>
+</div>
+</main>
+</sc-if>
+
+<sc-if value="{{is.panes}}" hint-placeholder-val="{{false}}">
+<div class="inbox">
+
+<aside class="pane" aria-label="Nguồn">
+<div class="pane-pad">
+<div class="pane-sec">
+<span class="micro-label">Nguồn</span>
+<a class="src-item is-active" href="#tat-ca" aria-current="page"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span>Tất cả</span><span class="nav-count">{{counts.all}}</span></a>
+<a class="src-item" href="#gmail"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><span>Gmail</span><span class="nav-count">{{counts.gmail}}</span></a>
+<a class="src-item" href="#zalo"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span>Zalo</span><span class="nav-count">{{counts.zalo}}</span></a>
+<a class="src-item" href="#messenger"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><span>Messenger</span><span class="nav-count">{{counts.messenger}}</span></a>
+</div>
+</div>
+</aside>
+
+<section class="pane" aria-label="Danh sách cuộc trò chuyện">
+<div class="list-head"><div class="card-head"><h1 class="t-large">Hộp thư</h1><span class="spec">{{listMeta}}</span></div></div>
+
+<sc-if value="{{is.loading}}" hint-placeholder-val="{{false}}">
+<div style="padding: 16px 16px 4px;">
+<div class="card-quiet" style="display: flex; flex-direction: column; gap: 10px; padding: 16px;" role="status"><div class="card-head"><span class="status"><span class="dot dot-warn"></span>Đồng bộ lần đầu · Gmail</span><span class="spec">412 / 1.180</span></div><span class="progress"><span style="width: 35%;"></span></span><span class="t-small c-muted">Thư mới nhất về trước. Còn khoảng 3 phút.</span></div>
+</div>
+<div class="list-flat" aria-hidden="true">
+<div class="skel-row"><span class="skel" style="width: 36px; height: 36px; border-radius: 10px;"></span><div class="skel-lines"><span class="skel" style="width: 46%; height: 12px;"></span><span class="skel" style="width: 88%; height: 10px;"></span><span class="skel" style="width: 70%; height: 10px;"></span></div><span class="skel" style="width: 36px; height: 10px;"></span></div>
+<div class="skel-row"><span class="skel" style="width: 36px; height: 36px; border-radius: 10px;"></span><div class="skel-lines"><span class="skel" style="width: 38%; height: 12px;"></span><span class="skel" style="width: 92%; height: 10px;"></span><span class="skel" style="width: 64%; height: 10px;"></span></div><span class="skel" style="width: 36px; height: 10px;"></span></div>
+<div class="skel-row"><span class="skel" style="width: 36px; height: 36px; border-radius: 10px;"></span><div class="skel-lines"><span class="skel" style="width: 52%; height: 12px;"></span><span class="skel" style="width: 80%; height: 10px;"></span></div><span class="skel" style="width: 36px; height: 10px;"></span></div>
+<div class="skel-row"><span class="skel" style="width: 36px; height: 36px; border-radius: 10px;"></span><div class="skel-lines"><span class="skel" style="width: 42%; height: 12px;"></span><span class="skel" style="width: 86%; height: 10px;"></span><span class="skel" style="width: 58%; height: 10px;"></span></div><span class="skel" style="width: 36px; height: 10px;"></span></div>
+<div class="skel-row"><span class="skel" style="width: 36px; height: 36px; border-radius: 10px;"></span><div class="skel-lines"><span class="skel" style="width: 34%; height: 12px;"></span><span class="skel" style="width: 76%; height: 10px;"></span></div><span class="skel" style="width: 36px; height: 10px;"></span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{is.error}}" hint-placeholder-val="{{false}}">
+<div class="center-state" role="alert">
+<div class="err-art" aria-hidden="true"><svg class="ic ic-24" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></div>
+<div style="display: flex; flex-direction: column; gap: 8px;"><h2 class="t-large">Không tải được hộp thư</h2><p class="t-small c-muted">Máy chủ Sino không phản hồi sau 30 giây. Thư của bạn vẫn an toàn ở Gmail, Zalo và Messenger.</p><span class="spec">ERR_TIMEOUT · yêu cầu 7f3a-91c2 · 14:02</span></div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap;"><button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Thử lại</button><button class="btn btn-ghost btn-sm" type="button">Trạng thái hệ thống</button></div>
+</div>
+</sc-if>
+
+<sc-if value="{{is.offline}}" hint-placeholder-val="{{false}}">
+<div class="day-sep">HÔM NAY · ĐÃ LƯU LÚC 13:58</div>
+<div class="list-flat">
+<div class="mrow is-selected"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Trần Minh Anh</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-subject ellipsis">Hợp đồng thuê văn phòng — bản sửa lần 2</span><span class="mrow-preview ellipsis">Em gửi lại bản đã sửa điều khoản 4 và phụ lục giá.</span></div><div class="mrow-meta"><span class="spec c-text">09:41</span></div></div>
+<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span><span class="spec ellipsis">Zalo</span></div><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="mrow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div></div>
+<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Phòng khám Ánh Dương</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-subject ellipsis">Nhắc lịch khám thứ Hai 05/10</span></div><div class="mrow-meta"><span class="spec c-text">07:30</span><span class="dot dot-unread"></span></div></div>
+</div>
+</sc-if>
+</section>
+
+<section style="display: grid; min-height: 0; min-width: 0;" aria-label="Nội dung">
+
+<sc-if value="{{is.loading}}" hint-placeholder-val="{{false}}">
+<div class="thread" aria-hidden="true">
+<div class="thread-head"><div style="display: flex; flex-direction: column; gap: 10px; width: 60%;"><span class="skel" style="width: 80%; height: 18px;"></span><span class="skel" style="width: 46%; height: 10px;"></span></div></div>
+<div class="thread-body"><span class="skel" style="height: 64px; border-radius: 14px;"></span><span class="skel" style="height: 64px; border-radius: 14px;"></span><span class="skel" style="height: 220px; border-radius: 14px;"></span></div>
+<div></div>
+</div>
+</sc-if>
+
+<sc-if value="{{is.error}}" hint-placeholder-val="{{false}}">
+<div style="display: grid; place-items: center; padding: 40px;"><span class="t-small c-muted">Nội dung sẽ hiện ở đây khi hộp thư tải xong.</span></div>
+</sc-if>
+
+<sc-if value="{{is.offline}}" hint-placeholder-val="{{false}}">
+<div class="thread">
+<header class="thread-head"><div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;"><h2 class="t-large">Hợp đồng thuê văn phòng — bản sửa lần 2</h2><span class="t-small c-muted">Gmail · bản đã lưu lúc 13:58</span></div></header>
+<div class="thread-body">
+<article class="mail"><div class="mail-head"><span class="avatar av-c" style="width: 32px; height: 32px;"></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Trần Minh Anh</span><span class="spec">tới An Nguyễn</span></div><span class="spec c-text">09:41</span></div><div class="mail-text t-body"><p>Chào anh An,</p><p>Em gửi lại bản đã sửa điều khoản 4 và phụ lục giá theo trao đổi hôm thứ Tư. Anh phản hồi giúp trước thứ Tư 07/10 nhé.</p></div><div class="gap-row"><span class="attach"><span class="file-ic">PDF</span><span class="who-text"><span class="t-small" style="font-weight: 600;">Hop-dong-thue-VP-v2.pdf</span><span class="spec">Chưa tải · cần có mạng</span></span></span></div></article>
+</div>
+<div class="composer">
+<div class="composer-box">
+<label class="sr" for="offline-reply">Trả lời Trần Minh Anh</label>
+<textarea id="offline-reply" rows="2" defaultValue="Anh nhận được rồi, chiều nay anh xem và gửi lại em nhé."></textarea>
+<div class="composer-bar"><span class="status"><span class="dot dot-err"></span><span class="ink-err">Sẽ gửi khi có mạng</span></span><button class="btn btn-primary btn-sm" type="button" style="margin-left: auto;">Xếp hàng gửi</button></div>
+</div>
+</div>
+</div>
+</sc-if>
+
+</section>
+</div>
+</sc-if>
+
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"state":{"editor":"enum","options":["empty","loading","error","offline"],"default":"empty"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const state = ['empty', 'loading', 'error', 'offline'].includes(this.props.state) ? this.props.state : 'empty';
+    const counts = {
+      loading: { all: '…', gmail: '…', zalo: '—', messenger: '—' },
+      error: { all: '—', gmail: '—', zalo: '—', messenger: '—' },
+      offline: { all: '12', gmail: '7', zalo: '4', messenger: '1' },
+    };
+    const meta = { loading: 'đang tải', error: 'không tải được', offline: '12 chưa đọc · đã lưu' };
+    const top = { empty: 'idle', loading: 'syncing', error: 'error', offline: 'offline' };
+    return {
+      theme,
+      rootClass: `sino theme-${theme} app`,
+      is: { empty: state === 'empty', panes: state !== 'empty', loading: state === 'loading', error: state === 'error', offline: state === 'offline' },
+      counts: counts[state] || counts.error,
+      listMeta: meta[state] || '',
+      topStatus: top[state],
+      sidebarCounts: state === 'offline' ? 'on' : 'off',
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Tổng quan</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Sidebar" theme="{{theme}}" active="overview" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" bell="{{bell}}" hint-size="100%,72px"></dc-import>
+<main class="app-scroll dotbg">
+<div class="dash">
+
+<header class="dash-head">
+<div style="display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+<span class="t-mono c-muted">THỨ SÁU · 02/10/2026 · 14:05</span>
+<h1 class="t-page">Chào buổi chiều, An.</h1>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;"><span class="t-body c-muted">Hai tài khoản đang chạy bình thường.</span><span class="status"><span class="dot dot-err"></span><span class="ink-err">Messenger cần đăng nhập lại</span></span></div>
+</div>
+<div style="display: flex; gap: 10px;">
+<button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Đồng bộ ngay</button>
+<button class="btn btn-primary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối tài khoản</button>
+</div>
+</header>
+
+<div class="bento">
+
+<article class="card-spotlight" style="grid-column: span 7; grid-row: span 2; display: flex; flex-direction: column; gap: 18px;">
+<div class="card-head"><span class="micro-label t-caps">Hộp thư hợp nhất</span><span class="spec">12 chưa đọc</span></div>
+<h2 class="t-section">3 cuộc trò chuyện đang chờ bạn trả lời.</h2>
+<div style="display: flex; flex-direction: column; gap: 2px; margin: 0 -12px;">
+<div class="drow"><span class="pmark-sm" style="width: 32px; height: 32px; border-radius: 9px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><span class="t-small ellipsis"><span style="font-weight: 700;">Trần Minh Anh</span> · Hợp đồng thuê văn phòng — bản sửa lần 2</span><span class="t-small c-muted ellipsis">Mình gửi lại bản đã sửa điều khoản 4 và phụ lục giá.</span></div><div class="drow-meta"><span class="spec c-text">09:41</span><span class="dot dot-unread"></span></div></div>
+<div class="drow"><span class="pmark-sm" style="width: 32px; height: 32px; border-radius: 9px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="who-text"><span class="t-small ellipsis"><span style="font-weight: 700;">Gia đình</span> · Zalo · nhóm 6 người</span><span class="t-small c-muted ellipsis">Mẹ: Cuối tuần này cả nhà về ăn cơm nhé, nhớ mua bánh cho bà.</span></div><div class="drow-meta"><span class="spec c-text">08:15</span><span class="badge badge-solid">3</span></div></div>
+<div class="drow"><span class="pmark-sm" style="width: 32px; height: 32px; border-radius: 9px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><span class="t-small ellipsis"><span style="font-weight: 700;">Phòng khám Ánh Dương</span> · Nhắc lịch khám thứ Hai 05/10</span><span class="t-small c-muted ellipsis">Quý khách có lịch khám lúc 08:30. Vui lòng đến trước 15 phút.</span></div><div class="drow-meta"><span class="spec c-text">07:30</span><span class="dot dot-unread"></span></div></div>
+<div class="drow"><span class="pmark-sm" style="width: 32px; height: 32px; border-radius: 9px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="who-text"><span class="t-small ellipsis"><span style="font-weight: 500;">Lê Hoàng</span> · Messenger</span><span class="t-small c-muted ellipsis">Ok, mai mình gửi file thiết kế bản cuối cho bạn.</span></div><div class="drow-meta"><span class="spec">Hôm qua</span></div></div>
+</div>
+<div class="hairline" style="margin-top: auto;"></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: end;">
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div class="src-row"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><span class="t-small">Gmail</span><span class="src-track"><span class="src-fill" style="width: 58%;"></span></span><span class="t-mono" style="text-align: right;">7</span></div>
+<div class="src-row"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span class="t-small">Zalo</span><span class="src-track"><span class="src-fill" style="width: 33%;"></span></span><span class="t-mono" style="text-align: right;">4</span></div>
+<div class="src-row"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><span class="t-small">Messenger</span><span class="src-track"><span class="src-fill" style="width: 9%;"></span></span><span class="t-mono" style="text-align: right;">1</span></div>
+</div>
+<a class="btn btn-ghost btn-sm" href="Inbox.dc.html">Mở hộp thư<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a>
+</div>
+</article>
+
+<article class="card-bento" style="grid-column: span 5; grid-row: span 2; display: flex; flex-direction: column; gap: 14px;">
+<div class="card-head"><span class="micro-label">Hôm nay · Thứ Sáu 02/10</span><span class="spec">4 việc · 1 lịch hẹn</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; margin: 0 -12px;">
+<div class="td-row is-over"><span class="spec c-text">30/09</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Gửi lại hóa đơn tháng 9 cho kế toán</span><span class="t-small ink-err">Quá hạn 2 ngày</span></div><button class="check is-over" type="button" aria-label="Đánh dấu xong"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></button></div>
+<div class="td-row is-done"><span class="spec c-text">07:45</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Xác nhận lịch khám</span><span class="t-small c-muted">Đã xong</span></div></div>
+<div class="td-row"><span class="spec c-text">16:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Gọi Minh Anh về phụ lục giá</span><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>Trần Minh Anh</span></div><span class="spec">sau 2 giờ</span></div>
+<div class="td-row"><span class="spec c-text">17:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Chuyển tiền nhà tháng 10</span><span class="meta"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg>Hằng tháng</span></div><button class="check" type="button" aria-label="Đánh dấu xong"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></button></div>
+<div class="td-row"><span class="spec c-text">18:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Nhắc: Mua bánh bông lan trứng muối</span><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>Gia đình</span></div></div>
+</div>
+<div class="hairline" style="margin-top: auto;"></div>
+<div class="card-head"><span class="t-small c-muted">Ngày mai: <span class="c-text" style="font-weight: 600;">Về nhà ăn cơm</span> 18:30 · 1 việc</span><a class="btn btn-ghost btn-sm" href="Calendar.dc.html" style="margin-right: -8px;">Mở lịch<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></div>
+</article>
+
+<article class="card-bento" style="grid-column: span 4; display: flex; flex-direction: column; gap: 16px;">
+<div class="card-head"><span class="micro-label">Tài khoản</span><span class="spec">3 · 1 cần xử lý</span></div>
+<div class="acc-row"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="spec ellipsis">an.nguyen@gmail.com</span></div><span class="status"><span class="dot dot-ok"></span>Ổn định</span></div>
+<div class="acc-row"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span></span><div class="who-text" style="gap: 6px;"><div style="display: flex; justify-content: space-between; gap: 8px;"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="spec">+84 9•• ••• 218</span></div><span class="progress" role="img" aria-label="Đã đồng bộ 64%"><span style="width: 64%;"></span></span></div><span class="status"><span class="dot dot-warn"></span>64%</span></div>
+<div class="acc-row"><span class="avatar av-b"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="t-small ink-err ellipsis">Quyền hết hạn từ 21:04 hôm qua</span></div><button class="btn btn-secondary btn-sm" type="button">Đăng nhập lại</button></div>
+</article>
+
+<article class="card-bento" style="grid-column: span 4; display: flex; flex-direction: column; gap: 14px;">
+<div class="card-head"><span class="micro-label">Dịch vụ · đồng bộ 24 giờ qua</span><span class="spec">1.284 thư</span></div>
+<div class="bars" role="img" aria-label="Số thư đồng bộ mỗi giờ trong 24 giờ qua. Messenger lỗi lúc 21 giờ, Zalo chậm lúc 13 giờ.">
+<span style="height: 40%;"></span><span style="height: 55%;"></span><span style="height: 48%;"></span><span style="height: 62%;"></span><span style="height: 70%;"></span><span style="height: 58%;"></span><span class="bar-err" style="height: 34%;"></span><span style="height: 22%;"></span><span style="height: 15%;"></span><span style="height: 10%;"></span><span style="height: 8%;"></span><span style="height: 6%;"></span><span style="height: 5%;"></span><span style="height: 8%;"></span><span style="height: 20%;"></span><span style="height: 45%;"></span><span style="height: 72%;"></span><span style="height: 84%;"></span><span style="height: 66%;"></span><span style="height: 58%;"></span><span style="height: 44%;"></span><span style="height: 52%;"></span><span class="bar-warn" style="height: 28%;"></span><span style="height: 60%;"></span>
+</div>
+<div style="display: flex; justify-content: space-between;"><span class="spec">15:00 hôm qua</span><span class="spec">bây giờ</span></div>
+<div class="gap-row" style="gap: 8px 18px;"><span class="status"><span class="dot dot-ok"></span>Gmail</span><span class="status"><span class="dot dot-warn"></span>Zalo · chậm lúc 13:58</span><span class="status"><span class="dot dot-err"></span><span class="ink-err">Messenger · lỗi từ 21:04</span></span></div>
+</article>
+
+<article class="card-bento" style="grid-column: span 4; display: flex; flex-direction: column; gap: 16px;">
+<div class="card-head"><span class="micro-label">Đăng ký</span><span class="spec">cập nhật 11:40</span></div>
+<div style="display: flex; align-items: flex-end; gap: 16px;"><span class="t-hero" style="font-family: var(--font-mono); font-weight: 500; letter-spacing: -0.04em;">48</span><span class="t-small c-muted" style="padding-bottom: 10px;">website và ứng dụng đang dùng<br>danh tính của bạn</span></div>
+<div class="stack" role="img" aria-label="Cách đăng nhập: Google 21, Email 14, Facebook 8, Zalo 5"><span style="flex: 21; background: var(--text);"></span><span style="flex: 14; background: var(--text-muted);"></span><span style="flex: 8; background: var(--text-subtle);"></span><span style="flex: 5; background: var(--border-strong);"></span></div>
+<div class="legend">
+<span class="legend-item"><span class="swatch" style="background: var(--text);"></span>Google<span class="t-mono c-text">21</span></span>
+<span class="legend-item"><span class="swatch" style="background: var(--text-muted);"></span>Email<span class="t-mono c-text">14</span></span>
+<span class="legend-item"><span class="swatch" style="background: var(--text-subtle);"></span>Facebook<span class="t-mono c-text">8</span></span>
+<span class="legend-item"><span class="swatch" style="background: var(--border-strong);"></span>Zalo<span class="t-mono c-text">5</span></span>
+</div>
+<div class="hairline"></div>
+<div class="acc-row"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">Diễn đàn Mây<span class="badge">Mới</span></span><span class="spec ellipsis">may.forum · qua Zalo · 30/09</span></div><button class="btn btn-ghost btn-sm" type="button">Xem lại</button></div>
+</article>
+
+<article class="card-quiet" style="grid-column: span 8; display: flex; flex-direction: column;">
+<div class="card-head" style="margin-bottom: 8px;"><span class="micro-label">Hoạt động gần đây</span><button class="btn btn-ghost btn-sm" type="button" style="margin-right: -8px;">Xem tất cả</button></div>
+<div class="tl-item"><span class="spec">14:02</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--warning);"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg><span class="t-small">Zalo đồng bộ lại sau 4 phút mất kết nối.</span></div>
+<div class="tl-item"><span class="spec">11:40</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></svg><span class="t-small">Phát hiện đăng ký mới: <span style="font-weight: 600;">Diễn đàn Mây</span>, đăng nhập bằng Zalo.</span></div>
+<div class="tl-item"><span class="spec">Hôm qua</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--danger);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg><span class="t-small">Quyền truy cập Messenger hết hạn lúc 21:04.</span></div>
+<div class="tl-item"><span class="spec">29/09</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg><span class="t-small">Đã kết nối Gmail an.nguyen@gmail.com.</span></div>
+</article>
+
+<article class="card-quiet" style="grid-column: span 4; display: flex; flex-direction: column; gap: 2px;">
+<div class="card-head" style="margin-bottom: 10px;"><span class="micro-label">Lối tắt</span></div>
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>Tìm kiếm<span class="kbd">Ctrl K</span></button>
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>Mở hộp thư<span class="kbd">G I</span></button>
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg>Tạo task<span class="kbd">T</span></button>
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối tài khoản<span class="kbd">N</span></button>
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></svg>Xem lại đăng ký<span class="kbd">G R</span></button>
+</article>
+
+</div>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"bell":{"editor":"enum","options":["closed","open"],"default":"closed"},"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, rootClass: `sino theme-${theme} app`, bell: this.props.bell === 'open' ? 'open' : 'closed' };
+  }
+}
+</script>
+</body>
+</html>

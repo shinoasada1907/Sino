@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Kết nối tài khoản</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+
+<div class="app" aria-hidden="true">
+<dc-import name="Sidebar" theme="{{theme}}" active="accounts" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
+<main class="app-scroll dotbg">
+<div class="page">
+<div class="page-title"><span class="t-mono c-muted">TÀI KHOẢN · 3 ĐÃ KẾT NỐI</span><h1 class="t-page">Tài khoản</h1></div>
+<span class="ghost-block" style="height: 52px;"></span>
+<span class="ghost-block" style="height: 44px; width: 420px;"></span>
+<span class="ghost-block" style="height: 236px;"></span>
+</div>
+</main>
+</div>
+</div>
+
+<div class="wiz-scrim">
+<section class="modal wiz" role="dialog" aria-modal="true" aria-labelledby="wiz-title">
+<header class="modal-head">
+<div style="display: flex; flex-direction: column; gap: 6px;"><span class="micro-label t-caps">Kết nối tài khoản · {{stepNum}}/5</span><h2 class="t-large" id="wiz-title">{{title}}</h2></div>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đóng"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+</header>
+<ol class="stepper" aria-label="Các bước">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="5"><li class="{{s.cls}}" aria-current="{{s.current}}"><span class="step-bar"></span><span class="spec">{{s.label}}</span></li></sc-for>
+</ol>
+<div class="modal-body">
+
+<sc-if value="{{at.s1}}" hint-placeholder-val="{{true}}">
+<div class="anim-enter" style="display: flex; flex-direction: column; gap: 10px;">
+<label class="opt"><input type="radio" name="wiz-provider" value="gmail" defaultChecked="{{yes}}"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="t-small c-muted ellipsis">Thư điện tử</span></span><span class="opt-tags"><span class="badge">Đọc</span><span class="badge">Gửi</span></span></label>
+<label class="opt"><input type="radio" name="wiz-provider" value="zalo"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="t-small c-muted ellipsis">Tin nhắn cá nhân và nhóm</span></span><span class="opt-tags"><span class="badge">Đọc</span></span></label>
+<label class="opt"><input type="radio" name="wiz-provider" value="messenger"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="t-small c-muted ellipsis">Tin nhắn Facebook</span></span><span class="opt-tags"><span class="badge">Đọc</span><span class="badge">Gửi</span></span></label>
+<label class="opt"><input type="radio" name="wiz-provider" value="google"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Google</span><span class="t-small c-muted ellipsis">Danh tính và các website bạn đăng nhập</span></span><span class="opt-tags"><span class="badge">Đăng ký</span></span></label>
+<label class="opt is-soon"><input type="radio" name="wiz-provider" value="telegram" disabled="disabled"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Telegram</span><span class="t-small c-muted ellipsis">Tin nhắn</span></span><span class="opt-tags"><span class="badge">Sắp có</span></span></label>
+</div>
+</sc-if>
+
+<sc-if value="{{at.s2}}" hint-placeholder-val="{{false}}">
+<div class="anim-enter" style="display: flex; flex-direction: column; gap: 20px; padding-top: 8px;">
+<div class="oauth-art" aria-hidden="true">
+<span class="pmark pmark-lg"><svg class="ic logo-mark" viewBox="0 0 48 48"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg></span>
+<span class="oauth-line"></span>
+<span class="pmark-sm" style="width: 28px; height: 28px;"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></span>
+<span class="oauth-line"></span>
+<span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;"><h3 class="t-section">Đăng nhập bằng Google</h3><p class="t-small c-muted" style="max-width: 500px;">Một cửa sổ của Google vừa mở. Đăng nhập và chọn tài khoản bạn muốn kết nối. Sino không bao giờ thấy mật khẩu của bạn.</p></div>
+<div class="alert"><span class="spinner" aria-hidden="true"></span><div class="alert-body"><span class="t-small" style="font-weight: 600;">Đang chờ bạn đăng nhập…</span><span class="t-small c-muted">Cửa sổ tự đóng khi xong.</span></div><button class="btn btn-ghost btn-sm" type="button">Mở lại cửa sổ</button></div>
+</div>
+</sc-if>
+
+<sc-if value="{{at.s3}}" hint-placeholder-val="{{false}}">
+<div class="anim-enter" style="display: flex; flex-direction: column; gap: 16px;">
+<div class="acc-row"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">An Nguyễn</span><span class="spec">an.nguyen@gmail.com</span></div><span class="status"><span class="dot dot-ok"></span>Đã đăng nhập</span></div>
+<div class="hairline"></div>
+<div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Đọc thư và nhãn</span><span class="why">Để thư hiện trong Hộp thư hợp nhất và tìm kiếm được.</span></div></div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Xem địa chỉ email</span><span class="why">Để biết thư nào thuộc tài khoản này.</span></div></div>
+<label class="scope" style="grid-template-columns: 18px minmax(0, 1fr) auto; cursor: pointer;"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg><span class="who-text"><span class="t-small" style="font-weight: 600;">Gửi thư thay bạn · tùy chọn</span><span class="why">Để trả lời ngay trong Sino. Bật sau cũng được.</span></span><span class="toggle"><input type="checkbox" defaultChecked="{{yes}}" aria-label="Cho phép gửi thư"></span></label>
+</div>
+<p class="t-small c-muted">Sino không xin quyền xóa thư, đổi cài đặt Gmail hay đọc danh bạ.</p>
+</div>
+</sc-if>
+
+<sc-if value="{{at.s4}}" hint-placeholder-val="{{false}}">
+<div class="anim-enter" style="display: flex; flex-direction: column; gap: 18px;">
+<div class="field"><label class="field-label" for="wiz-range">Đồng bộ thư từ</label><div class="input-wrap select-wrap"><select class="input" id="wiz-range" defaultValue="90"><option value="30">30 ngày gần nhất</option><option value="90">90 ngày gần nhất</option><option value="all">Toàn bộ hộp thư</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div><span class="field-help">Thư mới nhất về trước; thư cũ hơn tiếp tục về trong nền.</span></div>
+<div class="toggle-list">
+<label class="toggle"><input type="checkbox" defaultChecked="{{yes}}"><span>Dùng nhãn Gmail làm bộ lọc trong Sino</span></label>
+<label class="toggle"><input type="checkbox" defaultChecked="{{yes}}"><span>Chỉ tải tệp đính kèm khi bạn mở</span></label>
+</div>
+<div class="ribbon" style="padding: 12px 16px;"><span class="t-small c-muted">Ước tính <span class="num">khoảng 1.180 thư</span></span><span class="t-small c-muted">Thời gian <span class="num">3–5 phút</span></span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{at.s5}}" hint-placeholder-val="{{false}}">
+<div class="anim-enter" style="display: flex; flex-direction: column; align-items: flex-start; gap: 20px; padding-top: 8px;">
+<span class="success-mark" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></svg></span>
+<div style="display: flex; flex-direction: column; gap: 6px;"><h3 class="t-section">Đã kết nối an.nguyen@gmail.com</h3><p class="t-small c-muted">Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.</p></div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 100%;"><div class="card-head"><span class="status"><span class="dot dot-warn"></span>Đang đồng bộ</span><span class="spec">412 / 1.180 thư · còn khoảng 3 phút</span></div><span class="progress" role="img" aria-label="Đã đồng bộ 35%"><span style="width: 35%;"></span></span></div>
+<button class="btn btn-ghost btn-sm" type="button" style="margin-left: -12px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối thêm tài khoản</button>
+</div>
+</sc-if>
+
+</div>
+<footer class="modal-foot" style="justify-content: space-between;">
+<span class="t-small c-muted" style="display: inline-flex; align-items: center; gap: 8px;"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>{{footNote}}</span>
+<div style="display: flex; gap: 10px;">
+<sc-if value="{{canBack}}" hint-placeholder-val="{{false}}"><button class="btn btn-secondary" type="button" onClick="{{back}}">Quay lại</button></sc-if>
+<sc-if value="{{notLast}}" hint-placeholder-val="{{true}}"><button class="btn btn-primary" type="button" onClick="{{next}}">{{nextLabel}}</button></sc-if>
+<sc-if value="{{at.s5}}" hint-placeholder-val="{{false}}"><a class="btn btn-primary" href="Inbox.dc.html">Mở hộp thư</a></sc-if>
+</div>
+</footer>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"step":{"editor":"enum","options":["1","2","3","4","5"],"default":"1"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    const step = s.step || Math.min(5, Math.max(1, Number(this.props.step) || 1));
+    const labels = ['1 · Nhà cung cấp', '2 · Đăng nhập', '3 · Quyền', '4 · Đồng bộ', '5 · Xong'];
+    const titles = ['Chọn nhà cung cấp', 'Đăng nhập', 'Xem lại quyền truy cập', 'Tùy chọn đồng bộ', 'Hoàn tất'];
+    const notes = [
+      'Chỉ xin quyền tối thiểu. Bạn xem lại ở bước 3.',
+      'Đăng nhập diễn ra trên trang của Google.',
+      'Thu hồi quyền bất cứ lúc nào trong Tài khoản.',
+      'Đổi lại sau trong chi tiết tài khoản.',
+      'Bạn có thể đóng cửa sổ này.',
+    ];
+    const nextLabels = ['Tiếp tục', 'Tôi đã đăng nhập', 'Đồng ý và tiếp tục', 'Bắt đầu đồng bộ'];
+    const steps = labels.map((label, i) => {
+      const n = i + 1;
+      return { label, cls: n === step ? 'is-current' : (n < step ? 'is-done' : ''), current: n === step ? 'step' : undefined };
+    });
+    const at = {};
+    for (let i = 1; i <= 5; i += 1) at[`s${i}`] = step === i;
+    return {
+      rootClass: `sino theme-${theme} wiz-wrap`,
+      theme,
+      steps,
+      at,
+      stepNum: step,
+      title: titles[step - 1],
+      footNote: notes[step - 1],
+      nextLabel: nextLabels[step - 1] || 'Tiếp tục',
+      canBack: step > 1 && step < 5,
+      notLast: step < 5,
+      next: () => this.setState({ step: Math.min(5, step + 1) }),
+      back: () => this.setState({ step: Math.max(1, step - 1) }),
+      yes: true,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Foundations · Màu</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sino theme-{{theme}} sheet" style="height: 2280px;">
+
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 00 · FOUNDATIONS / 01 · MÀU</span><span class="t-mono c-muted">Monochrome Motion · v0.2 · {{themeLabel}}</span></div>
+<div class="mast-grid">
+<h1 class="t-hero">Đơn sắc trước.<br>Màu chỉ để báo trạng thái.</h1>
+<div class="mast-note">
+<p class="t-body c-muted">Khoảng 95% giao diện là đen, trắng và xám. 5% còn lại là màu ngữ nghĩa, chỉ xuất hiện khi có điều cần báo: đã xong, đang đồng bộ, hoặc có lỗi.</p>
+<div class="gap-row"><span class="badge badge-mono">95% đơn sắc</span><span class="badge badge-mono">5% ngữ nghĩa</span><span class="badge badge-mono">Dark là mặc định</span></div>
+</div>
+</div>
+</header>
+
+<section class="sec-full">
+<div class="sec-head"><span class="idx">01</span><h2 class="t-section">Bảng màu theo theme</h2><p class="t-small c-muted">Hai theme dùng cùng tên vai trò, nên đổi theme chỉ là đổi bộ giá trị. Dark là hướng chính; Light được thiết kế ngang hàng.</p></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px;">
+
+<div class="theme-dark panel">
+<div class="panel-head"><div style="display: flex; flex-direction: column; gap: 4px;"><span class="t-large">Dark</span><span class="spec">theme.dark · mặc định</span></div><span class="badge badge-mono">10 vai trò</span></div>
+<div class="ramp"><span style="background: var(--bg);"></span><span style="background: var(--surface);"></span><span style="background: var(--raised);"></span><span style="background: var(--hover);"></span><span style="background: var(--border);"></span><span style="background: var(--border-strong);"></span><span style="background: var(--text-subtle);"></span><span style="background: var(--text-muted);"></span><span style="background: var(--text);"></span></div>
+<div>
+<div class="sw-row"><span class="chip" style="background: var(--bg);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Nền</span><span class="spec">--bg</span></div><span class="t-small c-muted">Nền ứng dụng, lớp sau cùng.</span><span class="sw-hex">#070707</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--surface);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Surface</span><span class="spec">--surface</span></div><span class="t-small c-muted">Card, panel, ô nhập.</span><span class="sw-hex">#151516</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--raised);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Raised</span><span class="spec">--raised</span></div><span class="t-small c-muted">Mục đang chọn, menu, card nổi.</span><span class="sw-hex">#1B1B1D</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--hover);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Hover</span><span class="spec">--hover</span></div><span class="t-small c-muted">Rê chuột, track của toggle.</span><span class="sw-hex">#232326</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--border);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Viền</span><span class="spec">--border</span></div><span class="t-small c-muted">Đường chia, viền mặc định.</span><span class="sw-hex">#2A2A2D</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--border-strong);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Viền đậm</span><span class="spec">--border-strong</span></div><span class="t-small c-muted">Nút phụ, card Spotlight.</span><span class="sw-hex">#4A4A4F</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--text);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Chữ chính</span><span class="spec">--text</span></div><span class="t-small c-muted">Tiêu đề và nội dung cần đọc.</span><span class="sw-hex">#F7F7F4</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--text-muted);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Chữ phụ</span><span class="spec">--text-muted</span></div><span class="t-small c-muted">Mô tả, thời gian, nhãn.</span><span class="sw-hex">#9A9A9F</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--text-subtle);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Chữ mờ</span><span class="spec">--text-subtle</span></div><span class="t-small c-muted">Placeholder, trạng thái tắt.</span><span class="sw-hex">#717177</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--inverse);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Đảo màu</span><span class="spec">--inverse</span></div><span class="t-small c-muted">Nút Primary, toggle bật. Hover #DCDCD8.</span><span class="sw-hex">#F7F7F4</span></div>
+</div>
+</div>
+
+<div class="theme-light panel">
+<div class="panel-head"><div style="display: flex; flex-direction: column; gap: 4px;"><span class="t-large">Light</span><span class="spec">theme.light</span></div><span class="badge badge-mono">10 vai trò</span></div>
+<div class="ramp"><span style="background: var(--bg);"></span><span style="background: var(--surface);"></span><span style="background: var(--raised);"></span><span style="background: var(--hover);"></span><span style="background: var(--border);"></span><span style="background: var(--border-strong);"></span><span style="background: var(--text-subtle);"></span><span style="background: var(--text-muted);"></span><span style="background: var(--text);"></span></div>
+<div>
+<div class="sw-row"><span class="chip" style="background: var(--bg);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Nền</span><span class="spec">--bg</span></div><span class="t-small c-muted">Nền ứng dụng, lớp sau cùng.</span><span class="sw-hex">#F2F2EF</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--surface);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Surface</span><span class="spec">--surface</span></div><span class="t-small c-muted">Card, panel, ô nhập.</span><span class="sw-hex">#FFFFFF</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--raised);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Raised</span><span class="spec">--raised</span></div><span class="t-small c-muted">Mục đang chọn, menu, card nổi.</span><span class="sw-hex">#FAFAF8</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--hover);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Hover</span><span class="spec">--hover</span></div><span class="t-small c-muted">Rê chuột, track của toggle.</span><span class="sw-hex">#ECECEA</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--border);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Viền</span><span class="spec">--border</span></div><span class="t-small c-muted">Đường chia, viền mặc định.</span><span class="sw-hex">#DEDEDA</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--border-strong);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Viền đậm</span><span class="spec">--border-strong</span></div><span class="t-small c-muted">Nút phụ, card Spotlight.</span><span class="sw-hex">#C3C3C0</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--text);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Chữ chính</span><span class="spec">--text</span></div><span class="t-small c-muted">Tiêu đề và nội dung cần đọc.</span><span class="sw-hex">#111111</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--text-muted);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Chữ phụ</span><span class="spec">--text-muted</span></div><span class="t-small c-muted">Mô tả, thời gian, nhãn.</span><span class="sw-hex">#66666B</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--text-subtle);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Chữ mờ</span><span class="spec">--text-subtle</span></div><span class="t-small c-muted">Placeholder, trạng thái tắt.</span><span class="sw-hex">#8A8A8F</span></div>
+<div class="sw-row"><span class="chip" style="background: var(--inverse);"></span><div class="sw-name"><span class="t-small" style="font-weight: 600;">Đảo màu</span><span class="spec">--inverse</span></div><span class="t-small c-muted">Nút Primary, toggle bật. Hover #2B2B2B.</span><span class="sw-hex">#111111</span></div>
+</div>
+</div>
+
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">02</span><h2 class="t-section">Màu ngữ nghĩa</h2><p class="t-small c-muted">Ba màu, mỗi màu một nghĩa. Chỉ xuất hiện dưới dạng chấm, nhãn nhỏ, cảnh báo hoặc nút phá hủy, không bao giờ phủ cả một khối.</p></div>
+<div class="sec-body">
+<div class="grid-3">
+
+<div class="card-quiet sem-card">
+<div class="sem-top"><span class="status"><span class="dot dot-ok"></span><span class="c-text" style="font-weight: 600;">Thành công · Trực tuyến</span></span><span class="spec">--success</span></div>
+<div class="sem-hex"><span class="sem-bar" style="background: var(--success);"></span><span class="t-large" style="font-family: var(--font-mono); font-weight: 500;">#52D273</span></div>
+<div class="hairline"></div>
+<span class="micro-label">Dùng cho</span>
+<div class="sem-uses">
+<span class="status"><span class="dot dot-ok"></span>Đang hoạt động</span>
+<span class="t-small ink-ok sem-line"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Đồng bộ xong · 204 thư mới</span>
+</div>
+<div class="hairline"></div>
+<span class="spec">Chữ trên nền sáng: --success-ink #1F7A3D · 5,4:1</span>
+</div>
+
+<div class="card-quiet sem-card">
+<div class="sem-top"><span class="status"><span class="dot dot-warn"></span><span class="c-text" style="font-weight: 600;">Cảnh báo · Đồng bộ</span></span><span class="spec">--warning</span></div>
+<div class="sem-hex"><span class="sem-bar" style="background: var(--warning);"></span><span class="t-large" style="font-family: var(--font-mono); font-weight: 500;">#E8B75A</span></div>
+<div class="hairline"></div>
+<span class="micro-label">Dùng cho</span>
+<div class="sem-uses">
+<span class="status"><span class="dot dot-warn"></span>Đang đồng bộ</span>
+<span class="t-small ink-warn sem-line"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Zalo đang đồng bộ lại · 64%</span>
+</div>
+<div class="hairline"></div>
+<span class="spec">Chữ trên nền sáng: --warning-ink #8A5A00 · 5,9:1</span>
+</div>
+
+<div class="card-quiet sem-card">
+<div class="sem-top"><span class="status"><span class="dot dot-err"></span><span class="c-text" style="font-weight: 600;">Lỗi · Ngoại tuyến · Phá hủy</span></span><span class="spec">--danger</span></div>
+<div class="sem-hex"><span class="sem-bar" style="background: var(--danger);"></span><span class="t-large" style="font-family: var(--font-mono); font-weight: 500;">#E56B6F</span></div>
+<div class="hairline"></div>
+<span class="micro-label">Dùng cho</span>
+<div class="sem-uses">
+<span class="status"><span class="dot dot-err"></span><span class="ink-err">Cần đăng nhập lại</span></span>
+<button class="btn btn-danger btn-sm" type="button">Ngắt kết nối</button>
+</div>
+<div class="hairline"></div>
+<span class="spec">Chữ trên nền sáng: --danger-ink #B4383D · 5,9:1</span>
+</div>
+
+</div>
+<div class="grid-2">
+<div class="dd">
+<div class="mini" style="background: color-mix(in srgb, var(--success) 20%, var(--surface)); border-color: color-mix(in srgb, var(--success) 60%, transparent);"><span class="t-small" style="font-weight: 600;">3 tài khoản đã kết nối</span><span class="t-small">Gmail, Zalo, Messenger</span></div>
+<span class="dd-label ink-err"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Không tô màu cả card</span>
+</div>
+<div class="dd">
+<div class="mini"><span class="t-small" style="font-weight: 600;">3 tài khoản đã kết nối</span><span class="status"><span class="dot dot-ok"></span>Gmail, Zalo, Messenger đang hoạt động</span></div>
+<span class="dd-label ink-ok"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Màu chỉ nằm ở chấm trạng thái</span>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">03</span><h2 class="t-section">Chữ và độ tương phản</h2><p class="t-small c-muted">Chuẩn tối thiểu 4,5:1 cho chữ thường, 3:1 cho chữ từ 24px. Chữ mờ không đạt ở cả hai theme, nên chỉ dùng cho placeholder, trạng thái tắt và chi tiết trang trí.</p></div>
+<div class="sec-body">
+<div class="ct">
+<div class="ct-row ct-head"><span>Vai trò</span><span>Dark · nền</span><span>Dark · surface</span><span>Light · nền</span><span>Light · surface</span><span>Dùng cho</span></div>
+<div class="ct-row"><span class="c-text" style="font-weight: 600;">Chữ chính</span><span>18,8:1</span><span>17,0:1</span><span>16,8:1</span><span>18,9:1</span><span class="c-muted">Mọi nội dung cần đọc</span></div>
+<div class="ct-row"><span class="c-muted" style="font-weight: 600;">Chữ phụ</span><span>7,2:1</span><span>6,5:1</span><span>5,1:1</span><span>5,7:1</span><span class="c-muted">Mô tả, thời gian, nhãn phụ</span></div>
+<div class="ct-row"><span class="c-subtle" style="font-weight: 600;">Chữ mờ</span><span class="ink-err">4,2:1</span><span class="ink-err">3,8:1</span><span class="ink-err">3,1:1</span><span class="ink-err">3,4:1</span><span class="c-muted">Placeholder, trạng thái tắt, trang trí</span></div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":2280}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, themeLabel: theme === 'light' ? 'Light' : 'Dark' };
+  }
+}
+</script>
+</body>
+</html>

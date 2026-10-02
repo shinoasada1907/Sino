@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · App shell · Thanh điều hướng dưới (mobile)</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<nav class="{{rootClass}}" aria-label="Điều hướng chính">
+<a class="{{cls.overview}}" href="MobileDashboard.dc.html" aria-current="{{cur.overview}}"><svg class="ic ic-20" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>Tổng quan</a>
+<a class="{{cls.inbox}}" href="MobileInbox.dc.html" aria-current="{{cur.inbox}}"><svg class="ic ic-20" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>Hộp thư<span class="tab-count">12</span></a>
+<a class="{{cls.calendar}}" href="MobileCalendar.dc.html" aria-current="{{cur.calendar}}"><svg class="ic ic-20" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg>Lịch</a>
+<a class="{{cls.tasks}}" href="MobileTasks.dc.html" aria-current="{{cur.tasks}}"><svg class="ic ic-20" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg>Việc<span class="tab-err"></span><span class="sr">1 quá hạn</span></a>
+<a class="{{cls.more}}" href="MobileMore.dc.html" aria-current="{{cur.more}}"><svg class="ic ic-20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>Thêm</a>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"active":{"editor":"enum","options":["overview","inbox","calendar","tasks","more"],"default":"overview"},"$preview":{"width":390,"height":80}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const active = this.props.active || 'overview';
+    const cls = {};
+    const cur = {};
+    ['overview', 'inbox', 'calendar', 'tasks', 'more'].forEach((key) => {
+      cls[key] = key === active ? 'tab-item is-active' : 'tab-item';
+      cur[key] = key === active ? 'page' : undefined;
+    });
+    return { rootClass: `sino theme-${theme} tabbar`, cls, cur };
+  }
+}
+</script>
+</body>
+</html>

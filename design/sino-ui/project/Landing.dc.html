@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Landing page</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<header class="lp-nav">
+<div class="lp-wrap">
+<div class="lp-nav-in">
+<a class="lp-brand" href="#dau-trang"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg>Sino</a>
+<nav class="lp-links" aria-label="Mục trên trang"><a class="lp-link" href="#tinh-nang">Tính năng</a><a class="lp-link" href="#ke-hoach">Kế hoạch</a><a class="lp-link" href="#cach-hoat-dong">Cách hoạt động</a><a class="lp-link" href="#rieng-tu">Quyền riêng tư</a><a class="lp-link" href="#cau-hoi">Câu hỏi</a></nav>
+<div class="lp-nav-cta"><a class="btn btn-ghost btn-sm lp-hide-m" href="SiteLogin.dc.html">Đăng nhập</a><a class="btn btn-primary btn-sm" href="Onboarding.dc.html">Bắt đầu</a>
+<button class="btn btn-ghost btn-icon btn-sm lp-menu-btn" type="button" aria-label="Mở menu" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h.01"></path><path d="M3 18h.01"></path><path d="M3 6h.01"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M8 6h13"></path></svg></button></div>
+</div>
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{false}}"><nav class="lp-menu" aria-label="Menu"><a class="lp-link" href="#tinh-nang">Tính năng</a><a class="lp-link" href="#ke-hoach">Kế hoạch</a><a class="lp-link" href="#cach-hoat-dong">Cách hoạt động</a><a class="lp-link" href="#rieng-tu">Quyền riêng tư</a><a class="lp-link" href="#cau-hoi">Câu hỏi</a><a class="lp-link" href="SiteLogin.dc.html">Đăng nhập</a></nav></sc-if>
+</div>
+</header>
+<main class="dotbg" style="background-attachment: local;">
+<div class="lp-wrap">
+<section class="lp-hero" id="dau-trang" aria-label="Giới thiệu">
+<div class="lp-hero-copy">
+<span class="t-mono c-muted anim-enter d1">HỘP THƯ CHUNG · KẾ HOẠCH TỪ TIN NHẮN</span>
+<h1 class="lp-h1 anim-enter d1">Mọi tin nhắn ở một nơi. Việc từ tin nhắn không còn bị quên.</h1>
+<p class="lp-lead anim-enter d2">Sino gom email và tin nhắn của bạn vào một hộp thư. Từ bất kỳ tin nào, bạn tạo việc cần làm, đặt nhắc, ghi lịch hẹn hay hẹn giờ gửi trả lời — không phải chép sang ứng dụng khác.</p>
+<div class="lp-cta anim-enter d2"><a class="btn btn-primary" href="Onboarding.dc.html">Bắt đầu với Sino<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a><a class="btn btn-secondary" href="#cach-hoat-dong">Xem cách hoạt động</a></div>
+<div class="lp-trust anim-enter d3"><span class="meta"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Thông tin đăng nhập được mã hóa</span><span class="meta"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>Thông báo không chứa nội dung tin nhắn</span><span class="meta"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>Xuất hoặc xóa dữ liệu bất cứ lúc nào</span></div>
+</div>
+<div class="lp-shot anim-enter d3" role="img" aria-label="Ảnh minh họa Hộp thư của Sino với một task và một nhắc nhở">
+<div class="lp-shot-bar"><span></span><span></span><span></span><span class="spec">HỘP THƯ · 12 CHƯA ĐỌC</span></div>
+<div class="mrow is-selected"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Trần Minh Anh</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-subject ellipsis">Hợp đồng thuê văn phòng — bản sửa lần 2</span><span class="mrow-preview ellipsis">Anh xem giúp và phản hồi trước thứ Tư 07/10 nhé.</span><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg>Task · hạn T4 07/10</span></div><div class="mrow-meta"><span class="spec c-text">09:41</span></div></div>
+<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span><span class="spec ellipsis">Zalo · 6 người</span></div><span class="mrow-preview ellipsis">Mẹ: Cuối tuần này cả nhà về ăn cơm nhé, nhớ mua bánh cho bà.</span><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg>Lịch hẹn · T7 18:30</span></div><div class="mrow-meta"><span class="spec c-text">08:15</span><span class="badge badge-solid">3</span></div></div>
+<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Phòng khám Ánh Dương</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-subject ellipsis">Nhắc lịch khám thứ Hai 05/10</span><span class="mrow-preview ellipsis">Quý khách có lịch khám lúc 08:30.</span></div><div class="mrow-meta"><span class="spec">07:30</span></div></div>
+<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Lê Hoàng</span><span class="spec ellipsis">Messenger</span></div><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối cho bạn.</span><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h5"></path><path d="M17.5 17.5 16 16.3V14"></path><circle cx="16" cy="16" r="6"></circle></svg>Hẹn gửi trả lời · T2 08:00</span></div><div class="mrow-meta"><span class="spec">Hôm qua</span></div></div>
+<div class="lp-float is-chip"><span class="lchip"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><span>Ký hợp đồng</span><span class="spec">T5 08/10 14:00</span></span></div>
+<div class="lp-float is-note"><div class="nitem" style="padding: 0;"><span class="n-ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3 2 6"></path><path d="m22 6-3-3"></path><path d="M6.38 18.7 4 21"></path><path d="M17.64 18.67 20 21"></path></svg></span><div class="nitem-main"><span class="t-small" style="font-weight: 600;">Trả lời: Hợp đồng thuê văn phòng</span><span class="spec">NHẮC NHỞ · T2 05/10 · 09:00</span><div class="nitem-actions"><span class="btn btn-secondary btn-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Xong</span><span class="btn btn-ghost btn-sm">Nhắc lại sau 1 giờ</span></div></div><span></span></div></div>
+</div>
+</section>
+<div class="lp-strip" aria-label="Dịch vụ kết nối được">
+<span class="micro-label">KẾT NỐI VỚI</span>
+<div class="lp-strip-items">
+<span class="lp-prov"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>Gmail</span>
+<span class="lp-prov"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>Zalo</span>
+<span class="lp-prov"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span>Messenger</span>
+<span class="lp-prov is-soon"><span class="pmark-sm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></span>Telegram<span class="badge">Sắp có</span></span>
+</div>
+</div>
+<section class="lp-sec" id="tinh-nang" aria-labelledby="h-tinh-nang">
+<div class="lp-sec-head"><span class="t-mono c-muted">TÍNH NĂNG</span><h2 class="lp-h2" id="h-tinh-nang">Một hộp thư làm được nhiều hơn đọc thư.</h2><p class="lp-lead">Mỗi tài khoản vẫn là của bạn. Sino chỉ bỏ đi việc phải mở từng ứng dụng để biết ai đang chờ mình.</p></div>
+<div class="bento">
+<article class="card-spotlight" style="grid-column: span 7; grid-row: span 2; display: flex; flex-direction: column; gap: 18px;"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></span><div class="lp-card-copy"><h3 class="t-large">Hộp thư hợp nhất</h3><p>Mọi cuộc trò chuyện xếp theo thời gian. Lọc theo nguồn, chưa đọc, hay những tin đang chờ bạn trả lời.</p></div><div class="lp-mini"><div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Trần Minh Anh</span><span class="spec ellipsis">Gmail</span></div><span class="mrow-preview ellipsis">Hợp đồng thuê văn phòng — bản sửa lần 2</span></div><div class="mrow-meta"><span class="spec c-text">09:41</span></div></div><div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span><span class="spec ellipsis">Zalo</span></div><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="mrow-meta"><span class="badge badge-solid">3</span></div></div><div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Lê Hoàng</span><span class="spec ellipsis">Messenger</span></div><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối.</span></div><div class="mrow-meta"><span class="spec">Hôm qua</span></div></div></div></article>
+<article class="card-bento" style="grid-column: span 5; display: flex; flex-direction: column; gap: 18px;"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg></span><div class="lp-card-copy"><h3 class="t-large">Từ tin nhắn thành việc</h3><p>Ngay trên một tin: tạo task, nhắc bạn trả lời, ghi lịch hẹn hoặc ghi chú. Bấm là về đúng tin gốc.</p></div><div class="lp-tools"><span class="qa"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg>Tạo task</span><span class="qa"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3 2 6"></path><path d="m22 6-3-3"></path><path d="M6.38 18.7 4 21"></path><path d="M17.64 18.67 20 21"></path></svg>Nhắc tôi</span><span class="qa"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="M16 19h6"></path><path d="M19 16v6"></path></svg>Lịch hẹn</span><span class="qa"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"></path><path d="M15 3v4a2 2 0 0 0 2 2h4"></path></svg>Ghi chú</span></div></article>
+<article class="card-bento" style="grid-column: span 5; display: flex; flex-direction: column; gap: 18px;"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h5"></path><path d="M17.5 17.5 16 16.3V14"></path><circle cx="16" cy="16" r="6"></circle></svg></span><div class="lp-card-copy"><h3 class="t-large">Hẹn giờ gửi</h3><p>Viết bây giờ, Sino gửi lúc 8 giờ sáng thứ Hai. Sửa hoặc hủy được tới trước giờ gửi.</p></div><span class="sched-chip" style="align-self: flex-start;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"></path><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h5"></path><path d="M17.5 17.5 16 16.3V14"></path><circle cx="16" cy="16" r="6"></circle></svg>Gửi lúc T2 05/10 · 08:00</span></article>
+<article class="card-bento" style="grid-column: span 4; display: flex; flex-direction: column; gap: 18px;"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span><div class="lp-card-copy"><h3 class="t-large">Tạm ẩn</h3><p>Ẩn một cuộc trò chuyện tới khi cần. Có tin mới thì nó hiện lại ngay.</p></div><span class="mrow-flag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Hiện lại theo hẹn · 14:00</span></article>
+<article class="card-bento" style="grid-column: span 4; display: flex; flex-direction: column; gap: 18px;"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></span><div class="lp-card-copy"><h3 class="t-large">Nhắc đúng lúc, chỉ qua Sino</h3><p>Thông báo trong ứng dụng và trên trình duyệt, cả khi đã đóng tab. Không spam email.</p></div><span class="status"><span class="dot dot-ok"></span>Thông báo trình duyệt đang bật</span></article>
+<article class="card-bento" style="grid-column: span 4; display: flex; flex-direction: column; gap: 18px;"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></svg></span><div class="lp-card-copy"><h3 class="t-large">Biết ai dùng danh tính của bạn</h3><p>Xem các website bạn đăng nhập bằng Google, Zalo hay email, và dọn bớt chỗ không còn dùng.</p></div><div style="display: flex; align-items: flex-end; gap: 12px;"><span class="t-page" style="font-family: var(--font-mono); font-weight: 500;">48</span><span class="t-small c-muted" style="padding-bottom: 8px;">website đang dùng danh tính của bạn</span></div></article>
+</div>
+</section>
+<section class="lp-sec" id="ke-hoach" aria-labelledby="h-ke-hoach">
+<div class="lp-split">
+<div style="display: flex; flex-direction: column; gap: 24px;">
+<div class="lp-sec-head"><span class="t-mono c-muted">KẾ HOẠCH</span><h2 class="lp-h2" id="h-ke-hoach">Lịch, việc cần làm và ghi chú — sinh ra từ chính cuộc trò chuyện.</h2></div>
+<ul class="lp-points">
+<li><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Task gọn: hạn, một nhắc nhở, lặp lại. Không biến thành một ứng dụng quản lý dự án.</span></li>
+<li><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Lịch hẹn lặp theo tuần, tháng, năm — tính theo giờ Việt Nam.</span></li>
+<li><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Ghi chú gắn với một tin, một người hoặc cả cuộc trò chuyện.</span></li>
+<li><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Mọi thứ nằm trong Sino; không cần đồng bộ sang lịch hay ứng dụng khác.</span></li>
+</ul>
+<a class="btn btn-secondary" href="Calendar.dc.html" style="align-self: flex-start;">Xem màn Lịch<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a>
+</div>
+<article class="card-bento" style="display: flex; flex-direction: column; gap: 14px;">
+<div class="card-head"><span class="micro-label">Hôm nay · Thứ Sáu 02/10</span><span class="spec">4 việc · 1 lịch hẹn</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; margin: 0 -12px;">
+<div class="td-row is-over"><span class="spec c-text">30/09</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Gửi lại hóa đơn tháng 9 cho kế toán</span><span class="t-small ink-err">Quá hạn 2 ngày</span></div><span></span></div>
+<div class="td-row"><span class="spec c-text">16:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Gọi Minh Anh về phụ lục giá</span><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>Trần Minh Anh</span></div><span></span></div>
+<div class="td-row"><span class="spec c-text">17:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Chuyển tiền nhà tháng 10</span><span class="meta"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg>Hằng tháng</span></div><span></span></div>
+<div class="td-row"><span class="spec c-text">18:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Nhắc: Mua bánh bông lan trứng muối</span><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>Gia đình</span></div><span></span></div>
+<div class="td-row"><span class="spec c-text">T7</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Về nhà ăn cơm · 18:30</span><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>Gia đình</span></div><span></span></div>
+</div>
+</article>
+</div>
+</section>
+<section class="lp-sec" id="cach-hoat-dong" aria-labelledby="h-cach">
+<div class="lp-sec-head"><span class="t-mono c-muted">CÁCH HOẠT ĐỘNG</span><h2 class="lp-h2" id="h-cach">Ba bước, vài phút.</h2></div>
+<div class="lp-steps">
+<article class="lp-step"><span class="lp-step-num">01</span><h3 class="t-large">Kết nối tài khoản</h3><p class="t-small c-muted" style="font-size: 15px; line-height: 24px;">Đăng nhập qua trang chính thức của Google hay nhà cung cấp. Sino cho bạn thấy rõ nó xin quyền gì trước khi bạn đồng ý.</p></article>
+<article class="lp-step"><span class="lp-step-num">02</span><h3 class="t-large">Sino đồng bộ</h3><p class="t-small c-muted" style="font-size: 15px; line-height: 24px;">Lần đầu mất vài phút. Sau đó tin mới tự hiện, không cần tải lại trang. Lỗi của từng tài khoản hiện đúng chỗ.</p></article>
+<article class="lp-step"><span class="lp-step-num">03</span><h3 class="t-large">Trả lời và lên kế hoạch</h3><p class="t-small c-muted" style="font-size: 15px; line-height: 24px;">Trả lời ngay trong Sino, hoặc biến tin thành việc, lịch hẹn, ghi chú. Sino nhắc bạn đúng giờ.</p></article>
+</div>
+</section>
+<section class="lp-sec" id="rieng-tu" aria-labelledby="h-rieng-tu">
+<div class="lp-sec-head"><span class="t-mono c-muted">QUYỀN RIÊNG TƯ</span><h2 class="lp-h2" id="h-rieng-tu">Riêng tư là mặc định, không phải một tùy chọn.</h2></div>
+<div class="lp-priv">
+<div class="lp-priv-item"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></span><div class="lp-card-copy"><h3 class="t-large">Thông tin đăng nhập được mã hóa</h3><p>Token của từng nhà cung cấp được mã hóa AES-256-GCM trước khi lưu và không bao giờ ghi vào log.</p></div></div>
+<div class="lp-priv-item"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></span><div class="lp-card-copy"><h3 class="t-large">Thông báo không mang nội dung</h3><p>Thông báo trên trình duyệt chỉ có tiêu đề việc và đường dẫn. Nội dung tin nhắn không đi qua máy chủ thông báo.</p></div></div>
+<div class="lp-priv-item"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg></span><div class="lp-card-copy"><h3 class="t-large">Bạn thấy rõ quyền đã cấp</h3><p>Mỗi tài khoản liệt kê quyền Sino đang giữ. Ngắt kết nối bất cứ lúc nào, ngay trong Sino.</p></div></div>
+<div class="lp-priv-item"><span class="lp-fic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></span><div class="lp-card-copy"><h3 class="t-large">Dữ liệu là của bạn</h3><p>Xuất hoặc xóa toàn bộ dữ liệu Sino đang lưu chỉ với một nút trong Cài đặt.</p></div></div>
+</div>
+</section>
+<section class="lp-sec" id="cau-hoi" aria-labelledby="h-cau-hoi">
+<div class="lp-sec-head"><span class="t-mono c-muted">CÂU HỎI THƯỜNG GẶP</span><h2 class="lp-h2" id="h-cau-hoi">Trước khi bắt đầu.</h2></div>
+<div class="lp-faq">
+<button class="lp-q" type="button" aria-expanded="{{faq.q0}}" onClick="{{faqToggle.q0}}">Sino hỗ trợ những dịch vụ nào?<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button><sc-if value="{{faq.q0}}" hint-placeholder-val="{{true}}"><p class="lp-a">Gmail là dịch vụ đầu tiên. Zalo, Messenger và Telegram được thêm dần. Với mỗi dịch vụ, Sino chỉ hiện những thao tác dịch vụ đó cho phép — ví dụ chỉ hiện ô trả lời khi gửi được tin.</p></sc-if>
+<button class="lp-q" type="button" aria-expanded="{{faq.q1}}" onClick="{{faqToggle.q1}}">Sino nhắc tôi qua email hay Zalo được không?<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button><sc-if value="{{faq.q1}}" hint-placeholder-val="{{false}}"><p class="lp-a">Không. Nhắc nhở chỉ đến qua Sino: trong ứng dụng và bằng thông báo của trình duyệt. Nhắc qua chính các kênh tin nhắn sẽ lẫn với tin thật và phụ thuộc vào việc tài khoản còn kết nối.</p></sc-if>
+<button class="lp-q" type="button" aria-expanded="{{faq.q2}}" onClick="{{faqToggle.q2}}">Lịch của Sino có đồng bộ với Google Calendar không?<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button><sc-if value="{{faq.q2}}" hint-placeholder-val="{{false}}"><p class="lp-a">Chưa. Lịch, việc cần làm và ghi chú nằm trong Sino để mọi thao tác ở một chỗ.</p></sc-if>
+<button class="lp-q" type="button" aria-expanded="{{faq.q3}}" onClick="{{faqToggle.q3}}">Có ứng dụng cho điện thoại không?<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button><sc-if value="{{faq.q3}}" hint-placeholder-val="{{false}}"><p class="lp-a">Bạn dùng Sino trên trình duyệt điện thoại. Trên iPhone, thêm Sino vào màn hình chính để nhận thông báo. Ứng dụng riêng sẽ có sau.</p></sc-if>
+<button class="lp-q" type="button" aria-expanded="{{faq.q4}}" onClick="{{faqToggle.q4}}">Nếu Sino không gửi được thư hẹn giờ thì sao?<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button><sc-if value="{{faq.q4}}" hint-placeholder-val="{{false}}"><p class="lp-a">Thư được giữ lại và bạn nhận thông báo kèm nút Sửa và Gửi lại. Sino không bao giờ tự gửi lại khi không chắc thư đã đi hay chưa, để người nhận không nhận hai lần.</p></sc-if>
+</div>
+</section>
+<section class="lp-band" aria-label="Bắt đầu">
+<div style="display: flex; flex-direction: column; gap: 12px;"><h2 class="lp-h2">Bớt mở ứng dụng. Bớt quên việc.</h2><p class="lp-lead">Kết nối tài khoản đầu tiên và xem hộp thư chung của bạn sau vài phút.</p></div>
+<div class="lp-cta"><a class="btn btn-primary" href="Onboarding.dc.html">Bắt đầu với Sino<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a><a class="btn btn-secondary" href="SiteLogin.dc.html">Đăng nhập</a></div>
+</section>
+<footer>
+<div class="lp-foot">
+<div class="lp-foot-col" style="gap: 14px;"><a class="lp-brand" href="#dau-trang"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg>Sino</a><span class="t-small c-muted" style="max-width: 300px;">Hộp thư chung và kế hoạch từ tin nhắn, ở cùng một nơi.</span></div>
+<div class="lp-foot-col"><span class="micro-label">SẢN PHẨM</span><a href="#tinh-nang">Tính năng</a><a href="#ke-hoach">Kế hoạch</a><a href="#cach-hoat-dong">Cách hoạt động</a></div>
+<div class="lp-foot-col"><span class="micro-label">TIN CẬY</span><a href="#rieng-tu">Quyền riêng tư</a><a href="SiteSecurity.dc.html">Bảo mật</a><a href="#cau-hoi">Câu hỏi thường gặp</a></div>
+<div class="lp-foot-col"><span class="micro-label">PHÁP LÝ</span><a href="SiteTerms.dc.html">Điều khoản</a><a href="SitePrivacy.dc.html">Chính sách quyền riêng tư</a><a href="SiteOpenSource.dc.html">Phần mềm nguồn mở</a></div>
+</div>
+<div class="lp-legal"><span class="spec">© 2026 SINO</span><button class="lang" type="button" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+</footer>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    const open = s.faq || { q0: true };
+    const faq = {};
+    const faqToggle = {};
+    ['q0', 'q1', 'q2', 'q3', 'q4'].forEach((id) => {
+      faq[id] = !!open[id];
+      faqToggle[id] = () => this.setState({ faq: { ...open, [id]: !open[id] } });
+    });
+    return {
+      theme,
+      rootClass: `sino theme-${theme} lp`,
+      faq,
+      faqToggle,
+      menuOpen: !!s.menu,
+      toggleMenu: () => this.setState({ menu: !s.menu }),
+    };
+  }
+}
+</script>
+</body>
+</html>

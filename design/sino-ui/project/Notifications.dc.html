@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Trung tâm thông báo</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Dashboard" theme="{{theme}}" bell="open" hint-size="100%,100vh"></dc-import>
+<div class="nc" role="dialog" aria-label="Thông báo">
+<div class="nc-head">
+<div class="card-head"><h2 class="t-large">Thông báo</h2><div class="gap-row" style="gap: 2px;"><button class="btn btn-ghost btn-sm" type="button">Đánh dấu đã đọc</button><a class="btn btn-ghost btn-icon btn-sm" href="Settings.dc.html" aria-label="Cài đặt thông báo"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg></a></div></div>
+<div class="seg" role="group" aria-label="Lọc thông báo" style="align-self: flex-start;"><sc-for list="{{tabs}}" as="t" hint-placeholder-count="2"><button type="button" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}">{{t.label}}</button></sc-for></div>
+</div>
+<div class="nc-list">
+<span class="nc-sep">HÔM NAY</span>
+<div class="nitem"><span class="n-ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span><div class="nitem-main"><span class="t-small" style="font-weight: 600;">Hiện lại theo hẹn: Nhóm chạy bộ Hồ Tây</span><span class="spec">14:00 · Zalo · cuộc trò chuyện đã về đầu Hộp thư</span><div class="nitem-actions"><button class="btn btn-secondary btn-sm" type="button">Mở</button></div></div><span class="dot dot-unread"></span></div>
+<div class="nitem"><span class="n-ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3 2 6"></path><path d="m22 6-3-3"></path><path d="M6.38 18.7 4 21"></path><path d="M17.64 18.67 20 21"></path></svg></span><div class="nitem-main"><span class="t-small" style="font-weight: 600;">Trả lời: Ảnh chuyến đi Đà Lạt</span><span class="spec">Nhắc nhở · 09:00 · Gmail · Thu Trang</span><div class="nitem-actions"><button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Xong</button><button class="btn btn-ghost btn-sm" type="button">Nhắc lại sau 1 giờ</button></div></div><span class="dot dot-unread"></span></div>
+<div class="nitem"><span class="n-ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M5 3 2 6"></path><path d="m22 6-3-3"></path><path d="M6.38 18.7 4 21"></path><path d="M17.64 18.67 20 21"></path></svg></span><div class="nitem-main"><span class="t-small" style="font-weight: 600;">Gửi lại hóa đơn tháng 9 cho kế toán</span><span class="spec">Nhắc nhở · 08:12 · <span class="ink-warn">trễ 12 phút</span></span><span class="t-small ink-err">Quá hạn từ 30/09</span><div class="nitem-actions"><button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Xong</button><button class="btn btn-ghost btn-sm" type="button">Nhắc lại sau 1 giờ</button></div></div><span class="dot dot-unread"></span></div>
+<span class="nc-sep">HÔM QUA</span>
+<div class="nitem is-read"><span class="n-ic is-err"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span><div class="nitem-main"><span class="t-small" style="font-weight: 600;">Không gửi được thư hẹn giờ tới Lê Hoàng</span><span class="spec">21:30 · Messenger cần đăng nhập lại</span><span class="t-small c-muted">Thư vẫn được giữ lại, chưa gửi lần nào.</span><div class="nitem-actions"><button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path></svg>Sửa</button><button class="btn btn-ghost btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Gửi lại</button></div></div><span></span></div>
+<div class="nitem is-read"><span class="n-ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg></span><div class="nitem-main"><span class="t-small" style="font-weight: 600;">Ký hợp đồng thuê văn phòng đã vào lịch</span><span class="spec">16:20 · Thứ Năm 08/10 · 14:00</span></div><span></span></div>
+</div>
+<div class="nc-foot"><span class="status"><span class="dot dot-ok"></span>Thông báo trình duyệt đang bật</span><a class="btn btn-ghost btn-sm" href="Settings.dc.html">Cài đặt<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></div>
+</div>
+<span class="os-caption spec"><svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"></rect><path d="M8 21h8"></path><path d="M12 17v4"></path></svg>WEB PUSH · VÍ DỤ LÚC 18:00, TAB SINO ĐÃ ĐÓNG</span>
+<div class="os-toast" role="img" aria-label="Ví dụ thông báo của trình duyệt">
+<div class="os-toast-app"><svg class="ic ic-16 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg><span>Sino · Chrome</span><span style="margin-left: auto;">bây giờ</span></div>
+<div class="who-text"><span class="t-small" style="font-weight: 600;">Mua bánh bông lan trứng muối cho bà</span><span class="t-small c-muted">Nhắc nhở · hạn Thứ Bảy 03/10, 17:00</span></div>
+<div class="os-toast-actions"><button class="btn btn-secondary btn-sm" type="button">Xong</button><button class="btn btn-secondary btn-sm" type="button">Nhắc lại sau 1 giờ</button></div>
+<span class="spec">Push chỉ có tiêu đề và đường dẫn, không có nội dung tin nhắn.</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const tab = (this.state && this.state.tab) || 'all';
+    const tabs = [
+      { id: 'all', label: 'Tất cả' },
+      { id: 'unread', label: 'Chưa đọc · 3' },
+    ].map((t) => ({ ...t, pressed: t.id === tab, pick: () => this.setState({ tab: t.id }) }));
+    return { theme, rootClass: `sino theme-${theme} ov-wrap`, tabs };
+  }
+}
+</script>
+</body>
+</html>

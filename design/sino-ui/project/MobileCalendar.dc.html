@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Mobile · Lịch</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<div>
+<header class="mob-top"><h1 class="t-section">Lịch</h1><span class="spec" style="margin-left: 10px; padding-top: 6px;">THÁNG 10 · 2026</span><button class="btn btn-ghost btn-sm" type="button" style="margin-left: auto;">Hôm nay</button><button class="btn btn-ghost btn-icon" type="button" aria-label="Thêm lịch hẹn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></header>
+<div class="mob-week" role="group" aria-label="Tuần 28/09 – 04/10"><button class="mw-day" type="button"><span>T2</span><span class="dnum">28</span><span class="mw-dots"><span></span></span></button><button class="mw-day" type="button"><span>T3</span><span class="dnum">29</span><span class="mw-dots"><span></span></span></button><button class="mw-day" type="button"><span>T4</span><span class="dnum">30</span><span class="mw-dots"><span></span></span></button><button class="mw-day" type="button"><span>T5</span><span class="dnum">01</span><span class="mw-dots"><span></span></span></button><button class="mw-day is-today" type="button" aria-current="date"><span>T6</span><span class="dnum">02</span><span class="mw-dots"><span></span><span></span><span></span></span></button><button class="mw-day" type="button"><span>T7</span><span class="dnum">03</span><span class="mw-dots"><span></span><span></span></span></button><button class="mw-day" type="button"><span>CN</span><span class="dnum">04</span><span class="mw-dots"><span></span></span></button></div>
+</div>
+<main class="mob-scroll" style="gap: 0; border-top: 1px solid var(--border);">
+<div class="ag" style="padding: 0; overflow: visible;">
+<div class="ag-day"><div class="ag-date"><span class="t-small" style="font-weight: 600;">Hôm nay</span><span class="spec">THỨ SÁU 02/10</span></div><div class="ag-list">
+<div class="ag-item is-task is-over"><span class="spec c-text">30/09</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Gửi lại hóa đơn tháng 9</span><span class="gap-row" style="gap: 6px;"><span class="t-small ink-err">Quá hạn 2 ngày</span></span></div></div>
+<div class="ag-item is-ev"><span class="spec c-text">16:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Gọi Minh Anh về phụ lục giá</span><span class="gap-row" style="gap: 6px;"><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>Trần Minh Anh</span></span></div></div>
+<div class="ag-item is-task"><span class="spec c-text">17:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Chuyển tiền nhà tháng 10</span></div></div>
+<div class="ag-item is-rem"><span class="spec c-text">18:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Nhắc: Mua bánh cho bà</span><span class="gap-row" style="gap: 6px;"><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>Gia đình</span></span></div></div>
+</div></div>
+<div class="ag-day"><div class="ag-date"><span class="t-small" style="font-weight: 600;">Ngày mai</span><span class="spec">THỨ BẢY 03/10</span></div><div class="ag-list">
+<div class="ag-item is-task"><span class="spec c-text">17:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Mua bánh bông lan trứng muối cho bà</span><span class="gap-row" style="gap: 6px;"><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>Gia đình</span></span></div></div>
+<div class="ag-item is-ev"><span class="spec c-text">18:30</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Về nhà ăn cơm</span><span class="gap-row" style="gap: 6px;"><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>Gia đình</span></span></div></div>
+</div></div>
+<div class="ag-day"><div class="ag-date"><span class="t-small" style="font-weight: 600;">Chủ nhật</span><span class="spec">04/10</span></div><div class="ag-list">
+<div class="ag-item is-ev"><span class="spec c-text">06:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Chạy bộ Hồ Tây</span><span class="gap-row" style="gap: 6px;"><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>Nhóm chạy bộ Hồ Tây</span></span></div></div>
+</div></div>
+<div class="ag-day"><div class="ag-date"><span class="t-small" style="font-weight: 600;">Thứ Hai</span><span class="spec">05/10</span></div><div class="ag-list">
+<div class="ag-item is-ev"><span class="spec c-text">08:30</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Khám sức khỏe</span><span class="gap-row" style="gap: 6px;"><span class="src-tag"><span class="pm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>Phòng khám Ánh Dương</span></span></div></div>
+<div class="ag-item is-task"><span class="spec c-text">09:00</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg><div class="who-text" style="gap: 4px;"><span class="t-small" style="font-weight: 600;">Báo cáo tuần</span></div></div>
+</div></div>
+</div>
+</main>
+<dc-import name="TabBar" theme="{{theme}}" active="calendar" hint-size="390px,80px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, rootClass: `sino theme-${theme} mob` };
+  }
+}
+</script>
+</body>
+</html>

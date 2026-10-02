@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Responsive · Quy tắc</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sino theme-{{theme}} sheet" style="height: 700px; gap: 40px;">
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 03 · RESPONSIVE / QUY TẮC</span><span class="t-mono c-muted">{{themeLabel}}</span></div>
+<div class="mast-grid"><h1 class="t-page">Một giao diện, ba kích thước.</h1><p class="t-small c-muted">Bố cục đổi theo chiều rộng, còn thứ bậc thì giữ nguyên: Hộp thư luôn là khối quan trọng nhất, trạng thái tài khoản luôn thấy được.</p></div>
+</header>
+<div class="grid-3" style="gap: 20px;">
+<div class="bp-card">
+<div class="card-head"><span class="t-large">Desktop</span><span class="badge badge-mono">≥ 1280</span></div>
+<div class="bp-diagram" style="grid-template-columns: 36px repeat(3, minmax(0, 1fr)); grid-template-rows: 12px minmax(0, 1fr) minmax(0, 1fr);" aria-hidden="true"><span style="grid-row: 1 / 4;"></span><span style="grid-column: 2 / 5;"></span><span style="grid-column: 2 / 4; grid-row: 2 / 4; background: var(--border-strong);"></span><span></span><span></span></div>
+<div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">01</span><span class="t-small">Sidebar 248, top bar 72.</span></div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">02</span><span class="t-small">Bento 12 cột, khối to nhỏ có chủ đích.</span></div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">03</span><span class="t-small">Hộp thư 3 pane; hội thoại mở ở pane phải.</span></div>
+</div>
+</div>
+<div class="bp-card">
+<div class="card-head"><span class="t-large">Tablet</span><span class="badge badge-mono">768 – 1279</span></div>
+<div class="bp-diagram" style="grid-template-columns: 14px repeat(2, minmax(0, 1fr)); grid-template-rows: 12px minmax(0, 1fr) minmax(0, 1fr); width: 70%;" aria-hidden="true"><span style="grid-row: 1 / 4;"></span><span style="grid-column: 2 / 4;"></span><span style="grid-column: 2 / 4; background: var(--border-strong);"></span><span></span><span></span></div>
+<div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">01</span><span class="t-small">Rail 72; nhãn chuyển thành tên đọc cho trình đọc màn hình.</span></div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">02</span><span class="t-small">Bento 2 cột; Hộp thư trải hết chiều ngang.</span></div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">03</span><span class="t-small">Hộp thư 2 pane; nguồn chuyển thành bộ lọc.</span></div>
+</div>
+</div>
+<div class="bp-card">
+<div class="card-head"><span class="t-large">Mobile</span><span class="badge badge-mono">&lt; 768</span></div>
+<div class="bp-diagram" style="grid-template-columns: minmax(0, 1fr); grid-template-rows: 10px minmax(0, 1.4fr) minmax(0, 1fr) 12px; width: 76px; align-self: center;" aria-hidden="true"><span></span><span style="background: var(--border-strong);"></span><span></span><span></span></div>
+<div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">01</span><span class="t-small">Thanh dưới 5 mục; Dịch vụ và Cài đặt nằm trong Thêm.</span></div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">02</span><span class="t-small">Card 1 cột; hội thoại mở thành trang riêng.</span></div>
+<div class="principle" style="grid-template-columns: 28px minmax(0, 1fr);"><span class="spec">03</span><span class="t-small">Vùng chạm tối thiểu 44px.</span></div>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, themeLabel: theme === 'light' ? 'Light' : 'Dark' };
+  }
+}
+</script>
+</body>
+</html>

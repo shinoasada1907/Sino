@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Phần mềm nguồn mở</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<header class="lp-nav">
+<div class="lp-wrap">
+<div class="lp-nav-in">
+<a class="lp-brand" href="Landing.dc.html"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg>Sino</a>
+<nav class="lp-links" aria-label="Các mục của trang chủ"><a class="lp-link" href="Landing.dc.html">Tính năng</a><a class="lp-link" href="Landing.dc.html">Kế hoạch</a><a class="lp-link" href="Landing.dc.html">Cách hoạt động</a><a class="lp-link" href="Landing.dc.html">Quyền riêng tư</a><a class="lp-link" href="Landing.dc.html">Câu hỏi</a></nav>
+<div class="lp-nav-cta"><a class="btn btn-ghost btn-sm lp-hide-m" href="SiteLogin.dc.html">Đăng nhập</a><a class="btn btn-primary btn-sm" href="Onboarding.dc.html">Bắt đầu</a>
+<button class="btn btn-ghost btn-icon btn-sm lp-menu-btn" type="button" aria-label="Mở menu" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h.01"></path><path d="M3 18h.01"></path><path d="M3 6h.01"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M8 6h13"></path></svg></button></div>
+</div>
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{false}}"><nav class="lp-menu" aria-label="Menu"><a class="lp-link" href="Landing.dc.html">Tính năng</a><a class="lp-link" href="Landing.dc.html">Kế hoạch</a><a class="lp-link" href="Landing.dc.html">Cách hoạt động</a><a class="lp-link" href="Landing.dc.html">Quyền riêng tư</a><a class="lp-link" href="Landing.dc.html">Câu hỏi</a><a class="lp-link" href="SiteLogin.dc.html">Đăng nhập</a></nav></sc-if>
+</div>
+</header>
+<main class="dotbg" style="background-attachment: local;">
+<div class="lp-wrap">
+<header class="doc-head"><span class="t-mono c-muted">PHẦN MỀM NGUỒN MỞ</span><h1 class="lp-h2">Sino được xây trên phần mềm nguồn mở.</h1><p class="lp-lead">Cảm ơn các dự án dưới đây. Danh sách đầy đủ, kèm phiên bản và toàn văn giấy phép, được sinh tự động mỗi lần đóng gói.</p></header>
+<div style="display: flex; flex-direction: column; gap: 32px; padding-top: 48px; max-width: 960px;">
+<section style="display: flex; flex-direction: column; gap: 12px;"><span class="micro-label">MÁY CHỦ</span><div class="oss"><div class="oss-row head"><span>THÀNH PHẦN</span><span>GIẤY PHÉP</span><span>DÙNG ĐỂ</span></div><div class="oss-row"><span>Spring Boot, Spring Framework, Spring Security</span><span class="badge badge-mono" style="justify-self: start;">Apache-2.0</span><span class="t-small c-muted">Nền tảng backend</span></div><div class="oss-row"><span>Spring Modulith</span><span class="badge badge-mono" style="justify-self: start;">Apache-2.0</span><span class="t-small c-muted">Kiểm tra ranh giới module</span></div><div class="oss-row"><span>Hibernate ORM</span><span class="badge badge-mono" style="justify-self: start;">Apache-2.0</span><span class="t-small c-muted">Ánh xạ dữ liệu</span></div><div class="oss-row"><span>Flyway (Community)</span><span class="badge badge-mono" style="justify-self: start;">Apache-2.0</span><span class="t-small c-muted">Quản lý migration cơ sở dữ liệu</span></div><div class="oss-row"><span>PostgreSQL JDBC Driver</span><span class="badge badge-mono" style="justify-self: start;">BSD-2-Clause</span><span class="t-small c-muted">Kết nối PostgreSQL</span></div><div class="oss-row"><span>Jackson</span><span class="badge badge-mono" style="justify-self: start;">Apache-2.0</span><span class="t-small c-muted">Đọc và ghi JSON</span></div></div></section>
+<section style="display: flex; flex-direction: column; gap: 12px;"><span class="micro-label">GIAO DIỆN</span><div class="oss"><div class="oss-row head"><span>THÀNH PHẦN</span><span>GIẤY PHÉP</span><span>DÙNG ĐỂ</span></div><div class="oss-row"><span>React</span><span class="badge badge-mono" style="justify-self: start;">MIT</span><span class="t-small c-muted">Thư viện giao diện</span></div><div class="oss-row"><span>Vite</span><span class="badge badge-mono" style="justify-self: start;">MIT</span><span class="t-small c-muted">Công cụ build</span></div><div class="oss-row"><span>React Router</span><span class="badge badge-mono" style="justify-self: start;">MIT</span><span class="t-small c-muted">Điều hướng</span></div><div class="oss-row"><span>TanStack Query</span><span class="badge badge-mono" style="justify-self: start;">MIT</span><span class="t-small c-muted">Lấy và lưu đệm dữ liệu</span></div><div class="oss-row"><span>Tailwind CSS</span><span class="badge badge-mono" style="justify-self: start;">MIT</span><span class="t-small c-muted">Tiện ích CSS</span></div><div class="oss-row"><span>Lucide</span><span class="badge badge-mono" style="justify-self: start;">ISC</span><span class="t-small c-muted">Bộ icon</span></div></div></section>
+<section style="display: flex; flex-direction: column; gap: 12px;"><span class="micro-label">PHÔNG CHỮ</span><div class="oss"><div class="oss-row head"><span>THÀNH PHẦN</span><span>GIẤY PHÉP</span><span>DÙNG ĐỂ</span></div><div class="oss-row"><span>Inter</span><span class="badge badge-mono" style="justify-self: start;">SIL OFL 1.1</span><span class="t-small c-muted">Chữ giao diện</span></div><div class="oss-row"><span>JetBrains Mono</span><span class="badge badge-mono" style="justify-self: start;">SIL OFL 1.1</span><span class="t-small c-muted">Chữ số và mã</span></div></div></section>
+<a class="btn btn-secondary" href="#toan-van" style="align-self: flex-start;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>Xem toàn văn giấy phép</a>
+</div>
+<footer>
+<div class="lp-foot">
+<div class="lp-foot-col" style="gap: 14px;"><a class="lp-brand" href="Landing.dc.html"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg>Sino</a><span class="t-small c-muted" style="max-width: 300px;">Hộp thư chung và kế hoạch từ tin nhắn, ở cùng một nơi.</span></div>
+<div class="lp-foot-col"><span class="micro-label">SẢN PHẨM</span><a href="Landing.dc.html">Tính năng</a><a href="Landing.dc.html">Kế hoạch</a><a href="Landing.dc.html">Cách hoạt động</a></div>
+<div class="lp-foot-col"><span class="micro-label">TIN CẬY</span><a href="SitePrivacy.dc.html">Quyền riêng tư</a><a href="SiteSecurity.dc.html">Bảo mật</a><a href="Landing.dc.html">Câu hỏi thường gặp</a></div>
+<div class="lp-foot-col"><span class="micro-label">PHÁP LÝ</span><a href="SiteTerms.dc.html">Điều khoản</a><a href="SitePrivacy.dc.html">Chính sách quyền riêng tư</a><a href="SiteOpenSource.dc.html">Phần mềm nguồn mở</a></div>
+</div>
+<div class="lp-legal"><span class="spec">© 2026 SINO</span><button class="lang" type="button" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+</footer>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    return {
+      theme,
+      rootClass: `sino theme-${theme} lp`,
+      menuOpen: !!s.menu,
+      toggleMenu: () => this.setState({ menu: !s.menu }),
+    };
+  }
+}
+</script>
+</body>
+</html>

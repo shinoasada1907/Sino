@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Mobile · Hộp thư</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<div>
+<header class="mob-top">
+<h1 class="t-section">Hộp thư</h1>
+<span class="spec" style="margin-left: 10px; padding-top: 6px;">12 chưa đọc</span>
+<button class="btn btn-ghost btn-icon" type="button" aria-label="Tìm kiếm" style="margin-left: auto;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+<button class="btn btn-ghost btn-icon" type="button" aria-label="Bộ lọc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M7 12h10"></path><path d="M10 18h4"></path></svg></button>
+</header>
+<div class="chip-row" role="group" aria-label="Nguồn">
+<sc-for list="{{chips}}" as="c" hint-placeholder-count="4"><button class="chip" type="button" aria-pressed="{{c.pressed}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+</div>
+</div>
+<main style="min-height: 0; overflow: auto; border-top: 1px solid var(--border);">
+<div class="day-sep" style="padding-left: 16px;">HÔM NAY</div>
+<div class="mob-row is-unread"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Trần Minh Anh</span><span class="mrow-subject ellipsis">Hợp đồng thuê văn phòng — bản sửa lần 2</span><span class="mrow-preview ellipsis">Em gửi lại bản đã sửa điều khoản 4 và phụ lục giá.</span></div><div class="mrow-meta"><span class="spec c-text">09:41</span><span class="dot dot-unread"></span></div></div>
+<a class="mob-row is-unread" href="MobileConversation.dc.html"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Gia đình</span><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="mrow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div></a>
+<div class="mob-row is-unread"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Phòng khám Ánh Dương</span><span class="mrow-subject ellipsis">Nhắc lịch khám thứ Hai 05/10</span></div><div class="mrow-meta"><span class="spec c-text">07:30</span><span class="dot dot-unread"></span></div></div>
+<div class="day-sep" style="padding-left: 16px;">HÔM QUA</div>
+<div class="mob-row"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Lê Hoàng</span><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối cho bạn.</span></div><div class="mrow-meta"><span class="spec">21:02</span></div></div>
+<div class="mob-row"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Nhóm chạy bộ Hồ Tây</span><span class="mrow-preview ellipsis">Tuấn: Sáng Chủ nhật 6 giờ, điểm hẹn cũ nhé.</span></div><div class="mrow-meta"><span class="spec">18:47</span></div></div>
+<div class="mob-row"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Thu Trang</span><span class="mrow-subject ellipsis">Ảnh chuyến đi Đà Lạt</span></div><div class="mrow-meta"><span class="spec">10:15</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></div></div>
+</main>
+<dc-import name="TabBar" theme="{{theme}}" active="inbox" hint-size="390px,80px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const pick = (this.state && this.state.source) || 'all';
+    const chips = [
+      { id: 'all', label: 'Tất cả · 12' },
+      { id: 'gmail', label: 'Gmail · 7' },
+      { id: 'zalo', label: 'Zalo · 4' },
+      { id: 'messenger', label: 'Messenger' },
+    ].map((c) => ({ ...c, pressed: c.id === pick, pick: () => this.setState({ source: c.id }) }));
+    return { theme, rootClass: `sino theme-${theme} mob`, chips };
+  }
+}
+</script>
+</body>
+</html>

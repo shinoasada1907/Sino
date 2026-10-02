@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Components · Hành động và nhập liệu</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sino theme-{{theme}} sheet" style="height: 1760px;">
+
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 01 · COMPONENTS / HÀNH ĐỘNG &amp; NHẬP LIỆU</span><span class="t-mono c-muted">theme · {{themeLabel}}</span></div>
+<div class="mast-grid">
+<h1 class="t-page">Hành động &amp; nhập liệu</h1>
+<p class="t-small c-muted">Mọi control đều là phần tử thật: rê chuột, bấm Tab, gõ thử đều được. Cột Hover và Focus vẽ sẵn trạng thái để so sánh.</p>
+</div>
+</header>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">01</span><h2 class="t-section">Button</h2><p class="t-small c-muted">Primary là nút đảo màu: sáng trên nền tối, tối trên nền sáng. Mỗi vùng chỉ một Primary.</p><p class="t-small c-muted">Destructive chỉ cho thao tác không hoàn tác được, như ngắt kết nối hay xóa.</p></div>
+<div class="sec-body">
+<div class="bm">
+<span></span><span class="spec">Mặc định</span><span class="spec">Hover</span><span class="spec">Focus</span><span class="spec">Vô hiệu</span>
+
+<div class="bm-label"><span class="t-small" style="font-weight: 600;">Primary</span><span class="spec">Button / Primary</span></div>
+<div><button class="btn btn-primary" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối</button></div>
+<div><button class="btn btn-primary is-hover" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối</button></div>
+<div><button class="btn btn-primary is-focus" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối</button></div>
+<div><button class="btn btn-primary" type="button" disabled="disabled"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối</button></div>
+
+<div class="bm-label"><span class="t-small" style="font-weight: 600;">Secondary</span><span class="spec">Button / Secondary</span></div>
+<div><button class="btn btn-secondary" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Đồng bộ</button></div>
+<div><button class="btn btn-secondary is-hover" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Đồng bộ</button></div>
+<div><button class="btn btn-secondary is-focus" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Đồng bộ</button></div>
+<div><button class="btn btn-secondary" type="button" disabled="disabled"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Đồng bộ</button></div>
+
+<div class="bm-label"><span class="t-small" style="font-weight: 600;">Ghost</span><span class="spec">Button / Ghost</span></div>
+<div><button class="btn btn-ghost" type="button">Xem tất cả<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button></div>
+<div><button class="btn btn-ghost is-hover" type="button">Xem tất cả<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button></div>
+<div><button class="btn btn-ghost is-focus" type="button">Xem tất cả<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button></div>
+<div><button class="btn btn-ghost" type="button" disabled="disabled">Xem tất cả<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button></div>
+
+<div class="bm-label"><span class="t-small" style="font-weight: 600;">Destructive</span><span class="spec">Button / Destructive</span></div>
+<div><button class="btn btn-danger" type="button">Ngắt kết nối</button></div>
+<div><button class="btn btn-danger is-hover" type="button">Ngắt kết nối</button></div>
+<div><button class="btn btn-danger is-focus" type="button">Ngắt kết nối</button></div>
+<div><button class="btn btn-danger" type="button" disabled="disabled">Ngắt kết nối</button></div>
+</div>
+
+<div class="bm-sizes">
+<div class="bm-size"><span class="spec">md · 44</span><button class="btn btn-primary" type="button">Lưu thay đổi</button></div>
+<div class="bm-size"><span class="spec">sm · 36</span><button class="btn btn-primary btn-sm" type="button">Lưu</button></div>
+<div class="bm-size"><span class="spec">icon · 44</span><button class="btn btn-secondary btn-icon" type="button" aria-label="Tìm kiếm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button></div>
+<div class="bm-size"><span class="spec">icon sm · 36</span><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Thêm thao tác"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button></div>
+<div class="bm-size"><span class="spec">cặp hành động</span><div style="display: flex; gap: 12px;"><button class="btn btn-secondary" type="button">Hủy</button><button class="btn btn-primary" type="button">Lưu thay đổi</button></div></div>
+</div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">02</span><h2 class="t-section">Ô nhập</h2><p class="t-small c-muted">Form quan trọng luôn có nhãn nằm ngoài ô. Focus: viền đổi sang màu chữ chính, thêm vòng 3px. Lỗi được báo bằng chữ, không chỉ bằng màu viền.</p></div>
+<div class="sec-body">
+<div class="grid-2" style="row-gap: 28px;">
+<div class="state-cell"><span class="spec">Input / Text · mặc định</span>
+<div class="field"><label class="field-label" for="f-name">Tên hiển thị</label><input class="input" id="f-name" type="text" defaultValue="An Nguyễn"><span class="field-help">Hiện trong các tin nhắn bạn gửi từ Sino.</span></div></div>
+<div class="state-cell"><span class="spec">Input / Text · focus</span>
+<div class="field"><label class="field-label" for="f-mail">Email khôi phục</label><input class="input is-focus" id="f-mail" type="email" placeholder="ten@vidu.vn"><span class="field-help">Chỉ dùng khi bạn mất quyền vào Sino.</span></div></div>
+<div class="state-cell"><span class="spec">Input / Text · lỗi</span>
+<div class="field"><label class="field-label" for="f-code">Mã xác minh</label><input class="input is-invalid" id="f-code" type="text" defaultValue="4821" aria-invalid="true" aria-describedby="f-code-err"><span class="field-error" id="f-code-err"><svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>Mã gồm 6 chữ số.</span></div></div>
+<div class="state-cell"><span class="spec">Input / Text · vô hiệu</span>
+<div class="field"><label class="field-label" for="f-prov">Nhà cung cấp</label><input class="input" id="f-prov" type="text" defaultValue="Gmail" disabled="disabled"><span class="field-help">Không đổi được sau khi đã kết nối.</span></div></div>
+<div class="state-cell"><span class="spec">Input / Search</span>
+<div class="field"><label class="field-label" for="f-search">Tìm kiếm</label><div class="input-wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg><input class="input" id="f-search" type="search" placeholder="Tìm thư, người gửi, tài khoản…"><span class="kbd">Ctrl K</span></div></div></div>
+<div class="state-cell"><span class="spec">Select / Default</span>
+<div class="field"><label class="field-label" for="f-range">Đồng bộ thư từ</label><div class="input-wrap select-wrap"><select class="input" id="f-range" defaultValue="30"><option value="30">30 ngày gần nhất</option><option value="90">90 ngày gần nhất</option><option value="all">Toàn bộ hộp thư</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div><span class="field-help">Chọn toàn bộ thì lần đồng bộ đầu lâu hơn.</span></div></div>
+</div>
+<div class="state-cell"><span class="spec">Toggle / Default · bật · tắt · vô hiệu</span>
+<div class="toggle-list">
+<label class="toggle"><input type="checkbox" defaultChecked="{{yes}}"><span>Thông báo khi có thư mới</span></label>
+<label class="toggle"><input type="checkbox"><span>Chỉ báo thư từ người quan trọng</span></label>
+<label class="toggle"><input type="checkbox" defaultChecked="{{yes}}" disabled="disabled"><span class="c-muted">Đồng bộ nền · cần quyền thông báo của hệ điều hành</span></label>
+</div></div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">03</span><h2 class="t-section">Ngôn ngữ &amp; giao diện</h2><p class="t-small c-muted">Ngôn ngữ dùng mã ngắn trong một nút nhỏ, không dùng các nút lớn VI / EN / JA đặt cạnh nhau. Theme có ba lựa chọn, mặc định theo hệ thống.</p></div>
+<div class="sec-body">
+<div style="display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 40px; align-items: start;">
+<div class="state-cell"><span class="spec">Language Selector · đóng · mở</span>
+<div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+<button class="lang" type="button" aria-haspopup="menu" aria-expanded="true" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<div class="menu" aria-label="Chọn ngôn ngữ">
+<button class="menu-item" type="button" aria-pressed="true"><span class="spec c-text">VI</span><span>Tiếng Việt</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></button>
+<button class="menu-item" type="button" aria-pressed="false"><span class="spec">EN</span><span>English</span><span></span></button>
+<div class="menu-sep"></div>
+<button class="menu-item" type="button" disabled="disabled"><span class="spec">JA</span><span>日本語 · sắp có</span><span></span></button>
+</div>
+</div></div>
+<div class="state-cell"><span class="spec">Theme Selector</span>
+<div class="seg" role="group" aria-label="Giao diện">
+<button type="button" aria-pressed="{{ap.system}}" onClick="{{pickSystem}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"></rect><path d="M8 21h8"></path><path d="M12 17v4"></path></svg>Hệ thống</button>
+<button type="button" aria-pressed="{{ap.dark}}" onClick="{{pickDark}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>Tối</button>
+<button type="button" aria-pressed="{{ap.light}}" onClick="{{pickLight}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>Sáng</button>
+</div>
+<span class="t-small c-muted">Bấm thử: lựa chọn đang bật có nền raised và viền đậm, không dùng màu.</span>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const pick = (this.state && this.state.appearance) || 'system';
+    return {
+      theme,
+      themeLabel: theme === 'light' ? 'Light' : 'Dark',
+      yes: true,
+      ap: { system: pick === 'system', dark: pick === 'dark', light: pick === 'light' },
+      pickSystem: () => this.setState({ appearance: 'system' }),
+      pickDark: () => this.setState({ appearance: 'dark' }),
+      pickLight: () => this.setState({ appearance: 'light' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

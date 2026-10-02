@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Mobile · Bật thông báo</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<header class="mob-top has-back"><a class="btn btn-ghost btn-icon" href="MobileNotifications.dc.html" aria-label="Quay lại Thông báo"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></a><div class="mob-title"><h1 class="t-small" style="font-weight: 600;">Bật thông báo</h1></div></header>
+<main class="mob-scroll" style="gap: 18px; padding-top: 16px;">
+<div class="phone-art" aria-hidden="true"><span class="home-icon"><svg class="ic logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg></span><span class="badge-dot">3</span></div>
+<div class="mob-hero"><h2 class="t-section">Nhắc nhở tới ngay trên điện thoại</h2><p class="t-small c-muted">Sino gửi thông báo khi tới giờ nhắc, khi cuộc trò chuyện hiện lại theo hẹn, hoặc khi thư hẹn giờ không gửi được.</p></div>
+<div class="seg" role="group" aria-label="Loại điện thoại" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));"><sc-for list="{{platforms}}" as="p" hint-placeholder-count="2"><button type="button" aria-pressed="{{p.pressed}}" onClick="{{p.pick}}" style="justify-content: center;">{{p.label}}</button></sc-for></div>
+<sc-if value="{{isIos}}" hint-placeholder-val="{{true}}">
+<ol class="howto">
+<li><span class="howto-num">1</span><span class="t-small">Mở Sino bằng <span style="font-weight: 600;">Safari</span>.</span></li>
+<li><span class="howto-num">2</span><span class="t-small">Bấm <span class="ui-key"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v13"></path><path d="m16 6-4-4-4 4"></path><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path></svg>Chia sẻ</span> ở thanh dưới.</span></li>
+<li><span class="howto-num">3</span><span class="t-small">Chọn <span class="ui-key"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>Thêm vào MH chính</span>.</span></li>
+<li><span class="howto-num">4</span><span class="t-small">Mở Sino từ biểu tượng mới trên màn hình chính, rồi bấm <span style="font-weight: 600;">Bật thông báo</span> bên dưới.</span></li>
+</ol>
+<p class="why">Cần iOS 16.4 trở lên. Safari chỉ cho trang web gửi thông báo khi đã được thêm vào màn hình chính.</p>
+</sc-if>
+<sc-if value="{{isAndroid}}" hint-placeholder-val="{{false}}">
+<ol class="howto">
+<li><span class="howto-num">1</span><span class="t-small">Bấm <span style="font-weight: 600;">Bật thông báo</span> bên dưới.</span></li>
+<li><span class="howto-num">2</span><span class="t-small">Khi Chrome hỏi, chọn <span class="ui-key">Cho phép</span>.</span></li>
+<li><span class="howto-num">3</span><span class="t-small">Không bắt buộc: thêm Sino vào màn hình chính để mở nhanh hơn.</span></li>
+</ol>
+</sc-if>
+<div class="alert"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><div class="alert-body"><span class="t-small" style="font-weight: 600;">Nội dung tin nhắn không rời khỏi Sino</span><span class="t-small c-muted">Thông báo chỉ có tiêu đề task hoặc lịch hẹn và đường dẫn mở trong Sino.</span></div></div>
+</main>
+<div class="mob-composer" style="flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 16px 28px;"><button class="btn btn-primary" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>Bật thông báo</button><a class="btn btn-ghost btn-sm" href="MobileNotifications.dc.html">Để sau</a></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"platform":{"editor":"enum","options":["ios","android"],"default":"ios"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const platform = (this.state && this.state.platform) || this.props.platform || 'ios';
+    const platforms = [
+      { id: 'ios', label: 'iPhone' },
+      { id: 'android', label: 'Android' },
+    ].map((p) => ({ ...p, pressed: p.id === platform, pick: () => this.setState({ platform: p.id }) }));
+    return { theme, rootClass: `sino theme-${theme} mob`, platforms, isIos: platform === 'ios', isAndroid: platform === 'android' };
+  }
+}
+</script>
+</body>
+</html>

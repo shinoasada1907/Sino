@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Mobile · Cài đặt</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<header class="mob-top has-back"><a class="btn btn-ghost btn-icon" href="MobileMore.dc.html" aria-label="Quay lại Thêm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></a><div class="mob-title"><h1 class="t-small" style="font-weight: 600;">Cài đặt</h1></div></header>
+<main class="mob-scroll dotbg" style="gap: 20px; padding-top: 16px;">
+<div style="display: flex; flex-direction: column; gap: 8px;"><span class="micro-label" style="padding-left: 4px;">GIAO DIỆN</span><div class="list-group">
+<div class="list-group-item" style="grid-template-columns: 24px minmax(0, 1fr);"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg><span>Theme</span></div>
+<div style="padding: 0 14px 14px; border-bottom: 1px solid var(--border);"><div class="seg" role="group" aria-label="Theme" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));"><sc-for list="{{looks}}" as="l" hint-placeholder-count="3"><button type="button" aria-pressed="{{l.pressed}}" onClick="{{l.pick}}" style="justify-content: center;">{{l.label}}</button></sc-for></div></div>
+<div class="list-group-item"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg><span>Ngôn ngữ</span><button class="lang" type="button" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+<a class="list-group-item is-col" href="#chuyen-dong"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10"></path><path d="M7 17 17 7"></path></svg><div class="who-text"><span>Chuyển động</span></div><span class="gap-row" style="gap: 8px; flex-wrap: nowrap;"><span class="spec">Đầy đủ</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span></a>
+</div></div>
+<div style="display: flex; flex-direction: column; gap: 8px;"><span class="micro-label" style="padding-left: 4px;">THÔNG BÁO VÀ LỊCH</span><div class="list-group"><a class="list-group-item is-col" href="MobileSettingsNotifications.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg><div class="who-text"><span>Thông báo, lịch và nhắc nhở</span></div><span class="gap-row" style="gap: 8px; flex-wrap: nowrap;"><span class="badge">Chưa bật trên máy này</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span></a></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px;"><span class="micro-label" style="padding-left: 4px;">TÀI KHOẢN VÀ DỮ LIỆU</span><div class="list-group"><a class="list-group-item is-col" href="MobileAccounts.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg><div class="who-text"><span>Nguồn đã kết nối</span><span class="spec">3 TÀI KHOẢN</span></div><span class="gap-row" style="gap: 8px; flex-wrap: nowrap;"><span class="dot dot-err"></span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span></a><a class="list-group-item is-col" href="#rieng-tu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg><div class="who-text"><span>Quyền riêng tư và dữ liệu</span><span class="spec">3.912 TIN · 412 MB</span></div><span class="gap-row" style="gap: 8px; flex-wrap: nowrap;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span></a><a class="list-group-item is-col" href="#bao-mat"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><div class="who-text"><span>Bảo mật</span><span class="spec">2 PHIÊN ĐĂNG NHẬP</span></div><span class="gap-row" style="gap: 8px; flex-wrap: nowrap;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span></a></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px;"><span class="micro-label" style="padding-left: 4px;">VỀ SINO</span><div class="list-group"><div class="list-group-item is-col"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg><div class="who-text"><span>Phiên bản</span><span class="spec">BẢN DỰNG 2026.10.02</span></div><span class="spec">0.2.0</span></div></div></div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const pick = (this.state && this.state.look) || 'system';
+    const looks = [
+      { id: 'system', label: 'Hệ thống' },
+      { id: 'dark', label: 'Tối' },
+      { id: 'light', label: 'Sáng' },
+    ].map((l) => ({ ...l, pressed: l.id === pick, pick: () => this.setState({ look: l.id }) }));
+    return { theme, rootClass: `sino theme-${theme} mob`, looks };
+  }
+}
+</script>
+</body>
+</html>

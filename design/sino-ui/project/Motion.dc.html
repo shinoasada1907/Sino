@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Foundations · Chuyển động</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}" style="height: 2360px;">
+
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 00 · FOUNDATIONS / 04 · CHUYỂN ĐỘNG</span><span class="t-mono c-muted">React Bits · prefers-reduced-motion · {{themeLabel}}</span></div>
+<div class="mast-grid">
+<h1 class="t-hero">Chuyển động để giải thích,<br>không để trang trí.</h1>
+<div class="mast-note">
+<p class="t-body c-muted">Giao diện đơn sắc cần chuyển động để có sức sống, nhưng mỗi chuyển động phải trả lời được: nó cho người dùng biết điều gì?</p>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span class="micro-label">Thử mức chuyển động</span>
+<div class="seg" role="group" aria-label="Mức chuyển động">
+<sc-for list="{{modes}}" as="m" hint-placeholder-count="3"><button type="button" aria-pressed="{{m.pressed}}" onClick="{{m.pick}}">{{m.label}}</button></sc-for>
+</div>
+</div>
+</div>
+</div>
+</header>
+
+<section class="sec-full">
+<div class="sec-head"><span class="idx">01</span><h2 class="t-section">Thời lượng, đường cong, quãng đường</h2><p class="t-small c-muted">Ngắn và dịu. Hover phản hồi ngay; panel và trang có thêm chút thời gian để mắt theo kịp.</p></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) repeat(2, minmax(0, 1.2fr)); gap: 16px;">
+<div class="card-quiet dur-card"><span class="spec">motion.fast</span><span class="dur-num">160ms</span><span class="t-small c-muted">Nhấn nút, bật tắt toggle</span></div>
+<div class="card-quiet dur-card"><span class="spec">motion.hover</span><span class="dur-num">180ms</span><span class="t-small c-muted">Hover, focus, đổi viền</span></div>
+<div class="card-quiet dur-card"><span class="spec">motion.panel</span><span class="dur-num">220ms</span><span class="t-small c-muted">Mở menu, panel, modal</span></div>
+<div class="card-quiet dur-card"><span class="spec">motion.page</span><span class="dur-num">240ms</span><span class="t-small c-muted">Chuyển trang: mờ dần + 6px</span></div>
+<div class="card-quiet dur-card"><span class="spec">ease.out · (.2, .8, .2, 1)</span><svg class="curve" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="track" d="M0 100 L100 0"></path><path class="line" d="M0 100 C20 20 20 0 100 0"></path></svg><span class="t-small c-muted">Mọi thứ đi vào màn hình</span></div>
+<div class="card-quiet dur-card"><span class="spec">ease.standard · (.4, 0, .2, 1)</span><svg class="curve" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="track" d="M0 100 L100 0"></path><path class="line" d="M0 100 C40 100 20 0 100 0"></path></svg><span class="t-small c-muted">Đổi trạng thái tại chỗ</span></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+<div class="card-quiet" style="display: flex; align-items: center; gap: 20px;"><div class="dist"><span class="ghost"></span><span class="solid" style="transform: translate(2px, -2px);"></span></div><div style="display: flex; flex-direction: column; gap: 2px;"><span class="t-small" style="font-weight: 600;">2px</span><span class="t-small c-muted">Nhấc card, dịch icon điều hướng</span></div></div>
+<div class="card-quiet" style="display: flex; align-items: center; gap: 20px;"><div class="dist"><span class="ghost"></span><span class="solid" style="transform: translateY(-4px);"></span></div><div style="display: flex; flex-direction: column; gap: 2px;"><span class="t-small" style="font-weight: 600;">4px</span><span class="t-small c-muted">Menu và tooltip xuất hiện</span></div></div>
+<div class="card-quiet" style="display: flex; align-items: center; gap: 20px;"><div class="dist"><span class="ghost"></span><span class="solid" style="transform: translateY(-8px);"></span></div><div style="display: flex; flex-direction: column; gap: 2px;"><span class="t-small" style="font-weight: 600;">6–8px</span><span class="t-small c-muted">Chuyển trang, nội dung mới vào</span></div></div>
+</div>
+</section>
+
+<section class="sec-full">
+<div class="sec-head"><span class="idx">02</span><h2 class="t-section">Thử trực tiếp</h2><div style="display: flex; justify-content: flex-end;"><button class="btn btn-secondary btn-sm" type="button" onClick="{{replay}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Chạy lại</button></div></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+
+<div class="demo"><div class="panel-head"><span class="t-small" style="font-weight: 600;">MagicBento</span><span class="spec">hover</span></div>
+<div class="demo-stage"><div class="card-bento" style="display: flex; flex-direction: column; gap: 6px;"><span class="micro-label">Tài khoản</span><span class="t-large">3 đã kết nối</span><span class="t-small c-muted">Rê chuột: nhấc 2px, viền đậm lên</span></div></div></div>
+
+<div class="demo"><div class="panel-head"><span class="t-small" style="font-weight: 600;">Điều hướng</span><span class="spec">hover</span></div>
+<div class="demo-stage">
+<a class="nav-item" href="#demo-a"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tài khoản</a>
+<a class="nav-item" href="#demo-b"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg>Dịch vụ</a>
+<span class="t-small c-muted">Icon dịch 2px khi rê chuột</span>
+</div></div>
+
+<div class="demo"><div class="panel-head"><span class="t-small" style="font-weight: 600;">SpotlightCard</span><span class="spec">rê chuột</span></div>
+<div class="demo-stage"><div class="card-spotlight" onMouseMove="{{onSpot}}" onMouseLeave="{{onSpotLeave}}" style="min-height: 150px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; background-image: radial-gradient(260px circle at {{spotX}} {{spotY}}, var(--spot-strong), transparent 70%);"><span class="micro-label">Hộp thư</span><span class="t-large">12 chưa đọc</span></div></div></div>
+
+<div class="demo"><div class="panel-head"><span class="t-small" style="font-weight: 600;">BorderGlow</span><span class="spec">focus</span></div>
+<div class="demo-stage"><div class="field"><label class="field-label" for="glow-demo">Nhấn vào ô</label><input class="input glow-input" id="glow-demo" type="text" placeholder="Tìm thư, người gửi…"></div><span class="t-small c-muted">Viền sáng 1px, quầng tối đa 24px</span></div></div>
+
+<div class="demo"><div class="panel-head"><span class="t-small" style="font-weight: 600;">AnimatedList</span><span class="spec">hàng mới vào</span></div>
+<div class="demo-stage" style="justify-content: flex-start;">
+<sc-if value="{{play}}" hint-placeholder-val="{{true}}">
+<div class="demo-row anim-enter d1"><span class="dot dot-unread"></span><span class="t-small ellipsis" style="font-weight: 600;">Trần Minh Anh</span><span class="spec" style="margin-left: auto;">09:41</span></div>
+<div class="demo-row anim-enter d2"><span class="dot dot-unread"></span><span class="t-small ellipsis" style="font-weight: 600;">Gia đình</span><span class="spec" style="margin-left: auto;">08:15</span></div>
+<div class="demo-row anim-enter d3"><span class="dot dot-off"></span><span class="t-small ellipsis">Lê Hoàng</span><span class="spec" style="margin-left: auto;">Hôm qua</span></div>
+<div class="demo-row anim-enter d4"><span class="dot dot-off"></span><span class="t-small ellipsis">Phòng khám Ánh Dương</span><span class="spec" style="margin-left: auto;">Thứ 2</span></div>
+</sc-if>
+</div></div>
+
+<div class="demo"><div class="panel-head"><span class="t-small" style="font-weight: 600;">CountUp</span><span class="spec">một lần</span></div>
+<div class="demo-stage"><span class="t-hero" style="font-family: var(--font-mono); font-weight: 500; letter-spacing: -0.04em;">{{countText}}</span><span class="t-small c-muted">thư đã đồng bộ hôm nay</span></div></div>
+
+<div class="demo"><div class="panel-head"><span class="t-small" style="font-weight: 600;">FadeContent</span><span class="spec">đổi nội dung</span></div>
+<div class="demo-stage">
+<sc-if value="{{play}}" hint-placeholder-val="{{true}}">
+<div class="card-quiet anim-enter" style="display: flex; flex-direction: column; gap: 6px;"><span class="micro-label">Lần đồng bộ cuối</span><span class="t-large">2 phút trước</span><span class="status"><span class="dot dot-ok"></span>Gmail ổn định</span></div>
+</sc-if>
+</div></div>
+
+<div class="demo"><div class="panel-head"><span class="t-small" style="font-weight: 600;">DecryptedText</span><span class="spec">chỉ thương hiệu</span></div>
+<div class="demo-stage"><span class="t-page" style="font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.24em;">{{word}}</span><span class="t-small c-muted">Một lần mỗi phiên, ở Onboarding</span></div></div>
+
+</div>
+</section>
+
+<section class="sec-full">
+<div class="sec-head"><span class="idx">03</span><h2 class="t-section">Bản đồ React Bits</h2><p class="t-small c-muted">Mỗi hiệu ứng có đúng một chỗ dùng. Khi người dùng bật giảm chuyển động, hiệu ứng lùi về trạng thái ở cột cuối.</p></div>
+<div>
+<div class="map-row map-head"><span>Hiệu ứng</span><span>Dùng ở</span><span>Quy tắc</span><span>Khi giảm chuyển động</span></div>
+<div class="map-row"><span class="t-small" style="font-weight: 600;">DotGrid</span><span class="t-small">Nền toàn cục</span><span class="t-small c-muted">Chấm 1px, mờ dưới 8%. Trong app đứng yên; chỉ Onboarding được phản ứng nhẹ theo chuột.</span><span class="t-small c-muted">Đứng yên</span></div>
+<div class="map-row"><span class="t-small" style="font-weight: 600;">MagicBento</span><span class="t-small">Bento ở Tổng quan</span><span class="t-small c-muted">Nhấc 2px và viền đậm khi hover. Không hạt, không tia sáng.</span><span class="t-small c-muted">Chỉ đổi viền</span></div>
+<div class="map-row"><span class="t-small" style="font-weight: 600;">SpotlightCard</span><span class="t-small">Khối Spotlight, wizard</span><span class="t-small c-muted">Vệt sáng 6–11% theo chuột, chỉ khi hover.</span><span class="t-small c-muted">Vệt sáng đứng yên</span></div>
+<div class="map-row"><span class="t-small" style="font-weight: 600;">AnimatedList</span><span class="t-small">Hộp thư, Hoạt động gần đây</span><span class="t-small c-muted">Chỉ cho hàng mới vào. Trễ 40ms mỗi hàng, tối đa 6 hàng.</span><span class="t-small c-muted">Hiện ngay</span></div>
+<div class="map-row"><span class="t-small" style="font-weight: 600;">CountUp</span><span class="t-small">Số liệu ở Tổng quan</span><span class="t-small c-muted">Chạy một lần khi xuất hiện, tối đa 700ms.</span><span class="t-small c-muted">Hiện số cuối</span></div>
+<div class="map-row"><span class="t-small" style="font-weight: 600;">FadeContent</span><span class="t-small">Chuyển trang, đổi tab</span><span class="t-small c-muted">Mờ dần kèm dịch 6px, 240ms.</span><span class="t-small c-muted">Chỉ mờ dần</span></div>
+<div class="map-row"><span class="t-small" style="font-weight: 600;">DecryptedText</span><span class="t-small">Chữ Sino ở Onboarding</span><span class="t-small c-muted">Một lần mỗi phiên. Không dùng cho nội dung.</span><span class="t-small c-muted">Hiện chữ ngay</span></div>
+<div class="map-row"><span class="t-small" style="font-weight: 600;">BorderGlow</span><span class="t-small">Focus và hover quan trọng</span><span class="t-small c-muted">Viền sáng 1px, quầng tối đa 24px.</span><span class="t-small c-muted">Chỉ viền</span></div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">04</span><h2 class="t-section">Không làm</h2></div>
+<div class="sec-body">
+<div class="dont-list">
+<span class="dont-item"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Vòng lặp chạy mãi</span>
+<span class="dont-item"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Glow quá tay</span>
+<span class="dont-item"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Nền chuyển động lớn</span>
+<span class="dont-item"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Con trỏ tùy biến</span>
+<span class="dont-item"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Phần tử nào cũng chuyển động</span>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":2360}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this.replay();
+  }
+
+  componentWillUnmount() {
+    this.clearTimers();
+  }
+
+  clearTimers() {
+    (this._timers || []).forEach((id) => { clearTimeout(id); clearInterval(id); });
+    this._timers = [];
+    if (this._raf) cancelAnimationFrame(this._raf);
+  }
+
+  track(id) {
+    this._timers = this._timers || [];
+    this._timers.push(id);
+  }
+
+  currentMode() {
+    return (this.state && this.state.mode) || 'full';
+  }
+
+  replay() {
+    this.clearTimers();
+    this.setState({ play: false });
+    this.track(setTimeout(() => this.setState({ play: true }), 40));
+    this.runCount();
+    this.runDecrypt();
+  }
+
+  runCount() {
+    const target = 1284;
+    if (this.currentMode() !== 'full') {
+      this.setState({ count: target });
+      return;
+    }
+    const start = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - start) / 700);
+      this.setState({ count: Math.round(target * (1 - Math.pow(1 - p, 3))) });
+      if (p < 1) this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+
+  runDecrypt() {
+    const word = 'SINO';
+    if (this.currentMode() !== 'full') {
+      this.setState({ word });
+      return;
+    }
+    const glyphs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#_';
+    const total = 16;
+    let frame = 0;
+    const id = setInterval(() => {
+      frame += 1;
+      const out = word.split('').map((ch, i) => (frame >= (total * (i + 1)) / word.length ? ch : glyphs[Math.floor(Math.random() * glyphs.length)])).join('');
+      this.setState({ word: out });
+      if (frame >= total) {
+        clearInterval(id);
+        this.setState({ word });
+      }
+    }, 45);
+    this.track(id);
+  }
+
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    const mode = s.mode || 'full';
+    const modes = [
+      { id: 'full', label: 'Đầy đủ' },
+      { id: 'reduced', label: 'Giảm' },
+      { id: 'off', label: 'Tắt' },
+    ].map((m) => ({
+      ...m,
+      pressed: m.id === mode,
+      pick: () => {
+        this.setState({ mode: m.id });
+        this.track(setTimeout(() => this.replay(), 0));
+      },
+    }));
+    const count = typeof s.count === 'number' ? s.count : 1284;
+    return {
+      theme,
+      themeLabel: theme === 'light' ? 'Light' : 'Dark',
+      rootClass: `sino theme-${theme} sheet motion-${mode}`,
+      modes,
+      play: s.play !== false,
+      countText: count.toLocaleString('vi-VN'),
+      word: s.word || 'SINO',
+      replay: () => this.replay(),
+      spotX: s.spotX || '30%',
+      spotY: s.spotY || '20%',
+      onSpot: (e) => {
+        if (mode === 'off') return;
+        const r = e.currentTarget.getBoundingClientRect();
+        const x = Math.round(((e.clientX - r.left) / r.width) * 100);
+        const y = Math.round(((e.clientY - r.top) / r.height) * 100);
+        this.setState({ spotX: `${x}%`, spotY: `${y}%` });
+      },
+      onSpotLeave: () => this.setState({ spotX: '30%', spotY: '20%' }),
+    };
+  }
+}
+</script>
+</body>
+</html>
