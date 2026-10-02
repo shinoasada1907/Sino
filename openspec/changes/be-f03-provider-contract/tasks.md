@@ -79,6 +79,7 @@
   - **Gợi ý:** abstract test class + JUnit kế thừa `@Test`; ArchUnit đã có sẵn qua Spring Modulith test.
 
 - [ ] 3.3 **BE-25 — `GET /api/providers`** *(chỉ làm nếu D-18 = có)*
+  - **Thực hiện (2026-10-02, AUTO, chưa kiểm chứng):** `ProvidersController` + DTO `ProviderResponse` (capability là chuỗi tên enum, giữ thứ tự registry trả về); `ProvidersControllerTests` (`@WebMvcTest` + security thật qua `ApiSecurityTestConfiguration`, `ProviderRegistry` giả bằng `@MockitoBean` — lần đầu repo dùng Mockito, có sẵn qua `spring-boot-starter-webmvc-test`). Chưa chạy `./mvnw verify`.
   - **Goal / Why:** frontend biết provider nào có và làm được gì, trước khi có account.
   - **Depends:** BE-23 · **D-18** · security + error model F01.
   - **Files:** `provider/api/ProvidersController.java` (+ response DTO), web test.
