@@ -21,6 +21,7 @@
 ## 2. Giao diện
 
 - [ ] 2.1 **Canvas "Sino UI" đợt 6**
+  - **Thực hiện (2026-10-02):** đã publish (artifact Version 13): trang mới "02 · Desktop · Kế hoạch" gồm Lịch (Tuần/Tháng/Lịch trình), Việc cần làm, Ghi chú, Trung tâm thông báo (kèm ví dụ Web Push) và 6 lớp phủ trên Hộp thư (Nhắc tôi, Tạo task, Lịch hẹn, Ghi chú từ đoạn trích, Tạm ẩn, Gửi lúc…), đủ Dark/Light; sửa Sidebar (nhóm KẾ HOẠCH/DANH TÍNH), Rail, TabBar mobile (Tổng quan · Hộp thư · Lịch · Việc · Thêm), Topbar (chuông mở trung tâm thông báo), Hộp thư, Tổng quan (khối "Hôm nay", lối tắt Tạo task), Hội thoại (mục "Việc và ghi chú"), Cài đặt (thông báo, thiết bị, Lịch và nhắc nhở); mobile thêm Lịch, Việc cần làm. Kiểm tra tĩnh: thẻ HTML cân bằng, mọi `{{…}}` có giá trị, `renderVals` và mọi handler chạy được trên Node với mọi giá trị prop. **Chưa kiểm tra hiển thị**; chờ người dùng duyệt.
   - **Goal:** xem được giao diện trước khi code: Lịch (Tuần/Tháng/Lịch trình), Việc cần làm, Ghi chú, trung tâm thông báo; Hộp thư có thao tác trên tin, Tạm ẩn, Gửi lúc…, bộ lọc Đã hẹn giờ/Đang tạm ẩn, chip, panel "Việc và ghi chú"; Tổng quan thêm "Hôm nay"; sidebar chia nhóm; tabbar mobile mới; Cài đặt thêm thông báo và thiết bị.
   - **Acceptance criteria:** đủ bản Dark và Light; màn mới có trong trang Desktop/Responsive của canvas; sidebar và tabbar mới dùng chung cho mọi màn.
   - **Test:** người dùng xem canvas và duyệt.
