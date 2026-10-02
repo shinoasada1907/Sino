@@ -68,6 +68,8 @@
   - **Gợi ý:** constructor injection `List<T>` khi không có bean nào; vì sao fail-fast lúc khởi động tốt hơn lỗi lúc chạy.
 
 - [ ] 3.2 **BE-24 — `FakeMessageProvider` + contract test kit**
+  - **Thực hiện (2026-10-02, AUTO, chưa kiểm chứng):** code test đã viết, chưa chạy `./mvnw verify` (người dùng tự quyết bước kiểm chứng). Kit có 7 kiểm tra; connector con cung cấp `provider()`, `providerWithOneBrokenMessage()`, `context()`, `expectedMessageIds()`. `FakeMessageProviderContractTest` chạy kit cho fake chỉ-đọc và fake có gửi tin (`@Nested`), thêm test lật trang của fake.
+  - **Làm khác kế hoạch:** ~~fake trả các batch dựng sẵn~~ → fake nhận các trang message "thô" (`RawMessage`) và tự chuẩn hóa lúc `fetchUpdates`, message lỗi thành `SkippedItem`. **LÝ DO:** batch dựng sẵn chỉ chứng minh `SyncBatch` chứa được item bị skip (đã có `SyncBatchTests`), không chứng minh connector bỏ qua item lỗi rồi làm tiếp (AC *Lỗi chuẩn hóa một item không làm hỏng cả batch*); đây cũng là mẫu connector F04 làm theo. Thêm file `ProviderContractArchitectureTests.java` cho kiểm tra kiến trúc của AC (không nằm trong danh sách Files).
   - **Goal / Why:** định nghĩa "một connector đúng" bằng test chạy được; F04 Gmail kế thừa.
   - **Depends:** BE-23.
   - **Files:** `src/test/java/dev/sino/provider/spi/MessageProviderContractTest.java` (abstract), `src/test/java/dev/sino/provider/FakeMessageProvider.java`, `FakeMessageProviderContractTest.java`.
