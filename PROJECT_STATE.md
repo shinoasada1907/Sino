@@ -41,6 +41,8 @@
 | BE-24 `FakeMessageProvider` + contract test kit + architecture check (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | COMMITTED, NOT VERIFIED | `src/test/java/dev/sino/provider/{FakeMessageProvider,FakeMessageProviderContractTest,ProviderContractArchitectureTests}.java`, `src/test/java/dev/sino/provider/spi/MessageProviderContractTest.java` | 2026-10-02 |
 | BE-25 `GET /api/providers` (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | COMMITTED, NOT VERIFIED | `apps/sino-api/src/main/java/dev/sino/provider/api/{ProvidersController,ProviderResponse}.java`, `src/test/java/dev/sino/provider/api/ProvidersControllerTests.java` | 2026-10-02 |
 | BE-26 F03 acceptance — document part (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | WRITTEN; verify, DoD ticks, learning gate and archive pending | F03 `design.md`, `tasks.md`, `apps/sino-api/README.md`, `PROJECT_STATE.md` | 2026-10-02 |
+| Product scope "planner from messages" (notes, tasks, calendar, reminders, scheduled send, snooze) — brainstormed with the user; D-25…D-29 accepted, D-30/D-31 open until F13 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID), docs only | DONE (`openspec validate --strict` passes); UI batch 6 next | `openspec/changes/planner-from-messages/**`, `openspec/roadmap.md` | 2026-10-02 |
+| UI design canvas "Sino UI" (artifact, batches 1–5 published; batch 6 = planner screens) | CLAUDE | HUMAN | AUTO (HYBRID) | IN PROGRESS, not committed | `design/sino-ui/**` | 2026-10-02 |
 
 ## Completed work
 
