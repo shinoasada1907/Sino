@@ -1,6 +1,6 @@
 # F03 — Provider Contract · Technical Design
 
-> Mode: **TRAINING**. Trạng thái: DRAFT chờ Human review. Tương ứng 04D §6 (Provider Contract), §7 (API — providers), §14 (DoD F03).
+> Mode: **HYBRID** (F03 chạy AUTO, BE-22 TRAINING). Trạng thái (2026-10-02): đã code BE-19…BE-25; BE-23…BE-25 chờ `./mvnw verify`. ~~DRAFT chờ Human review~~ (thiết kế đã được duyệt để làm từ 2026-10-01). Tương ứng 04D §6 (Provider Contract), §7 (API — providers), §14 (DoD F03).
 > Convention chung (module, error model, transaction, test) nằm ở `openspec/specs/` và design F01 đã archive (`openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`).
 
 ## Context
@@ -41,9 +41,11 @@ dev.sino.provider                    # public API cho module khác
 ├── ProviderCapabilities             # tập capability bất biến + supports()/require()
 ├── ProviderDescriptor               # type + displayName + capabilities
 ├── ProviderRegistry                 # interface: get / find / isSupported / descriptors
+├── ProviderRegistryErrorCode        # ErrorCode của F01: UNKNOWN_PROVIDER
 ├── spi/                             # @NamedInterface("spi") — contract cho connector và cho sync/messaging
-│   ├── MessageProvider              # SPI
-│   ├── ProviderContext, ProviderCredentials (sealed)
+│   ├── MessageProvider              # SPI (5 method của 02A + default displayName, xem D-17)
+│   ├── ProviderContext, ProviderCredentials (sealed: OAuth2Credentials, TokenCredentials)
+│   ├── PayloadChecks                # nội bộ package: kiểm tra chung của các kiểu chuẩn hóa
 │   ├── AccountProfile, SyncCursor, SyncBatch, SkippedItem
 │   ├── NormalizedConversation, NormalizedParticipant, NormalizedMessage, NormalizedAttachment
 │   ├── ConversationType, MessageType, MessageDirection, MessageStatus
@@ -107,16 +109,16 @@ public interface MessageProvider {
 |---|---|---|---|
 | `ProviderContext` | record | `accountId` (UUID của Sino), `externalAccountId` (null trước khi biết profile), `credentials` | credentials khác null; `toString()` che secret |
 | `ProviderCredentials` | sealed interface | `OAuth2Credentials(accessToken, expiresAt?, scopes)`, `TokenCredentials(token)` | secret không rỗng; `toString()` che; không bao giờ vào DTO/event |
-| `AccountProfile` | record | `externalAccountId`, `displayName`, `avatarUrl?` | `externalAccountId` không rỗng |
+| `AccountProfile` | record | `externalAccountId`, `displayName`, `avatarUrl?` | `externalAccountId`, `displayName` không rỗng |
 | `SyncCursor` | record | `value` (opaque) + `initial()` / `isInitial()` | connector tự hiểu `value` |
 | `SyncBatch` | record | `conversations`, `messages`, `skipped`, `nextCursor`, `hasMore` | list khác null và bất biến; `nextCursor` khác null |
-| `SkippedItem` | record | `kind` (CONVERSATION/MESSAGE/ATTACHMENT), `externalId?`, `reason` (`ProviderErrorCode`), `detail` | `detail` không chứa payload thô hay dữ liệu cá nhân |
+| `SkippedItem` | record | `kind` (CONVERSATION/MESSAGE/ATTACHMENT), `externalId?`, `reason` (`ProviderErrorCode`), `detail` | `kind`, `reason` khác null; `detail` không rỗng, không chứa payload thô hay dữ liệu cá nhân |
 | `NormalizedConversation` | record | `externalConversationId`, `type`, `title?`, `avatarUrl?`, `participants`, `lastActivityAt?` | ID không rỗng; `type` mặc định `UNKNOWN` |
 | `NormalizedParticipant` | record | `externalParticipantId`, `displayName?`, `avatarUrl?`, `self` | ID không rỗng |
 | `NormalizedMessage` | record | `externalMessageId`, `externalConversationId`, `senderExternalParticipantId?`, `direction`, `type`, `textContent?`, `status`, `read`, `replyToExternalMessageId?`, `sentAt`, `attachments`, `metadata` | hai ID không rỗng; `direction`, `sentAt` khác null; `type`/`status` dùng `UNKNOWN` khi không map được |
 | `NormalizedAttachment` | record | `externalAttachmentId`, `fileName?`, `mimeType?`, `sizeBytes?`, `remoteUrl?`, `thumbnailUrl?` | ID không rỗng |
-| `SendMessageCommand` | record | `externalConversationId`, `textContent`, `replyToExternalMessageId?` | text không rỗng |
-| `SendMessageResult` | record | `externalMessageId`, `status`, `sentAt?` | ID không rỗng |
+| `SendMessageCommand` | record | `externalConversationId`, `textContent`, `replyToExternalMessageId?` | `externalConversationId`, text không rỗng |
+| `SendMessageResult` | record | `externalMessageId`, `status`, `sentAt?` | ID không rỗng; `status` null → `UNKNOWN` |
 
 Enum (02B): `ConversationType` = DIRECT, GROUP, THREAD, CHANNEL, UNKNOWN · `MessageType` = TEXT, IMAGE, FILE, AUDIO, VIDEO, SYSTEM, MIXED, UNKNOWN · `MessageDirection` = INBOUND, OUTBOUND · `MessageStatus` = PENDING, SENT, DELIVERED, READ, FAILED, UNKNOWN.
 
@@ -174,6 +176,9 @@ Enum (02B): `ConversationType` = DIRECT, GROUP, THREAD, CHANNEL, UNKNOWN · `Mes
 - Test sources: một abstract test class (ví dụ `MessageProviderContractTest`) mà mỗi connector kế thừa và chỉ cung cấp: instance connector, một `ProviderContext` mẫu, dữ liệu kỳ vọng.
 - Kiểm tra chung: `type()` hợp lệ; `capabilities()` khác null; không có `SEND_MESSAGES` → gửi tin ném `CAPABILITY_NOT_SUPPORTED`; `fetchUpdates(initial)` trả batch có `nextCursor`, external ID của message không rỗng và không trùng trong batch; gọi lại cùng cursor cho cùng external ID; `toString()` của context không lộ token.
 - `FakeMessageProvider` (test sources) cấu hình được type, capability và các batch dựng sẵn → dùng cho registry test, contract test, và test của F02.
+- **Đã làm (BE-24, 2026-10-02):** `MessageProviderContractTest` (abstract, `src/test/java/dev/sino/provider/spi/`) — lớp con cung cấp `provider()`, `providerWithOneBrokenMessage()` (trang đầu có 3 message, 1 thiếu dữ liệu bắt buộc), `context()` (secret ≥ 8 ký tự), `expectedMessageIds()`; `sendCommand()` override được. 7 kiểm tra: định danh + `displayName` + capability; không `SEND_MESSAGES` → `CAPABILITY_NOT_SUPPORTED`; có `SEND_MESSAGES` → kết quả có ID, khác `FAILED` (hai kiểm tra gửi dùng `assume`, nên mỗi connector có một test skipped); sync đầu trả đúng ID mẫu, không trùng, không skip; cùng cursor → cùng ID; message lỗi thành `SkippedItem(PAYLOAD_NORMALIZATION_FAILED)`, phần còn lại giữ; `toString()` của context không lộ secret.
+- ~~fake trả batch dựng sẵn~~ → `FakeMessageProvider` nhận các trang `RawMessage` và tự chuẩn hóa lúc `fetchUpdates` (lý do ở BE-24 trong `tasks.md`). Cursor `page-<n>`; ghi lại lệnh gửi (`sentMessages()`). Registry test của BE-23 dùng stub riêng trong file test (cần hai class khác nhau để kiểm thông báo trùng type).
+- Kiểm tra kiến trúc (`ProviderContractArchitectureTests`, ArchUnit): `dev.sino.provider` và `dev.sino.provider.spi` không phụ thuộc `dev.sino.provider.infrastructure..` và chỉ dùng `java..`, `dev.sino..`, `org.springframework.modulith..` (`@NamedInterface`).
 - F04: connector Gmail kế thừa contract test, HTTP của Gmail được giả lập ở tầng client (công cụ chốt ở F04).
 
 ### D-18 — `GET /api/providers` ở F03 · **Accepted: A — có** (2026-10-01)
@@ -203,7 +208,7 @@ Response mẫu (minh họa — Gmail có ở F04):
 
 | code | HTTP | Nguồn |
 |---|---|---|
-| `UNKNOWN_PROVIDER` | 404 | `ProviderRegistry.get` với type không có connector |
+| `UNKNOWN_PROVIDER` | 404 | `ProviderRegistry.get` với type không có connector (enum `ProviderRegistryErrorCode`, category `NOT_FOUND`) |
 
 ## Risks / Trade-offs
 
@@ -219,10 +224,13 @@ Không có migration. Không có dữ liệu.
 
 ## Open Questions
 
-- D-01, D-16, D-18: Decision Needed (bảng tổng ở F01 design).
+- ~~D-01, D-16, D-18: Decision Needed (bảng tổng ở F01 design).~~ Đã chốt A / A / A (2026-10-01); D-24 = B (BE-22).
+- D-17, D-19, D-20 vẫn ghi *Proposed default*: code F03 làm theo đúng phương án mặc định, chờ người dùng xác nhận.
 - Để lại cho F04 (ghi nhận, không chặn F03): SPI kết nối/OAuth; ai refresh token (D-15); công cụ giả lập HTTP cho contract test của Gmail; có cần `SyncOptions` (ví dụ giới hạn cửa sổ initial sync) không.
 
 ## Definition of Done — F03
+
+> **Đối chiếu ở BE-26 (2026-10-02):** mọi mục về code/test đã có file tương ứng (`ModularityTests`; unit test của BE-19…BE-22; `DefaultProviderRegistryTests`; `FakeMessageProviderContractTest`; `ProvidersControllerTests`); error catalog có `UNKNOWN_PROVIDER`. Chưa tick vì BE-23…BE-25 chưa chạy `./mvnw verify`. Learning gate chưa làm.
 
 - [ ] Module `provider` qua `ModularityTests`; `spi` là named interface; không phụ thuộc `account`.
 - [ ] Unit test cho `ProviderType`, `ProviderCapabilities`, validation của mọi kiểu chuẩn hóa (bao gồm trường hợp `UNKNOWN`), `SyncBatch` với `skipped`, che secret trong `toString()`.

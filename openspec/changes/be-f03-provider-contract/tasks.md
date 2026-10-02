@@ -91,6 +91,8 @@
 ## 4. Nghiệm thu
 
 - [ ] 4.1 **BE-26 — Nghiệm thu F03**
+  - **Thực hiện (2026-10-02, AUTO, phần không cần chạy):** đối chiếu bảng kiểu dữ liệu với code → code khớp spec; design ghi thiếu nên sửa design: `AccountProfile.displayName` bắt buộc, `SendMessageCommand.externalConversationId` bắt buộc, `SkippedItem` (`kind`/`reason` khác null, `detail` không rỗng), `SendMessageResult.status` null → `UNKNOWN`, bố cục package thêm `ProviderRegistryErrorCode`/`PayloadChecks`, mục contract test kit mô tả đúng cái đã làm, Open Questions bỏ D-01/D-16/D-18 đã chốt. Error catalog có `UNKNOWN_PROVIDER`. README thêm `GET /api/providers`. `PROJECT_STATE.md` cập nhật.
+  - **Còn lại:** `./mvnw verify` cho BE-23…BE-25 (người dùng test tiếp); tick DoD; learning gate (4 câu dưới); người dùng xác nhận D-17/D-19/D-20; `openspec archive be-f03-provider-contract -y` sau khi xanh.
   - **Files:** `PROJECT_STATE.md`, file này, error catalog trong design.
   - **Test:** `./mvnw verify` xanh; review lại bảng kiểu dữ liệu so với code (lệch → sửa design hoặc code, ghi lý do).
   - **AC:** checklist *Definition of Done — F03* trong `design.md`.

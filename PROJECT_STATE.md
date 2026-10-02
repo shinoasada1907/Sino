@@ -5,15 +5,15 @@
 - Project/root: `D:\Code\Product\MessageHub\Sino` (monorepo; backend at `apps/sino-api`)
 - Remote: `origin` = https://github.com/shinoasada1907/Sino.git (`main` pushed @ `5ad6a2d`)
 - Frontend: `apps/sino-web` (Vite + React skeleton)
-- Last updated: 2026-10-01
+- Last updated: 2026-10-02
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01; the F03 TRAINING override was removed by the user the same day: "chuyển qua auto đi")
 - Current phase: Phase 0 (backend foundation) — F01 done and archived; F03 Provider Contract in progress; F02 after F03 (D-01 = A)
-- Current task: F03 Provider Contract — BE-19…BE-22 DONE; next BE-23
+- Current task: F03 Provider Contract — BE-19…BE-22 DONE; BE-23…BE-26 committed, **NOT VERIFIED**; next: the user tests BE-23…BE-25
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
-- Current state: F03 in AUTO (BE-22 ran in TRAINING); BE-22 committed on `dev`, waiting for the user before BE-23
+- Current state: F03 in AUTO (BE-22 ran in TRAINING). 2026-10-02: the user asked Claude to write BE-23…BE-26 without running builds, tests or commits ("không cần tự động chạy … verify"; "xong rồi sẽ test các BE"). Nothing after BE-22 is built or tested. On request ("commit lên dev đi xong mỗi task thì sẽ commit") BE-23…BE-26 were committed to `dev` one commit per task **before** verification, which departs from the standing "commit after verified" rule.
 - Files currently owned/being modified: see table below
 - Other active agents: none known
 
@@ -37,7 +37,10 @@
 | BE-20 normalized types, enums, `SkippedItem` + minimal `ProviderErrorCode`/`ProviderException` (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/provider/spi/**`, `apps/sino-api/src/test/java/dev/sino/provider/spi/**`, F03 `design.md`, `tasks.md` | 2026-10-01 |
 | BE-21 SPI `MessageProvider`, context/credentials, profile/cursor/batch/send (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE | `apps/sino-api/src/main/java/dev/sino/provider/spi/**`, `apps/sino-api/src/test/java/dev/sino/provider/spi/**`, F03 `design.md`, `tasks.md` | 2026-10-01 |
 | BE-22 complete `ProviderException` (branch `dev`) — the user coded the main code ("step này tôi sẽ tự làm"); Claude wrote the tests, Javadoc and formatting on request | HUMAN | CLAUDE | TRAINING (task override) | DONE | `apps/sino-api/src/main/java/dev/sino/provider/spi/ProviderException.java`, `apps/sino-api/src/main/java/dev/sino/provider/ProviderCapabilities.java`, `apps/sino-api/src/test/java/dev/sino/provider/ProviderCapabilitiesTests.java`, `apps/sino-api/src/test/java/dev/sino/provider/spi/{ProviderErrorCodeTests,ProviderExceptionTests}.java` | 2026-10-01 |
-| F03 Provider Contract BE-23..BE-26 (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | TODO (next: BE-23) | `apps/sino-api/src/main/java/dev/sino/provider/**`, `apps/sino-api/src/test/java/dev/sino/provider/**` | 2026-10-01 |
+| BE-23 `ProviderRegistry`, `ProviderDescriptor`, `UNKNOWN_PROVIDER`; `MessageProvider.displayName()` (user chose the default method) (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | COMMITTED, NOT VERIFIED | `apps/sino-api/src/main/java/dev/sino/provider/{ProviderRegistry,ProviderDescriptor,ProviderRegistryErrorCode}.java`, `.../provider/application/DefaultProviderRegistry.java`, `.../provider/spi/MessageProvider.java`, `src/test/java/dev/sino/provider/ProviderDescriptorTests.java`, `src/test/java/dev/sino/provider/application/DefaultProviderRegistryTests.java` | 2026-10-02 |
+| BE-24 `FakeMessageProvider` + contract test kit + architecture check (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | COMMITTED, NOT VERIFIED | `src/test/java/dev/sino/provider/{FakeMessageProvider,FakeMessageProviderContractTest,ProviderContractArchitectureTests}.java`, `src/test/java/dev/sino/provider/spi/MessageProviderContractTest.java` | 2026-10-02 |
+| BE-25 `GET /api/providers` (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | COMMITTED, NOT VERIFIED | `apps/sino-api/src/main/java/dev/sino/provider/api/{ProvidersController,ProviderResponse}.java`, `src/test/java/dev/sino/provider/api/ProvidersControllerTests.java` | 2026-10-02 |
+| BE-26 F03 acceptance — document part (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | WRITTEN; verify, DoD ticks, learning gate and archive pending | F03 `design.md`, `tasks.md`, `apps/sino-api/README.md`, `PROJECT_STATE.md` | 2026-10-02 |
 
 ## Completed work
 
@@ -85,7 +88,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 ## Next task
 
-F03 in AUTO (the user removed the TRAINING override on 2026-10-01). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. BE-19…BE-22 done; next **BE-23** (`ProviderRegistry` + `ProviderDescriptor`, `UNKNOWN_PROVIDER` error code, fail start on duplicate type), one task at a time, stop and report after each.
+F03 in AUTO (the user removed the TRAINING override on 2026-10-01). D-01 = A (F03 first), D-16 = A (value object), D-18 = A (yes), accepted 2026-10-01. BE-19…BE-22 done. BE-23…BE-26 written and committed on `dev` (one commit per task) on 2026-10-02 but **not built or tested** (the user will test them). Next: `./mvnw -B -ntp verify` → fix anything red in a follow-up commit → tick tasks and DoD → learning gate (4 questions in BE-26) → the user confirms D-17/D-19/D-20 → `openspec archive be-f03-provider-contract -y`. The user decides each step.
 
 - D-24 = B (2026-10-01): `ProviderException` is not a `SinoException`; F07/F10 translate it into their own operation-level errors. Recorded in F03 `design.md`.
 - Code comments stay sparse (user, 2026-10-01: "hạn chế comment quá nhiều"): English Javadoc plus a line comment only for a non-obvious reason; explanations go in chat.

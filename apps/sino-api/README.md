@@ -50,7 +50,8 @@ migration that was already applied: add a new `V{n}__{module}_{description}.sql`
 | `/actuator/health` | public | Overall status. With the API user you also see each component. |
 | `/actuator/health/liveness`, `/actuator/health/readiness` | public | Readiness includes the database, liveness does not. |
 | `/actuator/info` | public | |
-| `/api/**` | HTTP Basic (`curl -u "$SINO_API_USERNAME:$SINO_API_PASSWORD" ...`) | No business endpoints yet (F02/F03). |
+| `/api/**` | HTTP Basic (`curl -u "$SINO_API_USERNAME:$SINO_API_PASSWORD" ...`) | Business endpoints below. |
+| `GET /api/providers` | HTTP Basic | Supported providers with `type`, `displayName` and `capabilities`, sorted by `type`. `[]` until a connector exists (F04). |
 | any other path | denied | Other actuator endpoints need the API user and are not exposed (404). The `local` profile also exposes `/actuator/modulith`. |
 
 Every error is an RFC 9457 problem response (`application/problem+json`) with a stable `code`, for example:
