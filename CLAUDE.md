@@ -13,6 +13,7 @@ Sino Messages: gom nhiều tài khoản và nhiều nhà cung cấp tin nhắn (
 | `openspec/changes/<feature>/` | Feature đang làm: `proposal.md`, `design.md`, `specs/`, `tasks.md` |
 | `openspec/changes/archive/` | Feature đã xong (F01 có decision register D-01…D-23 trong `design.md`) |
 | `.github/workflows/backend-ci.yml` | CI backend |
+| `docs/knowledge/` | Kiến thức theo phase cho người học (`phase-0-backend-foundation.md`…): chỗ nào dùng gì của Java/Spring, để làm gì, vì sao |
 
 ## Đọc trước khi làm bất cứ việc gì
 
@@ -27,6 +28,7 @@ Vị trí hiện tại chỉ ghi trong `PROJECT_STATE.md`; file này không lặ
 
 - Mode HYBRID: mặc định agent làm từng task nhỏ, kiểm chứng, báo lại rồi dừng. Task nào người dùng nhận tự code (TRAINING) thì agent **không viết code thay**: giải thích, gợi ý, review, chạy test.
 - Quyết định kiến trúc ("Decision Needed") do người dùng chốt; agent đưa phương án và đề xuất.
+- Người dùng đang học Java qua dự án (vai trò intern; agent là senior engineer): agent làm task rồi giải thích cái đã dùng và vì sao; người dùng quyết bước tiếp theo. Mỗi phase có một file kiến thức trong `docs/knowledge/`; xong mỗi feature thì bổ sung phần của feature đó vào file của phase.
 - Nhánh làm việc `dev`. Không commit thẳng `main`. Agent commit lên `dev` sau mỗi task đã kiểm chứng; **push, merge, mở PR chỉ khi người dùng yêu cầu**.
 - Làm khác kế hoạch thì gạch task cũ trong `tasks.md` và ghi **LÝ DO** ngay tại đó. Xong feature thì `openspec archive <change> -y`.
 - Không chạy thêm bước kiểm tra chậm ngoài phạm vi được giao mà chưa hỏi.
