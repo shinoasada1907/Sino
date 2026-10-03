@@ -2,7 +2,8 @@
 
 > **HYBRID mode (từ 2026-10-01):** mặc định AUTO — Claude làm từng task nhỏ, kiểm chứng, báo lại rồi dừng. Task nào Human nhận ("để tôi làm BE-xx") thì chạy TRAINING: Human code theo **Hướng làm** (Level 2) và **Gợi ý** (Level 1), Claude review/test.
 > Phụ thuộc: F01 hoàn tất; `ProviderType` + `ProviderRegistry` của F03 (thứ tự theo **D-01**). Một task = một commit logic, `./mvnw verify` xanh trước khi sang task sau.
-> Chặn: không bắt đầu trước `APPROVED TO IMPLEMENT`. BE-12 (crypto) cần review bảo mật riêng trước khi merge.
+> ~~Chặn: không bắt đầu trước `APPROVED TO IMPLEMENT`.~~ **APPROVED TO IMPLEMENT** 2026-10-03 (người dùng: "được bắt đầu đi"); mỗi task vẫn chờ quyết định D ghi ở **Depends**. BE-12 (crypto) cần review bảo mật riêng trước khi merge.
+> Đã đối chiếu với F03 (2026-10-03): xem mục "Đối chiếu với F03" trong `design.md` — `UNKNOWN_PROVIDER` có sẵn, `capabilities` dùng `find`, refresh token đi riêng, test nạp module `provider`, `@WebMvcTest` ghi rõ controller.
 
 ## 1. Owner
 
@@ -66,6 +67,7 @@
   - **Test:** module test (Spring Modulith): account mới → `CONNECTED` + event (reconnected=false); gọi lại → không thêm account, credential được thay, event (reconnected=true); provider lạ → `UNKNOWN_PROVIDER`, DB không đổi; lỗi khi lưu credential → rollback toàn bộ (không account, không event publication).
   - **AC:** requirement *Đăng ký kết nối idempotent*, *Event của account* (`AccountConnected`).
   - **Gợi ý:** `Scenario`/`PublishedEvents` của Spring Modulith test; giả lập lỗi lưu credential thế nào mà không sửa code production?
+  - **Đối chiếu F03:** command nhận `ProviderCredentials` + `refreshToken` tùy chọn; module test nạp cả module `provider` (`FakeMessageProvider` là bean), ví dụ `@ApplicationModuleTest(mode = DIRECT_DEPENDENCIES)`.
 
 ## 5. REST API
 
@@ -77,6 +79,7 @@
   - **Test:** web test: danh sách đúng thứ tự, mảng rỗng, 404 cho ID không tồn tại **và** ID của owner khác (cùng body), 400 cho UUID sai, 401; JSON không có trường credential (kiểm tra tên field).
   - **AC:** requirement *Liệt kê account*, *Xem một account*, *Cô lập dữ liệu theo chủ sở hữu*.
   - **Gợi ý:** vì sao trả 404 chứ không 403 cho account của người khác?
+  - **Đối chiếu F03:** `@WebMvcTest(AccountsController.class)`; `capabilities` qua `ProviderRegistry.find` (không còn connector → `[]`, có test).
 
 - [ ] 5.2 **BE-16 — `PATCH /api/accounts/{id}` + `AccountStatusChanged`**
   - **Goal / Why:** đổi tên, tạm dừng sync, tắt/bật account.
@@ -104,4 +107,4 @@
   - **Files:** một full-context test, `apps/sino-api/README.md` (biến môi trường mới, cách tạo khóa), `PROJECT_STATE.md`, file này.
   - **Test:** full-context + Testcontainers: đăng ký qua use case với token mẫu → GET/PATCH/DELETE qua HTTP → output log (output capture) và mọi response **không** chứa token mẫu. Kiểm tra tay bằng psql (ghi kết quả): cột `access_token_enc` không chứa token.
   - **AC:** checklist *Definition of Done — F02* trong `design.md`.
-  - **Learning gate:** (1) AES-GCM, IV và AAD bảo vệ chống những tấn công nào? (2) Đổi khóa khi đã có dữ liệu thì làm từng bước nào? (3) Vì sao luồng connect gọi provider trước rồi mới mở transaction? (4) Vẽ lại bảng chuyển trạng thái không nhìn tài liệu. (5) Nếu người dùng xóa rồi connect lại, dữ liệu nào còn, dữ liệu nào mất?
+  - ~~**Learning gate:** người dùng tự trả lời 5 câu~~ → agent viết phần F02 vào `docs/knowledge/phase-0-backend-foundation.md` trả lời đủ 5 câu sau (rồi sinh lại `.docx`): (1) AES-GCM, IV và AAD bảo vệ chống những tấn công nào? (2) Đổi khóa khi đã có dữ liệu thì làm từng bước nào? (3) Vì sao luồng connect gọi provider trước rồi mới mở transaction? (4) Bảng chuyển trạng thái. (5) Xóa rồi connect lại thì dữ liệu nào còn, dữ liệu nào mất? **LÝ DO:** cách làm việc mới từ 2026-10-03.

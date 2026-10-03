@@ -1,14 +1,25 @@
 # F02 — Connected Accounts · Technical Design
 
-> Mode: **TRAINING**. Trạng thái: DRAFT chờ Human review. Tương ứng 04D §5 (Domain Model), §7 (API — accounts), §9 (Security & Credential Boundary), §10 (account events), §14 (DoD F02).
+> Mode: **HYBRID** — backend AUTO (agent làm và giải thích), quyết định kiến trúc do người dùng chốt. Trạng thái: duyệt để làm từ 2026-10-03 (người dùng: "được bắt đầu đi"); mỗi task chờ quyết định D ghi ở Depends. ~~DRAFT chờ Human review~~. Tương ứng 04D §5 (Domain Model), §7 (API — accounts), §9 (Security & Credential Boundary), §10 (account events), §14 (DoD F02).
 > Convention chung ở `openspec/specs/` và design F01 đã archive (`openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`); `ProviderType`, `ProviderRegistry`, `ProviderCredentials` ở design F03 đã archive (`openspec/changes/archive/2026-10-03-be-f03-provider-contract/design.md`); hành vi đang chạy ở `openspec/specs/provider-*`.
 
 ## Context
 
 - Nguồn: 01 FR-01, 02B (ERD, bảng `app_user`/`connected_account`/`account_credential`, account status, credential design, §12 retention), 02A §3 (Account module: "connected account, credential lifecycle, enable/disable, connection status"), 02A §11, 04A §5–6, 02C §8 (wording trạng thái cho UI).
 - Conflict đã xử lý: **C4** — connect/OAuth flow thuộc F04; F02 chỉ chuẩn bị use case đăng ký kết nối để F04 gọi.
-- Hiện trạng sau F01 (+ F03 nếu D-01 = A): có error model, security, Flyway V1, module convention, `ProviderRegistry`.
+- Hiện trạng (2026-10-03): F01 và F03 đã xong (D-01 = A) — có error model, security, Flyway V1, module convention, `ProviderRegistry` + `ProviderDescriptor`, `FakeMessageProvider` (test sources), spec `provider-*`.
 - Rủi ro kiến trúc đã biết từ khi inspect: `OAuth2AuthorizedClientService` của Spring Security lưu token theo `(clientRegistrationId, principalName)` → một người dùng chỉ giữ được **một** authorized client cho mỗi registration, tức không giữ được hai tài khoản Gmail. Vì vậy credential của Sino MUST do module account tự lưu (bảng `account_credential`), không dựa vào store đó. F04 dùng các thành phần cấp thấp của Spring OAuth2 Client (client registration, token response client) nhưng lưu vào store của Sino.
+
+### Đối chiếu với F03 (2026-10-03)
+
+Design này viết trước khi F03 được làm; các điểm sau chỉnh cho khớp với code F03 thật:
+
+1. **`UNKNOWN_PROVIDER`:** dùng `ProviderRegistry.get(type)`; nó ném `SinoException` với `ProviderRegistryErrorCode.UNKNOWN_PROVIDER` (`NOT_FOUND`). F02 không tạo mã lỗi riêng cho trường hợp này.
+2. **`capabilities` trong `AccountResponse`:** dùng `ProviderRegistry.find(type)`. Account có thể còn trong DB sau khi connector của nó bị gỡ khỏi ứng dụng; khi đó trả `capabilities: []`. Không dùng `get`, vì nó sẽ làm cả `GET /api/accounts` thất bại.
+3. **Refresh token:** `OAuth2Credentials` của F03 cố ý không có refresh token (refresh là việc của F04, D-15). Lệnh đăng ký nhận `ProviderCredentials` **cộng** `refreshToken` tùy chọn (chỉ cho `OAUTH2`), lưu vào `refresh_token_enc`. `load` của store chỉ trả `ProviderCredentials`; thao tác đọc refresh token thêm ở F04 cùng luồng refresh.
+4. **`credential_type` ↔ kiểu của F03:** `OAUTH2` ↔ `OAuth2Credentials`, `TOKEN` ↔ `TokenCredentials` (token nằm trong `access_token_enc`). Chuyển đổi bằng `switch` trên sealed interface để thêm loại mới thì lỗi lúc biên dịch.
+5. **`ProviderType` ↔ `varchar(32)`:** pattern của `ProviderType` dài tối đa 32 ký tự, khớp cột `provider`.
+6. **Test:** module test dùng bean `FakeMessageProvider` và phải nạp cả module `provider` (để có `DefaultProviderRegistry`); web slice test luôn ghi rõ controller, `@WebMvcTest(AccountsController.class)` (bài học F03: `@WebMvcTest` trần nạp mọi controller).
 
 ## Goals / Non-Goals
 
@@ -208,7 +219,7 @@ Chưa có: `POST /api/accounts/{provider}/connect` hoặc `/connect/{provider}` 
 { "displayName": "Gmail Work", "syncEnabled": false, "enabled": true }
 ```
 
-- `capabilities` lấy từ `ProviderRegistry` (capability tĩnh của provider, D-19). Nếu D-01 = B thì trường này thêm ở task nối sau F03.
+- `capabilities` lấy từ `ProviderRegistry.find` (capability tĩnh của provider, D-19); provider không còn connector → `[]` (xem "Đối chiếu với F03").
 - Collection nhỏ, không phân trang → trả mảng trực tiếp. Collection có phân trang (conversation, F05) dùng envelope `{ "items": [...], "nextCursor": ... }`.
 - Không có trường nào của credential trong bất kỳ response nào; có test khẳng định điều này.
 
@@ -285,5 +296,5 @@ V2–V4 là migration tiến (forward-only). Ở local có thể reset bằng `d
 - [ ] App không start khi thiếu khóa mã hóa hoặc thiếu email owner.
 - [ ] `ModularityTests` xanh: không module nào khác truy cập được credential store.
 - [ ] `./mvnw verify` xanh; error catalog cập nhật.
-- [ ] Learning gate: Human giải thích được AES-GCM + IV + AAD bảo vệ chống gì, quy trình xoay khóa, vì sao gọi provider phải nằm ngoài transaction, và bảng chuyển trạng thái.
+- [ ] ~~Learning gate: Human tự giải thích…~~ → Phần F02 trong `docs/knowledge/phase-0-backend-foundation.md` (agent viết: AES-GCM + IV + AAD chống gì, xoay khóa, vì sao gọi provider ngoài transaction, bảng chuyển trạng thái) và bản `.docx` sinh lại. **LÝ DO:** người dùng đổi cách làm việc 2026-10-03 (agent làm và giải thích).
 - [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có ghi lý do; 02B được cập nhật nếu D-12/D-14 được chấp nhận; `PROJECT_STATE.md` cập nhật.
