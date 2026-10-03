@@ -33,7 +33,9 @@
   - **AC:** requirement *Vòng đời trạng thái*.
   - **Gợi ý:** `@ParameterizedTest` + `@CsvSource`/`@MethodSource`; "tell, don't ask".
 
-- [ ] 2.2 **BE-11 — `connected_account` (V3) + JPA mapping + repository**
+- [x] 2.2 **BE-11 — `connected_account` (V3) + JPA mapping + repository**
+  - **Thực hiện (2026-10-03):** bắt đầu TRAINING — người dùng gõ phần mapping của `ConnectedAccount` và V3 (đúng về chức năng, chỉ khác cách trình bày), rồi chuyển lại AUTO ("thôi bạn auto luôn đi"); Claude chuẩn hóa theo kiểu của repo và làm phần còn lại. **Chọn: map JPA thẳng lên aggregate** (không tạo entity riêng). **LÝ DO:** một model thay vì hai + mapper; aggregate đã có constructor rỗng `protected`; `AppUser` của `identity` cũng làm vậy; cái giá (domain biết annotation JPA) nhỏ ở quy mô này. `ProviderTypeConverter` (`@Converter(autoApply = true)`, `account/infrastructure`) để domain không phải nhắc tới nó. Thêm `createdAt`/`updatedAt` (`@PrePersist`/`@PreUpdate`), `@Version` (optimistic locking), `updatable = false` cho owner/provider/external ID. Repository: `findByOwnerIdOrderByCreatedAtAscIdAsc` (BE-15) và `findByOwnerIdAndProviderAndExternalAccountId` (BE-14).
+  - **Kiểm chứng (2026-10-03):** `ConnectedAccountRepositoryTests` 8/8 (`@DataJpaTest` + PostgreSQL thật: đọc lại đủ trường sau `clear()`, UUIDv7, provider/status lưu dạng chữ, đổi trạng thái tăng `version`, trùng `(user, provider, external)` bị từ chối, user khác được nối cùng tài khoản, `CHECK` từ chối `SYNCING`, tìm theo owner đúng thứ tự, tìm theo khóa). Code tham khảo đã chạy trước trên bản sao trong scratchpad (243 test xanh). `./mvnw -B -ntp verify` trên repo → BUILD SUCCESS, 243 test, 0 failure, 0 error, 2 skipped; Flyway áp V3.
   - **Goal / Why:** lưu aggregate với ràng buộc duy nhất ở DB — lớp bảo vệ cuối cùng cho idempotency.
   - **Depends:** BE-10 · D-08, D-09.
   - **Files:** `db/migration/V3__account_create_connected_account.sql`, `account/infrastructure/...` (entity hoặc mapping trực tiếp lên aggregate — chọn và ghi lý do), repository, JPA slice test.

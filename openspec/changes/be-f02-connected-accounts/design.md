@@ -85,7 +85,7 @@ classDiagram
     ConnectedAccount "1" --> "1" AccountCredential : has
 ```
 
-- `ConnectedAccount` là aggregate root; tham chiếu owner bằng ID (không có quan hệ JPA sang module khác).
+- `ConnectedAccount` là aggregate root; tham chiếu owner bằng ID (không có quan hệ JPA sang module khác). **BE-11 (2026-10-03):** annotation JPA gắn thẳng lên aggregate, không có entity riêng (lý do ở BE-11 trong `tasks.md`); `ProviderType` lưu qua `ProviderTypeConverter` tự áp dụng.
 - `AccountCredential` do module account sở hữu nhưng **không** nằm trong aggregate `ConnectedAccount` ở tầng domain: domain không bao giờ cầm ciphertext hay plaintext; credential chỉ đi qua credential store.
 - Hành vi (`disable()`, `markAuthExpired()`...) nằm trong aggregate, không nằm rải rác ở service (tránh "anemic model"). ~~Method trả về event cần publish hoặc để service publish — chọn một cách và ghi lại.~~ **Chọn (BE-10, 2026-10-03):** mỗi hành động đổi trạng thái trả `Optional<StatusChange>` (`from`, `to`; rỗng khi no-op); service (BE-14/BE-16) tạo và publish `AccountStatusChanged` từ đó. **LÝ DO:** domain giữ là Java thuần, không cần ID đã lưu hay đồng hồ; test đọc thẳng giá trị trả về; service là nơi có `accountId`, thời gian và transaction.
 - Tên hiển thị: `rename` (người dùng) bắt buộc 1–100 ký tự sau khi trim, sai → `IllegalArgumentException` (DTO của BE-16 kiểm trước, nên đây là lớp bảo vệ cuối). Tên **từ provider** khi `register`/`reconnect` được trim và cắt còn 100 ký tự thay vì từ chối, để một tên dài bất thường không chặn việc kết nối account.

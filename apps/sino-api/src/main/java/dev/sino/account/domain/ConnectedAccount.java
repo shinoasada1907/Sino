@@ -13,27 +13,70 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+
+import org.hibernate.annotations.UuidGenerator;
+
 import dev.sino.provider.ProviderType;
 
 /**
  * One account of one provider that belongs to a Sino user, for example "Gmail personal". The aggregate root of the
  * account module: every change of status goes through its methods, which follow the transition table of the F02
  * design. A method that changes the status returns the {@link StatusChange}; one that changes nothing returns
- * empty.
+ * empty. Mapped straight onto table {@code connected_account} (BE-11).
  */
+@Entity
+@Table(name = "connected_account")
 public class ConnectedAccount {
 
     public static final int MAX_DISPLAY_NAME_LENGTH = 100;
 
+    @Id
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
     private UUID id;
+
+    @Column(name = "user_id", nullable = false, updatable = false)
     private UUID ownerId;
+
+    @Column(name = "provider", nullable = false, updatable = false)
     private ProviderType provider;
+
+    @Column(name = "external_account_id", nullable = false, updatable = false)
     private String externalAccountId;
+
+    @Column(name = "display_name", nullable = false)
     private String displayName;
+
+    @Column(name = "avatar_url")
     private String avatarUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
     private AccountStatus status;
+
+    @Column(name = "sync_enabled", nullable = false)
     private boolean syncEnabled;
+
+    @Column(name = "last_synced_at")
     private Instant lastSyncedAt;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
 
     /** For persistence. */
     protected ConnectedAccount() {
@@ -147,6 +190,25 @@ public class ConnectedAccount {
 
     public Instant lastSyncedAt() {
         return lastSyncedAt;
+    }
+
+    public Instant createdAt() {
+        return createdAt;
+    }
+
+    public Instant updatedAt() {
+        return updatedAt;
+    }
+
+    @PrePersist
+    void onCreate() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
     }
 
     private Optional<StatusChange> moveTo(AccountStatus target, Set<AccountStatus> allowedFrom) {

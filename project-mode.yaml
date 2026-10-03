@@ -12,8 +12,9 @@ areas:
   architecture: TRAINING  # "Decision Needed" items: Claude proposes options + recommendation, the user decides
 # Task-level override: when the user says they will code a task themselves ("để tôi làm BE-xx"),
 # that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
-task_overrides:
-  BE-11: TRAINING   # 2026-10-03: "tôi muốn code tay BE-11" — the user codes; Claude gives verified reference code, explains, reviews and tests
+task_overrides: {}
+  # 2026-10-03: BE-11 started in TRAINING ("tôi muốn code tay BE-11"); the user typed the entity mapping and V3, then
+  # handed it back ("thôi bạn auto luôn đi") to relearn Java and Spring first. BE-11 finished in AUTO.
   # 2026-10-01: F03 (BE-19..BE-26) started in TRAINING (the user coded BE-19 to learn Java), then the user
   # switched it to AUTO the same day ("chuyển qua auto đi"). BE-22 ran in TRAINING ("step này tôi sẽ tự làm")
   # and is done; F03 follows `backend: AUTO` again.
