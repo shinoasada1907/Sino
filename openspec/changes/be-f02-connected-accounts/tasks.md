@@ -21,7 +21,10 @@
 
 ## 2. Domain và persistence
 
-- [ ] 2.1 **BE-10 — Aggregate `ConnectedAccount` + vòng đời trạng thái (unit thuần)**
+- [x] 2.1 **BE-10 — Aggregate `ConnectedAccount` + vòng đời trạng thái (unit thuần)**
+  - **Thực hiện (2026-10-03, AUTO, D-12 = A):** `account/domain/AccountStatus` (5 trạng thái), `StatusChange` (record `from`/`to`, hai trạng thái phải khác nhau), `ConnectedAccount` (Java thuần, chưa có JPA — BE-11 quyết định cách map): `register` (factory), `reconnect`, `disable`, `enable`, `markAuthExpired`, `markDegraded`, `markError`, `markHealthy` — mỗi cái khai báo tập trạng thái được phép đi từ đó; `rename`, `pauseSync`, `resumeSync`. **Lựa chọn event:** hành động trả `Optional<StatusChange>`, service tạo `AccountStatusChanged` (lý do ghi ở design §5). Tên từ provider trim + cắt còn 100 ký tự; tên do người dùng đặt 1–100 ký tự, sai → `IllegalArgumentException`; đếm theo code point (khớp `varchar(100)` của PostgreSQL, không cắt đôi emoji).
+  - **Làm khác kế hoạch:** thêm file `StatusChange.java` ngoài danh sách Files. **LÝ DO:** là kiểu trả về của lựa chọn event ở trên. `INVALID_ACCOUNT_STATE` chưa tạo: bảng chuyển trạng thái không có ô nào là lỗi (ô không hợp lệ là no-op), nên F02 chưa có chỗ dùng.
+  - **Kiểm chứng (2026-10-03):** `ConnectedAccountTests` 47/47 — 35 ô của bảng chuyển trạng thái chép nguyên từ design vào `@CsvSource`, cộng 12 test (register, thiếu dữ liệu, cắt tên dài, không cắt đôi emoji, reconnect làm mới dữ liệu, rename trim/100 ký tự/rỗng/101 ký tự, pause/resume không đổi status, `StatusChange` cùng trạng thái bị từ chối). `ModularityTests` 2/2 (Modulith nhận module `account`). Kiểm tra ngược: cho `markHealthy` gỡ `AUTH_EXPIRED` → đúng ô `AUTH_EXPIRED + HEALTHY` đỏ. `./mvnw -B -ntp verify` → BUILD SUCCESS, 235 test, 0 failure, 0 error, 2 skipped.
   - **Goal / Why:** luật nghiệp vụ nằm trong domain, test được không cần Spring/DB.
   - **Depends:** BE-09 (chỉ cần kiểu `ownerId`), BE-19 (`ProviderType`) · **D-12**.
   - **Files:** `account/domain/ConnectedAccount.java`, `account/domain/AccountStatus.java`, test domain.

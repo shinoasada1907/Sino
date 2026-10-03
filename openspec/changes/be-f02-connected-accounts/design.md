@@ -87,16 +87,17 @@ classDiagram
 
 - `ConnectedAccount` là aggregate root; tham chiếu owner bằng ID (không có quan hệ JPA sang module khác).
 - `AccountCredential` do module account sở hữu nhưng **không** nằm trong aggregate `ConnectedAccount` ở tầng domain: domain không bao giờ cầm ciphertext hay plaintext; credential chỉ đi qua credential store.
-- Hành vi (`disable()`, `markAuthExpired()`...) nằm trong aggregate, không nằm rải rác ở service (tránh "anemic model"). Method trả về event cần publish hoặc để service publish — chọn một cách và ghi lại.
+- Hành vi (`disable()`, `markAuthExpired()`...) nằm trong aggregate, không nằm rải rác ở service (tránh "anemic model"). ~~Method trả về event cần publish hoặc để service publish — chọn một cách và ghi lại.~~ **Chọn (BE-10, 2026-10-03):** mỗi hành động đổi trạng thái trả `Optional<StatusChange>` (`from`, `to`; rỗng khi no-op); service (BE-14/BE-16) tạo và publish `AccountStatusChanged` từ đó. **LÝ DO:** domain giữ là Java thuần, không cần ID đã lưu hay đồng hồ; test đọc thẳng giá trị trả về; service là nơi có `accountId`, thời gian và transaction.
+- Tên hiển thị: `rename` (người dùng) bắt buộc 1–100 ký tự sau khi trim, sai → `IllegalArgumentException` (DTO của BE-16 kiểm trước, nên đây là lớp bảo vệ cuối). Tên **từ provider** khi `register`/`reconnect` được trim và cắt còn 100 ký tự thay vì từ chối, để một tên dài bất thường không chặn việc kết nối account.
 
-**D-12 — Tập trạng thái account** · *Decision Needed (trước BE-10)*
+**D-12 — Tập trạng thái account** · **Accepted: A — 5 trạng thái, bỏ `SYNCING`** (2026-10-03)
 
 | Phương án | Mô tả | Ưu | Nhược |
 |---|---|---|---|
 | **A. Bỏ `SYNCING` khỏi trạng thái lưu** (đề xuất) | `CONNECTED`, `DEGRADED`, `AUTH_EXPIRED`, `DISABLED`, `ERROR`. "Đang sync" suy ra từ `sync_run` đang chạy (F07) | Trạng thái kết nối không lẫn với trạng thái tạm thời; crash giữa sync không để account kẹt ở `SYNCING`; ít xung đột ghi giữa sync và thao tác người dùng | Lệch 02B §9 và cần sửa lại 02B; UI "Syncing" (02C) phải lấy từ nguồn khác |
 | B. Giữ nguyên 02B (6 trạng thái có `SYNCING`) | | Khớp tài liệu | Hai nguồn sự thật cho "đang sync"; cần cơ chế gỡ kẹt `SYNCING` |
 
-Ngữ nghĩa giữ theo 02B (*Proposed default*): `DISABLED` = người dùng tắt account (không sync, bị loại khỏi inbox "active accounts" của FR-02); `syncEnabled` = false = chỉ tạm dừng **tự động** sync, account vẫn hiển thị.
+Ngữ nghĩa giữ theo 02B (**Accepted** 2026-10-03): `DISABLED` = người dùng tắt account (không sync, bị loại khỏi inbox "active accounts" của FR-02); `syncEnabled` = false = chỉ tạm dừng **tự động** sync, account vẫn hiển thị.
 
 Bảng chuyển trạng thái (phương án A; "—" = giữ nguyên, không event):
 
@@ -283,7 +284,7 @@ V2–V4 là migration tiến (forward-only). Ở local có thể reset bằng `d
 
 ## Open Questions
 
-- ~~D-10~~ = A (2026-10-03). D-11, D-12, D-13, D-14: Decision Needed trước task tương ứng (bảng tổng ở F01 design).
+- ~~D-10~~ = A, ~~D-12~~ = A (2026-10-03). D-11, D-13, D-14: Decision Needed trước task tương ứng (bảng tổng ở F01 design). 02B (Notion) chưa được sửa theo D-12 — agent không có quyền ghi Notion; người dùng cập nhật khi tiện.
 - D-15: cần chốt trước F04.
 - Cách export credential cho `sync` (F07); cách dọn dữ liệu phụ thuộc khi xóa account (F05).
 

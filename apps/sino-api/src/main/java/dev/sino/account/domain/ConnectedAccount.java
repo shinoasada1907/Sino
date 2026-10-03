@@ -1,0 +1,177 @@
+package dev.sino.account.domain;
+
+import static dev.sino.account.domain.AccountStatus.AUTH_EXPIRED;
+import static dev.sino.account.domain.AccountStatus.CONNECTED;
+import static dev.sino.account.domain.AccountStatus.DEGRADED;
+import static dev.sino.account.domain.AccountStatus.DISABLED;
+import static dev.sino.account.domain.AccountStatus.ERROR;
+
+import java.time.Instant;
+import java.util.EnumSet;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
+import dev.sino.provider.ProviderType;
+
+/**
+ * One account of one provider that belongs to a Sino user, for example "Gmail personal". The aggregate root of the
+ * account module: every change of status goes through its methods, which follow the transition table of the F02
+ * design. A method that changes the status returns the {@link StatusChange}; one that changes nothing returns
+ * empty.
+ */
+public class ConnectedAccount {
+
+    public static final int MAX_DISPLAY_NAME_LENGTH = 100;
+
+    private UUID id;
+    private UUID ownerId;
+    private ProviderType provider;
+    private String externalAccountId;
+    private String displayName;
+    private String avatarUrl;
+    private AccountStatus status;
+    private boolean syncEnabled;
+    private Instant lastSyncedAt;
+
+    /** For persistence. */
+    protected ConnectedAccount() {
+    }
+
+    private ConnectedAccount(UUID ownerId, ProviderType provider, String externalAccountId, String displayName,
+            String avatarUrl) {
+        this.ownerId = Objects.requireNonNull(ownerId, "ownerId must not be null");
+        this.provider = Objects.requireNonNull(provider, "provider must not be null");
+        if (externalAccountId == null || externalAccountId.isBlank()) {
+            throw new IllegalArgumentException("externalAccountId must not be blank");
+        }
+        this.externalAccountId = externalAccountId;
+        this.displayName = nameFromProvider(displayName);
+        this.avatarUrl = avatarUrl;
+        this.status = CONNECTED;
+        this.syncEnabled = true;
+    }
+
+    /** A newly connected account. The display name comes from the provider. */
+    public static ConnectedAccount register(UUID ownerId, ProviderType provider, String externalAccountId,
+            String displayName, String avatarUrl) {
+        return new ConnectedAccount(ownerId, provider, externalAccountId, displayName, avatarUrl);
+    }
+
+    /** The user connected the same account again: fresh display data from the provider, back to CONNECTED. */
+    public Optional<StatusChange> reconnect(String displayName, String avatarUrl) {
+        this.displayName = nameFromProvider(displayName);
+        this.avatarUrl = avatarUrl;
+        return moveTo(CONNECTED, EnumSet.allOf(AccountStatus.class));
+    }
+
+    public Optional<StatusChange> disable() {
+        return moveTo(DISABLED, EnumSet.of(CONNECTED, DEGRADED, AUTH_EXPIRED, ERROR));
+    }
+
+    public Optional<StatusChange> enable() {
+        return moveTo(CONNECTED, EnumSet.of(DISABLED));
+    }
+
+    public Optional<StatusChange> markAuthExpired() {
+        return moveTo(AUTH_EXPIRED, EnumSet.of(CONNECTED, DEGRADED, ERROR));
+    }
+
+    public Optional<StatusChange> markDegraded() {
+        return moveTo(DEGRADED, EnumSet.of(CONNECTED, ERROR));
+    }
+
+    public Optional<StatusChange> markError() {
+        return moveTo(ERROR, EnumSet.of(CONNECTED, DEGRADED));
+    }
+
+    /** A sync worked again. Does not clear AUTH_EXPIRED: only a reconnect brings new credentials. */
+    public Optional<StatusChange> markHealthy() {
+        return moveTo(CONNECTED, EnumSet.of(DEGRADED, ERROR));
+    }
+
+    /** A name chosen by the user: 1 to 100 characters after trimming. */
+    public void rename(String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            throw new IllegalArgumentException("displayName must not be blank");
+        }
+        String trimmed = displayName.trim();
+        if (characters(trimmed) > MAX_DISPLAY_NAME_LENGTH) {
+            throw new IllegalArgumentException("displayName must be at most " + MAX_DISPLAY_NAME_LENGTH
+                    + " characters");
+        }
+        this.displayName = trimmed;
+    }
+
+    /** Stops automatic sync only; the account and its messages stay visible. */
+    public void pauseSync() {
+        this.syncEnabled = false;
+    }
+
+    public void resumeSync() {
+        this.syncEnabled = true;
+    }
+
+    public UUID id() {
+        return id;
+    }
+
+    public UUID ownerId() {
+        return ownerId;
+    }
+
+    public ProviderType provider() {
+        return provider;
+    }
+
+    public String externalAccountId() {
+        return externalAccountId;
+    }
+
+    public String displayName() {
+        return displayName;
+    }
+
+    public String avatarUrl() {
+        return avatarUrl;
+    }
+
+    public AccountStatus status() {
+        return status;
+    }
+
+    public boolean syncEnabled() {
+        return syncEnabled;
+    }
+
+    public Instant lastSyncedAt() {
+        return lastSyncedAt;
+    }
+
+    private Optional<StatusChange> moveTo(AccountStatus target, Set<AccountStatus> allowedFrom) {
+        if (status == target || !allowedFrom.contains(status)) {
+            return Optional.empty();
+        }
+        StatusChange change = new StatusChange(status, target);
+        status = target;
+        return Optional.of(change);
+    }
+
+    // A provider name is trimmed and shortened rather than refused, so an odd name never blocks a connection.
+    private static String nameFromProvider(String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            throw new IllegalArgumentException("displayName must not be blank");
+        }
+        String trimmed = displayName.trim();
+        return characters(trimmed) > MAX_DISPLAY_NAME_LENGTH
+                ? trimmed.substring(0, trimmed.offsetByCodePoints(0, MAX_DISPLAY_NAME_LENGTH))
+                : trimmed;
+    }
+
+    // Code points, as PostgreSQL counts varchar(100); an emoji is two Java chars but one character.
+    private static int characters(String text) {
+        return text.codePointCount(0, text.length());
+    }
+
+}
