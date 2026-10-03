@@ -71,7 +71,7 @@ Mục tiêu: backend có nền móng vững, contract provider rõ, account đư
 
 Cần chốt: **D-03** trước BE-03, **D-02** trước BE-04.
 
-#### F03 — Provider Contract · `openspec/changes/be-f03-provider-contract` · ~M
+#### F03 — Provider Contract · ✅ DONE 2026-10-03 · `openspec/changes/archive/2026-10-03-be-f03-provider-contract` · ~M
 
 | Bước code | Task | Bạn sẽ học |
 |---|---|---|

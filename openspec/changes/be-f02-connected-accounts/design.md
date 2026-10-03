@@ -1,7 +1,7 @@
 # F02 — Connected Accounts · Technical Design
 
 > Mode: **TRAINING**. Trạng thái: DRAFT chờ Human review. Tương ứng 04D §5 (Domain Model), §7 (API — accounts), §9 (Security & Credential Boundary), §10 (account events), §14 (DoD F02).
-> Convention chung ở `openspec/specs/` và design F01 đã archive (`openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`); `ProviderType`, `ProviderRegistry`, `ProviderCredentials` ở `be-f03-provider-contract/design.md`.
+> Convention chung ở `openspec/specs/` và design F01 đã archive (`openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`); `ProviderType`, `ProviderRegistry`, `ProviderCredentials` ở design F03 đã archive (`openspec/changes/archive/2026-10-03-be-f03-provider-contract/design.md`); hành vi đang chạy ở `openspec/specs/provider-*`.
 
 ## Context
 
