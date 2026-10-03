@@ -56,8 +56,9 @@
 
 ## 3. Registry và kiểm chứng contract
 
-- [ ] 3.1 **BE-23 — `ProviderRegistry` + `ProviderDescriptor`**
-  - **Thực hiện (2026-10-02, AUTO, chưa kiểm chứng):** code + test đã viết, chưa chạy `./mvnw verify` (người dùng yêu cầu dừng sau khi code, tự quyết bước tiếp).
+- [x] 3.1 **BE-23 — `ProviderRegistry` + `ProviderDescriptor`**
+  - **Thực hiện (2026-10-02, AUTO):** code + test viết và commit (`3da3a64`) trước khi kiểm chứng, theo yêu cầu người dùng.
+  - **Kiểm chứng (2026-10-03):** `./mvnw -B -ntp verify` → BUILD SUCCESS (chi tiết số test ở BE-26); `DefaultProviderRegistryTests` 12/12 (gồm 3 test `ApplicationContextRunner`: start khi không có connector, nhận bean connector, trùng type thì không start), `ProviderDescriptorTests` 3/3, `ModularityTests` 2/2.
   - **Làm khác kế hoạch:** ngoài danh sách Files có thêm `spi/MessageProvider.java` (`default displayName()`), `ProviderRegistryErrorCode.java`, `ProviderDescriptorTests.java`. **LÝ DO:** descriptor cần tên hiển thị mà SPI chưa có (người dùng chọn default method, ghi ở D-17); `UNKNOWN_PROVIDER` cần một enum `ErrorCode` và tên `ProviderErrorCode` đã thuộc `spi`.
   - **Goal / Why:** một nơi duy nhất resolve connector theo `ProviderType`.
   - **Depends:** BE-21, BE-22.
@@ -67,8 +68,9 @@
   - **AC:** toàn bộ requirement của `provider-registry`.
   - **Gợi ý:** constructor injection `List<T>` khi không có bean nào; vì sao fail-fast lúc khởi động tốt hơn lỗi lúc chạy.
 
-- [ ] 3.2 **BE-24 — `FakeMessageProvider` + contract test kit**
-  - **Thực hiện (2026-10-02, AUTO, chưa kiểm chứng):** code test đã viết, chưa chạy `./mvnw verify` (người dùng tự quyết bước kiểm chứng). Kit có 7 kiểm tra; connector con cung cấp `provider()`, `providerWithOneBrokenMessage()`, `context()`, `expectedMessageIds()`. `FakeMessageProviderContractTest` chạy kit cho fake chỉ-đọc và fake có gửi tin (`@Nested`), thêm test lật trang của fake.
+- [x] 3.2 **BE-24 — `FakeMessageProvider` + contract test kit**
+  - **Kiểm chứng (2026-10-03):** `./mvnw -B -ntp verify` → BUILD SUCCESS; `FakeMessageProviderContractTest$ReadOnly` 9 chạy / 1 skipped (Surefire tính cả test lật trang của lớp ngoài vào đây), `$Sending` 7 chạy / 1 skipped; hai skipped là kiểm tra gửi tin không áp dụng (`assume`). `ProviderContractArchitectureTests` 2/2.
+  - **Thực hiện (2026-10-02, AUTO):** code test viết và commit (`8727076`) trước khi kiểm chứng, theo yêu cầu người dùng. Kit có 7 kiểm tra; connector con cung cấp `provider()`, `providerWithOneBrokenMessage()`, `context()`, `expectedMessageIds()`. `FakeMessageProviderContractTest` chạy kit cho fake chỉ-đọc và fake có gửi tin (`@Nested`), thêm test lật trang của fake.
   - **Làm khác kế hoạch:** ~~fake trả các batch dựng sẵn~~ → fake nhận các trang message "thô" (`RawMessage`) và tự chuẩn hóa lúc `fetchUpdates`, message lỗi thành `SkippedItem`. **LÝ DO:** batch dựng sẵn chỉ chứng minh `SyncBatch` chứa được item bị skip (đã có `SyncBatchTests`), không chứng minh connector bỏ qua item lỗi rồi làm tiếp (AC *Lỗi chuẩn hóa một item không làm hỏng cả batch*); đây cũng là mẫu connector F04 làm theo. Thêm file `ProviderContractArchitectureTests.java` cho kiểm tra kiến trúc của AC (không nằm trong danh sách Files).
   - **Goal / Why:** định nghĩa "một connector đúng" bằng test chạy được; F04 Gmail kế thừa.
   - **Depends:** BE-23.
@@ -78,8 +80,10 @@
   - **AC:** requirement *Lỗi chuẩn hóa một item không làm hỏng cả batch*, *Connector khai báo định danh và capability*, *Contract không chứa kiểu riêng của provider* (thêm một kiểm tra kiến trúc: package `provider` và `provider.spi` không phụ thuộc `provider.infrastructure..`).
   - **Gợi ý:** abstract test class + JUnit kế thừa `@Test`; ArchUnit đã có sẵn qua Spring Modulith test.
 
-- [ ] 3.3 **BE-25 — `GET /api/providers`** *(chỉ làm nếu D-18 = có)*
-  - **Thực hiện (2026-10-02, AUTO, chưa kiểm chứng):** `ProvidersController` + DTO `ProviderResponse` (capability là chuỗi tên enum, giữ thứ tự registry trả về); `ProvidersControllerTests` (`@WebMvcTest` + security thật qua `ApiSecurityTestConfiguration`, `ProviderRegistry` giả bằng `@MockitoBean` — lần đầu repo dùng Mockito, có sẵn qua `spring-boot-starter-webmvc-test`). Chưa chạy `./mvnw verify`.
+- [x] 3.3 **BE-25 — `GET /api/providers`** *(chỉ làm nếu D-18 = có)*
+  - **Thực hiện (2026-10-02, AUTO):** `ProvidersController` + DTO `ProviderResponse` (capability là chuỗi tên enum, giữ thứ tự registry trả về); `ProvidersControllerTests` (`@WebMvcTest` + security thật qua `ApiSecurityTestConfiguration`, `ProviderRegistry` giả bằng `@MockitoBean` — lần đầu repo dùng Mockito, có sẵn qua `spring-boot-starter-webmvc-test`). Commit `c2de1b7` trước khi kiểm chứng.
+  - **Lỗi hồi quy tìm thấy khi kiểm chứng (2026-10-03):** lần `verify` đầu đỏ, 18 errors: `SecurityConfigTests` và `GlobalExceptionHandlerTests` dùng `@WebMvcTest` trần, nên nạp mọi controller, kể cả `ProvidersController`; bean `ProviderRegistry` không có trong web slice nên context không lên (`NoSuchBeanDefinitionException`). Lệnh chạy nhanh đưa cho người dùng hôm trước chỉ gồm test mới nên không thấy. Sửa (`0adc256`): mỗi web test ghi rõ controller của nó, `@WebMvcTest(XxxProbeController.class)`. Quy ước từ nay: **web slice test luôn ghi controller**.
+  - **Kiểm chứng (2026-10-03):** sau khi sửa, `./mvnw -B -ntp verify` → BUILD SUCCESS; `ProvidersControllerTests` 3/3, `SecurityConfigTests` 4/4, `GlobalExceptionHandlerTests` 14/14.
   - **Goal / Why:** frontend biết provider nào có và làm được gì, trước khi có account.
   - **Depends:** BE-23 · **D-18** · security + error model F01.
   - **Files:** `provider/api/ProvidersController.java` (+ response DTO), web test.
@@ -90,9 +94,12 @@
 
 ## 4. Nghiệm thu
 
-- [ ] 4.1 **BE-26 — Nghiệm thu F03**
+- [x] 4.1 **BE-26 — Nghiệm thu F03**
+  - **Kiểm chứng (2026-10-03):** `./mvnw -B -ntp verify` → BUILD SUCCESS. Cộng các dòng kết quả theo lớp trong log: **174 test chạy, 0 failure, 0 error, 2 skipped** (138 test có từ trước BE-23 + 36 test mới). Dòng tổng của Surefire ghi 172 / 0 skipped và XML ghi 168 vì Surefire gộp báo cáo của lớp `@Nested` chưa đúng; không có test nào bị bỏ sót.
+  - **Quyết định (2026-10-03, người dùng chốt theo đề xuất):** D-17, D-19, D-20 = phương án mặc định (ghi ở design).
+  - ~~**Learning gate:** người dùng tự giải thích 4 câu~~ → **Đổi cách học (2026-10-03, người dùng chọn):** agent là senior làm và giải thích, người dùng đọc. Người dùng trả lời câu 1 (ý chính đúng; agent chỉnh: kế thừa interface `MessageProvider` chứ không kế thừa class connector khác, lớp abstract là ở phía test); câu 2–4 do agent giải thích trong chat. Kiến thức F01 + F03 ghi ở `docs/knowledge/phase-0-backend-foundation.md` (mục 12 có 10 câu tự kiểm tra). **LÝ DO:** người dùng đổi vai trò làm việc ("bạn làm và giải thích cho tôi").
   - **Thực hiện (2026-10-02, AUTO, phần không cần chạy):** đối chiếu bảng kiểu dữ liệu với code → code khớp spec; design ghi thiếu nên sửa design: `AccountProfile.displayName` bắt buộc, `SendMessageCommand.externalConversationId` bắt buộc, `SkippedItem` (`kind`/`reason` khác null, `detail` không rỗng), `SendMessageResult.status` null → `UNKNOWN`, bố cục package thêm `ProviderRegistryErrorCode`/`PayloadChecks`, mục contract test kit mô tả đúng cái đã làm, Open Questions bỏ D-01/D-16/D-18 đã chốt. Error catalog có `UNKNOWN_PROVIDER`. README thêm `GET /api/providers`. `PROJECT_STATE.md` cập nhật.
-  - **Còn lại:** `./mvnw verify` cho BE-23…BE-25 (người dùng test tiếp); tick DoD; learning gate (4 câu dưới); người dùng xác nhận D-17/D-19/D-20; `openspec archive be-f03-provider-contract -y` sau khi xanh.
+  - ~~**Còn lại:** `./mvnw verify`; tick DoD; learning gate; xác nhận D-17/D-19/D-20; archive.~~ Xong 2026-10-03 (xem các dòng trên); archive ngay sau commit này.
   - **Files:** `PROJECT_STATE.md`, file này, error catalog trong design.
   - **Test:** `./mvnw verify` xanh; review lại bảng kiểu dữ liệu so với code (lệch → sửa design hoặc code, ghi lý do).
   - **AC:** checklist *Definition of Done — F03* trong `design.md`.

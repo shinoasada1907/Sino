@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Connector khai báo định danh và capability
-Mỗi connector MUST triển khai `MessageProvider`, khai báo một `ProviderType` hợp lệ và một tập capability khác null. Tập capability MUST chỉ gồm những gì connector thực sự làm được; MUST NOT khai báo capability để "đủ bộ".
+Mỗi connector MUST triển khai `MessageProvider`, khai báo một `ProviderType` hợp lệ và một tập capability khác null. Connector MAY khai báo tên hiển thị (`displayName`); mặc định là giá trị của `ProviderType`. Tập capability MUST chỉ gồm những gì connector thực sự làm được; MUST NOT khai báo capability để "đủ bộ".
 
 #### Scenario: Đọc capability của connector
 - **WHEN** bên gọi hỏi connector có hỗ trợ một capability hay không

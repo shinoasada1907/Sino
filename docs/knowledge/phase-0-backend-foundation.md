@@ -364,6 +364,11 @@ Các công cụ đáng nhớ:
 - **Mockito `@MockitoBean`:** thay một bean bằng bản giả và quy định giá trị nó trả về (`given(registry.descriptors()).willReturn(…)`).
 - **Kiểm tra ngược (mutation check):** cố ý làm hỏng code để xem test có đỏ không. Test không đỏ nghĩa là test đó không bảo vệ được gì. Kỹ thuật này đã dùng ở BE-19…BE-21.
 
+Ba bài học có thật từ F03:
+- **`@WebMvcTest` luôn ghi rõ controller**, ví dụ `@WebMvcTest(ProvidersController.class)`. Viết trần `@WebMvcTest` thì Spring nạp **mọi** controller. Ở BE-25, `ProvidersController` cần `ProviderRegistry`, mà bean này không có trong web slice, nên 18 test cũ của F01 đỏ dù không ai đụng vào chúng.
+- **Chạy cả bộ test trước khi nói "xanh".** Chạy một phần chỉ chứng minh phần đó. Lỗi ở trên nằm trong test cũ, nên lệnh chỉ chạy test mới không thấy được.
+- **Đếm test khi có `@Nested`:** dòng tổng của Surefire có thể đếm thiếu (F03: ghi 172, thực tế 174). Muốn con số chính xác thì cộng các dòng `Tests run` theo từng lớp.
+
 ---
 
 ## 11. CI — GitHub Actions

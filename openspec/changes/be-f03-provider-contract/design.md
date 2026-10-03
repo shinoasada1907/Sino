@@ -1,6 +1,6 @@
 # F03 — Provider Contract · Technical Design
 
-> Mode: **HYBRID** (F03 chạy AUTO, BE-22 TRAINING). Trạng thái (2026-10-02): đã code BE-19…BE-25; BE-23…BE-25 chờ `./mvnw verify`. ~~DRAFT chờ Human review~~ (thiết kế đã được duyệt để làm từ 2026-10-01). Tương ứng 04D §6 (Provider Contract), §7 (API — providers), §14 (DoD F03).
+> Mode: **HYBRID** (F03 chạy AUTO, BE-22 TRAINING). Trạng thái: **DONE** (2026-10-03) — BE-19…BE-26 xong và kiểm chứng (`./mvnw -B -ntp verify` xanh). ~~DRAFT chờ Human review~~ (thiết kế đã được duyệt để làm từ 2026-10-01). Tương ứng 04D §6 (Provider Contract), §7 (API — providers), §14 (DoD F03).
 > Convention chung (module, error model, transaction, test) nằm ở `openspec/specs/` và design F01 đã archive (`openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`).
 
 ## Context
@@ -68,7 +68,7 @@ dev.sino.provider                    # public API cho module khác
 Giữ tên `ProviderType` như 02A cho cả hai phương án.
 *Câu hỏi cho bạn:* với phương án B, bạn test `ProviderRegistry` bằng fake provider thế nào?
 
-### D-17 — Phạm vi SPI ở F03 · *Proposed default*
+### D-17 — Phạm vi SPI ở F03 · **Accepted: phương án mặc định** (2026-10-03)
 
 Chữ ký tham chiếu (theo 02A; đây là contract, không phải implementation):
 
@@ -101,7 +101,7 @@ public interface MessageProvider {
 | `PUSH_WEBHOOK` | Provider chủ động đẩy thay đổi, không chỉ polling | F07 |
 | `THREADS` | Provider có khái niệm thread/chuỗi trả lời | F05/F06 |
 
-**D-19 — Capability tĩnh theo provider** · *Proposed default*: F03 chỉ có capability ở mức provider. Capability hiệu lực theo **account** (ví dụ Gmail chỉ cấp scope đọc) = capability của provider ∩ capability suy ra từ scope đã cấp — làm ở F04/F10 khi có scope thật (F02 đã lưu `scopes` trong credential).
+**D-19 — Capability tĩnh theo provider** · **Accepted: phương án mặc định** (2026-10-03): F03 chỉ có capability ở mức provider. Capability hiệu lực theo **account** (ví dụ Gmail chỉ cấp scope đọc) = capability của provider ∩ capability suy ra từ scope đã cấp — làm ở F04/F10 khi có scope thật (F02 đã lưu `scopes` trong credential).
 
 ### Kiểu dữ liệu trong `spi`
 
@@ -138,7 +138,7 @@ Enum (02B): `ConversationType` = DIRECT, GROUP, THREAD, CHANNEL, UNKNOWN · `Mes
 - `SyncCursor.value` null nghĩa là lần sync đầu (`initial()`); chuỗi rỗng bị từ chối.
 - `OAuth2Credentials`, `TokenCredentials` là hai file riêng, `ProviderCredentials` là sealed interface `permits` hai kiểu đó. `toString()` của cả hai và của `ProviderContext` in `****` thay cho secret.
 
-**D-20 — Enum chuẩn hóa nằm ở đâu** · *Proposed default*: trong `provider.spi` — đây là "từ vựng chung" giữa connector và core. Khi module `conversation`/`messaging` ra đời (F05/F06), domain của chúng dùng lại các enum này; nếu domain cần hành vi riêng thì map sang kiểu của mình. Phương án khác: một module shared-kernel riêng — thêm module khi chưa có nhu cầu thật.
+**D-20 — Enum chuẩn hóa nằm ở đâu** · **Accepted: phương án mặc định** (2026-10-03): trong `provider.spi` — đây là "từ vựng chung" giữa connector và core. Khi module `conversation`/`messaging` ra đời (F05/F06), domain của chúng dùng lại các enum này; nếu domain cần hành vi riêng thì map sang kiểu của mình. Phương án khác: một module shared-kernel riêng — thêm module khi chưa có nhu cầu thật.
 
 ### Phân loại lỗi provider
 
@@ -225,18 +225,18 @@ Không có migration. Không có dữ liệu.
 ## Open Questions
 
 - ~~D-01, D-16, D-18: Decision Needed (bảng tổng ở F01 design).~~ Đã chốt A / A / A (2026-10-01); D-24 = B (BE-22).
-- D-17, D-19, D-20 vẫn ghi *Proposed default*: code F03 làm theo đúng phương án mặc định, chờ người dùng xác nhận.
+- ~~D-17, D-19, D-20 chờ người dùng xác nhận.~~ Người dùng chốt phương án mặc định (2026-10-03); code F03 đã làm theo đúng phương án này.
 - Để lại cho F04 (ghi nhận, không chặn F03): SPI kết nối/OAuth; ai refresh token (D-15); công cụ giả lập HTTP cho contract test của Gmail; có cần `SyncOptions` (ví dụ giới hạn cửa sổ initial sync) không.
 
 ## Definition of Done — F03
 
-> **Đối chiếu ở BE-26 (2026-10-02):** mọi mục về code/test đã có file tương ứng (`ModularityTests`; unit test của BE-19…BE-22; `DefaultProviderRegistryTests`; `FakeMessageProviderContractTest`; `ProvidersControllerTests`); error catalog có `UNKNOWN_PROVIDER`. Chưa tick vì BE-23…BE-25 chưa chạy `./mvnw verify`. Learning gate chưa làm.
+> **Nghiệm thu (2026-10-03):** `./mvnw -B -ntp verify` → BUILD SUCCESS, 174 test chạy (cộng theo lớp), 0 failure, 0 error, 2 skipped có chủ đích. Lần chạy đầu đỏ vì `@WebMvcTest` trần của F01 nạp `ProvidersController`; sửa ở `0adc256` (xem BE-25 trong `tasks.md`).
 
-- [ ] Module `provider` qua `ModularityTests`; `spi` là named interface; không phụ thuộc `account`.
-- [ ] Unit test cho `ProviderType`, `ProviderCapabilities`, validation của mọi kiểu chuẩn hóa (bao gồm trường hợp `UNKNOWN`), `SyncBatch` với `skipped`, che secret trong `toString()`.
-- [ ] Registry test: nhiều connector, không connector, trùng type (start fail), `UNKNOWN_PROVIDER`.
-- [ ] `FakeMessageProvider` vượt contract test kit.
-- [ ] (Nếu D-18 = có) web test cho `GET /api/providers`: 200 có dữ liệu, 200 rỗng, 401.
-- [ ] `./mvnw verify` xanh; error catalog có `UNKNOWN_PROVIDER`.
-- [ ] Learning gate: Human giải thích được vì sao capability là dữ liệu khai báo, vì sao connector không được gọi trong transaction, và một item lỗi đi qua batch như thế nào.
-- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có ghi lý do; `PROJECT_STATE.md` cập nhật.
+- [x] Module `provider` qua `ModularityTests`; `spi` là named interface; không phụ thuộc `account`.
+- [x] Unit test cho `ProviderType`, `ProviderCapabilities`, validation của mọi kiểu chuẩn hóa (bao gồm trường hợp `UNKNOWN`), `SyncBatch` với `skipped`, che secret trong `toString()`.
+- [x] Registry test: nhiều connector, không connector, trùng type (start fail), `UNKNOWN_PROVIDER`.
+- [x] `FakeMessageProvider` vượt contract test kit.
+- [x] (Nếu D-18 = có) web test cho `GET /api/providers`: 200 có dữ liệu, 200 rỗng, 401.
+- [x] `./mvnw verify` xanh; error catalog có `UNKNOWN_PROVIDER`.
+- [x] ~~Learning gate: Human giải thích được vì sao capability là dữ liệu khai báo, vì sao connector không được gọi trong transaction, và một item lỗi đi qua batch như thế nào.~~ → Đổi cách học (2026-10-03, người dùng chọn): agent giải thích, người dùng đọc; kiến thức ở `docs/knowledge/phase-0-backend-foundation.md` (lý do ở BE-26 trong `tasks.md`).
+- [x] `tasks.md` tick đủ, chỗ lệch kế hoạch có ghi lý do; `PROJECT_STATE.md` cập nhật.
