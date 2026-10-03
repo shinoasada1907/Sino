@@ -46,7 +46,7 @@ import dev.sino.common.error.ErrorCode;
 import dev.sino.common.error.SinoException;
 import dev.sino.common.security.ApiSecurityTestConfiguration;
 
-@WebMvcTest
+@WebMvcTest(GlobalExceptionHandlerTests.ErrorProbeController.class)
 @Import({ ApiSecurityTestConfiguration.class, GlobalExceptionHandlerTests.ErrorProbeController.class })
 @ActiveProfiles("test")
 @ExtendWith(OutputCaptureExtension.class)
