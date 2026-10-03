@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–19, đang làm: xong BE-09…BE-12).
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–19, đang làm: xong BE-09…BE-13).
 > **Cập nhật:** 2026-10-03. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
@@ -426,9 +426,10 @@ account_credential  (BE-13)
 | BE-10 | Aggregate `ConnectedAccount` và máy trạng thái | xong |
 | BE-11 | Bảng `connected_account`, ánh xạ JPA, repository | xong |
 | BE-12 | Mã hóa credential AES-256-GCM, kiểm tra khóa lúc khởi động, review bảo mật | xong |
-| BE-13…BE-18 | Lưu credential, use case đăng ký, REST API, xóa, nghiệm thu | chưa làm |
+| BE-13 | Bảng `account_credential`, `CredentialStore` (mã hóa khi ghi, giải mã khi đọc) | xong |
+| BE-14…BE-18 | Use case đăng ký, REST API, xóa, nghiệm thu | chưa làm |
 
-Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A** (AES-256-GCM bằng thư viện có sẵn của JDK, khóa có ID), **D-12 = A** (5 trạng thái, không lưu `SYNCING`). Lần đầu áp dụng D-08 (UUIDv7) và D-09 (enum lưu chữ + `CHECK`).
+Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A** (AES-256-GCM bằng thư viện có sẵn của JDK, khóa có ID), **D-12 = A** (5 trạng thái, không lưu `SYNCING`), **D-14** (thêm 4 cột cho bảng credential), quy tắc "luôn ghi cả credential". Lần đầu áp dụng D-08 (UUIDv7) và D-09 (enum lưu chữ + `CHECK`).
 
 ---
 
@@ -550,7 +551,23 @@ Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A
 ### 17.5 Review bảo mật riêng
 - Code mã hóa tự viết nên được một agent reviewer độc lập đọc trước khi commit. Kết quả: không có lỗi nghiêm trọng (CRITICAL/HIGH).
 - Đã sửa theo góp ý: AAD có tiền tố phạm vi và phiên bản; kiểm tra ID khóa; xóa mảng byte của khóa khỏi bộ nhớ sau khi dùng; thêm test ghim độ dài IV và tag, giá trị bị cắt cụt, giá trị bị gắn sai ID khóa.
-- Một điểm chuyển sang BE-13: bảng chỉ có **một** ID khóa cho cả dòng. Khi đã xoay khóa, ghi lại access token mà quên refresh token thì refresh token không đọc được nữa. BE-13 phải có quy tắc và test cho trường hợp này.
+- Một điểm chuyển sang BE-13: bảng chỉ có **một** ID khóa cho cả dòng. Khi đã xoay khóa, ghi lại access token mà quên refresh token thì refresh token không đọc được nữa. BE-13 giải quyết bằng quy tắc ở mục 17.6.
+
+### 17.6 Lưu credential: `CredentialStore` (BE-13, D-14)
+- **Ở đâu:** `account/infrastructure/CredentialStore.java`, entity `AccountCredential`, migration `V4__account_create_account_credential.sql`.
+- **Là gì:** "cửa duy nhất" để ghi và đọc credential:
+  - `save(accountId, credential, refreshToken)`: mã hóa rồi ghi.
+  - `load(accountId)`: đọc rồi giải mã, trả `ProviderCredentials` của F03, chỉ nằm trong bộ nhớ.
+  - `delete(accountId)`: xóa.
+- **Bảng `account_credential`:** một dòng cho mỗi account (`UNIQUE (account_id)`). Khóa ngoại tới `connected_account` có `ON DELETE CASCADE`: xóa account thì credential tự biến mất trong cùng câu lệnh. Bốn cột thêm so với tài liệu 02B (D-14):
+  - `credential_type`: `OAUTH2` (Gmail) hoặc `TOKEN` (ví dụ bot Telegram).
+  - `encryption_key_id`: khóa đã mã hóa dòng này.
+  - `created_at`, `version`: theo quy ước F01.
+- **Quy tắc "luôn ghi cả credential":** store **không có** hàm sửa riêng một token. Mỗi lần `save`, mọi trường bí mật được mã hóa lại bằng khóa active, và `encryption_key_id` của dòng là khóa đó. Vì vậy sau khi xoay khóa, không thể có chuyện access token dùng `k2` mà refresh token còn `k1`. Entity còn tự kiểm thêm: hai giá trị mã hóa khác khóa sẽ bị từ chối.
+- **Switch trên sealed interface:** `OAuth2Credentials` ứng với `OAUTH2`, `TokenCredentials` ứng với `TOKEN`. Thêm một loại credential mới mà quên xử lý thì code không biên dịch được.
+- **Cột `jsonb`:** `scopes` (danh sách quyền Gmail đã cấp) lưu dạng mảng JSON nhờ `@JdbcTypeCode(SqlTypes.JSON)`; Hibernate 7 tự dùng Jackson để chuyển `List<String>` sang JSON.
+- **Phạm vi truy cập:** entity và repository là package-private; chỉ `CredentialStore` là public, và nằm trong package nội bộ `infrastructure`, nên Spring Modulith chặn mọi module khác dùng nó.
+- **Refresh token:** `load` chưa trả refresh token (F03 cố ý để `OAuth2Credentials` không có trường này). F04 sẽ thêm cách đọc nó khi làm luồng refresh, theo đúng quy tắc trên: đọc cả hai, rồi ghi lại cả hai.
 
 ---
 
@@ -565,6 +582,9 @@ Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A
   - BE-09: bỏ bước tìm theo email → 2 test idempotent đỏ.
   - BE-10: cho `markHealthy` gỡ `AUTH_EXPIRED` → đúng ô đó đỏ.
   - BE-12: IV cố định → 1 test đỏ; bỏ AAD → 3 test đỏ; tag 96 bit → 2 test đỏ.
+  - BE-13: store "quên" ghi refresh token → test xoay khóa đỏ.
+- **`row_to_json(c)::text` của PostgreSQL:** biến cả một dòng thành chuỗi JSON để kiểm tra bằng một lệnh rằng **không cột nào** chứa token dạng chữ.
+- **`entityManager.flush()` để lộ lỗi:** trong `@DataJpaTest`, lệnh ghi chỉ thật sự xuống DB khi flush. Muốn thấy lỗi khóa ngoại thì phải flush ngay trong đoạn code đang chờ lỗi; test còn kiểm tra cả stack trace của lỗi đó không chứa token.
 
 ---
 
@@ -580,5 +600,7 @@ Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A
 8. IV và AAD trong AES-GCM mỗi cái chống lại điều gì?
 9. Đổi khóa mã hóa khi đã có dữ liệu thì làm theo những bước nào?
 10. Vì sao không kiểm tra khóa bằng `@Size` của Bean Validation?
+11. Vì sao `CredentialStore` không có hàm `updateAccessToken`?
+12. Xóa một `connected_account` thì credential của nó đi đâu, và nhờ đâu?
 
-*(Phần BE-13…BE-18 — lưu credential, use case đăng ký, REST API, xóa account — sẽ được bổ sung khi làm.)*
+*(Phần BE-14…BE-18 — use case đăng ký, REST API, xóa account, nghiệm thu — sẽ được bổ sung khi làm.)*
