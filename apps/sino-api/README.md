@@ -26,6 +26,7 @@ docker compose ps       # wait until the status says (healthy)
 |---|---|---|
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Compose, `local` profile | Local database. Postgres reads them only when the volume is created; after changing them run `docker compose down -v`. |
 | `SINO_API_USERNAME`, `SINO_API_PASSWORD` | application | The single HTTP Basic user of the REST API (D-02). The app refuses to start without them. |
+| `SINO_CREDENTIAL_ACTIVE_KEY_ID`, `SINO_CREDENTIAL_KEY_K1` | application | AES-256-GCM key that encrypts provider tokens (D-11): base64 of 32 random bytes, `openssl rand -base64 32`. Back it up outside the repo; losing it means reconnecting every account. To rotate, add a `k2` slot in `application.yaml`, set it and make it active. The app refuses to start without a valid active key. |
 | `SINO_OWNER_EMAIL`, `SINO_OWNER_DISPLAY_NAME` | application | The single Sino user (`app_user`) of the MVP, created or updated at startup with the email as key (D-10). Changing the email creates a new owner. The app refuses to start without them. |
 | `SINO_DB_URL`, `SINO_DB_USERNAME`, `SINO_DB_PASSWORD` | application, default profile | Database outside the `local` profile. They have no defaults on purpose. |
 
@@ -94,6 +95,7 @@ Decided in D-03 (`openspec/specs/module-boundaries/spec.md`).
 | `FATAL: invalid value for parameter "TimeZone": "Asia/Saigon"` | The JVM uses a legacy zone id that PostgreSQL 18 rejects. The app and the tests force UTC (D-23); a new launch path (another IDE configuration, a Dockerfile) must keep `-Duser.timezone=UTC` or go through `SinoApiApplication.main`. |
 | `failed to connect to the docker API` | Docker Desktop is not running. |
 | App stops with `sino.security.api-user` validation errors | `SINO_API_USERNAME` / `SINO_API_PASSWORD` are missing from `.env` or the environment. |
+| App stops with `The active credential key ... is not configured` or `sino.credentials.encryption.keys.k1 must decode to 32 bytes` | `SINO_CREDENTIAL_KEY_K1` is missing or is not base64 of 32 bytes. Generate one with `openssl rand -base64 32`. |
 | App stops with `sino.owner` validation errors | `SINO_OWNER_EMAIL` / `SINO_OWNER_DISPLAY_NAME` are missing or the email is not valid. Copy them from `.env.example`. |
 | App stops at bean `dataSource` with `'url' must start with "jdbc"` | No profile and no `SINO_DB_*` variables. Use `-Dspring-boot.run.profiles=local` on a dev machine. |
 | Port 5432 already in use | Another PostgreSQL runs locally. Stop it or change the published port in `compose.yaml` and the URL in `application-local.yaml`. |

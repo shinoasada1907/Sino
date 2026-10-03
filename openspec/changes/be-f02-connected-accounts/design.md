@@ -154,7 +154,7 @@ Sự kiện hệ thống chưa có caller cho tới F07; F02 cài chúng trong d
 
 ### 9. Security & Credential Boundary
 
-**D-11 — Cách mã hóa credential** · *Decision Needed — Stop Condition của 04B (trước BE-12)*
+**D-11 — Cách mã hóa credential** · **Accepted: A — AES-256-GCM (JCA) + key ring có ID** (2026-10-03)
 
 | Phương án | Ưu | Nhược |
 |---|---|---|
@@ -166,8 +166,12 @@ Sự kiện hệ thống chưa có caller cho tới F07; F02 cài chúng trong d
 Tham số cho phương án A (để review bảo mật; implement theo Level 2 ở tasks):
 - Thuật toán `AES/GCM/NoPadding`, khóa 256-bit, IV 12 byte từ `SecureRandom` cho **mỗi** lần mã hóa, tag 128-bit.
 - Associated data (AAD) = `account_id` + tên trường (ví dụ `access_token`) → ciphertext không chép được sang account/cột khác.
+  - **Chốt ở BE-12 (sau review bảo mật):** AAD = `sino:account_credential:v1:<accountId>:<tên cột>`. **LÝ DO:** tiền tố gắn giá trị với đúng bảng và phiên bản định dạng, để một bảng mã hóa khác hay một định dạng sau này không nhận nhầm; đổi lúc chưa có dữ liệu thật không tốn gì. ID khóa phải khớp `[a-z0-9_-]{1,32}` (cột `varchar(32)`), không tự trim.
+  - **Ràng buộc cho BE-13 (review BE-12, MEDIUM):** cipher trả ID khóa cho **từng giá trị**, nhưng bảng chỉ có **một** `encryption_key_id` cho cả dòng. Nếu sau khi xoay khóa chỉ ghi lại access token, refresh token (vẫn khóa cũ) sẽ không đọc được nữa. BE-13 phải chọn và test một quy tắc: hoặc mỗi lần ghi mã hóa lại **mọi** trường của dòng bằng khóa active, hoặc lưu ID khóa theo từng cột / trong từng giá trị (chốt cùng D-14).
 - Lưu trữ: `base64(IV ‖ ciphertext‖tag)` trong cột `*_enc`; ID khóa trong `encryption_key_id` (một khóa cho cả hàng).
 - Cấu hình: `sino.credentials.encryption.active-key-id` + `sino.credentials.encryption.keys.<id>` (base64 của 32 byte), đọc từ env; validate khi khởi động (có khóa active, đúng 32 byte). Tạo khóa: `openssl rand -base64 32`.
+  - **Chốt khi làm (BE-12):** `application.yaml` khai báo sẵn một ô `keys.k1: ${SINO_CREDENTIAL_KEY_K1:}` và `active-key-id: ${SINO_CREDENTIAL_ACTIVE_KEY_ID:}`. **LÝ DO:** profile `local` đọc `.env` như một file properties, nên tên biến kiểu `SINO_..._KEYS_K1` không tự gắn vào map; chỉ placeholder trong yaml mới đọc được từ cả `.env` lẫn biến môi trường. Xoay khóa = thêm một dòng `k2: ${SINO_CREDENTIAL_KEY_K2:}` rồi đổi active. Ô khóa để trống được bỏ qua; khóa active phải có và đúng 32 byte.
+  - Giá trị khóa **không** được kiểm bằng Bean Validation (`@Size`…), vì thông báo lỗi của Spring Boot in kèm giá trị bị từ chối. Cipher tự kiểm trong constructor với thông báo chỉ nêu tên cấu hình.
 - Test: khóa giả cố định trong `application-test.yaml` (không phải secret).
 - Quy trình xoay khóa (ghi lại, chưa tự động hóa): thêm `k2` → đặt active = `k2` → mã hóa lại dần (job ở tương lai hoặc khi credential được ghi lại) → khi `select count(*) from account_credential where encryption_key_id = 'k1'` = 0 thì gỡ `k1`.
 - Mất khóa = mất toàn bộ credential (người dùng phải connect lại). Khóa production cần được backup ngoài repo.
@@ -284,7 +288,7 @@ V2–V4 là migration tiến (forward-only). Ở local có thể reset bằng `d
 
 ## Open Questions
 
-- ~~D-10~~ = A, ~~D-12~~ = A (2026-10-03). D-11, D-13, D-14: Decision Needed trước task tương ứng (bảng tổng ở F01 design). 02B (Notion) chưa được sửa theo D-12 — agent không có quyền ghi Notion; người dùng cập nhật khi tiện.
+- ~~D-10~~ = A, ~~D-12~~ = A (2026-10-03). ~~D-11~~ = A (2026-10-03). D-13, D-14: Decision Needed trước task tương ứng (bảng tổng ở F01 design). 02B (Notion) chưa được sửa theo D-12 — agent không có quyền ghi Notion; người dùng cập nhật khi tiện.
 - D-15: cần chốt trước F04.
 - Cách export credential cho `sync` (F07); cách dọn dữ liệu phụ thuộc khi xóa account (F05).
 

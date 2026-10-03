@@ -13,3 +13,9 @@ sino:
   owner:
     email: owner@sino.test
     display-name: Test Owner
+  credentials:
+    encryption:
+      # Fake key (the bytes 0..31), not a secret.
+      active-key-id: k1
+      keys:
+        k1: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=

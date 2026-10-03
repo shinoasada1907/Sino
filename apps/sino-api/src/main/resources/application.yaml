@@ -43,3 +43,10 @@ sino:
     # D-10: the single Sino user of the MVP, upserted by email at startup. Required, like the API user.
     email: ${SINO_OWNER_EMAIL:}
     display-name: ${SINO_OWNER_DISPLAY_NAME:}
+  credentials:
+    encryption:
+      # D-11: AES-256-GCM keys, base64 of 32 random bytes (openssl rand -base64 32). Values only come from the
+      # environment. To rotate, add a slot such as k2: ${SINO_CREDENTIAL_KEY_K2:} and make it the active key.
+      active-key-id: ${SINO_CREDENTIAL_ACTIVE_KEY_ID:}
+      keys:
+        k1: ${SINO_CREDENTIAL_KEY_K1:}

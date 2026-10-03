@@ -46,7 +46,10 @@
 
 ## 3. Credential
 
-- [ ] 3.1 **BE-12 — Cipher AES-256-GCM + key ring + validate khi khởi động**
+- [x] 3.1 **BE-12 — Cipher AES-256-GCM + key ring + validate khi khởi động**
+  - **Thực hiện (2026-10-03, AUTO, D-11 = A):** `account/infrastructure/crypto/`: `CredentialCipher` (`AES/GCM/NoPadding`, khóa 32 byte, IV 12 byte từ `SecureRandom` cho mỗi lần, tag 128 bit, AAD `sino:account_credential:v1:<accountId>:<cột>`, lưu `base64(IV‖ciphertext‖tag)`, `Cipher` mới cho mỗi lần gọi, xóa mảng byte khóa sau khi tạo `SecretKeySpec`), `CredentialEncryptionProperties` (`active-key-id` + map `keys`, `toString` che khóa), `EncryptedValue` (`keyId` + ciphertext, `toString` che), `CredentialField` (`ACCESS_TOKEN`, `REFRESH_TOKEN`), `CredentialDecryptionException`. Kiểm tra lúc khởi động: ID khóa khớp `[a-z0-9_-]{1,32}`, khóa active phải có, mọi khóa không trống phải là base64 của đúng 32 byte; thông báo chỉ nêu tên cấu hình. Cấu hình: `application.yaml` (`SINO_CREDENTIAL_ACTIVE_KEY_ID`, ô `k1` ← `SINO_CREDENTIAL_KEY_K1`), khóa giả trong `application-test.yaml`, `.env.example`, README.
+  - **Review bảo mật riêng (2026-10-03, agent reviewer độc lập, chỉ đọc):** không có CRITICAL/HIGH. Đã sửa: AAD có tiền tố phạm vi + phiên bản; kiểm tra ID khóa; xóa byte khóa khỏi bộ nhớ; thêm test ghim tham số (độ dài IV/tag), giá trị rỗng 28 byte và cắt cụt, gắn nhãn sai ID khóa, khóa hỏng ở ô không active, ID khóa sai dạng. MEDIUM (một ID khóa cho cả dòng) chuyển thành ràng buộc của BE-13 (ghi ở design §9). **Không làm** gợi ý chặn khóa test công khai ngoài môi trường test. **LÝ DO:** profile test dùng chính khóa đó; phân biệt môi trường chỉ để chặn nó là thừa với MVP một người dùng; `.env.example` hướng dẫn tự tạo khóa.
+  - **Kiểm chứng (2026-10-03):** `CredentialCipherTests` 28/28, `CredentialKeyConfigurationTests` 4/4 (`ApplicationContextRunner`: khóa hợp lệ → start; thiếu ID khóa active / thiếu khóa / khóa sai độ dài → không start, stack trace không chứa giá trị khóa). Kiểm tra ngược: IV cố định → 1 test đỏ; bỏ AAD → 3 test đỏ; tag 96 bit → 2 test đỏ. `./mvnw -B -ntp verify` → BUILD SUCCESS, 275 test, 0 failure, 0 error, 2 skipped; không khóa test nào xuất hiện trong log.
   - **Goal / Why:** mã hóa at rest đúng chuẩn, xoay khóa được, sai là không start.
   - **Depends:** F01 · **D-11**.
   - **Files:** `account/infrastructure/crypto/...` (cipher + `@ConfigurationProperties` key ring), `.env.example` (`SINO_CREDENTIAL_*`), `application-test.yaml` (khóa giả), unit test.
@@ -61,6 +64,7 @@
   - **Depends:** BE-11, BE-12, BE-21 (`ProviderCredentials`) · **D-14**.
   - **Files:** `db/migration/V4__account_create_account_credential.sql`, entity + repository nội bộ, credential store (`save`/`load`/`delete`, trả `ProviderCredentials` khi đọc), JPA/module test.
   - **Hướng làm:** cột theo bảng ở design (kể cả cột thêm của D-14); `scopes` là `jsonb` mảng chuỗi; 1–1 + cascade; mọi type chứa secret che `toString()`.
+  - **Bắt buộc từ review BE-12:** quy tắc cho ID khóa của cả dòng (mã hóa lại mọi trường mỗi lần ghi, hoặc ID khóa theo từng giá trị — chốt cùng D-14), kèm test: xoay khóa rồi chỉ thay access token → refresh token vẫn đọc được.
   - **Test:** lưu rồi đọc lại bằng store → đúng giá trị; đọc cột bằng SQL thô → không chứa plaintext; chép ciphertext từ account A sang B → đọc B lỗi; xóa account → credential mất (cascade); đổi khóa active rồi ghi lại → `encryption_key_id` mới.
   - **AC:** requirement *Credential tách khỏi dữ liệu nghiệp vụ*, *Sẵn sàng xoay khóa*, *Credential không bao giờ bị lộ ra ngoài* (phần store/log).
   - **Gợi ý:** map `jsonb` với Hibernate 7 (`@JdbcTypeCode(SqlTypes.JSON)`); `JdbcTemplate` trong test để đọc giá trị thô.
