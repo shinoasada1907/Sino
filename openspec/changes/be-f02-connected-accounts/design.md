@@ -35,7 +35,7 @@ Design này viết trước khi F03 được làm; các điểm sau chỉnh cho 
 
 ### Owner và người dùng hiện tại
 
-**D-10 — `app_user` thuộc module nào** · *Decision Needed (trước BE-09)*
+**D-10 — `app_user` thuộc module nào** · **Accepted: A — module `identity`** (2026-10-03)
 
 | Phương án | Ưu | Nhược |
 |---|---|---|
@@ -44,7 +44,8 @@ Design này viết trước khi F03 được làm; các điểm sau chỉnh cho 
 
 Với A: `identity` export interface `CurrentUser` (ví dụ `UUID requireOwnerId()`), sở hữu bảng `app_user`; `account` phụ thuộc `identity` qua interface đó. Với B: cùng interface nhưng nằm trong `account`.
 
-Cách tạo owner (*Proposed default*): khi khởi động, một component đọc `sino.owner.email` / `sino.owner.display-name` (bắt buộc, validate) và **upsert idempotent** vào `app_user`. Ở MVP, mọi principal đã xác thực (D-02 A: một user API duy nhất) ánh xạ tới owner này. Phương án khác: seed bằng migration với UUID cố định — đơn giản nhưng nhét dữ liệu môi trường vào migration và khó đổi email.
+Cách tạo owner (**Accepted** 2026-10-03, người dùng chọn upsert lúc khởi động): khi khởi động, một component đọc `sino.owner.email` / `sino.owner.display-name` (bắt buộc, validate) và **upsert idempotent** vào `app_user`. Ở MVP, mọi principal đã xác thực (D-02 A: một user API duy nhất) ánh xạ tới owner này. Phương án khác: seed bằng migration với UUID cố định — đơn giản nhưng nhét dữ liệu môi trường vào migration và khó đổi email.
+Khóa của upsert là **email** (chuẩn hóa: trim + chữ thường): đổi `display-name` thì cập nhật bản ghi cũ; đổi `email` thì tạo owner **mới**, account cũ vẫn thuộc owner cũ. Đã nói rõ với người dùng (2026-10-03); ở MVP một người dùng việc đổi email hiếm.
 *Câu hỏi cho bạn:* khi Sino có login thật cho nhiều người, phần nào của thiết kế này đổi và phần nào giữ nguyên?
 
 ### 5. Domain model
@@ -282,7 +283,7 @@ V2–V4 là migration tiến (forward-only). Ở local có thể reset bằng `d
 
 ## Open Questions
 
-- D-10, D-11, D-12, D-13, D-14: Decision Needed trước task tương ứng (bảng tổng ở F01 design).
+- ~~D-10~~ = A (2026-10-03). D-11, D-12, D-13, D-14: Decision Needed trước task tương ứng (bảng tổng ở F01 design).
 - D-15: cần chốt trước F04.
 - Cách export credential cho `sync` (F07); cách dọn dữ liệu phụ thuộc khi xóa account (F05).
 

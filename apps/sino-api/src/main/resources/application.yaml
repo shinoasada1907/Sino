@@ -39,3 +39,7 @@ sino:
       # D-02 A. The empty default turns a missing variable into a validation error at startup.
       username: ${SINO_API_USERNAME:}
       password: ${SINO_API_PASSWORD:}
+  owner:
+    # D-10: the single Sino user of the MVP, upserted by email at startup. Required, like the API user.
+    email: ${SINO_OWNER_EMAIL:}
+    display-name: ${SINO_OWNER_DISPLAY_NAME:}
