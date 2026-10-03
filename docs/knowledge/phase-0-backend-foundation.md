@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract. F02 Connected Accounts sẽ được bổ sung vào file này khi làm.
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–19, đang làm: xong BE-09…BE-12).
 > **Cập nhật:** 2026-10-03. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
@@ -400,6 +400,185 @@ Trả lời được hết thì bạn đã nắm Phase 0:
 
 ---
 
-## Bổ sung khi làm F02
+## 13. F02 — Bức tranh: người dùng Sino và tài khoản provider
 
-*(Chưa làm. Theo design F02, dự kiến có: JPA entity và repository; mã hóa credential (design đề xuất AES-256-GCM, chưa chốt); optimistic locking bằng cột `version`; event của module `account` qua Spring Modulith.)*
+F02 lưu các tài khoản bạn kết nối vào Sino. Có hai khái niệm "tài khoản" khác nhau, nằm ở hai module khác nhau:
+
+```text
+app_user  (module identity)
+  "bạn" - người dùng Sino: email, tên hiển thị
+     |
+     |  một user có nhiều account
+     v
+connected_account  (module account)
+  "Gmail cá nhân", "Gmail công việc"
+  provider, ID bên provider, trạng thái
+     |
+     |  mỗi account có một credential
+     v
+account_credential  (BE-13)
+  token đã mã hóa: access/refresh token, ID khóa
+```
+
+| Task | Đã làm | Trạng thái |
+|---|---|---|
+| BE-09 | Module `identity`: bảng `app_user`, tạo owner lúc khởi động, `CurrentUser` | xong |
+| BE-10 | Aggregate `ConnectedAccount` và máy trạng thái | xong |
+| BE-11 | Bảng `connected_account`, ánh xạ JPA, repository | xong |
+| BE-12 | Mã hóa credential AES-256-GCM, kiểm tra khóa lúc khởi động, review bảo mật | xong |
+| BE-13…BE-18 | Lưu credential, use case đăng ký, REST API, xóa, nghiệm thu | chưa làm |
+
+Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A** (AES-256-GCM bằng thư viện có sẵn của JDK, khóa có ID), **D-12 = A** (5 trạng thái, không lưu `SYNCING`). Lần đầu áp dụng D-08 (UUIDv7) và D-09 (enum lưu chữ + `CHECK`).
+
+---
+
+## 14. Module `identity`: owner và người dùng hiện tại (BE-09)
+
+### 14.1 Vì sao có module riêng (D-10)
+- **Ở đâu:** `src/main/java/dev/sino/identity/`.
+- **Vì sao:** "người dùng Sino" khác "tài khoản Gmail". Khi có đăng nhập thật cho nhiều người (D-22), mọi thứ về đăng nhập vào `identity`; module `account` chỉ biết `ownerId` (một UUID) nên không phải sửa.
+
+### 14.2 Tạo owner lúc khởi động: `ApplicationRunner`
+- **Ở đâu:** `identity/application/OwnerProvisioner.java`.
+- **Là gì:** class `implements ApplicationRunner`; Spring gọi method `run(...)` **một lần**, ngay sau khi khởi động xong.
+- **Vì sao dùng nó:** lúc runner chạy, Flyway đã tạo xong bảng `app_user`, nên ghi vào bảng là an toàn. Runner ném lỗi thì app dừng (fail-fast).
+- **Upsert theo email:** tìm owner theo email; chưa có thì tạo, có rồi thì cập nhật tên. Chạy bao nhiêu lần cũng chỉ có một dòng (idempotent). Đổi **email** thì thành owner mới.
+- **Bẫy `@Transactional`:** annotation chỉ có tác dụng khi method được gọi **qua bean Spring** (Spring bọc bean trong một "proxy" mở và đóng transaction). Tự `new OwnerProvisioner(...)` rồi gọi thì không có transaction.
+
+### 14.3 `CurrentUser`: "ai đang gọi API?"
+- **Ở đâu:** `identity/CurrentUser.java` (public), `identity/application/OwnerCurrentUser.java` (cài đặt).
+- **Để làm gì:** code nghiệp vụ hỏi `currentUser.requireOwnerId()` thay vì tự đọc Spring Security. Ở MVP, mọi người đã đăng nhập (HTTP Basic) đều là owner.
+- **Chi tiết:** đọc `SecurityContextHolder`, nơi Spring Security để thông tin người đang đăng nhập. Khách vô danh (`AnonymousAuthenticationToken`) bị từ chối. ID owner tra DB **một lần** rồi giữ trong field `volatile` (an toàn khi nhiều luồng cùng đọc).
+
+### 14.4 Cấu hình bắt buộc
+- `SINO_OWNER_EMAIL`, `SINO_OWNER_DISPLAY_NAME` vào record `OwnerProperties` có `@NotBlank`, `@Email`. Thiếu thì app không start. Compact constructor của record trim và đổi email về chữ thường **trước** khi kiểm tra.
+
+---
+
+## 15. JPA entity và repository (BE-09, BE-11)
+
+### 15.1 Entity
+- **Ở đâu:** `identity/infrastructure/AppUser.java`, `account/domain/ConnectedAccount.java`.
+- **Các annotation:**
+  - `@Entity` + `@Table(name = "...")`: class ứng với bảng nào.
+  - `@Id` + `@UuidGenerator(style = VERSION_7)`: Hibernate tự sinh UUIDv7 khi lưu lần đầu. UUIDv7 bắt đầu bằng thời gian nên tăng dần, index của PostgreSQL chèn vào cuối thay vì rải lung tung (D-08).
+  - `@Column(name = "user_id")`: tên field Java khác tên cột thì ghi rõ. `updatable = false`: cột không bao giờ bị `UPDATE`.
+  - `@Enumerated(EnumType.STRING)`: lưu `"CONNECTED"`, không lưu số thứ tự. Lưu số thì chèn thêm giá trị vào giữa enum là dữ liệu cũ sai nghĩa. DB có thêm `CHECK (status IN (...))` (D-09).
+  - `@PrePersist` / `@PreUpdate`: Hibernate gọi ngay trước `INSERT` / `UPDATE` để điền `created_at`, `updated_at`.
+  - Constructor rỗng `protected`: JPA cần nó để tạo object bằng reflection; `protected` để code của mình không dùng nhầm.
+- **Không có setter:** muốn đổi dữ liệu phải gọi hành động có tên (`rename`, `disable`…).
+
+### 15.2 Map thẳng lên aggregate (lựa chọn của BE-11)
+- `ConnectedAccount` vừa là domain vừa là entity: một model, không cần class mapper. Cái giá là domain biết annotation JPA; ở quy mô này, đơn giản thắng.
+
+### 15.3 `AttributeConverter`
+- **Ở đâu:** `account/infrastructure/ProviderTypeConverter.java`.
+- **Là gì:** dạy Hibernate cách lưu một kiểu nó không biết, ở đây `ProviderType` ↔ chuỗi `"gmail"`.
+- **`autoApply = true`:** tự áp cho mọi field kiểu `ProviderType`, nên domain không phải nhắc tới class hạ tầng này.
+
+### 15.4 `@Version` — optimistic locking
+- Mỗi lần `UPDATE`, Hibernate tăng `version` và chỉ ghi khi DB vẫn đúng version nó đã đọc. Hai request cùng sửa một account: request chậm hơn bị từ chối, thay vì âm thầm ghi đè.
+- **Bẫy:** import `jakarta.persistence.Version`, **không phải** `org.springframework.data.annotation.Version`.
+
+### 15.5 Repository
+- **Ở đâu:** `AppUserRepository`, `ConnectedAccountRepository`.
+- Chỉ là interface `extends JpaRepository<Entity, KieuId>`; Spring tự sinh phần cài đặt.
+- **Tên method là câu truy vấn:** `findByOwnerIdOrderByCreatedAtAscIdAsc` = `WHERE user_id = ? ORDER BY created_at, id`. Tên dùng **field Java**, không dùng tên cột.
+- `@Query("select u.id from AppUser u where u.email = :email")`: viết JPQL (truy vấn theo entity) khi chỉ cần một cột.
+
+### 15.6 Ràng buộc ở database là lớp bảo vệ cuối
+- `UNIQUE (user_id, provider, external_account_id)`: dù code tìm trước rồi mới tạo, hai request đến cùng lúc vẫn có thể cùng "không thấy" rồi cùng tạo. Chỉ DB chặn được chắc chắn.
+- `FOREIGN KEY ... REFERENCES app_user`: account phải thuộc một user có thật.
+
+---
+
+## 16. Aggregate và máy trạng thái (BE-10)
+
+### 16.1 "Tell, don't ask"
+- **Ở đâu:** `account/domain/ConnectedAccount.java`.
+- Không có `setStatus`. Bên ngoài **ra lệnh** (`disable()`, `markAuthExpired()`), aggregate tự quyết có đổi hay không. Luật nằm một chỗ; không service nào có thể quên luật.
+
+### 16.2 Máy trạng thái viết gọn
+- Mỗi hành động khai báo "đích đến" và "được đi từ đâu":
+
+  ```java
+  public Optional<StatusChange> markAuthExpired() {
+      return moveTo(AUTH_EXPIRED, EnumSet.of(CONNECTED, DEGRADED, ERROR));
+  }
+  ```
+
+- Trạng thái hiện tại không nằm trong tập cho phép thì không làm gì và trả `Optional.empty()`. Vì vậy `DISABLED` (người dùng tắt) không bao giờ bị hệ thống tự đổi, và `AUTH_EXPIRED` chỉ reconnect mới gỡ.
+- Trả `Optional<StatusChange>` thay vì tự tạo event: service có ID và đồng hồ nên service tạo event `AccountStatusChanged`; domain giữ là Java thuần.
+
+### 16.3 Bảng trong tài liệu = bảng trong test
+- 35 ô của bảng chuyển trạng thái (design F02) được chép nguyên vào `@CsvSource`; `@ParameterizedTest` chạy mỗi ô thành một test. Sửa luật mà quên sửa bảng thì test đỏ.
+
+### 16.4 Bẫy emoji: `char` khác "ký tự"
+- Java lưu chuỗi theo UTF-16: một emoji (ví dụ hình mặt cười) chiếm **2** `char`. Hằng `EMOJI` trong `ConnectedAccountTests` chứa đúng một emoji, và `EMOJI.length() == 2`. PostgreSQL thì đếm `varchar(100)` theo ký tự thật (code point), nên emoji đó chỉ là 1 ký tự.
+- Vì vậy dùng `codePointCount` để đếm và `offsetByCodePoints` để cắt; `substring` thường có thể chặt đôi emoji thành ký tự hỏng.
+
+---
+
+## 17. Mã hóa credential (BE-12, D-11)
+
+### 17.1 Vì sao
+- Token Gmail là chìa khóa vào hộp thư. Nếu lưu dạng chữ, một bản backup DB bị lộ là lộ mọi hộp thư. Vì vậy token được **mã hóa trong app trước khi ghi DB**, còn **khóa nằm ngoài DB** (biến môi trường).
+
+### 17.2 AES-256-GCM, giải thích từng phần
+- **Ở đâu:** `account/infrastructure/crypto/CredentialCipher.java`.
+- **AES-256:** mã hóa đối xứng: một khóa 32 byte (256 bit) dùng cho cả mã hóa và giải mã.
+- **GCM:** chế độ "mã hóa có xác thực". Ngoài việc giấu nội dung, nó gắn thêm một **con dấu (tag 128 bit)**. Sửa dù một byte thì giải mã báo lỗi, không bao giờ trả dữ liệu sai.
+- **IV 12 byte, ngẫu nhiên, mới cho mỗi lần:** cùng token mã hóa hai lần ra hai kết quả khác nhau. **Không bao giờ dùng lại IV với cùng khóa:** với GCM, lặp IV làm lộ dữ liệu và cho phép giả mạo con dấu. Kiểm tra ngược đã chứng minh test bắt được lỗi này: cho IV cố định thì test "hai lần phải khác nhau" đỏ.
+- **AAD (associated data) = `sino:account_credential:v1:<accountId>:<tên cột>`:** phần này không được mã hóa nhưng được "đóng dấu" cùng. Chép giá trị mã hóa của account A sang account B, hay từ cột `access_token` sang `refresh_token`, thì giải mã thất bại. Tiền tố `account_credential:v1` gắn giá trị với đúng bảng và phiên bản định dạng.
+- **Định dạng lưu:** `base64(IV ‖ ciphertext ‖ tag)` trong cột `*_enc`; **ID khóa** (`k1`) ở cột riêng.
+- **Các class của JDK:** `Cipher.getInstance("AES/GCM/NoPadding")`, `GCMParameterSpec`, `SecretKeySpec`, `SecureRandom`. Không thêm thư viện ngoài.
+- **Thread-safety:** `Cipher` không an toàn khi dùng chung giữa các luồng, nên mỗi lần mã hóa tạo `Cipher` mới; `SecureRandom` thì dùng chung được.
+
+### 17.3 Khóa và xoay khóa
+- **Cấu hình:** `SINO_CREDENTIAL_ACTIVE_KEY_ID=k1`, `SINO_CREDENTIAL_KEY_K1=<base64 của 32 byte>`; tạo khóa bằng `openssl rand -base64 32`.
+- **Kiểm tra lúc khởi động:**
+  - ID khóa phải khớp `[a-z0-9_-]{1,32}`, không tự cắt khoảng trắng: `k1 ` lỡ có dấu cách trong `.env` sẽ báo lỗi thay vì âm thầm thành một ID khác.
+  - Khóa active phải có, và mọi khóa phải là base64 của đúng 32 byte; sai thì app không start.
+  - Thông báo lỗi chỉ nêu **tên** cấu hình (`sino.credentials.encryption.keys.k1`), không bao giờ in giá trị khóa.
+- **Vì sao không dùng `@Size` để kiểm khóa:** thông báo lỗi của Spring Boot in kèm giá trị bị từ chối, tức là in luôn khóa. Vì vậy cipher tự kiểm và tự viết thông báo.
+- **Xoay khóa:** thêm ô `k2` trong `application.yaml` và biến `SINO_CREDENTIAL_KEY_K2`, rồi đặt active = `k2`. Dữ liệu cũ vẫn đọc được bằng `k1`, vì ID khóa được lưu cạnh dữ liệu; dữ liệu ghi mới dùng `k2`. Khi không còn dòng nào dùng `k1` thì gỡ `k1`.
+- **Bẫy:** mất khóa là mất toàn bộ token (người dùng phải kết nối lại). Backup khóa ở ngoài repo; không bao giờ commit khóa thật.
+
+### 17.4 Lỗi giải mã
+- `CredentialDecryptionException` là lỗi phía server (500). Thông báo nêu account, cột và ID khóa để điều tra, **không bao giờ** chứa token hay dữ liệu mã hóa.
+
+### 17.5 Review bảo mật riêng
+- Code mã hóa tự viết nên được một agent reviewer độc lập đọc trước khi commit. Kết quả: không có lỗi nghiêm trọng (CRITICAL/HIGH).
+- Đã sửa theo góp ý: AAD có tiền tố phạm vi và phiên bản; kiểm tra ID khóa; xóa mảng byte của khóa khỏi bộ nhớ sau khi dùng; thêm test ghim độ dài IV và tag, giá trị bị cắt cụt, giá trị bị gắn sai ID khóa.
+- Một điểm chuyển sang BE-13: bảng chỉ có **một** ID khóa cho cả dòng. Khi đã xoay khóa, ghi lại access token mà quên refresh token thì refresh token không đọc được nữa. BE-13 phải có quy tắc và test cho trường hợp này.
+
+---
+
+## 18. Kỹ thuật test mới trong F02
+
+- **`@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)`:** slice chỉ nạp JPA và Flyway, chạy trên PostgreSQL thật (Testcontainers) để `CHECK`, `UNIQUE`, khóa ngoại hoạt động như production. Mỗi test tự rollback.
+- **`entityManager.clear()`:** xóa bộ nhớ đệm của Hibernate để lần đọc sau thật sự đi xuống DB. Không có nó, test chỉ đọc lại object trong bộ nhớ.
+- **`JdbcTemplate`:** chạy SQL thô để nhìn đúng cái nằm trong DB, hoặc để thử ràng buộc mà Java không tạo ra được (ví dụ ghi `status = 'SYNCING'`).
+- **`ApplicationContextRunner` cho kiểm tra khởi động:** dựng một context nhỏ với cấu hình sai để chứng minh app **không** start và thông báo không lộ secret.
+- **Mockito `mock(...)` trong unit test:** `OwnerCurrentUserTests` giả repository để test `CurrentUser` mà không cần DB.
+- **Kiểm tra ngược ở mọi task:**
+  - BE-09: bỏ bước tìm theo email → 2 test idempotent đỏ.
+  - BE-10: cho `markHealthy` gỡ `AUTH_EXPIRED` → đúng ô đó đỏ.
+  - BE-12: IV cố định → 1 test đỏ; bỏ AAD → 3 test đỏ; tag 96 bit → 2 test đỏ.
+
+---
+
+## 19. Tự kiểm tra F02 (phần đã làm)
+
+1. Vì sao người dùng Sino và tài khoản Gmail nằm ở hai module khác nhau?
+2. `ApplicationRunner` chạy trước hay sau Flyway? Vì sao điều đó quan trọng với việc tạo owner?
+3. Đổi `SINO_OWNER_EMAIL` thì chuyện gì xảy ra với các account đã kết nối?
+4. Vì sao `ConnectedAccount` không có `setStatus`?
+5. Vì sao `AUTH_EXPIRED` không tự về `CONNECTED` khi một lần sync thành công?
+6. `@Version` chặn được tình huống gì?
+7. Vì sao vẫn cần `UNIQUE` ở DB dù code đã tìm trước rồi mới tạo?
+8. IV và AAD trong AES-GCM mỗi cái chống lại điều gì?
+9. Đổi khóa mã hóa khi đã có dữ liệu thì làm theo những bước nào?
+10. Vì sao không kiểm tra khóa bằng `@Size` của Bean Validation?
+
+*(Phần BE-13…BE-18 — lưu credential, use case đăng ký, REST API, xóa account — sẽ được bổ sung khi làm.)*
