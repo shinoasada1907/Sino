@@ -150,7 +150,7 @@ Sự kiện hệ thống chưa có caller cho tới F07; F02 cài chúng trong d
 | `updated_at` | `timestamptz` | not null | = |
 | `version` | `bigint` | not null | **thêm** |
 
-**D-14 — Bổ sung cột cho `account_credential`** · *Decision Needed (trước BE-13)*: bốn cột **thêm** ở trên lệch 02B (04B Stop Condition: thay đổi data model). Lý do: `credential_type` cho provider không dùng OAuth (Telegram bot token — 00 nêu Telegram là provider 2); `encryption_key_id` bắt buộc cho xoay khóa (D-11); `created_at`/`version` theo convention F01. Nếu đồng ý → cập nhật 02B. *Câu hỏi cho bạn:* nếu bỏ `encryption_key_id`, bạn sẽ đổi khóa mã hóa thế nào khi đã có dữ liệu?
+**D-14 — Bổ sung cột cho `account_credential`** · **Accepted: thêm 4 cột** (2026-10-03; 02B trên Notion cần cập nhật theo, người dùng làm khi tiện): bốn cột **thêm** ở trên lệch 02B (04B Stop Condition: thay đổi data model). Lý do: `credential_type` cho provider không dùng OAuth (Telegram bot token — 00 nêu Telegram là provider 2); `encryption_key_id` bắt buộc cho xoay khóa (D-11); `created_at`/`version` theo convention F01. Nếu đồng ý → cập nhật 02B. *Câu hỏi cho bạn:* nếu bỏ `encryption_key_id`, bạn sẽ đổi khóa mã hóa thế nào khi đã có dữ liệu?
 
 ### 9. Security & Credential Boundary
 
@@ -167,6 +167,7 @@ Tham số cho phương án A (để review bảo mật; implement theo Level 2 �
 - Thuật toán `AES/GCM/NoPadding`, khóa 256-bit, IV 12 byte từ `SecureRandom` cho **mỗi** lần mã hóa, tag 128-bit.
 - Associated data (AAD) = `account_id` + tên trường (ví dụ `access_token`) → ciphertext không chép được sang account/cột khác.
   - **Chốt ở BE-12 (sau review bảo mật):** AAD = `sino:account_credential:v1:<accountId>:<tên cột>`. **LÝ DO:** tiền tố gắn giá trị với đúng bảng và phiên bản định dạng, để một bảng mã hóa khác hay một định dạng sau này không nhận nhầm; đổi lúc chưa có dữ liệu thật không tốn gì. ID khóa phải khớp `[a-z0-9_-]{1,32}` (cột `varchar(32)`), không tự trim.
+  - **Quy tắc ID khóa (chốt 2026-10-03, người dùng chọn "luôn ghi cả credential"):** credential store chỉ có thao tác thay **toàn bộ** credential; mỗi lần ghi, mọi trường bí mật được mã hóa lại bằng khóa active và `encryption_key_id` của dòng là khóa đó. Không có hàm sửa riêng một token, nên tình huống dưới đây không xảy ra được. F04 (refresh) sẽ đọc cả hai token rồi ghi lại cả hai. Phương án bị loại: ID khóa riêng cho từng giá trị (thêm cột, theo dõi xoay khóa phức tạp hơn).
   - **Ràng buộc cho BE-13 (review BE-12, MEDIUM):** cipher trả ID khóa cho **từng giá trị**, nhưng bảng chỉ có **một** `encryption_key_id` cho cả dòng. Nếu sau khi xoay khóa chỉ ghi lại access token, refresh token (vẫn khóa cũ) sẽ không đọc được nữa. BE-13 phải chọn và test một quy tắc: hoặc mỗi lần ghi mã hóa lại **mọi** trường của dòng bằng khóa active, hoặc lưu ID khóa theo từng cột / trong từng giá trị (chốt cùng D-14).
 - Lưu trữ: `base64(IV ‖ ciphertext‖tag)` trong cột `*_enc`; ID khóa trong `encryption_key_id` (một khóa cho cả hàng).
 - Cấu hình: `sino.credentials.encryption.active-key-id` + `sino.credentials.encryption.keys.<id>` (base64 của 32 byte), đọc từ env; validate khi khởi động (có khóa active, đúng 32 byte). Tạo khóa: `openssl rand -base64 32`.
@@ -288,7 +289,7 @@ V2–V4 là migration tiến (forward-only). Ở local có thể reset bằng `d
 
 ## Open Questions
 
-- ~~D-10~~ = A, ~~D-12~~ = A (2026-10-03). ~~D-11~~ = A (2026-10-03). D-13, D-14: Decision Needed trước task tương ứng (bảng tổng ở F01 design). 02B (Notion) chưa được sửa theo D-12 — agent không có quyền ghi Notion; người dùng cập nhật khi tiện.
+- ~~D-10~~ = A, ~~D-12~~ = A (2026-10-03). ~~D-11~~ = A, ~~D-14~~ = thêm cột (2026-10-03). D-13: Decision Needed trước BE-17 (bảng tổng ở F01 design). 02B (Notion) chưa được sửa theo D-12 — agent không có quyền ghi Notion; người dùng cập nhật khi tiện.
 - D-15: cần chốt trước F04.
 - Cách export credential cho `sync` (F07); cách dọn dữ liệu phụ thuộc khi xóa account (F05).
 

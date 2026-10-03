@@ -13,9 +13,9 @@ import org.springframework.validation.annotation.Validated;
  */
 @Validated
 @ConfigurationProperties("sino.credentials.encryption")
-record CredentialEncryptionProperties(@NotBlank String activeKeyId, Map<String, String> keys) {
+public record CredentialEncryptionProperties(@NotBlank String activeKeyId, Map<String, String> keys) {
 
-    CredentialEncryptionProperties {
+    public CredentialEncryptionProperties {
         keys = keys == null ? Map.of() : Map.copyOf(keys);
     }
 

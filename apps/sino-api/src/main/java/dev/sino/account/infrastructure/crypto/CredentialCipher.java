@@ -42,7 +42,7 @@ public class CredentialCipher {
     private final Map<String, SecretKey> keys;
     private final String activeKeyId;
 
-    CredentialCipher(CredentialEncryptionProperties properties) {
+    public CredentialCipher(CredentialEncryptionProperties properties) {
         checkKeyId(properties.activeKeyId());
         Map<String, SecretKey> decoded = new HashMap<>();
         // A blank slot is a key ID declared in the configuration but not set in this environment.
