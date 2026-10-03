@@ -13,18 +13,40 @@ Backend Sino là **một** ứng dụng Spring Boot (modular monolith), chia th�
 
 Một request `GET /api/providers` đi qua các lớp như sau:
 
-```mermaid
-flowchart LR
-    C["Client / curl"] -->|"HTTP + Basic auth"| SF["Security filter chain<br/>SecurityConfig"]
-    SF -->|"thiếu/sai mật khẩu"| EH
-    SF --> DS["DispatcherServlet<br/>(Spring MVC)"]
-    DS --> CT["ProvidersController"]
-    CT --> R["ProviderRegistry"]
-    R --> P["MessageProvider<br/>(connector)"]
-    CT -->|"DTO → JSON"| C
-    CT -. "exception" .-> EH["GlobalExceptionHandler<br/>→ Problem Details"]
-    EH --> C
+```text
+Client (curl / web)
+  |  HTTP + Basic auth
+  v
++------------------------+                  +------------------------+
+| Security filter chain  | ---------------> | GlobalExceptionHandler |
+| (SecurityConfig)       |   401 / 403      | -> Problem Details     |
++------------------------+                  +------------------------+
+  |                                                      ^
+  v                                                      |
++------------------------+                               |
+| DispatcherServlet      |                               |
+| (Spring MVC)           |                               |
++------------------------+                               |
+  |                                                      |
+  v                                                      |
++------------------------+     exception                 |
+| ProvidersController    | ------------------------------+
+| (DTO -> JSON)          |
++------------------------+
+  |
+  v
++------------------------+
+| ProviderRegistry       |
++------------------------+
+  |
+  v
++------------------------+
+| MessageProvider        |
+| (connector)            |
++------------------------+
 ```
+
+Kết quả đi ngược lên: connector trả dữ liệu cho registry, controller đổi nó sang DTO rồi JSON và gửi về client.
 
 Ba ý cần nhớ:
 - Mỗi lớp chỉ làm một việc: security chặn cửa, controller đổi dữ liệu sang JSON, registry tìm connector, connector nói chuyện với provider bên ngoài.
