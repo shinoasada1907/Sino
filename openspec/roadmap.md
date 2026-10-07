@@ -55,7 +55,7 @@ Luật từ Notion 03: F01–F03 làm **BE trước**; từ F04 trở đi mỗi 
 
 ## 3. Chi tiết từng phase và feature
 
-### Phase 0 — Nền móng backend (đang làm)
+### Phase 0 — Nền móng backend · ✅ DONE 2026-10-07 (PR #3 vào `main`)
 
 Mục tiêu: backend có nền móng vững, contract provider rõ, account được lưu an toàn. Chưa có provider thật, chưa có frontend.
 
@@ -95,7 +95,7 @@ Cần chốt: **D-01** (đề xuất làm F03 trước F02), **D-16**, **D-18**.
 
 ~~Cần chốt: **D-10**, **D-11**, **D-12**, **D-13**, **D-14**.~~ Đã chốt: D-10 = A, D-11 = A, D-12 = A, D-13 = B (xóa mềm), D-14 = thêm cột.
 
-**Kết thúc Phase 0:** PR `feature/be-f01-f03-plan` + các nhánh BE vào `main`, archive 3 change, cập nhật Notion 04C/04D.
+~~**Kết thúc Phase 0:** PR `feature/be-f01-f03-plan` + các nhánh BE vào `main`, archive 3 change, cập nhật Notion 04C/04D.~~ → Đã làm 2026-10-07: PR #1, #2, #3 vào `main` (#3 là `dev`, merge commit `9d1ff9b`, CI xanh), 3 change đã archive. Còn mở: cập nhật Notion 02B (D-12/D-13/D-14) và 04C/04D, người dùng làm.
 
 ---
 
@@ -258,6 +258,6 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 ## 5. Vị trí hiện tại
 
-- **Phase 0:** code xong: F01 (2026-10-01), F03 (2026-10-03), F02 (2026-10-07), cả ba đã archive, trên nhánh `dev`. Để đóng phase còn: đưa `dev` vào `main` (người dùng quyết định, hỏi trước khi merge/push/PR) và cập nhật Notion (02B theo D-12/D-13/D-14, 04C/04D).
+- **Phase 0:** ✅ đóng 2026-10-07. F01, F03, F02 xong và đã archive; code vào `main` qua PR #3 (`9d1ff9b`, CI xanh). Còn mở (người dùng): Notion 02B, 04C/04D.
 - **Tiếp theo:** Phase 1 (frontend), mở bằng quyết định **D-22** (xác thực cho trình duyệt).
 - `PROJECT_STATE.md` là nơi ghi trạng thái thật; file này chỉ là bản đồ và được cập nhật khi xong mỗi phase.
