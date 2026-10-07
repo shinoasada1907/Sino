@@ -119,6 +119,8 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 
 #### F04 — Gmail connector + luồng Connect · ~L (feature lớn nhất)
 
+> **Tách làm hai change (D-37, người dùng chốt 2026-10-07):** **F04a** `openspec/changes/f04a-gmail-connect` — luồng kết nối OAuth2, kết nối lại, thu hồi token khi xóa, connector Gmail khung; backend làm song song với web của Phase 1 (D-41). **F04b** — refresh token (D-15 = A'), `fetchUpdates` bằng Gmail API, chuẩn hóa thread/MIME; làm ngay trước F05.
+
 - **BE:** luồng OAuth2 authorization code (tạo URL + `state` → Google → callback kiểm tra `state` → đổi code lấy token → `getAccountProfile` → use case `register` của F02); connector Gmail implement SPI F03 (profile, `fetchUpdates` bằng Gmail API, chuẩn hóa thread/message/MIME); refresh token theo D-15; connector vượt contract test kit.
 - **FE:** nút "Add account → Gmail", màn hình kết quả connect (thành công/lỗi có hướng dẫn).
 - **Cần chốt khi mở spec:** D-15 (ai refresh token); đường dẫn endpoint connect (C5); **scope tối thiểu**; cursor = Gmail `historyId`?; cửa sổ initial sync; công cụ giả lập HTTP cho test.
@@ -208,6 +210,8 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 #### F09 — Provider thứ hai · ~L
 
+> **Người dùng muốn Zalo và Messenger sau Gmail (2026-10-07).** Theo hiểu biết hiện tại, cả hai không có API chính thức đọc tin nhắn của tài khoản cá nhân (Messenger Platform dành cho Facebook Page; Zalo có API cho Official Account). Làm **spike khả thi** trước khi thiết kế; kết quả quyết định provider thứ hai.
+
 - **Quyết định lớn khi mở spec:** chọn provider nào (00: Telegram hoặc provider có API phù hợp). Với Telegram: **Bot API** chỉ thấy chat với bot, không đọc được tin cá nhân của người dùng; **MTProto/TDLib** đọc được tin cá nhân nhưng phức tạp hơn nhiều (đăng nhập bằng số điện thoại, session). Chọn sai thì không chứng minh được mục tiêu "unified".
 - **BE:** connector thứ hai, credential loại `TOKEN` (D-14), capability khác Gmail → đây là bài kiểm tra thật của contract F03 (nếu phải sửa core → contract có vấn đề, ghi lại).
 - **FE:** badge/filter đa provider.
@@ -246,7 +250,7 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 | Trước F02 | D-01, D-10, D-11, D-12, D-13, D-14 |
 | Trước F03 | D-16, D-18 |
 | Mở Phase 1 | **D-22** xác thực cho trình duyệt |
-| Mở F04 | D-15, endpoint connect (C5), scope Gmail, công cụ giả lập HTTP |
+| Mở F04 | ~~D-15, endpoint connect (C5), scope Gmail, công cụ giả lập HTTP~~ → đã chốt 2026-10-07 (D-15 = A', C5, D-37…D-41; design của `f04a-gmail-connect`) |
 | Mở F05 | Giữ/xóa lịch sử khi xóa account; cách kích hoạt nhập dữ liệu ban đầu |
 | Mở F06 | Lưu/hiển thị HTML email (XSS) |
 | Mở Phase 3 | Thứ tự F07 / F13 |
