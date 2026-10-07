@@ -26,7 +26,8 @@ import org.springframework.test.jdbc.JdbcTestUtils;
 
 import dev.sino.TestcontainersConfiguration;
 import dev.sino.account.AccountConnected;
-import dev.sino.account.domain.AccountStatus;
+import dev.sino.account.AccountStatus;
+import dev.sino.account.AccountStatusChanged;
 import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.account.infrastructure.ConnectedAccountRepository;
 import dev.sino.account.infrastructure.CredentialStore;
@@ -93,6 +94,7 @@ class AccountRegistrationServiceTests {
             assertThat(event.reconnected()).isFalse();
             assertThat(event.occurredAt()).isBetween(before, Instant.now());
         });
+        assertThat(events.ofType(AccountStatusChanged.class)).as("a new account has no previous status").isEmpty();
     }
 
     @Test
@@ -111,6 +113,21 @@ class AccountRegistrationServiceTests {
         assertThat(credentials.load(first)).contains(renewed);
         assertThat(events.ofType(AccountConnected.class)).extracting(AccountConnected::reconnected)
                 .containsExactly(false, true);
+        assertThat(events.ofType(AccountStatusChanged.class)).singleElement().satisfies(event -> {
+            assertThat(event.accountId()).isEqualTo(first);
+            assertThat(event.from()).isEqualTo(AccountStatus.AUTH_EXPIRED);
+            assertThat(event.to()).isEqualTo(AccountStatus.CONNECTED);
+        });
+    }
+
+    @Test
+    void reconnectingAHealthyAccountChangesNoStatus(AssertablePublishedEvents events) {
+        registration.register(command("me@fake.test", "Me", CREDENTIALS, REFRESH));
+
+        registration.register(command("me@fake.test", "Me", CREDENTIALS, REFRESH));
+
+        assertThat(events.ofType(AccountConnected.class)).hasSize(2);
+        assertThat(events.ofType(AccountStatusChanged.class)).isEmpty();
     }
 
     @Test
@@ -142,6 +159,12 @@ class AccountRegistrationServiceTests {
     void theEventHoldsOnlyIdsProviderFlagAndTime() {
         assertThat(AccountConnected.class.getRecordComponents()).extracting(RecordComponent::getName)
                 .containsExactly("accountId", "ownerId", "provider", "reconnected", "occurredAt");
+    }
+
+    @Test
+    void theStatusEventHoldsOnlyTheIdBothStatesAndTime() {
+        assertThat(AccountStatusChanged.class.getRecordComponents()).extracting(RecordComponent::getName)
+                .containsExactly("accountId", "from", "to", "occurredAt");
     }
 
     private RegisterAccountCommand command(String externalAccountId, String displayName,

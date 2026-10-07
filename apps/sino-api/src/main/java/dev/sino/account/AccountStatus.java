@@ -1,4 +1,4 @@
-package dev.sino.account.domain;
+package dev.sino.account;
 
 /**
  * Connection state of an account (D-12 A). "Syncing" is not a state: it is derived from a running sync (F07), so a

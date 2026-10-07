@@ -229,6 +229,7 @@ Chưa có: `POST /api/accounts/{provider}/connect` hoặc `/connect/{provider}` 
 - `capabilities` lấy từ `ProviderRegistry.find` (capability tĩnh của provider, D-19); provider không còn connector → `[]` (xem "Đối chiếu với F03").
 - Collection nhỏ, không phân trang → trả mảng trực tiếp. Collection có phân trang (conversation, F05) dùng envelope `{ "items": [...], "nextCursor": ... }`.
 - Không có trường nào của credential trong bất kỳ response nào; có test khẳng định điều này.
+- **PATCH, chốt khi làm BE-16 (2026-10-07):** trường vắng mặt và trường `null` cùng nghĩa "giữ nguyên" (không trường nào của PATCH cho phép xóa giá trị, nên không cần phân biệt hai trường hợp). `displayName` được kiểm ở DTO bằng chính luật của domain (`ConnectedAccount.isValidDisplayName`, đếm theo code point như PostgreSQL), không dùng `@Size` vì `@Size` đếm `char` của Java (một emoji = 2). API không nhận `version` từ client: 409 chỉ xảy ra khi hai request thật sự chạy chồng nhau.
 
 **D-13 — Ngữ nghĩa xóa account** · *Decision Needed (trước BE-17)*
 
@@ -254,6 +255,8 @@ Việc giữ hay xóa lịch sử tin nhắn khi xóa account là **quyết đ�
 | `AccountRemoved` | `accountId`, `ownerId`, `provider`, `occurredAt` | delete |
 
 Chưa có listener; F02 kiểm tra việc publish bằng test module của Spring Modulith. `AccountConnected` sẽ kích hoạt initial sync ở F07.
+
+**Chốt (người dùng, 2026-10-07, BE-16): `AccountStatus` chuyển từ `account.domain` lên `dev.sino.account`.** **LÝ DO:** payload public của `AccountStatusChanged` dùng `AccountStatus`; để trong package nội bộ thì module khác nghe event sẽ vi phạm luật Modulith. Phương án bị loại: giữ chỗ cũ và gắn `@NamedInterface` riêng cho enum (thêm khái niệm, khó thấy là API); payload kiểu chuỗi (listener so chuỗi, gõ sai không bị bắt lúc biên dịch). Reconnect làm đổi trạng thái thật phát `AccountStatusChanged` trước `AccountConnected`, cùng transaction, cùng `occurredAt`.
 
 ### Error code catalog — bổ sung của F02
 

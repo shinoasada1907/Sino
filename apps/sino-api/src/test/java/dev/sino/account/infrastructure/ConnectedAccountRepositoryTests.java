@@ -19,7 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import dev.sino.TestcontainersConfiguration;
-import dev.sino.account.domain.AccountStatus;
+import dev.sino.account.AccountStatus;
 import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.identity.infrastructure.AppUser;
 import dev.sino.identity.infrastructure.AppUserRepository;

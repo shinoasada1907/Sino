@@ -2,6 +2,8 @@ package dev.sino.account.domain;
 
 import java.util.Objects;
 
+import dev.sino.account.AccountStatus;
+
 /**
  * A real change of {@link AccountStatus}. Actions that change nothing return no {@code StatusChange}, so no event
  * is published for them.

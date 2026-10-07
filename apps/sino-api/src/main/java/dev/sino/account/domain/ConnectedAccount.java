@@ -1,10 +1,10 @@
 package dev.sino.account.domain;
 
-import static dev.sino.account.domain.AccountStatus.AUTH_EXPIRED;
-import static dev.sino.account.domain.AccountStatus.CONNECTED;
-import static dev.sino.account.domain.AccountStatus.DEGRADED;
-import static dev.sino.account.domain.AccountStatus.DISABLED;
-import static dev.sino.account.domain.AccountStatus.ERROR;
+import static dev.sino.account.AccountStatus.AUTH_EXPIRED;
+import static dev.sino.account.AccountStatus.CONNECTED;
+import static dev.sino.account.AccountStatus.DEGRADED;
+import static dev.sino.account.AccountStatus.DISABLED;
+import static dev.sino.account.AccountStatus.ERROR;
 
 import java.time.Instant;
 import java.util.EnumSet;
@@ -25,6 +25,7 @@ import jakarta.persistence.Version;
 
 import org.hibernate.annotations.UuidGenerator;
 
+import dev.sino.account.AccountStatus;
 import dev.sino.provider.ProviderType;
 
 /**
@@ -134,17 +135,19 @@ public class ConnectedAccount {
         return moveTo(CONNECTED, EnumSet.of(DEGRADED, ERROR));
     }
 
-    /** A name chosen by the user: 1 to 100 characters after trimming. */
+    /** The rule for a name chosen by the user: 1 to 100 characters after trimming. The API checks it first. */
+    public static boolean isValidDisplayName(String displayName) {
+        return displayName != null && !displayName.isBlank()
+                && characters(displayName.trim()) <= MAX_DISPLAY_NAME_LENGTH;
+    }
+
+    /** A name chosen by the user, see {@link #isValidDisplayName(String)}. */
     public void rename(String displayName) {
-        if (displayName == null || displayName.isBlank()) {
-            throw new IllegalArgumentException("displayName must not be blank");
+        if (!isValidDisplayName(displayName)) {
+            throw new IllegalArgumentException("displayName must be 1 to " + MAX_DISPLAY_NAME_LENGTH
+                    + " characters after trimming");
         }
-        String trimmed = displayName.trim();
-        if (characters(trimmed) > MAX_DISPLAY_NAME_LENGTH) {
-            throw new IllegalArgumentException("displayName must be at most " + MAX_DISPLAY_NAME_LENGTH
-                    + " characters");
-        }
-        this.displayName = trimmed;
+        this.displayName = displayName.trim();
     }
 
     /** Stops automatic sync only; the account and its messages stay visible. */

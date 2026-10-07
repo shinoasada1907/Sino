@@ -34,8 +34,7 @@ public class AccountQueryService {
      *         this ID
      */
     public ConnectedAccount get(UUID ownerId, UUID accountId) {
-        return accounts.findByIdAndOwnerId(accountId, ownerId)
-                .orElseThrow(() -> new SinoException(AccountErrorCode.ACCOUNT_NOT_FOUND, "Account not found."));
+        return accounts.findByIdAndOwnerId(accountId, ownerId).orElseThrow(AccountErrorCode::accountNotFound);
     }
 
 }

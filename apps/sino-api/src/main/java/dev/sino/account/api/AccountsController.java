@@ -3,11 +3,16 @@ package dev.sino.account.api;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.sino.account.application.AccountManagementService;
 import dev.sino.account.application.AccountQueryService;
 import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.identity.CurrentUser;
@@ -16,18 +21,21 @@ import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.spi.MessageProvider;
 
 /**
- * Read side of the Account Management screen (02C §8). Always scoped to the current user.
+ * The Account Management screen (02C §8): list, show and change accounts. Always scoped to the current user.
  */
 @RestController
 @RequestMapping("/api/accounts")
 class AccountsController {
 
     private final AccountQueryService accounts;
+    private final AccountManagementService management;
     private final ProviderRegistry providers;
     private final CurrentUser currentUser;
 
-    AccountsController(AccountQueryService accounts, ProviderRegistry providers, CurrentUser currentUser) {
+    AccountsController(AccountQueryService accounts, AccountManagementService management, ProviderRegistry providers,
+            CurrentUser currentUser) {
         this.accounts = accounts;
+        this.management = management;
         this.providers = providers;
         this.currentUser = currentUser;
     }
@@ -41,6 +49,12 @@ class AccountsController {
     @GetMapping("/{id}")
     AccountResponse get(@PathVariable UUID id) {
         return toResponse(accounts.get(currentUser.requireOwnerId(), id));
+    }
+
+    /** Rename, pause or resume automatic sync, disable or enable. Fields that are not given stay as they are. */
+    @PatchMapping("/{id}")
+    AccountResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateAccountRequest request) {
+        return toResponse(management.update(currentUser.requireOwnerId(), id, request.toCommand()));
     }
 
     // find, not get: an account outlives a removed connector and must still be listed, just without capabilities.

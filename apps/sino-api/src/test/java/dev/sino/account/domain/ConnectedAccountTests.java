@@ -12,6 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import dev.sino.account.AccountStatus;
 import dev.sino.provider.ProviderType;
 
 class ConnectedAccountTests {

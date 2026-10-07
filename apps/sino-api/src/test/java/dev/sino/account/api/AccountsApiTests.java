@@ -1,6 +1,7 @@
 package dev.sino.account.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -9,6 +10,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,12 +32,21 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.sino.TestcontainersConfiguration;
+import dev.sino.account.AccountStatus;
+import dev.sino.account.AccountStatusChanged;
+import dev.sino.account.application.AccountManagementService;
+import dev.sino.account.application.UpdateAccountCommand;
 import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.account.infrastructure.ConnectedAccountRepository;
 import dev.sino.account.infrastructure.CredentialStore;
@@ -46,13 +57,14 @@ import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.OAuth2Credentials;
 
 /**
- * The account read API through HTTP on the whole application and a real PostgreSQL: real security, real owner
- * lookup, real data. No mocks, so owner isolation is checked against rows that really belong to someone else.
+ * The account API through HTTP on the whole application and a real PostgreSQL: real security, real owner lookup,
+ * real data. No mocks, so owner isolation is checked against rows that really belong to someone else.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
+@RecordApplicationEvents
 class AccountsApiTests {
 
     private static final ProviderType FAKE = ProviderType.of("fake");
@@ -73,6 +85,15 @@ class AccountsApiTests {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private AccountManagementService management;
+
+    @Autowired
+    private TransactionTemplate transactions;
+
+    @Autowired
+    private ApplicationEvents events;
 
     private UUID owner;
     private UUID otherUser;
@@ -180,6 +201,132 @@ class AccountsApiTests {
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void renamesAnAccount() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+
+        String body = mvc.perform(patchAccount(id, "{\"displayName\": \"  Gmail Work  \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id.toString()))
+                .andExpect(jsonPath("$.displayName").value("Gmail Work"))
+                .andExpect(jsonPath("$.status").value("CONNECTED"))
+                .andExpect(jsonPath("$.syncEnabled").value(true))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(Instant.parse(JsonPath.read(body, "$.updatedAt"))).isAfter(Instant.parse("2026-10-05T03:15:00Z"));
+        assertThat(displayNameInDatabase(id)).isEqualTo("Gmail Work");
+        assertThat(events.stream(AccountStatusChanged.class)).isEmpty();
+    }
+
+    @Test
+    void anEmptyBodyIsRefused() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+
+        mvc.perform(patchAccount(id, "{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void aBlankOrTooLongNameIsRefusedOnTheDisplayNameField() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+
+        for (String name : new String[] { "   ", "a".repeat(101) }) {
+            mvc.perform(patchAccount(id, "{\"displayName\": \"" + name + "\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.errors[0].field").value("displayName"));
+        }
+        assertThat(displayNameInDatabase(id)).isEqualTo("Fake account");
+    }
+
+    @Test
+    void aNameIsMeasuredInCharactersLikeTheDatabaseDoes() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+        String hundredEmoji = new String(Character.toChars(0x1F600)).repeat(100);
+
+        mvc.perform(patchAccount(id, "{\"displayName\": \"" + hundredEmoji + "\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(displayNameInDatabase(id)).isEqualTo(hundredEmoji);
+    }
+
+    @Test
+    void pausingSyncKeepsTheStatusAndTheAccountListed() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+
+        mvc.perform(patchAccount(id, "{\"syncEnabled\": false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.syncEnabled").value(false))
+                .andExpect(jsonPath("$.status").value("CONNECTED"));
+
+        mvc.perform(get("/api/accounts").with(apiUser()))
+                .andExpect(jsonPath("$[0].id").value(id.toString()))
+                .andExpect(jsonPath("$[0].syncEnabled").value(false));
+        assertThat(events.stream(AccountStatusChanged.class)).isEmpty();
+    }
+
+    @Test
+    void disablingAnAccountPublishesTheStatusChange() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+
+        mvc.perform(patchAccount(id, "{\"enabled\": false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DISABLED"));
+
+        assertThat(events.stream(AccountStatusChanged.class)).singleElement().satisfies(event -> {
+            assertThat(event.accountId()).isEqualTo(id);
+            assertThat(event.from()).isEqualTo(AccountStatus.CONNECTED);
+            assertThat(event.to()).isEqualTo(AccountStatus.DISABLED);
+        });
+    }
+
+    @Test
+    void enablingAnAccountThatIsNotDisabledChangesNothing() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+
+        mvc.perform(patchAccount(id, "{\"enabled\": true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONNECTED"))
+                .andExpect(jsonPath("$.updatedAt").value("2026-10-05T03:15:00Z"));
+
+        assertThat(events.stream(AccountStatusChanged.class)).isEmpty();
+    }
+
+    @Test
+    void anAccountOfAnotherUserCannotBeUpdated() throws Exception {
+        UUID foreign = connect(otherUser, FAKE, "other@fake.test", "2026-10-05T03:15:00Z");
+
+        mvc.perform(patchAccount(foreign, "{\"displayName\": \"Mine now\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
+
+        assertThat(displayNameInDatabase(foreign)).isEqualTo("Fake account");
+    }
+
+    // A real race cannot be timed through HTTP. Here another transaction "commits" between our read and our write;
+    // F01 already maps OptimisticLockingFailureException to 409 CONCURRENT_MODIFICATION.
+    @Test
+    void aChangeBasedOnAnOutdatedVersionIsRefused() {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+
+        assertThatThrownBy(() -> transactions.executeWithoutResult(status -> {
+            management.update(owner, id, new UpdateAccountCommand("Too late", null, null));
+            jdbc.update("update connected_account set version = version + 1 where id = ?", id);
+        })).isInstanceOf(OptimisticLockingFailureException.class);
+
+        assertThat(displayNameInDatabase(id)).isEqualTo("Fake account");
+    }
+
+    private RequestBuilder patchAccount(UUID id, String json) {
+        return patch("/api/accounts/{id}", id).with(apiUser()).contentType(APPLICATION_JSON).content(json);
+    }
+
+    private String displayNameInDatabase(UUID id) {
+        return jdbc.queryForObject("select display_name from connected_account where id = ?", String.class, id);
     }
 
     /** Saves an account directly, then pins its timestamps so the expected order and JSON are known. */
