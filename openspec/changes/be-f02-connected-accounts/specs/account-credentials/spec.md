@@ -8,7 +8,7 @@ Credential MUST nằm trong bảng `account_credential` (quan hệ 1–1 với `
 - **THEN** không có cột token/secret nào; mọi giá trị token chỉ nằm trong `account_credential`
 
 ### Requirement: Mã hóa at rest
-Access token, refresh token (nếu có) và mọi secret của credential MUST được mã hóa ở tầng ứng dụng trước khi ghi xuống database theo thuật toán chốt ở Decision D-11 (đề xuất: AES-256-GCM, IV ngẫu nhiên cho mỗi giá trị). Database MUST NOT bao giờ nhận plaintext.
+Access token, refresh token (nếu có) và mọi secret của credential MUST được mã hóa ở tầng ứng dụng trước khi ghi xuống database theo Decision D-11 = A: AES-256-GCM, IV ngẫu nhiên 12 byte cho mỗi giá trị, tag 128 bit, associated data gắn với account và tên cột. Database MUST NOT bao giờ nhận plaintext.
 
 #### Scenario: Lưu rồi đọc lại
 - **WHEN** một credential được lưu rồi đọc lại qua credential store

@@ -31,7 +31,7 @@ Use case đăng ký kết nối (dùng bởi luồng connect của F04) MUST nh�
 - **THEN** transaction rollback: không account, không credential, không event nào được lưu
 
 ### Requirement: Vòng đời trạng thái
-`status` MUST thuộc tập trạng thái chốt ở Decision D-12 (đề xuất: `CONNECTED`, `DEGRADED`, `AUTH_EXPIRED`, `DISABLED`, `ERROR`) và chỉ đổi qua các chuyển trạng thái được định nghĩa trong design. Account `DISABLED` MUST NOT bị chuyển trạng thái bởi sự kiện hệ thống (lỗi sync, hết hạn auth); chỉ hành động của người dùng (enable, reconnect) đưa nó ra khỏi `DISABLED`.
+`status` MUST thuộc tập trạng thái của Decision D-12 = A: `CONNECTED`, `DEGRADED`, `AUTH_EXPIRED`, `DISABLED`, `ERROR` và chỉ đổi qua các chuyển trạng thái được định nghĩa trong design. Account `DISABLED` MUST NOT bị chuyển trạng thái bởi sự kiện hệ thống (lỗi sync, hết hạn auth); chỉ hành động của người dùng (enable, reconnect) đưa nó ra khỏi `DISABLED`.
 
 #### Scenario: Người dùng tắt account
 - **WHEN** người dùng tắt một account đang `CONNECTED`

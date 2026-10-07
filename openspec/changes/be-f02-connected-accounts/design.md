@@ -270,8 +270,8 @@ Chưa có listener; F02 kiểm tra việc publish bằng test module của Sprin
 
 | code | HTTP | Nguồn |
 |---|---|---|
-| `ACCOUNT_NOT_FOUND` | 404 | Account không tồn tại hoặc thuộc người khác |
-| `INVALID_ACCOUNT_STATE` | 409 | Chuyển trạng thái không hợp lệ (nội bộ; F02 chưa có REST nào gây ra) |
+| `ACCOUNT_NOT_FOUND` | 404 | Account không tồn tại, thuộc người khác, hoặc đã bị xóa (D-13 B) — cùng một body, detail "Account not found." (`AccountErrorCode`) |
+| ~~`INVALID_ACCOUNT_STATE`~~ | ~~409~~ | **Chưa tạo.** **LÝ DO (BE-10):** bảng chuyển trạng thái không có ô nào là lỗi — ô không hợp lệ là no-op, nên F02 không có chỗ dùng. Thêm khi một feature thật sự cần báo lỗi này. |
 
 Lỗi giải mã credential là lỗi phía server → `INTERNAL_ERROR` (500), log rõ `accountId` và `encryption_key_id`, không log ciphertext.
 
@@ -306,13 +306,15 @@ V2–V4 là migration tiến (forward-only). Ở local có thể reset bằng `d
 
 ## Definition of Done — F02
 
-- [ ] Migration V2–V4 áp sạch trên DB trống; Hibernate validate xanh.
-- [ ] Unit test phủ đủ bảng chuyển trạng thái và toàn bộ trường hợp của cipher.
-- [ ] Module test cho `register` (mới, reconnect, provider không hỗ trợ, rollback) và event.
-- [ ] Web test cho 4 endpoint, gồm cô lập owner (404) và không có trường credential trong JSON.
-- [ ] Kiểm tra thủ công bằng psql: cột `access_token_enc` không chứa plaintext.
-- [ ] App không start khi thiếu khóa mã hóa hoặc thiếu email owner.
-- [ ] `ModularityTests` xanh: không module nào khác truy cập được credential store.
-- [ ] `./mvnw verify` xanh; error catalog cập nhật.
-- [ ] ~~Learning gate: Human tự giải thích…~~ → Phần F02 trong `docs/knowledge/phase-0-backend-foundation.md` (agent viết: AES-GCM + IV + AAD chống gì, xoay khóa, vì sao gọi provider ngoài transaction, bảng chuyển trạng thái) và bản `.docx` sinh lại. **LÝ DO:** người dùng đổi cách làm việc 2026-10-03 (agent làm và giải thích).
-- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có ghi lý do; 02B được cập nhật nếu D-12/D-14 được chấp nhận; `PROJECT_STATE.md` cập nhật.
+Nghiệm thu 2026-10-07 (BE-18); bằng chứng chi tiết ở từng task trong `tasks.md`.
+
+- [x] ~~Migration V2–V4~~ Migration V2–V5 áp sạch trên DB trống; Hibernate validate xanh. — Mỗi Spring context của test dùng một PostgreSQL 18 trống (Testcontainers); lần verify cuối Flyway áp tới V5 ở cả 8 context, `ddl-auto: validate` không báo lỗi. (V5 thêm ở BE-17 theo D-13 = B.)
+- [x] Unit test phủ đủ bảng chuyển trạng thái và toàn bộ trường hợp của cipher. — `ConnectedAccountTests` (35 ô của bảng + xóa/dùng lại), `CredentialCipherTests` 28.
+- [x] Module test cho `register` (mới, reconnect, provider không hỗ trợ, rollback) và event. — `AccountRegistrationServiceTests` (`@ApplicationModuleTest`), payload ở `AccountEventsTests`.
+- [x] Web test cho 4 endpoint, gồm cô lập owner (404) và không có trường credential trong JSON. — `AccountsApiTests` 19 test chạy cả ứng dụng thay vì web slice (lý do ở BE-15).
+- [x] ~~Kiểm tra thủ công bằng psql~~ → kiểm tra bằng psql thật **trong test** end-to-end: `AccountLifecycleEndToEndTests` chạy `psql` trong container PostgreSQL và đọc `credential_type|encryption_key_id|access_token_enc|refresh_token_enc`; kết quả `OAUTH2|k1|5AJcgYSQ…|FMZbIgmE…` (chỉ ciphertext base64), không chứa token mẫu. **LÝ DO:** chưa có đường tạo account trên DB local ngoài test (luồng connect là F04), và một kiểm tra chạy lại được ở mỗi build đáng tin hơn một lần làm tay. Ghi token dạng chữ (thử nghiệm) → test đỏ đúng ở bước psql.
+- [x] App không start khi thiếu khóa mã hóa hoặc thiếu email owner. — `CredentialKeyConfigurationTests` 4, `OwnerPropertiesTests` 5.
+- [x] `ModularityTests` xanh: không module nào khác truy cập được credential store. — Xanh; thêm tạm module `dev.sino.probe` tham chiếu `CredentialStore` → đỏ với `Module 'probe' depends on non-exposed type dev.sino.account.infrastructure.CredentialStore within module 'account'`, rồi gỡ.
+- [x] `./mvnw verify` xanh; error catalog cập nhật. — BUILD SUCCESS, 323 test (cộng theo lớp), 0 failure, 0 error, 2 skipped; catalog: `ACCOUNT_NOT_FOUND` (gồm account đã xóa), `INVALID_ACCOUNT_STATE` ghi rõ là chưa tạo.
+- [x] ~~Learning gate: Human tự giải thích…~~ → Phần F02 trong `docs/knowledge/phase-0-backend-foundation.md` (agent viết: AES-GCM + IV + AAD chống gì, xoay khóa, vì sao gọi provider ngoài transaction, bảng chuyển trạng thái) và bản `.docx` sinh lại. **LÝ DO:** người dùng đổi cách làm việc 2026-10-03 (agent làm và giải thích). — Mục 13–23, cộng mục "Năm câu hỏi của F02" trả lời gọn 5 câu của BE-18.
+- [x] `tasks.md` tick đủ, chỗ lệch kế hoạch có ghi lý do; `PROJECT_STATE.md` cập nhật. **Còn mở, việc của người dùng:** 02B trên Notion chưa cập nhật theo D-12 (5 trạng thái), D-13 (`removed_at`), D-14 (4 cột của `account_credential`) — agent không có quyền ghi Notion.
