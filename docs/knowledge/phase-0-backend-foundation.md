@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–23, đang làm: xong BE-09…BE-17).
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–24, xong BE-09…BE-18, nghiệm thu và archive 2026-10-07).
 > **Cập nhật:** 2026-10-07. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
@@ -431,7 +431,7 @@ account_credential  (BE-13)
 | BE-15 | API đọc: `GET /api/accounts`, `GET /api/accounts/{id}` | xong |
 | BE-16 | Sửa account (`PATCH`), event `AccountStatusChanged` | xong |
 | BE-17 | Xóa account (`DELETE`, xóa mềm theo D-13 = B), event `AccountRemoved` | xong |
-| BE-18 | Kiểm tra end-to-end, chống lộ secret, nghiệm thu F02 | chưa làm |
+| BE-18 | Kiểm tra end-to-end, chống lộ secret, nghiệm thu F02 | xong |
 
 Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A** (AES-256-GCM bằng thư viện có sẵn của JDK, khóa có ID), **D-12 = A** (5 trạng thái, không lưu `SYNCING`), **D-14** (thêm 4 cột cho bảng credential), quy tắc "luôn ghi cả credential". Lần đầu áp dụng D-08 (UUIDv7) và D-09 (enum lưu chữ + `CHECK`).
 
@@ -764,7 +764,49 @@ DELETE /api/accounts/{id}
 
 ---
 
-## 22. Kỹ thuật test mới trong F02
+## 22. Nghiệm thu F02: một test đi hết vòng đời (BE-18)
+
+### 22.1 Test end-to-end săn token bị lộ
+- **Ở đâu:** `src/test/java/dev/sino/account/AccountLifecycleEndToEndTests.java`.
+- **Là gì:** một test chạy cả ứng dụng (PostgreSQL thật), đưa **một** account đi hết vòng đời với token mẫu, rồi tìm token đó ở mọi nơi nó có thể lộ ra.
+
+```text
+register (use case, như F04 sẽ gọi)    token mẫu đi vào
+  -> psql trong container DB           cột *_enc chỉ có ciphertext
+  -> GET /api/accounts                 \
+  -> GET /api/accounts/{id}             |  5 response:
+  -> PATCH (đổi tên + tắt)              |  không có token, không có scope
+  -> DELETE                             |
+  -> GET /api/accounts/{id} -> 404     /
+  -> credential: 0 dòng, account: còn, có removed_at
+  -> toàn bộ log của test: không có token
+```
+
+- **Bật log DEBUG trong test:** `@SpringBootTest(properties = {"logging.level.dev.sino=DEBUG", ...})` cho `dev.sino`, `org.springframework.web`, `org.hibernate.SQL`. Log càng nhiều thì càng nhiều chỗ có thể lộ: ở mức này Spring in cả nội dung response (`Writing [AccountResponse[...]]`), còn Hibernate in mọi câu SQL. `OutputCaptureExtension` cùng tham số `CapturedOutput` gom mọi thứ in ra console để test kiểm tra.
+- **Kiểm tra rằng log thật sự chạy:** nếu log bị tắt thì câu "log không có token" sẽ xanh mà không chứng minh được gì. Vì vậy test còn kiểm tra log **có** chứa `Mapped to ...AccountsController`, `Writing [AccountResponse[` và `insert into account_credential`.
+- **Bẫy gặp phải:** lần chạy đầu test đỏ vì tìm dòng `GET "/api/accounts"`. MockMvc dùng `TestDispatcherServlet`, mà logger của lớp này thuộc package `org.springframework.test`, không phải `org.springframework.web`, nên dòng đó không được in ra. Cách sửa là dựa vào các dòng log thật sự có trong output.
+
+### 22.2 psql thật, chạy trong container
+- `postgres.execInContainer("psql", "-U", ..., "-c", "select ...")` chạy chương trình `psql` **bên trong** container PostgreSQL của Testcontainers. Bean `PostgreSQLContainer` (từ `TestcontainersConfiguration`) inject được vào test như mọi bean khác.
+- Kết quả đọc được: `OAUTH2|k1|5AJcgYSQ...|FMZbIgmE...`, tức là loại credential, ID khóa, rồi hai chuỗi base64 đã mã hóa; không có token gốc.
+- Cách này thay cho "kiểm tra tay bằng psql" của kế hoạch, vì nó chạy lại được ở mọi lần build.
+
+### 22.3 Test viết sau code: phải chứng minh nó có thể đỏ
+- Test end-to-end xanh ngay từ lần đầu, vì code đã có từ trước. Một test chưa từng đỏ thì chưa chứng minh được gì, nên tôi tự làm hỏng code để xem:
+  - Service ghi command ra log DEBUG, `toString()` vẫn che token → **xanh** (việc che token có tác dụng).
+  - Như trên nhưng bỏ phần che → **đỏ**: refresh token xuất hiện trong log.
+  - Store ghi access token dạng chữ xuống DB → **đỏ** ở bước psql.
+- Ranh giới module: thêm tạm một module `dev.sino.probe` có field kiểu `CredentialStore` → `ModularityTests` đỏ với `Module 'probe' depends on non-exposed type dev.sino.account.infrastructure.CredentialStore within module 'account'`, rồi gỡ. Đây là bằng chứng cho câu "không module nào khác truy cập được credential store".
+
+### 22.4 Definition of Done và archive
+- Mỗi mục trong checklist DoD của design F02 được tick **kèm bằng chứng** (tên test, số test, kết quả kiểm tra ngược), không tick chỉ vì code đã viết xong.
+- Trước khi archive, spec được làm sạch: bỏ chữ "đề xuất" ở các quyết định đã chốt, vì spec sau archive mô tả hệ thống **đang chạy**.
+- `openspec archive be-f02-connected-accounts -y` gộp delta spec vào `openspec/specs/` (ba spec mới: `account-owner`, `account-credentials`, `connected-accounts`) và chuyển change vào `openspec/changes/archive/`.
+- Còn mở, là việc của người dùng: bảng 02B trên Notion chưa cập nhật theo D-12, D-13, D-14.
+
+---
+
+## 23. Kỹ thuật test mới trong F02
 
 - **`@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)`:** slice chỉ nạp JPA và Flyway, chạy trên PostgreSQL thật (Testcontainers) để `CHECK`, `UNIQUE`, khóa ngoại hoạt động như production. Mỗi test tự rollback.
 - **`entityManager.clear()`:** xóa bộ nhớ đệm của Hibernate để lần đọc sau thật sự đi xuống DB. Không có nó, test chỉ đọc lại object trong bộ nhớ.
@@ -796,7 +838,7 @@ DELETE /api/accounts/{id}
 
 ---
 
-## 23. Tự kiểm tra F02 (phần đã làm)
+## 24. Tự kiểm tra F02
 
 1. Vì sao người dùng Sino và tài khoản Gmail nằm ở hai module khác nhau?
 2. `ApplicationRunner` chạy trước hay sau Flyway? Vì sao điều đó quan trọng với việc tạo owner?
@@ -826,5 +868,44 @@ DELETE /api/accounts/{id}
 26. Account chỉ bị xóa mềm, vậy vì sao credential lại bị xóa hẳn?
 27. Vì sao không dùng `@SQLRestriction` để tự lọc account đã xóa?
 28. Xóa một account rồi kết nối lại đúng tài khoản Gmail đó thì ID, sync và credential ra sao?
+29. Vì sao test end-to-end bật log DEBUG, và vì sao nó còn phải kiểm tra rằng log **có** chạy?
+30. Test viết sau code thì làm sao biết nó có thể đỏ?
 
-*(Phần BE-18 — kiểm tra end-to-end và nghiệm thu F02 — sẽ được bổ sung khi làm.)*
+### Năm câu hỏi chốt của F02 (có đáp án ngắn)
+
+Đây là năm câu BE-18 yêu cầu trả lời. Hãy tự trả lời trước, rồi mới đọc đáp án.
+
+**1. AES-GCM, IV và AAD chống lại những gì?** (mục 17.2)
+- Khóa nằm ngoài DB, nên một bản backup DB bị lộ vẫn không đọc được token.
+- Con dấu (tag) của GCM: sửa dù một byte của ciphertext thì giải mã báo lỗi, không bao giờ trả dữ liệu sai.
+- IV ngẫu nhiên mới cho mỗi lần: cùng một token mã hóa hai lần ra hai kết quả khác nhau, nên người đọc DB không biết hai dòng có cùng token. Lặp IV với cùng khóa sẽ làm lộ dữ liệu và cho phép giả con dấu.
+- AAD (`account_credential:v1:<accountId>:<cột>`): chép ciphertext sang account khác hay sang cột khác thì giải mã thất bại.
+
+**2. Đổi khóa khi đã có dữ liệu thì làm những bước nào?** (mục 17.3, 17.6, README)
+1. Tạo khóa mới: `openssl rand -base64 32`.
+2. Thêm ô `k2` trong `application.yaml` và biến `SINO_CREDENTIAL_KEY_K2`; đặt `SINO_CREDENTIAL_ACTIVE_KEY_ID=k2`; khởi động lại.
+3. Dữ liệu cũ vẫn đọc được bằng `k1`; mỗi credential chuyển sang `k2` ở lần được ghi lại, vì store luôn ghi cả credential.
+4. Khi `select count(*) from account_credential where encryption_key_id = 'k1'` trả 0 thì gỡ `k1`.
+
+**3. Vì sao luồng kết nối gọi provider trước rồi mới mở transaction?** (mục 18.1)
+- Gọi mạng có thể chậm hoặc treo; giữ transaction mở trong lúc đó là giữ kết nối DB và khóa dòng.
+- Provider báo lỗi thì chưa có gì được ghi, nên không cần rollback.
+- Transaction chỉ bọc phần ghi: account, credential, event.
+
+**4. Bảng chuyển trạng thái** (mục 16; "-" là không đổi gì)
+
+```text
+từ \ sự kiện  reconnect  disable   enable    authExp   degraded  error  healthy
+CONNECTED     CONNECTED  DISABLED  -         AUTH_EXP  DEGRADED  ERROR  -
+DEGRADED      CONNECTED  DISABLED  -         AUTH_EXP  -         ERROR  CONNECTED
+AUTH_EXPIRED  CONNECTED  DISABLED  -         -         -         -      -
+ERROR         CONNECTED  DISABLED  -         AUTH_EXP  DEGRADED  -      CONNECTED
+DISABLED      CONNECTED  -         CONNECTED -         -         -      -
+```
+
+- Hai luật dễ nhớ: chỉ người dùng (enable, reconnect) mới đưa account ra khỏi `DISABLED`; chỉ reconnect (credential mới) mới gỡ `AUTH_EXPIRED`.
+
+**5. Xóa rồi kết nối lại thì dữ liệu nào còn, dữ liệu nào mất?** (mục 21)
+- **Mất ngay khi xóa:** credential (token) bị xóa hẳn.
+- **Còn:** dòng `connected_account` (cùng ID, ngày tạo), đánh dấu `removed_at`; tin nhắn sau này (F05 quyết định giữ hay bỏ).
+- **Khi kết nối lại:** cùng ID quay lại, `removed_at` bị xóa, trạng thái `CONNECTED`, sync bật lại, tên và ảnh lấy mới từ provider (tên người dùng tự đặt trước đó bị thay), credential mới. Event: `AccountRemoved` lúc xóa; lúc kết nối lại có `AccountConnected(reconnected = true)`, cộng `AccountStatusChanged` nếu trạng thái cũ không phải `CONNECTED`.
