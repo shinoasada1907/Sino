@@ -165,6 +165,8 @@ Custom property của Sino dùng prefix `sino.*`, bind bằng `@ConfigurationPro
 | C. Login thật ngay (form login + session, hoặc OAuth2 login Google) | | Sẵn cho frontend | Lệch 04A, tốn thời gian ở giai đoạn chưa có FE |
 
 Ghi chú cho A: CSRF protection tắt cho `/api/**` là chấp nhận được **chỉ vì** API stateless và chỉ nhận `application/json` (form HTML không gửi được JSON cross-site mà không qua CORS preflight). Khi bắt đầu tích hợp frontend (F02-FE) phải xem lại quyết định này.
+
+Giới hạn đã biết của A với trình duyệt: SPA phải giữ mật khẩu trong JavaScript để gửi header `Authorization`, và `EventSource` (SSE, F08) **không gửi được header tùy chỉnh**. Vì vậy A chỉ là giải pháp cho giai đoạn backend-only (F01–F03). Cơ chế xác thực cho trình duyệt (ví dụ session cookie + CSRF token, hoặc OAuth2 login) là quyết định **D-22**, phải chốt khi bắt đầu Phase 1 (frontend nền) — xem `openspec/roadmap.md`.
 *Câu hỏi cho bạn:* vì sao "stateless + chỉ nhận JSON" lại làm giảm rủi ro CSRF, và điều gì sẽ phá vỡ lập luận đó?
 
 **D-05 — Cách chạy DB local** · *Proposed default*: Docker Compose chạy tay (`docker compose up -d`) cho DB bền vững; giữ `TestSinoApiApplication` (`./mvnw spring-boot:test-run`) cho lần chạy nhanh với DB tạm. Không thêm `spring-boot-docker-compose` (ít "magic", không thêm dependency). File `compose.yaml` đặt trong `apps/sino-api` vì chỉ backend dùng.
@@ -359,6 +361,7 @@ Decision register F01–F03. Mục "Cần trước" cho biết task nào bị ch
 | D-19 | Capability tĩnh theo provider | Proposed default | F03 design | BE-19 |
 | D-20 | Vị trí enum chuẩn hóa | Proposed default | F03 design | BE-20 |
 | D-21 | Cách domain báo lỗi (ErrorCode + category) | Proposed default | F01 §8 | BE-05 |
+| D-22 | Xác thực cho trình duyệt (thay HTTP Basic) | Decision Needed | `openspec/roadmap.md` | Phase 1 (FE nền), trước F08 |
 
 ## Definition of Done — F01
 
