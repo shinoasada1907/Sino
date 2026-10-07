@@ -84,8 +84,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 - The user's IntelliJ terminal ran Maven on Java 26.0.1 (baseline and `JAVA_HOME` in PowerShell: Temurin 25.0.3). Check with `.\mvnw.cmd -v` and align.
 - Windows (region Vietnam) gives the JVM the legacy zone id `Asia/Saigon`, which PostgreSQL 18 (Debian 13) rejects. Mitigated by D-23 (JVM runs in UTC); any new launch path (Dockerfile, CI, IDE config) must keep UTC.
-- Spring Security is on the classpath with no configuration → every endpoint is protected by a generated password.
-- `spring-modulith-starter-jpa` requires an event publication table; no Flyway migration exists yet.
+- The local `apps/sino-api/.env` (checked by variable names only, 2026-10-07) lacks `SINO_OWNER_PASSWORD`, `SINO_REMEMBER_ME_KEY`, `SINO_CREDENTIAL_ACTIVE_KEY_ID` and `SINO_CREDENTIAL_KEY_K1`, so profile `local` stops at startup unless they come from elsewhere (IDE run config, OS environment). It still has `SINO_API_USERNAME`/`SINO_API_PASSWORD`, unused since BE-28. The user sets the values (names in `.env.example`, how to generate them in the README); needed before FE-05. Not verified by starting the app.
 
 ## Verification evidence
 
