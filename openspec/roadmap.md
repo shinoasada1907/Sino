@@ -82,7 +82,7 @@ Cần chốt: **D-03** trước BE-03, **D-02** trước BE-04.
 
 Cần chốt: **D-01** (đề xuất làm F03 trước F02), **D-16**, **D-18**.
 
-#### F02 — Connected Accounts · `openspec/changes/be-f02-connected-accounts` · ~L
+#### F02 — Connected Accounts · ✅ DONE 2026-10-07 · `openspec/changes/archive/2026-10-07-be-f02-connected-accounts` · ~L
 
 | Bước code | Task | Bạn sẽ học |
 |---|---|---|
@@ -93,7 +93,7 @@ Cần chốt: **D-01** (đề xuất làm F03 trước F02), **D-16**, **D-18**.
 | REST | BE-15 GET · BE-16 PATCH · BE-17 DELETE | thiết kế REST, ngữ nghĩa PATCH, 404 vs 403, xử lý xung đột |
 | Đóng | BE-18 E2E + chống lộ secret | |
 
-Cần chốt: **D-10**, **D-11**, **D-12**, **D-13**, **D-14**.
+~~Cần chốt: **D-10**, **D-11**, **D-12**, **D-13**, **D-14**.~~ Đã chốt: D-10 = A, D-11 = A, D-12 = A, D-13 = B (xóa mềm), D-14 = thêm cột.
 
 **Kết thúc Phase 0:** PR `feature/be-f01-f03-plan` + các nhánh BE vào `main`, archive 3 change, cập nhật Notion 04C/04D.
 
@@ -258,5 +258,6 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 ## 5. Vị trí hiện tại
 
-- **Phase 0:** F01 xong (2026-10-01, nhánh `dev`, CI xanh). Tiếp theo F03 hoặc F02, tùy **D-01**.
+- **Phase 0:** code xong: F01 (2026-10-01), F03 (2026-10-03), F02 (2026-10-07), cả ba đã archive, trên nhánh `dev`. Để đóng phase còn: đưa `dev` vào `main` (người dùng quyết định, hỏi trước khi merge/push/PR) và cập nhật Notion (02B theo D-12/D-13/D-14, 04C/04D).
+- **Tiếp theo:** Phase 1 (frontend), mở bằng quyết định **D-22** (xác thực cho trình duyệt).
 - `PROJECT_STATE.md` là nơi ghi trạng thái thật; file này chỉ là bản đồ và được cập nhật khi xong mỗi phase.
