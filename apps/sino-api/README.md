@@ -54,6 +54,8 @@ migration that was already applied: add a new `V{n}__{module}_{description}.sql`
 | `/actuator/info` | public | |
 | `/api/**` | HTTP Basic (`curl -u "$SINO_API_USERNAME:$SINO_API_PASSWORD" ...`) | Business endpoints below. |
 | `GET /api/providers` | HTTP Basic | Supported providers with `type`, `displayName` and `capabilities`, sorted by `type`. `[]` until a connector exists (F04). |
+| `GET /api/accounts` | HTTP Basic | Connected accounts of the current user, oldest first, with the `capabilities` of their provider (`[]` when its connector is gone). No credential field. Empty until the connect flow exists (F04). |
+| `GET /api/accounts/{id}` | HTTP Basic | One account. `404` `ACCOUNT_NOT_FOUND` when it does not exist or belongs to another user (same response), `400` `MALFORMED_REQUEST` when the ID is not a UUID. |
 | any other path | denied | Other actuator endpoints need the API user and are not exposed (404). The `local` profile also exposes `/actuator/modulith`. |
 
 Every error is an RFC 9457 problem response (`application/problem+json`) with a stable `code`, for example:

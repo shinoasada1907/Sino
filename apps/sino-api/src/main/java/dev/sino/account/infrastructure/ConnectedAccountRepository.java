@@ -14,6 +14,9 @@ public interface ConnectedAccountRepository extends JpaRepository<ConnectedAccou
     /** The accounts of one user, oldest first. */
     List<ConnectedAccount> findByOwnerIdOrderByCreatedAtAscIdAsc(UUID ownerId);
 
+    /** The account with this ID, only when it belongs to this user. */
+    Optional<ConnectedAccount> findByIdAndOwnerId(UUID id, UUID ownerId);
+
     /** The account behind the unique key {@code (user_id, provider, external_account_id)}. */
     Optional<ConnectedAccount> findByOwnerIdAndProviderAndExternalAccountId(UUID ownerId, ProviderType provider,
             String externalAccountId);
