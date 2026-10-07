@@ -13,6 +13,11 @@ sino:
   owner:
     email: owner@sino.test
     display-name: Test Owner
+    # Fake, not a secret.
+    password: test-owner-password
+  auth:
+    # Fake, not a secret.
+    remember-me-key: test-remember-me-key-0123456789abcdef
   credentials:
     encryption:
       # Fake key (the bytes 0..31), not a secret.

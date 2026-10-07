@@ -28,6 +28,8 @@ docker compose ps       # wait until the status says (healthy)
 | `SINO_API_USERNAME`, `SINO_API_PASSWORD` | application | The single HTTP Basic user of the REST API (D-02). The app refuses to start without them. |
 | `SINO_CREDENTIAL_ACTIVE_KEY_ID`, `SINO_CREDENTIAL_KEY_K1` | application | AES-256-GCM key that encrypts provider tokens (D-11): base64 of 32 random bytes, `openssl rand -base64 32`. Back it up outside the repo; losing it means reconnecting every account. To rotate, add a `k2` slot in `application.yaml`, set it and make it active: old rows stay readable with `k1`, and each credential moves to `k2` the next time it is saved. Remove `k1` only when `select count(*) from account_credential where encryption_key_id = 'k1'` returns 0. The app refuses to start without a valid active key. |
 | `SINO_OWNER_EMAIL`, `SINO_OWNER_DISPLAY_NAME` | application | The single Sino user (`app_user`) of the MVP, created or updated at startup with the email as key (D-10). Changing the email creates a new owner. The app refuses to start without them. |
+| `SINO_OWNER_PASSWORD` | application | The password the owner signs in with in the browser (D-22, D-33), at least 12 characters. Only a BCrypt hash is kept after startup. To change it, change the variable and restart. The app refuses to start without it. |
+| `SINO_REMEMBER_ME_KEY` | application | Signs the "keep me signed in" cookie (D-34), at least 32 characters: `openssl rand -base64 32`. Changing it signs every browser out. The app refuses to start without it. |
 | `SINO_DB_URL`, `SINO_DB_USERNAME`, `SINO_DB_PASSWORD` | application, default profile | Database outside the `local` profile. They have no defaults on purpose. |
 
 ## Run
@@ -100,6 +102,7 @@ Decided in D-03 (`openspec/specs/module-boundaries/spec.md`).
 | `failed to connect to the docker API` | Docker Desktop is not running. |
 | App stops with `sino.security.api-user` validation errors | `SINO_API_USERNAME` / `SINO_API_PASSWORD` are missing from `.env` or the environment. |
 | App stops with `The active credential key ... is not configured` or `sino.credentials.encryption.keys.k1 must decode to 32 bytes` | `SINO_CREDENTIAL_KEY_K1` is missing or is not base64 of 32 bytes. Generate one with `openssl rand -base64 32`. |
+| App stops with `sino.owner.password (SINO_OWNER_PASSWORD) must be set and at least 12 characters long` or the same for `sino.auth.remember-me-key` | Add `SINO_OWNER_PASSWORD` and `SINO_REMEMBER_ME_KEY` to `.env` (see `.env.example`). The message never shows the value. |
 | App stops with `sino.owner` validation errors | `SINO_OWNER_EMAIL` / `SINO_OWNER_DISPLAY_NAME` are missing or the email is not valid. Copy them from `.env.example`. |
 | App stops at bean `dataSource` with `'url' must start with "jdbc"` | No profile and no `SINO_DB_*` variables. Use `-Dspring-boot.run.profiles=local` on a dev machine. |
 | Port 5432 already in use | Another PostgreSQL runs locally. Stop it or change the published port in `compose.yaml` and the URL in `application-local.yaml`. |

@@ -43,6 +43,12 @@ sino:
     # D-10: the single Sino user of the MVP, upserted by email at startup. Required, like the API user.
     email: ${SINO_OWNER_EMAIL:}
     display-name: ${SINO_OWNER_DISPLAY_NAME:}
+    # D-33: the login password of the owner, at least 12 characters. Only a BCrypt hash is kept after startup.
+    password: ${SINO_OWNER_PASSWORD:}
+  auth:
+    # D-34: signs the remember-me cookie, at least 32 characters (openssl rand -base64 32). Changing it signs
+    # everybody out of "keep me signed in".
+    remember-me-key: ${SINO_REMEMBER_ME_KEY:}
   credentials:
     encryption:
       # D-11: AES-256-GCM keys, base64 of 32 random bytes (openssl rand -base64 32). Values only come from the

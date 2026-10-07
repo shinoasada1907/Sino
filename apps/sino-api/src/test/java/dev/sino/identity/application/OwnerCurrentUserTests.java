@@ -26,7 +26,7 @@ class OwnerCurrentUserTests {
 
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final OwnerCurrentUser currentUser = new OwnerCurrentUser(users,
-            new OwnerProperties("owner@sino.test", "Owner"));
+            new OwnerProperties("owner@sino.test", "Owner", null));
 
     @AfterEach
     void clearSecurityContext() {
