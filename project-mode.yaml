@@ -1,5 +1,20 @@
-# Operating mode for the Sino project (selected by the user on 2026-09-30).
+# Operating mode for the Sino project.
+# 2026-09-30: TRAINING (initial choice). 2026-10-01: switched to HYBRID at the user's request.
 # Operating modes: AUTO | TRAINING | HYBRID
-mode: TRAINING
-# Only used when mode is HYBRID.
-areas: {}
+mode: HYBRID
+# Areas not listed below follow `default`.
+default: AUTO
+areas:
+  backend: AUTO           # Claude implements one small task at a time, verifies, reports, then waits
+  frontend: AUTO
+  config-devops: AUTO     # yaml, compose, env files, pom configuration, CI
+  docs: AUTO              # OpenSpec tasks/spec upkeep, PROJECT_STATE
+  architecture: TRAINING  # "Decision Needed" items: Claude proposes options + recommendation, the user decides
+# Task-level override: when the user says they will code a task themselves ("để tôi làm BE-xx"),
+# that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
+task_overrides: {}
+  # 2026-10-03: BE-11 started in TRAINING ("tôi muốn code tay BE-11"); the user typed the entity mapping and V3, then
+  # handed it back ("thôi bạn auto luôn đi") to relearn Java and Spring first. BE-11 finished in AUTO.
+  # 2026-10-01: F03 (BE-19..BE-26) started in TRAINING (the user coded BE-19 to learn Java), then the user
+  # switched it to AUTO the same day ("chuyển qua auto đi"). BE-22 ran in TRAINING ("step này tôi sẽ tự làm")
+  # and is done; F03 follows `backend: AUTO` again.

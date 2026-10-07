@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Chi tiết hội thoại</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Sidebar" theme="{{theme}}" active="inbox" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
+<div class="convo">
+
+<section class="chat" aria-label="Cuộc trò chuyện Gia đình">
+<header class="thread-head">
+<div style="display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+<a class="btn btn-ghost btn-sm" href="Inbox.dc.html" style="align-self: flex-start; margin-left: -12px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Hộp thư</a>
+<div style="display: flex; align-items: center; gap: 14px;">
+<span class="av-stack" aria-hidden="true"><span class="avatar av-a"></span><span class="avatar av-c"></span><span class="avatar av-d"></span></span>
+<div class="who-text"><h1 class="t-large">Gia đình</h1><span class="t-small c-muted">Zalo · nhóm 6 người · qua +84 9•• ••• 218</span></div>
+</div>
+</div>
+<div class="thread-tools">
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Tìm trong cuộc trò chuyện"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đánh dấu chưa đọc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9"></path><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path><circle cx="19" cy="18" r="3"></circle></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Lưu trữ"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg></button>
+<span class="vsep" aria-hidden="true"></span>
+<button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>Mở trong Zalo</button>
+</div>
+</header>
+
+<div class="chat-body">
+<span class="day-sep">HÔM QUA</span>
+<div class="bubble-row"><span class="avatar av-d avatar-sm" aria-hidden="true"></span><div class="bubble-col"><span class="bubble-name">Bố</span><div class="bubble">Tuần sau ông bà lên chơi, mấy đứa sắp xếp về nhé.</div><span class="bubble-meta">20:15</span></div></div>
+<div class="bubble-row out"><div class="bubble-col"><div class="bubble">Dạ, con về tối thứ Bảy ạ.</div><span class="bubble-meta">20:31 · Đã xem</span></div></div>
+<span class="day-sep">HÔM NAY</span>
+<span class="sys-msg">Mẹ đã thêm Hà vào nhóm</span>
+<div class="unread-sep"><span>3 tin chưa đọc</span></div>
+<div class="bubble-row"><span class="avatar av-a avatar-sm" aria-hidden="true"></span><div class="bubble-col"><span class="bubble-name">Mẹ</span><div class="bubble">Cuối tuần này cả nhà về ăn cơm nhé, nhớ mua bánh cho bà.</div><div class="photo"><span class="spec c-text">Ảnh · thực đơn cuối tuần · 1,2 MB</span></div><span class="bubble-meta">08:15</span><a class="lchip" href="Tasks.dc.html" style="height: 28px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><span class="ellipsis">Task: Mua bánh bông lan trứng muối cho bà</span></a></div></div>
+<div class="bubble-row"><span class="avatar av-c avatar-sm" aria-hidden="true"></span><div class="bubble-col"><span class="bubble-name">Hà</span><div class="bubble">Con mua bánh bông lan trứng muối được không mẹ?</div><span class="bubble-meta">08:20</span></div></div>
+<div class="bubble-row out"><div class="bubble-col"><div class="bubble">Để con mang thêm trái cây nữa nhé.</div><span class="bubble-meta"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>08:24 · Đang gửi</span></div></div>
+</div>
+
+<div class="composer">
+<div class="composer-box">
+<label class="sr" for="chat-box">Nhắn tin tới Gia đình</label>
+<textarea id="chat-box" rows="1" placeholder="Nhắn tin tới Gia đình…"></textarea>
+<div class="composer-bar">
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đính kèm tệp hoặc ảnh"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+<span class="spec">Gửi qua Zalo · +84 9•• ••• 218</span>
+<span class="kbd" style="margin-left: auto;">Enter</span>
+<button class="btn btn-primary btn-sm" type="button">Gửi<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></button>
+</div>
+</div>
+</div>
+</section>
+
+<aside class="info" aria-label="Thông tin cuộc trò chuyện">
+<div class="info-sec">
+<div class="card-head"><span class="micro-label">Việc và ghi chú</span><span class="spec">3</span></div>
+<a class="td-row" href="Tasks.dc.html" style="grid-template-columns: 18px minmax(0, 1fr) auto; margin: 0 -12px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Mua bánh bông lan trứng muối cho bà</span><span class="spec ellipsis">TASK · T7 03/10 17:00 · NHẮC 18:00 HÔM NAY</span></div><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a>
+<a class="td-row" href="Calendar.dc.html" style="grid-template-columns: 18px minmax(0, 1fr) auto; margin: 0 -12px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Về nhà ăn cơm</span><span class="spec ellipsis">LỊCH HẸN · T7 03/10 18:30</span></div><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a>
+<a class="td-row" href="Notes.dc.html" style="grid-template-columns: 18px minmax(0, 1fr) auto; margin: 0 -12px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"></path><path d="M15 3v4a2 2 0 0 0 2 2h4"></path></svg><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Danh sách mua cho bà</span><span class="spec ellipsis">GHI CHÚ · ĐÃ GHIM</span></div><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a>
+<div class="gap-row"><button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Task</button><button class="btn btn-ghost btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Ghi chú</button><button class="btn btn-ghost btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Lịch hẹn</button></div>
+</div>
+<div class="info-sec">
+<div class="card-head"><span class="micro-label">Thành viên</span><span class="spec">6</span></div>
+<div class="member"><span class="avatar av-a avatar-sm"></span><span class="t-small ellipsis">Mẹ</span><span class="badge">Trưởng nhóm</span></div>
+<div class="member"><span class="avatar av-d avatar-sm"></span><span class="t-small ellipsis">Bố</span><span></span></div>
+<div class="member"><span class="avatar av-c avatar-sm"></span><span class="t-small ellipsis">Hà</span><span class="spec">mới</span></div>
+<div class="member"><span class="avatar av-b avatar-sm"></span><span class="t-small ellipsis">Minh</span><span></span></div>
+<div class="member"><span class="avatar av-d avatar-sm"></span><span class="t-small ellipsis">Bà ngoại</span><span></span></div>
+<button class="btn btn-ghost btn-sm" type="button" style="align-self: flex-start; margin-left: -12px;">Xem thêm 1 người</button>
+</div>
+<div class="info-sec">
+<div class="card-head"><span class="micro-label">Ảnh và tệp</span><span class="spec">14</span></div>
+<div class="thumbs" aria-label="6 ảnh gần nhất"><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span><span class="thumb"></span></div>
+<a class="attach" href="#tep-lich-trinh"><span class="file-ic">DOCX</span><span class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Lich-trinh-ve-que.docx</span><span class="spec">24 KB · 27/09</span></span></a>
+</div>
+<div class="info-sec">
+<span class="micro-label">Tài khoản dùng</span>
+<div class="acc-row"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="spec ellipsis">+84 9•• ••• 218</span></div><span class="status"><span class="dot dot-warn"></span>64%</span></div>
+</div>
+<div class="info-sec">
+<label class="toggle"><input type="checkbox"><span>Tắt thông báo nhóm này</span></label>
+<label class="toggle"><input type="checkbox" defaultChecked="{{yes}}"><span>Hiện trong Tổng quan</span></label>
+</div>
+</aside>
+
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, rootClass: `sino theme-${theme} app`, yes: true };
+  }
+}
+</script>
+</body>
+</html>

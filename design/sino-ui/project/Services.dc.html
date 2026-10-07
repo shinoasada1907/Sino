@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Dịch vụ</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Sidebar" theme="{{theme}}" active="services" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
+<div class="svc-layout">
+
+<div class="svc-list dotbg">
+<header class="page-head">
+<div class="page-title">
+<span class="t-mono c-muted">DỊCH VỤ · 3 ĐÃ KẾT NỐI · 4 CÓ THỂ KẾT NỐI</span>
+<h1 class="t-page">Dịch vụ</h1>
+<p class="t-body c-muted" style="max-width: 560px;">Các nhà cung cấp Sino làm việc cùng. Mỗi dịch vụ dùng một hoặc nhiều tài khoản của bạn.</p>
+</div>
+<div class="seg" role="group" aria-label="Lọc dịch vụ">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3"><button type="button" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}">{{t.label}}</button></sc-for>
+</div>
+</header>
+
+<div class="svc-group">
+<span class="micro-label">Đã kết nối · 3</span>
+<div class="svc-card">
+<span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+<div class="who-text"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="spec ellipsis">Thư điện tử · an.nguyen@gmail.com</span></div>
+<div class="who-text"><span class="status"><span class="dot dot-ok"></span>Ổn định</span><span class="spec">2 phút trước · 1.284 thư</span></div>
+<button class="btn btn-secondary btn-sm" type="button">Đồng bộ</button>
+</div>
+<div class="svc-card">
+<span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+<div class="who-text"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="spec ellipsis">Tin nhắn · +84 9•• ••• 218</span></div>
+<div class="who-text"><span class="status"><span class="dot dot-warn"></span>Chậm · thử lại 3 lần</span><span class="spec">vừa xong · 1.424 tin</span></div>
+<button class="btn btn-secondary btn-sm" type="button">Đồng bộ</button>
+</div>
+<div class="svc-card is-selected">
+<span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span>
+<div class="who-text"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="spec ellipsis">Tin nhắn Facebook · an.nguyen.92</span></div>
+<div class="who-text"><span class="status"><span class="dot dot-err"></span><span class="ink-err">Quyền đã hết hạn</span></span><span class="spec">dừng từ 21:04 hôm qua</span></div>
+<button class="btn btn-primary btn-sm" type="button">Kết nối lại</button>
+</div>
+</div>
+
+<div class="svc-group">
+<span class="micro-label">Có thể kết nối · 4</span>
+<div class="svc-avail">
+<div class="svc-tile">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg></span>
+<div class="who-text"><span class="t-small" style="font-weight: 600;">Google</span><span class="t-small c-muted">Tìm các website bạn đăng nhập bằng Google</span></div>
+<div class="gap-row" style="justify-content: space-between; width: 100%;"><span class="badge">Đăng ký</span><button class="btn btn-ghost btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối</button></div>
+</div>
+<div class="svc-tile">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></span>
+<div class="who-text"><span class="t-small" style="font-weight: 600;">Telegram</span><span class="t-small c-muted">Tin nhắn cá nhân và nhóm</span></div>
+<div class="gap-row" style="justify-content: space-between; width: 100%;"><span class="gap-row"><span class="badge">Đọc</span><span class="badge">Gửi</span></span><button class="btn btn-ghost btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối</button></div>
+</div>
+<div class="svc-tile">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+<div class="who-text"><span class="t-small" style="font-weight: 600;">Outlook</span><span class="t-small c-muted">Thư điện tử Microsoft</span></div>
+<div class="gap-row" style="justify-content: space-between; width: 100%;"><span class="badge">Sắp có</span></div>
+</div>
+<div class="svc-tile">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+<div class="who-text"><span class="t-small" style="font-weight: 600;">Facebook</span><span class="t-small c-muted">Tìm các website bạn đăng nhập bằng Facebook</span></div>
+<div class="gap-row" style="justify-content: space-between; width: 100%;"><span class="badge">Sắp có</span></div>
+</div>
+</div>
+</div>
+</div>
+
+<aside class="side-panel" aria-label="Chi tiết dịch vụ Messenger">
+<div class="card-head">
+<div style="display: flex; align-items: center; gap: 12px;"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="who-text"><h2 class="t-large">Messenger</h2><span class="t-small c-muted">Tin nhắn Facebook</span></div></div>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đóng chi tiết"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+</div>
+<div class="alert alert-err"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg><div class="alert-body"><span class="t-small" style="font-weight: 600;">Quyền truy cập đã hết hạn</span><span class="t-small c-muted">Từ 21:04 hôm qua, tin nhắn mới không về Sino. Tin đã lưu vẫn còn.</span></div></div>
+<button class="btn btn-primary" type="button">Kết nối lại Messenger</button>
+
+<div class="panel-sec">
+<span class="micro-label">Danh tính kết nối</span>
+<div class="acc-row"><span class="avatar av-b"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">An Nguyễn</span><span class="spec">an.nguyen.92</span></div><span class="spec">từ 12/09</span></div>
+</div>
+
+<div class="panel-sec">
+<span class="micro-label">Quyền</span>
+<div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span class="t-small">Đọc tin nhắn và nhóm chat</span></div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span class="t-small">Gửi tin nhắn thay bạn</span></div>
+<div class="scope is-off"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg><span class="t-small">Danh sách bạn bè · không xin</span></div>
+</div>
+</div>
+
+<div class="panel-sec">
+<span class="micro-label">Tùy chọn đồng bộ</span>
+<div class="field"><label class="field-label" for="svc-freq">Tần suất</label><div class="input-wrap select-wrap"><select class="input" id="svc-freq" defaultValue="5"><option value="5">Mỗi 5 phút</option><option value="15">Mỗi 15 phút</option><option value="60">Mỗi giờ</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+<label class="toggle"><input type="checkbox" defaultChecked="{{yes}}"><span>Đồng bộ cả nhóm chat</span></label>
+<label class="toggle"><input type="checkbox"><span>Tự tải ảnh về máy</span></label>
+</div>
+
+<div class="panel-sec">
+<div class="opt-row"><div class="who-text"><span class="t-small" style="font-weight: 600;">Đồng bộ thủ công</span><span class="t-small c-muted">Cần kết nối lại trước</span></div><button class="btn btn-secondary btn-sm" type="button" disabled="disabled">Đồng bộ</button></div>
+<div class="opt-row"><div class="who-text"><span class="t-small" style="font-weight: 600;">Ngắt kết nối</span><span class="t-small c-muted">Giữ lại 1.204 tin đã lưu</span></div><button class="btn btn-danger btn-sm" type="button">Ngắt kết nối</button></div>
+</div>
+</aside>
+
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const tab = (this.state && this.state.tab) || 'all';
+    const tabs = [
+      { id: 'all', label: 'Tất cả' },
+      { id: 'connected', label: 'Đã kết nối' },
+      { id: 'available', label: 'Có thể kết nối' },
+    ].map((t) => ({ ...t, pressed: t.id === tab, pick: () => this.setState({ tab: t.id }) }));
+    return { theme, rootClass: `sino theme-${theme} app`, tabs, yes: true };
+  }
+}
+</script>
+</body>
+</html>

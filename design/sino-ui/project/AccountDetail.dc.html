@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Chi tiết tài khoản</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Sidebar" theme="{{theme}}" active="accounts" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
+<main class="app-scroll dotbg">
+<div class="page">
+
+<a class="btn btn-ghost btn-sm back" href="Accounts.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Tài khoản</a>
+
+<header class="ident">
+<span class="avatar av-a avatar-lg"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span></span>
+<div class="page-title" style="gap: 6px;">
+<h1 class="t-page">an.nguyen@gmail.com</h1>
+<div class="gap-row" style="gap: 8px 16px;"><span class="t-small c-muted">Gmail · An Nguyễn · kết nối từ 29/09/2026</span><span class="status"><span class="dot dot-ok"></span>Đang hoạt động</span></div>
+</div>
+<div class="page-actions">
+<a class="btn btn-ghost btn-sm" href="#mo-gmail"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>Mở Gmail</a>
+<button class="btn btn-secondary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Đồng bộ ngay</button>
+</div>
+</header>
+
+<div class="bento">
+
+<section class="card-quiet sec-card" style="grid-column: span 7;">
+<div class="card-head"><h2 class="t-large">Kênh đã kết nối</h2><span class="spec">3 bật · 1 tắt</span></div>
+<div>
+<div class="chan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Thư đến</span><span class="t-small c-muted">Đồng bộ mỗi 15 phút · 1.284 thư</span></div><label class="toggle"><input type="checkbox" defaultChecked="{{yes}}" aria-label="Thư đến"></label></div>
+<div class="chan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Gửi thư</span><span class="t-small c-muted">Trả lời từ Sino bằng địa chỉ này</span></div><label class="toggle"><input type="checkbox" defaultChecked="{{yes}}" aria-label="Gửi thư"></label></div>
+<div class="chan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Tệp đính kèm</span><span class="t-small c-muted">Chỉ lưu tên và dung lượng, tải về khi bạn mở</span></div><label class="toggle"><input type="checkbox" defaultChecked="{{yes}}" aria-label="Tệp đính kèm"></label></div>
+<div class="chan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Danh bạ</span><span class="t-small c-muted">Gợi ý người nhận khi soạn thư · cần thêm quyền</span></div><label class="toggle"><input type="checkbox" aria-label="Danh bạ"></label></div>
+</div>
+</section>
+
+<section class="card-quiet sec-card" style="grid-column: span 5;">
+<div class="card-head"><h2 class="t-large">Quyền đã cấp</h2><span class="spec">3 quyền</span></div>
+<div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Đọc thư và nhãn</span><span class="spec">gmail.readonly</span></div></div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Gửi thư thay bạn</span><span class="spec">gmail.send</span></div></div>
+<div class="scope"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Xem địa chỉ email</span><span class="spec">userinfo.email</span></div></div>
+<div class="scope is-off"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Xóa thư, đổi cài đặt Gmail</span><span class="spec">không xin</span></div></div>
+</div>
+<span class="t-small c-muted">Quyền tự gia hạn. Lần gần nhất lúc 13:50.</span>
+</section>
+
+<section class="card-quiet sec-card" style="grid-column: span 7;">
+<div class="card-head"><h2 class="t-large">Website dùng danh tính này</h2><a class="btn btn-ghost btn-sm" href="Registrations.dc.html" style="margin-right: -8px;">Xem tất cả 21<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></div>
+<div>
+<div class="site-row"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Ví Hạt Đậu</span><span class="spec">hatdau.vn · đăng nhập bằng Google</span></div><span class="badge">Độ nhạy cao</span><span class="spec">14/03/2025</span></div>
+<div class="site-row"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Nhà sách Lumen</span><span class="spec">lumen.vn · đăng nhập bằng Google</span></div><span></span><span class="spec">12/08/2026</span></div>
+<div class="site-row"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Rạp phim Ngân Hà</span><span class="spec">nganha.film · đăng nhập bằng Google</span></div><span></span><span class="spec">05/06/2026</span></div>
+<div class="site-row"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Sổ tay Mint</span><span class="spec">sotaymint.app · đăng nhập bằng Google</span></div><span></span><span class="spec">19/11/2025</span></div>
+</div>
+</section>
+
+<section class="card-quiet sec-card" style="grid-column: span 5;">
+<div class="card-head"><h2 class="t-large">Lịch sử đồng bộ</h2><span class="spec">hôm nay</span></div>
+<div>
+<div class="hist-row head"><span>GIỜ</span><span>KẾT QUẢ</span><span>THƯ</span><span>THỜI GIAN</span></div>
+<div class="hist-row"><span class="c-text">14:03</span><span class="status"><span class="dot dot-ok"></span>Xong</span><span class="c-text">+12</span><span>3,1 s</span></div>
+<div class="hist-row"><span class="c-text">13:48</span><span class="status"><span class="dot dot-ok"></span>Xong</span><span class="c-text">+4</span><span>2,7 s</span></div>
+<div class="hist-row"><span class="c-text">13:33</span><span class="status"><span class="dot dot-ok"></span>Xong</span><span class="c-text">0</span><span>1,9 s</span></div>
+<div class="hist-row"><span class="c-text">12:01</span><span class="status"><span class="dot dot-warn"></span>Chậm</span><span class="c-text">+40</span><span>18,4 s</span></div>
+<div class="hist-row"><span class="c-text">11:46</span><span class="status"><span class="dot dot-ok"></span>Xong</span><span class="c-text">+7</span><span>2,2 s</span></div>
+</div>
+</section>
+
+<section class="card-quiet sec-card" style="grid-column: span 7;">
+<div class="card-head"><h2 class="t-large">Hoạt động</h2></div>
+<div>
+<div class="tl-item" style="grid-template-columns: 84px 16px minmax(0, 1fr); border-top: none; padding-top: 0;"><span class="spec">01/10 · 09:12</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg><span class="t-small">Bạn cấp thêm quyền gửi thư.</span></div>
+<div class="tl-item" style="grid-template-columns: 84px 16px minmax(0, 1fr);"><span class="spec">30/09 · 22:40</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></svg><span class="t-small">Phát hiện 21 website bạn đăng nhập bằng tài khoản Google này.</span></div>
+<div class="tl-item" style="grid-template-columns: 84px 16px minmax(0, 1fr);"><span class="spec">29/09 · 20:05</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg><span class="t-small">Kết nối tài khoản. Lần đồng bộ đầu lấy 1.180 thư trong 4 phút.</span></div>
+</div>
+</section>
+
+<section class="danger-card" style="grid-column: span 5;">
+<h2 class="t-large">Ngắt kết nối tài khoản</h2>
+<p class="t-small c-muted">Sino dừng đồng bộ và xóa quyền truy cập đã cấp. 1.284 thư đã lưu được giữ lại cho tới khi bạn xóa trong Quyền riêng tư.</p>
+<button class="btn btn-danger btn-sm" type="button" style="align-self: flex-start;">Ngắt kết nối an.nguyen@gmail.com</button>
+</section>
+
+</div>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1160}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, rootClass: `sino theme-${theme} app`, yes: true };
+  }
+}
+</script>
+</body>
+</html>

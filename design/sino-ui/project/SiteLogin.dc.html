@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Đăng nhập</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<aside class="onb-brand" aria-hidden="true">
+<span class="lp-brand"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg>Sino</span>
+<div style="display: flex; flex-direction: column; gap: 28px;"><span class="onb-word">SINO</span>
+<ul class="lp-points"><li><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Một hộp thư cho mọi tài khoản.</span></li><li><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Việc, lịch, ghi chú từ chính tin nhắn.</span></li><li><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Nhắc đúng giờ, chỉ qua Sino.</span></li></ul></div>
+<span class="spec">© 2026 SINO</span>
+</aside>
+<main class="auth-main">
+<div class="auth-top"><a class="btn btn-ghost btn-sm" href="Landing.dc.html" style="margin-left: -12px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Trang chủ</a><button class="lang" type="button" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+<div class="auth-body">
+<div class="auth-card">
+<div style="display: flex; flex-direction: column; gap: 8px;"><h1 class="t-section">Đăng nhập vào Sino</h1><p class="t-small c-muted">Chào mừng bạn quay lại.</p></div>
+<sc-if value="{{isGoogle}}" hint-placeholder-val="{{false}}">
+<button class="btn btn-secondary btn-block" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>Tiếp tục với Google</button>
+<p class="why">Google chỉ dùng để xác minh bạn là ai. Quyền đọc Gmail được xin riêng, khi bạn kết nối hộp thư.</p>
+</sc-if>
+<sc-if value="{{isPassword}}" hint-placeholder-val="{{true}}">
+<sc-if value="{{isError}}" hint-placeholder-val="{{false}}"><div class="alert alert-err"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg><div class="alert-body"><span class="t-small" style="font-weight: 600;">Email hoặc mật khẩu không đúng</span><span class="t-small c-muted">Còn 4 lần thử trước khi phải đợi 15 phút.</span></div></div></sc-if>
+<form onSubmit="{{noSubmit}}">
+<div class="field"><label class="field-label" for="lg-email">Email</label><input class="input" id="lg-email" type="email" autoComplete="username" defaultValue="an.nguyen@gmail.com"></div>
+<div class="field"><div class="card-head"><label class="field-label" for="lg-pass">Mật khẩu</label><a class="t-small c-muted" href="#quen-mat-khau" style="text-decoration: none;">Quên mật khẩu?</a></div>
+<div class="input-wrap"><input class="{{passCls}}" id="lg-pass" type="{{passType}}" autoComplete="current-password" defaultValue="matkhau-mau" aria-invalid="{{isError}}"><button class="btn btn-ghost btn-icon btn-sm pw-toggle" type="button" aria-label="{{passToggleLabel}}" onClick="{{togglePass}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div></div>
+<label class="toggle"><input type="checkbox" defaultChecked="{{yes}}"><span>Giữ đăng nhập trên máy này</span></label>
+<a class="btn btn-primary btn-block" href="Dashboard.dc.html">Đăng nhập</a>
+</form>
+</sc-if>
+<p class="why">Chưa dùng Sino? <a class="lp-link" href="Onboarding.dc.html" style="padding: 0;">Bắt đầu tại đây</a>. Khi đăng nhập, bạn đồng ý với <a class="lp-link" href="SiteTerms.dc.html" style="padding: 0;">Điều khoản</a> và <a class="lp-link" href="SitePrivacy.dc.html" style="padding: 0;">Chính sách quyền riêng tư</a>.</p>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"method":{"editor":"enum","options":["password","google"],"default":"password"},"state":{"editor":"enum","options":["idle","error"],"default":"idle"},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    const method = this.props.method === 'google' ? 'google' : 'password';
+    const error = this.props.state === 'error';
+    const show = !!s.show;
+    return {
+      theme,
+      rootClass: `sino theme-${theme} auth`,
+      isGoogle: method === 'google',
+      isPassword: method === 'password',
+      isError: error,
+      passCls: error ? 'input has-tail is-invalid' : 'input has-tail',
+      passType: show ? 'text' : 'password',
+      passToggleLabel: show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu',
+      togglePass: () => this.setState({ show: !show }),
+      noSubmit: (e) => { if (e && e.preventDefault) e.preventDefault(); },
+      yes: true,
+    };
+  }
+}
+</script>
+</body>
+</html>

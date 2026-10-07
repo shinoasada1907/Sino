@@ -1,0 +1,29 @@
+# Local PostgreSQL for sino-api (BE-01).
+# Values come from .env next to this file (template: .env.example).
+# Keep the image tag in sync with src/test/java/dev/sino/TestcontainersConfiguration.java.
+name: sino-api
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      # `:?` stops `docker compose` with a clear message when a value is missing.
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      # Bind to localhost only so the database is not reachable from the network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # Postgres 18+ stores data in /var/lib/postgresql/18/docker; mount the parent directory.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      # `$$` defers expansion to the container shell, so the container's own env vars are used.
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Tablet · Tổng quan</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Rail" theme="{{theme}}" active="overview" hint-size="72px,1194px"></dc-import>
+<div class="tab-main">
+<header class="tab-top">
+<h1 class="t-large">Tổng quan</h1>
+<span class="status" style="margin-left: 12px;"><span class="dot dot-ok"></span>2 phút trước</span>
+<div style="margin-left: auto; display: flex; gap: 4px;">
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Tìm kiếm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Thông báo"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></button>
+<button class="lang" type="button" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+<main class="app-scroll dotbg">
+<div class="dash" style="padding: 24px; gap: 20px;">
+
+<header class="dash-head">
+<div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+<span class="t-mono c-muted">THỨ SÁU · 02/10 · 14:05</span>
+<h2 class="t-section">Chào buổi chiều, An.</h2>
+<span class="status"><span class="dot dot-err"></span><span class="ink-err">Messenger cần đăng nhập lại</span></span>
+</div>
+<button class="btn btn-primary btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối</button>
+</header>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;">
+
+<article class="card-spotlight" style="grid-column: span 2; display: flex; flex-direction: column; gap: 16px; padding: 24px;">
+<div class="card-head"><span class="micro-label t-caps">Hộp thư hợp nhất</span><span class="spec">12 chưa đọc</span></div>
+<h3 class="t-section">3 cuộc trò chuyện chờ bạn trả lời.</h3>
+<div style="display: flex; flex-direction: column; gap: 2px; margin: 0 -12px;">
+<div class="drow"><span class="pmark-sm" style="width: 32px; height: 32px; border-radius: 9px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><span class="t-small ellipsis"><span style="font-weight: 700;">Trần Minh Anh</span> · Hợp đồng thuê văn phòng</span><span class="t-small c-muted ellipsis">Mình gửi lại bản đã sửa điều khoản 4 và phụ lục giá.</span></div><div class="drow-meta"><span class="spec c-text">09:41</span><span class="dot dot-unread"></span></div></div>
+<div class="drow"><span class="pmark-sm" style="width: 32px; height: 32px; border-radius: 9px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="who-text"><span class="t-small ellipsis"><span style="font-weight: 700;">Gia đình</span> · Zalo</span><span class="t-small c-muted ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="drow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div></div>
+<div class="drow"><span class="pmark-sm" style="width: 32px; height: 32px; border-radius: 9px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><span class="t-small ellipsis"><span style="font-weight: 700;">Phòng khám Ánh Dương</span> · Nhắc lịch khám</span><span class="t-small c-muted ellipsis">Quý khách có lịch khám lúc 08:30, thứ Hai 05/10.</span></div><div class="drow-meta"><span class="spec c-text">07:30</span><span class="dot dot-unread"></span></div></div>
+</div>
+<a class="btn btn-ghost btn-sm" href="TabletInbox.dc.html" style="align-self: flex-start; margin-left: -12px;">Mở hộp thư<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a>
+</article>
+
+<article class="card-bento" style="display: flex; flex-direction: column; gap: 14px; padding: 20px;">
+<div class="card-head"><span class="micro-label">Tài khoản</span><span class="spec">1 cần xử lý</span></div>
+<div class="acc-row" style="grid-template-columns: 36px minmax(0, 1fr);"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="status"><span class="dot dot-ok"></span>Ổn định</span></div></div>
+<div class="acc-row" style="grid-template-columns: 36px minmax(0, 1fr);"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span></span><div class="who-text" style="gap: 6px;"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="progress"><span style="width: 64%;"></span></span></div></div>
+<div class="acc-row" style="grid-template-columns: 36px minmax(0, 1fr);"><span class="avatar av-b"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="t-small ink-err">Cần đăng nhập lại</span></div></div>
+</article>
+
+<article class="card-bento" style="display: flex; flex-direction: column; gap: 14px; padding: 20px;">
+<div class="card-head"><span class="micro-label">Đồng bộ 24 giờ</span><span class="spec">1.284 thư</span></div>
+<div class="bars" style="height: 96px; gap: 2px;" role="img" aria-label="Số thư đồng bộ mỗi giờ trong 24 giờ qua">
+<span style="height: 40%;"></span><span style="height: 55%;"></span><span style="height: 48%;"></span><span style="height: 62%;"></span><span style="height: 70%;"></span><span style="height: 58%;"></span><span class="bar-err" style="height: 34%;"></span><span style="height: 22%;"></span><span style="height: 15%;"></span><span style="height: 10%;"></span><span style="height: 8%;"></span><span style="height: 6%;"></span><span style="height: 5%;"></span><span style="height: 8%;"></span><span style="height: 20%;"></span><span style="height: 45%;"></span><span style="height: 72%;"></span><span style="height: 84%;"></span><span style="height: 66%;"></span><span style="height: 58%;"></span><span style="height: 44%;"></span><span style="height: 52%;"></span><span class="bar-warn" style="height: 28%;"></span><span style="height: 60%;"></span>
+</div>
+<div style="display: flex; justify-content: space-between;"><span class="spec">15:00 hôm qua</span><span class="spec">bây giờ</span></div>
+</article>
+
+<article class="card-bento" style="display: flex; flex-direction: column; gap: 14px; padding: 20px;">
+<div class="card-head"><span class="micro-label">Đăng ký</span><span class="spec">1 mới</span></div>
+<div style="display: flex; align-items: flex-end; gap: 12px;"><span class="t-page" style="font-family: var(--font-mono); font-weight: 500;">48</span><span class="t-small c-muted" style="padding-bottom: 6px;">website và ứng dụng</span></div>
+<div class="stack" role="img" aria-label="Google 21, Email 14, Facebook 8, Zalo 5"><span style="flex: 21; background: var(--text);"></span><span style="flex: 14; background: var(--text-muted);"></span><span style="flex: 8; background: var(--text-subtle);"></span><span style="flex: 5; background: var(--border-strong);"></span></div>
+<span class="spec">Mới: Diễn đàn Mây · qua Zalo</span>
+</article>
+
+<article class="card-quiet" style="display: flex; flex-direction: column;">
+<div class="card-head" style="margin-bottom: 6px;"><span class="micro-label">Hoạt động gần đây</span></div>
+<div class="tl-item"><span class="spec">14:02</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--warning);"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg><span class="t-small">Zalo đồng bộ lại.</span></div>
+<div class="tl-item"><span class="spec">11:40</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></svg><span class="t-small">Đăng ký mới: Diễn đàn Mây.</span></div>
+<div class="tl-item"><span class="spec">Hôm qua</span><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--danger);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg><span class="t-small">Messenger hết quyền.</span></div>
+</article>
+
+</div>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":834,"height":1194}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, rootClass: `sino theme-${theme} tab-shell` };
+  }
+}
+</script>
+</body>
+</html>

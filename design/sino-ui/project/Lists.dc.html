@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Components · Điều hướng và danh sách</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sino theme-{{theme}} sheet" style="height: 2620px;">
+
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 01 · COMPONENTS / ĐIỀU HƯỚNG &amp; DANH SÁCH</span><span class="t-mono c-muted">theme · {{themeLabel}}</span></div>
+<div class="mast-grid">
+<h1 class="t-page">Điều hướng &amp; danh sách</h1>
+<p class="t-small c-muted">Sidebar và bốn loại hàng dùng chung một nhịp: cao tối thiểu 44px, chữ chính bên trái, số liệu và thời gian dạng mono bên phải.</p>
+</div>
+</header>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">01</span><h2 class="t-section">Sidebar</h2><p class="t-small c-muted">248px. Mục đang chọn có nền raised, viền mảnh và chữ đậm; không dùng nền sáng. Số đếm dạng mono, chỉ hiện khi có việc cần làm.</p></div>
+<div class="sec-body">
+<div style="display: flex; gap: 56px; align-items: flex-start;">
+
+<aside class="sidebar" aria-label="Điều hướng chính" style="border: 1px solid var(--border); border-radius: 20px;">
+<div class="sb-brand"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg><span class="sb-word">Sino</span><span class="spec" style="margin-left: auto;">v0.2</span></div>
+<nav class="sb-nav">
+<a class="nav-item" href="#tong-quan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>Tổng quan</a>
+<a class="nav-item is-active" href="#hop-thu" aria-current="page"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>Hộp thư<span class="nav-count">12</span></a>
+<a class="nav-item" href="#tai-khoan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tài khoản<span class="nav-count">1</span></a>
+<a class="nav-item" href="#dich-vu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg>Dịch vụ</a>
+<a class="nav-item" href="#dang-ky"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></svg>Đăng ký</a>
+</nav>
+<div class="sb-foot">
+<a class="nav-item" href="#cai-dat"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>Cài đặt</a>
+<div class="sb-sync"><span class="status"><span class="dot dot-ok"></span>Đang hoạt động</span><span class="spec">Đồng bộ 2 phút trước</span></div>
+<div class="sb-user"><span class="avatar av-a"></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">An Nguyễn</span><span class="spec ellipsis">3 tài khoản</span></div><button class="lang" type="button" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+</div>
+</aside>
+
+<div class="nav-states">
+<span class="spec c-text">Nav / Sidebar Item</span>
+<div class="ns"><span class="spec">Mặc định · chữ phụ</span><a class="nav-item" href="#s1"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tài khoản</a></div>
+<div class="ns"><span class="spec">Hover · nền hover, icon dịch 2px</span><a class="nav-item is-hover" href="#s2"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tài khoản</a></div>
+<div class="ns"><span class="spec">Đang chọn · nền raised, viền, chữ đậm</span><a class="nav-item is-active" href="#s3"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tài khoản<span class="nav-count">1</span></a></div>
+<div class="ns"><span class="spec">Focus · vòng 2px màu chữ chính</span><a class="nav-item is-focus" href="#s4"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tài khoản</a></div>
+<p class="t-small c-muted">Số đếm ở mục Tài khoản là số tài khoản cần xử lý, không phải tổng số tài khoản.</p>
+</div>
+
+</div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">02</span><h2 class="t-section">Message / Row</h2><p class="t-small c-muted">Chưa đọc: tên và tiêu đề đậm, chấm màu chữ chính. Đã đọc: chữ phụ. Đang mở: nền raised và viền đậm.</p></div>
+<div class="sec-body">
+<div class="list-box">
+
+<div class="mrow is-unread">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Trần Minh Anh</span><span class="spec ellipsis">Gmail · an.nguyen@gmail.com</span></div><span class="mrow-subject ellipsis">Hợp đồng thuê văn phòng — bản sửa lần 2</span><span class="mrow-preview ellipsis">Mình gửi lại bản đã sửa điều khoản 4 và phụ lục giá. Anh xem giúp trước thứ Sáu nhé.</span></div>
+<div class="mrow-meta"><span class="spec c-text">09:41</span><div style="display: flex; align-items: center; gap: 8px;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg><span class="dot dot-unread"></span><span class="sr">Chưa đọc, có tệp đính kèm</span></div></div>
+</div>
+
+<div class="mrow is-unread">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span><span class="spec ellipsis">Zalo · nhóm 6 người</span></div><span class="mrow-preview ellipsis">Mẹ: Cuối tuần này cả nhà về ăn cơm nhé, nhớ mua bánh cho bà.</span></div>
+<div class="mrow-meta"><span class="spec c-text">08:15</span><span class="badge badge-solid">3</span></div>
+</div>
+
+<div class="mrow">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Lê Hoàng</span><span class="spec ellipsis">Messenger</span></div><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối cho bạn.</span></div>
+<div class="mrow-meta"><span class="spec">Hôm qua</span></div>
+</div>
+
+<div class="mrow is-selected">
+<span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span>
+<div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Phòng khám Ánh Dương</span><span class="spec ellipsis">Gmail · an.nguyen@gmail.com</span></div><span class="mrow-subject ellipsis">Nhắc lịch khám ngày 05/10</span><span class="mrow-preview ellipsis">Quý khách có lịch khám lúc 08:30, thứ Hai 05/10/2026. Vui lòng đến trước 15 phút.</span></div>
+<div class="mrow-meta"><span class="spec">Thứ 2</span></div>
+</div>
+
+</div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">03</span><h2 class="t-section">Account / Row</h2><p class="t-small c-muted">Một người có thể có nhiều tài khoản. Danh tính đứng trước, nhà cung cấp đứng sau.</p></div>
+<div class="sec-body">
+<div class="tbl">
+<div class="tbl-head tbl-acc"><span>DANH TÍNH</span><span>NHÀ CUNG CẤP</span><span>ĐỒNG BỘ</span><span>LẦN CUỐI</span><span>DỊCH VỤ</span><span></span></div>
+<div class="trow tbl-acc">
+<div class="who"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">An Nguyễn</span><span class="spec ellipsis">an.nguyen@gmail.com</span></div></div>
+<span class="t-small">Gmail</span><span class="status"><span class="dot dot-ok"></span>Đang hoạt động</span><span class="spec">2 phút trước</span><span class="t-mono">4</span>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Mở chi tiết tài khoản Gmail"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+<div class="trow tbl-acc">
+<div class="who"><span class="avatar av-a"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">An Nguyễn</span><span class="spec ellipsis">+84 9•• ••• 218</span></div></div>
+<span class="t-small">Zalo</span><span class="status"><span class="dot dot-warn"></span>Đang đồng bộ · 64%</span><span class="spec">vừa xong</span><span class="t-mono">1</span>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Mở chi tiết tài khoản Zalo"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+<div class="trow tbl-acc">
+<div class="who"><span class="avatar av-b"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">An Nguyễn</span><span class="spec ellipsis">an.nguyen.92</span></div></div>
+<span class="t-small">Messenger</span><span class="status"><span class="dot dot-err"></span><span class="ink-err">Cần đăng nhập lại</span></span><span class="spec">Hôm qua, 21:04</span><span class="t-mono">1</span>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Mở chi tiết tài khoản Messenger"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">04</span><h2 class="t-section">Service / Row</h2><p class="t-small c-muted">Dịch vụ đã kết nối và dịch vụ có thể kết nối nằm chung một danh sách. Hành động chính của mỗi hàng nằm ở cột cuối.</p></div>
+<div class="sec-body">
+<div class="tbl">
+<div class="tbl-head tbl-svc"><span>DỊCH VỤ</span><span>TÌNH TRẠNG</span><span>TÀI KHOẢN DÙNG</span><span>SỨC KHỎE</span><span>LẦN CUỐI</span><span></span></div>
+<div class="trow tbl-svc">
+<div class="who"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="t-small c-muted ellipsis">Thư điện tử</span></div></div>
+<span><span class="badge">Đã kết nối</span></span><span class="spec ellipsis">an.nguyen@gmail.com</span><span class="status"><span class="dot dot-ok"></span>Ổn định</span><span class="spec">2 phút trước</span>
+<button class="btn btn-secondary btn-sm" type="button">Đồng bộ</button>
+</div>
+<div class="trow tbl-svc">
+<div class="who"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="t-small c-muted ellipsis">Tin nhắn</span></div></div>
+<span><span class="badge">Đã kết nối</span></span><span class="spec ellipsis">+84 9•• ••• 218</span><span class="status"><span class="dot dot-warn"></span>Chậm · thử lại 3 lần</span><span class="spec">vừa xong</span>
+<button class="btn btn-secondary btn-sm" type="button">Đồng bộ</button>
+</div>
+<div class="trow tbl-svc">
+<div class="who"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="t-small c-muted ellipsis">Tin nhắn</span></div></div>
+<span><span class="badge">Đã kết nối</span></span><span class="spec ellipsis">an.nguyen.92</span><span class="status"><span class="dot dot-err"></span><span class="ink-err">Quyền đã hết hạn</span></span><span class="spec">Hôm qua</span>
+<button class="btn btn-primary btn-sm" type="button">Kết nối lại</button>
+</div>
+<div class="trow tbl-svc">
+<div class="who"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Telegram</span><span class="t-small c-muted ellipsis">Tin nhắn</span></div></div>
+<span><span class="badge">Có thể kết nối</span></span><span class="spec">—</span><span class="status"><span class="dot dot-off"></span>Chưa kết nối</span><span class="spec">—</span>
+<button class="btn btn-ghost btn-sm" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối</button>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">05</span><h2 class="t-section">Registration / Row</h2><p class="t-small c-muted">Các website và ứng dụng bạn đã đăng ký bằng một danh tính. Tài khoản đã xóa vẫn giữ trong danh sách để bạn biết nó từng tồn tại.</p></div>
+<div class="sec-body">
+<div class="tbl">
+<div class="tbl-head tbl-reg"><span>WEBSITE · ỨNG DỤNG</span><span>ĐĂNG NHẬP BẰNG</span><span>DANH TÍNH</span><span>PHÁT HIỆN</span><span>TRẠNG THÁI</span><span></span></div>
+<div class="trow tbl-reg">
+<div class="who"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Diễn đàn Mây</span><span class="spec ellipsis">may.forum</span></div></div>
+<span class="auth"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Zalo</span><span class="spec ellipsis">+84 9•• ••• 218</span><span class="spec">30/09/2026</span><span class="gap-row"><span class="status"><span class="dot dot-ok"></span>Hoạt động</span><span class="badge">Mới</span></span>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Mở chi tiết Diễn đàn Mây"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+<div class="trow tbl-reg">
+<div class="who"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Nhà sách Lumen</span><span class="spec ellipsis">lumen.vn</span></div></div>
+<span class="auth"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>Google</span><span class="spec ellipsis">an.nguyen@gmail.com</span><span class="spec">12/08/2026</span><span class="status"><span class="dot dot-ok"></span>Hoạt động</span>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Mở chi tiết Nhà sách Lumen"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+<div class="trow tbl-reg">
+<div class="who"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Kite Travel</span><span class="spec ellipsis">kite.travel</span></div></div>
+<span class="auth"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Facebook</span><span class="spec ellipsis">an.nguyen.92</span><span class="spec">03/05/2025</span><span class="status"><span class="dot dot-off"></span>Không rõ</span>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Mở chi tiết Kite Travel"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+<div class="trow tbl-reg is-removed">
+<div class="who"><span class="site"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600; text-decoration: line-through;">Phòng gym Điểm 9</span><span class="spec ellipsis">diem9.fit</span></div></div>
+<span class="auth"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"></path></svg>Email</span><span class="spec ellipsis">an.nguyen@gmail.com</span><span class="spec">21/01/2024</span><span class="status"><span class="dot dot-off"></span>Đã xóa tài khoản</span>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Mở chi tiết Phòng gym Điểm 9"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":2620}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, themeLabel: theme === 'light' ? 'Light' : 'Dark' };
+  }
+}
+</script>
+</body>
+</html>

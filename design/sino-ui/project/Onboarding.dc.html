@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Onboarding</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+
+<aside class="onb-brand">
+<div style="display: flex; align-items: center; gap: 10px;"><svg class="ic ic-24 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg><span class="sb-word">Sino</span><span class="spec" style="margin-left: auto;">v0.2</span></div>
+<div style="display: flex; flex-direction: column; gap: 20px;">
+<span class="onb-word" aria-hidden="true">{{word}}</span>
+<p class="t-large c-muted" style="max-width: 360px; font-weight: 500;">Bàn điều khiển riêng cho mọi tài khoản và tin nhắn của bạn.</p>
+</div>
+<ol class="onb-steps" aria-label="Các bước thiết lập">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="6"><li class="{{s.cls}}" aria-current="{{s.current}}"><span class="t-mono">{{s.num}}</span><span>{{s.label}}</span></li></sc-for>
+</ol>
+<div class="gap-row" style="gap: 8px 20px;"><span class="status"><svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Không lưu mật khẩu</span><span class="status"><svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>Chỉ đọc qua quyền bạn cấp</span></div>
+</aside>
+
+<main class="onb-main">
+<div class="onb-body">
+
+<sc-if value="{{at.s1}}" hint-placeholder-val="{{true}}">
+<section class="onb-pane anim-enter" aria-labelledby="s1-title">
+<span class="t-mono c-muted">01 / 06 · CHÀO MỪNG</span>
+<h1 class="t-hero" id="s1-title">Mọi tài khoản của bạn,<br>một nơi để nhìn.</h1>
+<p class="t-body c-muted" style="max-width: 520px;">Sino gom thư, tin nhắn và các tài khoản bạn đã đăng ký vào một bàn điều khiển. Dữ liệu ở với bạn, quyền truy cập do bạn quyết định.</p>
+<div style="max-width: 520px;">
+<div class="principle"><span class="t-mono c-muted">01</span><span class="t-small">Chỉ đọc dữ liệu qua quyền bạn cấp.</span></div>
+<div class="principle"><span class="t-mono c-muted">02</span><span class="t-small">Không lưu mật khẩu của bất kỳ dịch vụ nào.</span></div>
+<div class="principle"><span class="t-mono c-muted">03</span><span class="t-small">Ngắt kết nối và xóa dữ liệu bất cứ lúc nào.</span></div>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{at.s2}}" hint-placeholder-val="{{false}}">
+<section class="onb-pane anim-enter" aria-labelledby="s2-title">
+<span class="t-mono c-muted">02 / 06 · NGÔN NGỮ</span>
+<h1 class="t-page" id="s2-title">Bạn muốn dùng Sino bằng ngôn ngữ nào?</h1>
+<div class="choice-list">
+<label class="opt"><input type="radio" name="onb-lang" value="vi" defaultChecked="{{yes}}"><span class="opt-main"><span class="t-small" style="font-weight: 600;">Tiếng Việt</span><span class="t-small c-muted">Mặc định</span></span><span class="spec">VI</span></label>
+<label class="opt"><input type="radio" name="onb-lang" value="en"><span class="opt-main" lang="en"><span class="t-small" style="font-weight: 600;">English</span><span class="t-small c-muted">Interface in English</span></span><span class="spec">EN</span></label>
+<label class="opt is-soon"><input type="radio" name="onb-lang" value="ja" disabled="disabled"><span class="opt-main"><span class="t-small" style="font-weight: 600;" lang="ja">日本語</span><span class="t-small c-muted">Sắp có</span></span><span class="spec">JA</span></label>
+</div>
+<p class="t-small c-muted">Đổi lại bất cứ lúc nào trong Cài đặt.</p>
+</section>
+</sc-if>
+
+<sc-if value="{{at.s3}}" hint-placeholder-val="{{false}}">
+<section class="onb-pane anim-enter" aria-labelledby="s3-title">
+<span class="t-mono c-muted">03 / 06 · GIAO DIỆN</span>
+<h1 class="t-page" id="s3-title">Chọn giao diện bạn thấy dễ chịu.</h1>
+<div class="theme-tiles big-tiles" role="group" aria-label="Theme">
+<button class="theme-tile" type="button" aria-pressed="{{tp.system}}" onClick="{{pickSystem}}"><span class="tt-prev" style="background: linear-gradient(90deg, #070707 50%, #F2F2EF 50%); border: 1px solid var(--border);"><span style="background: #1B1B1D;"></span><span style="background: #ECECEA;"></span><span style="background: #2A2A2D;"></span></span>Theo hệ thống</button>
+<button class="theme-tile" type="button" aria-pressed="{{tp.dark}}" onClick="{{pickDark}}"><span class="tt-prev" style="background: #070707; border: 1px solid #2A2A2D;"><span style="background: #1B1B1D;"></span><span style="background: #232326;"></span><span style="background: #151516;"></span></span>Tối</button>
+<button class="theme-tile" type="button" aria-pressed="{{tp.light}}" onClick="{{pickLight}}"><span class="tt-prev" style="background: #F2F2EF; border: 1px solid #DEDEDA;"><span style="background: #FFFFFF;"></span><span style="background: #ECECEA;"></span><span style="background: #FFFFFF;"></span></span>Sáng</button>
+</div>
+<div class="field" style="gap: 10px;">
+<span class="field-label">Chuyển động</span>
+<div class="seg" role="group" aria-label="Mức chuyển động" style="align-self: flex-start;">
+<sc-for list="{{motion}}" as="m" hint-placeholder-count="3"><button type="button" aria-pressed="{{m.pressed}}" onClick="{{m.pick}}">{{m.label}}</button></sc-for>
+</div>
+<span class="field-help">Giảm: bỏ dịch chuyển, chỉ giữ hiệu ứng mờ dần.</span>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{at.s4}}" hint-placeholder-val="{{false}}">
+<section class="onb-pane anim-enter" aria-labelledby="s4-title">
+<span class="t-mono c-muted">04 / 06 · NGUỒN ĐẦU TIÊN</span>
+<h1 class="t-page" id="s4-title">Kết nối tài khoản đầu tiên.</h1>
+<p class="t-body c-muted">Bắt đầu với một tài khoản. Các tài khoản khác thêm sau trong ứng dụng.</p>
+<div class="choice-list">
+<label class="opt has-mark"><input type="radio" name="onb-provider" value="gmail" defaultChecked="{{yes}}"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="t-small c-muted">Thư điện tử</span></span><span class="opt-tags"><span class="badge">Đọc</span><span class="badge">Gửi</span></span></label>
+<label class="opt has-mark"><input type="radio" name="onb-provider" value="zalo"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="t-small c-muted">Tin nhắn cá nhân và nhóm</span></span><span class="opt-tags"><span class="badge">Đọc</span></span></label>
+<label class="opt has-mark"><input type="radio" name="onb-provider" value="messenger"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="t-small c-muted">Tin nhắn Facebook</span></span><span class="opt-tags"><span class="badge">Đọc</span><span class="badge">Gửi</span></span></label>
+<label class="opt has-mark"><input type="radio" name="onb-provider" value="google"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Google</span><span class="t-small c-muted">Danh tính và các website bạn đăng nhập</span></span><span class="opt-tags"><span class="badge">Đăng ký</span></span></label>
+</div>
+<button class="btn btn-ghost btn-sm" type="button" style="align-self: flex-start; margin-left: -12px;">Để sau, tôi sẽ kết nối trong ứng dụng</button>
+</section>
+</sc-if>
+
+<sc-if value="{{at.s5}}" hint-placeholder-val="{{false}}">
+<section class="onb-pane anim-enter" aria-labelledby="s5-title">
+<span class="t-mono c-muted">05 / 06 · THÔNG BÁO</span>
+<h1 class="t-page" id="s5-title">Khi nào Sino nên báo bạn?</h1>
+<div style="display: flex; flex-direction: column; max-width: 560px;">
+<div class="set-row"><div class="set-label"><span class="t-small" style="font-weight: 600;">Thư và tin nhắn mới</span><span class="t-small c-muted">Từ mọi tài khoản đã kết nối.</span></div><label class="toggle"><input type="checkbox" defaultChecked="{{yes}}" aria-label="Thư và tin nhắn mới"></label></div>
+<div class="set-row"><div class="set-label"><span class="t-small" style="font-weight: 600;">Chỉ từ người quan trọng</span><span class="t-small c-muted">Người bạn hay trả lời hoặc đã đánh dấu.</span></div><label class="toggle"><input type="checkbox" aria-label="Chỉ từ người quan trọng"></label></div>
+<div class="set-row"><div class="set-label"><span class="t-small" style="font-weight: 600;">Tài khoản cần đăng nhập lại</span><span class="t-small c-muted">Nên bật để không lỡ tin nhắn.</span></div><label class="toggle"><input type="checkbox" defaultChecked="{{yes}}" aria-label="Tài khoản cần đăng nhập lại"></label></div>
+<div class="set-row"><div class="set-label"><label class="t-small" style="font-weight: 600;" for="onb-quiet">Giờ yên lặng</label><span class="t-small c-muted">Không báo gì trong khoảng này, trừ lỗi tài khoản.</span></div><div class="input-wrap select-wrap" style="width: 200px;"><select class="input" id="onb-quiet" defaultValue="22-7"><option value="off">Tắt</option><option value="22-7">22:00 – 07:00</option><option value="23-6">23:00 – 06:00</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div></div>
+</div>
+<p class="t-small c-muted">Trình duyệt sẽ hỏi bạn cho phép Sino gửi thông báo.</p>
+</section>
+</sc-if>
+
+<sc-if value="{{at.s6}}" hint-placeholder-val="{{false}}">
+<section class="onb-pane anim-enter" aria-labelledby="s6-title">
+<span class="t-mono c-muted">06 / 06 · XONG</span>
+<h1 class="t-hero" id="s6-title">Sino đã sẵn sàng.</h1>
+<div style="max-width: 560px;">
+<div class="summary-row"><span class="t-small c-muted">Ngôn ngữ</span><span class="t-small">Tiếng Việt</span></div>
+<div class="summary-row"><span class="t-small c-muted">Giao diện</span><span class="t-small">Theo hệ thống · chuyển động đầy đủ</span></div>
+<div class="summary-row"><span class="t-small c-muted">Nguồn đầu tiên</span><div style="display: flex; flex-direction: column; gap: 8px;"><div class="card-head"><span class="t-small">Gmail · an.nguyen@gmail.com</span><span class="spec">412 / 1.180</span></div><span class="progress" role="img" aria-label="Đã đồng bộ 35%"><span style="width: 35%;"></span></span></div></div>
+<div class="summary-row"><span class="t-small c-muted">Thông báo</span><span class="t-small">Bật · yên lặng 22:00 – 07:00</span></div>
+</div>
+<p class="t-small c-muted">Lần đồng bộ đầu tiên chạy nền. Bạn dùng Sino được ngay.</p>
+</section>
+</sc-if>
+
+</div>
+<footer class="onb-foot">
+<div class="onb-progress" aria-hidden="true"><sc-for list="{{steps}}" as="s" hint-placeholder-count="6"><span class="{{s.bar}}"></span></sc-for></div>
+<div style="display: flex; gap: 10px;">
+<sc-if value="{{canBack}}" hint-placeholder-val="{{false}}"><button class="btn btn-ghost" type="button" onClick="{{back}}">Quay lại</button></sc-if>
+<sc-if value="{{notLast}}" hint-placeholder-val="{{true}}"><button class="btn btn-primary" type="button" onClick="{{next}}">{{nextLabel}}<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button></sc-if>
+<sc-if value="{{at.s6}}" hint-placeholder-val="{{false}}"><a class="btn btn-primary" href="Dashboard.dc.html">Vào Tổng quan<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></sc-if>
+</div>
+</footer>
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"step":{"editor":"enum","options":["1","2","3","4","5","6"],"default":"1"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    if (this.currentStep() === 1) this.runDecrypt();
+  }
+
+  componentWillUnmount() {
+    if (this._iv) clearInterval(this._iv);
+  }
+
+  currentStep() {
+    const s = this.state || {};
+    if (s.step) return s.step;
+    const fromProp = Number(this.props.step) || 1;
+    return Math.min(6, Math.max(1, fromProp));
+  }
+
+  runDecrypt() {
+    const word = 'SINO';
+    const s = this.state || {};
+    if ((s.motion || 'full') !== 'full') return;
+    const glyphs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#_';
+    const total = 18;
+    let frame = 0;
+    if (this._iv) clearInterval(this._iv);
+    this._iv = setInterval(() => {
+      frame += 1;
+      const out = word.split('').map((ch, i) => (frame >= (total * (i + 1)) / word.length ? ch : glyphs[Math.floor(Math.random() * glyphs.length)])).join('');
+      this.setState({ word: out });
+      if (frame >= total) {
+        clearInterval(this._iv);
+        this.setState({ word });
+      }
+    }, 45);
+  }
+
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    const step = this.currentStep();
+    const look = s.look || 'system';
+    const motionMode = s.motion || 'full';
+    const labels = ['Chào mừng', 'Ngôn ngữ', 'Giao diện', 'Nguồn đầu tiên', 'Thông báo', 'Xong'];
+    const steps = labels.map((label, i) => {
+      const n = i + 1;
+      let cls = 'onb-step';
+      if (n === step) cls += ' is-current';
+      else if (n < step) cls += ' is-done';
+      return { num: String(n).padStart(2, '0'), label, cls, bar: n <= step ? 'is-on' : '', current: n === step ? 'step' : undefined };
+    });
+    const at = {};
+    for (let i = 1; i <= 6; i += 1) at[`s${i}`] = step === i;
+    const nextLabels = { 1: 'Bắt đầu', 2: 'Tiếp tục', 3: 'Tiếp tục', 4: 'Kết nối Gmail', 5: 'Tiếp tục' };
+    const motion = [
+      { id: 'full', label: 'Đầy đủ' },
+      { id: 'reduced', label: 'Giảm' },
+      { id: 'off', label: 'Tắt' },
+    ].map((m) => ({ ...m, pressed: m.id === motionMode, pick: () => this.setState({ motion: m.id }) }));
+    return {
+      rootClass: `sino theme-${theme} onb motion-${motionMode}`,
+      steps,
+      at,
+      word: s.word || 'SINO',
+      canBack: step > 1,
+      notLast: step < 6,
+      nextLabel: nextLabels[step] || 'Tiếp tục',
+      next: () => this.setState({ step: Math.min(6, step + 1) }),
+      back: () => this.setState({ step: Math.max(1, step - 1) }),
+      tp: { system: look === 'system', dark: look === 'dark', light: look === 'light' },
+      pickSystem: () => this.setState({ look: 'system' }),
+      pickDark: () => this.setState({ look: 'dark' }),
+      pickLight: () => this.setState({ look: 'light' }),
+      motion,
+      yes: true,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Mobile · Soạn ghi chú</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<header class="mob-top has-back"><a class="btn btn-ghost btn-icon" href="MobileNotes.dc.html" aria-label="Quay lại Ghi chú"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></a><div class="mob-title"><h1 class="t-small" style="font-weight: 600;">Ghi chú</h1><span class="spec ellipsis">TỰ LƯU · 09:52</span></div><button class="btn btn-ghost btn-icon" type="button" aria-label="Ghim"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg></button><button class="btn btn-ghost btn-icon" type="button" aria-label="Thêm thao tác"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button></header>
+<main class="mob-note">
+<a class="lchip" href="MobileInbox.dc.html" style="align-self: flex-start;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg><span class="ellipsis">Thư · Trần Minh Anh · Hợp đồng thuê văn phòng</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></a>
+<input class="note-title" type="text" defaultValue="Điều khoản 4 — thời hạn thanh toán" aria-label="Tiêu đề ghi chú">
+<blockquote class="quote" style="margin: 0;"><span class="spec">TRÍCH TỪ THƯ · 09:41</span><p>“Em gửi lại bản đã sửa điều khoản 4 (thời hạn thanh toán) và phụ lục giá theo trao đổi hôm thứ Tư.”</p></blockquote>
+<textarea class="note-body" aria-label="Nội dung ghi chú" defaultValue="Thời hạn thanh toán đổi từ 15 xuống 10 ngày kể từ ngày nhận hóa đơn.&#10;&#10;- Hỏi lại kế toán xem 10 ngày có kịp không.&#10;- Nếu không kịp, đề nghị giữ 15 ngày."></textarea>
+<div class="linked"><a class="lchip" href="MobileTasks.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg><span class="ellipsis">Trả lời: Hợp đồng thuê văn phòng</span><span class="spec">T4 07/10</span></a></div>
+</main>
+<div class="mob-composer" style="justify-content: space-between; align-items: center; padding-bottom: 28px;"><span class="spec">214 / 20.000 ký tự</span><button class="btn btn-ghost btn-sm" type="button" style="color: var(--danger-ink);"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>Xóa</button></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, rootClass: `sino theme-${theme} mob`, yes: true };
+  }
+}
+</script>
+</body>
+</html>

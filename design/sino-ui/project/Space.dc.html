@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Foundations · Khoảng cách, bo góc, bề mặt</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sino theme-{{theme}} sheet" style="height: 2400px;">
+
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 00 · FOUNDATIONS / 03 · KHÔNG GIAN</span><span class="t-mono c-muted">Nhịp 4px · {{themeLabel}}</span></div>
+<div class="mast-grid">
+<h1 class="t-hero">Khoảng trống cũng là<br>một phần của giao diện.</h1>
+<div class="mast-note">
+<p class="t-body c-muted">Desktop chuẩn 1440px. Sidebar 248, top bar 72, lề nội dung 24–32, khe giữa các card 12–20. Mật độ có kiểm soát: thoáng ở Tổng quan, chặt hơn ở Hộp thư.</p>
+</div>
+</div>
+</header>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">01</span><h2 class="t-section">Khoảng cách</h2><p class="t-small c-muted">Mười bậc, đều là bội số của 4. Không dùng giá trị lẻ ngoài thang.</p></div>
+<div class="sec-body" style="gap: 0;">
+<div class="sp-row"><span class="spec">space.1</span><span class="t-mono">4</span><span><span class="sp-bar" style="width: 16px;"></span></span><span class="t-small c-muted">Icon với nhãn nhỏ, khe trong badge</span></div>
+<div class="sp-row"><span class="spec">space.2</span><span class="t-mono">8</span><span><span class="sp-bar" style="width: 32px;"></span></span><span class="t-small c-muted">Icon với chữ, khe giữa các badge</span></div>
+<div class="sp-row"><span class="spec">space.3</span><span class="t-mono">12</span><span><span class="sp-bar" style="width: 48px;"></span></span><span class="t-small c-muted">Khe card ở vùng dày đặc</span></div>
+<div class="sp-row"><span class="spec">space.4</span><span class="t-mono">16</span><span><span class="sp-bar" style="width: 64px;"></span></span><span class="t-small c-muted">Padding hàng danh sách, khe card thường</span></div>
+<div class="sp-row"><span class="spec">space.5</span><span class="t-mono">20</span><span><span class="sp-bar" style="width: 80px;"></span></span><span class="t-small c-muted">Padding card Quiet, khe card thoáng</span></div>
+<div class="sp-row"><span class="spec">space.6</span><span class="t-mono">24</span><span><span class="sp-bar" style="width: 96px;"></span></span><span class="t-small c-muted">Lề nội dung tối thiểu, padding Bento</span></div>
+<div class="sp-row"><span class="spec">space.8</span><span class="t-mono">32</span><span><span class="sp-bar" style="width: 128px;"></span></span><span class="t-small c-muted">Lề nội dung rộng, khoảng giữa nhóm</span></div>
+<div class="sp-row"><span class="spec">space.10</span><span class="t-mono">40</span><span><span class="sp-bar" style="width: 160px;"></span></span><span class="t-small c-muted">Khoảng giữa các mục lớn</span></div>
+<div class="sp-row"><span class="spec">space.12</span><span class="t-mono">48</span><span><span class="sp-bar" style="width: 192px;"></span></span><span class="t-small c-muted">Khoảng giữa các vùng</span></div>
+<div class="sp-row"><span class="spec">space.16</span><span class="t-mono">64</span><span><span class="sp-bar" style="width: 256px;"></span></span><span class="t-small c-muted">Khoảng thở của masthead, Onboarding</span></div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">02</span><h2 class="t-section">Bố cục desktop</h2><p class="t-small c-muted">Khung 1440 × 900, thu nhỏ còn 2/3. Vùng nội dung dùng Bento bất đối xứng: khối lớn cho điều quan trọng nhất, khối nhỏ cho thông tin phụ.</p></div>
+<div class="sec-body">
+<div style="display: flex; justify-content: space-between; width: 960px;"><span class="spec">0</span><span class="spec">1440</span></div>
+<div style="display: grid; grid-template-columns: 165px minmax(0, 1fr); width: 960px; height: 600px; border-radius: 14px; border: 1px solid var(--border-strong); background: var(--bg); overflow: hidden;">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 10px; border-right: 1px solid var(--border); background: var(--surface);">
+<span class="spec c-text">Sidebar · 248</span>
+<span style="display: block; height: 22px; border-radius: 6px; background: var(--raised); border: 1px solid var(--border);"></span>
+<span style="display: block; height: 22px; border-radius: 6px; background: var(--hover);"></span>
+<span style="display: block; height: 22px; border-radius: 6px; background: var(--hover);"></span>
+<span style="display: block; height: 22px; border-radius: 6px; background: var(--hover);"></span>
+<span style="display: block; height: 22px; border-radius: 6px; background: var(--hover);"></span>
+</div>
+<div style="display: grid; grid-template-rows: 48px minmax(0, 1fr);">
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 0 21px; border-bottom: 1px solid var(--border);"><span class="spec c-text">Top bar · 72</span><span class="spec">lề 32</span></div>
+<div style="padding: 21px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 3fr); grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); gap: 11px;">
+<div style="grid-row: span 2; display: flex; align-items: flex-end; padding: 14px; border-radius: 13px; border: 1px solid var(--border-strong); background: var(--raised);"><span class="spec c-text">Lớn · Hộp thư hợp nhất</span></div>
+<div style="display: flex; align-items: flex-end; padding: 14px; border-radius: 13px; border: 1px solid var(--border); background: var(--surface);"><span class="spec">Vừa · Tài khoản</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 11px;">
+<div style="display: flex; align-items: flex-end; padding: 14px; border-radius: 13px; border: 1px solid var(--border); background: var(--surface);"><span class="spec">Nhỏ · Đồng bộ</span></div>
+<div style="display: flex; align-items: flex-end; padding: 14px; border-radius: 13px; border: 1px solid var(--border); background: var(--surface);"><span class="spec">Nhỏ · Đăng ký</span></div>
+</div>
+</div>
+</div>
+</div>
+<div class="gap-row"><span class="badge badge-mono">Sidebar 248</span><span class="badge badge-mono">Top bar 72</span><span class="badge badge-mono">Lề 24–32</span><span class="badge badge-mono">Khe card 12–20</span><span class="badge badge-mono">Tablet: rail + Bento 2 cột</span><span class="badge badge-mono">Mobile: 1 cột + thanh dưới</span></div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">03</span><h2 class="t-section">Bo góc</h2><p class="t-small c-muted">Không phải thứ gì cũng bo như nhau. Control nhỏ bo ít, khối lớn bo nhiều; nhờ vậy nhìn bo góc cũng đoán được cấp của khối.</p></div>
+<div class="sec-body">
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px;">
+<div class="rad-sample"><span class="rad-box" style="border-radius: 6px;"></span><span class="t-small" style="font-weight: 600;">6 · radius.xs</span><span class="t-small c-muted">Badge, kbd, chip</span></div>
+<div class="rad-sample"><span class="rad-box" style="border-radius: 10px;"></span><span class="t-small" style="font-weight: 600;">10 · radius.sm</span><span class="t-small c-muted">Nút, ô nhập, hàng danh sách</span></div>
+<div class="rad-sample"><span class="rad-box" style="border-radius: 14px;"></span><span class="t-small" style="font-weight: 600;">14 · radius.md</span><span class="t-small c-muted">Card Quiet, hộp danh sách</span></div>
+<div class="rad-sample"><span class="rad-box" style="border-radius: 20px;"></span><span class="t-small" style="font-weight: 600;">20 · radius.lg</span><span class="t-small c-muted">Spotlight, Bento, modal</span></div>
+<div class="rad-sample"><span class="rad-box" style="border-radius: 999px; height: 56px; margin-top: 16px; margin-bottom: 16px;"></span><span class="t-small" style="font-weight: 600;">tròn · radius.full</span><span class="t-small c-muted">Chấm trạng thái, avatar, pill</span></div>
+</div>
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">04</span><h2 class="t-section">Thứ bậc bề mặt</h2><p class="t-small c-muted">Bốn lớp, mỗi lớp sáng hơn một nấc ở Dark và tối hơn một nấc ở Light. Viền thường ngăn hai bề mặt cùng cấp; viền đậm dành cho khối cần nổi.</p></div>
+<div class="sec-body">
+<div class="grid-2">
+<div class="theme-dark stack-panel">
+<span class="spec c-text">Dark · --bg #070707</span>
+<div class="stack-surface"><span class="spec c-text">--surface #151516 · card, panel</span>
+<div class="stack-raised"><span class="spec c-text">--raised #1B1B1D · menu, mục chọn · viền đậm</span>
+<div class="stack-hover"><span class="spec c-text">--hover #232326 · rê chuột</span></div>
+</div>
+</div>
+</div>
+<div class="theme-light stack-panel">
+<span class="spec c-text">Light · --bg #F2F2EF</span>
+<div class="stack-surface"><span class="spec c-text">--surface #FFFFFF · card, panel</span>
+<div class="stack-raised"><span class="spec c-text">--raised #FAFAF8 · menu, mục chọn · viền đậm</span>
+<div class="stack-hover"><span class="spec c-text">--hover #ECECEA · rê chuột</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":2400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, themeLabel: theme === 'light' ? 'Light' : 'Dark' };
+  }
+}
+</script>
+</body>
+</html>

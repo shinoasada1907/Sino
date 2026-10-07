@@ -1,0 +1,41 @@
+# Backend CI (BE-07, D-07): build and test apps/sino-api on every push or pull request that touches it.
+name: backend-ci
+
+on:
+  push:
+    branches: [main, dev, "feature/**"]
+    paths:
+      - "apps/sino-api/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "apps/sino-api/**"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/sino-api
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: apps/sino-api/pom.xml
+
+      # The Ubuntu runner ships Docker, which Testcontainers needs for the PostgreSQL tests.
+      - name: Build and test
+        run: ./mvnw -B -ntp verify

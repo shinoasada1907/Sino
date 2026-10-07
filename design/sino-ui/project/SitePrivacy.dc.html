@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Chính sách quyền riêng tư</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<header class="lp-nav">
+<div class="lp-wrap">
+<div class="lp-nav-in">
+<a class="lp-brand" href="Landing.dc.html"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg>Sino</a>
+<nav class="lp-links" aria-label="Các mục của trang chủ"><a class="lp-link" href="Landing.dc.html">Tính năng</a><a class="lp-link" href="Landing.dc.html">Kế hoạch</a><a class="lp-link" href="Landing.dc.html">Cách hoạt động</a><a class="lp-link" href="Landing.dc.html">Quyền riêng tư</a><a class="lp-link" href="Landing.dc.html">Câu hỏi</a></nav>
+<div class="lp-nav-cta"><a class="btn btn-ghost btn-sm lp-hide-m" href="SiteLogin.dc.html">Đăng nhập</a><a class="btn btn-primary btn-sm" href="Onboarding.dc.html">Bắt đầu</a>
+<button class="btn btn-ghost btn-icon btn-sm lp-menu-btn" type="button" aria-label="Mở menu" aria-expanded="{{menuOpen}}" onClick="{{toggleMenu}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h.01"></path><path d="M3 18h.01"></path><path d="M3 6h.01"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M8 6h13"></path></svg></button></div>
+</div>
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{false}}"><nav class="lp-menu" aria-label="Menu"><a class="lp-link" href="Landing.dc.html">Tính năng</a><a class="lp-link" href="Landing.dc.html">Kế hoạch</a><a class="lp-link" href="Landing.dc.html">Cách hoạt động</a><a class="lp-link" href="Landing.dc.html">Quyền riêng tư</a><a class="lp-link" href="Landing.dc.html">Câu hỏi</a><a class="lp-link" href="SiteLogin.dc.html">Đăng nhập</a></nav></sc-if>
+</div>
+</header>
+<main class="dotbg" style="background-attachment: local;">
+<div class="lp-wrap">
+<header class="doc-head"><span class="t-mono c-muted">PHÁP LÝ</span><h1 class="lp-h2">Chính sách quyền riêng tư</h1><span class="spec">BẢN NHÁP · HIỆU LỰC TỪ <span class="ph">[ngày]</span></span><p class="lp-lead">Sino lưu gì, dùng để làm gì, và bạn kiểm soát dữ liệu của mình thế nào.</p><div class="alert alert-warn" style="align-self: stretch;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg><div class="alert-body"><span class="t-small" style="font-weight: 600;">Bản nháp để thiết kế</span><span class="t-small c-muted">Nội dung pháp lý cần chủ sản phẩm và luật sư duyệt trước khi công bố. Các chỗ trong ngoặc vuông là thông tin còn thiếu.</span></div></div></header>
+<div class="doc">
+<nav class="doc-toc" aria-label="Mục lục"><span class="micro-label">MỤC LỤC</span><a href="#tom-tat" class="is-active">Tóm tắt</a><a href="#thu-thap">Dữ liệu Sino lưu</a><a href="#su-dung">Sino dùng dữ liệu để làm gì</a><a href="#ben-thu-ba">Bên thứ ba</a><a href="#google">Dữ liệu nhận từ Google</a><a href="#luu-giu">Lưu giữ và xóa</a><a href="#bao-mat">Bảo mật</a><a href="#quyen">Quyền của bạn</a><a href="#lien-he">Liên hệ</a></nav>
+<div class="doc-body"><section class="doc-sec" id="tom-tat"><h2>Tóm tắt</h2><div class="doc-summary"><div><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><span class="t-small" style="font-weight: 600;">Không bán dữ liệu, không quảng cáo</span><span class="t-small c-muted">Tin nhắn của bạn chỉ dùng để hiện trong Sino của bạn.</span></div><div><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></svg><span class="t-small" style="font-weight: 600;">Thông tin đăng nhập được mã hóa</span><span class="t-small c-muted">Token của nhà cung cấp được mã hóa trước khi lưu.</span></div><div><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg><span class="t-small" style="font-weight: 600;">Bạn kiểm soát dữ liệu</span><span class="t-small c-muted">Xuất hoặc xóa toàn bộ dữ liệu trong Cài đặt.</span></div></div></section><section class="doc-sec" id="thu-thap"><h2>Dữ liệu Sino lưu</h2><ul><li><b>Tài khoản Sino:</b> email và tên hiển thị của bạn.</li><li><b>Tài khoản bạn kết nối:</b> địa chỉ hoặc số điện thoại của tài khoản, quyền đã cấp, và token truy cập (được mã hóa).</li><li><b>Tin nhắn:</b> nội dung, người gửi, người nhận, thời gian. Với tệp đính kèm, Sino chỉ lưu tên và dung lượng.</li><li><b>Dữ liệu bạn tạo:</b> task, lịch hẹn, nhắc nhở, ghi chú, thư hẹn giờ gửi.</li><li><b>Thiết bị nhận thông báo:</b> địa chỉ đăng ký thông báo của trình duyệt, để gửi nhắc nhở tới đúng máy.</li></ul></section><section class="doc-sec" id="su-dung"><h2>Sino dùng dữ liệu để làm gì</h2><ul><li>Hiện hộp thư chung và lịch sử trò chuyện của bạn.</li><li>Gửi tin thay bạn, chỉ khi bạn bấm Gửi hoặc đã hẹn giờ gửi.</li><li>Nhắc bạn đúng giờ và hiện lại cuộc trò chuyện đã tạm ẩn.</li></ul><p>Sino không dùng nội dung tin nhắn để quảng cáo, không bán và không cho thuê dữ liệu của bạn.</p></section><section class="doc-sec" id="ben-thu-ba"><h2>Bên thứ ba</h2><ul><li><b>Nhà cung cấp tin nhắn</b> (ví dụ Google cho Gmail): Sino chỉ gọi họ trong phạm vi quyền bạn đã cấp.</li><li><b>Dịch vụ thông báo của trình duyệt</b> (Google, Mozilla, Apple): chỉ nhận tiêu đề việc và đường dẫn đã mã hóa, không nhận nội dung tin nhắn.</li><li><b>Hạ tầng lưu trữ:</b> <span class="ph">[nhà cung cấp máy chủ và nơi đặt dữ liệu]</span>.</li></ul></section><section class="doc-sec" id="google"><h2>Dữ liệu nhận từ Google</h2><p>Việc Sino sử dụng và chuyển giao thông tin nhận được từ Google API tuân thủ Chính sách dữ liệu người dùng của Dịch vụ API Google, bao gồm các yêu cầu về Sử dụng giới hạn (Limited Use).</p><p class="note">Câu này là yêu cầu của Google với ứng dụng dùng quyền đọc Gmail; cần giữ khi xin xét duyệt OAuth ở F04.</p></section><section class="doc-sec" id="luu-giu"><h2>Lưu giữ và xóa</h2><ul><li>Dữ liệu được giữ khi tài khoản còn kết nối với Sino.</li><li>Khi bạn ngắt kết nối một tài khoản: <span class="ph">[giữ hay xóa lịch sử — quyết định ở F05]</span>.</li><li>Khi bạn xóa toàn bộ dữ liệu trong Cài đặt, Sino xóa tin nhắn, dữ liệu bạn tạo và ngắt mọi tài khoản.</li></ul></section><section class="doc-sec" id="bao-mat"><h2>Bảo mật</h2><p>Cách Sino bảo vệ dữ liệu được mô tả ở trang <a class="lp-link" href="SiteSecurity.dc.html" style="padding: 0;">Bảo mật</a>.</p></section><section class="doc-sec" id="quyen"><h2>Quyền của bạn</h2><ul><li>Xem và sửa thông tin tài khoản Sino.</li><li>Xuất toàn bộ dữ liệu.</li><li>Xóa toàn bộ dữ liệu.</li><li>Rút quyền của từng tài khoản đã kết nối.</li></ul><p class="note">Căn cứ pháp lý: <span class="ph">[luật bảo vệ dữ liệu cá nhân áp dụng]</span>.</p></section><section class="doc-sec" id="lien-he"><h2>Liên hệ</h2><p><span class="ph">[tên pháp nhân]</span> · <span class="ph">[địa chỉ]</span> · <span class="ph">[email liên hệ]</span></p></section></div>
+</div>
+<footer>
+<div class="lp-foot">
+<div class="lp-foot-col" style="gap: 14px;"><a class="lp-brand" href="Landing.dc.html"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg>Sino</a><span class="t-small c-muted" style="max-width: 300px;">Hộp thư chung và kế hoạch từ tin nhắn, ở cùng một nơi.</span></div>
+<div class="lp-foot-col"><span class="micro-label">SẢN PHẨM</span><a href="Landing.dc.html">Tính năng</a><a href="Landing.dc.html">Kế hoạch</a><a href="Landing.dc.html">Cách hoạt động</a></div>
+<div class="lp-foot-col"><span class="micro-label">TIN CẬY</span><a href="SitePrivacy.dc.html">Quyền riêng tư</a><a href="SiteSecurity.dc.html">Bảo mật</a><a href="Landing.dc.html">Câu hỏi thường gặp</a></div>
+<div class="lp-foot-col"><span class="micro-label">PHÁP LÝ</span><a href="SiteTerms.dc.html">Điều khoản</a><a href="SitePrivacy.dc.html">Chính sách quyền riêng tư</a><a href="SiteOpenSource.dc.html">Phần mềm nguồn mở</a></div>
+</div>
+<div class="lp-legal"><span class="spec">© 2026 SINO</span><button class="lang" type="button" aria-label="Ngôn ngữ: Tiếng Việt">VI<svg class="ic ic-14" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+</footer>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1024}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    return {
+      theme,
+      rootClass: `sino theme-${theme} lp`,
+      menuOpen: !!s.menu,
+      toggleMenu: () => this.setState({ menu: !s.menu }),
+    };
+  }
+}
+</script>
+</body>
+</html>

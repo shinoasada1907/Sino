@@ -31,9 +31,10 @@ Khi code một task, bạn có thể xin trợ giúp theo mức: **Level 1** g�
 flowchart LR
     P0["Phase 0<br/>Nền móng BE<br/>F01 · F03 · F02"] --> P1["Phase 1<br/>Frontend nền<br/>F01–F03 FE"]
     P1 --> P2["Phase 2 · M1<br/>Một provider<br/>F04 · F05 · F06"]
-    P2 --> P3["Phase 3<br/>Sync & realtime<br/>F07 · F08"]
-    P3 --> P4["Phase 4 · M2+M3<br/>Nhiều provider & gửi tin<br/>F09 · F10"]
-    P4 --> P5["Phase 5 · M4<br/>Search & hardening<br/>F11 · F12"]
+    P2 --> P3["Phase 3<br/>Sync, realtime & hẹn giờ<br/>F07 · F08 · F13 · F14"]
+    P3 --> P4["Phase 4<br/>Kế hoạch từ tin nhắn<br/>F15 · F16 · F17 · tạm ẩn"]
+    P4 --> P5["Phase 5 · M2+M3<br/>Nhiều provider & gửi tin<br/>F09 · F10 (+ hẹn giờ gửi)"]
+    P5 --> P6["Phase 6 · M4<br/>Search & hardening<br/>F11 · F12"]
 ```
 
 | Phase | Feature | Demo được khi xong | Milestone Notion | Kích thước |
@@ -41,9 +42,12 @@ flowchart LR
 | **0 — Nền móng BE** | F01, F03, F02 (thứ tự theo D-01) | Gọi bằng curl: health, danh sách provider, CRUD account với fake provider; credential được mã hóa trong DB | — | ~L+M+L |
 | **1 — Frontend nền** | F01-FE, F02-FE, F03-FE | Mở web: khung app 3 cột, trang Accounts đọc/sửa/xóa account thật từ API | — | ~M |
 | **2 — Một provider** | F04, F05, F06 | Kết nối Gmail thật → thấy Unified Inbox → mở conversation đọc lịch sử | **M1 Single-provider proof** | ~L+L+M |
-| **3 — Sync & realtime** | F07, F08 | Mail mới tự xuất hiện trên web không cần reload; lỗi sync hiện đúng account | một phần M3 | ~L+M |
-| **4 — Nhiều provider & gửi tin** | F09, F10 | Hai provider trong một inbox; trả lời tin từ Sino | **M2** + phần còn lại của **M3** | ~L+M |
-| **5 — Search & hardening** | F11, F12 | Tìm kiếm tin nhắn; retry/rate-limit/quan sát hệ thống; xoay khóa mã hóa | **M4 Production-style hardening** | ~M+L |
+| **3 — Sync, realtime & hẹn giờ** | F07, F08, F13, F14 | Mail mới tự xuất hiện trên web không cần reload; lỗi sync hiện đúng account; việc hẹn giờ chạy đúng giờ, thông báo trong app và Web Push | một phần M3 | ~L+M+M+M |
+| **4 — Kế hoạch từ tin nhắn** | F15, F16, F17, tạm ẩn | Từ một thư: tạo task có nhắc nhở, ghi chú, lịch hẹn; tạm ẩn cuộc trò chuyện; nhận nhắc nhở khi tab đã đóng | — (mở rộng, Conflict C9) | ~S+L+M+S |
+| **5 — Nhiều provider & gửi tin** | F09, F10 (+ hẹn giờ gửi) | Hai provider trong một inbox; trả lời tin từ Sino; hẹn giờ gửi thư | **M2** + phần còn lại của **M3** | ~L+M |
+| **6 — Search & hardening** | F11, F12 | Tìm kiếm tin nhắn; retry/rate-limit/quan sát hệ thống; xoay khóa mã hóa | **M4 Production-style hardening** | ~M+L |
+
+> **Mở rộng phạm vi (2026-10-02):** Phase 4 và F13, F14, hẹn giờ gửi không có trong Notion 01/03; chủ sản phẩm quyết định thêm. Hồ sơ phạm vi và quyết định D-25…D-31: `openspec/changes/planner-from-messages`. Canvas thiết kế "Sino UI" cũng có màn vượt MVP (Tổng quan, Dịch vụ, Đăng ký, Onboarding) — cần đưa vào Notion hoặc đánh dấu là ý tưởng sau MVP.
 
 Luật từ Notion 03: F01–F03 làm **BE trước**; từ F04 trở đi mỗi feature là một **vertical slice** gồm cả BE lẫn FE. Không làm hết BE rồi mới làm FE.
 
@@ -55,7 +59,7 @@ Luật từ Notion 03: F01–F03 làm **BE trước**; từ F04 trở đi mỗi 
 
 Mục tiêu: backend có nền móng vững, contract provider rõ, account được lưu an toàn. Chưa có provider thật, chưa có frontend.
 
-#### F01 — Project Foundation · `openspec/changes/be-f01-project-foundation` · ~L
+#### F01 — Project Foundation · ✅ DONE 2026-10-01 · `openspec/changes/archive/2026-10-01-be-f01-project-foundation` · ~L
 
 | Bước code | Task | Bạn sẽ học |
 |---|---|---|
@@ -67,7 +71,7 @@ Mục tiêu: backend có nền móng vững, contract provider rõ, account đư
 
 Cần chốt: **D-03** trước BE-03, **D-02** trước BE-04.
 
-#### F03 — Provider Contract · `openspec/changes/be-f03-provider-contract` · ~M
+#### F03 — Provider Contract · ✅ DONE 2026-10-03 · `openspec/changes/archive/2026-10-03-be-f03-provider-contract` · ~M
 
 | Bước code | Task | Bạn sẽ học |
 |---|---|---|
@@ -78,7 +82,7 @@ Cần chốt: **D-03** trước BE-03, **D-02** trước BE-04.
 
 Cần chốt: **D-01** (đề xuất làm F03 trước F02), **D-16**, **D-18**.
 
-#### F02 — Connected Accounts · `openspec/changes/be-f02-connected-accounts` · ~L
+#### F02 — Connected Accounts · ✅ DONE 2026-10-07 · `openspec/changes/archive/2026-10-07-be-f02-connected-accounts` · ~L
 
 | Bước code | Task | Bạn sẽ học |
 |---|---|---|
@@ -89,7 +93,7 @@ Cần chốt: **D-01** (đề xuất làm F03 trước F02), **D-16**, **D-18**.
 | REST | BE-15 GET · BE-16 PATCH · BE-17 DELETE | thiết kế REST, ngữ nghĩa PATCH, 404 vs 403, xử lý xung đột |
 | Đóng | BE-18 E2E + chống lộ secret | |
 
-Cần chốt: **D-10**, **D-11**, **D-12**, **D-13**, **D-14**.
+~~Cần chốt: **D-10**, **D-11**, **D-12**, **D-13**, **D-14**.~~ Đã chốt: D-10 = A, D-11 = A, D-12 = A, D-13 = B (xóa mềm), D-14 = thêm cột.
 
 **Kết thúc Phase 0:** PR `feature/be-f01-f03-plan` + các nhánh BE vào `main`, archive 3 change, cập nhật Notion 04C/04D.
 
@@ -139,7 +143,7 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 
 ---
 
-### Phase 3 — Sync nền & realtime
+### Phase 3 — Sync nền, realtime & hẹn giờ
 
 #### F07 — Sync Engine · ~L
 
@@ -154,9 +158,53 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 - **Phụ thuộc:** D-22 đã chốt (xác thực cho `EventSource`).
 - **Bạn sẽ học:** SSE, async request trong Servlet stack, giới hạn kết nối, chiến lược reconnect.
 
+#### F13 — Scheduler · ~M
+
+- **BE:** module `scheduler`; bảng `scheduled_job` (loại, giờ chạy, tham chiếu loại + ID, trạng thái, số lần thử, lỗi gần nhất, lease); worker quét ~15 giây bằng `FOR UPDATE SKIP LOCKED`; thử lại 1/5/15 phút và theo `retryAfter`; chạy bù sau sự cố; SPI `ScheduledJobHandler` cho module sở hữu; event `ScheduledJobFailed`.
+- **FE:** không có màn riêng.
+- **Cần chốt khi mở spec:** **D-30** tự viết hay dùng thư viện (db-scheduler/JobRunr); **D-31** cách gọi module sở hữu; làm trước hay sau F07 (F07 có thể dùng chung bảng này).
+- **Bạn sẽ học:** khóa hàng trong PostgreSQL, lease, idempotency của tác động phụ, test có `Clock` tua giờ, test song song bằng Testcontainers.
+
+#### F14 — Thông báo · ~M
+
+- **BE:** module `notification`; bảng `notification` (chống trùng bằng `dedup_key`), `push_subscription` (WEB/IOS/ANDROID); Web Push chuẩn (VAPID, khóa trong `.env`); gửi push trong listener sau commit; 404/410 → xóa thiết bị; `realtime` đẩy `NotificationCreated` qua SSE.
+- **FE:** chuông + trung tâm thông báo; service worker nhận push; Cài đặt → bật thông báo, danh sách thiết bị.
+- **Cần chốt khi mở spec:** thư viện Web Push cho Java 25; nội dung push (chỉ tiêu đề + đường dẫn).
+- **Phụ thuộc:** F13, F08, D-22.
+- **Bạn sẽ học:** Web Push (RFC 8030/8291/8292), service worker, listener tin cậy với Event Publication Registry, bảo vệ dữ liệu khi đi qua dịch vụ bên thứ ba.
+
 ---
 
-### Phase 4 — Nhiều provider & gửi tin (M2 + M3)
+### Phase 4 — Kế hoạch từ tin nhắn
+
+Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn; mọi thứ nằm trong Sino (D-25), nhắc nhở chỉ qua Sino (D-26). Hồ sơ phạm vi: `openspec/changes/planner-from-messages`.
+
+#### F15 — Ghi chú · ~S
+
+- **BE:** module `notes`; bảng `note` (≤ 20.000 ký tự, ghim, neo MESSAGE/CONVERSATION/PARTICIPANT theo loại + ID, `context_conversation_id`); tìm bằng `ILIKE` (FTS khi có F11).
+- **FE:** trang Ghi chú; panel "Việc và ghi chú" trong cuộc trò chuyện; bôi đen đoạn tin → Ghi chú.
+- **Bạn sẽ học:** tham chiếu chéo module không dùng khóa ngoại, xử lý tham chiếu mồ côi.
+
+#### F16 — Việc cần làm + nhắc nhở · ~L
+
+- **BE:** module `planner`; bảng `task`, `recurrence`, `reminder`; "Nhắc tôi" = task "Trả lời: …" có nhắc nhở; task lặp tạo lần kế tiếp khi Xong; nhắc nhở chạy qua F13, báo qua F14 (Xong / Nhắc lại sau 1 giờ).
+- **FE:** trang Việc cần làm (Quá hạn/Hôm nay/Sắp tới/Không có hạn/Đã xong); menu trên tin nhắn: Tạo task, Nhắc tôi.
+- **Bạn sẽ học:** quy tắc lặp và múi giờ (`ZonedDateTime`), test dạng bảng, các ca biên của lịch (ngày 31, 29/02).
+
+#### F17 — Lịch · ~M
+
+- **BE:** bảng `event` (dùng lại `recurrence`, `reminder`); `GET /api/calendar?from=&to=` gộp lịch hẹn, task có hạn, nhắc nhở; lần lặp tính khi xem, không lưu sẵn.
+- **FE:** màn Lịch (Tuần/Tháng/Lịch trình); menu trên tin nhắn: Lịch hẹn.
+- **Bạn sẽ học:** truy vấn theo khoảng thời gian giao nhau, sinh lần lặp trong một cửa sổ.
+
+#### Tạm ẩn cuộc trò chuyện (mở rộng F05) · ~S
+
+- **BE:** `conversation.snoozed_until`, `resurfaced_at`; việc `UNSNOOZE` qua F13; tin mới bỏ tạm ẩn ngay.
+- **FE:** nút Tạm ẩn, bộ lọc "Đang tạm ẩn", dấu "Hiện lại theo hẹn".
+
+---
+
+### Phase 5 — Nhiều provider & gửi tin (M2 + M3)
 
 #### F09 — Provider thứ hai · ~L
 
@@ -169,11 +217,12 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 
 - **BE:** `POST /api/conversations/{id}/messages`; kiểm tra capability trước khi gửi (FR-06); **idempotency key** chống gửi trùng khi retry; message outbound `PENDING → SENT/FAILED`; map `ProviderException` ra HTTP; Gmail send (MIME, header threading `In-Reply-To`/`References`); event `MessageSent`.
 - **FE:** composer tự ẩn/disable theo capability (02C §7), optimistic UI.
+- **Hẹn giờ gửi (mở rộng, xem `planner-from-messages`):** thư đi ở `SCHEDULED` → `SENDING` → `SENT`/`FAILED`; việc `SEND_MESSAGE` qua F13; sửa/hủy trước giờ gửi; lần chạy lại gặp `SENDING` thì không gửi mù; lỗi → thông báo qua F14. FE: Gửi ▾ → Gửi lúc…, bộ lọc "Đã hẹn giờ".
 - **Bạn sẽ học:** idempotency cho lệnh không idempotent, thiết kế lỗi cho thao tác gọi hệ thống ngoài.
 
 ---
 
-### Phase 5 — Search & hardening (M4)
+### Phase 6 — Search & hardening (M4)
 
 #### F11 — Search · ~M
 
@@ -200,11 +249,15 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 | Mở F04 | D-15, endpoint connect (C5), scope Gmail, công cụ giả lập HTTP |
 | Mở F05 | Giữ/xóa lịch sử khi xóa account; cách kích hoạt nhập dữ liệu ban đầu |
 | Mở F06 | Lưu/hiển thị HTML email (XSS) |
+| Mở Phase 3 | Thứ tự F07 / F13 |
+| Mở F13 | **D-30** scheduler tự viết hay thư viện, **D-31** cách gọi module sở hữu |
+| Mở F14 | Thư viện Web Push |
+| Mở F10 | "Gửi lại" sau khi thư hẹn giờ thất bại: gửi ngay hay mở lại ô soạn |
 | Mở F09 | Chọn provider thứ hai và cách tích hợp |
 | Mở F11 | Tìm kiếm tiếng Việt không dấu |
 
 ## 5. Vị trí hiện tại
 
-- **Phase 0 → F01 → BE-01** trên nhánh `feature/be-f01-project-foundation`.
-- Cần làm trước: bật Docker Desktop.
+- **Phase 0:** code xong: F01 (2026-10-01), F03 (2026-10-03), F02 (2026-10-07), cả ba đã archive, trên nhánh `dev`. Để đóng phase còn: đưa `dev` vào `main` (người dùng quyết định, hỏi trước khi merge/push/PR) và cập nhật Notion (02B theo D-12/D-13/D-14, 04C/04D).
+- **Tiếp theo:** Phase 1 (frontend), mở bằng quyết định **D-22** (xác thực cho trình duyệt).
 - `PROJECT_STATE.md` là nơi ghi trạng thái thật; file này chỉ là bản đồ và được cập nhật khi xong mỗi phase.

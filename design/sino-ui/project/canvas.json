@@ -1,0 +1,2171 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "AccountDetail.dc.html": {
+      "expand": "fill",
+      "h": 1160,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Chi tiết tài khoản · Dark",
+      "w": 1440,
+      "x": 6080,
+      "y": 0
+    },
+    "AccountDetailLight.dc.html": {
+      "expand": "fill",
+      "h": 1160,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Chi tiết tài khoản · Light",
+      "w": 1440,
+      "x": 6080,
+      "y": 3260
+    },
+    "Accounts.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tài khoản · Dark",
+      "w": 1440,
+      "x": 4560,
+      "y": 0
+    },
+    "AccountsLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tài khoản · Light",
+      "w": 1440,
+      "x": 4560,
+      "y": 3260
+    },
+    "Actions.dc.html": {
+      "h": 1760,
+      "is_interactive": true,
+      "page": "components",
+      "title": "Hành động & nhập liệu · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "ActionsLight.dc.html": {
+      "h": 1760,
+      "is_interactive": true,
+      "page": "components",
+      "title": "Hành động & nhập liệu · Light",
+      "w": 1440,
+      "x": 0,
+      "y": 3020
+    },
+    "Breakpoints.dc.html": {
+      "h": 700,
+      "page": "responsive",
+      "title": "Quy tắc breakpoint",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "Calendar.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Lịch · Tuần · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "CalendarAgenda.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Lịch · Lịch trình · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "CalendarLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Lịch · Tuần · Light",
+      "w": 1440,
+      "x": 0,
+      "y": 3000
+    },
+    "CalendarLightAgenda.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Lịch · Lịch trình · Light",
+      "w": 1440,
+      "x": 3040,
+      "y": 3000
+    },
+    "CalendarLightMonth.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Lịch · Tháng · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 3000
+    },
+    "CalendarMonth.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Lịch · Tháng · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "ConnectWizard.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 1 · Nhà cung cấp · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 2600
+    },
+    "ConnectWizardLight.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 1 · Nhà cung cấp · Light",
+      "w": 1440,
+      "x": 0,
+      "y": 3900
+    },
+    "ConnectWizardLightStep2.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 2 · Đăng nhập · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 3900
+    },
+    "ConnectWizardLightStep3.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 3 · Quyền · Light",
+      "w": 1440,
+      "x": 3040,
+      "y": 3900
+    },
+    "ConnectWizardLightStep4.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 4 · Đồng bộ · Light",
+      "w": 1440,
+      "x": 4560,
+      "y": 3900
+    },
+    "ConnectWizardLightStep5.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 5 · Xong · Light",
+      "w": 1440,
+      "x": 6080,
+      "y": 3900
+    },
+    "ConnectWizardStep2.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 2 · Đăng nhập · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 2600
+    },
+    "ConnectWizardStep3.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 3 · Quyền · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 2600
+    },
+    "ConnectWizardStep4.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 4 · Đồng bộ · Dark",
+      "w": 1440,
+      "x": 4560,
+      "y": 2600
+    },
+    "ConnectWizardStep5.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Kết nối tài khoản 5 · Xong · Dark",
+      "w": 1440,
+      "x": 6080,
+      "y": 2600
+    },
+    "Conversation.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Chi tiết hội thoại · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "ConversationLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Chi tiết hội thoại · Light",
+      "w": 1440,
+      "x": 3040,
+      "y": 3260
+    },
+    "Dashboard.dc.html": {
+      "expand": "fill",
+      "h": 1360,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tổng quan · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "DashboardLight.dc.html": {
+      "expand": "fill",
+      "h": 1360,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tổng quan · Light",
+      "w": 1440,
+      "x": 0,
+      "y": 3260
+    },
+    "Icons.dc.html": {
+      "h": 1260,
+      "page": "components",
+      "title": "Icon",
+      "w": 1440,
+      "x": 6080,
+      "y": 0
+    },
+    "Inbox.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Hộp thư · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "InboxEvent.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Lịch hẹn từ thư · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 1400
+    },
+    "InboxLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Hộp thư · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 3260
+    },
+    "InboxLightEvent.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Lịch hẹn từ thư · Light",
+      "w": 1440,
+      "x": 3040,
+      "y": 4400
+    },
+    "InboxLightNote.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Ghi chú từ đoạn trích · Light",
+      "w": 1440,
+      "x": 4560,
+      "y": 4400
+    },
+    "InboxLightRemind.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Nhắc tôi · Light",
+      "w": 1440,
+      "x": 0,
+      "y": 4400
+    },
+    "InboxLightSendAt.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Gửi lúc… · Light",
+      "w": 1440,
+      "x": 7600,
+      "y": 4400
+    },
+    "InboxLightSnooze.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Tạm ẩn · Light",
+      "w": 1440,
+      "x": 6080,
+      "y": 4400
+    },
+    "InboxLightTask.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Tạo task · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 4400
+    },
+    "InboxNote.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Ghi chú từ đoạn trích · Dark",
+      "w": 1440,
+      "x": 4560,
+      "y": 1400
+    },
+    "InboxRemind.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Nhắc tôi · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 1400
+    },
+    "InboxSendAt.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Gửi lúc… · Dark",
+      "w": 1440,
+      "x": 7600,
+      "y": 1400
+    },
+    "InboxSnooze.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Tạm ẩn · Dark",
+      "w": 1440,
+      "x": 6080,
+      "y": 1400
+    },
+    "InboxState.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Trống · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "InboxStateError.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Lỗi · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "InboxStateLight.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Trống · Light",
+      "w": 1440,
+      "x": 0,
+      "y": 1300
+    },
+    "InboxStateLightError.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Lỗi · Light",
+      "w": 1440,
+      "x": 3040,
+      "y": 1300
+    },
+    "InboxStateLightLoading.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Đang tải · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 1300
+    },
+    "InboxStateLightOffline.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Ngoại tuyến · Light",
+      "w": 1440,
+      "x": 4560,
+      "y": 1300
+    },
+    "InboxStateLoading.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Đang tải · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "InboxStateOffline.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Ngoại tuyến · Dark",
+      "w": 1440,
+      "x": 4560,
+      "y": 0
+    },
+    "InboxTask.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Hộp thư · Tạo task · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 1400
+    },
+    "Landing.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Landing · Desktop · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "LandingLight.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Landing · Desktop · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "LandingMobile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Landing · Mobile · Dark",
+      "w": 390,
+      "x": 3040,
+      "y": 0
+    },
+    "LandingMobileLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Landing · Mobile · Light",
+      "w": 390,
+      "x": 3510,
+      "y": 0
+    },
+    "Lists.dc.html": {
+      "h": 2620,
+      "page": "components",
+      "title": "Điều hướng & danh sách · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "ListsLight.dc.html": {
+      "h": 2620,
+      "page": "components",
+      "title": "Điều hướng & danh sách · Light",
+      "w": 1440,
+      "x": 3040,
+      "y": 3020
+    },
+    "Logo.dc.html": {
+      "h": 3400,
+      "page": "foundations",
+      "title": "Logo · Đã chọn S2 · Dark",
+      "w": 1440,
+      "x": 6080,
+      "y": 0
+    },
+    "LogoLight.dc.html": {
+      "h": 3400,
+      "page": "foundations",
+      "title": "Logo · Đã chọn S2 · Light",
+      "w": 1440,
+      "x": 7600,
+      "y": 0
+    },
+    "Main.dc.html": {
+      "h": 2280,
+      "page": "foundations",
+      "title": "Màu",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "MobileAccountDetail.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Chi tiết tài khoản · Dark",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "MobileAccountDetailLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Chi tiết tài khoản · Light",
+      "w": 390,
+      "x": 2350,
+      "y": 2480
+    },
+    "MobileAccounts.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Tài khoản · Dark",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "MobileAccountsLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Tài khoản · Light",
+      "w": 390,
+      "x": 1880,
+      "y": 2480
+    },
+    "MobileCalendar.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Lịch · Dark",
+      "w": 390,
+      "x": 4410,
+      "y": 1060
+    },
+    "MobileCalendarLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Lịch · Light",
+      "w": 390,
+      "x": 4410,
+      "y": 2654
+    },
+    "MobileConversation.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Hội thoại · Dark",
+      "w": 390,
+      "x": 3000,
+      "y": 1060
+    },
+    "MobileConversationActions.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Thao tác với tin · Dark",
+      "w": 390,
+      "x": 0,
+      "y": 1240
+    },
+    "MobileConversationEvent.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Lịch hẹn · Dark",
+      "w": 390,
+      "x": 2350,
+      "y": 1240
+    },
+    "MobileConversationLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Hội thoại · Light",
+      "w": 390,
+      "x": 3000,
+      "y": 2654
+    },
+    "MobileConversationLightActions.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Thao tác với tin · Light",
+      "w": 390,
+      "x": 0,
+      "y": 3720
+    },
+    "MobileConversationLightEvent.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Lịch hẹn · Light",
+      "w": 390,
+      "x": 2350,
+      "y": 3720
+    },
+    "MobileConversationLightRemind.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Nhắc tôi · Light",
+      "w": 390,
+      "x": 470,
+      "y": 3720
+    },
+    "MobileConversationLightSendAt.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Gửi lúc… · Light",
+      "w": 390,
+      "x": 1410,
+      "y": 3720
+    },
+    "MobileConversationLightSnooze.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Tạm ẩn · Light",
+      "w": 390,
+      "x": 940,
+      "y": 3720
+    },
+    "MobileConversationLightTask.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Tạo task · Light",
+      "w": 390,
+      "x": 1880,
+      "y": 3720
+    },
+    "MobileConversationRemind.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Nhắc tôi · Dark",
+      "w": 390,
+      "x": 470,
+      "y": 1240
+    },
+    "MobileConversationSendAt.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Gửi lúc… · Dark",
+      "w": 390,
+      "x": 1410,
+      "y": 1240
+    },
+    "MobileConversationSnooze.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Tạm ẩn · Dark",
+      "w": 390,
+      "x": 940,
+      "y": 1240
+    },
+    "MobileConversationTask.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Hội thoại · Tạo task · Dark",
+      "w": 390,
+      "x": 1880,
+      "y": 1240
+    },
+    "MobileDashboard.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Tổng quan · Dark",
+      "w": 390,
+      "x": 2060,
+      "y": 1060
+    },
+    "MobileDashboardLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Tổng quan · Light",
+      "w": 390,
+      "x": 2060,
+      "y": 2654
+    },
+    "MobileInbox.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Hộp thư · Dark",
+      "w": 390,
+      "x": 2530,
+      "y": 1060
+    },
+    "MobileInboxLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Hộp thư · Light",
+      "w": 390,
+      "x": 2530,
+      "y": 2654
+    },
+    "MobileMore.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Thêm · Dark",
+      "w": 390,
+      "x": 3470,
+      "y": 1060
+    },
+    "MobileMoreLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Thêm · Light",
+      "w": 390,
+      "x": 3470,
+      "y": 2654
+    },
+    "MobileNoteEditor.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Soạn ghi chú · Dark",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "MobileNoteEditorLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Soạn ghi chú · Light",
+      "w": 390,
+      "x": 470,
+      "y": 2480
+    },
+    "MobileNotes.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Ghi chú · Dark",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "MobileNotesLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Ghi chú · Light",
+      "w": 390,
+      "x": 0,
+      "y": 2480
+    },
+    "MobileNotifications.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Thông báo · Dark",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "MobileNotificationsLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Thông báo · Light",
+      "w": 390,
+      "x": 940,
+      "y": 2480
+    },
+    "MobilePushSetup.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Bật thông báo · Dark",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "MobilePushSetupLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Bật thông báo · Light",
+      "w": 390,
+      "x": 1410,
+      "y": 2480
+    },
+    "MobileSettings.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Cài đặt · Dark",
+      "w": 390,
+      "x": 2820,
+      "y": 0
+    },
+    "MobileSettingsLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Cài đặt · Light",
+      "w": 390,
+      "x": 2820,
+      "y": 2480
+    },
+    "MobileSettingsNotifications.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Cài đặt thông báo · Dark",
+      "w": 390,
+      "x": 3290,
+      "y": 0
+    },
+    "MobileSettingsNotificationsLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · Cài đặt thông báo · Light",
+      "w": 390,
+      "x": 3290,
+      "y": 2480
+    },
+    "MobileTasks.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Việc cần làm · Dark",
+      "w": 390,
+      "x": 4880,
+      "y": 1060
+    },
+    "MobileTasksLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Việc cần làm · Light",
+      "w": 390,
+      "x": 4880,
+      "y": 2654
+    },
+    "Motion.dc.html": {
+      "h": 2360,
+      "is_interactive": true,
+      "page": "foundations",
+      "title": "Chuyển động",
+      "w": 1440,
+      "x": 4560,
+      "y": 0
+    },
+    "MotionSpec.dc.html": {
+      "h": 2560,
+      "page": "motion",
+      "title": "Motion Spec",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "Notes.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Ghi chú · Dark",
+      "w": 1440,
+      "x": 6080,
+      "y": 0
+    },
+    "NotesLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Ghi chú · Light",
+      "w": 1440,
+      "x": 6080,
+      "y": 3000
+    },
+    "Notifications.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Trung tâm thông báo · Dark",
+      "w": 1440,
+      "x": 7600,
+      "y": 0
+    },
+    "NotificationsLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Trung tâm thông báo · Light",
+      "w": 1440,
+      "x": 7600,
+      "y": 3000
+    },
+    "Onboarding.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 1 · Chào mừng · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "OnboardingLight.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 1 · Chào mừng · Light",
+      "w": 1440,
+      "x": 0,
+      "y": 1300
+    },
+    "OnboardingLightStep2.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 2 · Ngôn ngữ · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 1300
+    },
+    "OnboardingLightStep3.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 3 · Giao diện · Light",
+      "w": 1440,
+      "x": 3040,
+      "y": 1300
+    },
+    "OnboardingLightStep4.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 4 · Nguồn đầu tiên · Light",
+      "w": 1440,
+      "x": 4560,
+      "y": 1300
+    },
+    "OnboardingLightStep5.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 5 · Thông báo · Light",
+      "w": 1440,
+      "x": 6080,
+      "y": 1300
+    },
+    "OnboardingLightStep6.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 6 · Xong · Light",
+      "w": 1440,
+      "x": 7600,
+      "y": 1300
+    },
+    "OnboardingStep2.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 2 · Ngôn ngữ · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "OnboardingStep3.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 3 · Giao diện · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "OnboardingStep4.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 4 · Nguồn đầu tiên · Dark",
+      "w": 1440,
+      "x": 4560,
+      "y": 0
+    },
+    "OnboardingStep5.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 5 · Thông báo · Dark",
+      "w": 1440,
+      "x": 6080,
+      "y": 0
+    },
+    "OnboardingStep6.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "flows",
+      "title": "Onboarding 6 · Xong · Dark",
+      "w": 1440,
+      "x": 7600,
+      "y": 0
+    },
+    "Overlays.dc.html": {
+      "h": 1280,
+      "is_interactive": true,
+      "page": "components",
+      "title": "Lớp phủ · Dark",
+      "w": 1440,
+      "x": 4560,
+      "y": 0
+    },
+    "OverlaysLight.dc.html": {
+      "h": 1280,
+      "is_interactive": true,
+      "page": "components",
+      "title": "Lớp phủ · Light",
+      "w": 1440,
+      "x": 4560,
+      "y": 3020
+    },
+    "Rail.dc.html": {
+      "h": 1194,
+      "page": "responsive",
+      "title": "Rail",
+      "w": 72,
+      "x": 1828,
+      "y": 1060
+    },
+    "RegistrationDetail.dc.html": {
+      "expand": "fill",
+      "h": 1080,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Chi tiết đăng ký · Dark",
+      "w": 1440,
+      "x": 10640,
+      "y": 0
+    },
+    "RegistrationDetailLight.dc.html": {
+      "expand": "fill",
+      "h": 1080,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Chi tiết đăng ký · Light",
+      "w": 1440,
+      "x": 10640,
+      "y": 3260
+    },
+    "Registrations.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Đăng ký · Dark",
+      "w": 1440,
+      "x": 9120,
+      "y": 0
+    },
+    "RegistrationsLight.dc.html": {
+      "expand": "fill",
+      "h": 1100,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Đăng ký · Light",
+      "w": 1440,
+      "x": 9120,
+      "y": 3260
+    },
+    "SearchEmpty.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Không có kết quả tìm kiếm · Dark",
+      "w": 1440,
+      "x": 9120,
+      "y": 0
+    },
+    "SearchEmptyLight.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Không có kết quả tìm kiếm · Light",
+      "w": 1440,
+      "x": 9120,
+      "y": 1300
+    },
+    "Services.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Dịch vụ · Dark",
+      "w": 1440,
+      "x": 7600,
+      "y": 0
+    },
+    "ServicesLight.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Dịch vụ · Light",
+      "w": 1440,
+      "x": 7600,
+      "y": 3260
+    },
+    "Settings.dc.html": {
+      "expand": "fill",
+      "h": 2840,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Cài đặt · Dark",
+      "w": 1440,
+      "x": 12160,
+      "y": 0
+    },
+    "SettingsLight.dc.html": {
+      "expand": "fill",
+      "h": 2840,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Cài đặt · Light",
+      "w": 1440,
+      "x": 12160,
+      "y": 3260
+    },
+    "Sidebar.dc.html": {
+      "h": 1080,
+      "page": "components",
+      "title": "App shell · Sidebar",
+      "w": 248,
+      "x": 7600,
+      "y": 0
+    },
+    "SiteLogin.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Đăng nhập · Email + mật khẩu · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 1460
+    },
+    "SiteLoginError.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Đăng nhập · Sai mật khẩu · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 2920
+    },
+    "SiteLoginGoogle.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Đăng nhập · Google · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 2920
+    },
+    "SiteLoginLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Đăng nhập · Email + mật khẩu · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 1460
+    },
+    "SiteLoginLightError.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Đăng nhập · Sai mật khẩu · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 2920
+    },
+    "SiteLoginLightGoogle.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Đăng nhập · Google · Light",
+      "w": 1440,
+      "x": 4560,
+      "y": 2920
+    },
+    "SiteLoginMobile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Đăng nhập · Mobile · Dark",
+      "w": 390,
+      "x": 3040,
+      "y": 1460
+    },
+    "SiteLoginMobileLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Đăng nhập · Mobile · Light",
+      "w": 390,
+      "x": 3510,
+      "y": 1460
+    },
+    "SiteNotFound.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "404 · Không tìm thấy trang · Desktop · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 10220
+    },
+    "SiteNotFoundLight.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "404 · Không tìm thấy trang · Desktop · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 10220
+    },
+    "SiteNotFoundMobile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "404 · Không tìm thấy trang · Mobile · Dark",
+      "w": 390,
+      "x": 3040,
+      "y": 10220
+    },
+    "SiteNotFoundMobileLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "404 · Không tìm thấy trang · Mobile · Light",
+      "w": 390,
+      "x": 3510,
+      "y": 10220
+    },
+    "SiteOpenSource.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Phần mềm nguồn mở · Desktop · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 8760
+    },
+    "SiteOpenSourceLight.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Phần mềm nguồn mở · Desktop · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 8760
+    },
+    "SiteOpenSourceMobile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Phần mềm nguồn mở · Mobile · Dark",
+      "w": 390,
+      "x": 3040,
+      "y": 8760
+    },
+    "SiteOpenSourceMobileLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Phần mềm nguồn mở · Mobile · Light",
+      "w": 390,
+      "x": 3510,
+      "y": 8760
+    },
+    "SitePrivacy.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Chính sách quyền riêng tư · Desktop · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 4380
+    },
+    "SitePrivacyLight.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Chính sách quyền riêng tư · Desktop · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 4380
+    },
+    "SitePrivacyMobile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Chính sách quyền riêng tư · Mobile · Dark",
+      "w": 390,
+      "x": 3040,
+      "y": 4380
+    },
+    "SitePrivacyMobileLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Chính sách quyền riêng tư · Mobile · Light",
+      "w": 390,
+      "x": 3510,
+      "y": 4380
+    },
+    "SiteSecurity.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Bảo mật · Desktop · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 7300
+    },
+    "SiteSecurityLight.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Bảo mật · Desktop · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 7300
+    },
+    "SiteSecurityMobile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Bảo mật · Mobile · Dark",
+      "w": 390,
+      "x": 3040,
+      "y": 7300
+    },
+    "SiteSecurityMobileLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Bảo mật · Mobile · Light",
+      "w": 390,
+      "x": 3510,
+      "y": 7300
+    },
+    "SiteTerms.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Điều khoản sử dụng · Desktop · Dark",
+      "w": 1440,
+      "x": 0,
+      "y": 5840
+    },
+    "SiteTermsLight.dc.html": {
+      "expand": "fill",
+      "h": 1024,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Điều khoản sử dụng · Desktop · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 5840
+    },
+    "SiteTermsMobile.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Điều khoản sử dụng · Mobile · Dark",
+      "w": 390,
+      "x": 3040,
+      "y": 5840
+    },
+    "SiteTermsMobileLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "landing",
+      "title": "Điều khoản sử dụng · Mobile · Light",
+      "w": 390,
+      "x": 3510,
+      "y": 5840
+    },
+    "Space.dc.html": {
+      "h": 2400,
+      "page": "foundations",
+      "title": "Khoảng cách · Bo góc · Bề mặt",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "Surfaces.dc.html": {
+      "h": 1780,
+      "page": "components",
+      "title": "Bề mặt & trạng thái · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "SurfacesLight.dc.html": {
+      "h": 1780,
+      "page": "components",
+      "title": "Bề mặt & trạng thái · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 3020
+    },
+    "TabBar.dc.html": {
+      "h": 80,
+      "page": "responsive",
+      "title": "Thanh điều hướng dưới",
+      "w": 390,
+      "x": 3940,
+      "y": 1060
+    },
+    "TabletDashboard.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Tablet · Tổng quan · Dark",
+      "w": 834,
+      "x": 0,
+      "y": 1060
+    },
+    "TabletDashboardLight.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Tablet · Tổng quan · Light",
+      "w": 834,
+      "x": 0,
+      "y": 2654
+    },
+    "TabletInbox.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Tablet · Hộp thư · Dark",
+      "w": 834,
+      "x": 914,
+      "y": 1060
+    },
+    "TabletInboxLight.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Tablet · Hộp thư · Light",
+      "w": 834,
+      "x": 914,
+      "y": 2654
+    },
+    "Tasks.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Việc cần làm · Dark",
+      "w": 1440,
+      "x": 4560,
+      "y": 0
+    },
+    "TasksLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "planner",
+      "title": "Việc cần làm · Light",
+      "w": 1440,
+      "x": 4560,
+      "y": 3000
+    },
+    "ThreadState.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Cần kết nối lại · Dark",
+      "w": 1440,
+      "x": 6080,
+      "y": 0
+    },
+    "ThreadStateLight.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Cần kết nối lại · Light",
+      "w": 1440,
+      "x": 6080,
+      "y": 1300
+    },
+    "ThreadStateLightPermission.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Quyền hết hạn · Light",
+      "w": 1440,
+      "x": 7600,
+      "y": 1300
+    },
+    "ThreadStatePermission.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Quyền hết hạn · Dark",
+      "w": 1440,
+      "x": 7600,
+      "y": 0
+    },
+    "Topbar.dc.html": {
+      "h": 72,
+      "page": "components",
+      "title": "App shell · Top bar",
+      "w": 1192,
+      "x": 7928,
+      "y": 0
+    },
+    "Type.dc.html": {
+      "h": 1880,
+      "page": "foundations",
+      "title": "Chữ",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-02T09:30:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "page": "foundations",
+    "view": "canvas"
+  },
+  "notes": {
+    "componentsDarkTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "components",
+      "text": "01 · Components — Dark",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "componentsLightTitle": {
+      "kind": "title1",
+      "maxW": 6000,
+      "page": "components",
+      "text": "01 · Components — Light",
+      "w": 240,
+      "x": 0,
+      "y": 2720
+    },
+    "desktopDarkTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "desktop",
+      "text": "02 · Desktop — Dark",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "desktopLightTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "desktop",
+      "text": "02 · Desktop — Light",
+      "w": 240,
+      "x": 0,
+      "y": 2960
+    },
+    "foundationsTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "foundations",
+      "text": "00 · Foundations",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "landingTitle": {
+      "kind": "title1",
+      "maxW": 3900,
+      "page": "landing",
+      "text": "Landing page — cuộn bên trong từng board để xem hết trang",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "mobileDarkTitle": {
+      "kind": "title1",
+      "maxW": 3680,
+      "page": "mobile",
+      "text": "Mobile — Dark",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "mobileLightTitle": {
+      "kind": "title1",
+      "maxW": 3680,
+      "page": "mobile",
+      "text": "Mobile — Light",
+      "w": 240,
+      "x": 0,
+      "y": 2180
+    },
+    "mobileSheetsDarkTitle": {
+      "kind": "title1",
+      "maxW": 3680,
+      "page": "mobile",
+      "text": "Thao tác trên tin nhắn (sheet) — Dark",
+      "w": 240,
+      "x": 0,
+      "y": 940
+    },
+    "mobileSheetsLightTitle": {
+      "kind": "title1",
+      "maxW": 3680,
+      "page": "mobile",
+      "text": "Thao tác trên tin nhắn (sheet) — Light",
+      "w": 240,
+      "x": 0,
+      "y": 3420
+    },
+    "motionTitle": {
+      "kind": "title1",
+      "maxW": 1440,
+      "page": "motion",
+      "text": "04 · Motion Spec",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "onbDarkTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "flows",
+      "text": "Onboarding — Dark",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "onbLightTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "flows",
+      "text": "Onboarding — Light",
+      "w": 240,
+      "x": 0,
+      "y": 1000
+    },
+    "plannerDarkTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "planner",
+      "text": "Kế hoạch — Dark",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "plannerInboxDarkTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "planner",
+      "text": "Thao tác trên tin nhắn — Dark",
+      "w": 240,
+      "x": 0,
+      "y": 1100
+    },
+    "plannerInboxLightTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "planner",
+      "text": "Thao tác trên tin nhắn — Light",
+      "w": 240,
+      "x": 0,
+      "y": 4100
+    },
+    "plannerLightTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "planner",
+      "text": "Kế hoạch — Light",
+      "w": 240,
+      "x": 0,
+      "y": 2700
+    },
+    "rpDarkTitle": {
+      "kind": "title1",
+      "maxW": 5270,
+      "page": "responsive",
+      "text": "Tablet & Mobile — Dark",
+      "w": 240,
+      "x": 0,
+      "y": 760
+    },
+    "rpLightTitle": {
+      "kind": "title1",
+      "maxW": 5270,
+      "page": "responsive",
+      "text": "Tablet & Mobile — Light",
+      "w": 240,
+      "x": 0,
+      "y": 2354
+    },
+    "rpTitle": {
+      "kind": "title1",
+      "maxW": 5270,
+      "page": "responsive",
+      "text": "03 · Responsive",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "siteLoginAltTitle": {
+      "kind": "title1",
+      "maxW": 6000,
+      "page": "landing",
+      "text": "Đăng nhập — lỗi và phương án Google (D-22)",
+      "w": 240,
+      "x": 0,
+      "y": 2620
+    },
+    "siteLoginTitle": {
+      "kind": "title1",
+      "maxW": 3900,
+      "page": "landing",
+      "text": "Đăng nhập (D-22 chưa chốt: email + mật khẩu)",
+      "w": 240,
+      "x": 0,
+      "y": 1160
+    },
+    "siteNotFoundTitle": {
+      "kind": "title1",
+      "maxW": 3900,
+      "page": "landing",
+      "text": "404 · Không tìm thấy trang",
+      "w": 240,
+      "x": 0,
+      "y": 9920
+    },
+    "siteOpenSourceTitle": {
+      "kind": "title1",
+      "maxW": 3900,
+      "page": "landing",
+      "text": "Phần mềm nguồn mở",
+      "w": 240,
+      "x": 0,
+      "y": 8460
+    },
+    "sitePrivacyTitle": {
+      "kind": "title1",
+      "maxW": 3900,
+      "page": "landing",
+      "text": "Chính sách quyền riêng tư",
+      "w": 240,
+      "x": 0,
+      "y": 4080
+    },
+    "siteSecurityTitle": {
+      "kind": "title1",
+      "maxW": 3900,
+      "page": "landing",
+      "text": "Bảo mật",
+      "w": 240,
+      "x": 0,
+      "y": 7000
+    },
+    "siteTermsTitle": {
+      "kind": "title1",
+      "maxW": 3900,
+      "page": "landing",
+      "text": "Điều khoản sử dụng",
+      "w": 240,
+      "x": 0,
+      "y": 5540
+    },
+    "statesDarkTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "states",
+      "text": "Trạng thái — Dark",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "statesLightTitle": {
+      "kind": "title1",
+      "maxW": 8000,
+      "page": "states",
+      "text": "Trạng thái — Light",
+      "w": 240,
+      "x": 0,
+      "y": 1000
+    },
+    "wizDarkTitle": {
+      "kind": "title1",
+      "maxW": 7520,
+      "page": "flows",
+      "text": "Kết nối tài khoản — Dark",
+      "w": 240,
+      "x": 0,
+      "y": 2300
+    },
+    "wizLightTitle": {
+      "kind": "title1",
+      "maxW": 7520,
+      "page": "flows",
+      "text": "Kết nối tài khoản — Light",
+      "w": 240,
+      "x": 0,
+      "y": 3600
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Type.dc.html",
+    "Space.dc.html",
+    "Motion.dc.html",
+    "Actions.dc.html",
+    "Surfaces.dc.html",
+    "Lists.dc.html",
+    "Overlays.dc.html",
+    "Icons.dc.html",
+    "ActionsLight.dc.html",
+    "SurfacesLight.dc.html",
+    "ListsLight.dc.html",
+    "OverlaysLight.dc.html",
+    "Sidebar.dc.html",
+    "Topbar.dc.html",
+    "Dashboard.dc.html",
+    "Inbox.dc.html",
+    "Conversation.dc.html",
+    "DashboardLight.dc.html",
+    "InboxLight.dc.html",
+    "ConversationLight.dc.html",
+    "Accounts.dc.html",
+    "AccountDetail.dc.html",
+    "Services.dc.html",
+    "Registrations.dc.html",
+    "RegistrationDetail.dc.html",
+    "Settings.dc.html",
+    "AccountsLight.dc.html",
+    "AccountDetailLight.dc.html",
+    "ServicesLight.dc.html",
+    "RegistrationsLight.dc.html",
+    "RegistrationDetailLight.dc.html",
+    "SettingsLight.dc.html",
+    "Onboarding.dc.html",
+    "OnboardingLight.dc.html",
+    "OnboardingStep2.dc.html",
+    "OnboardingLightStep2.dc.html",
+    "OnboardingStep3.dc.html",
+    "OnboardingLightStep3.dc.html",
+    "OnboardingStep4.dc.html",
+    "OnboardingLightStep4.dc.html",
+    "OnboardingStep5.dc.html",
+    "OnboardingLightStep5.dc.html",
+    "OnboardingStep6.dc.html",
+    "OnboardingLightStep6.dc.html",
+    "ConnectWizard.dc.html",
+    "ConnectWizardLight.dc.html",
+    "ConnectWizardStep2.dc.html",
+    "ConnectWizardLightStep2.dc.html",
+    "ConnectWizardStep3.dc.html",
+    "ConnectWizardLightStep3.dc.html",
+    "ConnectWizardStep4.dc.html",
+    "ConnectWizardLightStep4.dc.html",
+    "ConnectWizardStep5.dc.html",
+    "ConnectWizardLightStep5.dc.html",
+    "InboxState.dc.html",
+    "InboxStateLight.dc.html",
+    "InboxStateLoading.dc.html",
+    "InboxStateLightLoading.dc.html",
+    "InboxStateError.dc.html",
+    "InboxStateLightError.dc.html",
+    "InboxStateOffline.dc.html",
+    "InboxStateLightOffline.dc.html",
+    "ThreadState.dc.html",
+    "ThreadStateLight.dc.html",
+    "ThreadStatePermission.dc.html",
+    "ThreadStateLightPermission.dc.html",
+    "SearchEmpty.dc.html",
+    "SearchEmptyLight.dc.html",
+    "Breakpoints.dc.html",
+    "TabletDashboard.dc.html",
+    "TabletInbox.dc.html",
+    "Rail.dc.html",
+    "MobileDashboard.dc.html",
+    "MobileDashboardLight.dc.html",
+    "MobileInbox.dc.html",
+    "MobileInboxLight.dc.html",
+    "MobileConversation.dc.html",
+    "MobileConversationLight.dc.html",
+    "MobileMore.dc.html",
+    "MobileMoreLight.dc.html",
+    "TabBar.dc.html",
+    "TabletDashboardLight.dc.html",
+    "TabletInboxLight.dc.html",
+    "MotionSpec.dc.html",
+    "Calendar.dc.html",
+    "CalendarMonth.dc.html",
+    "CalendarAgenda.dc.html",
+    "Tasks.dc.html",
+    "Notes.dc.html",
+    "Notifications.dc.html",
+    "InboxRemind.dc.html",
+    "InboxTask.dc.html",
+    "InboxEvent.dc.html",
+    "InboxNote.dc.html",
+    "InboxSnooze.dc.html",
+    "InboxSendAt.dc.html",
+    "CalendarLight.dc.html",
+    "CalendarLightMonth.dc.html",
+    "CalendarLightAgenda.dc.html",
+    "TasksLight.dc.html",
+    "NotesLight.dc.html",
+    "NotificationsLight.dc.html",
+    "InboxLightRemind.dc.html",
+    "InboxLightTask.dc.html",
+    "InboxLightEvent.dc.html",
+    "InboxLightNote.dc.html",
+    "InboxLightSnooze.dc.html",
+    "InboxLightSendAt.dc.html",
+    "MobileCalendar.dc.html",
+    "MobileTasks.dc.html",
+    "MobileCalendarLight.dc.html",
+    "MobileTasksLight.dc.html",
+    "MobileNotes.dc.html",
+    "MobileNotesLight.dc.html",
+    "MobileNoteEditor.dc.html",
+    "MobileNoteEditorLight.dc.html",
+    "MobileNotifications.dc.html",
+    "MobileNotificationsLight.dc.html",
+    "MobilePushSetup.dc.html",
+    "MobilePushSetupLight.dc.html",
+    "MobileAccounts.dc.html",
+    "MobileAccountsLight.dc.html",
+    "MobileAccountDetail.dc.html",
+    "MobileAccountDetailLight.dc.html",
+    "MobileSettings.dc.html",
+    "MobileSettingsLight.dc.html",
+    "MobileSettingsNotifications.dc.html",
+    "MobileSettingsNotificationsLight.dc.html",
+    "MobileConversationActions.dc.html",
+    "MobileConversationLightActions.dc.html",
+    "MobileConversationRemind.dc.html",
+    "MobileConversationLightRemind.dc.html",
+    "MobileConversationSnooze.dc.html",
+    "MobileConversationLightSnooze.dc.html",
+    "MobileConversationSendAt.dc.html",
+    "MobileConversationLightSendAt.dc.html",
+    "MobileConversationTask.dc.html",
+    "MobileConversationLightTask.dc.html",
+    "MobileConversationEvent.dc.html",
+    "MobileConversationLightEvent.dc.html",
+    "Landing.dc.html",
+    "LandingLight.dc.html",
+    "LandingMobile.dc.html",
+    "LandingMobileLight.dc.html",
+    "SiteLogin.dc.html",
+    "SiteLoginLight.dc.html",
+    "SiteLoginMobile.dc.html",
+    "SiteLoginMobileLight.dc.html",
+    "SiteLoginError.dc.html",
+    "SiteLoginLightError.dc.html",
+    "SiteLoginGoogle.dc.html",
+    "SiteLoginLightGoogle.dc.html",
+    "SitePrivacy.dc.html",
+    "SitePrivacyLight.dc.html",
+    "SitePrivacyMobile.dc.html",
+    "SitePrivacyMobileLight.dc.html",
+    "SiteTerms.dc.html",
+    "SiteTermsLight.dc.html",
+    "SiteTermsMobile.dc.html",
+    "SiteTermsMobileLight.dc.html",
+    "SiteSecurity.dc.html",
+    "SiteSecurityLight.dc.html",
+    "SiteSecurityMobile.dc.html",
+    "SiteSecurityMobileLight.dc.html",
+    "SiteOpenSource.dc.html",
+    "SiteOpenSourceLight.dc.html",
+    "SiteOpenSourceMobile.dc.html",
+    "SiteOpenSourceMobileLight.dc.html",
+    "SiteNotFound.dc.html",
+    "SiteNotFoundLight.dc.html",
+    "SiteNotFoundMobile.dc.html",
+    "SiteNotFoundMobileLight.dc.html",
+    "Logo.dc.html",
+    "LogoLight.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "foundations",
+      "name": "00 · Foundations"
+    },
+    {
+      "id": "components",
+      "name": "01 · Components"
+    },
+    {
+      "id": "desktop",
+      "name": "02 · Desktop"
+    },
+    {
+      "id": "flows",
+      "name": "02 · Desktop · Onboarding & kết nối"
+    },
+    {
+      "id": "states",
+      "name": "02 · Desktop · Trạng thái"
+    },
+    {
+      "id": "planner",
+      "name": "02 · Desktop · Kế hoạch"
+    },
+    {
+      "id": "responsive",
+      "name": "03 · Responsive"
+    },
+    {
+      "id": "mobile",
+      "name": "03 · Mobile"
+    },
+    {
+      "id": "motion",
+      "name": "04 · Motion Spec"
+    },
+    {
+      "id": "landing",
+      "name": "05 · Landing & trang công khai"
+    }
+  ],
+  "title": "Sino UI"
+}

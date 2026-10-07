@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · App shell · Sidebar</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<aside class="{{rootClass}}" style="height: 100vh;" aria-label="Điều hướng chính">
+<div class="sb-brand"><svg class="ic ic-20 logo-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 6A9 9 0 0 0 21 24H27A9 9 0 1 1 18 33" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="butt" stroke-linejoin="round"></path><rect x="24" y="1.5" width="9" height="9" rx="2.5" fill="currentColor"></rect></svg><span class="sb-word">Sino</span></div>
+<nav class="sb-nav">
+<a class="{{cls.overview}}" href="Dashboard.dc.html" aria-current="{{cur.overview}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>Tổng quan</a>
+<a class="{{cls.inbox}}" href="Inbox.dc.html" aria-current="{{cur.inbox}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>Hộp thư<sc-if value="{{showCounts}}" hint-placeholder-val="{{true}}"><span class="nav-count">12</span></sc-if></a>
+<span class="sb-label">KẾ HOẠCH</span>
+<a class="{{cls.calendar}}" href="Calendar.dc.html" aria-current="{{cur.calendar}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path></svg>Lịch</a>
+<a class="{{cls.tasks}}" href="Tasks.dc.html" aria-current="{{cur.tasks}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="m9 12 2 2 4-4"></path></svg>Việc cần làm<sc-if value="{{showCounts}}" hint-placeholder-val="{{true}}"><span class="nav-count">3</span></sc-if></a>
+<a class="{{cls.notes}}" href="Notes.dc.html" aria-current="{{cur.notes}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"></path><path d="M15 3v4a2 2 0 0 0 2 2h4"></path></svg>Ghi chú</a>
+<span class="sb-label">DANH TÍNH</span>
+<a class="{{cls.accounts}}" href="Accounts.dc.html" aria-current="{{cur.accounts}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tài khoản<sc-if value="{{showCounts}}" hint-placeholder-val="{{true}}"><span class="nav-count">1</span></sc-if></a>
+<a class="{{cls.services}}" href="Services.dc.html" aria-current="{{cur.services}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"></path><path d="M9 8V2"></path><path d="M15 8V2"></path><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path></svg>Dịch vụ</a>
+<a class="{{cls.registrations}}" href="Registrations.dc.html" aria-current="{{cur.registrations}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7l-3-3"></path></svg>Đăng ký<sc-if value="{{showCounts}}" hint-placeholder-val="{{true}}"><span class="nav-count">1</span></sc-if></a>
+</nav>
+<div class="sb-foot">
+<a class="{{cls.settings}}" href="Settings.dc.html" aria-current="{{cur.settings}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>Cài đặt</a>
+<div class="sb-user"><span class="avatar av-a"></span><div class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">An Nguyễn</span><span class="spec ellipsis">3 tài khoản</span></div><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Tài khoản Sino của bạn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button></div>
+</div>
+</aside>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"active":{"editor":"enum","options":["overview","inbox","calendar","tasks","notes","accounts","services","registrations","settings"],"default":"inbox"},"counts":{"editor":"enum","options":["on","off"],"default":"on"},"$preview":{"width":248,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const active = this.props.active || 'inbox';
+    const cls = {};
+    const cur = {};
+    ['overview', 'inbox', 'calendar', 'tasks', 'notes', 'accounts', 'services', 'registrations', 'settings'].forEach((key) => {
+      cls[key] = key === active ? 'nav-item is-active' : 'nav-item';
+      cur[key] = key === active ? 'page' : undefined;
+    });
+    return { rootClass: `sino theme-${theme} sidebar`, cls, cur, showCounts: this.props.counts !== 'off' };
+  }
+}
+</script>
+</body>
+</html>

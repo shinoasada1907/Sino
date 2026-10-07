@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Foundations · Chữ</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;family=Noto+Sans+JP:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sino theme-{{theme}} sheet" style="height: 1880px;">
+
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 00 · FOUNDATIONS / 02 · CHỮ</span><span class="t-mono c-muted">Inter · JetBrains Mono · {{themeLabel}}</span></div>
+<div class="mast-grid">
+<h1 class="t-hero">Chữ tạo thứ bậc,<br>không phải màu.</h1>
+<div class="mast-note">
+<p class="t-body c-muted">Inter cho mọi nội dung. JetBrains Mono cho số liệu hệ thống, mã định danh và thời gian. Tiếng Việt là ngôn ngữ mặc định, nhưng không thành phần nào được bó theo độ dài chữ tiếng Việt.</p>
+</div>
+</div>
+</header>
+
+<section class="sec-full">
+<div class="sec-head"><span class="idx">01</span><h2 class="t-section">Thang chữ</h2><p class="t-small c-muted">Bảy cấp, cộng một kiểu mono. Line-height rộng hơn thông thường để dấu tiếng Việt chồng hai tầng không bị cắt.</p></div>
+<div>
+<div class="scale-row"><div class="scale-meta"><span class="t-small" style="font-weight: 600;">Hero</span><span class="spec">type.hero · 56/64 · 700 · −3,5%</span></div><span class="t-hero">Mọi tài khoản, một nơi.</span></div>
+<div class="scale-row"><div class="scale-meta"><span class="t-small" style="font-weight: 600;">Tiêu đề trang</span><span class="spec">type.page · 40/48 · 700 · −2,8%</span></div><span class="t-page">Hộp thư hợp nhất</span></div>
+<div class="scale-row"><div class="scale-meta"><span class="t-small" style="font-weight: 600;">Tiêu đề mục</span><span class="spec">type.section · 28/36 · 600 · −1,8%</span></div><span class="t-section">Tài khoản đã kết nối</span></div>
+<div class="scale-row"><div class="scale-meta"><span class="t-small" style="font-weight: 600;">Lớn</span><span class="spec">type.large · 20/28 · 600 · −1%</span></div><span class="t-large">Ba cuộc trò chuyện đang chờ bạn trả lời</span></div>
+<div class="scale-row"><div class="scale-meta"><span class="t-small" style="font-weight: 600;">Nội dung</span><span class="spec">type.body · 16/24 · 400</span></div><p class="t-body" style="max-width: 640px;">Sino gom thư từ Gmail, Zalo và Messenger vào một luồng theo thời gian, để bạn đọc và trả lời ở một chỗ thay vì mở ba ứng dụng.</p></div>
+<div class="scale-row"><div class="scale-meta"><span class="t-small" style="font-weight: 600;">Nhỏ</span><span class="spec">type.small · 14/20 · 400</span></div><span class="t-small c-muted">Đồng bộ lần cuối 2 phút trước · 1.284 thư đã lưu</span></div>
+<div class="scale-row"><div class="scale-meta"><span class="t-small" style="font-weight: 600;">Nhãn vi mô</span><span class="spec">type.micro · 12/16 · 600</span></div><div style="display: flex; align-items: baseline; gap: 32px;"><span class="t-micro c-muted">Trạng thái hệ thống</span><span class="t-micro t-caps c-muted">Trạng thái hệ thống</span><span class="spec">viết hoa: tiết chế</span></div></div>
+<div class="scale-row"><div class="scale-meta"><span class="t-small" style="font-weight: 600;">Mono</span><span class="spec">type.mono · 12/16 · 500 · số đều</span></div><span class="t-mono">sync.gmail   14:02:11   +204 thư   OK</span></div>
+</div>
+</section>
+
+<section class="sec-full">
+<div class="sec-head"><span class="idx">02</span><h2 class="t-section">An toàn đa ngôn ngữ</h2><p class="t-small c-muted">Cùng một bộ thành phần ở ba ngôn ngữ. Nút và nhãn co giãn theo nội dung: chỉ đặt chiều rộng tối thiểu, không đặt chiều rộng cứng.</p></div>
+<div class="grid-3">
+
+<div class="card-quiet" lang="vi" style="display: flex; flex-direction: column; gap: 16px;">
+<div class="panel-head"><span class="t-small" style="font-weight: 600;">Tiếng Việt</span><span class="badge badge-mono">VI</span></div>
+<a class="nav-item is-active" href="#vi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>Hộp thư<span class="nav-count">12</span></a>
+<div><button class="btn btn-primary" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Kết nối tài khoản</button></div>
+<span class="status"><span class="dot dot-err"></span><span class="ink-err">Cần đăng nhập lại</span></span>
+<span class="t-small ellipsis" style="font-weight: 600;">Hợp đồng thuê văn phòng — bản sửa lần 2</span>
+</div>
+
+<div class="card-quiet" lang="en" style="display: flex; flex-direction: column; gap: 16px;">
+<div class="panel-head"><span class="t-small" style="font-weight: 600;">English</span><span class="badge badge-mono">EN</span></div>
+<a class="nav-item is-active" href="#en"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>Inbox<span class="nav-count">12</span></a>
+<div><button class="btn btn-primary" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Connect account</button></div>
+<span class="status"><span class="dot dot-err"></span><span class="ink-err">Needs sign-in again</span></span>
+<span class="t-small ellipsis" style="font-weight: 600;">Office lease — second revision</span>
+</div>
+
+<div class="card-quiet" lang="ja" style="display: flex; flex-direction: column; gap: 16px;">
+<div class="panel-head"><span class="t-small" style="font-weight: 600;">日本語</span><span class="badge badge-mono">JA</span></div>
+<a class="nav-item is-active" href="#ja"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>受信トレイ<span class="nav-count">12</span></a>
+<div><button class="btn btn-primary" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>アカウントを接続</button></div>
+<span class="status"><span class="dot dot-err"></span><span class="ink-err">再ログインが必要です</span></span>
+<span class="t-small ellipsis" style="font-weight: 600;">オフィス賃貸契約 — 第2版の修正</span>
+</div>
+
+</div>
+</section>
+
+<section class="sec">
+<div class="sec-aside"><span class="idx">03</span><h2 class="t-section">Quy tắc</h2></div>
+<div class="sec-body">
+<div class="grid-3">
+<div style="display: flex; flex-direction: column; gap: 10px;"><span class="t-mono c-muted">01</span><p class="t-body">Tạo thứ bậc bằng cỡ chữ và độ đậm trước, rồi mới đến chữ phụ. Màu ngữ nghĩa đến sau cùng.</p></div>
+<div style="display: flex; flex-direction: column; gap: 10px;"><span class="t-mono c-muted">02</span><p class="t-body">Số liệu, thời gian và mã định danh dùng JetBrains Mono với số đều, để các cột thẳng hàng.</p></div>
+<div style="display: flex; flex-direction: column; gap: 10px;"><span class="t-mono c-muted">03</span><p class="t-body">Nhãn viết hoa chỉ dùng cho tiêu đề vùng. Mỗi khối tối đa một nhãn viết hoa.</p></div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, themeLabel: theme === 'light' ? 'Light' : 'Dark' };
+  }
+}
+</script>
+</body>
+</html>

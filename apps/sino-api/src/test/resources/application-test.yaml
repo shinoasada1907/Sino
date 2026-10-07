@@ -1,0 +1,21 @@
+# Test profile, activated by the tests with @ActiveProfiles("test").
+# The datasource comes from Testcontainers (@ServiceConnection). Only fake, non-secret test values belong here.
+# Do not create src/test/resources/application.yaml: it would hide src/main/resources/application.yaml.
+spring:
+  application:
+    name: sino-api
+
+sino:
+  security:
+    api-user:
+      username: test-user
+      password: test-password
+  owner:
+    email: owner@sino.test
+    display-name: Test Owner
+  credentials:
+    encryption:
+      # Fake key (the bytes 0..31), not a secret.
+      active-key-id: k1
+      keys:
+        k1: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=

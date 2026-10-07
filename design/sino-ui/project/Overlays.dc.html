@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Components · Lớp phủ</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sino theme-{{theme}} sheet" style="height: 1280px;">
+
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 01 · COMPONENTS / LỚP PHỦ</span><span class="t-mono c-muted">theme · {{themeLabel}}</span></div>
+<div class="mast-grid">
+<h1 class="t-page">Lớp phủ</h1>
+<p class="t-small c-muted">Modal nằm trên lớp phủ mờ của ứng dụng. Wizard kết nối tài khoản đầy đủ năm bước sẽ có ở đợt 4; ở đây là khung và bước 1. Bấm chọn thử một nhà cung cấp.</p>
+</div>
+</header>
+
+<div class="stage">
+<div class="stage-ghost" aria-hidden="true"><span></span><span></span></div>
+<div class="stage-scrim" aria-hidden="true"></div>
+
+<div class="stage-col" style="width: 440px; margin-top: 72px;">
+<span class="spec">Modal / Base</span>
+<section class="modal" aria-labelledby="base-title">
+<header class="modal-head">
+<h2 class="t-large" id="base-title">Ngắt kết nối Messenger?</h2>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đóng"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+</header>
+<div class="modal-body">
+<p class="t-small c-muted">Sino sẽ dừng đồng bộ và xóa quyền truy cập đã cấp. 1.204 tin nhắn đã lưu vẫn được giữ lại, bạn có thể xóa chúng trong phần Quyền riêng tư.</p>
+<label class="toggle"><input type="checkbox"><span>Xóa luôn tin nhắn đã lưu</span></label>
+</div>
+<footer class="modal-foot">
+<button class="btn btn-secondary" type="button">Hủy</button>
+<button class="btn btn-danger" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Ngắt kết nối</button>
+</footer>
+</section>
+</div>
+
+<div class="stage-col" style="width: 620px;">
+<span class="spec">Modal / Connect Account · bước 1</span>
+<section class="modal" aria-labelledby="connect-title">
+<header class="modal-head">
+<div style="display: flex; flex-direction: column; gap: 6px;"><span class="micro-label t-caps">Kết nối tài khoản · 1/5</span><h2 class="t-large" id="connect-title">Chọn nhà cung cấp</h2></div>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đóng"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+</header>
+<ol class="stepper" aria-label="Các bước">
+<li class="is-current" aria-current="step"><span class="step-bar"></span><span class="spec">1 · Nhà cung cấp</span></li>
+<li><span class="step-bar"></span><span class="spec">2 · Đăng nhập</span></li>
+<li><span class="step-bar"></span><span class="spec">3 · Quyền</span></li>
+<li><span class="step-bar"></span><span class="spec">4 · Đồng bộ</span></li>
+<li><span class="step-bar"></span><span class="spec">5 · Xong</span></li>
+</ol>
+<div class="modal-body">
+<label class="opt"><input type="radio" name="provider" value="gmail" defaultChecked="{{yes}}"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Gmail</span><span class="t-small c-muted ellipsis">Thư điện tử</span></span><span class="opt-tags"><span class="badge">Đọc</span><span class="badge">Gửi</span></span></label>
+<label class="opt"><input type="radio" name="provider" value="zalo"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Zalo</span><span class="t-small c-muted ellipsis">Tin nhắn cá nhân và nhóm</span></span><span class="opt-tags"><span class="badge">Đọc</span></span></label>
+<label class="opt"><input type="radio" name="provider" value="messenger"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Messenger</span><span class="t-small c-muted ellipsis">Tin nhắn Facebook</span></span><span class="opt-tags"><span class="badge">Đọc</span><span class="badge">Gửi</span></span></label>
+<label class="opt"><input type="radio" name="provider" value="google"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Google</span><span class="t-small c-muted ellipsis">Danh tính và các trang bạn đăng nhập bằng Google</span></span><span class="opt-tags"><span class="badge">Đăng ký</span></span></label>
+<label class="opt is-soon"><input type="radio" name="provider" value="telegram" disabled="disabled"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></span><span class="opt-main"><span class="t-small" style="font-weight: 600;">Telegram</span><span class="t-small c-muted ellipsis">Tin nhắn</span></span><span class="opt-tags"><span class="badge">Sắp có</span></span></label>
+</div>
+<footer class="modal-foot" style="justify-content: space-between;">
+<span class="t-small c-muted" style="display: inline-flex; align-items: center; gap: 8px;"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Chỉ xin quyền tối thiểu. Bạn xem lại ở bước 3.</span>
+<button class="btn btn-primary" type="button">Tiếp tục<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+</footer>
+</section>
+</div>
+
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":1280}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, themeLabel: theme === 'light' ? 'Light' : 'Dark', yes: true };
+  }
+}
+</script>
+</body>
+</html>

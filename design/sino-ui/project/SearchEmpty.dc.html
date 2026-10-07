@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Tìm kiếm · Không có kết quả</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Sidebar" theme="{{theme}}" active="inbox" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
+<main class="app-scroll dotbg">
+<div class="page">
+
+<div class="field">
+<label class="t-mono c-muted" for="search-q">TÌM KIẾM</label>
+<div class="input-wrap search-wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg><input class="input search-big" id="search-q" type="search" defaultValue="hợp đồng bảo hiểm 2024"><span class="kbd">Esc</span></div>
+</div>
+
+<div class="chips" role="group" aria-label="Bộ lọc tìm kiếm">
+<sc-for list="{{chips}}" as="c" hint-placeholder-count="5"><button class="chip" type="button" aria-pressed="{{c.pressed}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+<button class="chip" type="button" aria-pressed="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Bất kỳ lúc nào<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+
+<div class="card-head"><span class="t-small c-muted"><span class="num">0</span> kết quả · tìm trong <span class="num">3.912</span> thư và tin nhắn</span><span class="spec">0,12 s</span></div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 24px; align-items: start;">
+
+<section class="state-card" style="gap: 24px;" role="status">
+<span class="site" style="width: 56px; height: 56px; border-radius: 16px; color: var(--text);"><svg class="ic ic-24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></span>
+<div style="display: flex; flex-direction: column; gap: 8px;"><h1 class="t-section">Không có kết quả cho “hợp đồng bảo hiểm 2024”.</h1><p class="t-small c-muted">Sino đã tìm trong tiêu đề, nội dung và tên tệp ở cả ba nguồn.</p></div>
+<div style="width: 100%;">
+<div class="chan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M7 12h10"></path><path d="M10 18h4"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Bỏ bớt từ khóa</span><span class="t-small c-muted">Thử một cụm ngắn hơn.</span></div><button class="chip" type="button">bảo hiểm 2024</button></div>
+<div class="chan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Tìm cả thư đã lưu trữ</span><span class="t-small c-muted">Hiện đang bỏ qua 214 thư đã lưu trữ.</span></div><label class="toggle"><input type="checkbox" aria-label="Tìm cả thư đã lưu trữ"></label></div>
+<div class="chan"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="color: var(--danger);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg><div class="who-text"><span class="t-small" style="font-weight: 600;">Messenger đang ngắt kết nối</span><span class="t-small c-muted">Tin nhắn sau 21:04 hôm qua chưa tìm được.</span></div><button class="btn btn-ghost btn-sm" type="button">Kết nối lại</button></div>
+</div>
+</section>
+
+<aside class="card-quiet sec-card">
+<span class="micro-label">Tìm gần đây</span>
+<div style="display: flex; flex-direction: column; gap: 2px; margin: 0 -10px;">
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>hợp đồng thuê văn phòng<span class="spec">hôm nay</span></button>
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>lịch khám<span class="spec">hôm qua</span></button>
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>ảnh Đà Lạt<span class="spec">30/09</span></button>
+<button class="cmd" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>hóa đơn điện tháng 9<span class="spec">28/09</span></button>
+</div>
+</aside>
+
+</div>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const pick = (this.state && this.state.source) || 'all';
+    const chips = [
+      { id: 'all', label: 'Tất cả nguồn' },
+      { id: 'gmail', label: 'Gmail' },
+      { id: 'zalo', label: 'Zalo' },
+      { id: 'messenger', label: 'Messenger' },
+      { id: 'files', label: 'Có tệp' },
+    ].map((c) => ({ ...c, pressed: c.id === pick, pick: () => this.setState({ source: c.id }) }));
+    return { theme, rootClass: `sino theme-${theme} app`, chips };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Motion Spec</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sino theme-{{theme}} sheet" style="height: 2560px; gap: 28px;">
+
+<header class="mast">
+<div class="mast-bar"><span class="t-mono c-muted">SINO / 04 · MOTION SPEC</span><span class="t-mono c-muted">trục 0–1000 ms · mỗi vạch 100 ms · {{themeLabel}}</span></div>
+<div class="mast-grid"><h1 class="t-hero">Mỗi chuyển động có một lý do<br>và một lúc dừng.</h1><p class="t-body c-muted">Bảng này dành cho người code: thời điểm bắt đầu, thời lượng, đường cong, và cách lùi về khi người dùng chọn giảm hoặc tắt chuyển động. Token ở Foundations · Chuyển động.</p></div>
+</header>
+
+<div class="grid-3" style="gap: 20px;">
+<div class="principle" style="grid-template-columns: 32px minmax(0, 1fr);"><span class="t-mono c-muted">01</span><span class="t-small">Mọi chuyển động bắt đầu từ một thao tác hoặc một sự kiện. Không có gì tự chạy lặp lại.</span></div>
+<div class="principle" style="grid-template-columns: 32px minmax(0, 1fr);"><span class="t-mono c-muted">02</span><span class="t-small">Thời lượng 160–240 ms. Chỉ CountUp và DecryptedText dài hơn, và chỉ chạy một lần.</span></div>
+<div class="principle" style="grid-template-columns: 32px minmax(0, 1fr);"><span class="t-mono c-muted">03</span><span class="t-small">Giảm: bỏ mọi dịch chuyển, giữ mờ dần tối đa 160 ms. Tắt: đổi trạng thái tức thì.</span></div>
+</div>
+
+<section class="ms-card">
+<div class="card-head"><h2 class="t-large">A · Chuyển trang</h2><span class="badge badge-mono">FadeContent</span></div>
+<div class="ms-meta"><span class="t-small c-muted">Khi: bấm mục điều hướng hoặc liên kết</span></div>
+<div>
+<div class="tl-head"><span class="spec">PHẦN TỬ</span><div class="tl-scale"><span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span></div><span class="spec">ĐƯỜNG CONG · KHI GIẢM</span></div>
+<div class="tl-row"><span class="t-small">Mục điều hướng · đổi nền</span><div class="tl-track"><span class="tl-bar" style="left: 0%; width: 18%;"></span></div><span class="spec">ease.out · giữ nguyên</span></div>
+<div class="tl-row"><span class="t-small">Nội dung cũ · mờ đi</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 0%; width: 12%;"></span></div><span class="spec">ease.standard · giữ nguyên</span></div>
+<div class="tl-row"><span class="t-small">Nội dung mới · mờ dần + 6px</span><div class="tl-track"><span class="tl-bar" style="left: 6%; width: 24%;"></span></div><span class="spec">ease.out · chỉ mờ 160 ms</span></div>
+</div>
+</section>
+
+<section class="ms-card">
+<div class="card-head"><h2 class="t-large">B · Vào màn Tổng quan</h2><span class="gap-row"><span class="badge badge-mono">MagicBento</span><span class="badge badge-mono">CountUp</span></span></div>
+<div class="ms-meta"><span class="t-small c-muted">Khi: mở Tổng quan lần đầu trong phiên. Những lần sau chỉ chạy A.</span></div>
+<div>
+<div class="tl-head"><span class="spec">PHẦN TỬ</span><div class="tl-scale"><span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span></div><span class="spec">ĐƯỜNG CONG · KHI GIẢM</span></div>
+<div class="tl-row"><span class="t-small">Lời chào và trạng thái</span><div class="tl-track"><span class="tl-bar" style="left: 0%; width: 24%;"></span></div><span class="spec">ease.out · chỉ mờ</span></div>
+<div class="tl-row"><span class="t-small">6 ô Bento · trễ 40 ms mỗi ô</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 4%; width: 44%;"></span></div><span class="spec">ease.out · hiện cùng lúc</span></div>
+<div class="tl-row"><span class="t-small">CountUp · số liệu</span><div class="tl-track"><span class="tl-bar" style="left: 12%; width: 70%;"></span></div><span class="spec">ease.out · hiện số cuối</span></div>
+<div class="tl-row"><span class="t-small">Biểu đồ 24 giờ · cột mọc lên</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 20%; width: 32%;"></span></div><span class="spec">ease.out · hiện ngay</span></div>
+</div>
+</section>
+
+<section class="ms-card">
+<div class="card-head"><h2 class="t-large">C · Thư mới đến</h2><span class="badge badge-mono">AnimatedList</span></div>
+<div class="ms-meta"><span class="t-small c-muted">Khi: lần đồng bộ trả về thư mới. Tối đa 6 hàng mỗi đợt; nhiều hơn thì hiện ngay kèm thông báo "N thư mới".</span></div>
+<div>
+<div class="tl-head"><span class="spec">PHẦN TỬ</span><div class="tl-scale"><span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span></div><span class="spec">ĐƯỜNG CONG · KHI GIẢM</span></div>
+<div class="tl-row"><span class="t-small">Hàng mới · trượt 6px + mờ dần</span><div class="tl-track"><span class="tl-bar" style="left: 0%; width: 24%;"></span></div><span class="spec">ease.out · chỉ mờ</span></div>
+<div class="tl-row"><span class="t-small">Các hàng bên dưới · dời xuống</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 0%; width: 22%;"></span></div><span class="spec">ease.standard · nhảy ngay</span></div>
+<div class="tl-row"><span class="t-small">Số đếm sidebar · đổi số</span><div class="tl-track"><span class="tl-bar" style="left: 12%; width: 16%;"></span></div><span class="spec">ease.standard · đổi ngay</span></div>
+<div class="tl-row"><span class="t-small">Chấm chưa đọc · hiện</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 12%; width: 16%;"></span></div><span class="spec">ease.out · hiện ngay</span></div>
+</div>
+</section>
+
+<section class="ms-card">
+<div class="card-head"><h2 class="t-large">D · Modal và wizard</h2><span class="badge badge-mono">FadeContent</span></div>
+<div class="ms-meta"><span class="t-small c-muted">Khi: mở Kết nối tài khoản, bấm Tiếp tục, đóng. Đóng luôn nhanh hơn mở.</span></div>
+<div>
+<div class="tl-head"><span class="spec">PHẦN TỬ</span><div class="tl-scale"><span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span></div><span class="spec">ĐƯỜNG CONG · KHI GIẢM</span></div>
+<div class="tl-row"><span class="t-small">Mở · lớp phủ mờ dần</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 0%; width: 18%;"></span></div><span class="spec">ease.out · giữ nguyên</span></div>
+<div class="tl-row"><span class="t-small">Mở · modal lên 8px + mờ dần</span><div class="tl-track"><span class="tl-bar" style="left: 4%; width: 22%;"></span></div><span class="spec">ease.out · chỉ mờ</span></div>
+<div class="tl-row"><span class="t-small">Tiếp tục · nội dung cũ mờ đi</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 0%; width: 12%;"></span></div><span class="spec">ease.standard · giữ nguyên</span></div>
+<div class="tl-row"><span class="t-small">Tiếp tục · nội dung mới vào 6px</span><div class="tl-track"><span class="tl-bar" style="left: 8%; width: 24%;"></span></div><span class="spec">ease.out · chỉ mờ</span></div>
+<div class="tl-row"><span class="t-small">Đóng · ngược lại</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 0%; width: 16%;"></span></div><span class="spec">ease.standard · chỉ mờ</span></div>
+</div>
+</section>
+
+<section class="ms-card">
+<div class="card-head"><h2 class="t-large">E · Hover và focus</h2><span class="badge badge-mono">BorderGlow</span></div>
+<div class="ms-meta"><span class="t-small c-muted">Khi: rê chuột, bấm Tab. Rời chuột chạy ngược lại với cùng thời lượng.</span></div>
+<div>
+<div class="tl-head"><span class="spec">PHẦN TỬ</span><div class="tl-scale"><span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span></div><span class="spec">ĐƯỜNG CONG · KHI GIẢM</span></div>
+<div class="tl-row"><span class="t-small">Nút · đổi nền</span><div class="tl-track"><span class="tl-bar" style="left: 0%; width: 18%;"></span></div><span class="spec">ease.out · giữ nguyên</span></div>
+<div class="tl-row"><span class="t-small">Card Bento · nhấc 2px, viền đậm</span><div class="tl-track"><span class="tl-bar" style="left: 0%; width: 18%;"></span></div><span class="spec">ease.out · chỉ đổi viền</span></div>
+<div class="tl-row"><span class="t-small">Icon điều hướng · dịch 2px</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 0%; width: 18%;"></span></div><span class="spec">ease.out · bỏ dịch</span></div>
+<div class="tl-row"><span class="t-small">Focus · viền sáng 1px + quầng</span><div class="tl-track"><span class="tl-bar" style="left: 0%; width: 16%;"></span></div><span class="spec">ease.out · chỉ viền</span></div>
+</div>
+</section>
+
+<section class="ms-card">
+<div class="card-head"><h2 class="t-large">F · Onboarding</h2><span class="gap-row"><span class="badge badge-mono">DecryptedText</span><span class="badge badge-mono">DotGrid</span></span></div>
+<div class="ms-meta"><span class="t-small c-muted">Khi: lần đầu mở Sino. Nơi duy nhất được dùng hiệu ứng thương hiệu.</span></div>
+<div>
+<div class="tl-head"><span class="spec">PHẦN TỬ</span><div class="tl-scale"><span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span></div><span class="spec">ĐƯỜNG CONG · KHI GIẢM</span></div>
+<div class="tl-row"><span class="t-small">Chữ SINO · giải mã, 18 khung × 45 ms</span><div class="tl-track"><span class="tl-bar" style="left: 0%; width: 81%;"></span></div><span class="spec">linear · hiện chữ ngay</span></div>
+<div class="tl-row"><span class="t-small">Bước mới · mờ dần + 6px</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 0%; width: 24%;"></span></div><span class="spec">ease.out · chỉ mờ</span></div>
+<div class="tl-row"><span class="t-small">Nền chấm · phản ứng theo chuột</span><div class="tl-track"><span class="tl-bar is-loop" style="left: 0%; width: 100%;"></span></div><span class="spec">theo chuột · đứng yên</span></div>
+</div>
+</section>
+
+<section class="ms-card">
+<div class="card-head"><h2 class="t-large">G · Chờ và tải</h2></div>
+<div class="ms-meta"><span class="t-small c-muted">Khi: chờ đăng nhập OAuth, đồng bộ lần đầu. Vòng lặp chỉ tồn tại trong lúc đang chờ thật.</span></div>
+<div>
+<div class="tl-head"><span class="spec">PHẦN TỬ</span><div class="tl-scale"><span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span></div><span class="spec">ĐƯỜNG CONG · KHI GIẢM</span></div>
+<div class="tl-row"><span class="t-small">Vòng xoay đăng nhập · 900 ms một vòng</span><div class="tl-track"><span class="tl-bar is-loop" style="left: 0%; width: 90%;"></span></div><span class="spec">linear · dừng xoay</span></div>
+<div class="tl-row"><span class="t-small">Thanh tiến độ · cập nhật</span><div class="tl-track"><span class="tl-bar is-soft" style="left: 0%; width: 24%;"></span></div><span class="spec">ease.standard · nhảy ngay</span></div>
+<div class="tl-row"><span class="t-small">Khung xương (skeleton)</span><div class="tl-track"></div><span class="spec">đứng yên, không shimmer</span></div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1440,"height":2560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, themeLabel: theme === 'light' ? 'Light' : 'Dark' };
+  }
+}
+</script>
+</body>
+</html>

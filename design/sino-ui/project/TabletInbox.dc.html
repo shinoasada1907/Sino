@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Tablet · Hộp thư</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}">
+<dc-import name="Rail" theme="{{theme}}" active="inbox" hint-size="72px,1194px"></dc-import>
+<div class="tab-main">
+<header class="tab-top">
+<h1 class="t-large">Hộp thư</h1>
+<span class="spec" style="margin-left: 12px;">12 chưa đọc</span>
+<div style="margin-left: auto; display: flex; gap: 4px;">
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Tìm kiếm"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Thông báo"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></button>
+</div>
+</header>
+<div class="tab-inbox">
+
+<section class="pane" aria-label="Danh sách cuộc trò chuyện">
+<div class="list-head" style="padding: 14px 12px 12px;">
+<div class="chips" role="group" aria-label="Lọc">
+<button class="chip" type="button" aria-pressed="true">Tất cả nguồn<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<button class="chip" type="button" aria-pressed="false">Chưa đọc</button>
+<button class="chip" type="button" aria-pressed="false">Cần trả lời</button>
+</div>
+</div>
+<div class="day-sep">HÔM NAY</div>
+<div class="list-flat">
+<div class="mrow is-selected"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Trần Minh Anh</span></div><span class="mrow-subject ellipsis">Hợp đồng thuê văn phòng — bản sửa lần 2</span><span class="mrow-preview ellipsis">Em gửi lại bản đã sửa điều khoản 4.</span></div><div class="mrow-meta"><span class="spec c-text">09:41</span></div></div>
+<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span></div><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="mrow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div></div>
+<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Phòng khám Ánh Dương</span></div><span class="mrow-subject ellipsis">Nhắc lịch khám thứ Hai 05/10</span></div><div class="mrow-meta"><span class="spec c-text">07:30</span><span class="dot dot-unread"></span></div></div>
+</div>
+<div class="day-sep">HÔM QUA</div>
+<div class="list-flat">
+<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Lê Hoàng</span></div><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối.</span></div><div class="mrow-meta"><span class="spec">21:02</span></div></div>
+<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Nhóm chạy bộ Hồ Tây</span></div><span class="mrow-preview ellipsis">Tuấn: Sáng Chủ nhật 6 giờ, điểm hẹn cũ nhé.</span></div><div class="mrow-meta"><span class="spec">18:47</span></div></div>
+<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Thu Trang</span></div><span class="mrow-subject ellipsis">Ảnh chuyến đi Đà Lạt</span></div><div class="mrow-meta"><span class="spec">10:15</span></div></div>
+</div>
+</section>
+
+<section class="thread" aria-label="Cuộc trò chuyện đang mở">
+<header class="thread-head" style="padding: 16px 20px;">
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;"><h2 class="t-large">Hợp đồng thuê văn phòng — bản sửa lần 2</h2><span class="t-small c-muted">Gmail · 3 thư · 2 tệp</span></div>
+<div class="thread-tools">
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Lưu trữ"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Thêm thao tác"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button>
+</div>
+</header>
+<div class="thread-body" style="padding: 20px;">
+<div class="mail is-collapsed"><div class="mail-head"><span class="avatar av-a" style="width: 32px; height: 32px;"></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Bạn</span><span class="t-small c-muted ellipsis">Gửi anh bản hợp đồng đầu tiên…</span></div><span class="spec">28/09</span></div></div>
+<article class="mail" style="padding: 18px;">
+<div class="mail-head"><span class="avatar av-c" style="width: 32px; height: 32px;"></span><div class="who-text"><span class="t-small" style="font-weight: 600;">Trần Minh Anh</span><span class="spec">tới An Nguyễn</span></div><span class="spec c-text">09:41</span></div>
+<div class="mail-text t-body"><p>Chào anh An,</p><p>Em gửi lại bản đã sửa điều khoản 4 (thời hạn thanh toán) và phụ lục giá theo trao đổi hôm thứ Tư.</p><p>Anh phản hồi giúp trước thứ Tư 07/10 nhé.</p></div>
+<div class="gap-row" style="gap: 8px;"><a class="attach" href="#tep-1"><span class="file-ic">PDF</span><span class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Hop-dong-v2.pdf</span><span class="spec">1,4 MB</span></span></a><a class="attach" href="#tep-2"><span class="file-ic">XLSX</span><span class="who-text"><span class="t-small ellipsis" style="font-weight: 600;">Phu-luc-gia.xlsx</span><span class="spec">86 KB</span></span></a></div>
+</article>
+</div>
+<div class="composer" style="padding: 12px 20px 16px;">
+<div class="composer-box">
+<label class="sr" for="tab-reply">Trả lời Trần Minh Anh</label>
+<textarea id="tab-reply" rows="2" placeholder="Trả lời Trần Minh Anh…"></textarea>
+<div class="composer-bar"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đính kèm tệp"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button><button class="btn btn-primary btn-sm" type="button" style="margin-left: auto;">Gửi<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></button></div>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":834,"height":1194}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    return { theme, rootClass: `sino theme-${theme} tab-shell` };
+  }
+}
+</script>
+</body>
+</html>
