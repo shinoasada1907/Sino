@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE). Đang làm: xong BE-27, BE-28, BE-29.
+> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE). Đang làm: xong BE-27, BE-28, BE-29, FE-01.
 > **Cập nhật:** 2026-10-07. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
@@ -39,7 +39,8 @@ SAU (session cookie, D-22 = A)
 | BE-27 | Mật khẩu owner và khóa ghi nhớ trong cấu hình, kiểm lúc khởi động | xong |
 | BE-28 | API `/api/auth/*`, session, CSRF, remember-me, bỏ HTTP Basic | xong |
 | BE-29 | Khóa tạm 5 lần / 15 phút | xong |
-| FE-01…FE-05 | Nền móng web, API client, trang đăng nhập, khung app, nghiệm thu | chưa làm |
+| FE-01 | Cài stack, design token, sáng/tối, proxy `/api`, test, CI frontend | xong |
+| FE-02…FE-05 | API client, trang đăng nhập, khung app, nghiệm thu | chưa làm |
 
 ---
 
@@ -208,6 +209,157 @@ Làm hỏng code mỗi lần một chỗ, và lần nào cũng có test đỏ:
 
 ---
 
+## 4. Nền móng web (FE-01)
+
+### 4.0 Bức tranh: các mảnh của frontend
+
+```text
+LÚC DEV
+  trình duyệt --> http://localhost:5173 (Vite dev server)
+                    /src/*.tsx  -> dịch TypeScript + JSX, trả ngay (HMR)
+                    /api/...    -> proxy --> Spring Boot localhost:8080
+  => trình duyệt chỉ thấy MỘT địa chỉ:
+     cookie session và XSRF-TOKEN được lưu cho localhost:5173
+
+LÚC BUILD (pnpm build)
+  tsc -b        kiểm kiểu toàn bộ src (không sinh file)
+  vite build    gom code thành dist/index.html + dist/assets/*.js, *.css, font
+```
+
+| Mảnh | Vai trò | Tương đương bên Java |
+|---|---|---|
+| pnpm | cài thư viện, chạy script | Maven |
+| Vite | dev server, đóng gói khi build | Spring Boot DevTools + plugin đóng gói của Maven |
+| TypeScript | JavaScript có kiểu, `tsc` kiểm lỗi kiểu | `javac` |
+| React | vẽ giao diện bằng component | (không có tương đương trực tiếp) |
+| Tailwind CSS | viết style bằng class ngắn trong JSX | (không có) |
+| shadcn/ui + Radix | component có sẵn (nút, ô nhập, menu) | thư viện UI |
+| TanStack Query | gọi API, cache, trạng thái loading/lỗi (dùng từ FE-02) | (không có) |
+| React Router | chuyển trang theo URL (dùng từ FE-03/FE-04) | `@RequestMapping` của trang |
+| Vitest + Testing Library + MSW | chạy test, dựng component trong DOM giả, giả mạng | JUnit + MockMvc + WireMock |
+
+### 4.1 pnpm, `package.json` và lockfile
+- **Ở đâu:** `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`.
+- **Là gì:** `package.json` khai báo thư viện cần dùng (`dependencies` cho code chạy trong trình duyệt, `devDependencies` cho công cụ: build, test, lint) và các script (`pnpm dev`, `pnpm test`...). `pnpm-lock.yaml` ghi **chính xác** phiên bản của mọi thư viện, kể cả thư viện con, giống việc Maven luôn tải đúng một phiên bản đã ghi.
+- **`^5.104.1` nghĩa là gì:** cho phép bản vá và bản nhỏ mới hơn (5.x.y) nhưng không lên 6. Lockfile mới là thứ đảm bảo hai máy cài giống hệt nhau, nên CI chạy `pnpm install --frozen-lockfile`: lockfile lệch với `package.json` thì dừng, không tự sửa.
+- **`packageManager: pnpm@11.21.0`:** ghi phiên bản pnpm của dự án; CI (`pnpm/action-setup`) đọc trường này để cài đúng bản. Trên máy thì tự cài: `npm install -g pnpm@11` (Node 25 trở đi không còn kèm `corepack`).
+- **Bẫy 1, script cài đặt:** một số thư viện chạy script ngay lúc cài (postinstall). Từ pnpm 10, các script này bị chặn mặc định vì một thư viện bị chiếm quyền có thể chạy mã độc trên máy bạn ngay khi cài. pnpm 11 còn **báo lỗi** (`ERR_PNPM_IGNORED_BUILDS`, thoát mã 1, CI sẽ đỏ) nếu ta chưa quyết. MSW có một script như vậy, chỉ để chép file service worker cho chế độ chạy trong trình duyệt, thứ ta không dùng; nên `pnpm-workspace.yaml` ghi `allowBuilds: msw: false` (quyết định tường minh: không cho chạy).
+- **Bẫy 2, bản major quá mới:** MSW 3.0.0 ra ngày 2026-09-28, mà Vitest 5 vẫn khai báo cần `msw ^2`. Chọn MSW 2.15 (ổn định từ tháng 7) thay vì bản mới nhất. Bài học: "mới nhất" chưa chắc là "đúng"; xem `peerDependencies` và ngày phát hành.
+
+### 4.2 Vite và proxy `/api`
+- **Ở đâu:** `vite.config.ts` (`server.proxy`).
+- **Là gì:** lúc dev, mọi request có đường dẫn bắt đầu bằng `/api/` được Vite chuyển tiếp sang `http://localhost:8080`; phần còn lại (`/`, `/accounts`, file `.tsx`) do Vite tự trả.
+- **Vì sao khóa là `/api/` có dấu `/` ở cuối:** Vite so khớp theo **tiền tố** (`startsWith`). Với khóa `/api`, một trang web tên `/apis` hay `/api-keys` cũng bị đẩy sang backend. Đã kiểm: `/apis` và `/api-keys` vẫn do Vite trả.
+- **Vì sao proxy thay vì bật CORS ở Spring (D-36):** trình duyệt coi `localhost:5173` và `localhost:8080` là **hai origin khác nhau** (khác cổng là khác origin). Gọi thẳng sang 8080 thì phải bật CORS có cookie, cookie phải `SameSite=None; Secure`, tức phải chạy HTTPS cả khi dev, thêm nhiều cấu hình dễ sai. Có proxy thì trình duyệt chỉ thấy một origin: cookie `SameSite=Lax` chạy tự nhiên, không cần CORS. Khi deploy (F12), web và API cũng sẽ nằm sau một origin.
+- **Đã kiểm thế nào:** dựng một "backend giả" ở cổng 8080, gọi `http://localhost:5173/api/auth/me` thì backend giả nhận được request và cookie `XSRF-TOKEN` nó gửi về đi qua nguyên vẹn; còn `/accounts` vẫn do Vite trả `index.html`.
+- **Bẫy:** backend chưa chạy thì `/api/...` trả `502` rỗng, log Vite ghi `http proxy error ... ECONNREFUSED`. `pnpm preview` (chạy bản build) **không** có proxy.
+
+### 4.3 TypeScript: alias `@/` và kiểm kiểu khi build
+- **Ở đâu:** `tsconfig.json`, `tsconfig.app.json` (`paths`), `vite.config.ts` (`resolve.alias`).
+- **Là gì:** `import { Button } from '@/shared/ui/button'` thay cho `'../../shared/ui/button'`. Phải khai ở **hai** nơi: `tsconfig` để TypeScript hiểu khi kiểm kiểu, `vite.config.ts` để Vite tìm được file khi chạy và build.
+- **Bẫy:** TypeScript 6 đánh dấu `baseUrl` là lỗi thời, nên chỉ dùng `paths` với đường dẫn tương đối (`./src/*`). `pnpm build` chạy `tsc -b` trước `vite build`: Vite tự nó **không** kiểm kiểu (chỉ bỏ phần kiểu đi cho nhanh), nên thiếu bước `tsc` thì lỗi kiểu vẫn lọt vào bản build.
+
+### 4.4 Tailwind CSS và design token từ canvas
+- **Ở đâu:** `src/index.css`.
+- **Tailwind là gì:** thay vì viết file CSS riêng, ta ghép các class nhỏ ngay trong JSX: `h-11 rounded-sm bg-primary px-4.5 text-sm font-semibold`. Khi build, Tailwind quét code và chỉ sinh CSS cho các class thật sự được dùng.
+- **Design token là gì:** tên vai trò của màu, font, bo góc ("nền", "chữ mờ", "nút chính") thay vì mã màu cụ thể. Đổi theme chỉ là đổi giá trị của token, không phải sửa từng component.
+- **Hai lớp:**
+
+```text
+Lớp 1: biến CSS chép NGUYÊN từ canvas (design/sino-ui/project/sino.css)
+  :root, .theme-light   { --bg: #F2F2EF; --text: #111111; --inverse: #111111; ... }
+  .theme-dark           { --bg: #070707; --text: #F7F7F4; --inverse: #F7F7F4; ... }
+
+Lớp 2: @theme inline nối biến đó sang tên class của Tailwind
+  --color-background: var(--bg)        -> class bg-background
+  --color-primary:    var(--inverse)   -> class bg-primary, text-primary
+  --radius-sm:        10px             -> class rounded-sm
+```
+
+- **Vì sao hai lớp:** lớp 1 giữ đúng tên của canvas nên đối chiếu được với thiết kế từng dòng; lớp 2 cho component dùng tên quen của Tailwind/shadcn (`bg-primary`, `text-muted-foreground`). Thêm component shadcn mới thì nó tự ăn màu canvas.
+- **`inline` để làm gì:** class sinh ra trỏ thẳng tới `var(--inverse)`, nên khi `<html>` đổi từ `theme-light` sang `theme-dark`, giá trị đổi ngay mà không cần sinh lại CSS.
+- **Bẫy:** bo góc của Tailwind mặc định khác canvas (`rounded-sm` mặc định là 4px); ở đây đã ghi đè thành thang của canvas (6 / 10 / 14 / 20px). Các góc 8px và 12px của canvas viết là `rounded-[8px]` và `rounded-xl`.
+
+### 4.5 Giao diện sáng/tối
+- **Ở đâu:** `src/shared/theme/theme.ts` (đọc, lưu, áp theme), `ThemeProvider.tsx`, `themeContext.ts` (`useTheme`), `ThemeToggle.tsx`.
+
+```text
+mở trang
+  -> có lựa chọn đã lưu ("light"/"dark") trong localStorage["sino.theme"]? -> dùng nó
+  -> không có, hoặc giá trị lạ ("blue")                                    -> theo hệ điều hành
+                                                                               (prefers-color-scheme)
+  -> đặt class theme-light hoặc theme-dark lên <html>
+bấm nút đổi theme
+  -> lưu vào localStorage (lỗi thì bỏ qua) -> đổi class trên <html>
+```
+
+- **React Context:** `ThemeProvider` giữ theme hiện tại trong state, và mọi component bên dưới đọc được qua `useTheme()` mà không phải truyền tay qua từng tầng. Gọi `useTheme()` ngoài provider thì báo lỗi ngay, để không âm thầm chạy sai.
+- **Vì sao bọc `try/catch` quanh `localStorage`:** cửa sổ ẩn danh của vài trình duyệt, hoặc khi người dùng chặn dữ liệu trang web, việc đọc/ghi `localStorage` **ném lỗi** chứ không trả `null`. Không bọc thì cả app trắng màn hình chỉ vì không nhớ được màu nền.
+- **Vì sao kiểm giá trị đọc ra:** `localStorage` ai cũng sửa được (DevTools, phiên bản cũ của app). Chỉ nhận đúng `"light"` hoặc `"dark"`, giá trị khác thì coi như chưa chọn.
+- **`useLayoutEffect` thay vì `useEffect`:** `useLayoutEffect` chạy **trước** khi trình duyệt vẽ khung hình đầu, nên trang không bị chớp màu sai khi React vừa hiện.
+- **Bẫy, chớp trắng trước khi JavaScript chạy:** trước khi script chạy, `<html>` chưa có class theme nào, nên trang dùng màu sáng mặc định; người dùng hệ điều hành tối sẽ thấy chớp trắng. `index.css` có một luật nhỏ: hệ điều hành tối và `<html>` chưa có class thì nền tối. Còn lại một trường hợp: người dùng đã chọn ngược với hệ điều hành (ví dụ hệ điều hành sáng, chọn tối) thì **mỗi lần tải trang** vẫn chớp màu của hệ điều hành trong lúc tải gói JavaScript. Cách bỏ hẳn là thêm một script inline nhỏ trong `index.html` đặt class trước khi trang hiện; đổi lại, logic đọc theme nằm ở hai nơi, và F12 phải cho phép script đó trong Content-Security-Policy (dùng mã băm `sha256-...` là được). Chưa làm, để người dùng quyết.
+
+### 4.6 shadcn/ui, Radix và `cn`
+- **Ở đâu:** `src/shared/ui/*.tsx`, `components.json`.
+- **Là gì:** shadcn không phải thư viện cài vào `node_modules` mà là một **công cụ chép code**: `pnpm dlx shadcn@latest add button` chép file `button.tsx` vào dự án, và từ đó nó là code của ta, sửa thoải mái. Bên trong dùng **Radix** cho phần khó: bàn phím, focus, thuộc tính `aria-*` cho trình đọc màn hình (ví dụ menu thả xuống mở bằng phím, đóng bằng Esc).
+- **`cva` (class-variance-authority):** khai báo các biến thể của nút (`primary`, `secondary`, `ghost`, `danger`) và kích thước (`default`, `sm`, `icon`, `icon-sm`) ở một chỗ; `<Button variant="secondary" size="sm">` tự ghép đúng class.
+- **`cn`:** ghép class và để class sau thắng class trước khi trùng loại: `cn('h-9', 'h-11')` cho `h-11`. Nhờ vậy truyền `className="w-full"` từ ngoài vào là ghi đè được. shadcn 4.21 lấy hàm này từ gói npm `cn` của chính shadcn (thay cho cặp `clsx` + `tailwind-merge` trước đây).
+- **Bẫy, `cn` phải biết tên riêng của theme:** `cn` đoán loại của class theo tên. `shadow-sm`, `shadow-lg` là cỡ bóng; còn tên lạ như `shadow-popover` thì nó đoán là **màu** của bóng. Kết quả: `cn('shadow-popover', 'shadow-none')` giữ cả hai, và class nào thắng tùy thứ tự trong file CSS chứ không phải thứ tự ta viết. Vì vậy có `src/shared/lib/utils.ts`: một wrapper khai `popover` là cỡ bóng (`createCn({ extend: { theme: { shadow: ['popover'] } } })`), có test riêng. `shadcn add` luôn sinh `import { cn } from "cn"`, nên `.oxlintrc.json` có luật `no-restricted-imports`: import thẳng `cn` là `pnpm lint` đỏ. Wrapper còn có lợi phụ: `cn` mới ở bản 0.4, nếu bản sau đổi API thì chỉ sửa một chỗ.
+- **Đã chỉnh theo canvas:** nút cao 44px, bo 10px, chữ 600 14px, viền focus 2px; ô nhập nền `surface`, focus có vòng 3px; công tắc 40 x 24 với núm 16px; menu nền `raised`, viền `border-strong`, bóng `shadow-pop`.
+- **Bẫy, viền focus biến mất (review bắt được):** nút có `outline-none` (bỏ viền mặc định khi bấm chuột) và `focus-visible:outline-2` (viền 2px khi dùng bàn phím). Trong Tailwind 4, `outline-none` đặt một biến `--tw-outline-style: none`, còn `outline-2` lấy kiểu viền **từ chính biến đó**, nên viền dày 2px nhưng kiểu vẫn là `none`: không hiện gì. Người dùng bàn phím (Tab) không biết mình đang ở nút nào, trái WCAG 2.4.7. Sửa: thêm `focus-visible:outline-solid`. Đo trên Chrome thật bằng cách bấm Tab: trước khi sửa `outline-style: none`, sau khi sửa `solid 2px` đúng màu `--ring`. Bài học: kiểm giao diện phải gồm cả **bàn phím**, không chỉ chuột và ảnh chụp.
+- **Bẫy, variant tự định nghĩa:** component sinh ra dùng `data-open:` và `data-checked:`, nhưng Radix chỉ gắn `data-state="open"` hay `data-state="checked"`. `shadcn init` thường thêm các variant này vào CSS bằng cách cài cả gói CLI `shadcn` (khoảng 300 gói con). Ta chỉ chép đúng bốn variant cần dùng vào đầu `index.css`. Thiếu chúng thì class không có tác dụng gì mà **cũng không báo lỗi**: công tắc bật mà vẫn xám.
+
+### 4.7 Font tự host
+- **Ở đâu:** `main.tsx` (`import '@fontsource-variable/inter'`), `--font-sans` trong `index.css`.
+- **Vì sao không dùng Google Fonts như canvas:** mỗi lần mở trang, trình duyệt sẽ gửi IP của người dùng cho Google. Sino đọc tin nhắn riêng tư, tự cài trên máy mình, nên không để request nào đi ra bên thứ ba. Gói `@fontsource-variable` đóng font vào bản build; nhiều file `.woff2` (latin, vietnamese, cyrillic...) nhưng trình duyệt chỉ tải bộ chữ trang thật sự dùng.
+
+### 4.8 Test frontend
+- **Ở đâu:** `src/shared/theme/theme.test.tsx`, `src/test/setup.ts`, `src/test/msw/server.ts`, khối `test` trong `vite.config.ts`.
+
+```text
+pnpm test (Vitest)
+  môi trường jsdom: một "trình duyệt giả" trong Node (có document, localStorage; không vẽ gì)
+  setup.ts
+    - thêm matcher toBeInTheDocument, toHaveClass (jest-dom)
+    - bật MSW: request nào không có handler -> test ĐỎ (không bao giờ gọi mạng thật)
+    - sau mỗi test: gỡ component (cleanup), xóa handler đã thêm
+  test: render(<ThemeProvider><ThemeToggle/></ThemeProvider>)
+        -> tìm nút như người dùng: getByRole('button', { name: 'Chuyển sang giao diện sáng' })
+        -> userEvent.click(...) -> kiểm class của <html>
+```
+
+- **Testing Library tìm phần tử theo vai trò và nhãn**, không theo class hay id: nếu test tìm được nút bằng tên đọc cho trình đọc màn hình, thì người dùng khiếm thị cũng tìm được. Đây là lý do nút đổi theme (chỉ có icon) phải có `aria-label`.
+- **Giả hệ điều hành và bộ nhớ:** jsdom không có `matchMedia`, nên test tự gắn một bản giả trả "tối" hoặc "sáng" (`vi.stubGlobal`). Để giả trình duyệt chặn bộ nhớ, test cho `Storage.prototype.getItem/setItem` ném `SecurityError` (`vi.spyOn`); `restoreMocks: true` trả lại như cũ sau mỗi test.
+- **Mô phỏng "tải lại trang":** `unmount()` component, xóa class trên `<html>`, rồi `render` lại một provider mới. Provider mới chỉ còn `localStorage` để biết lựa chọn cũ, đúng như khi tải lại thật.
+- **Mặc định cho mọi test:** `setup.ts` giả `matchMedia` là "không ưu tiên tối" trước mỗi test, và `unstubGlobals: true` gỡ nó sau mỗi test. Nếu không, mọi test sau này dựng `ThemeProvider` (trang đăng nhập, khung app) sẽ sập với `window.matchMedia is not a function`; test `uses the light theme when the test environment states no OS preference` canh việc này.
+- **Request quên handler phải làm test đỏ:** chiến lược `onUnhandledRequest: 'error'` của MSW chỉ làm `fetch` ném lỗi mạng. Nếu code đang test **bắt** lỗi đó (API client của FE-02 đổi nó thành `NETWORK_ERROR`), test vẫn xanh vì lý do sai. `setup.ts` ghi lại mọi request không có handler và làm test đỏ ở `afterEach` với thông báo `Requests without an MSW handler: GET ...`. Đã kiểm bằng một test tạm cố tình nuốt lỗi.
+- **Test viết trước:** chạy với một `ThemeProvider` rỗng thì cả 5 test đỏ (không có class theme nào), viết code xong thì 5/5 xanh. Sau review có thêm 1 test theme và 3 test cho `cn` (đỏ trước: `shadow-popover shadow-none`; xanh sau khi có wrapper), tổng 9/9.
+- **Kiểm tra ngược (8 lỗi cố ý, cả 8 bị bắt):**
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Đọc `localStorage` không có `try/catch` | trình duyệt chặn bộ nhớ vẫn chạy |
+| Ghi `localStorage` không có `try/catch` | trình duyệt chặn bộ nhớ vẫn chạy |
+| Bỏ qua lựa chọn đã lưu | giữ theme sau khi tải lại |
+| Bỏ qua hệ điều hành (luôn sáng) | lần đầu theo hệ điều hành tối (4 test đỏ) |
+| Không bao giờ lưu | giữ theme sau khi tải lại |
+| Không gỡ class cũ khi đổi | sau khi đổi, `<html>` không còn `theme-dark` |
+| Nhận mọi giá trị đã lưu | bỏ qua giá trị lạ (`"blue"`) |
+| Nút đổi theme không gọi lưu | giữ theme sau khi tải lại |
+
+- **Kiểm trên trình duyệt thật:** Chrome headless điều khiển qua DevTools Protocol: hệ điều hành sáng thì nền `#F2F2EF`; bấm đổi thì tối và lưu `dark`; tải lại vẫn tối; màn hình 390px không tràn ngang; font Inter đã tải.
+
+### 4.9 Review độc lập
+- Sau khi code chạy, một agent review chỉ đọc (không sửa code) soi lại toàn bộ thay đổi. Kết quả: không có lỗi nghiêm trọng nhất; 1 lỗi mức cao (viền focus, mục 4.6); 2 lỗi trung bình (`cn` với `shadow-popover`; test thiếu `matchMedia`); vài lỗi nhỏ: proxy khớp tiền tố, `data-inset={false}` vẫn làm menu thụt lề, MSW không làm đỏ test khi lỗi bị bắt, favicon vẫn là logo Vite, `corepack` không còn trên Node 26. Tất cả đã sửa và kiểm lại, trừ chuyện chớp theme (mục 4.5), để người dùng quyết.
+- **Bài học:** mọi lỗi kể trên đều đã qua lint, test và build xanh. Chúng chỉ lộ ra khi có người đọc kỹ cách công cụ thật sự hoạt động (CSS Tailwind sinh ra, cách `cn` đoán loại class, chiến lược của MSW). Xanh mới là điều kiện cần.
+
+### 4.10 CI frontend
+- **Ở đâu:** `.github/workflows/frontend-ci.yml`.
+- **Là gì:** mỗi lần push hay mở pull request có đụng `apps/sino-web/**`, GitHub chạy: cài đúng pnpm theo `packageManager`, Node 26, `pnpm install --frozen-lockfile`, rồi `lint`, `test`, `build`. Giống `backend-ci.yml` chạy `./mvnw verify` cho backend.
+- **Bẫy:** CI chỉ thực sự chạy khi code được push, mà push cần bạn cho phép. Trước đó, bằng chứng là ba lệnh chạy trên máy.
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -225,3 +377,13 @@ Làm hỏng code mỗi lần một chỗ, và lần nào cũng có test đỏ:
 13. Nếu bộ đếm bỏ cả những email đang bị khóa khi bảng đầy, kẻ tấn công làm được gì?
 14. Vì sao code dùng một bean `Clock` thay vì gọi thẳng `Instant.now()`?
 15. Module test của `account` không nạp `common`. Vì sao trước BE-29 điều đó không gây lỗi, còn sau BE-29 thì có?
+16. Vì sao đặt proxy ở Vite thay vì bật CORS ở Spring? Hai origin khác nhau ở chỗ nào khi chỉ khác cổng?
+17. `pnpm-lock.yaml` khác `package.json` ở đâu, và vì sao CI dùng `--frozen-lockfile`?
+18. Vì sao pnpm chặn script cài đặt của thư viện, và `allowBuilds: msw: false` nói điều gì?
+19. Design token chia hai lớp (biến của canvas, rồi `@theme inline`) để được lợi gì?
+20. Nếu bỏ `try/catch` quanh `localStorage`, người dùng nào sẽ gặp lỗi và lỗi trông ra sao?
+21. Vì sao Testing Library tìm nút theo vai trò và tên (`getByRole`) thay vì theo class?
+22. Component shadcn dùng `data-checked:` mà CSS chưa định nghĩa variant đó thì chuyện gì xảy ra, và vì sao khó phát hiện?
+23. Vì sao `pnpm build` phải chạy `tsc -b` trước `vite build`?
+24. Nút có `outline-none` và `focus-visible:outline-2` mà vẫn không hiện viền khi bấm Tab. Vì sao, và kiểm lỗi này bằng cách nào?
+25. Vì sao `cn('shadow-popover', 'shadow-none')` giữ cả hai class, và wrapper trong `src/shared/lib/utils.ts` sửa điều đó thế nào?
