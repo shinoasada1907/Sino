@@ -38,7 +38,7 @@ import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.OAuth2Credentials;
 
 /**
- * Module test: the account module and the modules it uses (provider), on a real PostgreSQL. The test methods are
+ * Module test: the account module and the modules it uses directly, on a real PostgreSQL. The test methods are
  * not transactional, so every call commits or rolls back exactly as it would in the application.
  */
 @ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)

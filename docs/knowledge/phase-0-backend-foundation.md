@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–20, đang làm: xong BE-09…BE-14).
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–21, đang làm: xong BE-09…BE-15).
 > **Cập nhật:** 2026-10-07. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
@@ -428,7 +428,8 @@ account_credential  (BE-13)
 | BE-12 | Mã hóa credential AES-256-GCM, kiểm tra khóa lúc khởi động, review bảo mật | xong |
 | BE-13 | Bảng `account_credential`, `CredentialStore` (mã hóa khi ghi, giải mã khi đọc) | xong |
 | BE-14 | Use case đăng ký kết nối (tạo mới / reconnect) và event `AccountConnected` | xong |
-| BE-15…BE-18 | REST API, xóa, nghiệm thu | chưa làm |
+| BE-15 | API đọc: `GET /api/accounts`, `GET /api/accounts/{id}` | xong |
+| BE-16…BE-18 | Sửa account (PATCH), xóa, nghiệm thu | chưa làm |
 
 Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A** (AES-256-GCM bằng thư viện có sẵn của JDK, khóa có ID), **D-12 = A** (5 trạng thái, không lưu `SYNCING`), **D-14** (thêm 4 cột cho bảng credential), quy tắc "luôn ghi cả credential". Lần đầu áp dụng D-08 (UUIDv7) và D-09 (enum lưu chữ + `CHECK`).
 
@@ -626,7 +627,52 @@ người dùng bấm "Kết nối Gmail"
 
 ---
 
-## 19. Kỹ thuật test mới trong F02
+## 19. API đọc account (BE-15)
+
+### 19.1 Đường đi của một request
+- **Ở đâu:** `account/api/AccountsController.java`, `account/api/AccountResponse.java`, `account/application/AccountQueryService.java`, `account/application/AccountErrorCode.java`.
+
+```text
+GET /api/accounts/{id}   (HTTP Basic)
+  |
+  v
+Security filter chain             chưa đăng nhập -> 401 UNAUTHORIZED
+  |
+  v
+AccountsController.get(id)        id không phải UUID -> 400 MALFORMED_REQUEST
+  |   ownerId = currentUser.requireOwnerId()
+  v
+AccountQueryService.get(ownerId, id)        @Transactional(readOnly = true)
+  |   repository.findByIdAndOwnerId(id, ownerId)
+  |   không thấy -> SinoException(ACCOUNT_NOT_FOUND) -> 404
+  v
+AccountResponse.from(account, capabilities)  -> JSON
+```
+
+### 19.2 Lọc theo owner ngay trong chữ ký method
+- Mọi method của `AccountQueryService` nhận `ownerId`; không có method "lấy account theo ID" mà không cần owner. Vì vậy không thể quên lọc: thiếu owner thì code không biên dịch.
+- Controller lấy owner từ `CurrentUser` (module `identity`) rồi truyền xuống. Service không tự đọc Spring Security, nên dễ dùng lại và dễ test.
+- Repository: `findByIdAndOwnerId(id, ownerId)` là `WHERE id = ? AND user_id = ?`, Spring Data tự sinh từ tên method.
+
+### 19.3 404 chứ không phải 403 cho account của người khác
+- Trả 403 ("bị cấm") tức là xác nhận "ID này có thật, chỉ là không phải của bạn"; người dò ID sẽ biết ID nào tồn tại. Trả 404 với **cùng** nội dung (detail cố định "Account not found.") thì không phân biệt được hai trường hợp.
+- Test so nguyên body của hai response: một cho account của người khác, một cho ID không tồn tại. Chỉ được khác đường dẫn trong `instance`.
+
+### 19.4 DTO map tường minh
+- `AccountResponse` là record riêng cho JSON, chép từng trường từ entity. Không trả thẳng entity vì entity có `ownerId` và `version` không dành cho client, và một trường thêm vào entity sau này (có thể nhạy cảm) sẽ tự lọt ra JSON. Với DTO, muốn trả trường nào thì phải viết ra.
+- Enum thành chuỗi (`status().name()`). `Instant` thành chuỗi ISO-8601 kết thúc bằng `Z`, theo quy ước JSON của F01; Jackson của Spring Boot 4 làm sẵn việc này, test ghim lại kết quả.
+- Test kiểm **đúng tập tên trường** (11 tên), không chỉ kiểm "không có trường token". Thêm bất kỳ trường nào cũng phải sửa test, tức là phải có người cố ý làm.
+
+### 19.5 `find` chứ không phải `get` khi lấy capabilities
+- Connector có thể bị gỡ khỏi ứng dụng trong khi account vẫn còn trong DB. `ProviderRegistry.get` sẽ ném `UNKNOWN_PROVIDER`, và một account làm hỏng cả danh sách. `find` trả `Optional` rỗng: account vẫn hiện, chỉ có `capabilities: []`.
+
+### 19.6 `@Transactional(readOnly = true)`
+- Đặt ở class: mọi method chạy trong transaction chỉ đọc. Ý định của code rõ ràng, và Hibernate bỏ bước dò thay đổi lúc kết thúc vì không có gì để ghi.
+- Ứng dụng tắt `open-in-view` (F01): phiên Hibernate kết thúc khi service trả về. Controller chỉ đọc field thường của entity nên không gặp lỗi lazy loading.
+
+---
+
+## 20. Kỹ thuật test mới trong F02
 
 - **`@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)`:** slice chỉ nạp JPA và Flyway, chạy trên PostgreSQL thật (Testcontainers) để `CHECK`, `UNIQUE`, khóa ngoại hoạt động như production. Mỗi test tự rollback.
 - **`entityManager.clear()`:** xóa bộ nhớ đệm của Hibernate để lần đọc sau thật sự đi xuống DB. Không có nó, test chỉ đọc lại object trong bộ nhớ.
@@ -639,7 +685,11 @@ người dùng bấm "Kết nối Gmail"
   - BE-12: IV cố định → 1 test đỏ; bỏ AAD → 3 test đỏ; tag 96 bit → 2 test đỏ.
   - BE-13: store "quên" ghi refresh token → test xoay khóa đỏ.
   - BE-14: bỏ `@Transactional` → test rollback và test reconnect đỏ; không tìm account cũ → test reconnect đỏ (lỗi `UNIQUE`); bỏ kiểm tra provider → test provider lạ đỏ; `reconnected` luôn `false` → test reconnect đỏ; publish trước khi lưu credential → test rollback đỏ; thêm một trường vào event → test payload đỏ.
-- **`@ApplicationModuleTest(mode = DIRECT_DEPENDENCIES)` (Spring Modulith, BE-14):** chỉ khởi động module `account` cộng các module nó dùng trực tiếp (`provider`), không phải cả ứng dụng. Module `identity` không được nạp, nên test tự chèn owner vào `app_user` bằng `JdbcTemplate`.
+  - BE-15: danh sách không lọc owner → 2 test đỏ; `get` không lọc owner → test cô lập đỏ; mới nhất trước → test thứ tự đỏ; `ProviderRegistry.get` thay `find` → test connector đã gỡ đỏ; `ownerId` lọt vào response → test tập trường đỏ; detail nói "của người khác" → test cô lập đỏ.
+- **Chạy cả ứng dụng thay cho web slice (BE-15):** `@SpringBootTest` + `@AutoConfigureMockMvc` gửi request HTTP giả qua đúng các lớp thật: security, `CurrentUser`, service, PostgreSQL, error handler, Jackson. Chọn thay cho `@WebMvcTest` với service giả vì test cô lập dữ liệu phải chạy trên dữ liệu thật; với service giả, test chỉ kiểm tra cái mock.
+- **Ghim thời điểm bằng SQL:** `@PrePersist` điền `created_at` bằng giờ thật nên không biết trước. Test ghi đè bằng `UPDATE connected_account SET created_at = ?` để biết chắc thứ tự và chuỗi JSON mong đợi (`2026-10-05T03:15:00Z`). Account "mới hơn" được tạo **trước**, để test thứ tự không thể xanh chỉ nhờ thứ tự chèn.
+- **`JsonPath.read(body, "$")`:** đọc JSON thành `Map` để so tập tên trường.
+- **`@ApplicationModuleTest(mode = DIRECT_DEPENDENCIES)` (Spring Modulith, BE-14):** chỉ khởi động module `account` cộng các module nó dùng trực tiếp, không phải cả ứng dụng. Lúc làm BE-14 đó chỉ là `provider`; từ BE-15, `account` dùng thêm `CurrentUser` (module `identity`) và mã lỗi của `common`, nên hai module này cũng được nạp. Test vẫn tự dọn bảng và tự chèn owner của nó vào `app_user` bằng `JdbcTemplate`, nên không phụ thuộc owner được tạo lúc khởi động.
 - **Test không có `@Transactional`:** để service tự commit hoặc rollback như khi chạy thật. Cái giá là dữ liệu ở lại sau mỗi test, nên `@BeforeEach` tự dọn bảng bằng `JdbcTestUtils.deleteFromTables`.
 - **`AssertablePublishedEvents` làm tham số của method test:** Spring Modulith ghi lại mọi event được publish trong test đó; `events.ofType(AccountConnected.class)` lấy ra để kiểm tra số lượng và nội dung.
 - **`@MockitoSpyBean`:** bọc bean thật. Bình thường nó chạy code thật; riêng một test bảo nó ném lỗi bằng `doThrow(...).when(credentials).save(any(), any(), any())`, để giả lập "lưu credential thất bại" mà không sửa code production. Assertion vẫn kiểm tra DB thật, không kiểm tra mock.
@@ -649,7 +699,7 @@ người dùng bấm "Kết nối Gmail"
 
 ---
 
-## 20. Tự kiểm tra F02 (phần đã làm)
+## 21. Tự kiểm tra F02 (phần đã làm)
 
 1. Vì sao người dùng Sino và tài khoản Gmail nằm ở hai module khác nhau?
 2. `ApplicationRunner` chạy trước hay sau Flyway? Vì sao điều đó quan trọng với việc tạo owner?
@@ -667,5 +717,9 @@ người dùng bấm "Kết nối Gmail"
 14. Bỏ `@Transactional` khỏi `register` thì hai lỗi nào xuất hiện, và vì sao lỗi thứ hai liên quan đến "dirty checking"?
 15. Vì sao event `AccountConnected` không chứa email hay tên account?
 16. Vì sao `RegisterAccountCommand` phải tự viết `toString()`?
+17. Vì sao `AccountQueryService` không có method `get(accountId)` chỉ nhận ID?
+18. Vì sao account của người khác trả 404 mà không phải 403?
+19. Vì sao không trả thẳng entity `ConnectedAccount` ra JSON?
+20. Connector Gmail bị gỡ khỏi ứng dụng thì `GET /api/accounts` trả gì cho account Gmail cũ?
 
-*(Phần BE-15…BE-18 — REST API, xóa account, nghiệm thu — sẽ được bổ sung khi làm.)*
+*(Phần BE-16…BE-18 — sửa account, xóa account, nghiệm thu — sẽ được bổ sung khi làm.)*
