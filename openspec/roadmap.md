@@ -111,6 +111,8 @@ Mục tiêu: có web app thật gọi API thật, để từ Phase 2 mỗi featu
 
 **Quyết định mở phase — D-22: xác thực cho trình duyệt.** → **Accepted A (2026-10-07):** email + mật khẩu của owner, session cookie, CSRF, remember-me; bỏ HTTP Basic (D-32…D-36, xem `openspec/changes/fe-f01-web-foundation/design.md`). Phase 1 chia ba change: (1) `fe-f01-web-foundation` (D-22 + F01-FE), (2) F02-FE, (3) F03-FE. HTTP Basic (D-02) không hợp với SPA (phải giữ mật khẩu trong JS) và với SSE (`EventSource` không gửi được header). Các phương án sẽ so sánh khi mở phase: session cookie + CSRF token (form/JSON login), hoặc OAuth2 login bằng Google, hoặc token ngắn hạn. Phải chốt trước khi FE gọi API thật, và chắc chắn trước F08.
 
+> **Đổi cách làm frontend (D-42, D-43, D-44, người dùng 2026-10-07):** dựng giao diện trước với dữ liệu mẫu, mỗi màn một change (`fe-ui-<màn>`), bắt đầu từ **Tổng quan** (màn vượt MVP, nay vào phạm vi); kiểu dữ liệu của màn là hợp đồng giao backend để API khớp theo. Web chưa có xác thực trong lúc dựng giao diện; FE-02…FE-05 của change 1 tạm hoãn. Ở phần frontend, cách này thay luật vertical slice nói dưới đây. Chi tiết: `openspec/changes/fe-ui-overview/design.md`.
+
 Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API client, xử lý lỗi ở FE, cookie/CSRF trong SPA.
 
 ---
