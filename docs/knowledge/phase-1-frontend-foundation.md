@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE). Đang làm: xong BE-27, BE-28.
+> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE). Đang làm: xong BE-27, BE-28, BE-29.
 > **Cập nhật:** 2026-10-07. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
@@ -38,7 +38,7 @@ SAU (session cookie, D-22 = A)
 |---|---|---|
 | BE-27 | Mật khẩu owner và khóa ghi nhớ trong cấu hình, kiểm lúc khởi động | xong |
 | BE-28 | API `/api/auth/*`, session, CSRF, remember-me, bỏ HTTP Basic | xong |
-| BE-29 | Khóa tạm 5 lần / 15 phút | chưa làm |
+| BE-29 | Khóa tạm 5 lần / 15 phút | xong |
 | FE-01…FE-05 | Nền móng web, API client, trang đăng nhập, khung app, nghiệm thu | chưa làm |
 
 ---
@@ -140,6 +140,74 @@ SAU (session cookie, D-22 = A)
 
 ---
 
+## 3. Khóa tạm khi đoán mật khẩu (BE-29, D-35)
+
+### 3.1 Bộ đếm `LoginAttempts`
+- **Ở đâu:** `identity/application/LoginAttempts.java`, dùng trong `SignInService.authenticate`.
+- **Là gì:** đếm số lần đăng nhập sai liên tiếp cho từng email (đã chuẩn hóa). Lần sai 1–4 trả về số lần còn lại (4, 3, 2, 1); lần thứ 5 khóa email đó 15 phút.
+
+```text
+sai lần 1..4  -> 401 INVALID_CREDENTIALS, remainingAttempts = 4, 3, 2, 1
+sai lần 5     -> 429 LOGIN_LOCKED, retryAfterSeconds = 900, Retry-After: 900
+đang khóa     -> 429 ngay, KHÔNG so mật khẩu (đúng hay sai cũng vậy)
+hết 15 phút   -> mở khóa, đếm lại từ đầu
+đăng nhập đúng-> bộ đếm về 0
+```
+
+- **Vì sao kiểm khóa trước khi so mật khẩu:** nếu so mật khẩu trước, khóa gần như vô dụng: kẻ dò vẫn đoán tiếp được trong lúc khóa, và chỉ cần câu trả lời khác đi một chút (đoán đúng thì vào được, hoặc thời gian trả lời khác nhau) là biết lần nào đúng. Thêm nữa, mỗi lần thử vẫn tốn một lần chạy BCrypt của server. Có test riêng: đúng mật khẩu khi đang khóa vẫn bị `429` và không có session.
+- **Đếm cả email không tồn tại:** để câu trả lời cho "email lạ" và "sai mật khẩu" giống hệt nhau, kể cả `remainingAttempts`.
+
+### 3.2 Giới hạn bộ nhớ, và cái bẫy khi giới hạn
+- **Vì sao phải giới hạn:** bộ đếm nằm trong bộ nhớ. Kẻ tấn công gửi hàng triệu email bịa thì bảng đếm phình mãi. Vì vậy: một mục tự hết hạn 15 phút sau lần sai cuối, và tối đa 10 000 email.
+- **`LinkedHashMap` giữ thứ tự:** mỗi lần sai, mục được xóa rồi thêm lại vào cuối, nên đầu bảng luôn là email có lần sai cũ nhất. Bảng đầy thì bỏ mục đầu.
+- **Bẫy:** nếu bỏ cả mục **đang khóa**, kẻ tấn công chỉ cần gửi 10 000 email bịa là "đẩy" được khóa của owner ra ngoài, rồi đoán tiếp. Vì vậy mục đang khóa không bao giờ bị bỏ. Có test riêng: `aLockIsNotPushedOutByOtherEmails`.
+- **`synchronized`:** nhiều request đăng nhập có thể chạy song song trên nhiều luồng; khóa cả method để bảng đếm không bị hỏng. Đăng nhập hiếm khi diễn ra, nên chờ nhau một chút không đáng kể.
+
+### 3.3 Thời gian từ bean `Clock`
+- **Ở đâu:** `common/time/ClockConfiguration.java` (một bean `Clock.systemUTC()`).
+- **Vì sao:** code gọi `clock.instant()` thay vì `Instant.now()`, nên test thay được đồng hồ. Unit test dùng một đồng hồ tự viết (`MovableClock`) để tua 14 phút, 15 phút. Test với server thật dùng `@MockitoBean Clock`, và mỗi test bắt đầu ở một mốc giờ cách nhau một tiếng, nên lần sai của test trước đã "quên" khi test sau chạy. Không cần thêm một method "reset" chỉ để test dùng.
+
+### 3.4 Problem Details có thêm trường, và header `Retry-After`
+- **Ở đâu:** `common/error/SinoException.java`, `common/web/GlobalExceptionHandler.java`.
+- `SinoException` mang được thêm vài trường an toàn để hiện cho client (ví dụ `remainingAttempts`). Các trường chuẩn (`type`, `title`, `status`, `detail`, `instance`, `code`) không ghi đè được.
+- Lỗi loại `RATE_LIMITED` có `retryAfterSeconds` thì tự gửi thêm header chuẩn HTTP `Retry-After`, để client nào cũng biết phải chờ bao lâu. F07 sẽ dùng lại khi provider báo "chậm lại".
+- `retryAfterSeconds` được làm tròn **lên**, để client không thử lại sớm hơn một chút so với lúc mở khóa.
+
+### 3.5 Bẫy: module test chỉ nạp "hàng xóm" trực tiếp
+- **Ở đâu:** `account/application/AccountRegistrationServiceTests` (`@ApplicationModuleTest(mode = DIRECT_DEPENDENCIES)`).
+- **Chuyện gì xảy ra:** các test chạy riêng đều xanh, nhưng full `verify` có một lớp đỏ: `LoginAttempts` đòi bean `Clock` mà không có.
+- **Vì sao:** module test của Spring Modulith không nạp cả ứng dụng. Ở chế độ `DIRECT_DEPENDENCIES`, nó nạp module đang test và các module mà module đó **dùng bean** trực tiếp. Log của test in rõ: dấu `+` là có nạp, dấu `-` là không.
+
+```text
+account  (module đang test)
+  + identity   có nạp: account dùng bean của identity
+  + provider   có nạp
+  - common     KHÔNG nạp: account chỉ dùng kiểu (SinoException)
+identity
+  -> cần bean Clock, nằm ở common  => không có => không khởi động
+```
+
+- **Cách xử lý đúng của Modulith:** "phụ thuộc của phụ thuộc" thì test tự cấp, bằng mock hoặc một bean thay thế. Ở đây test thêm `@Bean Clock`.
+- **Bài học:** thêm một bean mới mà module khác phụ thuộc vào thì phải chạy full `verify`, vì chỉ module test mới lộ ra loại lỗi này.
+
+### 3.6 Kiểm tra ngược (BE-29)
+Làm hỏng code mỗi lần một chỗ, và lần nào cũng có test đỏ:
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| So mật khẩu trước, kiểm khóa sau | đúng mật khẩu khi đang khóa vẫn vào được |
+| Khóa ở lần sai thứ 6 | đếm lùi, khóa ở lần 5 (12 test đỏ) |
+| Khóa 14 phút thay vì 15 | `retryAfterSeconds` = 900, mở khóa ở phút 15 |
+| Đăng nhập đúng không xóa bộ đếm | đếm lại từ đầu sau khi đăng nhập đúng |
+| Không bao giờ quên lần sai | quên sau 15 phút kể từ lần sai cuối |
+| Không chuẩn hóa email | `" Owner@X "` và `"owner@x"` là một email |
+| Bỏ cả mục đang khóa khi bảng đầy | khóa không bị "đẩy" ra |
+| Bảng không giới hạn | giữ tối đa N email, bỏ cái cũ nhất |
+| Không gửi header `Retry-After` | header `Retry-After: 900` |
+| Bỏ các trường phụ của lỗi | `remainingAttempts`, `retryAfterSeconds` có trong body |
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -153,3 +221,7 @@ SAU (session cookie, D-22 = A)
 9. Session fixation là gì, và đổi session ID lúc đăng nhập chặn nó thế nào?
 10. Vì sao cookie remember-me không thể được ký bằng bản băm BCrypt của mật khẩu?
 11. Vì sao test đăng nhập dùng server thật thay vì MockMvc?
+12. Vì sao phải kiểm khóa trước khi so mật khẩu?
+13. Nếu bộ đếm bỏ cả những email đang bị khóa khi bảng đầy, kẻ tấn công làm được gì?
+14. Vì sao code dùng một bean `Clock` thay vì gọi thẳng `Instant.now()`?
+15. Module test của `account` không nạp `common`. Vì sao trước BE-29 điều đó không gây lỗi, còn sau BE-29 thì có?
