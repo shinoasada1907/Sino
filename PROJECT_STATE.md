@@ -4,12 +4,12 @@
 
 - Project/root: `D:\Code\Product\MessageHub\Sino` (monorepo; backend at `apps/sino-api`)
 - Remote: `origin` = https://github.com/shinoasada1907/Sino.git (`main` pushed @ `5ad6a2d`)
-- Frontend: `apps/sino-web` (Vite + React skeleton)
+- Frontend: `apps/sino-web` (Vite 8, React 19, TypeScript 6; FE-01 foundation: Tailwind 4, shadcn/ui, TanStack Query, React Router, Vitest, MSW). UI design: "Sino UI" canvas https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB (copy in `design/sino-ui/project/`)
 - Last updated: 2026-10-07
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01; the F03 TRAINING override was removed by the user the same day: "chuyển qua auto đi")
 - Current phase: **Phase 1 — frontend** (opened 2026-10-07). Phase 0 closed 2026-10-07 (PR #3, `9d1ff9b`); open Phase 0 item: Notion updates (02B for D-12/D-13/D-14, 04C/04D), user
-- Current task: Phase 1 change 1 `fe-f01-web-foundation`: BE-27, BE-28, BE-29 DONE; waiting for the user to start **FE-01**
+- Current task: Phase 1 change 1 `fe-f01-web-foundation`: BE-27, BE-28, BE-29, **FE-01** DONE (FE-01 2026-10-07; local gates green, frontend CI NOT VERIFIED until the user allows a push); waiting for the user to start **FE-02**
 - Task owner: CLAUDE (AUTO, one small task at a time, stop and report after each) unless the user claims a task
 - Standing authorization (user, 2026-10-01): after each finished and verified task Claude commits to `dev` **without pushing**. Push, merge and PR still need an explicit request.
 - Reviewer: HUMAN
@@ -21,6 +21,7 @@
 
 | Task | Owner | Reviewer | Mode | State | Exact files | Updated |
 | --- | --- | --- | --- | --- | --- | --- |
+| FE-01 stack, design tokens, theme, Vite proxy, CI (branch `dev`) | CLAUDE | HUMAN | AUTO (HYBRID) | DONE (verified locally 2026-10-07; frontend CI not run yet, needs a push) | `apps/sino-web/**` (package.json, pnpm-lock.yaml, pnpm-workspace.yaml, .oxlintrc.json, vite.config.ts, tsconfig*.json, index.html, components.json, README.md, public/favicon.svg, `src/**`; demo assets removed), `.github/workflows/frontend-ci.yml`, change `tasks.md`, `PROJECT_STATE.md`, `docs/knowledge/phase-1-frontend-foundation.{md,docx}` | 2026-10-07 |
 | F01-F03 planning (spec + plan) | CLAUDE | HUMAN | TRAINING | DONE (F01 approved to implement; D-xx for F02/F03 open) | `openspec/config.yaml`, `openspec/changes/be-f01-project-foundation/**`, `openspec/changes/be-f02-connected-accounts/**`, `openspec/changes/be-f03-provider-contract/**`, `PROJECT_STATE.md` | 2026-09-30 |
 | BE-01 step 1 env files (branch `dev`) — explicit task-scoped takeover requested by the user ("tạo đi") | CLAUDE | HUMAN | TRAINING | DONE | `apps/sino-api/.env.example`, `apps/sino-api/.gitignore` (+ local `apps/sino-api/.env`, ignored) | 2026-09-30 |
 | BE-01 step 2 compose.yaml (branch `dev`) — explicit task-scoped takeover requested by the user ("tạo compose.yaml luôn đi") | CLAUDE | HUMAN | TRAINING | DONE (container healthy, PostgreSQL 18.6) | `apps/sino-api/compose.yaml` | 2026-09-30 |
@@ -86,6 +87,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 - The user's IntelliJ terminal ran Maven on Java 26.0.1 (baseline and `JAVA_HOME` in PowerShell: Temurin 25.0.3). Check with `.\mvnw.cmd -v` and align.
 - Windows (region Vietnam) gives the JVM the legacy zone id `Asia/Saigon`, which PostgreSQL 18 (Debian 13) rejects. Mitigated by D-23 (JVM runs in UTC); any new launch path (Dockerfile, CI, IDE config) must keep UTC.
 - The local `apps/sino-api/.env` (checked by variable names only, 2026-10-07) lacks `SINO_OWNER_PASSWORD`, `SINO_REMEMBER_ME_KEY`, `SINO_CREDENTIAL_ACTIVE_KEY_ID` and `SINO_CREDENTIAL_KEY_K1`, so profile `local` stops at startup unless they come from elsewhere (IDE run config, OS environment). It still has `SINO_API_USERNAME`/`SINO_API_PASSWORD`, unused since BE-28. The user sets the values (names in `.env.example`, how to generate them in the README); needed before FE-05. Not verified by starting the app.
+- `apps/sino-web/.claude/agent-memory/` (untracked) is the memory the `senior-reviewer` agent wrote while reviewing FE-01 from `apps/sino-web`. It is not part of the project: do not commit it (the user decides whether to delete or ignore it).
 
 ## Verification evidence
 
@@ -121,9 +123,11 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 - 2026-10-07 BE-29: RED first (`LoginAttemptsTests` 9/9 against an empty stub, `SinoExceptionTests` 3/4, `GlobalExceptionHandlerTests` 2/17, `AuthApiTests` 4/17). GREEN: `LoginAttemptsTests` 9/9, `SinoExceptionTests` 4/4, `GlobalExceptionHandlerTests` 17/17, `AuthApiTests` 17/17 (real server, `@MockitoBean Clock`), `OwnerPropertiesTests` 5/5, `LoginSettingsTests` 8/8, `RememberMeAcrossRestartsTests` 5/5, `ModularityTests` 2/2. Ten mutations by script, all caught (password checked before the lock, lock at 6, 14-minute lock, success keeps the count, failures never forgotten, email not normalized, locks evicted, unbounded map, no `Retry-After`, extra Problem members dropped). The first full verify failed in `AccountRegistrationServiceTests` (`@ApplicationModuleTest` DIRECT_DEPENDENCIES loads `identity` but not `common`, so no `Clock`); the test now provides one (6/6). Second `./mvnw -B -ntp verify` → BUILD SUCCESS, 369 tests (per-class sum, 48 classes; Surefire 367), 0 failures, 0 errors, 2 skipped; no test secret (owner password, remember-me key, sample tokens, cookies) in the build log.
 
+- 2026-10-07 FE-01: RED first (`theme.test.tsx` 5/5 against an empty provider), GREEN 5/5; 8 mutations by script, all caught. Proxy: fake backend on :8080, `GET /api/auth/me` through Vite reached it with `Set-Cookie` intact; `/accounts`, `/apis`, `/api-keys` stay with Vite; no backend → `502`. Chrome headless over CDP on the production build: OS light → `theme-light` (`#F2F2EF`), toggle → `theme-dark` saved, reload keeps it, 390 px without horizontal overflow, Inter loaded. Independent read-only review: 0 CRITICAL, 1 HIGH (keyboard focus outline invisible because `outline-none` sets `--tw-outline-style: none`; measured with Tab in Chrome: `none` before, `solid 2px` `--ring` after), 2 MEDIUM (`cn` read `shadow-popover` as a colour → local wrapper + lint rule; no default `matchMedia` in jsdom → setup stub), LOWs fixed (proxy prefix, `data-inset={false}`, MSW unhandled requests now fail the test, favicon, `corepack` gone on Node 26); theme flash when the saved choice differs from the OS left for the user to decide. Final `pnpm install --frozen-lockfile && pnpm lint && pnpm test && pnpm build` → lint 0 warnings 0 errors, 9/9 tests, build ok. Frontend CI NOT VERIFIED (needs a push). Word guide regenerated, `docs check` clean, pages rendered and inspected.
+
 ## Next task
 
-Phase 1 change 1 (`openspec/changes/fe-f01-web-foundation`): BE-27, BE-28, BE-29 done (backend part complete). Next **FE-01** (stack, design tokens, theme, Vite proxy, CI), then FE-02…FE-05, then `openspec archive fe-f01-web-foundation -y`.
+Phase 1 change 1 (`openspec/changes/fe-f01-web-foundation`): BE-27, BE-28, BE-29, FE-01 done. Next **FE-02** (API client), then FE-03…FE-05, then `openspec archive fe-f01-web-foundation -y`. Open choice from FE-01 for the user: add a small inline script in `index.html` so the page never flashes the OS theme when the saved choice differs (cost: theme logic in two places, a CSP hash in F12). FE-01 frontend CI runs on the first push the user allows.
 
 Parallel backend track (D-41, user 2026-10-07): **F04a** `openspec/changes/f04a-gmail-connect` (Gmail connect over OAuth2; D-15 = A', C5 = `/api/accounts/connect/{provider}`, D-37 split F04a/F04b, D-38 Sino flow on Spring OAuth2 Client parts, D-39 WireMock, D-40 consent mode, D-41 backend in parallel with the Phase 1 web). Waiting for the user's review of the written change, then BE-30…BE-34; FE-30 after Phase 1 change 2. Zalo and Messenger (user wants them after Gmail): feasibility spike before F09 (no official API for personal inboxes as far as known).
 

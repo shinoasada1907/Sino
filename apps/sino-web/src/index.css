@@ -1,111 +1,121 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import "tailwindcss";
+@import "tw-animate-css";
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+/* `dark:` utilities follow the theme class, not the OS setting. */
+@custom-variant dark (&:where(.theme-dark, .theme-dark *));
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+/* Radix marks state as data-state="open|closed|checked|unchecked"; shadcn components use these short variants.
+   Copied from shadcn/tailwind.css (shadcn 4.21) instead of installing the whole shadcn CLI as a dependency. */
+@custom-variant data-open {
+  &:where([data-state="open"]), &:where([data-open]:not([data-open="false"])) { @slot; }
+}
+@custom-variant data-closed {
+  &:where([data-state="closed"]), &:where([data-closed]:not([data-closed="false"])) { @slot; }
+}
+@custom-variant data-checked {
+  &:where([data-state="checked"]), &:where([data-checked]:not([data-checked="false"])) { @slot; }
+}
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"]), &:where([data-unchecked]:not([data-unchecked="false"])) { @slot; }
 }
 
+/*
+ * Design tokens copied from the "Sino UI" canvas (design/sino-ui/project/sino.css: .sino, .theme-light, .theme-dark).
+ * Both themes use the same role names with different values. ThemeProvider puts theme-light or theme-dark on <html>.
+ */
+:root,
+.theme-light {
+  color-scheme: light;
+  --bg: #F2F2EF; --surface: #FFFFFF; --raised: #FAFAF8; --hover: #ECECEA;
+  --border: #DEDEDA; --border-strong: #C3C3C0;
+  --text: #111111; --text-muted: #66666B; --text-subtle: #8A8A8F;
+  --inverse: #111111; --inverse-hover: #2B2B2B; --on-inverse: #FFFFFF;
+  --success: #52D273; --warning: #E8B75A; --danger: #E56B6F;
+  --success-ink: #1F7A3D; --warning-ink: #8A5A00; --danger-ink: #B4383D;
+  --ring: #111111; --scrim: rgba(17, 17, 17, .30);
+  --shadow-pop: 0 32px 72px -32px rgba(17, 17, 17, .30), 0 0 0 1px var(--border);
+  --dur-fast: 160ms; --dur-hover: 180ms; --dur-panel: 220ms; --dur-page: 240ms;
+}
+
+.theme-dark {
+  color-scheme: dark;
+  --bg: #070707; --surface: #151516; --raised: #1B1B1D; --hover: #232326;
+  --border: #2A2A2D; --border-strong: #4A4A4F;
+  --text: #F7F7F4; --text-muted: #9A9A9F; --text-subtle: #717177;
+  --inverse: #F7F7F4; --inverse-hover: #DCDCD8; --on-inverse: #070707;
+  --success: #52D273; --warning: #E8B75A; --danger: #E56B6F;
+  --success-ink: #52D273; --warning-ink: #E8B75A; --danger-ink: #E56B6F;
+  --ring: #F7F7F4; --scrim: rgba(0, 0, 0, .64);
+  --shadow-pop: 0 32px 72px -28px rgba(0, 0, 0, .85), 0 0 0 1px var(--border);
+}
+
+/* Until the script sets a theme class only the page background is visible: follow the OS so dark users get no white flash. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+  html:not(.theme-light):not(.theme-dark) {
+    color-scheme: dark;
+    --bg: #070707;
   }
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+@theme inline {
+  --font-sans: "Inter Variable", "Inter", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  /* Canvas radii (--r-xs ... --r-lg). xl is the 12 px of menus, written out because lg is larger than Tailwind's. */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 12px;
+
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-std: cubic-bezier(.4, 0, .2, 1);
+
+  --shadow-popover: var(--shadow-pop);
+
+  /* Canvas roles. */
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted-foreground: var(--text-muted);
+  --color-subtle-foreground: var(--text-subtle);
+  --color-primary: var(--inverse);
+  --color-primary-hover: var(--inverse-hover);
+  --color-primary-foreground: var(--on-inverse);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-success-ink: var(--success-ink);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger-ink: var(--danger-ink);
+  --color-ring: var(--ring);
+  --color-scrim: var(--scrim);
+
+  /* Names that shadcn/ui components expect, pointed at the canvas roles. */
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--raised);
+  --color-popover-foreground: var(--text);
+  --color-secondary: var(--surface);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--hover);
+  --color-accent: var(--hover);
+  --color-accent-foreground: var(--text);
+  --color-destructive: var(--danger);
+  --color-input: var(--border);
 }
 
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+@layer base {
+  * {
+    @apply border-border;
   }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "cv11";
   }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
 }
