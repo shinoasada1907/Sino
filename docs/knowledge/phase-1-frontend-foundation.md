@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), và change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42). Đang làm: xong BE-27, BE-28, BE-29, FE-01, UI-01.
+> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), và change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42). Đang làm: xong BE-27, BE-28, BE-29, FE-01, UI-01, UI-02, UI-03.
 > **Cập nhật:** 2026-10-07. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
@@ -42,7 +42,9 @@ SAU (session cookie, D-22 = A)
 | FE-01 | Cài stack, design token, sáng/tối, proxy `/api`, test, CI frontend | xong |
 | FE-02…FE-05 | API client, trang đăng nhập, khung app có xác thực, nghiệm thu | tạm hoãn (D-44) |
 | UI-01 | Router, khung app co giãn (sidebar / rail / thanh dưới), trang "đang được dựng", 404 | xong |
-| UI-02…UI-04 | Hợp đồng dữ liệu Tổng quan, các thẻ, nghiệm thu | chưa làm |
+| UI-02 | Hợp đồng dữ liệu Tổng quan, dữ liệu mẫu, hàm định dạng giờ và chữ | xong |
+| UI-03 | Màn Tổng quan: phần đầu trang và 7 thẻ, co giãn theo canvas; thanh trên sửa theo canvas | xong |
+| UI-04 | Nghiệm thu, chốt hợp đồng dữ liệu, archive | chưa làm |
 
 ---
 
@@ -436,6 +438,47 @@ lưới AppShell       2 hàng          md:grid-cols-[72px_1fr]   xl:grid-cols-[
 - **Kiểm tra ngược:** 13 lỗi cố ý, 11 bị bắt ngay. Hai lỗi sống sót đều là **test còn hở**, không phải code tương đương: (1) số 0 vẫn được đọc ", 0 chưa đọc" trên rail và thanh dưới (sidebar vô tình che lỗi vì nó không vẽ số 0); (2) trạng thái IDLE nhưng còn mốc đồng bộ cũ (đã xóa hết tài khoản). Thêm hai test, chạy lại thì cả hai bị bắt. Lần cuối 14/14.
 - **Chrome thật** (DevTools Protocol, bản build), 1440 / 1024 / 390px × sáng / tối: mỗi bề rộng chỉ hiện đúng một loại điều hướng, không tràn ngang, Tab qua điều hướng có viền focus, `/calendar` hiện trang "đang được dựng", đường dẫn lạ hiện 404.
 
+### 5.7 Hợp đồng dữ liệu Tổng quan và dữ liệu mẫu (UI-02)
+- **Ở đâu:** `src/features/overview/overview.types.ts` (`OverviewData`), `overview.sample.ts`, `useOverview.ts`; bản chép trong `openspec/changes/fe-ui-overview/design.md` kèm bảng "đã có / cần thêm / API mới".
+- **Cấu trúc:** `providers` (danh mục provider, lấy từ `GET /api/providers` đã có), `accounts`, rồi năm phần `inbox`, `today`, `syncActivity`, `registrations`, `activity`. Năm phần này **được phép là `null`**: backend chưa làm phần nào thì trả `null`, thẻ đó hiện "Chưa có dữ liệu", các thẻ khác vẫn chạy. Nhờ vậy backend làm `GET /api/overview` được từng phần.
+- **Vì sao có `providers` trong dữ liệu:** để giao diện gọi tên "Gmail", "Zalo" theo dữ liệu, không viết cứng. Provider lạ (ví dụ `telegram`) thì viết hoa chữ đầu.
+- **Kiểu "hoặc cái này hoặc cái kia" của TypeScript:** `ActivityItem` là một *discriminated union*: mỗi loại hoạt động (`kind`) có trường riêng (`SYNC_RECOVERED` có `downtimeMinutes`, `ACCOUNT_CONNECTED` có `externalAccountId`). Trong `switch (item.kind)`, TypeScript tự biết trường nào có mặt; thêm một loại mới mà quên xử lý thì `tsc` báo lỗi.
+- **Dữ liệu mẫu đi theo đồng hồ:** `createOverviewSample(now)` tính mọi mốc thời gian lùi hoặc tiến từ `now` (ví dụ tin nhắn "4 giờ 24 phút trước"). Mở lúc 14:05 thì ra đúng giờ của canvas (09:41, 16:00, "15:00 hôm qua"); mở lúc khác vẫn hợp lý. Test kiểm các ràng buộc: tổng chưa đọc bằng tổng theo nguồn, số trên điều hướng khớp màn Tổng quan, 24 ô cách nhau đúng một giờ.
+
+### 5.8 Giờ và ngày theo múi giờ
+- **Ở đâu:** `src/shared/time/local.ts`, các hàm trong `src/features/overview/format.ts`.
+- **`Intl.DateTimeFormat`:** công cụ có sẵn của trình duyệt (và Node) để đọc một thời điểm theo **múi giờ** bất kỳ: `formatToParts` trả ra năm, tháng, ngày, giờ, phút, thứ của thời điểm đó tại múi giờ ấy. API gửi giờ UTC; giao diện đổi ra giờ của người dùng.
+- **"Ngày lịch" khác "24 giờ":** 23:30 hôm nay và 00:30 ngày mai chỉ cách nhau một giờ nhưng là hai ngày khác nhau. Vì vậy "Hôm qua", "Quá hạn 2 ngày" tính bằng hiệu số ngày lịch tại múi giờ của người dùng (`calendarDaysBetween`), không chia số mili giây cho 86 400 000. Có test riêng cho ca 23:30 / 00:30.
+- **Làm tròn có chủ ý:** "N phút trước" làm tròn **xuống** (chưa đủ 2 phút thì vẫn là 1 phút); "sau N giờ" làm tròn **gần nhất** (1 giờ 55 phút là "sau 2 giờ", như canvas).
+- **Bẫy, test phụ thuộc múi giờ máy chạy:** máy bạn ở giờ Việt Nam, còn máy CI của GitHub ở UTC; cùng một test sẽ thấy "09:41" ở máy này và "02:41" ở máy kia. `vite.config.ts` đặt `test.env.TZ = 'Asia/Ho_Chi_Minh'` để mọi nơi chạy test cùng một múi giờ. Các hàm định dạng cũng nhận múi giờ làm tham số, nên unit test truyền thẳng vào.
+- **Số kiểu Việt Nam:** `(1284).toLocaleString('vi-VN')` cho "1.284" (dấu chấm ngăn hàng nghìn).
+
+### 5.9 Màn Tổng quan: lưới thẻ co giãn (UI-03)
+- **Ở đâu:** `src/features/overview/OverviewPage.tsx`, `cards/*.tsx`.
+- **Một bộ component, ba bố cục:** canvas có ba artboard (`Dashboard`, `TabletDashboard`, `MobileDashboard`) với bộ thẻ khác nhau. Không viết ba trang riêng; mỗi thẻ nhận class theo breakpoint:
+
+```text
+thẻ               mobile (<768)   tablet (768-1279)   desktop (>=1280, 12 cột)
+Hộp thư hợp nhất  có               2 cột               7 cột, cao 2 hàng
+Hôm nay           có, LÊN ĐẦU      ẩn                  5 cột, cao 2 hàng
+Tài khoản         có               1 cột               4 cột
+Dịch vụ 24 giờ    ẩn               1 cột               4 cột
+Đăng ký           có (thu gọn)     1 cột               4 cột
+Hoạt động         ẩn               1 cột               8 cột
+Lối tắt           ẩn               ẩn                  4 cột
+```
+
+- **`order` của CSS:** trên mobile thẻ Hôm nay lên trước Hộp thư mà không cần đổi thứ tự trong code: class `-order-1 md:order-none` đẩy nó lên đầu lưới chỉ ở màn nhỏ.
+- **Mỗi thẻ là một vùng có tên:** `<section aria-labelledby>` trỏ tới tiêu đề `<h2>` của thẻ. Trình đọc màn hình liệt kê được các vùng ("Hộp thư hợp nhất", "Tài khoản"…), và test tìm thẻ đúng cách người dùng tìm: `getByRole('region', { name: 'Tài khoản' })`.
+- **Biểu đồ đọc được:** thanh tỷ lệ và biểu đồ cột không có chữ, nên mỗi cái là `role="img"` kèm `aria-label` mô tả bằng lời ("Gmail: 7 chưa đọc, 58%", "Số thư đồng bộ mỗi giờ trong 24 giờ qua. Messenger lỗi lúc 21 giờ, Zalo chậm lúc 13 giờ."). Màu không phải cách duy nhất để biết giờ nào có lỗi.
+- **Nút chưa có chức năng:** "Đồng bộ ngay", "Kết nối tài khoản", "Đăng nhập lại", "Xem lại", các lối tắt vẫn là `<button type="button">` thật (bấm Tab tới được, có viền focus), chỉ chưa gắn hành động. Nút dẫn sang màn khác ("Mở hộp thư", "Mở lịch", "Xem tất cả") là `Link` của React Router.
+- **Bám canvas, sửa cả phần đã làm:** khi người dùng chốt canvas là thiết kế cuối cùng (2026-10-08), thanh trên của UI-01 được sửa lại: thêm nút "VI" (chưa có chức năng), nút đổi sáng/tối chỉ còn ở desktop, đúng như từng artboard.
+
+### 5.10 Kiểm chứng UI-02 và UI-03
+- **Test viết trước:** 29 test định dạng và 6 test dữ liệu mẫu đỏ trước; 11 test của màn Tổng quan đỏ trước (chưa có vùng nào). Cuối cùng 79/79.
+- **Kiểm tra ngược:** UI-02, 19 lỗi cố ý, 18 bị bắt ngay; lỗi sống sót ("Hôm qua" cho cả 2 ngày trước) chỉ ra test thiếu ca 2 ngày, thêm vào thì bị bắt. Trước đó tự soát và thêm 2 ca ranh giới mà một lỗi làm tròn sẽ lọt qua (7/4/1 trên 12 làm tròn hay làm tròn xuống đều ra 58/33/8). UI-03, 15 lỗi, 14 bị bắt; lỗi sống sót là do **chính lỗi cố ý viết sai** (`history.pushState` không đi qua React Router nên ở app thật cũng không chuyển trang); viết lại bằng `useNavigate` thì bị bắt. Bài học: trước khi kết luận "test hở", kiểm xem lỗi cố ý có thực tế không.
+- **Đồng hồ cố định trên Chrome thật:** qua DevTools Protocol, đặt múi giờ `Asia/Ho_Chi_Minh` (`Emulation.setTimezoneOverride`) và chèn một đoạn script chạy trước trang (`Page.addScriptToEvaluateOnNewDocument`) làm `Date` luôn bắt đầu từ 14:05 thứ Sáu 02/10/2026. Dữ liệu mẫu vì thế ra đúng giờ của canvas, và ảnh chụp so được trực tiếp với ảnh artboard người dùng gửi: cùng giờ, cùng nội dung, cùng bố cục, ở 1440px tối và sáng, 1024px và 390px.
+
 ---
 
 ## Tự kiểm tra
@@ -472,3 +515,9 @@ lưới AppShell       2 hàng          md:grid-cols-[72px_1fr]   xl:grid-cols-[
 30. Con số 12 cạnh chữ "Hộp thư" được trình đọc màn hình đọc ra sao nếu không làm gì, và `aria-hidden` + `sr-only` sửa thế nào?
 31. Vì sao đọc `new Date()` ngay trong render là sai, và `dataUpdatedAt` giải quyết lỗi "1 phút trước" thế nào?
 32. Một lỗi cố ý sống sót nói lên điều gì? Hai lỗi sống sót ở UI-01 là gì?
+33. Vì sao các phần của `OverviewData` được phép là `null`, và màn hiện gì khi một phần là `null`?
+34. Vì sao "Hôm qua" phải tính bằng ngày lịch theo múi giờ, không phải "cách đây 24 giờ"?
+35. Vì sao test đặt `TZ = Asia/Ho_Chi_Minh`? Không đặt thì chuyện gì xảy ra trên CI?
+36. Làm sao một bộ component hiện ba bộ thẻ khác nhau cho desktop, tablet, mobile, và đưa thẻ Hôm nay lên đầu trên mobile?
+37. Vì sao biểu đồ cột có `role="img"` và `aria-label`?
+38. Ở UI-03, lỗi cố ý "lối tắt chuyển trang bằng `history.pushState`" sống sót. Vì sao đó không phải lỗ hổng của test?
