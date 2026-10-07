@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–19, đang làm: xong BE-09…BE-13).
-> **Cập nhật:** 2026-10-03. Đường dẫn code tính từ `apps/sino-api/`.
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–20, đang làm: xong BE-09…BE-14).
+> **Cập nhật:** 2026-10-07. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
 
@@ -427,7 +427,8 @@ account_credential  (BE-13)
 | BE-11 | Bảng `connected_account`, ánh xạ JPA, repository | xong |
 | BE-12 | Mã hóa credential AES-256-GCM, kiểm tra khóa lúc khởi động, review bảo mật | xong |
 | BE-13 | Bảng `account_credential`, `CredentialStore` (mã hóa khi ghi, giải mã khi đọc) | xong |
-| BE-14…BE-18 | Use case đăng ký, REST API, xóa, nghiệm thu | chưa làm |
+| BE-14 | Use case đăng ký kết nối (tạo mới / reconnect) và event `AccountConnected` | xong |
+| BE-15…BE-18 | REST API, xóa, nghiệm thu | chưa làm |
 
 Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A** (AES-256-GCM bằng thư viện có sẵn của JDK, khóa có ID), **D-12 = A** (5 trạng thái, không lưu `SYNCING`), **D-14** (thêm 4 cột cho bảng credential), quy tắc "luôn ghi cả credential". Lần đầu áp dụng D-08 (UUIDv7) và D-09 (enum lưu chữ + `CHECK`).
 
@@ -571,7 +572,61 @@ Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A
 
 ---
 
-## 18. Kỹ thuật test mới trong F02
+## 18. Use case đăng ký kết nối (BE-14)
+
+### 18.1 Nó nằm ở đâu trong luồng kết nối
+- **Ở đâu:** `account/application/AccountRegistrationService.java`, `account/application/RegisterAccountCommand.java`, event `account/AccountConnected.java`.
+- **Là gì:** "điểm vào" duy nhất để đưa một tài khoản đã được provider xác nhận vào Sino. Luồng kết nối của F04 sẽ gọi nó:
+
+```text
+F04 (làm sau)                           BE-14 (đã làm)
+-------------                           --------------
+người dùng bấm "Kết nối Gmail"
+  -> Google cho đăng nhập, trả "code"
+  -> đổi code lấy token     (gọi Google, NGOÀI transaction)
+  -> lấy profile tài khoản  (gọi Google, NGOÀI transaction)
+  -> register(command)  ------------->  MỘT transaction:
+                                          1. kiểm tra provider (registry)
+                                          2. tìm account theo
+                                             (owner, provider, externalAccountId)
+                                          3. chưa có: tạo mới / có rồi: reconnect
+                                          4. lưu credential (mã hóa)
+                                          5. publish AccountConnected
+                                        commit: cả ba thứ cùng được lưu
+                                        rollback: không còn gì
+```
+
+- **Vì sao service không gọi provider:** gọi mạng có thể mất vài giây hoặc treo. Nếu gọi bên trong transaction thì suốt thời gian đó app giữ một kết nối DB và khóa các dòng đang ghi. Vì vậy gọi provider trước, xong mới mở một transaction ngắn chỉ để ghi.
+
+### 18.2 `@Transactional`: tất cả hoặc không gì cả
+- **Là gì:** Spring mở transaction khi vào method, commit khi method trả về bình thường, rollback khi method ném `RuntimeException`.
+- **Không có nó thì sao:** `accounts.save(...)` tự có transaction riêng nên account được commit ngay; nếu bước lưu credential lỗi thì còn lại một account không có credential. Kiểm tra ngược đã chứng minh: bỏ `@Transactional` thì test "lưu credential lỗi" đỏ.
+- **Bẫy thứ hai, cùng lần kiểm tra ngược đó:** test reconnect cũng đỏ. Lý do: object đọc ra **trong** transaction được Hibernate theo dõi ("managed"). Đổi field của nó thì Hibernate tự ghi xuống DB lúc commit ("dirty checking"), không cần gọi `save`. Ra **ngoài** transaction thì không ai theo dõi, nên `reconnect()` đổi tên và trạng thái trong bộ nhớ mà không được ghi.
+
+### 18.3 Idempotent: gọi lại không tạo bản sao
+- Service tìm theo bộ khóa trước. Có rồi thì `reconnect()`: cập nhật tên và ảnh từ provider, trạng thái về `CONNECTED` (kể cả từ `AUTH_EXPIRED`), thay **toàn bộ** credential (quy tắc ở mục 17.6), và event có `reconnected = true`.
+- Hai request đến cùng lúc vẫn có thể cùng "không thấy" rồi cùng tạo. Khi đó `UNIQUE` của DB chặn request thứ hai (mục 15.6); request đó báo lỗi, và lần thử lại sẽ thành reconnect.
+
+### 18.4 Kiểm tra provider trước khi ghi
+- `providers.get(type)` ném `SinoException` mã `UNKNOWN_PROVIDER` khi không có connector cho loại đó. Dòng này đứng đầu method để lỗi xảy ra **trước** khi ghi bất cứ thứ gì. Giá trị trả về không dùng: ở đây chỉ cần biết provider có hay không.
+
+### 18.5 Domain event và `ApplicationEventPublisher`
+- **Là gì:** một thông báo rằng một việc **đã xảy ra** (tên ở thì quá khứ: `AccountConnected`). Module khác nghe để làm việc của mình; ví dụ F07 sẽ bắt đầu đồng bộ lần đầu. Module `account` không cần biết ai nghe, nên các module ít phụ thuộc nhau.
+- **Cách gửi:** `events.publishEvent(new AccountConnected(...))`; `ApplicationEventPublisher` là bean có sẵn của Spring.
+- **Ở đâu:** record public ở package gốc `dev.sino.account`, tức phần API của module, nên Spring Modulith cho module khác dùng.
+- **Payload chỉ có ID, provider, cờ reconnect và thời điểm.** Không có token, email hay tên: Spring Modulith có thể lưu event vào bảng `event_publication` và log có thể in ra, nên mọi thứ trong event coi như có thể bị người khác đọc.
+- **Publish ở bước cuối, bên trong transaction:** listener loại "chạy sau khi commit" (F07 sẽ dùng `@ApplicationModuleListener`) chỉ nhận event khi mọi thứ đã được lưu thật. Transaction rollback thì event bị bỏ.
+- **Chưa làm:** khi reconnect đổi trạng thái thật (ví dụ `AUTH_EXPIRED` sang `CONNECTED`), design muốn có thêm event `AccountStatusChanged`. Việc này dời sang BE-16, nơi event đó được tạo. Lý do: event mang `from`/`to` kiểu `AccountStatus`, mà `AccountStatus` đang nằm trong package nội bộ `account.domain`; module khác đọc event sẽ vi phạm luật Modulith. Vì vậy chỗ đặt `AccountStatus` phải chốt cùng lúc tạo event.
+
+### 18.6 Command object và che secret trong `toString()`
+- **Là gì:** `RegisterAccountCommand` là một record gom mọi dữ liệu đầu vào. Method nhận một tham số thay vì bảy; sau này thêm trường thì không phải sửa chữ ký của method.
+- **Dùng lại `AccountProfile` của F03:** đây đúng là thứ `getAccountProfile` của connector trả về, nên F04 truyền thẳng vào.
+- **Bẫy:** `toString()` tự sinh của record in **mọi** field. Command có `refreshToken`, nên chỉ cần một dòng log in command là token bị lộ. Lúc chạy test RED, kết quả có đúng chuỗi `refreshToken=1//sample-refresh-token`; bây giờ chỗ đó in `****`. Access token thì đã được `OAuth2Credentials.toString()` che sẵn.
+- **Một chỗ kiểm tra duy nhất:** quy tắc "refresh token chỉ đi với OAuth2" để `CredentialStore` kiểm, không chép thêm vào command. Hai chỗ cùng kiểm một luật thì sớm muộn sẽ lệch nhau.
+
+---
+
+## 19. Kỹ thuật test mới trong F02
 
 - **`@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)`:** slice chỉ nạp JPA và Flyway, chạy trên PostgreSQL thật (Testcontainers) để `CHECK`, `UNIQUE`, khóa ngoại hoạt động như production. Mỗi test tự rollback.
 - **`entityManager.clear()`:** xóa bộ nhớ đệm của Hibernate để lần đọc sau thật sự đi xuống DB. Không có nó, test chỉ đọc lại object trong bộ nhớ.
@@ -583,12 +638,18 @@ Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A
   - BE-10: cho `markHealthy` gỡ `AUTH_EXPIRED` → đúng ô đó đỏ.
   - BE-12: IV cố định → 1 test đỏ; bỏ AAD → 3 test đỏ; tag 96 bit → 2 test đỏ.
   - BE-13: store "quên" ghi refresh token → test xoay khóa đỏ.
+  - BE-14: bỏ `@Transactional` → test rollback và test reconnect đỏ; không tìm account cũ → test reconnect đỏ (lỗi `UNIQUE`); bỏ kiểm tra provider → test provider lạ đỏ; `reconnected` luôn `false` → test reconnect đỏ; publish trước khi lưu credential → test rollback đỏ; thêm một trường vào event → test payload đỏ.
+- **`@ApplicationModuleTest(mode = DIRECT_DEPENDENCIES)` (Spring Modulith, BE-14):** chỉ khởi động module `account` cộng các module nó dùng trực tiếp (`provider`), không phải cả ứng dụng. Module `identity` không được nạp, nên test tự chèn owner vào `app_user` bằng `JdbcTemplate`.
+- **Test không có `@Transactional`:** để service tự commit hoặc rollback như khi chạy thật. Cái giá là dữ liệu ở lại sau mỗi test, nên `@BeforeEach` tự dọn bảng bằng `JdbcTestUtils.deleteFromTables`.
+- **`AssertablePublishedEvents` làm tham số của method test:** Spring Modulith ghi lại mọi event được publish trong test đó; `events.ofType(AccountConnected.class)` lấy ra để kiểm tra số lượng và nội dung.
+- **`@MockitoSpyBean`:** bọc bean thật. Bình thường nó chạy code thật; riêng một test bảo nó ném lỗi bằng `doThrow(...).when(credentials).save(any(), any(), any())`, để giả lập "lưu credential thất bại" mà không sửa code production. Assertion vẫn kiểm tra DB thật, không kiểm tra mock.
+- **Bean riêng cho test:** một class `@TestConfiguration` lồng trong class test tạo `FakeMessageProvider` loại `fake` làm bean, để `ProviderRegistry` thấy provider này.
 - **`row_to_json(c)::text` của PostgreSQL:** biến cả một dòng thành chuỗi JSON để kiểm tra bằng một lệnh rằng **không cột nào** chứa token dạng chữ.
 - **`entityManager.flush()` để lộ lỗi:** trong `@DataJpaTest`, lệnh ghi chỉ thật sự xuống DB khi flush. Muốn thấy lỗi khóa ngoại thì phải flush ngay trong đoạn code đang chờ lỗi; test còn kiểm tra cả stack trace của lỗi đó không chứa token.
 
 ---
 
-## 19. Tự kiểm tra F02 (phần đã làm)
+## 20. Tự kiểm tra F02 (phần đã làm)
 
 1. Vì sao người dùng Sino và tài khoản Gmail nằm ở hai module khác nhau?
 2. `ApplicationRunner` chạy trước hay sau Flyway? Vì sao điều đó quan trọng với việc tạo owner?
@@ -602,5 +663,9 @@ Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A
 10. Vì sao không kiểm tra khóa bằng `@Size` của Bean Validation?
 11. Vì sao `CredentialStore` không có hàm `updateAccessToken`?
 12. Xóa một `connected_account` thì credential của nó đi đâu, và nhờ đâu?
+13. Vì sao service đăng ký không gọi Google bên trong transaction?
+14. Bỏ `@Transactional` khỏi `register` thì hai lỗi nào xuất hiện, và vì sao lỗi thứ hai liên quan đến "dirty checking"?
+15. Vì sao event `AccountConnected` không chứa email hay tên account?
+16. Vì sao `RegisterAccountCommand` phải tự viết `toString()`?
 
-*(Phần BE-14…BE-18 — use case đăng ký, REST API, xóa account, nghiệm thu — sẽ được bổ sung khi làm.)*
+*(Phần BE-15…BE-18 — REST API, xóa account, nghiệm thu — sẽ được bổ sung khi làm.)*
