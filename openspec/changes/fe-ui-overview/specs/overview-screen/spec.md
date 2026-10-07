@@ -8,14 +8,14 @@ Màn Tổng quan MUST lấy mọi dữ liệu từ một nguồn duy nhất có 
 - **THEN** màn hiện đúng dữ liệu đó mà không phải sửa component nào
 
 ### Requirement: Phần đầu trang Tổng quan
-Phần đầu trang MUST hiện dòng ngày giờ (thứ, ngày/tháng/năm, giờ:phút), lời chào theo buổi trong ngày kèm tên owner, câu tóm tắt tình trạng tài khoản và cảnh báo cho tài khoản cần đăng nhập lại, cùng hai nút "Đồng bộ ngay" và "Kết nối tài khoản".
+Phần đầu trang MUST hiện dòng ngày giờ (thứ, ngày/tháng/năm, giờ:phút), lời chào theo buổi trong ngày kèm tên gọi của owner (tên đầy đủ khi không có tên gọi), câu tóm tắt tình trạng tài khoản và cảnh báo cho tài khoản cần đăng nhập lại, cùng hai nút "Đồng bộ ngay" và "Kết nối tài khoản".
 
 #### Scenario: Buổi chiều, một tài khoản hết quyền
-- **WHEN** lúc 14:05 thứ Sáu 02/10/2026, owner "An Nguyễn" có Gmail và Zalo đang `CONNECTED` và Messenger `AUTH_EXPIRED`
-- **THEN** phần đầu trang hiện "THỨ SÁU · 02/10/2026 · 14:05", "Chào buổi chiều, An Nguyễn.", "Hai tài khoản đang chạy bình thường." và cảnh báo "Messenger cần đăng nhập lại"
+- **WHEN** lúc 14:05 thứ Sáu 02/10/2026, owner "An Nguyễn" (tên gọi "An") có Gmail và Zalo đang `CONNECTED` và Messenger `AUTH_EXPIRED`
+- **THEN** phần đầu trang hiện "THỨ SÁU · 02/10/2026 · 14:05", "Chào buổi chiều, An.", "Hai tài khoản đang chạy bình thường." và cảnh báo "Messenger cần đăng nhập lại"
 
 ### Requirement: Các thẻ của màn Tổng quan
-Màn MUST hiện các thẻ của canvas `Dashboard`: Hộp thư hợp nhất (số chưa đọc, số cuộc trò chuyện chờ trả lời, các cuộc trò chuyện mới nhất, tỷ lệ chưa đọc theo nguồn, nút "Mở hộp thư"), Hôm nay (việc và lịch hẹn trong ngày, việc quá hạn và đã xong được đánh dấu, tóm tắt ngày mai, nút "Mở lịch"), Tài khoản (trạng thái từng tài khoản, tiến độ đồng bộ lần đầu, nút "Đăng nhập lại" khi hết quyền), Dịch vụ (biểu đồ số thư đồng bộ mỗi giờ trong 24 giờ, giờ có lỗi hoặc chậm được tô khác, trạng thái từng nguồn), Đăng ký (tổng số, phân bố theo cách đăng nhập, đăng ký mới nhất), Hoạt động gần đây và Lối tắt. Lưới thẻ MUST có 12 cột từ 1280px, 2 cột từ 768px tới 1279px và 1 cột dưới 768px.
+Màn MUST hiện các thẻ của canvas `Dashboard`: Hộp thư hợp nhất (số chưa đọc, số cuộc trò chuyện chờ trả lời, các cuộc trò chuyện mới nhất, tỷ lệ chưa đọc theo nguồn, nút "Mở hộp thư"), Hôm nay (việc và lịch hẹn trong ngày, việc quá hạn và đã xong được đánh dấu, tóm tắt ngày mai, nút "Mở lịch"), Tài khoản (trạng thái từng tài khoản, tiến độ đồng bộ lần đầu, nút "Đăng nhập lại" khi hết quyền), Dịch vụ (biểu đồ số thư đồng bộ mỗi giờ trong 24 giờ, giờ có lỗi hoặc chậm được tô khác, trạng thái từng nguồn), Đăng ký (tổng số, phân bố theo cách đăng nhập, đăng ký mới nhất), Hoạt động gần đây và Lối tắt. Lưới thẻ MUST có 12 cột từ 1280px, 2 cột từ 768px tới 1279px và 1 cột dưới 768px, và mỗi kích thước MUST hiện bộ thẻ của artboard tương ứng: desktop đủ 7 thẻ (`Dashboard`); tablet có Hộp thư hợp nhất trải hai cột rồi Tài khoản, Dịch vụ, Đăng ký, Hoạt động gần đây (`TabletDashboard`); mobile có Hôm nay trước tiên rồi Hộp thư hợp nhất, Tài khoản, Đăng ký (`MobileDashboard`).
 
 #### Scenario: Tỷ lệ theo nguồn
 - **WHEN** hộp thư có 12 thư chưa đọc: Gmail 7, Zalo 4, Messenger 1

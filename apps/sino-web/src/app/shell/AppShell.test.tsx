@@ -1,4 +1,5 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
@@ -162,10 +163,21 @@ describe('top bar', () => {
     expect(topbar.getByRole('searchbox', { name: 'Tìm trong Sino' })).toBeInTheDocument()
   })
 
-  it('has no language switch while the app is Vietnamese only', async () => {
-    renderApp('/overview')
-    await within(shellPart('topbar')).findAllByRole('link', { name: /Thông báo/ })
+  it('shows the language switch of the canvas, which does nothing yet', async () => {
+    const { router } = renderApp('/overview')
+    const switches = await within(shellPart('topbar')).findAllByRole('button', { name: 'Ngôn ngữ: Tiếng Việt' })
 
-    expect(screen.queryByRole('button', { name: /Ngôn ngữ/ })).toBeNull()
+    expect(switches).toHaveLength(2) // desktop bar and tablet bar
+    await userEvent.click(switches[0])
+    expect(router.state.location.pathname).toBe('/overview')
   })
+
+  it('keeps the theme switch on desktop only, as the canvas shows it', async () => {
+    renderApp('/overview')
+    const topbar = within(shellPart('topbar'))
+
+    expect(await topbar.findAllByRole('button', { name: /Chuyển sang giao diện/ })).toHaveLength(1)
+    expect(topbar.getAllByRole('button', { name: 'Tìm kiếm' })).toHaveLength(1)
+  })
+
 })

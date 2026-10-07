@@ -24,11 +24,12 @@ Không trang đăng nhập, không chặn trang, không gọi API. FE-02…FE-05
 ### Chốt kỹ thuật (agent, trong phạm vi đã duyệt)
 - **Đường dẫn tiếng Anh**, giống `/login`, `/accounts` của change 1: `/overview`, `/inbox`, `/calendar`, `/tasks`, `/notes`, `/accounts`, `/services`, `/registrations`, `/settings`, `/notifications`, `/more` (chỉ mobile). `/` → `/overview` (change 1 từng ghi `/` → `/accounts`; FE-04 sẽ theo change này).
 - **Màn chưa dựng** hiện trang "Màn này đang được dựng" trong khung app, để điều hướng chạy được và URL chốt từ đầu.
-- **Nút đổi sáng/tối** có ở mọi kích thước (canvas chỉ đặt trên desktop); trên tablet và mobile nó nằm ở chỗ của nút ngôn ngữ, vốn bị ẩn.
+- ~~**Nút đổi sáng/tối** có ở mọi kích thước; trên tablet và mobile nó nằm ở chỗ của nút ngôn ngữ, vốn bị ẩn.~~ → **Thanh trên cùng có đúng các nút của artboard** (làm ở UI-03): nút đổi sáng/tối chỉ trên desktop; nút ngôn ngữ "VI" trên desktop và tablet, chưa có chức năng. **LÝ DO:** người dùng 2026-10-08: canvas là thiết kế cuối cùng, "làm tới đâu update lại tới đó"; ảnh artboard `Dashboard` người dùng gửi có nút "VI". Trên tablet và mobile, theme theo hệ điều hành cho tới khi có màn Cài đặt.
 - **Trang 404** chỉ lấy phần lõi của `SiteNotFound` ("404", "Không tìm thấy trang này.", nút về Tổng quan): canvas đặt nó trong trang công khai có menu trang chủ và footer, mà app chưa có trang công khai.
 - **Thanh trên của tablet và mobile** hiện tên trang bằng chữ thường (không phải heading), vì nội dung trang đã có heading riêng; mobile không có dòng trạng thái đồng bộ (đúng `MobileDashboard`).
 - **Tên đọc cho trình đọc màn hình** của mục có số: "Hộp thư, 12 chưa đọc", "Việc cần làm, 3 chưa xong" (sidebar), "Việc cần làm, 1 quá hạn" (rail), "Tài khoản, 1 cần xử lý"; số vẫn hiện như canvas, phần chữ chỉ dành cho trình đọc màn hình.
-- **Lời chào** dùng nguyên `displayName` của owner ("Chào buổi chiều, An Nguyễn."); canvas viết "An." nhưng tách tên gọi không chắc đúng với cả tên Việt (tên gọi ở cuối) lẫn tên viết kiểu Tây.
+- ~~**Lời chào** dùng nguyên `displayName` của owner ("Chào buổi chiều, An Nguyễn.").~~ → dùng **tên gọi** `ShellData.owner.shortName` ("Chào buổi chiều, An."), thiếu thì dùng `displayName`. **LÝ DO:** ảnh artboard người dùng gửi ghi "An."; không tự tách tên từ `displayName` (tên Việt có tên gọi ở cuối), backend cấp riêng.
+- **Bộ thẻ theo kích thước** đúng ba artboard (chốt ở UI-03): tablet không có Hôm nay và Lối tắt, mobile chỉ có Hôm nay (lên đầu), Hộp thư (2 hội thoại, nút "Mở hộp thư" rộng hết thẻ), Tài khoản, Đăng ký (chỉ tổng số và thanh tỷ lệ). Một bộ component, ẩn hiện và thứ tự bằng class theo breakpoint. Câu chữ mẫu riêng của artboard tablet/mobile (ví dụ tiêu đề "Đồng bộ 24 giờ", nút "Kết nối lại") không làm riêng: cùng dữ liệu, cùng câu chữ với desktop.
 
 ## Frontend design
 

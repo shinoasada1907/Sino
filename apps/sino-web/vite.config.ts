@@ -21,5 +21,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     restoreMocks: true,
     unstubGlobals: true,
+    // Times on screen depend on the time zone; fix it so tests read the same on every machine and in CI (UTC).
+    env: { TZ: 'Asia/Ho_Chi_Minh' },
   },
 })

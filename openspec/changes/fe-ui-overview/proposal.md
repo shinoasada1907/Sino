@@ -6,7 +6,7 @@ Nền móng FE-01 (token theo canvas, sáng/tối, component cơ bản, test, CI
 
 ## What Changes
 
-- **Khung app** dùng chung cho mọi màn, theo canvas "Sino UI" và `Breakpoints`: `Sidebar` 248px (desktop ≥ 1280px), `Rail` 72px (tablet 768–1279px), `TabBar` dưới đáy (mobile < 768px); thanh trên cùng theo từng kích thước (ô tìm kiếm trên desktop; tên trang và icon trên tablet, mobile); nút đổi sáng/tối; nút ngôn ngữ bị ẩn.
+- **Khung app** dùng chung cho mọi màn, theo canvas "Sino UI" và `Breakpoints`: `Sidebar` 248px (desktop ≥ 1280px), `Rail` 72px (tablet 768–1279px), `TabBar` dưới đáy (mobile < 768px); thanh trên cùng theo từng kích thước (ô tìm kiếm trên desktop; tên trang và icon trên tablet, mobile); các nút đúng như artboard (nút đổi sáng/tối trên desktop, nút ngôn ngữ "VI" chưa có chức năng).
 - **Router** (React Router): `/` → `/overview`; mỗi mục điều hướng có một đường dẫn; màn chưa dựng hiện trang "Màn này đang được dựng" trong khung app; đường dẫn lạ hiện trang 404 theo `SiteNotFound`.
 - **Màn Tổng quan** (`/overview`): phần đầu trang (ngày giờ, lời chào, tóm tắt tình trạng tài khoản, hai nút) và 7 thẻ của canvas: Hộp thư hợp nhất, Hôm nay, Tài khoản, Dịch vụ (đồng bộ 24 giờ), Đăng ký, Hoạt động gần đây, Lối tắt; lưới 12 cột → 2 cột → 1 cột.
 - **Hợp đồng dữ liệu**: kiểu TypeScript `OverviewData` mô tả dữ liệu màn cần, file dữ liệu mẫu theo đúng kiểu đó, hook `useOverview()` trả dữ liệu mẫu (sau này đổi ruột sang gọi API, component không đổi). `design.md` có bảng đối chiếu với API hiện có: trường đã có, cần thêm, API mới. Đây là template giao backend.

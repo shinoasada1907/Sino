@@ -43,6 +43,7 @@ src/
   app/              router.tsx (route table), providers (TanStack Query, theme), UnderConstructionPage, NotFoundPage
   app/shell/        AppShell, Sidebar (>= 1280 px), Rail (768-1279 px), TabBar (< 768 px), Topbar, navItems,
                     ShellData (shell.types.ts), its sample and useShellData
+  features/overview/ Tổng quan: OverviewData (overview.types.ts), sample, useOverview, format.ts, OverviewPage, cards/
   shared/lib/       utils.ts: cn, the class-name merger every component uses
   shared/theme/     theme.ts (read, save, apply), ThemeProvider, useTheme, ThemeToggle
   shared/time/      formatAgo ("2 phút trước"), useNow
@@ -59,7 +60,7 @@ Imports from `src` use the `@/` alias (`@/shared/ui/button`), set in `vite.confi
 The web is built screen by screen with typed sample data before it calls the API (D-42, change
 `openspec/changes/fe-ui-overview`); there is no sign-in yet (D-44). Every navigation path exists: a screen that is not
 built yet shows "Màn … đang được dựng" inside the shell, an unknown path shows the 404 page. Each screen reads its data
-through a hook (`useShellData` for the shell) whose type is the data contract handed to the backend; the hook returns
+through a hook (`useShellData` for the shell, `useOverview` for Tổng quan) whose type is the data contract handed to the backend; the hook returns
 sample data now and will call the API later without changing the components. The contract and the table of what the
 backend already has are in the change's `design.md`.
 

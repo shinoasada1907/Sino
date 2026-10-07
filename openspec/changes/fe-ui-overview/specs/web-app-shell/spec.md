@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Khung app co giãn theo kích thước màn hình
-Web app MUST hiện khung app theo canvas "Sino UI" (`Breakpoints`): từ 1280px trở lên MUST có cột điều hướng 248px và thanh trên cùng có ô tìm kiếm; từ 768px tới 1279px MUST có dải điều hướng chỉ có icon rộng 72px; dưới 768px MUST có thanh điều hướng dưới đáy với 5 mục (Tổng quan, Hộp thư, Lịch, Việc, Thêm). Ở mọi kích thước, trang MUST NOT cuộn ngang và MUST có nút đổi sáng/tối. Nút chọn ngôn ngữ MUST bị ẩn.
+Web app MUST hiện khung app theo canvas "Sino UI" (`Breakpoints`): từ 1280px trở lên MUST có cột điều hướng 248px và thanh trên cùng có ô tìm kiếm; từ 768px tới 1279px MUST có dải điều hướng chỉ có icon rộng 72px; dưới 768px MUST có thanh điều hướng dưới đáy với 5 mục (Tổng quan, Hộp thư, Lịch, Việc, Thêm). Ở mọi kích thước, trang MUST NOT cuộn ngang. Thanh trên cùng MUST có đúng các nút của artboard tương ứng trong canvas: desktop có ô tìm kiếm, trạng thái đồng bộ, chuông, nút đổi sáng/tối và nút ngôn ngữ "VI"; tablet có tên trang, trạng thái đồng bộ, nút tìm, chuông và nút "VI"; mobile có logo, tên trang, nút tìm và chuông. Nút "VI" MUST chưa có chức năng (giao diện chỉ có tiếng Việt).
 
 #### Scenario: Desktop
 - **WHEN** người dùng mở `/overview` trên màn hình rộng 1440px
