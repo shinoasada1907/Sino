@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE). Đang làm: xong BE-27, BE-28, BE-29, FE-01.
+> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), và change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42). Đang làm: xong BE-27, BE-28, BE-29, FE-01, UI-01.
 > **Cập nhật:** 2026-10-07. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
@@ -40,7 +40,9 @@ SAU (session cookie, D-22 = A)
 | BE-28 | API `/api/auth/*`, session, CSRF, remember-me, bỏ HTTP Basic | xong |
 | BE-29 | Khóa tạm 5 lần / 15 phút | xong |
 | FE-01 | Cài stack, design token, sáng/tối, proxy `/api`, test, CI frontend | xong |
-| FE-02…FE-05 | API client, trang đăng nhập, khung app, nghiệm thu | chưa làm |
+| FE-02…FE-05 | API client, trang đăng nhập, khung app có xác thực, nghiệm thu | tạm hoãn (D-44) |
+| UI-01 | Router, khung app co giãn (sidebar / rail / thanh dưới), trang "đang được dựng", 404 | xong |
+| UI-02…UI-04 | Hợp đồng dữ liệu Tổng quan, các thẻ, nghiệm thu | chưa làm |
 
 ---
 
@@ -358,6 +360,82 @@ pnpm test (Vitest)
 - **Là gì:** mỗi lần push hay mở pull request có đụng `apps/sino-web/**`, GitHub chạy: cài đúng pnpm theo `packageManager`, Node 26, `pnpm install --frozen-lockfile`, rồi `lint`, `test`, `build`. Giống `backend-ci.yml` chạy `./mvnw verify` cho backend.
 - **Bẫy:** CI chỉ thực sự chạy khi code được push, mà push cần bạn cho phép. Trước đó, bằng chứng là ba lệnh chạy trên máy.
 
+## 5. Dựng giao diện trước với dữ liệu mẫu (fe-ui-overview)
+
+### 5.0 Bức tranh: vì sao đổi thứ tự
+- **Chuyện gì đổi (D-42, người dùng 2026-10-07):** thay vì làm API client rồi đăng nhập trước (FE-02…FE-05), web được dựng **từng màn một với dữ liệu mẫu**, chưa có đăng nhập (D-44). Màn đầu tiên là Tổng quan (D-43). Mỗi màn là một change OpenSpec riêng.
+- **"Hợp đồng dữ liệu" là gì:** mỗi màn có một kiểu TypeScript mô tả đúng dữ liệu nó cần. Kiểu đó là bản "đặt hàng" giao cho backend: backend làm hoặc chỉnh API sao cho trả đúng hình dạng ấy.
+
+```text
+TRƯỚC (vertical slice):  API backend -> API client -> màn hình
+SAU (D-42):              màn hình + dữ liệu mẫu
+                         -> kiểu dữ liệu (hợp đồng)
+                         -> backend làm API khớp
+hook useShellData() / useOverview()
+  hiện tại: trả dữ liệu mẫu
+  sau này:  gọi API thật (component không phải sửa)
+```
+
+- **Nguyên tắc của hợp đồng:** API trả **dữ liệu thô** (thời điểm ISO-8601 UTC, số đếm, mã enum); giao diện tự đổi ra chữ ("2 phút trước", "Hai tài khoản..."). Như vậy API không dính vào ngôn ngữ hay múi giờ hiển thị.
+
+### 5.1 React Router: bảng route và route bố cục
+- **Ở đâu:** `src/app/router.tsx` (bảng route), `src/main.tsx` (tạo router trình duyệt).
+- **Là gì:** một mảng mô tả "đường dẫn nào hiện cái gì". Route `/` có `element: <AppShell />` và các route con; `AppShell` đặt `<Outlet />` ở chỗ muốn hiện trang con. Nhờ vậy khung app vẽ một lần, chỉ phần nội dung đổi khi chuyển trang.
+
+```text
+/                 AppShell (khung app)
+  (index)         -> chuyển tới /overview (Navigate replace)
+  overview, inbox, calendar, ..., more
+                  -> trang "đang được dựng" (UI-03 thay /overview)
+*                 NotFoundPage (404, NGOÀI khung app)
+```
+
+- **`NavLink`:** giống `<a>` nhưng tự gắn `aria-current="page"` khi đường dẫn đang mở. CSS dựa vào thuộc tính đó (`aria-[current=page]:bg-raised`) để tô mục đang chọn, nên không cần tự viết logic "mục nào đang mở".
+- **Vì sao bảng route tách khỏi việc tạo router:** test dùng `createMemoryRouter(routes, { initialEntries: ['/calendar'] })` (router giữ đường dẫn trong bộ nhớ, không cần thanh địa chỉ); app thật dùng `createBrowserRouter(routes)` trong `main.tsx`. Cùng một bảng route, hai cách chạy.
+- **Bẫy:** `replace` trong `<Navigate to="/overview" replace />` thay mục lịch sử thay vì thêm mục mới; thiếu nó thì bấm "Back" từ `/overview` sẽ về `/` rồi lại bị đẩy sang `/overview`, kẹt mãi.
+
+### 5.2 Khung app co giãn theo kích thước
+- **Ở đâu:** `src/app/shell/AppShell.tsx`, `Sidebar.tsx`, `Rail.tsx`, `TabBar.tsx`, `Topbar.tsx`.
+- **Breakpoint của Tailwind:** class có tiền tố `md:` chỉ áp từ 768px, `xl:` từ 1280px, đúng mốc `Breakpoints` của canvas. "Mobile trước": class không tiền tố là cho màn nhỏ, rồi ghi đè dần cho màn lớn.
+
+```text
+                    < 768px         768-1279px        >= 1280px
+Sidebar 248px       hidden          hidden            xl:flex
+Rail 72px           hidden          md:flex           xl:hidden
+TabBar dưới đáy     (hiện)          md:hidden         md:hidden
+lưới AppShell       2 hàng          md:grid-cols-[72px_1fr]   xl:grid-cols-[248px_1fr]
+```
+
+- **Vì sao dựng cả ba ngay:** khung app dùng chung cho mọi màn; sửa bố cục về sau tốn công và dễ hỏng hơn làm đúng từ đầu.
+- **Bẫy, test không thấy CSS:** jsdom không chạy CSS, nên trong test cả sidebar, rail lẫn thanh dưới đều "hiện" cùng lúc. Test tìm trong từng phần bằng `data-slot` (`shellPart('rail')`). Việc phần nào thật sự hiện ở bề rộng nào thì kiểm trên Chrome thật (mục 5.6).
+
+### 5.3 Dữ liệu của khung app: `ShellData`, dữ liệu mẫu, `useShellData`
+- **Ở đâu:** `src/app/shell/shell.types.ts`, `shell.sample.ts`, `useShellData.ts`.
+- **Là gì:** `ShellData` gồm tên owner, số tài khoản, các số đếm trên điều hướng, số thông báo chưa đọc, trạng thái đồng bộ. `createShellSample(now)` sinh dữ liệu mẫu theo canvas, mốc thời gian tính theo `now` ("2 phút trước" lúc nào mở cũng đúng). `useShellData()` lấy dữ liệu qua TanStack Query.
+- **Vì sao đi qua TanStack Query dù chỉ là dữ liệu mẫu:** khi có API, chỉ đổi `queryFn` từ "trả mẫu" sang "gọi `/api/...`"; cache, trạng thái đang tải và việc tải lại đã có sẵn. `staleTime: Infinity` để dữ liệu mẫu không bị tải lại.
+- **Vì sao tách khỏi dữ liệu màn Tổng quan (chốt khi làm):** khung app hiện ở **mọi** màn. Nếu số đếm nằm trong dữ liệu Tổng quan, màn nào cũng phải tải dữ liệu Tổng quan chỉ để vẽ khung.
+- **Test nạp sẵn dữ liệu:** `renderApp(path, { shell })` tạo một `QueryClient` mới rồi `setQueryData(SHELL_QUERY_KEY, shell)` trước khi vẽ, nên test đổi được số đếm, tên, trạng thái mà không phải giả hàm nào.
+
+### 5.4 Điều hướng đọc được bằng trình đọc màn hình
+- **Ở đâu:** `navItems.ts` (`badgeOf`), các link trong `Sidebar`, `Rail`, `TabBar`.
+- **Vấn đề:** link "Hộp thư" với con số 12 đặt cạnh nhau sẽ được đọc thành "Hộp thư12", vô nghĩa. Trên rail chỉ có icon, không có chữ nào để đọc.
+- **Cách làm:** con số hiện ra nhưng có `aria-hidden="true"` (trình đọc màn hình bỏ qua); thêm một đoạn chữ `sr-only` (ẩn với mắt, vẫn được đọc): ", 12 chưa đọc". Rail dùng `aria-label="Hộp thư, 12 chưa đọc"`. Số 0 thì không đọc gì thêm.
+- **Landmark:** `<nav aria-label="Điều hướng chính">` cho trình đọc màn hình nhảy thẳng tới vùng điều hướng. Ba bản (sidebar, rail, thanh dưới) cùng tên vẫn ổn, vì phần bị `display: none` thì cũng biến khỏi cây trợ năng, lúc nào cũng chỉ còn một.
+
+### 5.5 Thời gian: "2 phút trước" và cái bẫy đồng hồ cũ
+- **Ở đâu:** `src/shared/time/relative.ts` (`formatAgo`), `useNow.ts`, `Topbar.tsx`.
+- **`formatAgo(from, now)`:** dưới 1 phút "vừa xong", dưới 1 giờ "N phút trước", dưới 1 ngày "N giờ trước", còn lại "N ngày trước"; giờ ở tương lai (đồng hồ hai máy lệch nhau) cũng là "vừa xong". Nhận `now` từ ngoài để test truyền một thời điểm cố định.
+- **`useNow()`:** giữ giờ hiện tại trong state và cập nhật mỗi phút, để chữ "2 phút trước" tự thành "3 phút trước".
+- **Lỗi thật, ảnh chụp bắt được:** thanh trên hiện "1 phút trước" cho dữ liệu 2 phút. Lý do: `useNow` chốt giờ lúc khung app vừa hiện, còn dữ liệu đến sau đó một chút; phép trừ dùng một "bây giờ" đã cũ, nên sai tới gần một phút (với API thật cũng vậy).
+- **Cách sửa sai đầu tiên, và vì sao bỏ:** đọc `new Date()` ngay trong lúc render. Lint báo `react(purity)`: hàm render của React phải **thuần**, cùng đầu vào thì cùng kết quả; React (và React Compiler) dựa vào điều đó để vẽ lại đúng.
+- **Cách sửa đúng:** TanStack Query ghi lại thời điểm nhận dữ liệu (`dataUpdatedAt`). Thanh trên lấy mốc **muộn hơn** giữa nhịp đồng hồ và lúc nhận dữ liệu: `new Date(Math.max(clock.getTime(), receivedAt))`. Vừa thuần, vừa đúng.
+- **Test tái hiện:** dùng `vi.useFakeTimers({ toFake: ['Date'] })` để điều khiển giờ: khung app hiện lúc 07:00:00, dữ liệu đến lúc 07:00:50 với lần đồng bộ lúc 06:58:50. Bản lỗi hiện "1 phút trước", test đỏ; bản sửa hiện "2 phút trước". **Bẫy trong chính test:** lần viết đầu, dữ liệu nạp sẵn đã hiện đúng chữ "2 phút trước" nên test xanh mà không chứng minh gì; phải cho trạng thái ban đầu hiện chữ khác.
+
+### 5.6 Kiểm chứng UI-01
+- **Test viết trước:** 20 test mới đỏ đúng lý do (chưa có sidebar, rail, thanh dưới, thanh trên, tiêu đề trang), viết code xong thì xanh; cuối cùng 32/32.
+- **Kiểm tra ngược:** 13 lỗi cố ý, 11 bị bắt ngay. Hai lỗi sống sót đều là **test còn hở**, không phải code tương đương: (1) số 0 vẫn được đọc ", 0 chưa đọc" trên rail và thanh dưới (sidebar vô tình che lỗi vì nó không vẽ số 0); (2) trạng thái IDLE nhưng còn mốc đồng bộ cũ (đã xóa hết tài khoản). Thêm hai test, chạy lại thì cả hai bị bắt. Lần cuối 14/14.
+- **Chrome thật** (DevTools Protocol, bản build), 1440 / 1024 / 390px × sáng / tối: mỗi bề rộng chỉ hiện đúng một loại điều hướng, không tràn ngang, Tab qua điều hướng có viền focus, `/calendar` hiện trang "đang được dựng", đường dẫn lạ hiện 404.
+
 ---
 
 ## Tự kiểm tra
@@ -387,3 +465,10 @@ pnpm test (Vitest)
 23. Vì sao `pnpm build` phải chạy `tsc -b` trước `vite build`?
 24. Nút có `outline-none` và `focus-visible:outline-2` mà vẫn không hiện viền khi bấm Tab. Vì sao, và kiểm lỗi này bằng cách nào?
 25. Vì sao `cn('shadow-popover', 'shadow-none')` giữ cả hai class, và wrapper trong `src/shared/lib/utils.ts` sửa điều đó thế nào?
+26. "Hợp đồng dữ liệu" của một màn là gì, và vì sao API nên trả dữ liệu thô thay vì chữ đã định dạng?
+27. Route bố cục với `<Outlet />` giúp gì? Vì sao 404 nằm ngoài khung app?
+28. Vì sao `<Navigate to="/overview" replace />` cần `replace`?
+29. Vì sao trong test cả sidebar, rail và thanh dưới đều "hiện", và test xử lý chuyện đó thế nào?
+30. Con số 12 cạnh chữ "Hộp thư" được trình đọc màn hình đọc ra sao nếu không làm gì, và `aria-hidden` + `sr-only` sửa thế nào?
+31. Vì sao đọc `new Date()` ngay trong render là sai, và `dataUpdatedAt` giải quyết lỗi "1 phút trước" thế nào?
+32. Một lỗi cố ý sống sót nói lên điều gì? Hai lỗi sống sót ở UI-01 là gì?
