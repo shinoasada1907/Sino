@@ -39,6 +39,7 @@ Chỉ còn đăng nhập bằng session. **LÝ DO:** mỗi `401` có `WWW-Authen
 
 ### D-34 — Ghi nhớ đăng nhập bằng remember-me cookie · **Accepted** (người dùng, 2026-10-07)
 Session nằm trong bộ nhớ server (mặc định của servlet container): hết khi server khởi động lại hoặc sau **30 phút** không dùng. Khi người dùng tích "Giữ đăng nhập trên máy này", server cấp thêm cookie remember-me **30 ngày** của Spring Security (`TokenBasedRememberMeServices`, chữ ký SHA-256 tính từ email, hạn dùng, bản băm mật khẩu và khóa `SINO_REMEMBER_ME_KEY`). Cookie sống qua khởi động lại; đổi mật khẩu thì mọi cookie cũ mất hiệu lực. `SINO_REMEMBER_ME_KEY` bắt buộc, tối thiểu 32 ký tự (tạo bằng `openssl rand -base64 32`). Phương án bị loại: Spring Session JDBC (thêm dependency + bảng), bỏ hẳn ghi nhớ.
+- **Phát hiện khi làm BE-28:** chữ ký mặc định của `TokenBasedRememberMeServices` dùng mật khẩu của `UserDetails` — ở đây là bản băm BCrypt, mà BCrypt thêm muối ngẫu nhiên nên **mỗi lần khởi động bản băm khác**, mọi cookie ghi nhớ sẽ mất hiệu lực sau khởi động lại (trái D-34). Cách làm: remember-me có `UserDetailsService` riêng, trong đó "mật khẩu" là **dấu vân tay** HMAC-SHA256 của mật khẩu với `SINO_REMEMBER_ME_KEY` (`LoginSettings.rememberMeFingerprint()`), tính một lần lúc khởi động: không đổi qua các lần khởi động, đổi khi mật khẩu hoặc khóa đổi. Đăng nhập vẫn so bằng BCrypt. Test `RememberMeAcrossRestartsTests` mô phỏng hai lần khởi động.
 
 ### D-35 — Khóa tạm theo email · **Accepted** (người dùng, 2026-10-07)
 Sai **5** lần liên tiếp với cùng một email (đã chuẩn hóa) thì khóa **15 phút**; trong lúc khóa, nhập đúng mật khẩu cũng bị từ chối (`429 LOGIN_LOCKED`). Đăng nhập thành công thì bộ đếm về 0. Bộ đếm nằm trong bộ nhớ (mất khi khởi động lại — chấp nhận được). Thời gian lấy từ một `Clock` được inject để test tua được.
@@ -57,11 +58,13 @@ Trình duyệt chỉ thấy một địa chỉ. Khi dev: Vite (`localhost:5173`)
 |---|---|---|---|---|
 | `GET /api/auth/me` | công khai | — | `200 {"email","displayName"}` | `401 UNAUTHORIZED` khi chưa đăng nhập |
 | `POST /api/auth/login` | công khai, **cần CSRF** | `{"email","password","rememberMe"}` | `204` + cookie session (+ cookie remember-me nếu `rememberMe`) | `400 VALIDATION_FAILED` (thiếu trường), `401 INVALID_CREDENTIALS` + `remainingAttempts`, `429 LOGIN_LOCKED` + `retryAfterSeconds` + header `Retry-After`, `403 CSRF_TOKEN_INVALID` |
-| `POST /api/auth/logout` | đã đăng nhập, **cần CSRF** | — | `204`, session bị hủy, cookie remember-me bị xóa | `401`, `403 CSRF_TOKEN_INVALID` |
+| `POST /api/auth/logout` | **cần CSRF** | — | `204`, session bị hủy, cookie remember-me bị xóa | `403 CSRF_TOKEN_INVALID` |
 
 - `GET /api/auth/me` công khai (không chặn) để luôn trả được cookie `XSRF-TOKEN` cho web trước lần POST đầu tiên; nó trả `401` khi chưa đăng nhập.
 - `POST /api/auth/login` tự xác thực bằng `AuthenticationManager` rồi lưu `SecurityContext` vào session qua `SecurityContextRepository` (cách Spring Security 6+/7 khuyên cho endpoint đăng nhập tự viết), đổi session ID (chống session fixation), gọi `RememberMeServices.loginSuccess` khi `rememberMe = true`. Không dùng `formLogin()` vì nó nhận form, trả redirect và không trả Problem Details.
 - `INVALID_CREDENTIALS` dùng một thông báo cho cả sai email lẫn sai mật khẩu; `remainingAttempts` = số lần còn được thử trước khi khóa.
+- **Chốt khi làm BE-28:** đăng xuất do `LogoutFilter` có sẵn của Spring Security xử lý (`logoutUrl("/api/auth/logout")`, trả `204`): nó hủy session, xóa cookie remember-me và CSRF token. ~~`401` khi chưa đăng nhập~~ → luôn `204` (đăng xuất lặp lại vô hại). **LÝ DO:** dùng thành phần chuẩn thay vì tự viết; web không phải xử lý thêm một trường hợp lỗi.
+- **Chốt khi làm BE-28:** `rememberMe` thiếu nghĩa là `false`; field là `Boolean`, không phải `boolean`, vì Jackson 3 mặc định từ chối giá trị thiếu cho kiểu nguyên thủy (trả `400 MALFORMED_REQUEST`). Lỗi `401` của đăng nhập đi qua `SinoException` với loại lỗi mới `ErrorCategory.UNAUTHENTICATED` (401) trong error model chung.
 
 ### Bảo mật HTTP (`dev.sino.common.security.SecurityConfig`)
 

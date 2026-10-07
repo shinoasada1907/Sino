@@ -3,11 +3,11 @@ package dev.sino.common.web;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON;
 import static org.springframework.http.MediaType.TEXT_PLAIN;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -16,10 +16,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -57,7 +56,7 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void validationFailureListsFieldErrors() throws Exception {
-        mvc.perform(post("/api/probe/things").with(apiUser()).contentType(APPLICATION_JSON).content("{\"name\":\"\"}"))
+        mvc.perform(post("/api/probe/things").with(apiUser()).with(csrf()).contentType(APPLICATION_JSON).content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
                 // Spring 7 omits `type` when it is about:blank, which RFC 9457 section 3.1.1 allows.
@@ -72,7 +71,7 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void malformedJsonIsReportedAsMalformedRequest() throws Exception {
-        mvc.perform(post("/api/probe/things").with(apiUser()).contentType(APPLICATION_JSON).content("{not json"))
+        mvc.perform(post("/api/probe/things").with(apiUser()).with(csrf()).contentType(APPLICATION_JSON).content("{not json"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
     }
@@ -103,14 +102,14 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void wrongMethodIsMethodNotAllowed() throws Exception {
-        mvc.perform(delete("/api/probe/things").with(apiUser()))
+        mvc.perform(delete("/api/probe/things").with(apiUser()).with(csrf()))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
     }
 
     @Test
     void wrongContentTypeIsUnsupportedMediaType() throws Exception {
-        mvc.perform(post("/api/probe/things").with(apiUser()).contentType(TEXT_PLAIN).content("name"))
+        mvc.perform(post("/api/probe/things").with(apiUser()).with(csrf()).contentType(TEXT_PLAIN).content("name"))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
     }
@@ -136,7 +135,7 @@ class GlobalExceptionHandlerTests {
     void missingCredentialsGiveUnauthorizedProblem() throws Exception {
         mvc.perform(get("/api/probe/things/42"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(header().string("WWW-Authenticate", startsWith("Basic")))
+                .andExpect(header().doesNotExist("WWW-Authenticate"))
                 .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
@@ -150,21 +149,31 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
-    void unexpectedErrorIsLoggedWithoutTheCredentials(CapturedOutput output) throws Exception {
-        mvc.perform(get("/api/probe/boom").with(apiUser())).andExpect(status().isInternalServerError());
-
-        assertThat(output).contains("Unhandled exception for GET /api/probe/boom")
-                .doesNotContain("test-password")
-                .doesNotContain(basicToken("test-user", "test-password"));
+    void missingCsrfTokenGivesCsrfProblem() throws Exception {
+        mvc.perform(post("/api/probe/things").with(apiUser()).contentType(APPLICATION_JSON).content("{\"name\":\"a\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
     }
 
     @Test
-    void rejectedCredentialsAreNotLogged(CapturedOutput output) throws Exception {
-        mvc.perform(get("/api/probe/things/1").with(httpBasic("test-user", "Wr0ng-Secret-Value")))
+    void unexpectedErrorIsLoggedWithoutCookiesOrTokens(CapturedOutput output) throws Exception {
+        mvc.perform(get("/api/probe/boom").with(apiUser())
+                        .cookie(new Cookie("remember-me", "Secret-Cookie-Value"))
+                        .header("X-XSRF-TOKEN", "Secret-Csrf-Value"))
+                .andExpect(status().isInternalServerError());
+
+        assertThat(output).contains("Unhandled exception for GET /api/probe/boom")
+                .doesNotContain("Secret-Cookie-Value")
+                .doesNotContain("Secret-Csrf-Value");
+    }
+
+    @Test
+    void aRejectedAuthorizationHeaderIsNotLogged(CapturedOutput output) throws Exception {
+        mvc.perform(get("/api/probe/things/1").header("Authorization", "Basic Wr0ng-Secret-Value"))
                 .andExpect(status().isUnauthorized());
 
-        assertThat(output).doesNotContain("Wr0ng-Secret-Value")
-                .doesNotContain(basicToken("test-user", "Wr0ng-Secret-Value"));
+        assertThat(output).doesNotContain("Wr0ng-Secret-Value");
     }
 
     @Test
@@ -175,11 +184,7 @@ class GlobalExceptionHandlerTests {
     }
 
     private static RequestPostProcessor apiUser() {
-        return httpBasic("test-user", "test-password");
-    }
-
-    private static String basicToken(String username, String password) {
-        return Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8));
+        return user("owner@sino.test");
     }
 
     enum ProbeErrorCode implements ErrorCode {

@@ -6,6 +6,9 @@ package dev.sino.common.error;
  */
 public enum ErrorCategory {
 
+    /** The caller could not be identified, for example a failed sign-in (401). */
+    UNAUTHENTICATED,
+
     /** The requested resource does not exist or is not visible to the caller (404). */
     NOT_FOUND,
 

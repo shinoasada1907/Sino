@@ -2,10 +2,10 @@ package dev.sino.account;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+
+import jakarta.servlet.http.Cookie;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +29,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.testcontainers.containers.Container.ExecResult;
@@ -44,8 +48,9 @@ import dev.sino.provider.spi.OAuth2Credentials;
 
 /**
  * F02 acceptance (BE-18): one account through its whole life on the whole application, with verbose logging on.
- * Connected through the use case the F04 connect flow will call, then listed, shown, changed and removed over
- * HTTP. The sample tokens must never show up in a response, in the log or in a database column.
+ * Connected through the use case the F04 connect flow will call, then, after a real browser-style sign-in
+ * (D-22), listed, shown, changed and removed over HTTP. Neither the sample tokens nor the owner password may show
+ * up in a response, in the log or in a database column.
  */
 @SpringBootTest(properties = {
         "logging.level.dev.sino=DEBUG",
@@ -60,6 +65,7 @@ class AccountLifecycleEndToEndTests {
     private static final ProviderType FAKE = ProviderType.of("fake");
     private static final String ACCESS = "ya29.e2e-sample-access-token";
     private static final String REFRESH = "1//e2e-sample-refresh-token";
+    private static final String OWNER_PASSWORD = "test-owner-password";
 
     @Autowired
     private AccountRegistrationService registration;
@@ -78,6 +84,9 @@ class AccountLifecycleEndToEndTests {
 
     private final List<String> responses = new ArrayList<>();
 
+    private MockHttpSession session;
+    private Cookie csrfCookie;
+
     @Test
     void anAccountGoesThroughItsWholeLifeWithoutItsTokensShowingAnywhere(CapturedOutput output) throws Exception {
         UUID owner = users.findIdByEmail("owner@sino.test").orElseThrow();
@@ -91,35 +100,65 @@ class AccountLifecycleEndToEndTests {
         assertThat(stored).startsWith("OAUTH2|k1|").doesNotContain(ACCESS).doesNotContain(REFRESH);
         System.out.println("psql account_credential: " + stored);
 
-        record(mvc.perform(get("/api/accounts").with(apiUser()))
+        signIn();
+        record(mvc.perform(get("/api/auth/me").with(signedIn()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("owner@sino.test")));
+        record(mvc.perform(get("/api/accounts").with(signedIn()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(id.toString())));
-        record(mvc.perform(get("/api/accounts/{id}", id).with(apiUser()))
+        record(mvc.perform(get("/api/accounts/{id}", id).with(signedIn()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.capabilities[0]").value("READ_MESSAGES")));
-        record(mvc.perform(patch("/api/accounts/{id}", id).with(apiUser()).contentType(APPLICATION_JSON)
+        record(mvc.perform(patch("/api/accounts/{id}", id).with(signedIn()).contentType(APPLICATION_JSON)
                         .content("{\"displayName\": \"Work\", \"enabled\": false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").value("Work"))
                 .andExpect(jsonPath("$.status").value("DISABLED")));
-        record(mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()))
+        record(mvc.perform(delete("/api/accounts/{id}", id).with(signedIn()))
                 .andExpect(status().isNoContent()));
-        record(mvc.perform(get("/api/accounts/{id}", id).with(apiUser()))
+        record(mvc.perform(get("/api/accounts/{id}", id).with(signedIn()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND")));
 
         assertThat(jdbc.queryForObject("select count(*) from account_credential", Long.class)).isZero();
         assertThat(jdbc.queryForObject("select removed_at is not null from connected_account where id = ?",
                 Boolean.class, id)).isTrue();
-        assertThat(responses).hasSize(5).allSatisfy(body -> assertThat(body)
-                .doesNotContain(ACCESS).doesNotContain(REFRESH).doesNotContain("mail.read"));
+        assertThat(responses).hasSize(6).allSatisfy(body -> assertThat(body)
+                .doesNotContain(ACCESS).doesNotContain(REFRESH).doesNotContain("mail.read")
+                .doesNotContain(OWNER_PASSWORD));
         // The verbose log really ran (handler mapping, written response bodies, SQL) and still holds no token.
         assertThat(output.getAll())
                 .contains("Mapped to dev.sino.account.api.AccountsController")
                 .contains("Writing [AccountResponse[")
                 .contains("insert into account_credential")
                 .doesNotContain(ACCESS)
-                .doesNotContain(REFRESH);
+                .doesNotContain(REFRESH)
+                .doesNotContain(OWNER_PASSWORD);
+    }
+
+    /** Like the web app: GET /api/auth/me for the CSRF cookie, then POST /api/auth/login with it. */
+    private void signIn() throws Exception {
+        MvcResult me = mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized()).andReturn();
+        csrfCookie = me.getResponse().getCookie("XSRF-TOKEN");
+        assertThat(csrfCookie).as("the CSRF cookie").isNotNull();
+        MvcResult login = mvc.perform(post("/api/auth/login").cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", csrfCookie.getValue())
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"email\":\"owner@sino.test\",\"password\":\"" + OWNER_PASSWORD + "\"}"))
+                .andExpect(status().isNoContent())
+                .andReturn();
+        session = (MockHttpSession) login.getRequest().getSession(false);
+        assertThat(session).as("the session started by the sign-in").isNotNull();
+    }
+
+    private RequestPostProcessor signedIn() {
+        return request -> {
+            request.setSession(session);
+            request.setCookies(csrfCookie);
+            request.addHeader("X-XSRF-TOKEN", csrfCookie.getValue());
+            return request;
+        };
     }
 
     private void record(ResultActions result) throws Exception {
@@ -131,10 +170,6 @@ class AccountLifecycleEndToEndTests {
                 postgres.getDatabaseName(), "-A", "-t", "-c", query);
         assertThat(result.getExitCode()).as(result.getStderr()).isZero();
         return result.getStdout().trim();
-    }
-
-    private static RequestPostProcessor apiUser() {
-        return httpBasic("test-user", "test-password");
     }
 
     @TestConfiguration(proxyBeanMethods = false)

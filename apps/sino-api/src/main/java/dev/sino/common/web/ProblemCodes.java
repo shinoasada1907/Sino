@@ -10,6 +10,7 @@ final class ProblemCodes {
     static final String MALFORMED_REQUEST = "MALFORMED_REQUEST";
     static final String UNAUTHORIZED = "UNAUTHORIZED";
     static final String FORBIDDEN = "FORBIDDEN";
+    static final String CSRF_TOKEN_INVALID = "CSRF_TOKEN_INVALID";
     static final String RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND";
     static final String METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED";
     static final String UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE";

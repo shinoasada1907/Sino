@@ -33,14 +33,20 @@ management:
           # Ready only when the database answers. Liveness deliberately ignores the database.
           include: readinessState,db
 
+server:
+  servlet:
+    session:
+      # D-22: the browser session ends after 30 minutes without a request; "keep me signed in" (D-34) outlives it.
+      timeout: 30m
+      cookie:
+        http-only: true
+        same-site: lax
+        # Set to true behind HTTPS so the cookie is never sent over plain HTTP.
+        secure: ${SINO_SESSION_COOKIE_SECURE:false}
+
 sino:
-  security:
-    api-user:
-      # D-02 A. The empty default turns a missing variable into a validation error at startup.
-      username: ${SINO_API_USERNAME:}
-      password: ${SINO_API_PASSWORD:}
   owner:
-    # D-10: the single Sino user of the MVP, upserted by email at startup. Required, like the API user.
+    # D-10: the single Sino user of the MVP, upserted by email at startup. Required.
     email: ${SINO_OWNER_EMAIL:}
     display-name: ${SINO_OWNER_DISPLAY_NAME:}
     # D-33: the login password of the owner, at least 12 characters. Only a BCrypt hash is kept after startup.

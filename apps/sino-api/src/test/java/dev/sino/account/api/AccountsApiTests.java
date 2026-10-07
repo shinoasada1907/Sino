@@ -8,7 +8,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -329,7 +330,7 @@ class AccountsApiTests {
         credentials.save(id, new OAuth2Credentials(ACCESS, null, Set.of("mail.read")), REFRESH);
         Instant before = Instant.now();
 
-        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()))
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()).with(csrf()))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
 
@@ -352,12 +353,12 @@ class AccountsApiTests {
     @Test
     void aRemovedAccountCannotBeChangedOrRemovedAgain() throws Exception {
         UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
-        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser())).andExpect(status().isNoContent());
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()).with(csrf())).andExpect(status().isNoContent());
 
         mvc.perform(patchAccount(id, "{\"displayName\": \"Back\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
-        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()))
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()).with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
         assertThat(events.stream(AccountRemoved.class)).hasSize(1);
@@ -368,7 +369,7 @@ class AccountsApiTests {
         UUID foreign = connect(otherUser, FAKE, "other@fake.test", "2026-10-05T03:15:00Z");
         credentials.save(foreign, new OAuth2Credentials(ACCESS, null, Set.of("mail.read")), REFRESH);
 
-        mvc.perform(delete("/api/accounts/{id}", foreign).with(apiUser()))
+        mvc.perform(delete("/api/accounts/{id}", foreign).with(apiUser()).with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
 
@@ -380,7 +381,7 @@ class AccountsApiTests {
     }
 
     private RequestBuilder patchAccount(UUID id, String json) {
-        return patch("/api/accounts/{id}", id).with(apiUser()).contentType(APPLICATION_JSON).content(json);
+        return patch("/api/accounts/{id}", id).with(apiUser()).with(csrf()).contentType(APPLICATION_JSON).content(json);
     }
 
     private String displayNameInDatabase(UUID id) {
@@ -397,7 +398,7 @@ class AccountsApiTests {
     }
 
     private static RequestPostProcessor apiUser() {
-        return httpBasic("test-user", "test-password");
+        return user("owner@sino.test");
     }
 
     @TestConfiguration(proxyBeanMethods = false)

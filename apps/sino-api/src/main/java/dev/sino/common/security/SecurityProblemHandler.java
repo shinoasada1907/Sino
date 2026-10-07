@@ -3,7 +3,6 @@ package dev.sino.common.security;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -12,7 +11,8 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
  * Sends 401 and 403 from the security filter chain through Spring MVC's exception handling, so they get the same
- * problem response as every other API error.
+ * problem response as every other API error. A 401 has no {@code WWW-Authenticate} header: with it, browsers open
+ * their own sign-in dialog (D-32).
  */
 class SecurityProblemHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
@@ -25,7 +25,6 @@ class SecurityProblemHandler implements AuthenticationEntryPoint, AccessDeniedHa
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException authException) {
-        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"sino\"");
         handlerExceptionResolver.resolveException(request, response, null, authException);
     }
 

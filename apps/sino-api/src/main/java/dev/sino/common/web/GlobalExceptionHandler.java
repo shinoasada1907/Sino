@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -62,6 +63,13 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication is required to access this resource.",
                 ProblemCodes.UNAUTHORIZED, request);
+    }
+
+    // CsrfException is an AccessDeniedException; its own code lets the web app fetch a new token and retry once.
+    @ExceptionHandler(CsrfException.class)
+    ResponseEntity<ProblemDetail> handleCsrf(CsrfException ex, HttpServletRequest request) {
+        return problem(HttpStatus.FORBIDDEN, "The CSRF token is missing or invalid. Reload and retry.",
+                ProblemCodes.CSRF_TOKEN_INVALID, request);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -131,6 +139,7 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static HttpStatus statusOf(ErrorCategory category) {
         return switch (category) {
+            case UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;
             case INVALID -> HttpStatus.UNPROCESSABLE_CONTENT;
