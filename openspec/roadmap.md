@@ -109,7 +109,7 @@ Mục tiêu: có web app thật gọi API thật, để từ Phase 2 mỗi featu
 | F02-FE | Trang Accounts (02C §8): danh sách, badge trạng thái với wording dễ hiểu ("Needs login again"...), đổi tên, tắt/bật, xóa | — |
 | F03-FE | Provider card + badge capability (02C §5); tiện ích "chỉ hiện hành động khi provider hỗ trợ" | — |
 
-**Quyết định mở phase — D-22: xác thực cho trình duyệt.** HTTP Basic (D-02) không hợp với SPA (phải giữ mật khẩu trong JS) và với SSE (`EventSource` không gửi được header). Các phương án sẽ so sánh khi mở phase: session cookie + CSRF token (form/JSON login), hoặc OAuth2 login bằng Google, hoặc token ngắn hạn. Phải chốt trước khi FE gọi API thật, và chắc chắn trước F08.
+**Quyết định mở phase — D-22: xác thực cho trình duyệt.** → **Accepted A (2026-10-07):** email + mật khẩu của owner, session cookie, CSRF, remember-me; bỏ HTTP Basic (D-32…D-36, xem `openspec/changes/fe-f01-web-foundation/design.md`). Phase 1 chia ba change: (1) `fe-f01-web-foundation` (D-22 + F01-FE), (2) F02-FE, (3) F03-FE. HTTP Basic (D-02) không hợp với SPA (phải giữ mật khẩu trong JS) và với SSE (`EventSource` không gửi được header). Các phương án sẽ so sánh khi mở phase: session cookie + CSRF token (form/JSON login), hoặc OAuth2 login bằng Google, hoặc token ngắn hạn. Phải chốt trước khi FE gọi API thật, và chắc chắn trước F08.
 
 Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API client, xử lý lỗi ở FE, cookie/CSRF trong SPA.
 
@@ -259,5 +259,5 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 ## 5. Vị trí hiện tại
 
 - **Phase 0:** ✅ đóng 2026-10-07. F01, F03, F02 xong và đã archive; code vào `main` qua PR #3 (`9d1ff9b`, CI xanh). Còn mở (người dùng): Notion 02B, 04C/04D.
-- **Tiếp theo:** Phase 1 (frontend), mở bằng quyết định **D-22** (xác thực cho trình duyệt).
+- **Phase 1 (đang làm, mở 2026-10-07):** change 1 `fe-f01-web-foundation` đã lập kế hoạch (D-22 = A), chờ người dùng duyệt.
 - `PROJECT_STATE.md` là nơi ghi trạng thái thật; file này chỉ là bản đồ và được cập nhật khi xong mỗi phase.
