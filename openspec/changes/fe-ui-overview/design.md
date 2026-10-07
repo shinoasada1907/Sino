@@ -73,25 +73,53 @@ src/
 Nguyên tắc: **API trả dữ liệu thô** (thời điểm ISO-8601 UTC, số đếm, mã enum, ID); **giao diện tự đổi ra chữ** ("09:41", "Hôm qua", "sau 2 giờ", "58%", "Hai tài khoản đang chạy bình thường"). Như vậy API không phụ thuộc ngôn ngữ hay múi giờ hiển thị. Mỗi phần chưa có backend được phép là `null`; thẻ tương ứng hiện "Chưa có dữ liệu", nhờ vậy backend có thể làm `GET /api/overview` từng phần.
 
 ```ts
-type Instant = string                    // ISO-8601 UTC, ví dụ "2026-10-02T07:05:00Z"
-type ProviderType = string               // như API hiện có: "gmail", "zalo", "messenger"
-type AccountStatus = 'CONNECTED' | 'DEGRADED' | 'AUTH_EXPIRED' | 'ERROR' | 'DISABLED'
-type Health = 'OK' | 'WARNING' | 'ERROR'
+// Chép nguyên từ code (nguồn thật): src/app/shell/shell.types.ts và src/features/overview/overview.types.ts
+type Instant = string // ISO-8601 UTC, ví dụ "2026-10-02T07:05:00Z"
 
-// Khung app (mọi màn) — chốt ở UI-01, code: src/app/shell/shell.types.ts
-interface ShellData {
-  owner: { displayName: string }
-  accountCount: number
-  navCounts: { inboxUnread: number; tasksOpen: number; tasksOverdue: number;
-               accountsNeedingAction: number; registrationsNew: number }
-  unreadNotifications: number
-  sync: { state: 'OK' | 'SYNCING' | 'IDLE'; lastSyncedAt: Instant | null
-          progress: number | null }   // 0..100 khi đang đồng bộ lần đầu
+// ===== Khung app (mọi màn) =====
+type Instant = string
+
+interface NavCounts {
+  inboxUnread: number
+  tasksOpen: number
+  tasksOverdue: number
+  accountsNeedingAction: number
+  registrationsNew: number
 }
 
-// Màn Tổng quan — chốt ở UI-02, code: src/features/overview/overview.types.ts
+/** What the app shell shows on every screen; part of the data contract handed to the backend. */
+interface ShellData {
+  /** `shortName` is what the greeting uses ("An"); without it the greeting uses `displayName`. */
+  owner: { displayName: string; shortName: string | null }
+  accountCount: number
+  navCounts: NavCounts
+  unreadNotifications: number
+  sync: {
+    state: 'OK' | 'SYNCING' | 'IDLE'
+    lastSyncedAt: Instant | null
+    /** 0..100 while the first sync runs, otherwise null. */
+    progress: number | null
+  }
+}
+
+// ===== Màn Tổng quan =====
+/**
+ * Data contract of the Tổng quan screen (D-42), handed to the backend. The API sends raw values (UTC instants,
+ * counts, codes); the screen turns them into text. A section the backend does not provide yet is `null`.
+ */
+
+/** A provider type as the API names it: "gmail", "zalo", "messenger". */
+type ProviderType = string
+
+/** Same values as `AccountStatus` in the backend. */
+type AccountStatus = 'CONNECTED' | 'DEGRADED' | 'AUTH_EXPIRED' | 'ERROR' | 'DISABLED'
+
+type Health = 'OK' | 'WARNING' | 'ERROR'
+
 interface OverviewData {
   generatedAt: Instant
+  /** The provider catalog (`GET /api/providers`), to name providers without hard-coding them. */
+  providers: { type: ProviderType; displayName: string }[]
   accounts: OverviewAccount[]
   inbox: InboxSummary | null
   today: TodaySummary | null
@@ -101,33 +129,67 @@ interface OverviewData {
 }
 
 interface OverviewAccount {
-  id: string; provider: ProviderType; externalAccountId: string; displayName: string
-  status: AccountStatus; lastSyncedAt: Instant | null
-  syncProgress: number | null           // 0..100 khi đang đồng bộ lần đầu, null khi không
-  statusChangedAt: Instant | null       // ví dụ lúc chuyển sang AUTH_EXPIRED
+  id: string
+  provider: ProviderType
+  externalAccountId: string
+  displayName: string
+  status: AccountStatus
+  lastSyncedAt: Instant | null
+  /** 0..100 while the first sync runs, otherwise null. */
+  syncProgress: number | null
+  /** When the account entered its current status, for example AUTH_EXPIRED. */
+  statusChangedAt: Instant | null
 }
 
 interface InboxSummary {
-  unreadCount: number; awaitingReplyCount: number
+  unreadCount: number
+  awaitingReplyCount: number
   bySource: { provider: ProviderType; unreadCount: number }[]
-  conversations: { id: string; provider: ProviderType; title: string; subject: string | null
-                   memberCount: number | null; snippet: string; lastMessageAt: Instant; unreadCount: number }[]
+  conversations: InboxConversation[]
+}
+
+interface InboxConversation {
+  id: string
+  provider: ProviderType
+  /** The other person or the group. */
+  title: string
+  /** Email subject; null for chats. */
+  subject: string | null
+  /** Number of people in a group chat; null for one-to-one. */
+  memberCount: number | null
+  snippet: string
+  lastMessageAt: Instant
+  unreadCount: number
 }
 
 interface TodaySummary {
-  items: { id: string; kind: 'TASK' | 'EVENT' | 'REMINDER'; title: string; at: Instant
-           done: boolean; conversationTitle: string | null }[]
+  items: TodayItem[]
   tomorrow: { firstEvent: { title: string; at: Instant } | null; taskCount: number }
 }
 
+interface TodayItem {
+  id: string
+  kind: 'TASK' | 'EVENT' | 'REMINDER'
+  title: string
+  /** Due time of a task or reminder, start of an event. */
+  at: Instant
+  done: boolean
+  recurrence: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null
+  /** The conversation the item came from. */
+  conversation: { provider: ProviderType; title: string } | null
+}
+
 interface SyncActivity {
-  buckets: { start: Instant; messages: number; health: Health }[]   // 24 giờ, mỗi giờ một ô
+  /** 24 hourly buckets, oldest first; the last one is the current hour. */
+  buckets: { start: Instant; messages: number; health: Health }[]
   providers: { provider: ProviderType; health: Health; since: Instant | null }[]
 }
 
 interface RegistrationSummary {
-  total: number; updatedAt: Instant
-  byMethod: { method: string; count: number }[]                     // "google", "email", "facebook", "zalo"
+  total: number
+  updatedAt: Instant
+  /** Sign-in methods, biggest first: "google", "email", "facebook", "zalo". */
+  byMethod: { method: string; count: number }[]
   latest: { siteName: string; domain: string; method: string; detectedAt: Instant; isNew: boolean } | null
 }
 
@@ -145,6 +207,8 @@ Giao diện tự suy ra (không cần API trả): lời chào theo giờ, dòng 
 | Phần | Nguồn ở backend | Tình trạng |
 |---|---|---|
 | `ShellData.owner.displayName` | `GET /api/auth/me` | **đã có** |
+| `ShellData.owner.shortName` (tên gọi cho lời chào: "Chào buổi chiều, An.") | `app_user` chưa có; ví dụ biến `SINO_OWNER_SHORT_NAME` hoặc cột mới | **cần thêm** (giao diện dùng `displayName` khi thiếu) |
+| `providers` (tên hiển thị của provider) | `GET /api/providers` (`type`, `displayName`) | **đã có** |
 | `ShellData.accountCount` | đếm từ `GET /api/accounts` | **đã có** (đếm ở backend hoặc giao diện) |
 | `ShellData.sync` | trạng thái chung của các tài khoản; `lastSyncedAt` đã có trong `connected_account`, tiến độ đồng bộ lần đầu ở F07 | **cần thêm** |
 | `ShellData.navCounts`, `ShellData.unreadNotifications` | đếm từ F05 (chưa đọc), F16 (việc), F02 (tài khoản cần xử lý), F14 (thông báo); "đăng ký" chưa có feature | **API mới** |
@@ -152,7 +216,7 @@ Giao diện tự suy ra (không cần API trả): lời chào theo giờ, dòng 
 | `accounts[].syncProgress` | đồng bộ lần đầu (F07) | **cần thêm** |
 | `accounts[].statusChangedAt` | `connected_account` (thời điểm đổi trạng thái; event `AccountStatusChanged` đã có) | **cần thêm** |
 | `inbox` | hội thoại (F05) | **API mới** |
-| `today` | việc, nhắc nhở, lịch (F16, F17) | **API mới** |
+| `today` | việc, nhắc nhở, lịch (F16, F17); "hôm nay" tính theo múi giờ của người dùng nên API cần biết múi giờ (ví dụ tham số `tz`) | **API mới** |
 | `syncActivity` | `sync_run` (F07) | **API mới** |
 | `registrations` | chưa có feature (D-43) | **API mới**, cần quyết phạm vi |
 | `activity` | nhật ký sự kiện (`AccountConnected`, `AccountStatusChanged` đã có; sự kiện sync ở F07) | **API mới** |

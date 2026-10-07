@@ -11,7 +11,8 @@ export interface NavCounts {
 
 /** What the app shell shows on every screen; part of the data contract handed to the backend. */
 export interface ShellData {
-  owner: { displayName: string }
+  /** `shortName` is what the greeting uses ("An"); without it the greeting uses `displayName`. */
+  owner: { displayName: string; shortName: string | null }
   accountCount: number
   navCounts: NavCounts
   unreadNotifications: number
