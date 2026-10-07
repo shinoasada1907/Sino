@@ -124,7 +124,7 @@ provider/infrastructure/gmail/         GmailProvider (type "gmail", tên "Gmail"
 
 - `OAuth2Connection` chỉ chứa kiểu của Sino (luật "Contract không chứa kiểu riêng của provider").
 - `account` dùng `ClientRegistration` (kiểu của Spring) mà connector cung cấp dưới dạng bean; `account` không import gì từ `provider.infrastructure`.
-- Không định nghĩa bean `ClientRegistrationRepository` và không dùng `spring.security.oauth2.client.registration.*`, để Spring Boot không tự bật các thành phần OAuth2 client và không đòi client id ở mọi môi trường (kiểm lại khi làm BE-30).
+- Không định nghĩa bean `ClientRegistrationRepository` và không dùng `spring.security.oauth2.client.registration.*`, để Spring Boot không tự bật các thành phần OAuth2 client và không đòi client id ở mọi môi trường. **Đã kiểm ở BE-30** (`GmailWiringTests`): bật Gmail mà context không có `ClientRegistrationRepository`, `OAuth2AuthorizedClientService`, `OAuth2AuthorizedClientRepository`.
 - Capability của Gmail ở F04a là `{}` (spec: chỉ khai báo cái thật sự làm được); `fetchUpdates` ném `CAPABILITY_NOT_SUPPORTED` tới F04b.
 - Mọi lời gọi tới Google có timeout: kết nối 5 giây, đọc 10 giây.
 
@@ -140,11 +140,12 @@ provider/infrastructure/gmail/         GmailProvider (type "gmail", tên "Gmail"
 |---|---|---|
 | `sino.google.client-id` | `SINO_GOOGLE_CLIENT_ID` | |
 | `sino.google.client-secret` | `SINO_GOOGLE_CLIENT_SECRET` | secret: che trong `toString`, không vào log; không kiểm bằng Bean Validation (bài học BE-12) |
-| `sino.public-base-url` | `SINO_PUBLIC_BASE_URL` | redirect URI = giá trị này + `/api/accounts/connect/gmail/callback`; dev: `http://localhost:5173` (qua proxy Vite, D-36) |
+| `sino.public-base-url` | `SINO_PUBLIC_BASE_URL` | redirect URI = giá trị này + `/api/accounts/connect/{provider}/callback`, do luồng connect của `account` dựng cho từng request (BE-31); dev: `http://localhost:5173` (qua proxy Vite, D-36) |
 | `sino.google.authorization-uri`, `token-uri`, `user-info-uri`, `revocation-uri` | — | mặc định là địa chỉ của Google; profile test trỏ sang WireMock |
 
 - Thiếu **cả** client id và secret → connector Gmail không được đăng ký: `/api/providers` không có Gmail, `POST /api/accounts/connect/gmail` → `404 UNKNOWN_PROVIDER`, lúc khởi động log `INFO` nói rõ lý do. Account Gmail đã có vẫn hiện, capability `[]` (đã có từ F03).
-- Có một mà thiếu một, hoặc Gmail bật mà thiếu `SINO_PUBLIC_BASE_URL` → dừng khởi động, thông báo chỉ nêu tên biến.
+- Có một mà thiếu một → dừng khởi động, thông báo chỉ nêu tên biến (BE-30). Có connector OAuth2 mà thiếu `SINO_PUBLIC_BASE_URL` → dừng khởi động (BE-31).
+- ~~Gmail tự dựng redirect URI từ `SINO_PUBLIC_BASE_URL`~~ → **làm khi BE-30:** `account` dựng redirect URI cho từng authorization request; `ClientRegistration` giữ mẫu mặc định của Spring (không dùng tới). **LÝ DO:** đường callback là của `account`; để Gmail tự dựng thì connector phải ghi cứng đường dẫn của module khác. Spring gửi redirect URI của chính authorization request khi đổi code, nên hai lần gửi luôn khớp.
 - Redirect URI **không** suy ra từ request: header `Host` giả được, và Google đòi redirect URI khớp từng ký tự với URI đã đăng ký và URI dùng lúc đổi code.
 
 ### Error code catalog — bổ sung
@@ -167,6 +168,7 @@ Log ghi lý do cụ thể của `CONNECT_FAILED` (loại lỗi, mã HTTP), khôn
 - Token, `code`, client secret không ở log, URL, event, response. Test kiểm log không chứa `code` và token (như BE-28 kiểm cookie).
 - Callback là `GET` có tác dụng phụ (tạo account): chuẩn của OAuth, an toàn nhờ `state` + session + PKCE.
 - Kiểm scope thật được cấp.
+- **Phát hiện khi làm BE-30:** `ClientRegistration.toString()` của Spring Security 7.1.1 in **client secret ở dạng rõ** (đã kiểm bằng `javap`). Không bao giờ log `ClientRegistration` hay request đổi token chứa nó; test log của BE-32 tìm cả client secret.
 
 ## Frontend design (FE-30, sau Phase 1 change 2)
 

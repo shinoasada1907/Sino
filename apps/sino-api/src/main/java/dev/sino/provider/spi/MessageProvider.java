@@ -1,5 +1,7 @@
 package dev.sino.provider.spi;
 
+import java.util.Optional;
+
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderType;
@@ -25,6 +27,14 @@ public interface MessageProvider {
 
     /** Changes after {@code cursor}; {@link SyncCursor#initial()} asks for the first sync. */
     SyncBatch fetchUpdates(ProviderContext context, SyncCursor cursor);
+
+    /**
+     * How the connector is connected over OAuth2, or empty when it is not (D-38). A connector never exchanges a
+     * code or refreshes a token itself: the {@code account} module does (D-15 = A').
+     */
+    default Optional<OAuth2Connection> oauth2() {
+        return Optional.empty();
+    }
 
     /** Only for connectors that declare {@link ProviderCapability#SEND_MESSAGES}. */
     default SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {

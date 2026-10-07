@@ -1,5 +1,6 @@
 package dev.sino.provider.spi;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.util.List;
@@ -36,6 +37,11 @@ class MessageProviderTests {
         }
 
     };
+
+    @Test
+    void aConnectorDeclaresNoOAuth2ConnectionByDefault() {
+        assertThat(readOnly.oauth2()).isEmpty();
+    }
 
     @Test
     void aConnectorWithoutSendingRefusesToSend() {

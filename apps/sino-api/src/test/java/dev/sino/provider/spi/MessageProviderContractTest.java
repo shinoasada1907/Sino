@@ -1,5 +1,6 @@
 package dev.sino.provider.spi;
 
+import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -20,13 +21,19 @@ public abstract class MessageProviderContractTest {
     /** The connector under test; the same instance on every call within one test. */
     protected abstract MessageProvider provider();
 
-    /** The same connector, set up so that the first page has three messages and one misses required data. */
+    /**
+     * The same connector, set up so that the first page has three messages and one misses required data. Only
+     * used when the connector declares {@code READ_MESSAGES}.
+     */
     protected abstract MessageProvider providerWithOneBrokenMessage();
 
     /** A context the connector accepts; its secret must be distinctive (at least 8 characters). */
     protected abstract ProviderContext context();
 
-    /** External IDs of the messages the first sync of {@link #provider()} returns; none may be skipped. */
+    /**
+     * External IDs of the messages the first sync of {@link #provider()} returns; none may be skipped. Only used
+     * when the connector declares {@code READ_MESSAGES}.
+     */
     protected abstract Set<String> expectedMessageIds();
 
     /** What the send checks send; override when the fake provider needs a known conversation. */
@@ -62,7 +69,18 @@ public abstract class MessageProviderContractTest {
     }
 
     @Test
+    void refusesToSyncWithoutTheCapability() {
+        assumeFalse(provider().capabilities().supports(READ_MESSAGES), "the connector can read messages");
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> provider().fetchUpdates(context(), SyncCursor.initial()))
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    @Test
     void theFirstSyncReturnsTheSampleMessagesAndACursor() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
         SyncBatch batch = provider().fetchUpdates(context(), SyncCursor.initial());
 
         assertThat(batch.nextCursor()).isNotNull();
@@ -74,6 +92,7 @@ public abstract class MessageProviderContractTest {
 
     @Test
     void theSameCursorReturnsTheSameIds() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
         SyncBatch first = provider().fetchUpdates(context(), SyncCursor.initial());
         SyncBatch again = provider().fetchUpdates(context(), SyncCursor.initial());
 
@@ -82,6 +101,7 @@ public abstract class MessageProviderContractTest {
 
     @Test
     void aBrokenMessageIsSkippedAndTheOthersAreKept() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
         SyncBatch batch = providerWithOneBrokenMessage().fetchUpdates(context(), SyncCursor.initial());
 
         assertThat(batch.messages()).hasSize(2);

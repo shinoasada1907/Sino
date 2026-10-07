@@ -159,6 +159,14 @@
             <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- D-39: stands in for Google (and other providers) over real HTTP in tests. The standalone jar shades
+             its own Jetty and Jackson, so it cannot clash with Spring's. -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>3.13.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
