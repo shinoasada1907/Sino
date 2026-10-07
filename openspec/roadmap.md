@@ -2,6 +2,7 @@
 
 > Mode **TRAINING**: bạn viết code, Claude mentor/review/test.
 > Nguồn: Notion 03 (Feature Map, Dependency, Milestones M1–M4), 01, 02/02A/02B/02C, 04A và các change OpenSpec đã viết.
+> **Giao diện** (người dùng, 2026-10-08): theo canvas "Sino UI" (https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB, bản sao `design/sino-ui/project/`), là thiết kế cuối cùng và ưu tiên hơn 02C; tên màn trong ngoặc dưới đây là artboard của canvas.
 > Độ chi tiết giảm dần theo khoảng cách: **Phase 0** đã có task chi tiết; các phase sau là khung. Mỗi feature chỉ được viết spec chi tiết (một change OpenSpec) **khi bắt đầu làm nó**, để không lập kế hoạch cho thứ chưa hiểu rõ.
 > Ước lượng kích thước (S = 1–2 buổi, M = 3–5 buổi, L = 6–10 buổi; một buổi ≈ 2–3 giờ) chỉ để định hướng và sẽ chỉnh sau khi xong F01.
 
@@ -105,9 +106,9 @@ Mục tiêu: có web app thật gọi API thật, để từ Phase 2 mỗi featu
 
 | Feature | FE | Việc nhỏ ở BE |
 |---|---|---|
-| F01-FE | Cài stack FE đã chọn (React Router, TanStack Query, Tailwind, shadcn/ui) vào `apps/sino-web`; `AppShell` 3 cột (02C §2, §12); route theo 02C §11; API client có kiểu; xử lý Problem Details | Vite dev proxy `/api` → `localhost:8080` (tránh CORS khi dev) |
-| F02-FE | Trang Accounts (02C §8): danh sách, badge trạng thái với wording dễ hiểu ("Needs login again"...), đổi tên, tắt/bật, xóa | — |
-| F03-FE | Provider card + badge capability (02C §5); tiện ích "chỉ hiện hành động khi provider hỗ trợ" | — |
+| F01-FE | Cài stack FE đã chọn (React Router, TanStack Query, Tailwind, shadcn/ui) vào `apps/sino-web`; khung app theo canvas (`Sidebar`, `Rail`, `TabBar`, `Topbar`, `Breakpoints`; dựng ở `fe-ui-overview` UI-01); API client có kiểu; xử lý Problem Details | Vite dev proxy `/api` → `localhost:8080` (tránh CORS khi dev) |
+| F02-FE | Trang Accounts (canvas `Accounts`, `AccountDetail`, `MobileAccounts`): danh sách, badge trạng thái với wording dễ hiểu ("Needs login again"...), đổi tên, tắt/bật, xóa | — |
+| F03-FE | Provider card + badge capability (canvas `Services`, `ConnectWizard`); tiện ích "chỉ hiện hành động khi provider hỗ trợ" | — |
 
 **Quyết định mở phase — D-22: xác thực cho trình duyệt.** → **Accepted A (2026-10-07):** email + mật khẩu của owner, session cookie, CSRF, remember-me; bỏ HTTP Basic (D-32…D-36, xem `openspec/changes/fe-f01-web-foundation/design.md`). Phase 1 chia ba change: (1) `fe-f01-web-foundation` (D-22 + F01-FE), (2) F02-FE, (3) F03-FE. HTTP Basic (D-02) không hợp với SPA (phải giữ mật khẩu trong JS) và với SSE (`EventSource` không gửi được header). Các phương án sẽ so sánh khi mở phase: session cookie + CSRF token (form/JSON login), hoặc OAuth2 login bằng Google, hoặc token ngắn hạn. Phải chốt trước khi FE gọi API thật, và chắc chắn trước F08.
 
@@ -132,7 +133,7 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 #### F05 — Unified Inbox · ~L
 
 - **BE:** module `conversation`; bảng `conversation`, `conversation_participant` (02B); **nhập dữ liệu ban đầu tối thiểu** để inbox có dữ liệu trước khi có F07 (gọi `fetchUpdates` và upsert idempotent theo unique constraint — cách kích hoạt chốt khi mở spec); `GET /api/conversations` lọc theo account/provider/unread, phân trang bằng cursor, sắp theo `last_message_at`; `GET/PATCH /api/conversations/{id}` (star/archive).
-- **FE:** danh sách conversation ở cột giữa, infinite scroll, badge provider/account, unread (02C §6).
+- **FE:** danh sách conversation, infinite scroll, badge provider/account, unread (canvas `Inbox`, `TabletInbox`, `MobileInbox`, `InboxState`).
 - **Cần chốt:** quyết định sản phẩm khi xóa account thì giữ hay xóa lịch sử (02B §12, D-13); cách dọn dữ liệu phụ thuộc (listener hay FK cascade).
 - **Bạn sẽ học:** keyset/cursor pagination, index (02B §5), upsert `ON CONFLICT` so với JPA, projection, `EXPLAIN ANALYZE`.
 
@@ -152,7 +153,7 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 #### F07 — Sync Engine · ~L
 
 - **BE:** module `sync`; bảng `sync_checkpoint`, `sync_run` (02B); scheduler; **khóa theo account** để một account không bị sync song song; sync tăng dần theo cursor, chỉ tiến checkpoint sau khi lưu thành công (02A §7); retry có backoff cho `RATE_LIMITED`/`PROVIDER_UNAVAILABLE`; chuyển trạng thái account (`AUTH_EXPIRED`, `DEGRADED`...); listener `AccountConnected` → initial sync; `POST /api/accounts/{id}/sync`; event `AccountSync*`; export credential cho `sync` qua named interface riêng (F02 đã để ngỏ).
-- **FE:** trạng thái sync/lỗi theo từng account, nút "Sync now" (02C §8, §15).
+- **FE:** trạng thái sync/lỗi theo từng account, nút "Sync now" (canvas `Accounts`, `Topbar`, `Dashboard`).
 - **Bạn sẽ học:** job nền, idempotency khi chạy đồng thời, khóa trong PostgreSQL (advisory lock / `SKIP LOCKED`), backoff, listener tin cậy nhờ Event Publication Registry.
 
 #### F08 — Realtime (SSE) · ~M
@@ -222,7 +223,7 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 #### F10 — Send Message · ~M
 
 - **BE:** `POST /api/conversations/{id}/messages`; kiểm tra capability trước khi gửi (FR-06); **idempotency key** chống gửi trùng khi retry; message outbound `PENDING → SENT/FAILED`; map `ProviderException` ra HTTP; Gmail send (MIME, header threading `In-Reply-To`/`References`); event `MessageSent`.
-- **FE:** composer tự ẩn/disable theo capability (02C §7), optimistic UI.
+- **FE:** composer tự ẩn/disable theo capability (canvas `Conversation`, `ThreadState`), optimistic UI.
 - **Hẹn giờ gửi (mở rộng, xem `planner-from-messages`):** thư đi ở `SCHEDULED` → `SENDING` → `SENT`/`FAILED`; việc `SEND_MESSAGE` qua F13; sửa/hủy trước giờ gửi; lần chạy lại gặp `SENDING` thì không gửi mù; lỗi → thông báo qua F14. FE: Gửi ▾ → Gửi lúc…, bộ lọc "Đã hẹn giờ".
 - **Bạn sẽ học:** idempotency cho lệnh không idempotent, thiết kế lỗi cho thao tác gọi hệ thống ngoài.
 
@@ -234,7 +235,7 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 - **BE:** module `search`; PostgreSQL Full Text Search + GIN index (02B §5); `GET /api/search` lọc provider/account/thời gian; phân trang; highlight.
 - **Cần chốt:** tìm kiếm tiếng Việt không dấu (extension `unaccent`?), cấu hình `simple` hay khác.
-- **FE:** trang Search (02C §9).
+- **FE:** trang Search (canvas `SearchEmpty`, ô tìm kiếm của `Topbar`).
 - **Bạn sẽ học:** FTS, GIN, đọc query plan.
 
 #### F12 — Hardening · ~L

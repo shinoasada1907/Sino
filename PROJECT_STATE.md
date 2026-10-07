@@ -4,7 +4,7 @@
 
 - Project/root: `D:\Code\Product\MessageHub\Sino` (monorepo; backend at `apps/sino-api`)
 - Remote: `origin` = https://github.com/shinoasada1907/Sino.git (`main` pushed @ `5ad6a2d`)
-- Frontend: `apps/sino-web` (Vite 8, React 19, TypeScript 6; FE-01 foundation: Tailwind 4, shadcn/ui, TanStack Query, React Router, Vitest, MSW). UI design: "Sino UI" canvas https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB (copy in `design/sino-ui/project/`)
+- Frontend: `apps/sino-web` (Vite 8, React 19, TypeScript 6; FE-01 foundation: Tailwind 4, shadcn/ui, TanStack Query, React Router, Vitest, MSW). UI design: "Sino UI" canvas https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB (copy in `design/sino-ui/project/`): the FINAL UI, overrides Notion 02C for everything the user sees (user, 2026-10-08); the copy matched the published version 1790948862-287a on 2026-10-08
 - Last updated: 2026-10-07
 - Active mode: HYBRID (default AUTO; architecture decisions TRAINING; any task the user claims runs in TRAINING)
 - Mode source: `project-mode.yaml` (TRAINING chosen 2026-09-30; switched to HYBRID by the user on 2026-10-01; the F03 TRAINING override was removed by the user the same day: "chuyển qua auto đi")
