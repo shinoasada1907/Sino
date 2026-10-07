@@ -33,6 +33,7 @@
   --success: #52D273; --warning: #E8B75A; --danger: #E56B6F;
   --success-ink: #1F7A3D; --warning-ink: #8A5A00; --danger-ink: #B4383D;
   --ring: #111111; --scrim: rgba(17, 17, 17, .30);
+  --grid-dot: rgba(17, 17, 17, .08);
   --shadow-pop: 0 32px 72px -32px rgba(17, 17, 17, .30), 0 0 0 1px var(--border);
   --dur-fast: 160ms; --dur-hover: 180ms; --dur-panel: 220ms; --dur-page: 240ms;
 }
@@ -46,6 +47,7 @@
   --success: #52D273; --warning: #E8B75A; --danger: #E56B6F;
   --success-ink: #52D273; --warning-ink: #E8B75A; --danger-ink: #E56B6F;
   --ring: #F7F7F4; --scrim: rgba(0, 0, 0, .64);
+  --grid-dot: rgba(247, 247, 244, .07);
   --shadow-pop: 0 32px 72px -28px rgba(0, 0, 0, .85), 0 0 0 1px var(--border);
 }
 
@@ -107,6 +109,13 @@
   --color-accent-foreground: var(--text);
   --color-destructive: var(--danger);
   --color-input: var(--border);
+}
+
+/* The canvas `.dotbg`: the faint dot grid behind the content area. */
+@utility bg-dots {
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.4px);
+  background-size: 28px 28px;
+  background-position: -14px -14px;
 }
 
 @layer base {

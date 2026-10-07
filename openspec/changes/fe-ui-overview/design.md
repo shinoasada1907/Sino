@@ -25,6 +25,9 @@ Không trang đăng nhập, không chặn trang, không gọi API. FE-02…FE-05
 - **Đường dẫn tiếng Anh**, giống `/login`, `/accounts` của change 1: `/overview`, `/inbox`, `/calendar`, `/tasks`, `/notes`, `/accounts`, `/services`, `/registrations`, `/settings`, `/notifications`, `/more` (chỉ mobile). `/` → `/overview` (change 1 từng ghi `/` → `/accounts`; FE-04 sẽ theo change này).
 - **Màn chưa dựng** hiện trang "Màn này đang được dựng" trong khung app, để điều hướng chạy được và URL chốt từ đầu.
 - **Nút đổi sáng/tối** có ở mọi kích thước (canvas chỉ đặt trên desktop); trên tablet và mobile nó nằm ở chỗ của nút ngôn ngữ, vốn bị ẩn.
+- **Trang 404** chỉ lấy phần lõi của `SiteNotFound` ("404", "Không tìm thấy trang này.", nút về Tổng quan): canvas đặt nó trong trang công khai có menu trang chủ và footer, mà app chưa có trang công khai.
+- **Thanh trên của tablet và mobile** hiện tên trang bằng chữ thường (không phải heading), vì nội dung trang đã có heading riêng; mobile không có dòng trạng thái đồng bộ (đúng `MobileDashboard`).
+- **Tên đọc cho trình đọc màn hình** của mục có số: "Hộp thư, 12 chưa đọc", "Việc cần làm, 3 chưa xong" (sidebar), "Việc cần làm, 1 quá hạn" (rail), "Tài khoản, 1 cần xử lý"; số vẫn hiện như canvas, phần chữ chỉ dành cho trình đọc màn hình.
 - **Lời chào** dùng nguyên `displayName` của owner ("Chào buổi chiều, An Nguyễn."); canvas viết "An." nhưng tách tên gọi không chắc đúng với cả tên Việt (tên gọi ở cuối) lẫn tên viết kiểu Tây.
 
 ## Frontend design
@@ -33,11 +36,12 @@ Không trang đăng nhập, không chặn trang, không gọi API. FE-02…FE-05
 
 ```text
 src/
-  main.tsx                    mount + AppProviders + RouterProvider
+  main.tsx                    tạo router trình duyệt từ bảng route, mount + AppProviders
   app/
-    providers.tsx             QueryClient, theme (có từ FE-01)
-    router.tsx                bảng route
-    shell/                    AppShell, Sidebar, Rail, TabBar, Topbar, navItems.ts
+    providers.tsx             QueryClient (truyền từ ngoài được, cho test), theme
+    router.tsx                bảng route (routes)
+    shell/                    AppShell, Sidebar, Rail, TabBar, Topbar, navItems.ts,
+                              shell.types.ts (ShellData), shell.sample.ts, useShellData.ts, syncStatus.ts
     UnderConstructionPage.tsx "Màn này đang được dựng"
     NotFoundPage.tsx          404 theo SiteNotFound
   features/overview/
@@ -74,12 +78,20 @@ type ProviderType = string               // như API hiện có: "gmail", "zalo"
 type AccountStatus = 'CONNECTED' | 'DEGRADED' | 'AUTH_EXPIRED' | 'ERROR' | 'DISABLED'
 type Health = 'OK' | 'WARNING' | 'ERROR'
 
-interface OverviewData {
-  generatedAt: Instant
+// Khung app (mọi màn) — chốt ở UI-01, code: src/app/shell/shell.types.ts
+interface ShellData {
   owner: { displayName: string }
+  accountCount: number
   navCounts: { inboxUnread: number; tasksOpen: number; tasksOverdue: number;
                accountsNeedingAction: number; registrationsNew: number }
   unreadNotifications: number
+  sync: { state: 'OK' | 'SYNCING' | 'IDLE'; lastSyncedAt: Instant | null
+          progress: number | null }   // 0..100 khi đang đồng bộ lần đầu
+}
+
+// Màn Tổng quan — chốt ở UI-02, code: src/features/overview/overview.types.ts
+interface OverviewData {
+  generatedAt: Instant
   accounts: OverviewAccount[]
   inbox: InboxSummary | null
   today: TodaySummary | null
@@ -126,13 +138,16 @@ type ActivityItem =
   | { id: string; at: Instant; kind: 'ACCOUNT_CONNECTED'; provider: ProviderType; externalAccountId: string }
 ```
 
-Giao diện tự suy ra (không cần API trả): lời chào theo giờ, dòng ngày giờ, câu tóm tắt tài khoản, "4 việc · 1 lịch hẹn", việc quá hạn (`at` đã qua và `done = false`), tỷ lệ % theo nguồn, chiều cao cột biểu đồ, tổng thư 24 giờ (cộng các ô), trạng thái đồng bộ chung trên thanh trên cùng (xấu nhất trong các tài khoản) và thời điểm đồng bộ gần nhất.
+Giao diện tự suy ra (không cần API trả): lời chào theo giờ, dòng ngày giờ, câu tóm tắt tài khoản, "4 việc · 1 lịch hẹn", việc quá hạn (`at` đã qua và `done = false`), tỷ lệ % theo nguồn, chiều cao cột biểu đồ, tổng thư 24 giờ (cộng các ô), chữ trạng thái đồng bộ trên thanh trên cùng ("Đồng bộ 2 phút trước", "Đang đồng bộ lần đầu · 35%", "Chưa có nguồn nào") từ `ShellData.sync`.
 
 #### Đối chiếu với API hiện có
 
 | Phần | Nguồn ở backend | Tình trạng |
 |---|---|---|
-| `owner.displayName` | `GET /api/auth/me` | **đã có** |
+| `ShellData.owner.displayName` | `GET /api/auth/me` | **đã có** |
+| `ShellData.accountCount` | đếm từ `GET /api/accounts` | **đã có** (đếm ở backend hoặc giao diện) |
+| `ShellData.sync` | trạng thái chung của các tài khoản; `lastSyncedAt` đã có trong `connected_account`, tiến độ đồng bộ lần đầu ở F07 | **cần thêm** |
+| `ShellData.navCounts`, `ShellData.unreadNotifications` | đếm từ F05 (chưa đọc), F16 (việc), F02 (tài khoản cần xử lý), F14 (thông báo); "đăng ký" chưa có feature | **API mới** |
 | `accounts[].id, provider, externalAccountId, displayName, status, lastSyncedAt` | `GET /api/accounts` | **đã có** |
 | `accounts[].syncProgress` | đồng bộ lần đầu (F07) | **cần thêm** |
 | `accounts[].statusChangedAt` | `connected_account` (thời điểm đổi trạng thái; event `AccountStatusChanged` đã có) | **cần thêm** |
@@ -141,10 +156,11 @@ Giao diện tự suy ra (không cần API trả): lời chào theo giờ, dòng 
 | `syncActivity` | `sync_run` (F07) | **API mới** |
 | `registrations` | chưa có feature (D-43) | **API mới**, cần quyết phạm vi |
 | `activity` | nhật ký sự kiện (`AccountConnected`, `AccountStatusChanged` đã có; sự kiện sync ở F07) | **API mới** |
-| `navCounts`, `unreadNotifications` | đếm từ F05, F14, F16 | **API mới** |
 | hiển thị `externalAccountId` | — | chưa quyết: che số điện thoại ("+84 9•• ••• 218") ở backend hay giao diện; dữ liệu mẫu dùng sẵn dạng đã che |
 
-Đề xuất cho backend (quyết ở change backend): một endpoint gộp `GET /api/overview` trả `OverviewData`, mỗi phần chưa làm trả `null`.
+Đề xuất cho backend (quyết ở change backend): `GET /api/shell` (hoặc mở rộng `GET /api/auth/me`) trả `ShellData` cho mọi màn, và một endpoint gộp `GET /api/overview` trả `OverviewData`, mỗi phần chưa làm trả `null`. Lời chào của màn Tổng quan dùng `ShellData.owner`, nên `OverviewData` không lặp lại tên owner.
+
+**Chốt khi làm UI-01:** ~~`owner`, `navCounts`, `unreadNotifications` nằm trong `OverviewData`~~ → tách thành `ShellData`. **LÝ DO:** khung app hiện ở mọi màn (cả các màn chưa dựng); nếu số đếm nằm trong dữ liệu của màn Tổng quan thì mỗi màn khác phải tải cả dữ liệu Tổng quan chỉ để vẽ khung. Thời điểm "N phút trước" được đo từ mốc muộn hơn giữa nhịp đồng hồ (mỗi phút) và lúc nhận dữ liệu (`dataUpdatedAt` của TanStack Query); nếu chỉ dùng nhịp đồng hồ, dữ liệu đến giữa hai nhịp bị đo sai tới gần một phút (test bắt được, ảnh chụp lần đầu hiện "1 phút trước").
 
 ### Nút và liên kết
 - Dẫn tới màn khác: "Mở hộp thư" → `/inbox`, "Mở lịch" → `/calendar`, "Xem tất cả" (hoạt động) → `/notifications`, chuông → `/notifications`, mục điều hướng → đường dẫn của nó.
