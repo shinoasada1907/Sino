@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–22, đang làm: xong BE-09…BE-16).
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–23, đang làm: xong BE-09…BE-17).
 > **Cập nhật:** 2026-10-07. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
@@ -430,7 +430,8 @@ account_credential  (BE-13)
 | BE-14 | Use case đăng ký kết nối (tạo mới / reconnect) và event `AccountConnected` | xong |
 | BE-15 | API đọc: `GET /api/accounts`, `GET /api/accounts/{id}` | xong |
 | BE-16 | Sửa account (`PATCH`), event `AccountStatusChanged` | xong |
-| BE-17…BE-18 | Xóa account, nghiệm thu | chưa làm |
+| BE-17 | Xóa account (`DELETE`, xóa mềm theo D-13 = B), event `AccountRemoved` | xong |
+| BE-18 | Kiểm tra end-to-end, chống lộ secret, nghiệm thu F02 | chưa làm |
 
 Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A** (AES-256-GCM bằng thư viện có sẵn của JDK, khóa có ID), **D-12 = A** (5 trạng thái, không lưu `SYNCING`), **D-14** (thêm 4 cột cho bảng credential), quy tắc "luôn ghi cả credential". Lần đầu áp dụng D-08 (UUIDv7) và D-09 (enum lưu chữ + `CHECK`).
 
@@ -722,7 +723,48 @@ ConnectedAccount.rename()   luật domain, lớp bảo vệ cuối
 
 ---
 
-## 21. Kỹ thuật test mới trong F02
+## 21. Xóa account: xóa mềm (BE-17, D-13 = B)
+
+### 21.1 Xóa mềm là gì
+- **Xóa cứng** (hard delete): `DELETE FROM ...`, dòng biến mất khỏi bảng. **Xóa mềm** (soft delete): giữ dòng, ghi một dấu (ở đây là cột `removed_at`), và mọi chỗ đọc phải bỏ qua dòng có dấu.
+- Người dùng chọn xóa mềm (D-13 = B) để giữ lịch sử. Cái giá đã nêu trong design: mọi truy vấn phải lọc; kết nối lại phải dùng lại bản ghi cũ; credential vẫn phải xóa riêng.
+- **Ở đâu:** `db/migration/V5__account_add_removed_at.sql`, `account/domain/ConnectedAccount.java` (`remove`, `isRemoved`, `removedAt`), `account/application/AccountManagementService.java` (`remove`), `account/api/AccountsController.java` (`DELETE`), event `account/AccountRemoved.java`.
+
+### 21.2 Một lần xóa làm ba việc trong một transaction
+
+```text
+DELETE /api/accounts/{id}
+  -> AccountManagementService.remove(ownerId, id)      @Transactional
+       1. tìm account của owner, chưa bị xóa       không có -> 404
+       2. account.remove(now)     ghi removed_at, dòng vẫn còn
+       3. credentials.delete(id)  xóa HẲN dòng account_credential
+       4. publish AccountRemoved
+  <- 204 No Content (không có body)
+```
+
+- **Vì sao xóa hẳn credential dù account chỉ bị xóa mềm:** giữ lịch sử là giữ dữ liệu nghiệp vụ, không phải giữ chìa khóa vào hộp thư của người dùng. Người dùng đã bấm xóa thì token không được nằm lại trong DB.
+- **`status` giữ nguyên:** "đã xóa" và "trạng thái kết nối" là hai chuyện khác nhau; trộn vào nhau thì lúc kết nối lại sẽ khó biết trạng thái trước đó.
+- **204 No Content:** method controller trả `void` và có `@ResponseStatus(HttpStatus.NO_CONTENT)`.
+
+### 21.3 Lọc ở đâu: viết vào tên method thay vì lọc ngầm
+- Repository chỉ còn hai truy vấn cho API: `findByOwnerIdAndRemovedAtIsNullOrderByCreatedAtAscIdAsc` và `findByIdAndOwnerIdAndRemovedAtIsNull`. `RemovedAtIsNull` trong tên tức là `WHERE removed_at IS NULL`.
+- Hai method cũ không lọc đã bị xóa, để không ai gọi nhầm.
+- Riêng `findByOwnerIdAndProviderAndExternalAccountId` **không** lọc: `register` cần thấy account đã xóa để dùng lại.
+- **Phương án bị loại:** `@SQLRestriction("removed_at is null")` của Hibernate, tự thêm điều kiện vào mọi truy vấn của entity. Cách này gọn hơn, nhưng `register` sẽ không còn thấy dòng đã xóa (phải viết SQL thô), và người đọc code không thấy điều kiện lọc nằm ở đâu.
+- **Bẫy của xóa mềm:** mọi truy vấn mới sau này (F05, F07...) đều phải nhớ lọc. Test "account đã xóa không còn hiện" bảo vệ các truy vấn hiện có; truy vấn mới cần test riêng.
+
+### 21.4 Kết nối lại account đã xóa: dùng lại bản ghi cũ
+- `UNIQUE (user_id, provider, external_account_id)` giữ nguyên, nên không thể có dòng thứ hai cho cùng một tài khoản Gmail. `register` tìm thấy dòng cũ (kể cả đã xóa) rồi gọi `reconnect()`: xóa `removed_at`, bật lại sync, trạng thái `CONNECTED`, lưu credential mới, giữ nguyên ID.
+- Sync chỉ được bật lại khi dùng lại account **đã xóa**, vì account đó "bắt đầu như mới". Reconnect thường vẫn giữ lựa chọn tạm dừng của người dùng; có test cho cả hai trường hợp.
+- Hệ quả cho F05: tin nhắn cũ gắn với cùng ID sẽ hiện lại (nếu khi đó còn giữ).
+
+### 21.5 Migration thêm cột
+- V5: `ALTER TABLE connected_account ADD COLUMN removed_at timestamptz;`. Cột cho phép `null` nên các dòng có sẵn không cần giá trị.
+- Không sửa V3 (đã áp lên DB rồi): mọi thay đổi schema là một migration mới.
+
+---
+
+## 22. Kỹ thuật test mới trong F02
 
 - **`@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)`:** slice chỉ nạp JPA và Flyway, chạy trên PostgreSQL thật (Testcontainers) để `CHECK`, `UNIQUE`, khóa ngoại hoạt động như production. Mỗi test tự rollback.
 - **`entityManager.clear()`:** xóa bộ nhớ đệm của Hibernate để lần đọc sau thật sự đi xuống DB. Không có nó, test chỉ đọc lại object trong bộ nhớ.
@@ -737,8 +779,10 @@ ConnectedAccount.rename()   luật domain, lớp bảo vệ cuối
   - BE-14: bỏ `@Transactional` → test rollback và test reconnect đỏ; không tìm account cũ → test reconnect đỏ (lỗi `UNIQUE`); bỏ kiểm tra provider → test provider lạ đỏ; `reconnected` luôn `false` → test reconnect đỏ; publish trước khi lưu credential → test rollback đỏ; thêm một trường vào event → test payload đỏ.
   - BE-15: danh sách không lọc owner → 2 test đỏ; `get` không lọc owner → test cô lập đỏ; mới nhất trước → test thứ tự đỏ; `ProviderRegistry.get` thay `find` → test connector đã gỡ đỏ; `ownerId` lọt vào response → test tập trường đỏ; detail nói "của người khác" → test cô lập đỏ.
   - BE-16 (10 lỗi, chạy bằng một script nhỏ áp từng lỗi rồi khôi phục): `@Size` thay luật domain → tên trắng ra 500 và 100 emoji bị từ chối; bỏ "ít nhất một trường" → test `{}` đỏ; đảo nghĩa `enabled` → 2 test đỏ; không phát event khi tắt → đỏ; phát event cả khi không đổi gì → 2 test đỏ; PATCH không lọc owner → đỏ; bỏ `@Version` → test version cũ đỏ; không phát event khi reconnect → đỏ; phát event ở mọi lần reconnect → đỏ; thêm trường vào event → đỏ.
+  - BE-17 (12 lỗi, cùng cách bằng script): `remove` không ghi gì → 7 test đỏ; cho xóa hai lần → đỏ; `remove` đổi `status` → đỏ; dùng lại account đã xóa mà không xóa `removed_at` → 2 đỏ; dùng lại mà không bật sync → 2 đỏ; mọi reconnect đều bật sync → đỏ; giữ lại credential → đỏ; không phát `AccountRemoved` → 2 đỏ; danh sách hiện account đã xóa → đỏ; GET thấy account đã xóa → đỏ; PATCH/DELETE với tới account đã xóa → đỏ; PATCH/DELETE bỏ qua owner → 2 đỏ.
 - **`@RecordApplicationEvents` + `ApplicationEvents` (Spring Test, BE-16):** ghi lại event được publish trong một test `@SpringBootTest`; `events.stream(AccountStatusChanged.class)` lấy ra để kiểm tra. `AssertablePublishedEvents` là cách tương tự của Spring Modulith, dùng trong module test.
 - **`TransactionTemplate` trong test (BE-16):** mở transaction bằng code để chen một bước vào giữa. Test gọi service (đã đọc `version` cũ), rồi giả "một request khác" bằng `UPDATE ... SET version = version + 1` trong cùng transaction; lúc commit phải ra `OptimisticLockingFailureException`. Qua MockMvc không canh được hai request chạy chồng nhau, nên phần đổi lỗi thành 409 dựa vào test có sẵn của F01.
+- **Test payload của event gom về một chỗ (BE-17):** `AccountEventsTests` (package `dev.sino.account`) kiểm tên các trường của cả ba event bằng `getRecordComponents()`. Đây là unit test thuần, không cần Spring, nên tách khỏi module test của luồng đăng ký.
 - **Chạy cả ứng dụng thay cho web slice (BE-15):** `@SpringBootTest` + `@AutoConfigureMockMvc` gửi request HTTP giả qua đúng các lớp thật: security, `CurrentUser`, service, PostgreSQL, error handler, Jackson. Chọn thay cho `@WebMvcTest` với service giả vì test cô lập dữ liệu phải chạy trên dữ liệu thật; với service giả, test chỉ kiểm tra cái mock.
 - **Ghim thời điểm bằng SQL:** `@PrePersist` điền `created_at` bằng giờ thật nên không biết trước. Test ghi đè bằng `UPDATE connected_account SET created_at = ?` để biết chắc thứ tự và chuỗi JSON mong đợi (`2026-10-05T03:15:00Z`). Account "mới hơn" được tạo **trước**, để test thứ tự không thể xanh chỉ nhờ thứ tự chèn.
 - **`JsonPath.read(body, "$")`:** đọc JSON thành `Map` để so tập tên trường.
@@ -752,7 +796,7 @@ ConnectedAccount.rename()   luật domain, lớp bảo vệ cuối
 
 ---
 
-## 22. Tự kiểm tra F02 (phần đã làm)
+## 23. Tự kiểm tra F02 (phần đã làm)
 
 1. Vì sao người dùng Sino và tài khoản Gmail nằm ở hai module khác nhau?
 2. `ApplicationRunner` chạy trước hay sau Flyway? Vì sao điều đó quan trọng với việc tạo owner?
@@ -778,5 +822,9 @@ ConnectedAccount.rename()   luật domain, lớp bảo vệ cuối
 22. Nếu chỉ dùng `@Size(max = 100)` cho `displayName` thì hai lỗi nào xảy ra?
 23. Hai request cùng đổi tên một account cùng lúc: request đến sau nhận gì, và nhờ đâu?
 24. Vì sao `AccountStatus` phải nằm ở `dev.sino.account` khi có event `AccountStatusChanged`?
+25. Xóa mềm khác xóa cứng thế nào, và cái giá phải trả là gì?
+26. Account chỉ bị xóa mềm, vậy vì sao credential lại bị xóa hẳn?
+27. Vì sao không dùng `@SQLRestriction` để tự lọc account đã xóa?
+28. Xóa một account rồi kết nối lại đúng tài khoản Gmail đó thì ID, sync và credential ra sao?
 
-*(Phần BE-17…BE-18 — xóa account, nghiệm thu — sẽ được bổ sung khi làm.)*
+*(Phần BE-18 — kiểm tra end-to-end và nghiệm thu F02 — sẽ được bổ sung khi làm.)*
