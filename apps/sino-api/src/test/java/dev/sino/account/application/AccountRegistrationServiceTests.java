@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 
-import java.lang.reflect.RecordComponent;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
@@ -54,6 +53,9 @@ class AccountRegistrationServiceTests {
 
     @Autowired
     private AccountRegistrationService registration;
+
+    @Autowired
+    private AccountManagementService management;
 
     @Autowired
     private ConnectedAccountRepository accounts;
@@ -156,15 +158,24 @@ class AccountRegistrationServiceTests {
     }
 
     @Test
-    void theEventHoldsOnlyIdsProviderFlagAndTime() {
-        assertThat(AccountConnected.class.getRecordComponents()).extracting(RecordComponent::getName)
-                .containsExactly("accountId", "ownerId", "provider", "reconnected", "occurredAt");
-    }
+    void connectingARemovedAccountBringsTheSameAccountBack(AssertablePublishedEvents events) {
+        UUID first = registration.register(command("me@fake.test", "Me", CREDENTIALS, REFRESH));
+        management.update(owner, first, new UpdateAccountCommand(null, false, null));
+        management.remove(owner, first);
+        OAuth2Credentials renewed = new OAuth2Credentials("ya29.renewed-access-token", null, Set.of("mail.read"));
 
-    @Test
-    void theStatusEventHoldsOnlyTheIdBothStatesAndTime() {
-        assertThat(AccountStatusChanged.class.getRecordComponents()).extracting(RecordComponent::getName)
-                .containsExactly("accountId", "from", "to", "occurredAt");
+        UUID again = registration.register(command("me@fake.test", "Me again", renewed, null));
+
+        assertThat(again).isEqualTo(first);
+        assertThat(JdbcTestUtils.countRowsInTable(jdbc, "connected_account")).isEqualTo(1);
+        ConnectedAccount account = accounts.findById(first).orElseThrow();
+        assertThat(account.isRemoved()).isFalse();
+        assertThat(account.status()).isEqualTo(AccountStatus.CONNECTED);
+        assertThat(account.syncEnabled()).as("sync starts again like for a new account").isTrue();
+        assertThat(account.displayName()).isEqualTo("Me again");
+        assertThat(credentials.load(first)).contains(renewed);
+        assertThat(events.ofType(AccountConnected.class)).extracting(AccountConnected::reconnected)
+                .containsExactly(false, true);
     }
 
     private RegisterAccountCommand command(String externalAccountId, String displayName,

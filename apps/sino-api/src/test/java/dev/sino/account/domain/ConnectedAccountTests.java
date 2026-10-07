@@ -3,6 +3,7 @@ package dev.sino.account.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -193,6 +194,54 @@ class ConnectedAccountTests {
 
         account.resumeSync();
         assertThat(account.syncEnabled()).isTrue();
+    }
+
+    @Test
+    void removingMarksTheAccountAndKeepsItsStatus() {
+        ConnectedAccount account = accountIn(AccountStatus.DEGRADED);
+        Instant at = Instant.parse("2026-10-07T09:00:00Z");
+
+        account.remove(at);
+
+        assertThat(account.isRemoved()).isTrue();
+        assertThat(account.removedAt()).isEqualTo(at);
+        assertThat(account.status()).isEqualTo(AccountStatus.DEGRADED);
+    }
+
+    @Test
+    void aRemovedAccountCannotBeRemovedAgain() {
+        ConnectedAccount account = accountIn(AccountStatus.CONNECTED);
+        Instant first = Instant.parse("2026-10-07T09:00:00Z");
+        account.remove(first);
+
+        assertThatThrownBy(() -> account.remove(Instant.parse("2026-10-08T09:00:00Z")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(account.removedAt()).isEqualTo(first);
+    }
+
+    @Test
+    void reconnectingARemovedAccountBringsItBackLikeANewOne() {
+        ConnectedAccount account = accountIn(AccountStatus.DISABLED);
+        account.pauseSync();
+        account.remove(Instant.parse("2026-10-07T09:00:00Z"));
+
+        Optional<StatusChange> change = account.reconnect("Alice", null);
+
+        assertThat(account.isRemoved()).isFalse();
+        assertThat(account.removedAt()).isNull();
+        assertThat(account.syncEnabled()).isTrue();
+        assertThat(change).contains(new StatusChange(AccountStatus.DISABLED, AccountStatus.CONNECTED));
+    }
+
+    @Test
+    void reconnectingAnAccountThatWasNotRemovedKeepsAPausedSync() {
+        ConnectedAccount account = accountIn(AccountStatus.AUTH_EXPIRED);
+        account.pauseSync();
+
+        account.reconnect("Alice", null);
+
+        assertThat(account.syncEnabled()).isFalse();
+        assertThat(account.isRemoved()).isFalse();
     }
 
     @Test

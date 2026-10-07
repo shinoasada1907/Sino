@@ -5,11 +5,14 @@ import java.util.UUID;
 
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.sino.account.application.AccountManagementService;
@@ -21,7 +24,8 @@ import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.spi.MessageProvider;
 
 /**
- * The Account Management screen (02C §8): list, show and change accounts. Always scoped to the current user.
+ * The Account Management screen (02C §8): list, show, change and remove accounts. Always scoped to the current
+ * user.
  */
 @RestController
 @RequestMapping("/api/accounts")
@@ -55,6 +59,13 @@ class AccountsController {
     @PatchMapping("/{id}")
     AccountResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateAccountRequest request) {
         return toResponse(management.update(currentUser.requireOwnerId(), id, request.toCommand()));
+    }
+
+    /** Removes the account (D-13 B: the row is kept and hidden, the credential is deleted). */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void remove(@PathVariable UUID id) {
+        management.remove(currentUser.requireOwnerId(), id);
     }
 
     // find, not get: an account outlives a removed connector and must still be listed, just without capabilities.

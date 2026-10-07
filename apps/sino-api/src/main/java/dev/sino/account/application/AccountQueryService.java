@@ -12,7 +12,7 @@ import dev.sino.common.error.SinoException;
 
 /**
  * Reads the accounts of one owner. Every method takes the owner, so no read can forget to filter by it, and an
- * account of another owner is reported exactly like one that does not exist.
+ * account of another owner, or a removed one, is reported exactly like one that does not exist.
  */
 @Service
 @Transactional(readOnly = true)
@@ -26,7 +26,7 @@ public class AccountQueryService {
 
     /** Oldest first. */
     public List<ConnectedAccount> list(UUID ownerId) {
-        return accounts.findByOwnerIdOrderByCreatedAtAscIdAsc(ownerId);
+        return accounts.findByOwnerIdAndRemovedAtIsNullOrderByCreatedAtAscIdAsc(ownerId);
     }
 
     /**
@@ -34,7 +34,8 @@ public class AccountQueryService {
      *         this ID
      */
     public ConnectedAccount get(UUID ownerId, UUID accountId) {
-        return accounts.findByIdAndOwnerId(accountId, ownerId).orElseThrow(AccountErrorCode::accountNotFound);
+        return accounts.findByIdAndOwnerIdAndRemovedAtIsNull(accountId, ownerId)
+                .orElseThrow(AccountErrorCode::accountNotFound);
     }
 
 }

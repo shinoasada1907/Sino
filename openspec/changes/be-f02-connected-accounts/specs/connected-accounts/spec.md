@@ -8,7 +8,7 @@ Mỗi connected account MUST có: ID (UUID), owner, `provider` (`ProviderType`),
 - **THEN** database từ chối bản ghi thứ hai bằng unique constraint
 
 ### Requirement: Đăng ký kết nối idempotent
-Use case đăng ký kết nối (dùng bởi luồng connect của F04) MUST nhận owner, `provider`, `externalAccountId`, thông tin hiển thị và credential. Nếu chưa có account tương ứng → tạo mới với `status` = `CONNECTED`. Nếu đã có → reconnect: thay credential, cập nhật thông tin hiển thị từ provider, `status` = `CONNECTED`. Provider không được registry hỗ trợ MUST bị từ chối với `UNKNOWN_PROVIDER`. Account, credential và event MUST được ghi trong cùng một transaction.
+Use case đăng ký kết nối (dùng bởi luồng connect của F04) MUST nhận owner, `provider`, `externalAccountId`, thông tin hiển thị và credential. Nếu chưa có account tương ứng → tạo mới với `status` = `CONNECTED`. Nếu đã có → reconnect: thay credential, cập nhật thông tin hiển thị từ provider, `status` = `CONNECTED`; account đã bị xóa (D-13 B) cũng được dùng lại theo cách này, hiện lại và bật lại sync tự động. Provider không được registry hỗ trợ MUST bị từ chối với `UNKNOWN_PROVIDER`. Account, credential và event MUST được ghi trong cùng một transaction.
 
 #### Scenario: Kết nối account mới
 - **WHEN** use case được gọi cho một bộ `(owner, provider, externalAccountId)` chưa tồn tại
@@ -17,6 +17,10 @@ Use case đăng ký kết nối (dùng bởi luồng connect của F04) MUST nh�
 #### Scenario: Kết nối lại account đã có
 - **WHEN** use case được gọi lại cho cùng bộ `(owner, provider, externalAccountId)`
 - **THEN** không có account thứ hai; credential cũ được thay bằng credential mới, `status` = `CONNECTED` và `AccountConnected` được publish với cờ reconnect = true
+
+#### Scenario: Kết nối lại account đã xóa
+- **WHEN** use case được gọi cho bộ `(owner, provider, externalAccountId)` của một account đã bị xóa
+- **THEN** đúng account đó (cùng ID) xuất hiện lại trong danh sách với `status` = `CONNECTED`, `syncEnabled` = true, credential mới, và `AccountConnected` được publish với cờ reconnect = true
 
 #### Scenario: Provider không được hỗ trợ
 - **WHEN** use case được gọi với `provider` không có connector
@@ -75,11 +79,15 @@ Use case đăng ký kết nối (dùng bởi luồng connect của F04) MUST nh�
 - **THEN** `syncEnabled` = false, `status` không đổi và account vẫn xuất hiện trong danh sách
 
 ### Requirement: Xóa account
-`DELETE /api/accounts/{id}` MUST xóa account theo ngữ nghĩa chốt ở Decision D-13 (đề xuất: xóa hẳn account và credential), trả `204`, và publish `AccountRemoved`. Sau đó `GET` cùng ID MUST trả `404`. Xóa account không tồn tại hoặc của người khác MUST trả `404` `ACCOUNT_NOT_FOUND`.
+`DELETE /api/accounts/{id}` MUST xóa mềm account (Decision D-13 = B): bản ghi account được giữ lại và đánh dấu đã xóa, credential của nó MUST bị xóa hẳn khỏi database, trả `204`, và publish `AccountRemoved`, tất cả trong một transaction. Account đã xóa MUST được đối xử như không tồn tại: không có trong `GET /api/accounts`; `GET`, `PATCH`, `DELETE` cùng ID MUST trả `404` `ACCOUNT_NOT_FOUND`. Xóa account không tồn tại hoặc của người khác MUST trả `404` `ACCOUNT_NOT_FOUND`.
 
 #### Scenario: Xóa account
 - **WHEN** client xóa một account của mình
-- **THEN** response là `204`, credential của account không còn trong database và event `AccountRemoved` được publish
+- **THEN** response là `204`, credential của account không còn trong database, bản ghi account vẫn còn và được đánh dấu đã xóa, và event `AccountRemoved` được publish
+
+#### Scenario: Account đã xóa không còn hiện
+- **WHEN** client gọi `GET /api/accounts`, hoặc `GET`/`PATCH`/`DELETE` với ID của account đã xóa
+- **THEN** danh sách không có account đó, và các lệnh theo ID trả `404` `ACCOUNT_NOT_FOUND`
 
 ### Requirement: Event của account
 Module account MUST publish `AccountConnected`, `AccountStatusChanged` và `AccountRemoved` trong cùng transaction với thay đổi dữ liệu. Payload MUST chỉ gồm ID, `provider`, trạng thái và thời điểm; MUST NOT chứa credential hay thông tin nhạy cảm.

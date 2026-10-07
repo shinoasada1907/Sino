@@ -79,6 +79,9 @@ public class ConnectedAccount {
     @Column(name = "version", nullable = false)
     private long version;
 
+    @Column(name = "removed_at")
+    private Instant removedAt;
+
     /** For persistence. */
     protected ConnectedAccount() {
     }
@@ -103,10 +106,17 @@ public class ConnectedAccount {
         return new ConnectedAccount(ownerId, provider, externalAccountId, displayName, avatarUrl);
     }
 
-    /** The user connected the same account again: fresh display data from the provider, back to CONNECTED. */
+    /**
+     * The user connected the same account again: fresh display data from the provider, back to CONNECTED. A removed
+     * account comes back like a new one, with automatic sync on; otherwise a paused sync stays paused.
+     */
     public Optional<StatusChange> reconnect(String displayName, String avatarUrl) {
         this.displayName = nameFromProvider(displayName);
         this.avatarUrl = avatarUrl;
+        if (removedAt != null) {
+            removedAt = null;
+            syncEnabled = true;
+        }
         return moveTo(CONNECTED, EnumSet.allOf(AccountStatus.class));
     }
 
@@ -201,6 +211,26 @@ public class ConnectedAccount {
 
     public Instant updatedAt() {
         return updatedAt;
+    }
+
+    /**
+     * The user removed the account (D-13 B): the row stays, marked with the time, and the API hides it. The status
+     * is left as it was. A removed account comes back only through {@link #reconnect}.
+     */
+    public void remove(Instant at) {
+        Objects.requireNonNull(at, "at must not be null");
+        if (removedAt != null) {
+            throw new IllegalStateException("The account is already removed");
+        }
+        this.removedAt = at;
+    }
+
+    public boolean isRemoved() {
+        return removedAt != null;
+    }
+
+    public Instant removedAt() {
+        return removedAt;
     }
 
     @PrePersist

@@ -9,6 +9,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -43,6 +44,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.sino.TestcontainersConfiguration;
+import dev.sino.account.AccountRemoved;
 import dev.sino.account.AccountStatus;
 import dev.sino.account.AccountStatusChanged;
 import dev.sino.account.application.AccountManagementService;
@@ -319,6 +321,62 @@ class AccountsApiTests {
         })).isInstanceOf(OptimisticLockingFailureException.class);
 
         assertThat(displayNameInDatabase(id)).isEqualTo("Fake account");
+    }
+
+    @Test
+    void removingAnAccountHidesItKeepsItsRowAndDestroysItsCredential() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+        credentials.save(id, new OAuth2Credentials(ACCESS, null, Set.of("mail.read")), REFRESH);
+        Instant before = Instant.now();
+
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        mvc.perform(get("/api/accounts").with(apiUser())).andExpect(content().string("[]"));
+        mvc.perform(get("/api/accounts/{id}", id).with(apiUser()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
+        assertThat(jdbc.queryForObject("select count(*) from account_credential where account_id = ?", Long.class,
+                id)).as("the credential is destroyed, not hidden").isZero();
+        assertThat(jdbc.queryForObject("select removed_at is not null from connected_account where id = ?",
+                Boolean.class, id)).as("the account row is kept").isTrue();
+        assertThat(events.stream(AccountRemoved.class)).singleElement().satisfies(event -> {
+            assertThat(event.accountId()).isEqualTo(id);
+            assertThat(event.ownerId()).isEqualTo(owner);
+            assertThat(event.provider()).isEqualTo(FAKE);
+            assertThat(event.occurredAt()).isBetween(before, Instant.now());
+        });
+    }
+
+    @Test
+    void aRemovedAccountCannotBeChangedOrRemovedAgain() throws Exception {
+        UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser())).andExpect(status().isNoContent());
+
+        mvc.perform(patchAccount(id, "{\"displayName\": \"Back\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
+        assertThat(events.stream(AccountRemoved.class)).hasSize(1);
+    }
+
+    @Test
+    void anAccountOfAnotherUserCannotBeRemoved() throws Exception {
+        UUID foreign = connect(otherUser, FAKE, "other@fake.test", "2026-10-05T03:15:00Z");
+        credentials.save(foreign, new OAuth2Credentials(ACCESS, null, Set.of("mail.read")), REFRESH);
+
+        mvc.perform(delete("/api/accounts/{id}", foreign).with(apiUser()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
+
+        assertThat(jdbc.queryForObject("select removed_at is null from connected_account where id = ?",
+                Boolean.class, foreign)).isTrue();
+        assertThat(jdbc.queryForObject("select count(*) from account_credential where account_id = ?", Long.class,
+                foreign)).isEqualTo(1L);
+        assertThat(events.stream(AccountRemoved.class)).isEmpty();
     }
 
     private RequestBuilder patchAccount(UUID id, String json) {

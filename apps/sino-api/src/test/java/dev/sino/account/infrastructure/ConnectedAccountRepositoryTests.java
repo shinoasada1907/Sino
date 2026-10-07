@@ -3,6 +3,7 @@ package dev.sino.account.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -129,7 +130,7 @@ class ConnectedAccountRepositoryTests {
         ConnectedAccount second = accounts.saveAndFlush(register(alice, "a2@gmail.com"));
         accounts.saveAndFlush(register(bob, "b1@gmail.com"));
 
-        List<ConnectedAccount> found = accounts.findByOwnerIdOrderByCreatedAtAscIdAsc(alice);
+        List<ConnectedAccount> found = accounts.findByOwnerIdAndRemovedAtIsNullOrderByCreatedAtAscIdAsc(alice);
 
         assertThat(found).extracting(ConnectedAccount::id).containsExactlyInAnyOrder(first.id(), second.id());
         assertThat(found).extracting(ConnectedAccount::createdAt).isSorted();
@@ -142,6 +143,24 @@ class ConnectedAccountRepositoryTests {
         assertThat(accounts.findByOwnerIdAndProviderAndExternalAccountId(alice, GMAIL, "alice@gmail.com"))
                 .get().extracting(ConnectedAccount::id).isEqualTo(saved.id());
         assertThat(accounts.findByOwnerIdAndProviderAndExternalAccountId(bob, GMAIL, "alice@gmail.com")).isEmpty();
+    }
+
+    @Test
+    void aRemovedAccountIsLeftOutOfTheOwnerQueriesButKeepsItsKey() {
+        ConnectedAccount kept = accounts.saveAndFlush(register(alice, "kept@gmail.com"));
+        ConnectedAccount removed = register(alice, "removed@gmail.com");
+        removed.remove(Instant.parse("2026-10-07T09:00:00Z"));
+        accounts.saveAndFlush(removed);
+        entityManager.clear();
+
+        assertThat(accounts.findByOwnerIdAndRemovedAtIsNullOrderByCreatedAtAscIdAsc(alice))
+                .extracting(ConnectedAccount::id).containsExactly(kept.id());
+        assertThat(accounts.findByIdAndOwnerIdAndRemovedAtIsNull(removed.id(), alice)).isEmpty();
+        assertThat(accounts.findByIdAndOwnerIdAndRemovedAtIsNull(kept.id(), alice)).isPresent();
+        assertThat(accounts.findByOwnerIdAndProviderAndExternalAccountId(alice, GMAIL, "removed@gmail.com"))
+                .as("register must still find it to bring it back").isPresent();
+        assertThat(jdbc.queryForObject("select removed_at is not null from connected_account where id = ?",
+                Boolean.class, removed.id())).isTrue();
     }
 
     private static ConnectedAccount register(UUID owner, String externalAccountId) {

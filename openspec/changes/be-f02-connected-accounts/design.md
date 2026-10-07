@@ -131,6 +131,7 @@ Sự kiện hệ thống chưa có caller cho tới F07; F02 cài chúng trong d
 | `last_synced_at` | `timestamptz` | null |
 | `created_at`, `updated_at` | `timestamptz` | not null |
 | `version` | `bigint` | not null (optimistic locking) |
+| `removed_at` | `timestamptz` | null; khác null = người dùng đã xóa account (D-13 B, thêm ở V5) |
 
 `UNIQUE (user_id, provider, external_account_id)` (02B §4) — index này cũng phục vụ truy vấn "account của owner" (cột đầu là `user_id`).
 
@@ -231,7 +232,7 @@ Chưa có: `POST /api/accounts/{provider}/connect` hoặc `/connect/{provider}` 
 - Không có trường nào của credential trong bất kỳ response nào; có test khẳng định điều này.
 - **PATCH, chốt khi làm BE-16 (2026-10-07):** trường vắng mặt và trường `null` cùng nghĩa "giữ nguyên" (không trường nào của PATCH cho phép xóa giá trị, nên không cần phân biệt hai trường hợp). `displayName` được kiểm ở DTO bằng chính luật của domain (`ConnectedAccount.isValidDisplayName`, đếm theo code point như PostgreSQL), không dùng `@Size` vì `@Size` đếm `char` của Java (một emoji = 2). API không nhận `version` từ client: 409 chỉ xảy ra khi hai request thật sự chạy chồng nhau.
 
-**D-13 — Ngữ nghĩa xóa account** · *Decision Needed (trước BE-17)*
+**D-13 — Ngữ nghĩa xóa account** · **Accepted: B — xóa mềm** (người dùng, 2026-10-07; 02B trên Notion cần thêm cột `removed_at`, người dùng làm khi tiện)
 
 | Phương án | Ưu | Nhược |
 |---|---|---|
@@ -240,6 +241,13 @@ Chưa có: `POST /api/accounts/{provider}/connect` hoặc `/connect/{provider}` 
 
 Việc giữ hay xóa lịch sử tin nhắn khi xóa account là **quyết định sản phẩm** ở F05 (02B §12); revoke token phía provider ở F04.
 *Câu hỏi cho bạn:* nếu người dùng xóa account rồi kết nối lại đúng tài khoản đó, bạn muốn tin nhắn cũ quay lại không? Câu trả lời ảnh hưởng A/B thế nào?
+
+Cách làm B (chốt khi làm BE-17, 2026-10-07):
+- **V5** thêm `removed_at timestamptz NULL` vào `connected_account`. `UNIQUE (user_id, provider, external_account_id)` giữ nguyên: dòng đã xóa vẫn giữ khóa của nó.
+- **Xóa** (một transaction): `ConnectedAccount.remove(at)` ghi `removed_at`; `CredentialStore.delete` xóa hẳn credential (token không ở lại sau khi người dùng xóa); publish `AccountRemoved`. `status` giữ nguyên (xóa và trạng thái kết nối là hai chuyện khác nhau).
+- **Ẩn:** mọi truy vấn đọc/sửa của API lọc `removed_at IS NULL` ngay trong tên method của repository (`...AndRemovedAtIsNull...`); account đã xóa trả 404 như account không tồn tại. Không dùng `@SQLRestriction` của Hibernate (lọc ngầm mọi truy vấn): `register` cần **thấy** dòng đã xóa để dùng lại, và người đọc code nên thấy điều kiện lọc.
+- **Kết nối lại account đã xóa:** `register` tìm theo bộ khóa (không lọc `removed_at`) → `reconnect()` dùng lại đúng bản ghi đó (cùng ID): xóa `removed_at`, `status` = `CONNECTED`, credential mới, `AccountConnected(reconnected = true)`. Bản ghi được dùng lại **bật lại sync tự động** (`syncEnabled = true`), để nó bắt đầu như một account mới; reconnect thường vẫn giữ lựa chọn tạm dừng của người dùng. Hệ quả cho F05: tin nhắn cũ (nếu còn giữ) gắn với cùng ID nên sẽ hiện lại.
+- **Việc của feature sau:** F07 không được sync account có `removed_at`; F05 chọn số phận tin nhắn của account đã xóa; F04 revoke token phía provider khi xóa.
 
 ### 10. Transactions & Events (account)
 
@@ -292,7 +300,7 @@ V2–V4 là migration tiến (forward-only). Ở local có thể reset bằng `d
 
 ## Open Questions
 
-- ~~D-10~~ = A, ~~D-12~~ = A (2026-10-03). ~~D-11~~ = A, ~~D-14~~ = thêm cột (2026-10-03). D-13: Decision Needed trước BE-17 (bảng tổng ở F01 design). 02B (Notion) chưa được sửa theo D-12 — agent không có quyền ghi Notion; người dùng cập nhật khi tiện.
+- ~~D-10~~ = A, ~~D-12~~ = A (2026-10-03). ~~D-11~~ = A, ~~D-14~~ = thêm cột (2026-10-03). ~~D-13: Decision Needed trước BE-17~~ → D-13 = B, xóa mềm (2026-10-07; 02B cần thêm `removed_at`). 02B (Notion) chưa được sửa theo D-12 — agent không có quyền ghi Notion; người dùng cập nhật khi tiện.
 - D-15: cần chốt trước F04.
 - Cách export credential cho `sync` (F07); cách dọn dữ liệu phụ thuộc khi xóa account (F05).
 
