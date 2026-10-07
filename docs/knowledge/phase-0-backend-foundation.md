@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–21, đang làm: xong BE-09…BE-15).
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–22, đang làm: xong BE-09…BE-16).
 > **Cập nhật:** 2026-10-07. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
@@ -429,7 +429,8 @@ account_credential  (BE-13)
 | BE-13 | Bảng `account_credential`, `CredentialStore` (mã hóa khi ghi, giải mã khi đọc) | xong |
 | BE-14 | Use case đăng ký kết nối (tạo mới / reconnect) và event `AccountConnected` | xong |
 | BE-15 | API đọc: `GET /api/accounts`, `GET /api/accounts/{id}` | xong |
-| BE-16…BE-18 | Sửa account (PATCH), xóa, nghiệm thu | chưa làm |
+| BE-16 | Sửa account (`PATCH`), event `AccountStatusChanged` | xong |
+| BE-17…BE-18 | Xóa account, nghiệm thu | chưa làm |
 
 Quyết định đã chốt: **D-10 = A** (module `identity` riêng), **D-11 = A** (AES-256-GCM bằng thư viện có sẵn của JDK, khóa có ID), **D-12 = A** (5 trạng thái, không lưu `SYNCING`), **D-14** (thêm 4 cột cho bảng credential), quy tắc "luôn ghi cả credential". Lần đầu áp dụng D-08 (UUIDv7) và D-09 (enum lưu chữ + `CHECK`).
 
@@ -617,7 +618,7 @@ người dùng bấm "Kết nối Gmail"
 - **Ở đâu:** record public ở package gốc `dev.sino.account`, tức phần API của module, nên Spring Modulith cho module khác dùng.
 - **Payload chỉ có ID, provider, cờ reconnect và thời điểm.** Không có token, email hay tên: Spring Modulith có thể lưu event vào bảng `event_publication` và log có thể in ra, nên mọi thứ trong event coi như có thể bị người khác đọc.
 - **Publish ở bước cuối, bên trong transaction:** listener loại "chạy sau khi commit" (F07 sẽ dùng `@ApplicationModuleListener`) chỉ nhận event khi mọi thứ đã được lưu thật. Transaction rollback thì event bị bỏ.
-- **Chưa làm:** khi reconnect đổi trạng thái thật (ví dụ `AUTH_EXPIRED` sang `CONNECTED`), design muốn có thêm event `AccountStatusChanged`. Việc này dời sang BE-16, nơi event đó được tạo. Lý do: event mang `from`/`to` kiểu `AccountStatus`, mà `AccountStatus` đang nằm trong package nội bộ `account.domain`; module khác đọc event sẽ vi phạm luật Modulith. Vì vậy chỗ đặt `AccountStatus` phải chốt cùng lúc tạo event.
+- **Làm ở BE-16:** khi reconnect đổi trạng thái thật (ví dụ `AUTH_EXPIRED` sang `CONNECTED`), service phát thêm event `AccountStatusChanged`. Việc này dời sang BE-16, nơi event đó được tạo, vì phải chốt trước chỗ đặt `AccountStatus` (mục 20.4).
 
 ### 18.6 Command object và che secret trong `toString()`
 - **Là gì:** `RegisterAccountCommand` là một record gom mọi dữ liệu đầu vào. Method nhận một tham số thay vì bảy; sau này thêm trường thì không phải sửa chữ ký của method.
@@ -672,7 +673,56 @@ AccountResponse.from(account, capabilities)  -> JSON
 
 ---
 
-## 20. Kỹ thuật test mới trong F02
+## 20. Sửa account: PATCH và event trạng thái (BE-16)
+
+### 20.1 PATCH: chỉ gửi cái muốn đổi
+- **Ở đâu:** `account/api/AccountsController.java` (method `update`), `account/api/UpdateAccountRequest.java`, `account/application/AccountManagementService.java`, `account/application/UpdateAccountCommand.java`.
+- **PUT và PATCH:** PUT thay **cả** tài nguyên; PATCH chỉ sửa **một phần**. Body `{"syncEnabled": false}` chỉ đụng tới một trường.
+- **Trường vắng mặt và `null` cùng nghĩa "giữ nguyên".** Không cần phân biệt hai trường hợp này vì không trường nào của account được phép xóa về rỗng. Nếu sau này cần, phải dùng kiểu khác (ví dụ `Optional`), vì record Java không biết client gửi `null` hay không gửi gì.
+- **`Boolean` (B hoa) chứ không phải `boolean`:** `boolean` không có giá trị `null`, nên không biết client có gửi trường đó hay không.
+- **`{}` bị từ chối (400):** `@AssertTrue` gắn trên method `isAnyFieldGiven()`. Bean Validation coi method `isXxx()` như một thuộc tính và báo lỗi khi nó trả `false`.
+
+### 20.2 Kiểm tra ở hai tầng, dùng một luật
+
+```text
+JSON
+  |
+  v
+UpdateAccountRequest        @Valid: @ValidDisplayName, @AssertTrue
+  |                         sai -> 400 VALIDATION_FAILED
+  v
+AccountManagementService.update
+  |
+  v
+ConnectedAccount.rename()   luật domain, lớp bảo vệ cuối
+                            sai -> IllegalArgumentException -> 500
+```
+
+- Tầng web phải bắt hết lỗi do người dùng nhập, vì lỗi nào lọt xuống domain sẽ thành 500 ("lỗi server") thay vì 400.
+- Hai tầng dùng **cùng một luật**: method static `ConnectedAccount.isValidDisplayName`. Constraint tự viết `@ValidDisplayName` chỉ gọi lại luật đó. Sửa luật ở một chỗ thì cả hai tầng đổi theo.
+- **Vì sao không dùng `@Size(min = 1, max = 100)`:** `@Size` đếm `char` của Java (một emoji là 2 `char`, mục 16.4) nên từ chối một tên 100 emoji hợp lệ. Còn `"   "` dài 3 ký tự nên lọt qua `@Size`, xuống domain bị từ chối và thành 500. Kiểm tra ngược đã cho thấy đúng hai lỗi này.
+- **Cách viết một constraint riêng:** annotation có `@Constraint(validatedBy = ...)` và ba thuộc tính bắt buộc (`message`, `groups`, `payload`), cộng một class `ConstraintValidator` có method `isValid`. Giá trị `null` trả `true`, vì "không gửi" là hợp lệ.
+
+### 20.3 Mọi thay đổi đi qua hành động của aggregate
+- Service không gán `status`; nó gọi `enable()`, `disable()`, `rename()`, `pauseSync()`, `resumeSync()`. Nhờ vậy bảng chuyển trạng thái (mục 16.2) tự áp dụng: `{"enabled": true}` trên account đang `CONNECTED` không đổi gì, không ghi DB, không phát event, `updatedAt` giữ nguyên.
+- Mỗi `StatusChange` thật thành một event `AccountStatusChanged(accountId, from, to, occurredAt)`. Đây là lý do BE-10 cho các hành động trả `Optional<StatusChange>`.
+- Reconnect (BE-14) cũng theo luật đó: `AUTH_EXPIRED` sang `CONNECTED` phát `AccountStatusChanged` trước `AccountConnected`, cùng một thời điểm.
+
+### 20.4 `AccountStatus` chuyển lên API của module (người dùng chọn)
+- Event public mang `from`/`to` kiểu `AccountStatus`. Nếu enum nằm trong `account.domain` (package nội bộ), module khác (F07) gọi `event.to()` là phụ thuộc vào một kiểu nội bộ, và Modulith báo lỗi. Vì vậy enum chuyển lên `dev.sino.account`, cạnh các event.
+- Phương án bị loại: giữ chỗ cũ và gắn `@NamedInterface` riêng cho enum; hoặc cho event mang chuỗi.
+- **Quy tắc rút ra:** kiểu nào xuất hiện trong API public của module (event, interface) thì bản thân nó cũng phải public theo nghĩa của Modulith.
+
+### 20.5 Optimistic locking trong thực tế (409)
+- Client không gửi `version`. Xung đột xảy ra khi hai request cùng sửa một account: cả hai đọc version 3; request A ghi xong, version thành 4; request B ghi `... WHERE version = 3`, không trúng dòng nào, Hibernate ném `OptimisticLockingFailureException` lúc commit, và F01 đổi lỗi đó thành 409 `CONCURRENT_MODIFICATION`. Request B không âm thầm ghi đè thay đổi của A.
+- Vì vậy cách sửa phải là "đọc entity, đổi field, để Hibernate ghi", vì cách này có kiểm `version`. Một câu `UPDATE` viết tay sẽ bỏ qua `version`.
+
+### 20.6 Một chỗ duy nhất tạo lỗi 404
+- `AccountErrorCode.accountNotFound()` (static, package-private) là chỗ duy nhất tạo `SinoException(ACCOUNT_NOT_FOUND, "Account not found.")`. API đọc và API sửa cùng dùng nó, nên body 404 luôn giống hệt nhau (mục 19.3).
+
+---
+
+## 21. Kỹ thuật test mới trong F02
 
 - **`@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)`:** slice chỉ nạp JPA và Flyway, chạy trên PostgreSQL thật (Testcontainers) để `CHECK`, `UNIQUE`, khóa ngoại hoạt động như production. Mỗi test tự rollback.
 - **`entityManager.clear()`:** xóa bộ nhớ đệm của Hibernate để lần đọc sau thật sự đi xuống DB. Không có nó, test chỉ đọc lại object trong bộ nhớ.
@@ -686,6 +736,9 @@ AccountResponse.from(account, capabilities)  -> JSON
   - BE-13: store "quên" ghi refresh token → test xoay khóa đỏ.
   - BE-14: bỏ `@Transactional` → test rollback và test reconnect đỏ; không tìm account cũ → test reconnect đỏ (lỗi `UNIQUE`); bỏ kiểm tra provider → test provider lạ đỏ; `reconnected` luôn `false` → test reconnect đỏ; publish trước khi lưu credential → test rollback đỏ; thêm một trường vào event → test payload đỏ.
   - BE-15: danh sách không lọc owner → 2 test đỏ; `get` không lọc owner → test cô lập đỏ; mới nhất trước → test thứ tự đỏ; `ProviderRegistry.get` thay `find` → test connector đã gỡ đỏ; `ownerId` lọt vào response → test tập trường đỏ; detail nói "của người khác" → test cô lập đỏ.
+  - BE-16 (10 lỗi, chạy bằng một script nhỏ áp từng lỗi rồi khôi phục): `@Size` thay luật domain → tên trắng ra 500 và 100 emoji bị từ chối; bỏ "ít nhất một trường" → test `{}` đỏ; đảo nghĩa `enabled` → 2 test đỏ; không phát event khi tắt → đỏ; phát event cả khi không đổi gì → 2 test đỏ; PATCH không lọc owner → đỏ; bỏ `@Version` → test version cũ đỏ; không phát event khi reconnect → đỏ; phát event ở mọi lần reconnect → đỏ; thêm trường vào event → đỏ.
+- **`@RecordApplicationEvents` + `ApplicationEvents` (Spring Test, BE-16):** ghi lại event được publish trong một test `@SpringBootTest`; `events.stream(AccountStatusChanged.class)` lấy ra để kiểm tra. `AssertablePublishedEvents` là cách tương tự của Spring Modulith, dùng trong module test.
+- **`TransactionTemplate` trong test (BE-16):** mở transaction bằng code để chen một bước vào giữa. Test gọi service (đã đọc `version` cũ), rồi giả "một request khác" bằng `UPDATE ... SET version = version + 1` trong cùng transaction; lúc commit phải ra `OptimisticLockingFailureException`. Qua MockMvc không canh được hai request chạy chồng nhau, nên phần đổi lỗi thành 409 dựa vào test có sẵn của F01.
 - **Chạy cả ứng dụng thay cho web slice (BE-15):** `@SpringBootTest` + `@AutoConfigureMockMvc` gửi request HTTP giả qua đúng các lớp thật: security, `CurrentUser`, service, PostgreSQL, error handler, Jackson. Chọn thay cho `@WebMvcTest` với service giả vì test cô lập dữ liệu phải chạy trên dữ liệu thật; với service giả, test chỉ kiểm tra cái mock.
 - **Ghim thời điểm bằng SQL:** `@PrePersist` điền `created_at` bằng giờ thật nên không biết trước. Test ghi đè bằng `UPDATE connected_account SET created_at = ?` để biết chắc thứ tự và chuỗi JSON mong đợi (`2026-10-05T03:15:00Z`). Account "mới hơn" được tạo **trước**, để test thứ tự không thể xanh chỉ nhờ thứ tự chèn.
 - **`JsonPath.read(body, "$")`:** đọc JSON thành `Map` để so tập tên trường.
@@ -699,7 +752,7 @@ AccountResponse.from(account, capabilities)  -> JSON
 
 ---
 
-## 21. Tự kiểm tra F02 (phần đã làm)
+## 22. Tự kiểm tra F02 (phần đã làm)
 
 1. Vì sao người dùng Sino và tài khoản Gmail nằm ở hai module khác nhau?
 2. `ApplicationRunner` chạy trước hay sau Flyway? Vì sao điều đó quan trọng với việc tạo owner?
@@ -721,5 +774,9 @@ AccountResponse.from(account, capabilities)  -> JSON
 18. Vì sao account của người khác trả 404 mà không phải 403?
 19. Vì sao không trả thẳng entity `ConnectedAccount` ra JSON?
 20. Connector Gmail bị gỡ khỏi ứng dụng thì `GET /api/accounts` trả gì cho account Gmail cũ?
+21. Vì sao các trường của `UpdateAccountRequest` là `Boolean` chứ không phải `boolean`?
+22. Nếu chỉ dùng `@Size(max = 100)` cho `displayName` thì hai lỗi nào xảy ra?
+23. Hai request cùng đổi tên một account cùng lúc: request đến sau nhận gì, và nhờ đâu?
+24. Vì sao `AccountStatus` phải nằm ở `dev.sino.account` khi có event `AccountStatusChanged`?
 
-*(Phần BE-16…BE-18 — sửa account, xóa account, nghiệm thu — sẽ được bổ sung khi làm.)*
+*(Phần BE-17…BE-18 — xóa account, nghiệm thu — sẽ được bổ sung khi làm.)*
