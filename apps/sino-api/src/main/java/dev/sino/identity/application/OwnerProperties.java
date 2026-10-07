@@ -20,8 +20,13 @@ record OwnerProperties(@NotBlank @Email @Size(max = 320) String email,
         @NotBlank @Size(max = 200) String displayName, String password) {
 
     OwnerProperties {
-        email = email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+        email = normalizeEmail(email);
         displayName = displayName == null ? null : displayName.trim();
+    }
+
+    /** The one rule for comparing emails: trimmed and lower-cased. Sign-in and its lock use it too. */
+    static String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 
     @Override

@@ -49,7 +49,15 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(SinoException.class)
     ResponseEntity<ProblemDetail> handleSinoException(SinoException ex, HttpServletRequest request) {
         HttpStatus status = statusOf(ex.errorCode().category());
-        return problem(status, ex.getMessage(), ex.errorCode().code(), request);
+        ResponseEntity<ProblemDetail> response = problem(status, ex.getMessage(), ex.errorCode().code(), request);
+        ex.properties().forEach(response.getBody()::setProperty);
+        if (status == HttpStatus.TOO_MANY_REQUESTS
+                && ex.properties().get("retryAfterSeconds") instanceof Number retryAfterSeconds) {
+            return ResponseEntity.status(status)
+                    .header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds.longValue()))
+                    .body(response.getBody());
+        }
+        return response;
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)

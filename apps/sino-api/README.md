@@ -56,7 +56,7 @@ migration that was already applied: add a new `V{n}__{module}_{description}.sql`
 | `/actuator/info` | public | |
 | `/api/**` | signed in (session cookie, see below) | Business endpoints below. Changes (`POST`, `PATCH`, `DELETE`) also need the CSRF token. |
 | `GET /api/auth/me` | public | `200 {email, displayName}` when signed in, `401` otherwise. Also hands out the `XSRF-TOKEN` cookie. |
-| `POST /api/auth/login` | public, CSRF | `{email, password, rememberMe}` → `204` and a session cookie (plus a 30-day remember-me cookie when `rememberMe` is true). Wrong email or password → `401` `INVALID_CREDENTIALS`. |
+| `POST /api/auth/login` | public, CSRF | `{email, password, rememberMe}` → `204` and a session cookie (plus a 30-day remember-me cookie when `rememberMe` is true). Wrong email or password → `401` `INVALID_CREDENTIALS` with `remainingAttempts`; the 5th wrong attempt in a row locks that email for 15 minutes → `429` `LOGIN_LOCKED` with `retryAfterSeconds` and a `Retry-After` header (D-35). |
 | `POST /api/auth/logout` | CSRF | `204`; ends the session and deletes the remember-me cookie. |
 | `GET /api/providers` | signed in | Supported providers with `type`, `displayName` and `capabilities`, sorted by `type`. `[]` until a connector exists (F04). |
 | `GET /api/accounts` | signed in | Connected accounts of the current user, oldest first, with the `capabilities` of their provider (`[]` when its connector is gone). No credential field. Empty until the connect flow exists (F04). |
@@ -117,6 +117,7 @@ Decided in D-03 (`openspec/specs/module-boundaries/spec.md`).
 | App stops with `The active credential key ... is not configured` or `sino.credentials.encryption.keys.k1 must decode to 32 bytes` | `SINO_CREDENTIAL_KEY_K1` is missing or is not base64 of 32 bytes. Generate one with `openssl rand -base64 32`. |
 | App stops with `sino.owner.password (SINO_OWNER_PASSWORD) must be set and at least 12 characters long` or the same for `sino.auth.remember-me-key` | Add `SINO_OWNER_PASSWORD` and `SINO_REMEMBER_ME_KEY` to `.env` (see `.env.example`). The message never shows the value. |
 | App stops with `sino.owner` validation errors | `SINO_OWNER_EMAIL` / `SINO_OWNER_DISPLAY_NAME` are missing or the email is not valid. Copy them from `.env.example`. |
+| Sign-in answers `429` `LOGIN_LOCKED` | Five wrong passwords in a row locked that email for 15 minutes (D-35). Wait `retryAfterSeconds`, or restart the app (the counter lives in memory). |
 | Every `POST`/`PATCH`/`DELETE` answers `403` `CSRF_TOKEN_INVALID` | The `X-XSRF-TOKEN` header is missing or does not match the `XSRF-TOKEN` cookie. Call `GET /api/auth/me` first and send the cookie value back in the header. |
 | App stops at bean `dataSource` with `'url' must start with "jdbc"` | No profile and no `SINO_DB_*` variables. Use `-Dspring-boot.run.profiles=local` on a dev machine. |
 | Port 5432 already in use | Another PostgreSQL runs locally. Stop it or change the published port in `compose.yaml` and the URL in `application-local.yaml`. |

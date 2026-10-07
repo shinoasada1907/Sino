@@ -1,6 +1,7 @@
 package dev.sino.identity.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 
 import java.io.IOException;
 import java.net.URI;
@@ -8,12 +9,16 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -23,13 +28,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import dev.sino.TestcontainersConfiguration;
 
 /**
  * Browser sign-in (D-22) against a real server on a random port, through a small cookie-keeping client: only a real
  * servlet container sends the session cookie, so HttpOnly, SameSite, session ID changes and remember-me can be
- * checked the way a browser sees them.
+ * checked the way a browser sees them. The clock is a mock: every test starts one hour after the previous one, so
+ * failed sign-ins of one test are forgotten by the next, and a test can let a lock run out (D-35).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(TestcontainersConfiguration.class)
@@ -38,6 +45,13 @@ class AuthApiTests {
 
     private static final String EMAIL = "owner@sino.test";
     private static final String PASSWORD = "test-owner-password";
+    private static final Instant START = Instant.parse("2026-10-07T00:00:00Z");
+    private static final AtomicLong HOURS = new AtomicLong();
+
+    private static volatile Instant now = START;
+
+    @MockitoBean
+    private Clock clock;
 
     @LocalServerPort
     private int port;
@@ -46,6 +60,8 @@ class AuthApiTests {
 
     @BeforeEach
     void openABrowser() {
+        now = START.plus(Duration.ofHours(HOURS.incrementAndGet()));
+        given(clock.instant()).willAnswer(invocation -> now);
         browser = new Browser("http://localhost:" + port);
     }
 
@@ -110,6 +126,45 @@ class AuthApiTests {
         assertThat(unknownEmail.status()).isEqualTo(wrongPassword.status());
         assertThat(unknownEmail.json("$.code")).isEqualTo(wrongPassword.json("$.code"));
         assertThat(unknownEmail.json("$.detail")).isEqualTo(wrongPassword.json("$.detail"));
+        assertThat(unknownEmail.value("$.remainingAttempts")).isEqualTo(wrongPassword.value("$.remainingAttempts"));
+    }
+
+    @Test
+    void theAttemptsLeftCountDownAndTheFifthWrongPasswordLocksForFifteenMinutes() {
+        for (int left = 4; left >= 1; left--) {
+            Response login = browser.signIn(EMAIL, "wrong-password-123", false);
+            assertThat(login.status()).isEqualTo(401);
+            assertThat(login.value("$.remainingAttempts")).isEqualTo(left);
+        }
+
+        Response fifth = browser.signIn(EMAIL, "wrong-password-123", false);
+
+        assertThat(fifth.status()).isEqualTo(429);
+        assertThat(fifth.json("$.code")).isEqualTo("LOGIN_LOCKED");
+        assertThat(fifth.value("$.retryAfterSeconds")).isEqualTo(900);
+        assertThat(fifth.header("Retry-After")).contains("900");
+    }
+
+    @Test
+    void theRightPasswordIsRefusedWhileLockedAndNoSessionIsMade() {
+        lockTheOwner();
+
+        Response login = browser.signIn(EMAIL, PASSWORD, false);
+
+        assertThat(login.status()).isEqualTo(429);
+        assertThat(login.json("$.code")).isEqualTo("LOGIN_LOCKED");
+        assertThat(browser.get("/api/auth/me").status()).isEqualTo(401);
+    }
+
+    @Test
+    void theOwnerCanSignInAgainOnceTheLockRunsOut() {
+        lockTheOwner();
+        now = now.plus(Duration.ofMinutes(14));
+        assertThat(browser.signIn(EMAIL, PASSWORD, false).status()).as("after 14 minutes").isEqualTo(429);
+
+        now = now.plus(Duration.ofMinutes(1));
+
+        assertThat(browser.signIn(EMAIL, PASSWORD, false).status()).as("after 15 minutes").isEqualTo(204);
     }
 
     @Test
@@ -204,6 +259,12 @@ class AuthApiTests {
         assertThat(accounts.header("WWW-Authenticate")).isEmpty();
     }
 
+    private void lockTheOwner() {
+        for (int i = 0; i < 5; i++) {
+            browser.signIn(EMAIL, "wrong-password-123", false);
+        }
+    }
+
     private static String loginJson(String email, String password, boolean rememberMe) {
         return "{\"email\":\"" + email + "\",\"password\":\"" + password + "\",\"rememberMe\":" + rememberMe + "}";
     }
@@ -223,6 +284,10 @@ class AuthApiTests {
         }
 
         String json(String path) {
+            return JsonPath.read(body, path);
+        }
+
+        Object value(String path) {
             return JsonPath.read(body, path);
         }
 

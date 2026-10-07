@@ -1,7 +1,6 @@
 package dev.sino.identity.application;
 
 import java.time.Duration;
-import java.util.Locale;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -70,7 +69,7 @@ class LoginConfiguration {
     }
 
     private static UserDetails owner(LoginSettings settings, String email, String password) {
-        if (email == null || !email.trim().toLowerCase(Locale.ROOT).equals(settings.ownerEmail())) {
+        if (!settings.ownerEmail().equals(OwnerProperties.normalizeEmail(email))) {
             throw new UsernameNotFoundException("Unknown user");
         }
         return User.withUsername(settings.ownerEmail()).password(password).roles("OWNER").build();

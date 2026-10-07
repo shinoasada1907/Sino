@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
@@ -185,11 +186,17 @@ class AccountRegistrationServiceTests {
     }
 
     @TestConfiguration(proxyBeanMethods = false)
-    static class FakeProviders {
+    static class TestBeans {
 
         @Bean
         FakeMessageProvider fakeProvider() {
             return FakeMessageProvider.builder("fake").build();
+        }
+
+        // identity needs a clock from common, which this mode does not load (a dependency of a dependency).
+        @Bean
+        Clock clock() {
+            return Clock.systemUTC();
         }
 
     }

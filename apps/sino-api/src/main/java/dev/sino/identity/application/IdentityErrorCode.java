@@ -9,7 +9,10 @@ import dev.sino.common.error.ErrorCode;
 public enum IdentityErrorCode implements ErrorCode {
 
     /** Wrong email or wrong password: one answer for both, so nobody learns which emails exist. */
-    INVALID_CREDENTIALS(ErrorCategory.UNAUTHENTICATED);
+    INVALID_CREDENTIALS(ErrorCategory.UNAUTHENTICATED),
+
+    /** Five wrong sign-ins in a row for one email: it is locked for fifteen minutes (D-35). */
+    LOGIN_LOCKED(ErrorCategory.RATE_LIMITED);
 
     private final ErrorCategory category;
 

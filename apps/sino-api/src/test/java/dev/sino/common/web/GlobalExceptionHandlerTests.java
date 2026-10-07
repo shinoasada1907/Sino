@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.util.Map;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.validation.Valid;
@@ -177,6 +178,23 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void extraMembersOfASinoExceptionGoIntoTheProblem() throws Exception {
+        mvc.perform(get("/api/probe/rule-with-attempts").with(apiUser()))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("THING_RULE_BROKEN"))
+                .andExpect(jsonPath("$.attemptsLeft").value(2))
+                .andExpect(header().doesNotExist("Retry-After"));
+    }
+
+    @Test
+    void aRateLimitWithRetryAfterSecondsSendsTheRetryAfterHeader() throws Exception {
+        mvc.perform(get("/api/probe/limited").with(apiUser()))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "30"))
+                .andExpect(jsonPath("$.retryAfterSeconds").value(30));
+    }
+
+    @Test
     void instantIsWrittenAsIsoStringInUtc() throws Exception {
         mvc.perform(get("/api/probe/time").with(apiUser()))
                 .andExpect(status().isOk())
@@ -190,7 +208,8 @@ class GlobalExceptionHandlerTests {
     enum ProbeErrorCode implements ErrorCode {
 
         THING_NOT_FOUND(ErrorCategory.NOT_FOUND),
-        THING_RULE_BROKEN(ErrorCategory.INVALID);
+        THING_RULE_BROKEN(ErrorCategory.INVALID),
+        SLOW_DOWN(ErrorCategory.RATE_LIMITED);
 
         private final ErrorCategory category;
 
@@ -223,6 +242,16 @@ class GlobalExceptionHandlerTests {
         @GetMapping("/things/{id}")
         Thing find(@PathVariable String id) {
             throw new SinoException(ProbeErrorCode.THING_NOT_FOUND, "Thing " + id + " was not found.");
+        }
+
+        @GetMapping("/limited")
+        void slowDown() {
+            throw new SinoException(ProbeErrorCode.SLOW_DOWN, "Slow down.", Map.of("retryAfterSeconds", 30L));
+        }
+
+        @GetMapping("/rule-with-attempts")
+        void breakRuleWithAttemptsLeft() {
+            throw new SinoException(ProbeErrorCode.THING_RULE_BROKEN, "Not now.", Map.of("attemptsLeft", 2));
         }
 
         @GetMapping("/rule")
