@@ -116,7 +116,7 @@ Observed in `apps/sino-api` (Spring Initializr skeleton, no business code yet):
 
 F02 is done and archived (2026-10-07); Phase 0 code is complete. The user chooses the next step:
 
-1. **Close Phase 0** (roadmap): merge the BE work on `dev` into `main` (needs an explicit request: merge/push/PR are never done without asking), update Notion 02B (D-12, D-13, D-14 columns) and 04C/04D.
+1. **Close Phase 0** (roadmap): `dev` is pushed and in sync with `main`; the user opens the PR `dev` → `main` and merges it, update Notion 02B (D-12, D-13, D-14 columns) and 04C/04D.
 2. **Open Phase 1 — frontend** (`apps/sino-web`, F01–F03 FE): first decision **D-22** (browser authentication: session cookie + CSRF, OAuth2 login with Google, or short-lived tokens), then an OpenSpec change for Phase 1.
 3. Planner change (`openspec/changes/planner-from-messages`): open items 1.2 (Notion 01/03, user) and 2.2 (UI spec).
 
@@ -133,4 +133,5 @@ Notes for later features (recorded in the archived F02 design): F04 revokes the 
 - Working branch: `feature/be-f01-f03-plan`, based on `main` @ `5ad6a2d`. The user approved switching the shared working tree to this branch and committing (2026-09-30). It holds two commits: workflow setup (OpenSpec + mode + Claude OpenSpec commands) and the F01-F03 spec/plan with this file. Pushed to `origin/feature/be-f01-f03-plan` @ `9ac3693` (user asked, 2026-09-30); no PR opened.
 - PR #1 (`feature/be-f01-f03-plan`) was merged into `main` on GitHub as `16aa8d6` (merge commit; done by the user).
 - `feature/be-f01-project-foundation` @ `12af56b` (roadmap + D-22) pushed to origin (user asked, 2026-09-30).
-- **`dev`**: the user's coding branch (requested 2026-09-30), created from `12af56b`. The shared working tree HEAD is on `dev`. Not pushed. Relative to `origin/main` it is 1 ahead / 1 behind; the missing commit is only the PR #1 merge commit and brings no file changes.
+- **`dev`**: the user's coding branch (requested 2026-09-30), created from `12af56b`; the shared working tree HEAD is on `dev`. 2026-10-07: pushed to `origin/dev` @ `9964d39` (user chose "push dev + PR"); CI run 37608081054 green. The user merged the old PR #2 (`feature/be-f01-project-foundation` → `main`, merge commit `504fe9f`); at the user's request `origin/main` was merged into `dev` as `073d037` (no file changes: both merge commits only merged commits `dev` already had). Now `main` is an ancestor of `dev`; `dev` is 61 commits ahead (incl. this state update).
+- **Open:** the PR `dev` → `main` is not created yet (the user opens it on GitHub; `gh` is not logged in on this machine). Title and body were prepared: "Phase 0: backend foundation (F01, F03, F02)".
