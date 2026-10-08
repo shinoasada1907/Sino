@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42), change `openspec/changes/fe-ui-accounts` (màn Tài khoản), change `openspec/changes/fe-ui-connect` (luồng kết nối tài khoản) và change `openspec/changes/fe-ui-inbox` (màn Hộp thư). Đã xong: BE-27, BE-28, BE-29, FE-01, UI-01, UI-02, UI-03, AC-01, AC-02, AC-03, AC-04, CN-01, CN-02, CN-03, IN-01…IN-06.
+> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42), change `openspec/changes/fe-ui-accounts` (màn Tài khoản), change `openspec/changes/fe-ui-connect` (luồng kết nối tài khoản) change `openspec/changes/fe-ui-inbox` (màn Hộp thư), rồi nối web vào API (FE-02…FE-04, AC-06, FE-30 = CN-05; D-56). Đã xong: BE-27, BE-28, BE-29, FE-01, FE-02, FE-03, FE-04, UI-01, UI-02, UI-03, AC-01…AC-04, AC-06, CN-01…CN-03, CN-05, IN-01…IN-06.
 > **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
@@ -737,6 +737,74 @@ canSend = false               -> báo vàng + "Cấp lại quyền gửi"
 - **Đính chính, bài học lớn nhất của change này:** commit `bfddcd3` (IN-04) ghi "238/238" trong khi một test đỏ. Chuỗi lệnh là `pnpm test | grep … && git commit`: mã thoát của cả chuỗi là của `grep`, không phải của `pnpm test`, nên test đỏ vẫn commit. Giờ mỗi lệnh kiểm (lint, test, build) chạy riêng và in mã thoát của chính nó trước khi commit.
 - **Bẫy của script kiểm tra:** truyền thư mục hồ sơ Chrome bằng đường dẫn tương đối thì Chrome không mở cổng điều khiển (hai lần "timed out"); thử tay với đường dẫn tuyệt đối thì lên sau 1 giây. Đổi `#state=` trong cùng trang chỉ đổi hash, trang không tải lại nên file thay thế giữ trạng thái cũ; đi qua `about:blank` giữa hai lần.
 
+## 9. Nối web vào API (FE-02, FE-03, FE-04, AC-06, FE-30)
+
+### 9.0 Bức tranh: một request đi qua những đâu
+- **Ở đâu:** `src/shared/api/client.ts`, `problem.ts`; `src/features/auth/`; `src/app/queryClient.ts`; `src/app/shell/UserMenu.tsx`, `MorePage.tsx`; `src/features/accounts/accounts.api.ts`.
+- **Là gì:** web thôi chạy hoàn toàn bằng dữ liệu mẫu. Đăng nhập, menu người dùng, màn Tài khoản và luồng kết nối gọi backend thật; Tổng quan, Hộp thư và các con số của khung app vẫn là dữ liệu mẫu vì backend chưa có (D-56).
+
+```text
+component -> hook (TanStack) -> *.api.ts -> shared/api/client.ts -> /api/...
+                                   |   (Vite chuyển sang :8080 khi dev)
+                                   +-> đổi câu trả lời sang hợp đồng của màn
+                                       (trường API chưa có = null, màn bỏ qua)
+lỗi: Problem Details -> ApiError { status, code, detail, errors, extra }
+403 CSRF_TOKEN_INVALID -> GET /api/auth/me -> gửi lại đúng 1 lần
+401 ngoài /api/auth/* -> forgetSession -> /login?returnTo=<trang>
+```
+
+- **D-56 (người dùng chốt A):** mỗi màn tự đổi dữ liệu trong `*.api.ts` của nó; backend thêm trường khi có feature. **Phương án bị loại:** bắt backend trả đủ hợp đồng ngay, trong khi nhiều trường chưa có nguồn dữ liệu (số tin đã lưu cần module tin nhắn, tiến độ đồng bộ cần F04b/F07): như thế là bịa số.
+
+### 9.1 API client (FE-02)
+- **CSRF kiểu "cookie gửi đôi":** backend đặt cookie `XSRF-TOKEN` mà JavaScript đọc được; mỗi request thay đổi dữ liệu (`POST`, `PATCH`, `DELETE`) gửi lại giá trị đó trong header `X-XSRF-TOKEN`. Trang lạ có thể khiến trình duyệt gửi cookie đi kèm, nhưng không đọc được cookie của Sino nên không viết được header đúng (mục 2 của file này). `GET` không gửi header.
+- **Token cũ:** sau khi đăng nhập hay đăng xuất, token đổi. Gặp `403 CSRF_TOKEN_INVALID` thì client gọi `GET /api/auth/me` (câu trả lời nào cũng đặt cookie mới, kể cả 401) rồi gửi lại **một** lần. Thử lại vô hạn thì một token hỏng sẽ thành vòng lặp không dừng.
+- **Một kiểu lỗi chung:** mọi lỗi thành `ApiError` với `status`, `code` (mã ổn định trong catalog của backend), `detail`, `errors` (lỗi từng trường của validation) và `extra` (thành viên khác như `remainingAttempts`). Không ai trả lời (mạng, máy chủ tắt) thì `status` 0, `code` `NETWORK_ERROR`. Trang lỗi của proxy (không phải Problem Details) thì `code` là `HTTP_502`…
+- **Bẫy, `erasableSyntaxOnly`:** `constructor(readonly status: number)` bị `tsc -b` báo TS1294. Cờ này chỉ cho cú pháp TypeScript "xóa đi là thành JavaScript"; thuộc tính khai trong tham số constructor lại sinh ra code gán, nên phải khai field rồi gán tay.
+- **Bẫy, địa chỉ tương đối trong test:** `fetch('/api/...')` chạy được trên trình duyệt nhưng `fetch` của Node (môi trường test) không tự hiểu đường dẫn tương đối; client dùng `new URL(path, window.location.origin)`.
+
+### 9.2 Đăng nhập (FE-03)
+- **Chốt chặn là một route bố cục:** `RequireAuth` bọc mọi trang của khung app; `/login` và trang 404 nằm ngoài. Nó hỏi `GET /api/auth/me` một lần: đang hỏi thì hiện màn chờ, `401` thì chuyển `/login?returnTo=<trang + query>`, không gọi được máy chủ thì "Không mở được Sino" và "Thử lại".
+- **`401` ở `/me` là câu trả lời, không phải lỗi:** `fetchMe` trả `null` ("chưa ai đăng nhập"), nên TanStack Query không coi đó là thất bại.
+- **`returnTo` an toàn:** chỉ nhận đường dẫn của app. `//evil.example` bắt đầu bằng `/` nhưng trình duyệt hiểu là một trang khác (đường dẫn "không giao thức"); `/\evil.example` cũng vậy với vài trình duyệt; còn `returnTo=/login` sẽ thành vòng lặp. Mọi trường hợp đó về `/overview`.
+- **Sai mật khẩu:** xóa và focus lại ô mật khẩu, giữ email, `aria-invalid` cho ô mật khẩu; câu báo đọc `remainingAttempts` ("Còn 4 lần thử trước khi phải đợi 15 phút."), bị khóa thì đọc `retryAfterSeconds` (làm tròn lên phút).
+- **Bẫy, `Switch` trong `<form>`:** radix vẽ thêm một ô input ẩn để form gửi được giá trị và đo nó bằng `ResizeObserver`. jsdom không có `ResizeObserver` (trình duyệt nào cũng có), nên `src/test/setup.ts` thêm một bản rỗng.
+
+### 9.3 Đăng xuất và hết phiên (FE-04)
+- **Menu người dùng** mở từ nút "…" của thanh bên và avatar của rail; trên mobile nằm ở trang "Thêm" (dựng theo `MobileMore`). Canvas vẽ nút mà không vẽ menu; spec đòi tên, email, đổi sáng/tối và đăng xuất.
+- **`forgetSession`:** bỏ mọi dữ liệu đã cache rồi đặt `me = null`. Không dùng `queryClient.clear()`: nó xóa luôn query `me`, mà component đang đọc vẫn bám query cũ đã bị xóa nên không nhận được giá trị mới.
+- **Hết phiên:** `RequireAuth` đăng ký `onSessionExpired`; một request bất kỳ trả `401` thì cache bị xóa và chốt chặn tự đưa về `/login?returnTo=<trang đang mở>`.
+- **Lỗi khó nhất của change, và cách tìm:** đăng xuất ra `/login?returnTo=%2Finbox` thay vì `/login`. Hai lần sửa theo phỏng đoán (đổi thứ tự, thêm `flushSync`) đều không ăn thua, nên dừng đoán và ghi log từng sự kiện của router và cache:
+
+```text
+cache updated me=null              <- forgetSession
+router /login                      <- lần chuyển của useLogout
+router /login?returnTo=%2Finbox    <- chốt chặn, vẫn ở /inbox, thấy me=null
+```
+
+  TanStack báo cho component **đồng bộ**, còn React Router chuyển trang trong một transition (ưu tiên thấp), nên chốt chặn kịp vẽ lại trước. `flushSync` của React Router chỉ chạy khi dùng `RouterProvider` của `react-router/dom`; bản của `react-router` bỏ qua (thư viện có cảnh báo đúng chuyện này). Sửa: `RouterProvider` từ `react-router/dom`, chuyển tới `/login` với `flushSync` rồi mới xóa phiên, và trang đăng nhập không tự đi tiếp khi mutation đăng xuất đang chạy (`useIsMutating`).
+
+### 9.4 Khi nào thử lại một request (FE-04)
+- `shouldRetry` (`src/app/queryClient.ts`): lỗi 4xx (máy chủ đã trả lời về chính request) không thử lại; lỗi mạng và 5xx thử lại hai lần. Mặc định của TanStack thử lại mọi lỗi ba lần: một `401` sẽ báo hết phiên bốn lần, một `404` phải chờ vài giây mới hiện.
+
+### 9.5 Tài khoản trên API (AC-06)
+- **Đổi dữ liệu:** `GET /api/accounts` + `GET /api/providers` thành `AccountsData`. Trường API chưa có là `null`: tổng tin đã lưu, số tin từng tài khoản, hạn quyền, tiến độ và chu kỳ đồng bộ, bốn mục chi tiết.
+- **Câu chữ không bịa số:** `stored(count, noun)` trả "1.284 thư" hoặc chỉ "thư" khi chưa biết; dòng "Đã lưu … thư và tin nhắn" và hàng "Đã lưu" trên mobile ẩn đi.
+- **Kênh duy nhất API biết:** nhận tin = đồng bộ tự động. Công tắc "Thư đến" gửi `PATCH /api/accounts/{id}` `{ syncEnabled }`.
+- **Bỏ công tắc "Xóa luôn … đã lưu":** `DELETE` của backend không xóa tin và roadmap để F05 chốt chuyện giữ / xóa lịch sử. Một công tắc không làm gì trên một thao tác phá hủy là nói dối người dùng.
+- **Hai lớp test:** test cũ của màn mock request về dữ liệu mẫu đầy đủ, để vẫn kiểm các phần backend chưa có (website, lịch sử đồng bộ…); đường đi qua API có test riêng với MSW và dữ liệu API giả trong `src/test/fixtures/`.
+
+### 9.6 Kết nối trên API (FE-30)
+- **Danh sách provider:** `GET /api/providers` chỉ liệt kê provider máy chủ đã bật (Gmail cần Google client trong cấu hình). API chưa có danh sách quyền xin (`scopes` = `null`): bước "Quyền" nói trang của Google sẽ liệt kê. Không có provider nào thì bước 1 nói rõ và khóa "Tiếp tục".
+- **Bắt đầu:** `POST /api/accounts/connect/{provider}`, kèm `accountId` khi đăng nhập lại, rồi `window.location.assign(authorizationUrl)`.
+- **Quay về khi chưa có đồng bộ lần đầu (F04b):** `INITIAL_SYNC_READY = false`, hộp kết nối đi thẳng tới "Đã kết nối …" và nói chưa đồng bộ, thay vì hiện tùy chọn đồng bộ mà không gì thực hiện được.
+- **Lỗi ngủ quên từ CN-03:** effect xóa `?connected` khỏi URL chạy ngay lần vẽ đầu, trước khi danh sách về, nên lúc đọc thì tham số đã mất. Dữ liệu mẫu về gần như tức thì nên không ai thấy; API thật (có độ trễ) làm lộ ra. **Bài học:** dữ liệu mẫu đồng bộ che lỗi thời gian; test nên có ca dữ liệu đến muộn (MSW).
+
+### 9.7 Kiểm chứng
+- **Test viết trước, kiểm tra ngược:** FE-02 RED 8/8, 12/12 lỗi gài bị bắt; FE-03 RED 10/11, 19/19; FE-04 RED 5/5 + 3, 17/17; AC-06 RED 11, 18/18; FE-30 RED 8, 12/12. Cuối cùng 304/304.
+- **Chrome thật không cần backend:** chạy `vite` dev, dùng DevTools Protocol (`Fetch.enable` + `Fetch.fulfillRequest`) trả lời thay backend cho đăng nhập, danh sách, `PATCH`, `DELETE`, bắt đầu kết nối; mã của app không đổi. Bẫy: mẫu `*/api/*` khớp cả file `/src/shared/api/client.ts` mà Vite phục vụ, app không tải được; phải ghi đủ `http://localhost:5174/api/*`.
+- **Test chập chờn, đo trước khi sửa:** chạy cả bộ 37 file song song thì 1–2 test dài hết giờ ở 5 s, mỗi lần một test khác; chạy riêng thì 1,6–2,3 s. Không có gì treo, nên `testTimeout` lên 15 s.
+- **Chưa kiểm chứng:** chạy với backend thật (FE-05) cần `.env` đủ biến; kết nối với Google thật cần Google project (BE-34).
+
 ---
 
 ## Tự kiểm tra
@@ -807,3 +875,13 @@ canSend = false               -> báo vàng + "Cấp lại quyền gửi"
 64. Khi mất mạng, TanStack Query làm gì với một mutation? Vì sao `useOnline` đọc `onlineManager` thay vì tự nghe `navigator.onLine`?
 65. Vì sao không hiện câu "Bấm N ở bất cứ đâu để kết nối nhanh" dù canvas có?
 66. Commit `bfddcd3` ghi 238/238 trong khi một test đỏ. Chuỗi lệnh sai ở đâu, và giờ kiểm thế nào trước khi commit?
+67. Cookie `XSRF-TOKEN` đọc được bằng JavaScript thì có nguy hiểm không? Vì sao trang lạ vẫn không gửi được header `X-XSRF-TOKEN` đúng?
+68. Vì sao client chỉ thử lại đúng một lần khi gặp `403 CSRF_TOKEN_INVALID`?
+69. Vì sao `401` của `GET /api/auth/me` được đổi thành `null` thay vì để TanStack Query coi là lỗi?
+70. `returnTo=//evil.example` bắt đầu bằng `/`. Vì sao vẫn bị từ chối, và còn trường hợp nào nữa?
+71. Vì sao `forgetSession` không dùng `queryClient.clear()`?
+72. Đăng xuất từng ra `/login?returnTo=%2Finbox`. Log cho thấy gì, và vì sao phải dùng `RouterProvider` của `react-router/dom`?
+73. Vì sao lỗi 4xx không được thử lại, còn lỗi mạng và 5xx thì có?
+74. D-56 nói "trường API chưa có là null". Màn Tài khoản xử lý câu "1.284 thư đã lưu vẫn còn" thế nào khi chưa biết số?
+75. Vì sao bỏ công tắc "Xóa luôn tin nhắn đã lưu" thay vì để nó hiện mà không làm gì?
+76. Lỗi "tham số `?connected` mất trước khi đọc" có từ CN-03. Vì sao dữ liệu mẫu che được nó, và test thế nào thì bắt được?

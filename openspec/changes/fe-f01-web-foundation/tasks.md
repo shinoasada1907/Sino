@@ -115,6 +115,7 @@
 ## 3. Nghiệm thu
 
 - [ ] 3.1 **FE-05 — Chạy thật trên trình duyệt + tài liệu + nghiệm thu**
+  - **Tiến độ (2026-10-08):** `apps/sino-web/README.md` viết lại phần cần backend để đăng nhập, API client, đăng nhập, màn nào dùng API / dữ liệu mẫu; file kiến thức Phase 1 mục 9 + `.docx`. Các luồng đã chạy trên Chrome thật với API giả lập qua DevTools Protocol (FE-03, FE-04, AC-06, FE-30). **Chưa làm:** chạy với backend thật. Lần thử BE-34 gần nhất backend dừng lúc khởi động vì `.env` thiếu biến (`sino.credentials.encryption.activeKeyId`); người dùng điền `.env` (agent không đọc file này) rồi chạy theo phần **Test** dưới đây.
   - **Goal / Why:** chứng minh backend và web chạy cùng nhau trên trình duyệt thật, và người dùng tự chạy lại được.
   - **Depends on:** BE-27…BE-29, FE-01…FE-04.
   - **Files:** `apps/sino-api/README.md` (biến env mới, lệnh curl đăng nhập, xử lý sự cố), `apps/sino-web/README.md` (cách chạy dev cùng backend), `docs/knowledge/phase-1-frontend-foundation.{md,docx}`, design (DoD), file này, `PROJECT_STATE.md`.

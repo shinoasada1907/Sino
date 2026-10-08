@@ -10,7 +10,9 @@ Run every command below from `apps/sino-web`.
 - Node.js 26 (the version CI uses) and pnpm 11. The exact pnpm version is pinned in `packageManager` of
   `package.json`, and CI installs that one. Node 25 and later no longer ship `corepack`, so install pnpm yourself:
   `npm install -g pnpm@11`.
-- For pages that call the API: the backend running on `localhost:8080` (see `apps/sino-api/README.md`).
+- The backend running on `localhost:8080` (see `apps/sino-api/README.md`): every page except `/login` and 404 needs a
+  signed-in owner. Without the backend the app shows "Không mở được Sino" with "Thử lại". You sign in with
+  `SINO_OWNER_EMAIL` and `SINO_OWNER_PASSWORD` of `apps/sino-api/.env`.
 
 ## Commands
 
@@ -35,6 +37,19 @@ browser only ever sees `localhost:5173`: the session and `XSRF-TOKEN` cookies of
 address and no CORS setup is needed. The key is `/api/` with the trailing slash, so a page path such as `/apis` stays with Vite.
 `pnpm preview` has no proxy.
 
+Every request goes through `src/shared/api/client.ts` (FE-02): changes carry the CSRF token of the `XSRF-TOKEN`
+cookie, a stale token is renewed through `GET /api/auth/me` and the change sent once more, errors become an `ApiError`
+(`status`, `code`, `detail`, field `errors`, other members in `extra`), `NETWORK_ERROR` when nothing answers, and a 401
+outside `/api/auth/*` sends the app back to `/login?returnTo=…` with its cache cleared. Reads are retried only for
+network and server failures (`src/app/queryClient.ts`).
+
+## Sign-in
+
+`/login` follows the canvas `SiteLogin` (FE-03). `RequireAuth` asks `GET /api/auth/me` once per visit and sends a
+signed-out visitor to `/login?returnTo=<page>`; `returnTo` only ever opens a path of this app. The owner menu (the
+sidebar's "…", the rail's avatar, the "Thêm" page on mobile) shows who is signed in, switches light / dark and signs
+out (FE-04).
+
 ## Layout
 
 ```text
@@ -43,26 +58,38 @@ src/
   app/              router.tsx (route table), providers (TanStack Query, theme), UnderConstructionPage, NotFoundPage
   app/shell/        AppShell, Sidebar (>= 1280 px), Rail (768-1279 px), TabBar (< 768 px), Topbar, navItems,
                     ShellData (shell.types.ts), its sample and useShellData
+  app/queryClient.ts the server-data cache and its retry rule
+  features/auth/    sign-in: auth.api.ts, useAuth (useMe, useLogin, useLogout, forgetSession), RequireAuth, LoginPage
   features/overview/ Tổng quan: OverviewData (overview.types.ts), sample, useOverview, format.ts, OverviewPage, cards/
+  features/accounts/ Tài khoản and the connect wizard: accounts.api.ts (backend API), hooks, pages, components/
+  features/inbox/   Hộp thư: inbox.api.ts (sample data), hooks, InboxPage, components/
+  shared/api/       client.ts (the one place that calls the API), problem.ts (ApiError)
   shared/lib/       utils.ts: cn, the class-name merger every component uses
   shared/theme/     theme.ts (read, save, apply), ThemeProvider, useTheme, ThemeToggle
   shared/time/      formatAgo ("2 phút trước"), useNow
   shared/ui/        shadcn/ui components restyled to the canvas, plus Status, Avatar, SinoMark, Kbd
-  test/             setup.ts (Testing Library, MSW, OS theme stub), msw/server.ts, matchMedia.ts,
-                    renderApp.tsx (whole app at a path, shell data seeded)
+  test/             setup.ts (Testing Library, MSW, OS theme stub), msw/server.ts, matchMedia.ts, fixtures/ (API answers),
+                    renderApp.tsx (whole app at a path, data and the signed-in owner seeded)
   index.css         Tailwind, design tokens, light and dark themes
 ```
 
 Imports from `src` use the `@/` alias (`@/shared/ui/button`), set in `vite.config.ts` and both `tsconfig` files.
 
-## Screens and sample data
+## Screens, the API and sample data
 
-The web is built screen by screen with typed sample data before it calls the API (D-42, change
-`openspec/changes/fe-ui-overview`); there is no sign-in yet (D-44). Every navigation path exists: a screen that is not
-built yet shows "Màn … đang được dựng" inside the shell, an unknown path shows the 404 page. Each screen reads its data
-through a hook (`useShellData` for the shell, `useOverview` for Tổng quan) whose type is the data contract handed to the backend; the hook returns
-sample data now and will call the API later without changing the components. The contract and the table of what the
-backend already has are in the change's `design.md`.
+The web is built screen by screen with typed sample data first (D-42); each screen reads its data through a hook whose
+type is the data contract handed to the backend, and its requests sit in one `*.api.ts` file. Connecting a screen to the
+API changes only that file (D-56): it calls the API and turns the answer into the contract; what the backend does not
+give yet is `null`, and the screen leaves it out instead of inventing it.
+
+| Screen | Data |
+|---|---|
+| Sign-in, owner menu | backend API |
+| Tài khoản (list, detail, sync switch, disconnect), connect wizard | backend API; the first sync after connecting waits for F04b |
+| Tổng quan, Hộp thư, the counts of the shell (sidebar, rail, "Thêm") | sample data until the backend has them |
+
+Every navigation path exists: a screen that is not built yet shows "Màn … đang được dựng" inside the shell, an unknown
+path shows the 404 page. The contracts and the tables of what the backend already has are in each change's `design.md`.
 
 ## Design tokens and themes
 
