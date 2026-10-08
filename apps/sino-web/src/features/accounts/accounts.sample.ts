@@ -1,14 +1,7 @@
+import { clockFrom } from '@/shared/time/canvasClock'
 import type { AccountExtras, AccountsData } from './accounts.types'
 
-// The moment the canvas shows: Friday 02/10/2026, 14:05 in Vietnam.
-const CANVAS_NOW = Date.parse('2026-10-02T14:05:00+07:00')
-
 const EMPTY_EXTRAS: AccountExtras = { scopes: null, sites: null, syncRuns: null, activity: null }
-
-/** Moves a time written as on the canvas by however long it is since the canvas moment. */
-function clockFrom(now: Date) {
-  return (canvasTime: string) => new Date(Date.parse(canvasTime) + now.getTime() - CANVAS_NOW).toISOString()
-}
 
 /**
  * Sample data shaped like the "Sino UI" canvas (`Accounts`, `AccountDetail`). Every time moves with `now`,

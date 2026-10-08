@@ -12,6 +12,8 @@ interface LocalParts {
 
 const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
 const WEEKDAY_NAMES = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+const WEEKDAY_NUMBERED = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
+const WEEKDAY_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 const formatters = new Map<string, Intl.DateTimeFormat>()
 
 function formatterFor(timeZone: string | undefined): Intl.DateTimeFormat {
@@ -62,6 +64,21 @@ export function formatDayMonth(date: Date, timeZone?: string): string {
 /** "Thứ Sáu", "Chủ nhật" */
 export function weekdayName(date: Date, timeZone?: string): string {
   return WEEKDAY_NAMES[localParts(date, timeZone).weekday]
+}
+
+/** "Thứ 3", "Chủ nhật": the weekday of a list row. */
+export function weekdayNumbered(date: Date, timeZone?: string): string {
+  return WEEKDAY_NUMBERED[localParts(date, timeZone).weekday]
+}
+
+/** "T4", "CN": the weekday before a date ("T4 07/10"). */
+export function weekdayShort(date: Date, timeZone?: string): string {
+  return WEEKDAY_SHORT[localParts(date, timeZone).weekday]
+}
+
+/** Days since the Monday of the week of `date`: 0 on Monday, 6 on Sunday. */
+export function daysSinceMonday(date: Date, timeZone?: string): number {
+  return (localParts(date, timeZone).weekday + 6) % 7
 }
 
 /** "THỨ SÁU · 02/10/2026 · 14:05", or without the year. */

@@ -65,7 +65,7 @@ interface ConversationItem {
   archived: boolean
   snooze: { until: Instant | null; resurfacedAt: Instant | null } | null
   scheduledSend: { at: Instant; failed: boolean } | null
-  linked: { kind: LinkedKind; at: Instant | null }[]   // hạn task / giờ lịch hẹn
+  linked: { kind: LinkedKind; at: Instant | null; allDay: boolean }[]   // hạn task / giờ lịch hẹn; allDay: chỉ ngày
 }
 
 // Chi tiết: GET /api/conversations/{id} + GET /api/conversations/{id}/messages (F06)
@@ -73,7 +73,7 @@ interface ConversationDetail {
   id: string
   messages: Message[]                       // cũ trước, mới sau
   firstUnreadId: string | null              // vạch "N tin chưa đọc"
-  linked: { id: string; kind: LinkedKind; title: string; at: Instant | null; remindAt: Instant | null; pinned: boolean }[] | null
+  linked: { id: string; kind: LinkedKind; title: string; at: Instant | null; allDay: boolean; remindAt: Instant | null; pinned: boolean }[] | null
   members: { name: string; owner: boolean; joinedRecently: boolean }[] | null   // nhóm chat
   files: { total: number; items: { name: string; type: string; sizeBytes: number; at: Instant }[] } | null
   canSend: boolean                          // false: quyền gửi hết hạn (ThreadState)
