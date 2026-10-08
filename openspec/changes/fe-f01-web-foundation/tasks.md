@@ -46,6 +46,8 @@
 ## 2. Frontend — nền móng web (F01-FE)
 
 > **Tạm hoãn FE-02…FE-05 (người dùng, 2026-10-07):** dựng giao diện trước với dữ liệu mẫu, từng màn một, web chưa có xác thực (D-42, D-44, change `openspec/changes/fe-ui-overview`). **LÝ DO:** người dùng muốn thấy và bấm thử giao diện trước, rồi mang kiểu dữ liệu của từng màn sang backend để API khớp theo. FE-02…FE-05 làm tiếp khi nối API; khi đó FE-04 dùng lại khung app và router của `fe-ui-overview` thay vì dựng mới, và `/` chuyển tới `/overview` thay vì `/accounts`.
+>
+> **Làm tiếp (người dùng, 2026-10-08: "làm đi"):** nối web vào API theo thứ tự FE-02 → FE-03 → FE-04 → màn Tài khoản trên API (D-56 = A) → FE-30 (thuộc F04a) → FE-05.
 
 - [x] 2.1 **FE-01 — Cài stack, design token, theme, proxy, CI**
   - **Thực hiện (2026-10-07, AUTO):** thư viện: React Router 8.4, TanStack Query 5.104, Tailwind 4.3 (`@tailwindcss/vite`), shadcn 4.21 (style `radix-vega`, gói `radix-ui` 1.7), Vitest 5.0, Testing Library, jsdom 30, MSW 2.15, font `@fontsource-variable/{inter,jetbrains-mono}`; `packageManager: pnpm@11.21.0`. Peer dependency của Vite 8 / TS 6 đều khớp, React Router 8 biên dịch được với TS 6 (kiểm bằng file tạm), nên không cần dừng. `vite.config.ts`: plugin Tailwind, alias `@/`, proxy `/api/` → `http://localhost:8080`, Vitest (jsdom, `setupFiles`, `restoreMocks`, `unstubGlobals`). `src/index.css`: token chép nguyên từ `.theme-light`/`.theme-dark` của canvas, nối sang tên Tailwind/shadcn trong `@theme inline` (màu, font, bo góc 6/10/14/20 + 12, easing, `shadow-popover`); variant `dark:` theo class; luật nền tối trước khi JS chạy. `src/shared/theme/*`: `theme.ts` (đọc/lưu/áp, `try/catch`, chỉ nhận `light`/`dark`), `ThemeProvider` (`useLayoutEffect`), `useTheme`, `ThemeToggle` (nút icon có `aria-label`). `src/shared/ui/*`: Button, Input, Label, Switch, DropdownMenu sinh bằng shadcn rồi chỉnh theo `.btn`, `.input`, `.field-label`, `.toggle`, `.menu` của canvas. `src/shared/lib/utils.ts` (`cn`). `src/app/providers.tsx` (QueryClient + theme), `src/app/App.tsx` (trang tạm hiện token và component, FE-04 thay bằng router). `src/test/setup.ts` (jest-dom, MSW, `matchMedia` mặc định), `src/test/matchMedia.ts`, `src/test/msw/server.ts`. Xóa file demo của Vite; `index.html` `lang="vi"`, tiêu đề "Sino", favicon logo Sino. `.github/workflows/frontend-ci.yml`. README viết lại.
@@ -59,7 +61,14 @@
   - **Acceptance criteria:** requirement *Gọi API cùng origin*, *Giao diện sáng và tối* (spec `web-app-foundation`).
   - **Hints:** Level 1 — "vì sao đặt proxy ở Vite thay vì bật CORS ở Spring?"; Level 2 — token đặt ở `:root` và `.theme-dark`, Tailwind đọc qua `@theme`.
 
-- [ ] 2.2 **FE-02 — API client**
+- [x] 2.2 **FE-02 — API client**
+  - **Thực hiện (2026-10-08, AUTO):** `src/shared/api/client.ts`: `api.get/post/put/patch/delete` gọi `/api/...` cùng origin (`credentials: 'same-origin'`, `Accept: application/json`, body JSON); request thay đổi dữ liệu gửi `X-XSRF-TOKEN` lấy từ cookie `XSRF-TOKEN`; `403 CSRF_TOKEN_INVALID` → `GET /api/auth/me` rồi thử lại đúng một lần; `401` ngoài `/api/auth/*` → gọi các hàm đăng ký qua `onSessionExpired` (tầng app đăng ký ở FE-04); lỗi mạng → `ApiError` `status` 0, `code` `NETWORK_ERROR`; `get` nhận `AbortSignal` của TanStack Query (hủy thì ném lỗi hủy, không đổi thành lỗi mạng). `src/shared/api/problem.ts`: `ApiError { status, code, detail, errors, extra }`, `toApiError` đọc Problem Details (thành viên khác như `remainingAttempts`, `retryAfterSeconds` vào `extra`).
+  - **Làm khác kế hoạch:**
+    - Địa chỉ gọi là `new URL(path, window.location.origin)` thay vì chuỗi `/api/...`. **LÝ DO:** trên trình duyệt hai cách như nhau, nhưng `fetch` của Node (môi trường test) không tự hiểu đường dẫn tương đối.
+    - Đọc cookie nguyên giá trị, không `decodeURIComponent`. **LÝ DO:** Spring ghi token như vậy và so header với đúng giá trị đó; giải mã có thể làm hỏng token có dấu `%`.
+    - Body lỗi không phải Problem Details (trang lỗi của proxy, body rỗng) → `code` = `HTTP_<status>`, `detail` = `null`. **LÝ DO:** spec chỉ nói Problem Details và lỗi mạng; khi backend tắt, proxy của Vite trả trang lỗi, nơi gọi vẫn cần một `ApiError`.
+    - `ApiError` khai báo field rồi gán trong constructor. **LÝ DO:** `tsconfig` bật `erasableSyntaxOnly`, không cho thuộc tính khai trong tham số constructor (`tsc -b` báo TS1294).
+  - **Kiểm chứng (2026-10-08):** RED 8/8 trên stub; GREEN 8/8 (MSW). Kiểm tra ngược 12 lỗi gài, cả 12 bị bắt. `pnpm lint` 0/0, `tsc -b` ok (lần đầu đỏ vì TS1294, sửa như trên), `pnpm test` 261/261, `pnpm build` ok (mã thoát từng lệnh đều 0).
   - **Goal / Why:** một chỗ duy nhất gọi API: CSRF, lỗi Problem Details, thử lại khi token cũ, báo hết phiên.
   - **Depends on:** FE-01; hợp đồng API của BE-28/BE-29 (test dùng MSW nên không cần backend chạy).
   - **Files:** `src/shared/api/client.ts`, `src/shared/api/problem.ts`, test.

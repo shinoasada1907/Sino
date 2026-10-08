@@ -51,6 +51,10 @@ Sai **5** lần liên tiếp với cùng một email (đã chuẩn hóa) thì kh
 ### D-36 — Frontend và API cùng origin · **Accepted** (người dùng, 2026-10-07)
 Trình duyệt chỉ thấy một địa chỉ. Khi dev: Vite (`localhost:5173`) proxy `/api/**` sang Spring Boot (`localhost:8080`). Khi deploy (F12): web và API vẫn sau một origin (Spring Boot phục vụ file đã build, hoặc reverse proxy) — cách đóng gói chốt ở F12. **LÝ DO:** cookie `SameSite=Lax` chạy tự nhiên, không cần CORS, CSRF đơn giản. Phương án bị loại: hai origin + CORS có credentials (cookie phải `SameSite=None; Secure`, HTTPS cả khi dev, thêm cấu hình dễ sai).
 
+### D-56 — Nối API: web tự chuyển dữ liệu, trường API chưa có thì để `null` · **Accepted: A** (người dùng, 2026-10-08)
+Khi một màn đã dựng bằng dữ liệu mẫu (D-42) được nối API, hàm trong `*.api.ts` của màn đó gọi API thật và đổi response sang hợp đồng dữ liệu của màn. Trường nào backend chưa có thì là `null` (kiểu của hợp đồng cho phép), giao diện ẩn hoặc ghi "chưa có"; backend thêm trường khi feature tương ứng xong. Màn chưa có API (Tổng quan, Hộp thư) giữ dữ liệu mẫu.
+**LÝ DO:** đúng thiết kế ban đầu (chỉ đổi thân hàm trong `*.api.ts`); nhiều trường chưa có nguồn dữ liệu (số tin đã lưu cần module tin nhắn, tiến độ đồng bộ cần F04b/F07), nên bắt backend trả ngay là bịa số. **Phương án bị loại:** B, backend mở rộng `/api/accounts` cho khớp hết hợp đồng ngay (trường không có nguồn dữ liệu, việc backend đi trước feature).
+
 ## Backend design
 
 ### API (`dev.sino.identity.api`)
