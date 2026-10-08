@@ -37,8 +37,8 @@ public class OAuth2Clients {
     // With a single constructor Spring passes an empty list when there is no client registration.
     public OAuth2Clients(List<MessageProvider> providers, List<ClientRegistration> registrations,
             ConnectProperties properties) {
-        this.registrations = registrations.stream()
-                .collect(Collectors.toMap(ClientRegistration::getRegistrationId, Function.identity()));
+        this.registrations = registrations.stream().collect(Collectors.toMap(ClientRegistration::getRegistrationId,
+                Function.identity(), OAuth2Clients::duplicateClient));
         List<MessageProvider> oauth2Connectors = providers.stream().filter(p -> p.oauth2().isPresent()).toList();
         for (MessageProvider connector : oauth2Connectors) {
             String registrationId = connector.oauth2().orElseThrow().registrationId();
@@ -70,6 +70,12 @@ public class OAuth2Clients {
                         registration.getRegistrationId()));
         OAuth2AuthorizationRequestCustomizers.withPkce().accept(builder);
         return builder.build();
+    }
+
+    // Names only the id: the default duplicate-key message prints both registrations, and
+    // ClientRegistration.toString() prints the client secret.
+    private static ClientRegistration duplicateClient(ClientRegistration first, ClientRegistration second) {
+        throw new IllegalStateException("Two OAuth clients are named '" + first.getRegistrationId() + "'");
     }
 
     private String newState() {

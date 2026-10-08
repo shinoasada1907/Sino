@@ -119,6 +119,20 @@ class OAuth2ClientsTests {
                 .withMessageContaining("gmail");
     }
 
+    @Test
+    void twoOAuthClientsWithTheSameIdStopTheStartupWithoutShowingASecret() {
+        ClientRegistration secondGoogle = ClientRegistration.withClientRegistration(GOOGLE)
+                .clientSecret("client-secret-2")
+                .build();
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> new OAuth2Clients(List.of(gmail), List.of(GOOGLE, secondGoogle),
+                        new ConnectProperties("http://localhost:5173")))
+                .withMessageContaining("google")
+                .withMessageNotContaining("client-secret-1")
+                .withMessageNotContaining("client-secret-2");
+    }
+
     private OAuth2Clients clients(String publicBaseUrl) {
         return new OAuth2Clients(List.of(gmail), List.of(GOOGLE), new ConnectProperties(publicBaseUrl));
     }
