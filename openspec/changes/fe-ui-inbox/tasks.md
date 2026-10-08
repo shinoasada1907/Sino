@@ -20,7 +20,10 @@
 
 ## 2. Desktop
 
-- [ ] 2.1 **IN-02 — Bố cục 3 cột: cột nguồn, danh sách, đọc thư email; lọc; đánh dấu đã đọc**
+- [x] 2.1 **IN-02 — Bố cục 3 cột: cột nguồn, danh sách, đọc thư email; lọc; đánh dấu đã đọc**
+  - **Thực hiện (2026-10-08, AUTO):** route `/inbox`, `/inbox/:conversationId`; `InboxPage` (lưới 232 / 400 / còn lại từ 1280px, chiếm trọn chiều cao, mỗi cột tự cuộn; mở một cuộc trò chuyện thì gọi `useMarkRead`); `useInboxFilter` (bộ lọc trong URL: `source`, `view`, giá trị lạ về mặc định); `components/SourcePane` (nguồn có số chưa đọc hoặc chấm đỏ "cần đăng nhập lại", lọc nhanh có số đếm, tài khoản và trạng thái, "Thêm nguồn" → `/accounts?connect=new`); `components/ConversationList` (đầu danh sách, nút Tất cả / Chưa đọc / Cần trả lời, nhóm ngày, dòng `.mrow` là liên kết giữ bộ lọc, dòng đang mở có `aria-current`, số tin chưa đọc của chat / chấm của email / kẹp giấy khi có tệp); `components/EmailThread` (đầu thư và công cụ, việc liên quan là liên kết tới Việc cần làm / Lịch / Ghi chú, thư cũ thu gọn là nút mở được, thư mới nhất đầy đủ với công cụ và tệp); `components/Composer` (giao diện ô trả lời; gửi là IN-04); `Avatar` thêm kiểu `c`, `d`; biểu tượng "thư có chấm". Trang Tài khoản mở hộp kết nối ở bước 1 với `?connect=new`.
+  - **Làm khác kế hoạch:** hội thoại chat tạm mở bằng khung đọc thư trong cột phải; IN-03 thay bằng trang chat riêng. Biểu tượng dòng dấu tách thành component nhỏ. **LÝ DO:** lint `react(static-components)` hiểu nhầm biểu tượng lấy từ kết quả `rowFlag` là component tạo mới mỗi lần render.
+  - **Kiểm chứng (2026-10-08):** RED 9/9 trên trang stub (+1 test `?connect=new` đỏ trước); GREEN. Kiểm tra ngược 33 lỗi gài, cả 33 bị bắt. Chrome 1440px tối / sáng: 3 cột 232 / 400 / 560px, không cuộn ngang, trang không cuộn (từng cột tự cuộn); mở "Hợp đồng" → "11 chưa đọc" ở danh sách, cột nguồn và thanh bên; lọc Zalo + Chưa đọc còn 1 dòng. `pnpm lint` 0/0, `pnpm test` 223/223, `pnpm build` ok.
   - **Files:** `src/features/inbox/InboxPage.tsx`, `components/*`, `src/app/router.tsx`, test.
   - **Test:** scenario *Hộp thư lúc 14:05*, *Chỉ Zalo, chưa đọc*, *Mở hợp đồng*, thư cũ bấm để mở, *Đọc Gia đình* (phần danh sách), nút chưa có chức năng; Chrome 1440 sáng / tối.
   - **Acceptance criteria:** *Danh sách hợp nhất*, *Lọc hộp thư*, *Đọc thư email*, *Đánh dấu đã đọc*, *Nút chưa có chức năng*.

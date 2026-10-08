@@ -26,7 +26,7 @@ import {
 import { useAccounts } from './useAccounts'
 
 // Parameters that ask this page to open the connect wizard or show its result; each is read once, then dropped.
-const WIZARD_PARAMS = ['reconnect', 'connected', 'connectError']
+const WIZARD_PARAMS = ['connect', 'reconnect', 'connected', 'connectError']
 
 const FILTERS: { value: AccountFilter; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
@@ -52,7 +52,8 @@ export function AccountsPage() {
   const [handledVisit, setHandledVisit] = useState<string | null>(null)
 
   // Each visit (location.key) is read once, while rendering, as React advises for state that follows an input:
-  // ?reconnect=id from "Đăng nhập lại", ?connected=id or ?connectError=CODE from the provider's callback (F04a).
+  // ?connect=new from "Thêm nguồn" of the inbox, ?reconnect=id from "Đăng nhập lại", ?connected=id or
+  // ?connectError=CODE from the provider's callback (F04a).
   if (list && location.key !== handledVisit) {
     setHandledVisit(location.key)
     const find = (name: string) => list.accounts.find((item) => item.id === searchParams.get(name))
@@ -62,6 +63,8 @@ export function AccountsPage() {
       setWizard({ step: 2, provider: reconnect.provider, accountId: reconnect.id })
     } else if (connected) {
       setWizard({ step: 4, accountId: connected.id, options: DEFAULT_SYNC_OPTIONS })
+    } else if (searchParams.get('connect') === 'new') {
+      setWizard({ step: 1, provider: null, accountId: null })
     }
     const error = searchParams.get('connectError')
     if (error) {

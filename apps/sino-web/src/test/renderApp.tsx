@@ -9,23 +9,28 @@ import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
 import { createAccountsSample } from '@/features/accounts/accounts.sample'
 import type { AccountsData } from '@/features/accounts/accounts.types'
 import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
+import { createInboxSample } from '@/features/inbox/inbox.sample'
+import type { InboxData } from '@/features/inbox/inbox.types'
+import { INBOX_QUERY_KEY } from '@/features/inbox/useInbox'
 import { createOverviewSample } from '@/features/overview/overview.sample'
 import type { OverviewData } from '@/features/overview/overview.types'
 import { OVERVIEW_QUERY_KEY } from '@/features/overview/useOverview'
 
-/** Renders the whole app at `path` with the given shell, overview and accounts data already in the query cache. */
+/** Renders the whole app at `path` with the given shell, overview, accounts and inbox data already in the query cache. */
 export function renderApp(
   path: string,
   {
     shell = createShellSample(new Date()),
     overview = createOverviewSample(new Date()),
     accounts = createAccountsSample(new Date()),
-  }: { shell?: ShellData; overview?: OverviewData; accounts?: AccountsData } = {},
+    inbox = createInboxSample(new Date()),
+  }: { shell?: ShellData; overview?: OverviewData; accounts?: AccountsData; inbox?: InboxData } = {},
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData(SHELL_QUERY_KEY, shell)
   queryClient.setQueryData(OVERVIEW_QUERY_KEY, overview)
   queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accounts)
+  queryClient.setQueryData(INBOX_QUERY_KEY, inbox)
   const router = createMemoryRouter(routes, { initialEntries: [path] })
   const view = render(
     <AppProviders queryClient={queryClient}>

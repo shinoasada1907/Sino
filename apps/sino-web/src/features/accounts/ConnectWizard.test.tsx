@@ -161,6 +161,13 @@ describe('Kết nối tài khoản', () => {
     expect(await screen.findByRole('link', { name: 'Đăng nhập lại Messenger' })).toHaveAttribute('href', '/accounts?reconnect=acc-messenger')
   })
 
+  it('opens on the provider step from "Thêm nguồn" of the inbox (?connect=new), then drops the parameter', async () => {
+    const { router } = open('/accounts?connect=new')
+
+    expect(await screen.findByRole('dialog', { name: 'Chọn nhà cung cấp' })).toBeInTheDocument()
+    expect(router.state.location.search).toBe('')
+  })
+
   it('ignores a sign-in-again link to an account that does not exist', async () => {
     const { router } = open('/accounts?reconnect=acc-khong-co')
 
