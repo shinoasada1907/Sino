@@ -7,11 +7,12 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { firstLine, formatFileSize, linkedMeta, mailTime, paragraphs, sendState, threadMeta, threadSubtitle } from '../format'
-import type { ConversationDetail, ConversationItem, LinkedItem, LinkedKind, Message } from '../inbox.types'
+import { firstLine, formatFileSize, linkedMeta, mailTime, paragraphs, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
+import type { ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
 import { useSendMessage } from '../useInbox'
 import { Composer } from './Composer'
 import { MailDot } from './icons'
+import { ThreadNotice } from './ThreadNotice'
 
 type Mail = Message & { kind: 'MESSAGE' }
 
@@ -23,7 +24,8 @@ const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string }> = {
 
 /**
  * An email thread in the right column of the canvas `Inbox`: header and tools, linked items, the older emails folded
- * (a click opens one), the newest in full with its attachments, and the reply box. The tools have no flow yet (D-52).
+ * (a click opens one), the newest in full with its attachments, and the reply box, or a notice in its place when the
+ * account cannot send (`ThreadState`, D-55). The tools have no flow yet (D-52).
  * From 768 to 1279px it keeps "Lưu trữ" and "Thêm thao tác" and drops the tools of each email (canvas `TabletInbox`);
  * below 768px it fills the screen under the page header, without the tools (no canvas for an email on a phone).
  */
@@ -36,7 +38,7 @@ export function EmailThread({
 }: {
   item: ConversationItem
   detail: ConversationDetail | undefined
-  account: { externalAccountId: string }
+  account: InboxAccount
   now: Date
   nameOf: ProviderNameOf
 }) {
@@ -45,6 +47,7 @@ export function EmailThread({
   const [opened, setOpened] = useState<string[]>([])
   const toggle = (id: string) => setOpened((ids) => (ids.includes(id) ? ids.filter((open) => open !== id) : [...ids, id]))
   const sendMessage = useSendMessage(item.id)
+  const block = sendBlock(account, detail?.canSend)
 
   return (
     <>
@@ -86,14 +89,18 @@ export function EmailThread({
         )}
       </div>
 
-      <Composer
-        kind="EMAIL"
-        label={`Trả lời ${item.title}`}
-        placeholder={`Trả lời ${item.title}…`}
-        account={account.externalAccountId}
-        via={`${nameOf(item.provider)} · ${account.externalAccountId}`}
-        onSend={(text) => sendMessage.mutate(text)}
-      />
+      {block ? (
+        <ThreadNotice block={block} kind={item.kind} providerName={nameOf(item.provider)} account={account} />
+      ) : (
+        <Composer
+          kind="EMAIL"
+          label={`Trả lời ${item.title}`}
+          placeholder={`Trả lời ${item.title}…`}
+          account={account.externalAccountId}
+          via={`${nameOf(item.provider)} · ${account.externalAccountId}`}
+          onSend={(text) => sendMessage.mutate(text)}
+        />
+      )}
     </>
   )
 }

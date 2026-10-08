@@ -19,6 +19,19 @@ Làm: danh sách hợp nhất, lọc, đọc thư và hội thoại, đánh dấ
 Hợp đồng gửi `text` (chữ thuần, đoạn cách nhau bằng một dòng trống); giao diện hiện bằng React (không `dangerouslySetInnerHTML`).
 **LÝ DO:** roadmap để F06 chốt "HTML đã sanitize hay plain text" vì liên quan XSS; chữ thuần an toàn và đủ cho canvas. Khi F06 chọn HTML, hợp đồng thêm trường và giao diện thêm bộ lọc HTML, phần còn lại không đổi.
 
+### D-55 — Các trạng thái của Hộp thư · **Agent chốt** (2026-10-08, IN-06)
+Theo `InboxState` và `ThreadState`:
+- **Đang tải** (chưa có dữ liệu lần nào): khung xương của danh sách và khung đọc; đầu danh sách ghi "đang tải".
+- **Đồng bộ lần đầu:** có tài khoản đang đồng bộ (`syncProgress` khác `null`) mà hộp thư chưa có cuộc trò chuyện nào: thẻ "Đồng bộ lần đầu · Gmail" với phần trăm và thanh tiến độ, dưới là khung xương. Đã có cuộc trò chuyện thì tiến độ chỉ hiện ở cột nguồn và cột thông tin, như `Inbox`.
+- **Chưa có nguồn** (`accounts` rỗng): màn trống của canvas; mỗi nhà cung cấp một dòng "Kết nối" mở hộp kết nối (`/accounts?connect=new`), Gmail là nút chính.
+- **Không tải được:** "Không tải được hộp thư", "Thử lại" (tải lại), "Trạng thái hệ thống" (chưa có trang, không làm gì); dòng chi tiết ghi mã lỗi và mã yêu cầu khi lỗi có hai trường `code`, `requestId`, rồi giờ.
+- **Ngoại tuyến:** theo `onlineManager` của TanStack Query: dải báo trên cùng ("dữ liệu đã lưu lúc …" là lúc danh sách về), đầu danh sách thêm "· đã lưu", ô soạn ghi "Sẽ gửi khi có mạng" và nút "Xếp hàng gửi". Tin gửi lúc mất mạng hiện "Đang gửi" và tự gửi khi có mạng lại (mutation của TanStack tạm dừng khi ngoại tuyến).
+- **Hội thoại không gửi được:** tài khoản `AUTH_EXPIRED` → báo đỏ "Cần đăng nhập lại {nhà cung cấp} để nhận và gửi tin" với "Kết nối lại" (`/accounts?reconnect={id}`, hộp kết nối mở ở bước đăng nhập lại); đầu hội thoại chat "Ngắt kết nối từ …", cuối hội thoại "Tin nhắn sau … chưa về Sino". Tài khoản bình thường mà `canSend = false` → báo vàng "Quyền gửi … của {tài khoản} đã hết hạn" với "Trả lời trong {nhà cung cấp}" (chưa làm gì) và "Cấp lại quyền gửi" (cùng đường kết nối lại).
+- **Hợp đồng:** `accounts[]` thêm `statusChangedAt` (cùng tên với màn Tài khoản) để biết ngắt từ lúc nào.
+
+**LÝ DO:** canvas vẽ đủ các trạng thái; phần trăm lấy từ `syncProgress` đã có ở màn Tài khoản nên hai màn nói cùng một con số. `onlineManager` là chỗ TanStack Query dựa vào để tạm dừng request, nên dải báo và việc tạm dừng không bao giờ lệch nhau.
+**Phương án bị loại:** thêm số tin đã tải / tổng / phút còn lại vào hợp đồng hộp thư để thẻ đồng bộ ghi "412 / 1.180 · Còn khoảng 3 phút" như canvas: hai trường cùng tả một lần đồng bộ và lệch với `syncProgress` của màn Tài khoản; để backend F04a chốt một hình dạng chung rồi hai màn cùng đổi. Tự nghe `navigator.onLine`: có lúc lệch với lúc TanStack tạm dừng. Không hiện câu "Bấm N ở bất cứ đâu để kết nối nhanh" (phím tắt chưa làm) và "Chưa tải · cần có mạng" dưới tệp đính kèm (chưa có bộ nhớ tệp ngoại tuyến).
+
 ### Chốt kỹ thuật (agent, trong phạm vi trên)
 - **Đường dẫn:** `/inbox` và `/inbox/:conversationId`. Desktop: thư email mở trong cột phải của bố cục 3 cột (`Inbox`); hội thoại chat là trang riêng có cột thông tin (`Conversation`, nút "Hộp thư" quay lại). Tablet: 2 cột, mọi loại mở ở cột phải. Mobile: danh sách; hội thoại là trang con (đầu trang có nút quay lại, ẩn thanh dưới).
 - **Bộ lọc nằm trong URL** (`?source=gmail&view=unread`): giữ khi tải lại, quay lại được, dùng chung cho cột nguồn, các nút trên đầu danh sách và hàng chip của tablet/mobile.
@@ -38,7 +51,8 @@ type LinkedKind = 'TASK' | 'EVENT' | 'NOTE'
 interface InboxData {
   generatedAt: Instant
   providers: ProviderInfo[]
-  accounts: { id: string; provider: ProviderType; externalAccountId: string; status: AccountStatus; syncProgress: number | null }[]
+  accounts: { id: string; provider: ProviderType; externalAccountId: string; status: AccountStatus
+              syncProgress: number | null; statusChangedAt: Instant | null }[]   // statusChangedAt: D-55
   counts: {                                 // trên mọi cuộc trò chuyện, không chỉ trang đang tải
     unread: number                          // số TIN chưa đọc ("12 chưa đọc")
     byProvider: { provider: ProviderType; unread: number }[]
@@ -97,7 +111,7 @@ sendMessage(conversationId, text) -> Message   // POST /api/conversations/{id}/m
 
 | Phần | Nguồn ở backend | Tình trạng |
 |---|---|---|
-| `providers`, `accounts` | `GET /api/providers`, `GET /api/accounts` | **đã có** (thêm `syncProgress` như màn Tài khoản) |
+| `providers`, `accounts` | `GET /api/providers`, `GET /api/accounts` | **đã có** (thêm `syncProgress`, `statusChangedAt` như màn Tài khoản) |
 | `conversations` (id, provider, title, subject, unread, lastMessageAt…) | module `conversation` (F05) | **API mới** |
 | `counts` | đếm theo bộ lọc (F05) | **API mới** |
 | `snooze`, `scheduledSend`, `linked` | tạm ẩn, hẹn giờ gửi, F15–F17 | **API mới**, được phép rỗng tới khi có feature |

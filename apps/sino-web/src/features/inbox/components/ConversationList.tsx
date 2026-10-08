@@ -1,4 +1,5 @@
 import { Calendar, CalendarClock, ChevronDown, Clock, ListFilter, Paperclip, Search, SquareCheck, StickyNote, TriangleAlert, type LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -30,7 +31,9 @@ const CHIP =
 
 /**
  * The conversation list in its three shapes: desktop (title, count, view buttons; canvas `Inbox`), tablet (source and
- * view chips; `TabletInbox`) and mobile (own header and source chips above full-width rows; `MobileInbox`).
+ * view chips; `TabletInbox`) and mobile (own header and source chips above full-width rows; `MobileInbox`). `body`
+ * takes the place of the rows while the inbox loads, syncs for the first time or cannot load; there is nothing to
+ * filter then, so the filters are left out, as in `InboxState`.
  */
 export function ConversationList({
   conversations,
@@ -43,13 +46,14 @@ export function ConversationList({
   search,
   now,
   nameOf,
+  body,
   className,
 }: {
   conversations: ConversationItem[]
-  /** "12 chưa đọc" for the current source. */
+  /** "12 chưa đọc" for the current source, or what the list is doing ("đang tải"). */
   unread: string
-  /** Unread messages of every source, for the "Tất cả" chip. */
-  total: number
+  /** Unread messages of every source, for the "Tất cả" chip; null while unknown. */
+  total: number | null
   sources: SourceCount[]
   filter: InboxFilter
   onFilter: (change: Partial<InboxFilter>) => void
@@ -57,10 +61,12 @@ export function ConversationList({
   search: string
   now: Date
   nameOf: ProviderNameOf
+  body?: ReactNode
   className?: string
 }) {
   const groups = groupConversations(conversations, now)
   const label = (name: string, count: number | null) => (count ? `${name} · ${count}` : name)
+  const filters = body === undefined
 
   return (
     <div className={cn('min-h-0 flex-col md:border-r', className)}>
@@ -74,65 +80,73 @@ export function ConversationList({
           <ListFilter strokeWidth={1.6} />
         </Button>
       </header>
-      <div role="group" aria-label="Nguồn" className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] md:hidden">
-        <button type="button" aria-pressed={filter.source === null} onClick={() => onFilter({ source: null })} className={CHIP}>
-          {label('Tất cả', total)}
-        </button>
-        {sources.map((source) => (
-          <button key={source.type} type="button" aria-pressed={filter.source === source.type} onClick={() => onFilter({ source: source.type })} className={CHIP}>
-            {label(source.name, source.unread)}
+      {filters && (
+        <div role="group" aria-label="Nguồn" className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] md:hidden">
+          <button type="button" aria-pressed={filter.source === null} onClick={() => onFilter({ source: null })} className={CHIP}>
+            {label('Tất cả', total)}
           </button>
-        ))}
-      </div>
-
-      <section aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto border-t md:border-t-0">
-        <div role="group" aria-label="Lọc" className="sticky top-0 z-1 hidden flex-wrap gap-2 border-b bg-background px-3 pt-3.5 pb-3 md:flex xl:hidden">
-          <span className="relative inline-flex">
-            <select
-              aria-label="Nguồn"
-              value={filter.source ?? ''}
-              onChange={(event) => onFilter({ source: event.target.value || null })}
-              className={cn(CHIP, 'appearance-none pr-8', filter.source && 'border-foreground bg-raised text-foreground')}
-            >
-              <option value="">Tất cả nguồn</option>
-              {sources.map((source) => (
-                <option key={source.type} value={source.type}>
-                  {label(source.name, source.unread)}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.6} />
-          </span>
-          {TABS.slice(1).map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              aria-pressed={filter.view === tab.value}
-              onClick={() => onFilter({ view: filter.view === tab.value ? 'all' : tab.value })}
-              className={CHIP}
-            >
-              {tab.label}
+          {sources.map((source) => (
+            <button key={source.type} type="button" aria-pressed={filter.source === source.type} onClick={() => onFilter({ source: source.type })} className={CHIP}>
+              {label(source.name, source.unread)}
             </button>
           ))}
         </div>
+      )}
+
+      <section aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto border-t md:border-t-0">
+        {filters && (
+          <div role="group" aria-label="Lọc" className="sticky top-0 z-1 hidden flex-wrap gap-2 border-b bg-background px-3 pt-3.5 pb-3 md:flex xl:hidden">
+            <span className="relative inline-flex">
+              <select
+                aria-label="Nguồn"
+                value={filter.source ?? ''}
+                onChange={(event) => onFilter({ source: event.target.value || null })}
+                className={cn(CHIP, 'appearance-none pr-8', filter.source && 'border-foreground bg-raised text-foreground')}
+              >
+                <option value="">Tất cả nguồn</option>
+                {sources.map((source) => (
+                  <option key={source.type} value={source.type}>
+                    {label(source.name, source.unread)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.6} />
+            </span>
+            {TABS.slice(1).map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                aria-pressed={filter.view === tab.value}
+                onClick={() => onFilter({ view: filter.view === tab.value ? 'all' : tab.value })}
+                className={CHIP}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="sticky top-0 z-1 hidden flex-col gap-3.5 border-b bg-background px-4 pt-5 pb-3.5 xl:flex">
           <div className="flex items-center justify-between gap-3">
             <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Hộp thư</h1>
             <Spec>{unread}</Spec>
           </div>
-          <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />
+          {filters && <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />}
         </div>
-        {groups.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground md:px-5.5">Không có cuộc trò chuyện nào</p>}
-        {groups.map((group) => (
-          <div key={group.label}>
-            <div className="px-4 pt-4 pb-1.5 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] text-muted-foreground md:px-5.5">{group.label}</div>
-            <div className="flex flex-col md:gap-0.5 md:px-2 md:pb-1">
-              {group.items.map((item) => (
-                <ConversationRow key={item.id} item={item} selected={item.id === selectedId} search={search} now={now} nameOf={nameOf} />
-              ))}
-            </div>
-          </div>
-        ))}
+        {body ?? (
+          <>
+            {groups.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground md:px-5.5">Không có cuộc trò chuyện nào</p>}
+            {groups.map((group) => (
+              <div key={group.label}>
+                <div className="px-4 pt-4 pb-1.5 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] text-muted-foreground md:px-5.5">{group.label}</div>
+                <div className="flex flex-col md:gap-0.5 md:px-2 md:pb-1">
+                  {group.items.map((item) => (
+                    <ConversationRow key={item.id} item={item} selected={item.id === selectedId} search={search} now={now} nameOf={nameOf} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </section>
     </div>
   )

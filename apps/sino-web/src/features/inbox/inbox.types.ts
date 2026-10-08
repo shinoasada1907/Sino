@@ -26,6 +26,8 @@ export interface InboxAccount {
   externalAccountId: string
   status: AccountStatus
   syncProgress: number | null
+  /** When the status last changed: for an expired account, since when nothing arrives (D-55). */
+  statusChangedAt: Instant | null
 }
 
 export interface InboxCounts {

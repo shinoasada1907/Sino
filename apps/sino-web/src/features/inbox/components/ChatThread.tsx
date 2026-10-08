@@ -6,12 +6,14 @@ import { cn } from '@/shared/lib/utils'
 import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { Spec } from '@/shared/ui/spec'
-import { bubbleMeta, formatFileSize, memberPlaceholder, threadSubtitle, withDayLines } from '../format'
-import type { ConversationDetail, ConversationItem, LinkedKind, Member, Message } from '../inbox.types'
+import { Status } from '@/shared/ui/status'
+import { bubbleMeta, disconnectedSince, formatFileSize, memberPlaceholder, notArrivedSince, sendBlock, threadSubtitle, withDayLines } from '../format'
+import type { ConversationDetail, ConversationItem, InboxAccount, LinkedKind, Member, Message } from '../inbox.types'
 import { useSendMessage } from '../useInbox'
 import { Composer } from './Composer'
 import { ConversationAvatars } from './ConversationAvatars'
 import { MailDot } from './icons'
+import { ThreadNotice } from './ThreadNotice'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
 
@@ -23,7 +25,8 @@ const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string; name: string }>
 
 /**
  * The chat column of the canvas `Conversation`: header with the way back to the inbox (a page of its own from 1280px),
- * the messages by day with the system lines and the unread line, and the message box. The tools have no flow yet.
+ * the messages by day with the system lines and the unread line, and the message box, or a notice in its place when
+ * the account cannot send (`ThreadState`, D-55). The tools have no flow yet.
  * From 768 to 1279px the header keeps "Lưu trữ" and "Thêm thao tác", as the tablet thread of the canvas. Below 768px
  * the page header (canvas `MobileConversation`) replaces this header, and the messages use more width.
  */
@@ -37,7 +40,7 @@ export function ChatThread({
 }: {
   item: ConversationItem
   detail: ConversationDetail | undefined
-  account: { externalAccountId: string }
+  account: InboxAccount
   backSearch: string
   now: Date
   nameOf: ProviderNameOf
@@ -51,6 +54,8 @@ export function ChatThread({
   const sendMessage = useSendMessage(item.id)
   const placed = useRef(false)
   const messageCount = detail?.messages.length ?? 0
+  const block = sendBlock(account, detail?.canSend)
+  const expiredAt = account.status === 'AUTH_EXPIRED' ? account.statusChangedAt : null
 
   // Opening shows the unread line (or the newest message); every message added afterwards scrolls to the bottom.
   useEffect(() => {
@@ -79,6 +84,11 @@ export function ChatThread({
               <h1 className="truncate text-xl leading-7 font-semibold tracking-[-0.01em]">{item.title}</h1>
               <span className="truncate text-sm text-muted-foreground">{threadSubtitle(item, account, nameOf)}</span>
             </div>
+            {expiredAt && (
+              <Status tone="err" className="ml-2 max-xl:hidden">
+                {disconnectedSince(expiredAt, now)}
+              </Status>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -112,16 +122,23 @@ export function ChatThread({
             </Fragment>
           )
         })}
+        {expiredAt && detail && (
+          <span className="self-center rounded-full border px-3 py-1 text-xs leading-4 font-medium text-muted-foreground">{notArrivedSince(expiredAt, now)}</span>
+        )}
       </div>
 
-      <Composer
-        kind="CHAT"
-        label={`Nhắn tin tới ${item.title}`}
-        placeholder={`Nhắn tin tới ${item.title}…`}
-        account={account.externalAccountId}
-        via={`${name} · ${account.externalAccountId}`}
-        onSend={(text) => sendMessage.mutate(text)}
-      />
+      {block ? (
+        <ThreadNotice block={block} kind={item.kind} providerName={name} account={account} />
+      ) : (
+        <Composer
+          kind="CHAT"
+          label={`Nhắn tin tới ${item.title}`}
+          placeholder={`Nhắn tin tới ${item.title}…`}
+          account={account.externalAccountId}
+          via={`${name} · ${account.externalAccountId}`}
+          onSend={(text) => sendMessage.mutate(text)}
+        />
+      )}
     </section>
   )
 }

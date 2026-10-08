@@ -2,19 +2,6 @@
 import { formatCount, methodLabel } from '@/shared/format'
 import type { ConnectableProvider, InitialSyncStatus, SyncEstimate } from './connect.types'
 
-const DESCRIPTIONS: Record<string, string> = {
-  gmail: 'Thư điện tử',
-  zalo: 'Tin nhắn cá nhân và nhóm',
-  messenger: 'Tin nhắn Facebook',
-  google: 'Danh tính và các website bạn đăng nhập',
-  telegram: 'Tin nhắn',
-}
-
-/** The line under a provider name in step 1, or null for a provider the web does not know. */
-export function providerDescription(type: string): string | null {
-  return DESCRIPTIONS[type] ?? null
-}
-
 const CAPABILITY_TAGS: [capability: string, tag: string][] = [
   ['READ_MESSAGES', 'Đọc'],
   ['SEND_MESSAGES', 'Gửi'],

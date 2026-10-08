@@ -1,4 +1,5 @@
 // Turns the raw inbox data (instants, counts, codes) into the Vietnamese text of the Hộp thư screens.
+import type { AccountStatus } from '@/shared/domain'
 import type { ProviderNameOf } from '@/shared/format'
 import {
   calendarDaysBetween,
@@ -203,6 +204,49 @@ export function threadSubtitle(item: ConversationItem, account: { externalAccoun
   return item.kind === 'EMAIL'
     ? `${nameOf(item.provider)} · ${account.externalAccountId}`
     : `${sourceLabel(item, nameOf)} · qua ${account.externalAccountId}`
+}
+
+/** The line under "Không tải được hộp thư": the code and request of the error when it carries them, then the time. */
+export function failureDetail(error: unknown, at: Date, timeZone?: string): string {
+  const field = (name: 'code' | 'requestId') => {
+    const value = typeof error === 'object' && error !== null ? (error as Record<string, unknown>)[name] : undefined
+    return typeof value === 'string' ? value : null
+  }
+  const requestId = field('requestId')
+  return [field('code'), requestId && `yêu cầu ${requestId}`, formatClock(at, timeZone)].filter(Boolean).join(' · ')
+}
+
+/** "Ngắt kết nối từ 21:04 hôm qua" */
+export function disconnectedSince(at: string, now: Date, timeZone?: string): string {
+  return `Ngắt kết nối từ ${mailTime(at, now, timeZone, true)}`
+}
+
+/** "Tin nhắn sau 21:04 chưa về Sino": the clock up to yesterday, the day before that. */
+export function notArrivedSince(at: string, now: Date, timeZone?: string): string {
+  const date = new Date(at)
+  const when = calendarDaysBetween(date, now, timeZone) <= 1 ? formatClock(date, timeZone) : dateLabel(date, false, timeZone)
+  return `Tin nhắn sau ${when} chưa về Sino`
+}
+
+export type SendBlock = 'RECONNECT' | 'PERMISSION'
+
+/** Why the reply box is replaced: the account must sign in again, or only the permission to send expired (D-55). */
+export function sendBlock(account: { status: AccountStatus }, canSend: boolean | undefined): SendBlock | null {
+  if (account.status === 'AUTH_EXPIRED') {
+    return 'RECONNECT'
+  }
+  return canSend === false ? 'PERMISSION' : null
+}
+
+export function sendBlockText(block: SendBlock, kind: ConversationItem['kind'], providerName: string, accountId: string): { title: string; text: string } {
+  if (block === 'RECONNECT') {
+    return { title: `Cần đăng nhập lại ${providerName} để nhận và gửi tin`, text: 'Quyền truy cập đã hết hạn. Tin cũ vẫn đọc được ở đây.' }
+  }
+  const what = kind === 'EMAIL' ? 'thư' : 'tin'
+  return {
+    title: `Quyền gửi ${what} của ${accountId} đã hết hạn`,
+    text: `Bạn vẫn đọc ${what} bình thường. Cấp lại riêng quyền gửi để trả lời từ Sino.`,
+  }
 }
 
 /** The date of an email: in full when it is open ("09:41 hôm nay"), short when folded ("28/09"). */

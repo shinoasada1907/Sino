@@ -1,8 +1,10 @@
 import { CalendarClock, ChevronDown, Paperclip, Send } from 'lucide-react'
 import { useId, useState, type KeyboardEvent } from 'react'
+import { useOnline } from '@/shared/lib/useOnline'
 import { Button } from '@/shared/ui/button'
 import { Kbd } from '@/shared/ui/kbd'
 import { Spec } from '@/shared/ui/spec'
+import { Status } from '@/shared/ui/status'
 
 /**
  * The reply box of the canvas (`.composer`): an email has the sending account and "Gửi lúc…" and sends with Ctrl Enter
@@ -10,7 +12,8 @@ import { Spec } from '@/shared/ui/spec'
  * Nothing empty is sent. Attaching, choosing the account and "Gửi lúc…" have no flow yet (D-52). Below 768px it is the
  * canvas `.mob-composer`: one row of attach, a round box and the send buttons; the box and the bar below it then use
  * `display: contents`, so the same text box and buttons are laid out again instead of being drawn twice. From 768 to
- * 1279px the bar drops the account and the shortcut, as the tablet reply box of the canvas.
+ * 1279px the bar drops the account and the shortcut, as the tablet reply box of the canvas. Offline, the bar says the
+ * message waits for the network and the button queues it (`InboxState` offline, D-55).
  */
 export function Composer({
   kind,
@@ -32,6 +35,8 @@ export function Composer({
   const email = kind === 'EMAIL'
   const [text, setText] = useState('')
   const empty = text.trim() === ''
+  const online = useOnline()
+  const sendLabel = online ? 'Gửi' : 'Xếp hàng gửi'
 
   const send = () => {
     if (!empty) {
@@ -74,7 +79,11 @@ export function Composer({
           >
             <Paperclip strokeWidth={1.6} />
           </Button>
-          {email ? (
+          {!online ? (
+            <Status tone="err" className="min-w-0 max-md:hidden">
+              Sẽ gửi khi có mạng
+            </Status>
+          ) : email ? (
             <button
               type="button"
               className="hidden h-9 min-w-0 cursor-pointer items-center gap-1.5 rounded-[8px] border px-2.5 text-[13px] leading-4.5 font-medium text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid xl:inline-flex"
@@ -89,7 +98,7 @@ export function Composer({
           {email ? (
             <div className="inline-flex max-xl:ml-auto">
               <Button type="button" variant="primary" size="sm" className="rounded-r-none max-md:h-11" disabled={empty} onClick={send}>
-                <span className="max-md:sr-only">Gửi</span>
+                <span className="max-md:sr-only">{sendLabel}</span>
                 <Send strokeWidth={1.6} />
               </Button>
               <Button
@@ -108,7 +117,7 @@ export function Composer({
                 <CalendarClock strokeWidth={1.6} />
               </Button>
               <Button type="button" variant="primary" size="sm" disabled={empty} onClick={send} className="max-xl:ml-auto max-md:size-11 max-md:px-0">
-                <span className="max-md:sr-only">Gửi</span>
+                <span className="max-md:sr-only">{sendLabel}</span>
                 <Send strokeWidth={1.6} />
               </Button>
             </>

@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Lock, Plus, TriangleAlert } from 'lucide-react'
 import { useId } from 'react'
 import { Link } from 'react-router'
-import type { ProviderNameOf } from '@/shared/format'
+import { providerDescription, type ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { AccountAvatar } from '@/shared/ui/account-avatar'
 import { Badge } from '@/shared/ui/badge'
@@ -19,7 +19,6 @@ import {
   identityName,
   initialSyncView,
   notAskedNote,
-  providerDescription,
   providerTags,
   scopePurpose,
   wizardStep,

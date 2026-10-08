@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { providerDescription } from '@/shared/format'
 import type { ConnectableProvider } from './connect.types'
 import {
   connectErrorMessage,
@@ -6,7 +7,6 @@ import {
   identityName,
   initialSyncView,
   notAskedNote,
-  providerDescription,
   providerTags,
   scopePurpose,
   wizardStep,

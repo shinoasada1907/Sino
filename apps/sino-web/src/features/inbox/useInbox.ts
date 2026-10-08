@@ -9,24 +9,33 @@ import type { ConversationDetail, ConversationItem, InboxData, Message } from '.
 export const INBOX_QUERY_KEY = ['inbox'] as const
 export const conversationKey = (conversationId: string) => ['inbox', conversationId] as const
 
-/** The inbox list, and when it arrived (milliseconds since the epoch, 0 before any data). */
-export function useInbox(): { inbox: InboxData | undefined; receivedAt: number } {
-  const { data, dataUpdatedAt } = useQuery({ queryKey: INBOX_QUERY_KEY, queryFn: fetchInbox, staleTime: Infinity })
-  return { inbox: data, receivedAt: dataUpdatedAt }
+export interface InboxQuery {
+  inbox: InboxData | undefined
+  /** When the list arrived (milliseconds since the epoch, 0 before any data). */
+  receivedAt: number
+  /** Why the last load failed; the page shows it only while there is no list. */
+  error: Error | null
+  /** When `error` happened. */
+  failedAt: number
+  retry: () => void
+}
+
+export function useInbox(): InboxQuery {
+  const { data, dataUpdatedAt, error, errorUpdatedAt, refetch } = useQuery({ queryKey: INBOX_QUERY_KEY, queryFn: fetchInbox, staleTime: Infinity })
+  return { inbox: data, receivedAt: dataUpdatedAt, error, failedAt: errorUpdatedAt, retry: () => void refetch() }
 }
 
 /**
  * One conversation. Its row (title, source, unread count) comes from the list, so a change shows on both; its messages
  * load on their own. `notFound` is true once the list has no such id.
  */
-export function useConversation(conversationId: string): {
-  inbox: InboxData | undefined
+export function useConversation(conversationId: string): InboxQuery & {
   item: ConversationItem | undefined
   detail: ConversationDetail | undefined
   notFound: boolean
-  receivedAt: number
 } {
-  const { inbox, receivedAt } = useInbox()
+  const list = useInbox()
+  const { inbox } = list
   const item = inbox?.conversations.find((conversation) => conversation.id === conversationId)
   const { data: detail } = useQuery({
     queryKey: conversationKey(conversationId),
@@ -34,7 +43,7 @@ export function useConversation(conversationId: string): {
     staleTime: Infinity,
     enabled: item !== undefined,
   })
-  return { inbox, item, detail, notFound: inbox !== undefined && item === undefined, receivedAt }
+  return { ...list, item, detail, notFound: inbox !== undefined && item === undefined }
 }
 
 /**

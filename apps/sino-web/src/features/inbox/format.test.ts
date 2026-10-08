@@ -5,6 +5,8 @@ import {
   bubbleMeta,
   chatDayLabel,
   dayGroupLabel,
+  disconnectedSince,
+  failureDetail,
   filterConversations,
   firstLine,
   formatFileSize,
@@ -13,10 +15,13 @@ import {
   linkedMeta,
   mailTime,
   memberPlaceholder,
+  notArrivedSince,
   paragraphs,
   previewText,
   rowFlag,
   rowTime,
+  sendBlock,
+  sendBlockText,
   sendState,
   sourceLabel,
   threadMeta,
@@ -292,5 +297,36 @@ describe('the open conversation', () => {
     expect(linkedInfoSpec({ ...event, at: vn('2026-10-03T18:30') }, now, TZ)).toBe('LỊCH HẸN · T7 03/10 18:30')
     expect(linkedInfoSpec(note, now, TZ)).toBe('GHI CHÚ · ĐÃ GHIM')
     expect(linkedInfoSpec({ ...note, pinned: false }, now, TZ)).toBe('GHI CHÚ')
+  })
+
+  it('names what failed: the code and request of the error when it has them, and the time', () => {
+    const at = new Date(vn('2026-10-02T14:02'))
+    expect(failureDetail(Object.assign(new Error('timeout'), { code: 'ERR_TIMEOUT', requestId: '7f3a-91c2' }), at, TZ)).toBe('ERR_TIMEOUT · yêu cầu 7f3a-91c2 · 14:02')
+    expect(failureDetail(new Error('network'), at, TZ)).toBe('14:02')
+    expect(failureDetail({ code: 42, requestId: null }, at, TZ)).toBe('14:02')
+  })
+
+  it('says since when an expired account receives nothing', () => {
+    expect(disconnectedSince(vn('2026-10-01T21:04'), now, TZ)).toBe('Ngắt kết nối từ 21:04 hôm qua')
+    expect(notArrivedSince(vn('2026-10-01T21:04'), now, TZ)).toBe('Tin nhắn sau 21:04 chưa về Sino')
+    expect(notArrivedSince(vn('2026-10-02T09:30'), now, TZ)).toBe('Tin nhắn sau 09:30 chưa về Sino')
+    expect(notArrivedSince(vn('2026-09-28T16:20'), now, TZ)).toBe('Tin nhắn sau T2 28/09 16:20 chưa về Sino')
+  })
+
+  it('blocks sending to sign in again, or to grant sending again', () => {
+    expect(sendBlock({ status: 'AUTH_EXPIRED' }, true)).toBe('RECONNECT')
+    expect(sendBlock({ status: 'AUTH_EXPIRED' }, false)).toBe('RECONNECT')
+    expect(sendBlock({ status: 'CONNECTED' }, false)).toBe('PERMISSION')
+    expect(sendBlock({ status: 'CONNECTED' }, true)).toBeNull()
+    expect(sendBlock({ status: 'CONNECTED' }, undefined)).toBeNull()
+    expect(sendBlockText('RECONNECT', 'EMAIL', 'Messenger', 'an.nguyen.92')).toEqual({
+      title: 'Cần đăng nhập lại Messenger để nhận và gửi tin',
+      text: 'Quyền truy cập đã hết hạn. Tin cũ vẫn đọc được ở đây.',
+    })
+    expect(sendBlockText('PERMISSION', 'EMAIL', 'Gmail', 'an.nguyen@gmail.com')).toEqual({
+      title: 'Quyền gửi thư của an.nguyen@gmail.com đã hết hạn',
+      text: 'Bạn vẫn đọc thư bình thường. Cấp lại riêng quyền gửi để trả lời từ Sino.',
+    })
+    expect(sendBlockText('PERMISSION', 'CHAT', 'Zalo', '+84 9•• ••• 218').title).toBe('Quyền gửi tin của +84 9•• ••• 218 đã hết hạn')
   })
 })
