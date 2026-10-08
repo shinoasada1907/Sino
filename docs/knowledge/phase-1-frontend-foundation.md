@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42) change `openspec/changes/fe-ui-accounts` (màn Tài khoản) và change `openspec/changes/fe-ui-connect` (luồng kết nối tài khoản). Đã xong: BE-27, BE-28, BE-29, FE-01, UI-01, UI-02, UI-03, AC-01, AC-02, AC-03, AC-04, CN-01, CN-02, CN-03.
+> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42), change `openspec/changes/fe-ui-accounts` (màn Tài khoản), change `openspec/changes/fe-ui-connect` (luồng kết nối tài khoản) và change `openspec/changes/fe-ui-inbox` (màn Hộp thư). Đã xong: BE-27, BE-28, BE-29, FE-01, UI-01, UI-02, UI-03, AC-01, AC-02, AC-03, AC-04, CN-01, CN-02, CN-03, IN-01…IN-06.
 > **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
@@ -663,6 +663,80 @@ backend callback -> 302 /accounts?connected=id      -> 4 Đồng bộ -> 5 Xong
 - **Chrome thật:** vòng đầy đủ: bước 1–3, `window.location.assign` thật, quay về `/accounts` không còn tham số, hộp thoại tự mở ở bước 4, chọn 30 ngày thì ước tính đổi, bước 5 có tiến độ và danh sách phía sau đổi theo; 1440 / 390px × sáng / tối; Tab đi vòng trong hộp thoại.
 - **Bẫy lint "fast refresh":** file component export thêm một hằng số (`DEFAULT_SYNC_OPTIONS`) thì Vite không tải lại nóng component được (`react(only-export-components)`); hằng số chuyển sang `connect.types.ts`.
 
+## 8. Màn Hộp thư (fe-ui-inbox)
+
+### 8.0 Bức tranh: một hộp thư, ba cỡ màn hình
+- **Ở đâu:** `src/features/inbox/` (`inbox.types.ts`, `inbox.sample.ts`, `inbox.api.ts`, `useInbox.ts`, `useInboxFilter.ts`, `format.ts`, `InboxPage.tsx`, `components/*`).
+- **Là gì:** mọi thư và tin nhắn của mọi tài khoản trong một danh sách; mở một thư email hay một hội thoại chat; đánh dấu đã đọc; soạn và gửi. Thao tác trên thư (nhắc tôi, tạm ẩn, gửi lúc…, tạo task) để change sau (D-52); nội dung tin là chữ thuần, không HTML (D-53).
+
+```text
+>= 1280px   [Nguồn 232][Danh sách 400][Thư đang mở .........]
+            chat: [Hội thoại ..................][Thông tin 320]
+768-1279px  [Danh sách 320][Thư hoặc hội thoại ...............]
+< 768px     /inbox      [Đầu trang + chip nguồn][Danh sách]
+            /inbox/:id  [< Quay lại | tên][Hội thoại][Ô soạn]
+```
+
+- **Dữ liệu đi đâu:** danh sách nằm một chỗ trong cache, chi tiết chỉ tải phần thêm (như màn Tài khoản, mục 6.4).
+
+```text
+useInbox()          -> ['inbox']        danh sách, số đếm, tài khoản
+useConversation(id) -> dòng lấy từ ['inbox'] + ['inbox', id] tin nhắn
+useMarkRead()       -> sửa ['inbox'], ['shell'], ['overview']
+useSendMessage(id)  -> onMutate:  thêm tin "Đang gửi" vào ['inbox', id]
+                       onSuccess: thay bằng tin máy chủ trả, đổi xem trước của dòng
+                       onError:   đánh dấu "Không gửi được"
+```
+
+### 8.1 Bộ lọc nằm trong URL (IN-02)
+- **Ở đâu:** `useInboxFilter.ts`. `?source=zalo&view=unread`; giá trị mặc định (mọi nguồn, cả hộp thư) thì địa chỉ để trống; giá trị lạ (`?view=abc`) về mặc định.
+- **Vì sao không để trong `useState`:** tải lại trang vẫn giữ bộ lọc; nút Back quay về bộ lọc trước; cột nguồn, nút trên đầu danh sách, chip của tablet và mobile cùng đọc một chỗ nên không bao giờ lệch nhau. Mở một hội thoại cũng giữ bộ lọc: liên kết của dòng mang theo `search`, nút "Quay lại Hộp thư" cũng vậy.
+
+### 8.2 Hàm chữ thuần và khi canvas tự mâu thuẫn (IN-01)
+- **Hàm chữ:** nhóm ngày ("HÔM NAY", "HÔM QUA", "TUẦN NÀY"), giờ của dòng, dòng dấu ("Task · hạn T4 07/10"), xem trước ("Hà: …") đều là hàm thuần trong `format.ts`, nhận `now` làm tham số, nên test được từng ca mà không cần vẽ trang.
+- **Canvas vẽ hai hội thoại cùng loại bằng hai kiểu dòng dấu.** Agent chọn một quy tắc khớp nhiều chỗ nhất và nói điều có ích nhất (việc **gần nhất sắp tới**), rồi ghi vào `tasks.md` kèm LÝ DO. Ghi lại để sáu tháng sau không ai tưởng đó là lỗi.
+
+### 8.3 Một mutation, ba cache (IN-02)
+- **Chuyện gì:** mở "Phòng khám" (1 thư chưa đọc) thì "12 chưa đọc" thành 11 ở đầu danh sách, Gmail ở cột nguồn bớt 1, số cạnh "Hộp thư" ở thanh bên bớt 1, thẻ Hộp thư của Tổng quan cũng bớt.
+- **Cách làm:** `useMarkRead` cập nhật lạc quan (mục 6.5) cả ba cache `['inbox']`, `['shell']`, `['overview']` trong `onMutate`. Mỗi màn có hợp đồng dữ liệu riêng nên con số nằm ở ba chỗ; một hành động phải sửa đủ ba, nếu không người dùng thấy hai con số khác nhau cùng lúc.
+
+### 8.4 Soạn và gửi (IN-04)
+- **Tin hiện ngay:** `onMutate` thêm một tin có `status: 'SENDING'` vào cuối hội thoại ("14:05 · Đang gửi"); `onSuccess` thay nó bằng tin máy chủ trả và đổi xem trước của dòng ("Bạn: Con về lúc 6 giờ"); `onError` đổi thành "Không gửi được". Danh sách chỉ lấy tin **đã gửi xong** làm xem trước.
+- **Phím:** chat gửi bằng Enter (Shift Enter xuống dòng), email gửi bằng Ctrl Enter (Enter xuống dòng). Nội dung bỏ khoảng trắng hai đầu; rỗng thì không gửi và nút "Gửi" mờ.
+- **Bộ gõ tiếng Việt:** Telex, VNI dùng Enter để chốt một chữ đang ghép. Lúc đó `event.nativeEvent.isComposing` là `true`, và Enter ấy không được gửi tin. Test bắn một `KeyboardEvent` có `isComposing: true` rồi kiểm `sendMessage` không được gọi.
+
+### 8.5 Tablet và mobile (IN-05)
+- **Chip lọc:** mobile có hàng chip "Nguồn" ("Tất cả · 12", "Gmail · 7"…); tablet có ô chọn nguồn (`<select>` thật trong dáng chip) và chip "Chưa đọc", "Cần trả lời". Số chưa đọc từng nguồn lấy từ một hàm `sourceCounts` dùng chung cho cột nguồn và hai hàng chip.
+- **Trang con trên mobile:** route `inbox/:conversationId` khai `handle: { mobilePageHeader: true, hideTabBar: true }` (mục 6.1): khung app ẩn thanh trên và thanh dưới, trang tự vẽ đầu trang với "Quay lại Hộp thư".
+- **`display: contents` cho ô soạn:** trên mobile ô soạn là một hàng (đính kèm, ô tròn, nút gửi), trên desktop là một hộp có thanh công cụ bên dưới. Vẽ hai ô nhập thì trạng thái gõ, nhãn và test đều nhân đôi. Thay vào đó, dưới 768px hộp và thanh công cụ có `display: contents`: hai thẻ đó "biến mất" khỏi bố cục, các con của chúng xếp thẳng vào hàng ngoài; `order-first` đưa nút đính kèm lên đầu.
+- **Bẫy: cột lưới nở theo nội dung.** Ở 1024px ô trả lời kết thúc ở x=1060 trong cột chỉ tới 1024. Lý do: thẻ `section` đã có `min-w-0`, nhưng **cột bên trong** lưới của nó là `auto`, mà `auto` không nhỏ hơn bề rộng tối thiểu của nội dung (thanh gửi có chữ không xuống dòng). Sửa: `grid-cols-[minmax(0,1fr)]` cho phép cột co lại; nội dung dài thì cắt bằng `truncate`. Kiểm tra cũ chỉ đo `document` nên không thấy; giờ đo cả `main`.
+- **Canvas tablet rút gọn:** ở 768–1279px đầu hội thoại chỉ còn "Lưu trữ" và "Thêm thao tác", ô trả lời bỏ "Gửi từ …" và phím tắt, đúng như `TabletInbox`.
+
+### 8.6 Các trạng thái của hộp thư (IN-06, D-55)
+
+```text
+chưa có dữ liệu, chưa lỗi     -> khung xương, "đang tải"
+chưa có dữ liệu, lỗi          -> "Không tải được hộp thư" + "Thử lại"
+accounts rỗng                 -> "Hộp thư đang trống." + "Kết nối"
+chưa có hội thoại, có tài
+  khoản đang đồng bộ          -> thẻ "Đồng bộ lần đầu" + khung xương
+mất mạng (lúc nào cũng được)  -> dải báo + ô soạn "Xếp hàng gửi"
+tài khoản AUTH_EXPIRED        -> báo đỏ + "Kết nối lại" thay ô soạn
+canSend = false               -> báo vàng + "Cấp lại quyền gửi"
+```
+
+- **Ngoại tuyến:** TanStack Query có `onlineManager` theo dõi mạng. Khi mất mạng, query không gọi và mutation **tạm dừng**: `onMutate` vẫn chạy (tin "Đang gửi" vẫn hiện), còn `mutationFn` chờ tới khi có mạng mới chạy. Vì vậy "Xếp hàng gửi" không cần tự viết hàng đợi.
+- **`useOnline`** (`src/shared/lib/useOnline.ts`) đọc chính `onlineManager` qua `useSyncExternalStore`, hook của React để đọc một nguồn bên ngoài React và vẽ lại khi nguồn đó đổi. Tự nghe `navigator.onLine` thì có lúc dải báo nói "có mạng" mà request vẫn đang dừng, hoặc ngược lại.
+- **Lỗi tải:** `useInbox` trả thêm `error`, `failedAt`, `retry` (gọi `refetch`). Dòng chi tiết ghi `code` và `requestId` nếu lỗi có hai trường đó, rồi giờ. Khi có API client (FE-02), lỗi của nó chỉ cần mang hai trường này.
+- **Không hứa điều chưa có:** canvas có "Bấm N ở bất cứ đâu để kết nối nhanh" và "Chưa tải · cần có mạng" dưới tệp; phím tắt và bộ nhớ tệp ngoại tuyến chưa làm nên hai câu đó bị bỏ, ghi lý do ở `tasks.md`.
+
+### 8.7 Kiểm chứng IN-01…IN-06
+- **Test viết trước, mỗi task:** IN-01 31/33 đỏ trên stub; IN-02 9/9; IN-03 6/6; IN-04 4/6; IN-05 5/5; IN-06 7/7 cộng 3 test hàm chữ. Cuối cùng 253/253.
+- **Kiểm tra ngược:** IN-01 43 lỗi, 40 bị bắt; IN-02 33/33; IN-03 25 lỗi, 23 bị bắt ("vạch chưa đọc ở chỗ khác" được thêm kiểm tra thứ tự trong DOM rồi bị bắt; "tin của mình nằm bên trái" chỉ là CSS, jsdom không tính bố cục, kiểm bằng ảnh Chrome); IN-04 13 lỗi, 10 bị bắt, 3 test được làm chặt rồi bắt đủ; IN-05 16/16; IN-06 27/27.
+- **Chrome thật:** 1440 / 1024 / 768 / 390px × sáng / tối, đồng hồ cố định 14:05. Các trạng thái lấy từ dữ liệu mẫu bình thường không có, nên kiểm tra IN-06 chạy `vite` dev và dùng DevTools Protocol thay file `inbox.api.ts` bằng bản chọn trạng thái theo `#state=…` (`Fetch.fulfillRequest`); mã của app không đổi. Ngoại tuyến thì cắt mạng thật bằng `Network.emulateNetworkConditions`: tin xếp hàng, có mạng lại thì gửi.
+- **Đính chính, bài học lớn nhất của change này:** commit `bfddcd3` (IN-04) ghi "238/238" trong khi một test đỏ. Chuỗi lệnh là `pnpm test | grep … && git commit`: mã thoát của cả chuỗi là của `grep`, không phải của `pnpm test`, nên test đỏ vẫn commit. Giờ mỗi lệnh kiểm (lint, test, build) chạy riêng và in mã thoát của chính nó trước khi commit.
+- **Bẫy của script kiểm tra:** truyền thư mục hồ sơ Chrome bằng đường dẫn tương đối thì Chrome không mở cổng điều khiển (hai lần "timed out"); thử tay với đường dẫn tuyệt đối thì lên sau 1 giây. Đổi `#state=` trong cùng trang chỉ đổi hash, trang không tải lại nên file thay thế giữ trạng thái cũ; đi qua `about:blank` giữa hai lần.
+
 ---
 
 ## Tự kiểm tra
@@ -723,3 +797,13 @@ backend callback -> 302 /accounts?connected=id      -> 4 Đồng bộ -> 5 Xong
 54. `WizardState` là union theo bước. Vì sao `state.step <= 3 ? state.provider : …` bị `tsc` báo lỗi, và sửa thế nào?
 55. Vì sao đọc tham số URL rồi `setState` trong `useEffect` bị lint báo? Cách dùng `location.key` khác gì, và vì sao nó còn đúng khi bấm cùng một liên kết hai lần?
 56. Vì sao nhóm chọn nhà cung cấp dùng `<input type="radio">` thật thay vì `div` bấm được? Kể ba thứ người dùng bàn phím và trình đọc màn hình được hưởng.
+57. Vì sao bộ lọc của Hộp thư nằm trong URL thay vì trong `useState`? Kể ba lợi.
+58. Canvas vẽ dòng dấu khác nhau cho hai hội thoại cùng loại. Agent chọn quy tắc nào, và vì sao phải ghi lại ở `tasks.md`?
+59. Mở một hội thoại chưa đọc thì những con số nào đổi? Vì sao một mutation phải sửa ba cache?
+60. Tin "Đang gửi" hiện ngay nhờ đâu? Khi máy chủ trả lời thì tin đó được thay thế ra sao, và khi lỗi thì sao?
+61. Vì sao Enter không được gửi tin khi bộ gõ tiếng Việt đang ghép chữ? Kiểm bằng thuộc tính nào?
+62. `display: contents` làm gì, và vì sao ô soạn trên mobile dùng nó thay vì vẽ thêm một ô nhập thứ hai?
+63. Ở 1024px ô trả lời tràn khỏi cột dù thẻ `section` có `min-w-0`. Vì sao, và `grid-cols-[minmax(0,1fr)]` sửa thế nào?
+64. Khi mất mạng, TanStack Query làm gì với một mutation? Vì sao `useOnline` đọc `onlineManager` thay vì tự nghe `navigator.onLine`?
+65. Vì sao không hiện câu "Bấm N ở bất cứ đâu để kết nối nhanh" dù canvas có?
+66. Commit `bfddcd3` ghi 238/238 trong khi một test đỏ. Chuỗi lệnh sai ở đâu, và giờ kiểm thế nào trước khi commit?
