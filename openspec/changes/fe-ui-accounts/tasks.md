@@ -6,7 +6,10 @@
 
 ## 1. Khung app
 
-- [ ] 1.1 **AC-01 — Tab "Thêm", trang con trên mobile, Dialog**
+- [x] 1.1 **AC-01 — Tab "Thêm", trang con trên mobile, Dialog**
+  - **Thực hiện (2026-10-08, AUTO):** `navItems.MORE_PATHS` (các màn dưới "Thêm" theo `MobileMore`); `TabBar`: tab "Thêm" là `Link` tự đặt `aria-current` khi đường dẫn nằm dưới "Thêm" (kể cả trang con); `AppShell` đọc `handle` của các route đang khớp (`useMatches`): `mobilePageHeader` → thanh trên của khung app có `max-md:hidden`, `hideTabBar` → không vẽ thanh dưới; `MobilePageHeader` (nút quay lại có tên đọc được, tiêu đề `h1`, dòng phụ, nút phụ; chỉ hiện dưới 768px); `src/shared/ui/dialog.tsx` (shadcn Dialog viết tay để giữ `Button` đã chỉnh, theo `.modal`: lớp phủ `--scrim`, đầu / thân / chân hộp thoại, nút "Đóng").
+  - **Làm khác kế hoạch:** `Dialog` không sinh bằng `shadcn add`. **LÝ DO:** lệnh đòi ghi đè `button.tsx` (Dialog phụ thuộc Button) và sẽ xóa phần đã chỉnh theo canvas; mã lấy từ `--dry-run --view` rồi viết lại. Test tìm đầu trang con qua tiêu đề của nó. **LÝ DO:** `<header>` nằm trong `<main>` không phải landmark "banner".
+  - **Kiểm chứng (2026-10-08):** RED: 3 test mới đỏ (chưa có đầu trang con, thanh dưới chưa ẩn, tab "Thêm" chưa sáng); 2 test của `Dialog` xanh ngay (mã sinh sẵn) và 2 test mốc xanh. GREEN 46/46 trong `src/app` + `src/shared`. Kiểm tra ngược 8 lỗi bằng script, cả 8 bị bắt (gồm 2 lỗi của `Dialog`: bỏ nút "Đóng", chặn Esc). Trường hợp trang con `/accounts/:id` vẫn giữ tab "Thêm" sáng sẽ có test ở AC-04 (route chưa có). `pnpm lint` 0/0, `pnpm test` toàn bộ xanh, `pnpm build` ok.
   - **Goal / Why:** các màn dưới "Thêm" (Tài khoản là màn đầu tiên) có đúng điều hướng mobile của canvas; hộp thoại dùng chung cho các xác nhận.
   - **Files:** `src/app/shell/{TabBar,AppShell,navItems}.tsx`, `src/app/shell/MobilePageHeader.tsx`, `src/shared/ui/dialog.tsx` (shadcn, chỉnh theo `.modal`), test.
   - **Hướng làm:** tab "Thêm" sáng theo danh sách đường dẫn của `MobileMore`; route `handle.mobilePageHeader` → khung app ẩn thanh trên của mobile, `handle.hideTabBar` → ẩn thanh dưới (đọc bằng `useMatches`); `MobilePageHeader` theo `.mob-top.has-back`; `Dialog` theo `.modal` (`modal-head`, `modal-body`, `modal-foot`, lớp phủ `--scrim`).

@@ -1,10 +1,13 @@
-import { NavLink } from 'react-router'
+import { Link, NavLink, useLocation } from 'react-router'
 import { cn } from '@/shared/lib/utils'
-import { badgeOf, TAB_ITEMS } from './navItems'
+import { badgeOf, MORE_PATHS, TAB_ITEMS } from './navItems'
 import type { ShellData } from './shell.types'
 
 // Mobile navigation (< 768 px), the canvas `TabBar`.
 export function TabBar({ shell, className }: { shell: ShellData | undefined; className?: string }) {
+  const { pathname } = useLocation()
+  const underMore = MORE_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+
   return (
     <nav
       data-slot="tabbar"
@@ -15,10 +18,13 @@ export function TabBar({ shell, className }: { shell: ShellData | undefined; cla
         const count = badgeOf(item.label, item.count, shell?.navCounts)
         const alert = badgeOf(item.label, item.alert, shell?.navCounts)
         const Icon = item.icon
+        // NavLink only marks its own path; "Thêm" is current on every screen behind it, so it sets aria-current itself.
+        const Tab = item.to === '/more' ? Link : NavLink
         return (
-          <NavLink
+          <Tab
             key={item.to}
             to={item.to}
+            {...(item.to === '/more' ? { 'aria-current': underMore ? ('page' as const) : undefined } : {})}
             className="group relative flex min-h-13 flex-col items-center justify-center gap-1 rounded-sm text-[11px] leading-3.5 font-medium text-muted-foreground outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:font-semibold aria-[current=page]:text-foreground"
           >
             <span
@@ -45,7 +51,7 @@ export function TabBar({ shell, className }: { shell: ShellData | undefined; cla
               />
             )}
             <span className="sr-only">{count.spoken || alert.spoken}</span>
-          </NavLink>
+          </Tab>
         )
       })}
     </nav>

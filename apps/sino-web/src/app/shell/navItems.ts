@@ -78,6 +78,9 @@ export const TAB_ITEMS: Pick<NavItem, 'to' | 'label' | 'icon' | 'count' | 'alert
   { to: '/more', label: 'Thêm', icon: Ellipsis },
 ]
 
+/** On mobile these screens sit behind the "Thêm" tab (canvas `MobileMore`), which stays current on them and their sub-pages. */
+export const MORE_PATHS = ['/more', '/notes', '/accounts', '/services', '/registrations', '/notifications', '/settings']
+
 /** Every screen the shell can open, with its title; screens not built yet show the under-construction page. */
 export const PAGES: { to: string; title: string }[] = [
   ...NAV_ITEMS.map(({ to, label }) => ({ to, title: label })),
