@@ -51,8 +51,8 @@ Nút "Ngắt kết nối …" MUST mở hộp thoại theo canvas `Overlays`: ti
 - **THEN** web về `/accounts`, bảng không còn hàng Messenger và dòng đầu trang ghi "TÀI KHOẢN · 2 ĐÃ KẾT NỐI"
 
 ### Requirement: Nút chưa có chức năng trên màn Tài khoản
-"Đồng bộ tất cả", "Kết nối tài khoản", "Đăng nhập lại", "Đồng bộ ngay", "Mở <nhà cung cấp>", "Xem tất cả" (website) và nút "+" trên mobile MUST hiện như canvas và MUST NOT đổi trang hay đổi dữ liệu.
+"Đồng bộ tất cả", "Đồng bộ ngay", "Mở <nhà cung cấp>" và "Xem tất cả" (website) MUST hiện như canvas và MUST NOT đổi trang hay đổi dữ liệu. ("Kết nối tài khoản", "Đăng nhập lại" và nút "+" trên mobile mở luồng kết nối của change `fe-ui-connect`.)
 
-#### Scenario: Bấm Kết nối tài khoản
-- **WHEN** người dùng bấm "Kết nối tài khoản"
+#### Scenario: Bấm Đồng bộ tất cả
+- **WHEN** người dùng bấm "Đồng bộ tất cả"
 - **THEN** đường dẫn vẫn là `/accounts` và danh sách không đổi

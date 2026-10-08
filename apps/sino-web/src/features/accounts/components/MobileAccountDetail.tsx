@@ -1,5 +1,6 @@
 import { Clock, Link2Off, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
+import { Link } from 'react-router'
 import { accountStatusView } from '@/features/overview/format'
 import { formatCount, type ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -49,9 +50,11 @@ export function MobileAccountDetail({
               <span className="text-sm text-muted-foreground">{blocked.detail}</span>
             </div>
           </div>
-          <Button type="button" variant="primary">
-            <RefreshCw strokeWidth={1.6} />
-            Đăng nhập lại {name}
+          <Button asChild variant="primary">
+            <Link to={`/accounts?reconnect=${account.id}`}>
+              <RefreshCw strokeWidth={1.6} />
+              Đăng nhập lại {name}
+            </Link>
           </Button>
         </div>
       )}

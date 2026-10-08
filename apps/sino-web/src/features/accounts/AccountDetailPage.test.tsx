@@ -205,7 +205,7 @@ describe('Chi tiết tài khoản on mobile', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'an.nguyen.92' })).toBeInTheDocument()
     expect(screen.getByText('Quyền hết hạn từ 21:04 hôm qua')).toBeInTheDocument()
     expect(screen.getByText('Sino không đọc và gửi tin Messenger được')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Đăng nhập lại Messenger' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Đăng nhập lại Messenger' })).toBeInTheDocument()
 
     const channels = card('Kênh')
     expect(channels.getByText('Tin nhắn đến')).toBeInTheDocument()

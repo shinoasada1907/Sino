@@ -1,5 +1,6 @@
 import { Plus, RefreshCw, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation, useSearchParams } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { formatCount, providerNameOf } from '@/shared/format'
 import { useNow } from '@/shared/time/useNow'
@@ -8,6 +9,7 @@ import { Input } from '@/shared/ui/input'
 import { Segmented } from '@/shared/ui/segmented'
 import { Status } from '@/shared/ui/status'
 import { AccountsTable } from './components/AccountsTable'
+import { ConnectWizard, type WizardState } from './components/ConnectWizard'
 import { MobileAccountList } from './components/MobileAccountList'
 import { ReauthAlert } from './components/ReauthAlert'
 import {
@@ -28,7 +30,8 @@ const FILTERS: { value: AccountFilter; label: string }[] = [
 
 /**
  * The Tài khoản screen (canvas `Accounts`, `MobileAccounts`): a table with search and filter from 768 px,
- * a short list under its own header on mobile. Connect, sync and sign-in buttons have no flow yet (D-46).
+ * a short list under its own header on mobile. "Kết nối tài khoản" and "Đăng nhập lại" open the connect wizard
+ * (`?reconnect={id}` opens it for that account); "Đồng bộ tất cả" has no flow yet.
  */
 export function AccountsPage() {
   const { list, receivedAt } = useAccounts()
@@ -37,6 +40,33 @@ export function AccountsPage() {
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AccountFilter>('all')
+  const [wizard, setWizard] = useState<WizardState | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const [handledVisit, setHandledVisit] = useState<string | null>(null)
+
+  // "Đăng nhập lại" anywhere links here with ?reconnect=id. Each visit (location.key) is read once, while rendering,
+  // as React advises for state that follows an input; clicking the same link again is a new visit.
+  if (list && location.key !== handledVisit) {
+    setHandledVisit(location.key)
+    const account = list.accounts.find((item) => item.id === searchParams.get('reconnect'))
+    if (account) {
+      setWizard({ step: 2, provider: account.provider, accountId: account.id })
+    }
+  }
+
+  // Then the parameter leaves the address without a new history entry, so reloading does not open the wizard again.
+  useEffect(() => {
+    if (searchParams.has('reconnect')) {
+      setSearchParams(
+        (params) => {
+          params.delete('reconnect')
+          return params
+        },
+        { replace: true },
+      )
+    }
+  }, [searchParams, setSearchParams])
 
   if (!list) {
     return (
@@ -51,6 +81,7 @@ export function AccountsPage() {
   const shown = filterAccounts(accounts, { query, filter }, nameOf)
   const ribbon = ribbonItems(accounts)
   const lastSync = latestSyncTime(accounts)
+  const connect = () => setWizard({ step: 1, provider: null, accountId: null })
 
   return (
     <>
@@ -59,12 +90,13 @@ export function AccountsPage() {
         title="Tài khoản"
         subtitle={mobileSubtitle(accounts)}
         action={
-          <Button type="button" variant="ghost" size="icon" aria-label="Thêm tài khoản">
+          <Button type="button" variant="ghost" size="icon" aria-label="Thêm tài khoản" onClick={connect}>
             <Plus strokeWidth={1.6} />
           </Button>
         }
       />
-      <MobileAccountList accounts={accounts} now={now} nameOf={nameOf} className="md:hidden" />
+      <MobileAccountList accounts={accounts} now={now} nameOf={nameOf} onConnect={connect} className="md:hidden" />
+      <ConnectWizard state={wizard} onChange={setWizard} accounts={accounts} nameOf={nameOf} />
 
       <div className="hidden flex-col gap-5 p-6 md:flex xl:gap-6 xl:p-8">
         <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-8">
@@ -84,7 +116,7 @@ export function AccountsPage() {
               <RefreshCw strokeWidth={1.6} />
               Đồng bộ tất cả
             </Button>
-            <Button type="button" variant="primary" size="sm">
+            <Button type="button" variant="primary" size="sm" onClick={connect}>
               <Plus strokeWidth={1.6} />
               Kết nối tài khoản
             </Button>
@@ -111,7 +143,7 @@ export function AccountsPage() {
         {accounts
           .filter((account) => account.status === 'AUTH_EXPIRED')
           .map((account) => (
-            <ReauthAlert key={account.id} {...reauthNotice(account, nameOf, now)} />
+            <ReauthAlert key={account.id} {...reauthNotice(account, nameOf, now)} accountId={account.id} />
           ))}
 
         <div className="flex flex-wrap items-center gap-3">

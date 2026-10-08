@@ -19,7 +19,8 @@ import { useAccount } from './useAccounts'
 
 /**
  * The detail of one account (canvas `AccountDetail`, `MobileAccountDetail`): six cards on a 12-column grid from 768 px,
- * the short mobile layout below. Open-provider and sync buttons have no flow yet (D-46).
+ * the short mobile layout below. Open-provider and sync buttons have no flow yet; signing in again goes through the
+ * connect wizard of the list (`/accounts?reconnect=…`).
  */
 export function AccountDetailPage() {
   const { accountId = '' } = useParams()
@@ -92,7 +93,7 @@ export function AccountDetailPage() {
           </div>
         </header>
 
-        {account.status === 'AUTH_EXPIRED' && <ReauthAlert {...reauthNotice(account, nameOf, now)} />}
+        {account.status === 'AUTH_EXPIRED' && <ReauthAlert {...reauthNotice(account, nameOf, now)} accountId={account.id} />}
 
         <div className="grid grid-cols-12 gap-4">
           <SectionCard title="Kênh đã kết nối" meta={<Spec>{channelSummary(account)}</Spec>} className="col-span-7">

@@ -56,7 +56,7 @@ describe('Tài khoản', () => {
     expect(
       screen.getByText('Quyền truy cập hết hạn lúc 21:04 hôm qua. Tin nhắn mới tạm dừng; 1.204 tin đã lưu vẫn còn.'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Đăng nhập lại' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Đăng nhập lại' })).toHaveAttribute('href', '/accounts?reconnect=acc-messenger')
   })
 
   it('lists each account with its sync state, last sync, channels and health', async () => {
@@ -129,11 +129,7 @@ describe('Tài khoản', () => {
     const { router } = openAccounts()
     await screen.findByRole('table', { name: 'Tài khoản đã kết nối' })
 
-    for (const name of ['Đồng bộ tất cả', 'Kết nối tài khoản', 'Đăng nhập lại', 'Thêm tài khoản']) {
-      for (const button of screen.getAllByRole('button', { name })) {
-        await userEvent.click(button)
-      }
-    }
+    await userEvent.click(screen.getByRole('button', { name: 'Đồng bộ tất cả' }))
 
     expect(router.state.location.pathname).toBe('/accounts')
     expect(bodyRows()).toHaveLength(3)

@@ -15,11 +15,13 @@ export function MobileAccountList({
   accounts,
   now,
   nameOf,
+  onConnect,
   className,
 }: {
   accounts: AccountItem[]
   now: Date
   nameOf: ProviderNameOf
+  onConnect: () => void
   className?: string
 }) {
   return (
@@ -33,7 +35,7 @@ export function MobileAccountList({
           ))}
         </nav>
       )}
-      <Button type="button" variant="secondary">
+      <Button type="button" variant="secondary" onClick={onConnect}>
         <Plus strokeWidth={1.6} />
         Kết nối tài khoản
       </Button>
