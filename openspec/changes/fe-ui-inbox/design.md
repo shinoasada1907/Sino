@@ -75,7 +75,7 @@ interface ConversationDetail {
   firstUnreadId: string | null              // vạch "N tin chưa đọc"
   linked: { id: string; kind: LinkedKind; title: string; at: Instant | null; allDay: boolean; remindAt: Instant | null; pinned: boolean }[] | null
   members: { name: string; owner: boolean; joinedRecently: boolean }[] | null   // nhóm chat
-  files: { total: number; items: { name: string; type: string; sizeBytes: number; at: Instant }[] } | null
+  files: { total: number; items: { name: string; type: string; sizeBytes: number; image: boolean; at: Instant }[] } | null   // ảnh: ô thu nhỏ
   canSend: boolean                          // false: quyền gửi hết hạn (ThreadState)
   previousCursor: string | null             // tin cũ hơn (làm sau)
 }

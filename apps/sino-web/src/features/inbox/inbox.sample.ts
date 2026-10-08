@@ -282,7 +282,19 @@ export function createConversationSample(conversationId: string, now: Date): Con
           { name: 'Bà ngoại', owner: false, joinedRecently: false },
           { name: 'Ông ngoại', owner: false, joinedRecently: false },
         ],
-        files: { total: 14, items: [{ name: 'Lich-trinh-ve-que.docx', type: 'DOCX', sizeBytes: 24_576, at: at('2026-09-27T19:00:00+07:00') }] },
+        files: {
+          total: 14,
+          items: [
+            ...['30/09', '29/09', '28/09', '27/09', '26/09', '25/09'].map((day, index) => ({
+              name: `anh-${index + 1}.jpg`,
+              type: 'JPG',
+              sizeBytes: 900_000,
+              image: true,
+              at: at(`2026-${day.slice(3)}-${day.slice(0, 2)}T18:00:00+07:00`),
+            })),
+            { name: 'Lich-trinh-ve-que.docx', type: 'DOCX', sizeBytes: 24_576, image: false, at: at('2026-09-27T19:00:00+07:00') },
+          ],
+        },
       }
     case 'conv-4':
       return {

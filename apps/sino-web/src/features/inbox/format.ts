@@ -5,10 +5,11 @@ import {
   daysSinceMonday,
   formatClock,
   formatDayMonth,
+  weekdayName,
   weekdayNumbered,
   weekdayShort,
 } from '@/shared/time/local'
-import type { ConversationItem, LinkedItem, LinkedKind, Message } from './inbox.types'
+import type { ConversationItem, LinkedItem, LinkedKind, Member, Message } from './inbox.types'
 
 export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
 export interface InboxFilter {
@@ -207,6 +208,33 @@ export function paragraphs(text: string): string[][] {
     .trim()
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.split('\n'))
+}
+
+const PLACEHOLDERS = ['a', 'd', 'c', 'b'] as const
+
+/** The placeholder picture of a group member follows their place in the group; anyone else gets the striped one. */
+export function memberPlaceholder(name: string, members: Member[] | null): (typeof PLACEHOLDERS)[number] {
+  const index = members?.findIndex((member) => member.name === name) ?? -1
+  return index >= 0 ? PLACEHOLDERS[index % PLACEHOLDERS.length] : 'c'
+}
+
+/** The messages of a chat, each with the day line to draw above it when the day changes. */
+export function withDayLines(messages: Message[], now: Date, timeZone?: string): { message: Message; dayLine: string | null }[] {
+  return messages.map((message, index) => {
+    const day = chatDayLabel(message.at, now, timeZone)
+    const previous = index > 0 ? chatDayLabel(messages[index - 1].at, now, timeZone) : null
+    return { message, dayLine: day === previous ? null : day }
+  })
+}
+
+/** The day line of a chat: "HÔM NAY", "HÔM QUA", then "THỨ BA · 29/09". */
+export function chatDayLabel(at: string, now: Date, timeZone?: string): string {
+  const date = new Date(at)
+  const days = calendarDaysBetween(date, now, timeZone)
+  if (days <= 0) {
+    return 'HÔM NAY'
+  }
+  return days === 1 ? 'HÔM QUA' : `${weekdayName(date, timeZone).toUpperCase()} · ${formatDayMonth(date, timeZone)}`
 }
 
 export function firstLine(text: string): string {

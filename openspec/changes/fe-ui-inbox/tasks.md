@@ -28,7 +28,10 @@
   - **Test:** scenario *Hộp thư lúc 14:05*, *Chỉ Zalo, chưa đọc*, *Mở hợp đồng*, thư cũ bấm để mở, *Đọc Gia đình* (phần danh sách), nút chưa có chức năng; Chrome 1440 sáng / tối.
   - **Acceptance criteria:** *Danh sách hợp nhất*, *Lọc hộp thư*, *Đọc thư email*, *Đánh dấu đã đọc*, *Nút chưa có chức năng*.
 
-- [ ] 2.2 **IN-03 — Hội thoại chat và cột thông tin**
+- [x] 2.2 **IN-03 — Hội thoại chat và cột thông tin**
+  - **Thực hiện (2026-10-08, AUTO):** `components/ChatThread` (đầu trang: "Hộp thư" quay lại giữ bộ lọc — chỉ từ 1280px, chồng ảnh đại diện của nhóm, tiêu đề, "Zalo · nhóm 6 người · qua …", công cụ; thân: vạch ngày, tin hệ thống, vạch "N tin chưa đọc" giữ số lúc mở, bong bóng đến / đi, tên người gửi trong nhóm, ảnh, việc gắn với tin là liên kết, trạng thái gửi; ô nhắn tin; mở ra cuộn tới vạch chưa đọc, tin thêm sau đó cuộn xuống cuối); `components/ConversationInfo` (việc và ghi chú, thành viên — 5 người + "Xem thêm", ảnh thu nhỏ và tệp, tài khoản dùng là liên kết, hai công tắc chỉ đổi tại chỗ; phần `null` bị bỏ); `Composer` dùng chung cho thư (Ctrl Enter, "Gửi từ …", "Gửi lúc…") và chat (Enter, "Gửi qua …"); `format.ts` thêm `chatDayLabel`, `withDayLines`, `memberPlaceholder`. Trang: chat ở desktop chiếm cả bề ngang (cột chat + cột thông tin 320px), ở tablet nằm cột phải.
+  - **Làm khác kế hoạch:** tệp dùng chung có thêm `image` trong hợp đồng. **LÝ DO:** canvas có hàng "6 ảnh gần nhất" tách khỏi danh sách tệp. Vạch ngày tính bằng hàm thuần `withDayLines` thay vì biến gán lại trong lúc render. **LÝ DO:** lint `react(immutability)`. Ảnh đại diện thành viên theo thứ tự trong nhóm (`a, d, c, b`): khớp 4/5 người của canvas.
+  - **Kiểm chứng (2026-10-08):** RED 6/6; GREEN. Kiểm tra ngược 25 lỗi gài: 23 bị bắt; lọt "vạch chưa đọc ở chỗ khác" (thêm kiểm tra thứ tự trong DOM → bắt) và "tin của mình nằm bên trái" (chỉ là CSS, jsdom không tính bố cục; kiểm bằng ảnh Chrome). Chrome 1440px tối / sáng: chat 872px + thông tin 320px, không cuộn ngang; khung chat mở ra đã cuộn xuống tin mới; đọc Gia đình → thanh bên "Hộp thư 9". `pnpm lint` 0/0, `pnpm test` 231/231, `pnpm build` ok.
   - **Files:** `components/ChatThread.tsx`, `components/ConversationInfo.tsx`, `InboxPage.tsx`, test.
   - **Test:** scenario *Mở Gia đình*; tin hệ thống, vạch chưa đọc, ảnh, việc gắn với tin; Chrome.
   - **Acceptance criteria:** *Hội thoại chat*.

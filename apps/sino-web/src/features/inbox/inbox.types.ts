@@ -125,5 +125,7 @@ export interface SharedFile {
   name: string
   type: string
   sizeBytes: number
+  /** Photos show as thumbnails, other files as rows. */
+  image: boolean
   at: Instant
 }

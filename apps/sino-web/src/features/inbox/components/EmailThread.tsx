@@ -81,7 +81,13 @@ export function EmailThread({
         )}
       </div>
 
-      <Composer label={`Trả lời ${item.title}`} placeholder={`Trả lời ${item.title}…`} from={account.externalAccountId} />
+      <Composer
+        kind="EMAIL"
+        label={`Trả lời ${item.title}`}
+        placeholder={`Trả lời ${item.title}…`}
+        account={account.externalAccountId}
+        via={`${nameOf(item.provider)} · ${account.externalAccountId}`}
+      />
     </>
   )
 }

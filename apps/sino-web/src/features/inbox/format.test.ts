@@ -3,6 +3,7 @@ import { providerNameOf } from '@/shared/format'
 import type { ConversationItem, LinkedItem, Message } from './inbox.types'
 import {
   bubbleMeta,
+  chatDayLabel,
   dayGroupLabel,
   filterConversations,
   firstLine,
@@ -11,6 +12,7 @@ import {
   linkedInfoSpec,
   linkedMeta,
   mailTime,
+  memberPlaceholder,
   paragraphs,
   previewText,
   rowFlag,
@@ -19,6 +21,7 @@ import {
   threadMeta,
   threadSubtitle,
   unreadLabel,
+  withDayLines,
 } from './format'
 
 const TZ = 'Asia/Ho_Chi_Minh'
@@ -239,6 +242,28 @@ describe('the open conversation', () => {
     expect(out({ ...base, direction: 'OUT', status: 'SEEN' })).toBe('08:24 · Đã xem')
     expect(out({ ...base, direction: 'OUT', status: 'FAILED' })).toBe('08:24 · Không gửi được')
     expect(out({ ...base, direction: 'IN', status: null })).toBe('08:24')
+  })
+
+  it('separates chat days by today, yesterday, then the weekday and date', () => {
+    expect(chatDayLabel(vn('2026-10-02T08:15'), now, TZ)).toBe('HÔM NAY')
+    expect(chatDayLabel(vn('2026-10-01T20:15'), now, TZ)).toBe('HÔM QUA')
+    expect(chatDayLabel(vn('2026-09-29T20:15'), now, TZ)).toBe('THỨ BA · 29/09')
+  })
+
+  it('draws a day line above the first message of each day', () => {
+    const system = (id: string, time: string): Message => ({ id, kind: 'SYSTEM', at: vn(time), text: id })
+    const lines = withDayLines([system('a', '2026-10-01T20:15'), system('b', '2026-10-01T20:31'), system('c', '2026-10-02T07:58')], now, TZ)
+    expect(lines.map((line) => [line.message.id, line.dayLine])).toEqual([
+      ['a', 'HÔM QUA'],
+      ['b', null],
+      ['c', 'HÔM NAY'],
+    ])
+  })
+
+  it('gives each member of a group the placeholder of their place, anyone else the striped one', () => {
+    const members = ['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => ({ name, owner: false, joinedRecently: false }))
+    expect(['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => memberPlaceholder(name, members))).toEqual(['a', 'd', 'c', 'b', 'a'])
+    expect(memberPlaceholder('Lê Hoàng', null)).toBe('c')
   })
 
   it('splits a plain text body into paragraphs and lines', () => {
