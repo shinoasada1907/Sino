@@ -43,9 +43,14 @@ class ProviderContextTests {
     }
 
     @Test
-    void requiresAnAccountAndCredentials() {
-        assertThatThrownBy(() -> new ProviderContext(null, null, new TokenCredentials(SECRET)))
-                .isInstanceOf(NullPointerException.class);
+    void hasNoAccountIdWhileTheAccountIsBeingConnected() {
+        ProviderContext context = new ProviderContext(null, null, new TokenCredentials(SECRET));
+
+        assertThat(context.accountId()).isNull();
+    }
+
+    @Test
+    void requiresCredentials() {
         assertThatThrownBy(() -> new ProviderContext(ACCOUNT_ID, null, null))
                 .isInstanceOf(NullPointerException.class);
     }

@@ -3,24 +3,13 @@ package dev.sino.identity.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-
-import com.jayway.jsonpath.JsonPath;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +19,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import dev.sino.Browser;
+import dev.sino.Browser.Response;
 import dev.sino.TestcontainersConfiguration;
 
 /**
@@ -182,7 +173,7 @@ class AuthApiTests {
     void signingInWithoutTheCsrfTokenIs403AndNoSession() {
         browser.get("/api/auth/me");
 
-        Response login = browser.send("POST", "/api/auth/login", loginJson(EMAIL, PASSWORD, false), false);
+        Response login = browser.send("POST", "/api/auth/login", Browser.loginJson(EMAIL, PASSWORD, false), false);
 
         assertThat(login.status()).isEqualTo(403);
         assertThat(login.json("$.code")).isEqualTo("CSRF_TOKEN_INVALID");
@@ -263,115 +254,6 @@ class AuthApiTests {
         for (int i = 0; i < 5; i++) {
             browser.signIn(EMAIL, "wrong-password-123", false);
         }
-    }
-
-    private static String loginJson(String email, String password, boolean rememberMe) {
-        return "{\"email\":\"" + email + "\",\"password\":\"" + password + "\",\"rememberMe\":" + rememberMe + "}";
-    }
-
-    /** One HTTP response, with its Set-Cookie headers kept as they came. */
-    record Response(int status, Map<String, List<String>> headers, String body) {
-
-        Optional<String> header(String name) {
-            return headers.entrySet().stream().filter(entry -> entry.getKey().equalsIgnoreCase(name))
-                    .flatMap(entry -> entry.getValue().stream()).findFirst();
-        }
-
-        Optional<String> setCookie(String name) {
-            return headers.entrySet().stream().filter(entry -> entry.getKey().equalsIgnoreCase("Set-Cookie"))
-                    .flatMap(entry -> entry.getValue().stream())
-                    .filter(cookie -> cookie.startsWith(name + "=")).findFirst();
-        }
-
-        String json(String path) {
-            return JsonPath.read(body, path);
-        }
-
-        Object value(String path) {
-            return JsonPath.read(body, path);
-        }
-
-    }
-
-    /** Just enough of a browser: keeps cookies, sends the CSRF token back as a header when asked. */
-    static final class Browser {
-
-        private final HttpClient http = HttpClient.newHttpClient();
-        private final String baseUrl;
-        private final Map<String, String> cookies = new LinkedHashMap<>();
-        private final Map<String, String> extraHeaders = new LinkedHashMap<>();
-
-        Browser(String baseUrl) {
-            this.baseUrl = baseUrl;
-        }
-
-        Browser withCookie(String name, String value) {
-            cookies.put(name, value);
-            return this;
-        }
-
-        Browser withHeader(String name, String value) {
-            extraHeaders.put(name, value);
-            return this;
-        }
-
-        String cookie(String name) {
-            return cookies.get(name);
-        }
-
-        void forget(String name) {
-            cookies.remove(name);
-        }
-
-        Response get(String path) {
-            return send("GET", path, null, false);
-        }
-
-        /** Gets a CSRF token first, as the web app does, then signs in. */
-        Response signIn(String email, String password, boolean rememberMe) {
-            if (!cookies.containsKey("XSRF-TOKEN")) {
-                get("/api/auth/me");
-            }
-            return send("POST", "/api/auth/login", loginJson(email, password, rememberMe), true);
-        }
-
-        Response send(String method, String path, String json, boolean withCsrfToken) {
-            HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                    .header("Accept", "application/json")
-                    .method(method, json == null ? HttpRequest.BodyPublishers.noBody()
-                            : HttpRequest.BodyPublishers.ofString(json));
-            if (json != null) {
-                request.header("Content-Type", "application/json");
-            }
-            if (!cookies.isEmpty()) {
-                request.header("Cookie", String.join("; ", cookies.entrySet().stream()
-                        .map(cookie -> cookie.getKey() + "=" + cookie.getValue()).toList()));
-            }
-            if (withCsrfToken && cookies.containsKey("XSRF-TOKEN")) {
-                request.header("X-XSRF-TOKEN", cookies.get("XSRF-TOKEN"));
-            }
-            extraHeaders.forEach(request::header);
-            try {
-                HttpResponse<String> response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
-                response.headers().allValues("Set-Cookie").forEach(this::remember);
-                return new Response(response.statusCode(), response.headers().map(), response.body());
-            } catch (IOException | InterruptedException e) {
-                throw new IllegalStateException("Request failed: " + method + " " + path, e);
-            }
-        }
-
-        private void remember(String setCookie) {
-            String pair = setCookie.split(";", 2)[0];
-            String name = pair.substring(0, pair.indexOf('='));
-            String value = pair.substring(pair.indexOf('=') + 1);
-            boolean deleted = setCookie.toLowerCase().contains("max-age=0") || value.isEmpty();
-            if (deleted) {
-                cookies.remove(name);
-            } else {
-                cookies.put(name, value);
-            }
-        }
-
     }
 
 }

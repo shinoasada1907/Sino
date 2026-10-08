@@ -94,7 +94,7 @@ class PendingConnectsTests {
                 .redirectUri("http://localhost:5173/api/accounts/connect/gmail/callback")
                 .state(state)
                 .build();
-        return new PendingConnect("gmail", UUID.randomUUID(), null, request, createdAt);
+        return new PendingConnect("gmail", UUID.randomUUID(), null, null, request, createdAt);
     }
 
     private static PendingConnects roundTrip(PendingConnects original) throws Exception {

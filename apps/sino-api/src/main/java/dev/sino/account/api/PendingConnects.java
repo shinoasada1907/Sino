@@ -12,7 +12,8 @@ import dev.sino.account.application.PendingConnect;
 /**
  * The connects one browser session has started: each is taken once, lasts ten minutes, and the session keeps the
  * five newest, so several tabs work and nothing piles up. Kept in the HTTP session, never in the database: only the
- * browser that started a connect can finish it. Not thread-safe; callers lock the session.
+ * browser that started a connect can finish it. Thread-safe on its own, so a take stays atomic even when two
+ * requests of one session arrive together.
  */
 final class PendingConnects implements Serializable {
 
@@ -26,7 +27,7 @@ final class PendingConnects implements Serializable {
     // Oldest first, so expired connects are always the first to be dropped when the session is full.
     private final LinkedHashMap<String, PendingConnect> byState = new LinkedHashMap<>();
 
-    void add(PendingConnect connect) {
+    synchronized void add(PendingConnect connect) {
         byState.put(connect.state(), connect);
         while (byState.size() > MAX_PENDING) {
             byState.pollFirstEntry();
@@ -34,7 +35,7 @@ final class PendingConnects implements Serializable {
     }
 
     /** Removes the connect whatever happens next, so a state never works twice. */
-    Optional<PendingConnect> take(String state, Instant now) {
+    synchronized Optional<PendingConnect> take(String state, Instant now) {
         if (state == null) {
             return Optional.empty();
         }

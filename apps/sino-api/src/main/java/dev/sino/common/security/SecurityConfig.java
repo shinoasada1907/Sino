@@ -34,6 +34,9 @@ class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // The provider sends the browser back here; the pending connect in the session identifies
+                        // the user, and without one the callback does nothing (F04a).
+                        .requestMatchers(HttpMethod.GET, "/api/accounts/connect/*/callback").permitAll()
                         // Other actuator endpoints need a signed-in user; unexposed ones then answer 404.
                         .requestMatchers("/actuator/**").authenticated()
                         .requestMatchers("/api/**").authenticated()

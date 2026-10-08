@@ -39,7 +39,8 @@ class GmailProvider implements MessageProvider {
 
     static final ProviderType TYPE = ProviderType.of("gmail");
     static final String REGISTRATION_ID = "google";
-    static final Set<String> SCOPES = Set.of("openid", "email", "https://www.googleapis.com/auth/gmail.readonly");
+    static final String GMAIL_READONLY = "https://www.googleapis.com/auth/gmail.readonly";
+    static final Set<String> SCOPES = Set.of("openid", "email", GMAIL_READONLY);
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
 
@@ -60,7 +61,8 @@ class GmailProvider implements MessageProvider {
 
     GmailProvider(URI userInfoUri, URI revocationUri, Duration connectTimeout, Duration readTimeout) {
         this.userInfoUri = userInfoUri;
-        this.connection = new OAuth2Connection(REGISTRATION_ID, SCOPES, CONSENT_PARAMETERS, revocationUri);
+        this.connection = new OAuth2Connection(REGISTRATION_ID, SCOPES, Set.of(GMAIL_READONLY), CONSENT_PARAMETERS,
+                revocationUri);
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(connectTimeout).build());
         requestFactory.setReadTimeout(readTimeout);

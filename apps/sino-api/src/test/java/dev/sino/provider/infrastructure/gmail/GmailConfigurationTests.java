@@ -8,12 +8,17 @@ import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 
+import dev.sino.account.infrastructure.oauth.ConnectProperties;
+import dev.sino.account.infrastructure.oauth.OAuth2Clients;
 import dev.sino.provider.spi.MessageProvider;
 
 /**
@@ -107,11 +112,28 @@ class GmailConfigurationTests {
         });
     }
 
+    // The connect flow builds the redirect URI from SINO_PUBLIC_BASE_URL (BE-31): with Gmail on, the app needs it.
+    @Test
+    void doesNotStartWithGmailOnAndNoPublicBaseUrl() {
+        ApplicationContextRunner gmailOn = contextRunner.withUserConfiguration(ConnectFlow.class)
+                .withPropertyValues("sino.google.client-id=" + CLIENT_ID, "sino.google.client-secret=" + CLIENT_SECRET);
+
+        gmailOn.run(context -> assertThat(context).getFailure().hasStackTraceContaining("SINO_PUBLIC_BASE_URL"));
+        gmailOn.withPropertyValues("sino.public-base-url=http://localhost:5173")
+                .run(context -> assertThat(context).hasNotFailed().hasSingleBean(OAuth2Clients.class));
+    }
+
     @Test
     void neverPrintsTheClientSecret() {
         GmailProperties properties = new GmailProperties(CLIENT_ID, CLIENT_SECRET, null, null, null, null);
 
         assertThat(properties.toString()).contains(CLIENT_ID).doesNotContain(CLIENT_SECRET);
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(ConnectProperties.class)
+    @Import(OAuth2Clients.class)
+    static class ConnectFlow {
     }
 
     private static String stackTraceOf(Throwable failure) {

@@ -65,11 +65,15 @@ Mỗi yêu cầu đang chờ MUST dùng được đúng một lần và MUST h�
 - **THEN** response là `302` tới `/accounts?connectError=CONNECT_STATE_INVALID`
 
 ### Requirement: Kiểm scope thật được cấp
-Callback MUST đọc scope trong token response; thiếu scope bắt buộc của provider (với Gmail: `https://www.googleapis.com/auth/gmail.readonly`) MUST NOT tạo account, MUST thu hồi token vừa nhận và MUST redirect với `CONNECT_SCOPE_DENIED`.
+Callback MUST đọc scope trong token response và so với scope bắt buộc của connector (`requiredScopes`, D-51; với Gmail: `https://www.googleapis.com/auth/gmail.readonly`), không so với mọi scope đã xin. Thiếu scope bắt buộc MUST NOT tạo account, MUST thu hồi token vừa nhận và MUST redirect với `CONNECT_SCOPE_DENIED`. Token response không ghi `scope` MUST được hiểu là được cấp đúng phần đã xin (RFC 6749 §5.1).
 
 #### Scenario: Người dùng bỏ tick quyền đọc Gmail
 - **WHEN** token response không có `gmail.readonly`
 - **THEN** không account nào được tạo, provider nhận lệnh thu hồi token, và response là `302` tới `/accounts?connectError=CONNECT_SCOPE_DENIED`
+
+#### Scenario: Provider đổi tên scope đăng nhập
+- **WHEN** Gmail xin `email` và token response ghi `https://www.googleapis.com/auth/userinfo.email` cùng `gmail.readonly`
+- **THEN** kết nối thành công, vì `email` không phải scope bắt buộc
 
 ### Requirement: Định danh Gmail bất biến
 Hồ sơ account của Gmail MUST dùng `sub` của Google làm `externalAccountId` và email làm tên hiển thị mặc định; MUST NOT dùng email làm định danh.

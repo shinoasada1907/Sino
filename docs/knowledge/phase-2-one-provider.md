@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30, BE-31.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30, BE-31, BE-32.
 > **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -32,12 +32,14 @@ Xóa account -> báo Google thu hồi token             BE-33
 | D-39 | Giả lập Google trong test bằng WireMock |
 | D-40 | Google project: Testing khi dev, "In production" không thẩm định khi dùng thật |
 | D-41 | Backend F04a làm song song với web của Phase 1 |
+| D-51 | `OAuth2Connection.requiredScopes`: callback chỉ đòi scope bắt buộc, không đòi mọi scope đã xin |
 
 | Task | Đã làm | Trạng thái |
 |---|---|---|
 | BE-30 | SPI `oauth2()`, connector Gmail khung, cấu hình Google, WireMock | xong |
 | BE-31 | Bắt đầu kết nối: `POST /api/accounts/connect/{provider}`, state + PKCE trong session | xong |
-| BE-32…BE-34 | Callback, thu hồi khi xóa, thử với Google thật | chưa làm |
+| BE-32 | Callback: đổi code lấy token, kiểm scope, đăng ký, thu hồi grant không dùng | xong |
+| BE-33…BE-34 | Thu hồi khi xóa, thử với Google thật | chưa làm |
 | FE-30 | Nút "Thêm Gmail", "Kết nối lại" | chưa làm |
 
 ---
@@ -202,6 +204,109 @@ Làm hỏng code mỗi lần một chỗ (18 lần), lần nào cũng có test �
 
 ---
 
+## 3. Callback: đổi code lấy token, kiểm scope, đăng ký (BE-32)
+
+### 3.1 Luồng của `GET /api/accounts/connect/{provider}/callback`
+- **Ở đâu:** `account/api/ConnectController.callback`, `account/application/ConnectService.complete`, `account/infrastructure/oauth/{OAuth2Clients.exchange, OAuth2TokenRevoker}`.
+
+```text
+ConnectController   lấy và XÓA PendingConnect theo state (trước mọi việc)
+                    không session / không có / hết hạn / sai provider
+                      -> 302 CONNECT_STATE_INVALID, không gọi Google
+ConnectService      error=access_denied        -> CONNECT_CANCELLED
+                    error khác / không có code -> CONNECT_FAILED
+                    đổi code lấy token (Spring, có timeout)
+                    thiếu scope bắt buộc -> thu hồi -> CONNECT_SCOPE_DENIED
+                    không có refresh token       -> CONNECT_FAILED
+                    hỏi connector "đây là ai" (sub, email)
+                    kết nối lại mà sub khác -> thu hồi -> CONNECT_WRONG_ACCOUNT
+                    register (F02, transaction duy nhất)
+ConnectController   302 /accounts?connected={id}
+                    302 /accounts?connectError={CODE}
+```
+
+- **Vì sao mọi lời gọi Google nằm ngoài transaction:** transaction giữ một kết nối database. Google chậm 10 giây thì kết nối đó bị giữ 10 giây vô ích; nhiều người cùng kết nối là hết kết nối. Chỉ bước `register` cuối cùng mới cần transaction.
+
+### 3.2 State dùng một lần, lấy ra trước mọi việc
+- **Là gì:** callback lấy `PendingConnect` ra khỏi session và xóa nó ngay, rồi mới làm gì khác. Kể cả khi sau đó Google lỗi, state đó cũng không dùng lại được.
+- **Vì sao:** nếu chỉ xóa khi thành công, kẻ xấu có thể gọi lại cùng một state nhiều lần để thử.
+- **`getSession(false)`:** chỉ lấy session đang có, không tạo mới. Callback không có session thì không có gì để lấy, nên trả `CONNECT_STATE_INVALID` mà không sinh session rác.
+- **Kiểm provider:** state bắt đầu cho Gmail mà quay về đường `/api/accounts/connect/fake/callback` thì từ chối.
+- **`PendingConnects` tự khóa (`synchronized`):** hai request cùng một session (hai tab) không thể cùng lấy được một state. Đây là góp ý của review BE-31.
+
+### 3.3 Đổi code lấy token bằng Spring
+- **Ở đâu:** `OAuth2Clients.exchange`.
+- **Là gì:** `RestClientAuthorizationCodeTokenResponseClient` của Spring gửi `POST` tới token endpoint của Google với `code`, `redirect_uri` (của chính authorization request, nên luôn khớp lần đầu), `code_verifier` (PKCE) và client id/secret trong header `Authorization: Basic`.
+- **Vì sao tự dựng `RestClient`:** để đặt timeout (kết nối 5 giây, đọc 10 giây). Bản mặc định của Spring không có timeout.
+- **Bẫy 1: thay `RestClient` mà quên phần của Spring.** Bản mặc định có bộ chuyển form, bộ đọc token response và `OAuth2ErrorResponseErrorHandler`. Quên bộ xử lý lỗi thì Google trả `400 invalid_grant` chỉ còn là "HTTP 400". Kiểm tra ngược đã thử đúng lỗi này.
+- **Bẫy 2: thông báo lỗi của Spring có thể chép body của Google.** Sino không dùng message đó; `reasonOf` chỉ nêu loại lỗi: mã lỗi OAuth (`invalid_grant`), mã HTTP, "không kết nối được hoặc quá thời gian", hoặc "trả lời không đọc được".
+- **Java mới dùng ở đây:** `switch` theo kiểu của `failure.getCause()`, có `case null` (lỗi OAuth không có nguyên nhân bên dưới) và `case ResourceAccessException _` (dấu `_` là biến không dùng tới).
+
+### 3.4 Scope thật được cấp (D-51)
+- **Vấn đề gặp khi làm:** Sino xin `email`, nhưng token response của Google ghi `https://www.googleapis.com/auth/userinfo.email`. Nếu đòi mọi scope đã xin phải có mặt nguyên văn, lần kết nối nào với Google thật cũng hỏng. Test bằng WireMock không thấy được lỗi này, vì WireMock trả gì là do mình viết.
+- **Cách làm (bạn chọn):** `OAuth2Connection` có thêm `requiredScopes`, là tập con của scope xin. Gmail chỉ đòi `gmail.readonly`. Các scope đăng nhập (`openid`, `email`) Google cho đồng ý ở bước riêng, người dùng không bỏ tick được.
+- **RFC 6749 §5.1:** token response được phép bỏ `scope` khi cấp đúng như đã xin. Spring khi đó trả tập rỗng, nên Sino tự hiểu là "được cấp đúng phần đã xin".
+- **Chi tiết của Spring:** thiếu `expires_in` thì Spring đặt hạn token là 1 giây sau lúc nhận, tức coi như sắp hết hạn. Cách này an toàn: F04b sẽ refresh ngay thay vì dùng một token không rõ hạn.
+
+### 3.5 Thu hồi grant không dùng
+- **Ở đâu:** `OAuth2TokenRevoker`, theo RFC 7009: `POST` form `token=...` tới địa chỉ thu hồi của provider.
+- **Khi nào:** thiếu scope bắt buộc, hoặc kết nối lại mà chọn nhầm tài khoản Google. Sino đã nhận token nhưng sẽ không dùng, nên báo Google rút quyền lại.
+- **Thu hồi token nào:** refresh token nếu có. Với Google, thu hồi refresh token là rút cả quyền đã cấp.
+- **Best-effort:** Google lỗi hay chậm thì chỉ ghi `WARN` (provider, mã HTTP), không ném lỗi ra ngoài. BE-33 dùng lại lớp này khi xóa account.
+
+### 3.6 Kết nối lại: đúng tài khoản mới được
+- **Là gì:** lúc bắt đầu kết nối lại, `PendingConnect` lưu `externalAccountId` (với Gmail là `sub`) của account đích. Ở callback, `sub` của tài khoản vừa đồng ý phải trùng giá trị đó, nếu không thì `CONNECT_WRONG_ACCOUNT` và không đổi gì.
+- **Vì sao lưu từ lúc bắt đầu:** callback so sánh mà không cần đọc lại database.
+- **`ProviderContext.accountId` = `null`:** khi kết nối account mới, lúc hỏi "đây là ai" thì account chưa tồn tại nên chưa có ID. Trước đây context bắt buộc phải có ID; BE-32 nới quy tắc này, vì một UUID bịa ra là dữ liệu sai.
+
+### 3.7 Luôn là `302`, không bao giờ JSON
+- **Vì sao:** callback là một lần trình duyệt chuyển trang, không phải lời gọi API của web. Web đọc kết quả từ đường dẫn: `/accounts?connected=...` hoặc `/accounts?connectError=...`.
+- **Không open redirect:** địa chỉ đích là hằng số trong code, không bao giờ lấy từ tham số request. Test thử thêm `next=https://evil.test/` vào URL và kiểm `Location` vẫn là `/accounts?...`.
+- **Callback công khai ở tầng security:** nếu bắt đăng nhập, mất session (khởi động lại, hết hạn) sẽ thành `401` dạng JSON giữa một lần chuyển trang, người dùng thấy một trang lỗi trần. Mở ra thì mất session là `302 CONNECT_STATE_INVALID` và web hiện thông báo. Người dùng được nhận ra bằng `PendingConnect` trong session; không có thì callback không làm gì.
+- **Lưới an toàn:** lỗi bất ngờ (ví dụ database từ chối) vẫn thành `302 CONNECT_FAILED` chứ không thành trang lỗi `500`.
+
+### 3.8 Log an toàn
+- `CONNECT_FAILED` ghi lý do cụ thể (ví dụ `the token endpoint answered HTTP 500`), không bao giờ ghi `code`, token hay client secret. Có test chạy một lần thành công và một lần thất bại rồi quét toàn bộ log.
+- **Chống chèn log:** tham số `error` đi qua trình duyệt, ai cũng sửa được. Sino chỉ ghi nó khi trông giống một mã lỗi OAuth (chữ, số, `_ . -`, tối đa 64 ký tự); còn lại ghi `(unrecognized)`. Nếu ghi nguyên văn, kẻ xấu có thể nhét dấu xuống dòng để tạo một dòng log giả.
+
+### 3.9 Test với server thật
+- **`ConnectCallbackTests`:** server chạy thật trên cổng ngẫu nhiên, `Browser` giữ cookie như trình duyệt và không tự đi theo `302` (để test thấy chính `302`), WireMock đóng vai ba endpoint của Google (token, userinfo, thu hồi), `Clock` giả để thử state hết hạn sau 10 phút. Mỗi mã lỗi có một test.
+- **`Browser` chuyển ra `src/test/java/dev/sino/Browser.java`** để test của mọi module dùng chung; trước đây nó nằm trong `AuthApiTests`.
+
+### 3.10 Kiểm tra ngược (BE-32)
+Làm hỏng code mỗi lần một chỗ (26 lần), lần nào cũng có test đỏ:
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Không kiểm `requiredScopes` nằm trong scope xin | scope bắt buộc phải nằm trong scope xin |
+| Không chép `requiredScopes` thành bản chỉ đọc | sửa tập gốc không ảnh hưởng record |
+| `ProviderContext` lại bắt buộc `accountId` | context không có ID khi đang kết nối; kết nối mới hỏng (5 test) |
+| Gmail không đòi scope nào | Gmail đòi `gmail.readonly`; thiếu quyền đọc thì không tạo account |
+| Không coi "thiếu `scope`" là "được cấp đúng phần đã xin" | token response không có `scope` |
+| Bỏ timeout của token client | token endpoint chậm thì lỗi trong dưới 2 giây |
+| Bỏ bộ xử lý lỗi OAuth2 của Spring | `400 invalid_grant` phải nêu được `invalid_grant` |
+| Dùng message của Spring làm lý do | lý do không chép body của Google (3 test) |
+| Bỏ mất refresh token | kết nối thành công, kết nối lại, thu hồi đúng token (8 test) |
+| Bỏ timeout khi thu hồi | Google chậm thì thu hồi bỏ cuộc trong dưới 2 giây |
+| Thu hồi lỗi thì ném ra ngoài | thu hồi lỗi chỉ là `WARN` |
+| Log thu hồi chép body của Google | log không chứa token |
+| `access_denied` thành `CONNECT_FAILED` | hủy ở Google là `CONNECT_CANCELLED` (2 test) |
+| Ghi nguyên văn tham số `error` | log không có dòng giả |
+| Bỏ kiểm scope | thiếu quyền đọc thì không tạo account (2 test) |
+| Thiếu scope mà không thu hồi | Google nhận lệnh thu hồi |
+| Bỏ kiểm refresh token | không có refresh token thì không tạo account |
+| Bỏ kiểm "đúng tài khoản" | chọn tài khoản khác thì không đổi gì |
+| Sai tài khoản mà không thu hồi | Google nhận lệnh thu hồi |
+| Thu hồi access token thay vì refresh token | Google nhận đúng refresh token (2 test) |
+| Bỏ kiểm provider trên đường dẫn | state của Gmail không dùng được ở đường của provider khác |
+| Bỏ lưới an toàn của controller | lỗi bất ngờ vẫn là `302 CONNECT_FAILED` |
+| Lấy địa chỉ redirect từ tham số `next` | `Location` luôn là `/accounts?...` |
+| Callback không còn công khai | không có session là `302`, không phải `401` |
+| `OAuth2Clients` khởi tạo muộn (`@Lazy`) | Gmail bật mà thiếu địa chỉ public thì app dừng ngay |
+| `OAuth2Tokens.toString()` in token | chuỗi của token bị che |
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -216,3 +321,7 @@ Làm hỏng code mỗi lần một chỗ (18 lần), lần nào cũng có test �
 10. Vì sao `take` phải xóa state ngay cả khi lần dùng đó thất bại?
 11. Vì sao `login_hint` dùng `sub` chứ không dùng tên hiển thị của account?
 12. Xóa một dòng code mà không test nào đỏ: khi nào nên thêm test, khi nào nên xóa luôn dòng đó?
+13. Vì sao gọi Google bên trong transaction là ý tồi?
+14. Vì sao test bằng WireMock không phát hiện được chuyện Google đổi `email` thành `userinfo.email`?
+15. Callback trả `302` về `/accounts?connectError=...`: điều gì xảy ra nếu đường dẫn đó lấy từ tham số `next` của request?
+16. Vì sao chỉ ghi tham số `error` vào log khi nó giống một mã lỗi OAuth?

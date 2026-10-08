@@ -53,6 +53,9 @@ Sino kết nối Gmail cá nhân của chính người dùng (một người dù
 ### D-41 — Làm backend F04a song song với web của Phase 1 · **Accepted** (người dùng, 2026-10-07)
 BE-30…BE-34 làm ngay, trong khi phần web của Phase 1 đang làm; phần web của F04a (FE-30) làm sau khi Phase 1 có trang Accounts (change 2). **LÝ DO:** người dùng muốn backend tiếp tục trong lúc chờ web; backend của F04a kiểm chứng được với Google thật mà không cần web (redirect URI riêng cho backend, xem Testing). Lệch luật roadmap "từ F04 mỗi feature là vertical slice, không làm hết BE rồi mới làm FE" — F04a vẫn có FE và chỉ đóng khi FE xong.
 
+### D-51 — Scope phải được cấp tách khỏi scope xin · **Accepted: A** (người dùng, 2026-10-08, khi làm BE-32)
+`OAuth2Connection` có thêm `requiredScopes`: tập con của `scopes` mà callback đòi phải có trong scope được cấp. Gmail: `scopes` = `openid`, `email`, `gmail.readonly`; `requiredScopes` = `gmail.readonly`. **LÝ DO:** Google không trả lại đúng chuỗi đã xin: xin `email` thì token response ghi `https://www.googleapis.com/auth/userinfo.email`, nên đòi mọi scope đã xin thì lần nào cũng thành `CONNECT_SCOPE_DENIED`. Các scope đăng nhập (`openid`, `email`, `profile`) được đồng ý ở bước riêng; người dùng chỉ bỏ tick được scope còn lại (https://developers.google.com/identity/protocols/oauth2/resources/granular-permissions). Phương án bị loại: B. xin bằng tên đầy đủ và đòi mọi scope đã xin (không đổi SPI, nhưng chỉ cần Google đổi tên thêm một scope là mọi lần kết nối hỏng); C. `account` tự biết `email` = `userinfo.email` (kiến thức riêng của Google lọt vào module chung).
+
 ## Backend design
 
 ### Luồng
@@ -98,10 +101,10 @@ Google: chọn tài khoản, đồng ý quyền
 - Scope: `openid`, `email`, `https://www.googleapis.com/auth/gmail.readonly` — tối thiểu để đọc thư; quyền gửi (F10) xin thêm sau.
 - `access_type=offline` (để có refresh token), `prompt=consent` (Google chỉ cấp refresh token ở lần đồng ý đầu, kết nối lại phải ép hiện lại màn đồng ý).
 - ~~`login_hint` = email của account đích~~ → **làm khi BE-31:** `login_hint` = `externalAccountId` của account đích (với Gmail là `sub`), chỉ khi kết nối lại (luồng chung thêm vào, không phải connector). **LÝ DO:** Sino không lưu email riêng; tên hiển thị mặc định là email nhưng người dùng đổi tên được (`PATCH`). Google nhận `login_hint` là email **hoặc** `sub` (https://developers.google.com/identity/openid-connect/openid-connect).
-- Kiểm **scope thật được cấp** trong token response: màn đồng ý của Google cho bỏ tick từng quyền; thiếu `gmail.readonly` → `CONNECT_SCOPE_DENIED`. Thiếu refresh token → `CONNECT_FAILED`.
+- Kiểm **scope thật được cấp** trong token response: màn đồng ý của Google cho bỏ tick từng quyền; thiếu `gmail.readonly` → `CONNECT_SCOPE_DENIED`. Thiếu refresh token → `CONNECT_FAILED`. **Làm khi BE-32:** so với `requiredScopes` của connector, không so với mọi scope đã xin (D-51); token response không ghi `scope` thì coi như được cấp đúng phần đã xin (RFC 6749 §5.1; Spring trả tập rỗng trong trường hợp này nên Sino tự xử lý).
 
 ### Định danh tài khoản
-`externalAccountId` = `sub` của Google (lấy từ userinfo bằng access token vừa nhận). Google khuyên không dùng email làm định danh vì email có thể đổi; `sub` thì không. Tên hiển thị mặc định = email. Kết nối lại: `sub` khác `externalAccountId` của account đích → `CONNECT_WRONG_ACCOUNT` (không tự thêm account; muốn thêm thì dùng "Thêm Gmail").
+`externalAccountId` = `sub` của Google (lấy từ userinfo bằng access token vừa nhận). **Làm khi BE-32:** lúc gọi `getAccountProfile` cho account mới, account chưa tồn tại nên `ProviderContext.accountId` = `null` (trước đây bắt buộc; không connector nào đọc nó, không spec nào nói tới); kết nối lại thì là ID của account đích. `externalAccountId` của account đích được lưu vào `PendingConnect` ngay lúc bắt đầu, nên callback so sánh mà không đọc lại database. Google khuyên không dùng email làm định danh vì email có thể đổi; `sub` thì không. Tên hiển thị mặc định = email. Kết nối lại: `sub` khác `externalAccountId` của account đích → `CONNECT_WRONG_ACCOUNT` (không tự thêm account; muốn thêm thì dùng "Thêm Gmail").
 
 ### Thành phần
 
