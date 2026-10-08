@@ -17,6 +17,7 @@ import {
   previewText,
   rowFlag,
   rowTime,
+  sendState,
   sourceLabel,
   threadMeta,
   threadSubtitle,
@@ -264,6 +265,14 @@ describe('the open conversation', () => {
     const members = ['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => ({ name, owner: false, joinedRecently: false }))
     expect(['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => memberPlaceholder(name, members))).toEqual(['a', 'd', 'c', 'b', 'a'])
     expect(memberPlaceholder('Lê Hoàng', null)).toBe('c')
+  })
+
+  it('says an email is still sending or failed, and nothing once it went out', () => {
+    const mail = (status: 'SENDING' | 'SENT' | 'SEEN' | 'FAILED' | null) => ({ id: 'm', kind: 'MESSAGE' as const, direction: 'OUT' as const, sender: 'Bạn', to: null, at: vn('2026-10-02T14:05'), text: 'x', attachments: [], status, linked: [] })
+    expect(sendState(mail('SENDING'))).toBe('Đang gửi')
+    expect(sendState(mail('FAILED'))).toBe('Không gửi được')
+    expect(sendState(mail('SENT'))).toBeNull()
+    expect(sendState(mail('SEEN'))).toBeNull()
   })
 
   it('splits a plain text body into paragraphs and lines', () => {

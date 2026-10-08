@@ -38,7 +38,9 @@
 
 ## 3. Soạn, kích thước khác, trạng thái
 
-- [ ] 3.1 **IN-04 — Soạn và gửi trên dữ liệu mẫu**
+- [x] 3.1 **IN-04 — Soạn và gửi trên dữ liệu mẫu**
+  - **Thực hiện (2026-10-08, AUTO):** `Composer` giữ nội dung đang gõ, gửi bằng nút hoặc phím tắt (thư: Ctrl / Cmd Enter, Enter xuống dòng; chat: Enter, Shift Enter xuống dòng), bỏ khoảng trắng hai đầu, không gửi nội dung rỗng (nút "Gửi" mờ), không gửi khi bộ gõ tiếng Việt đang ghép chữ (`isComposing`), gửi xong ô trống lại; `EmailThread`, `ChatThread` gọi `useSendMessage`; thư của mình đang gửi / không gửi được ghi thêm sau giờ ("14:05 hôm nay · Đang gửi"); `format.sendState`.
+  - **Kiểm chứng (2026-10-08):** RED 4/6 (2 test kiểm "không gửi" qua được trên bản chưa gửi); GREEN. Kiểm tra ngược 13 lỗi gài: 10 bị bắt; lọt 3 vì test yếu: thiếu ca khoảng trắng hai đầu, test bộ gõ kiểm trước khi việc gửi (bất đồng bộ) kịp chạy → bọc `act` và chờ một nhịp, thiếu kiểm "Đang gửi" ở thư → thêm, cả 3 bị bắt. Chrome: gõ vào "Gia đình", Enter → "14:05 · Đang gửi", sau ~1 s "14:05 · Đã gửi", ô trống, khung chat cuộn xuống cuối. `pnpm lint` 0/0, `pnpm test` 238/238, `pnpm build` ok.
   - **Test:** scenario *Nhắn Gia đình*; Ctrl Enter với email; nội dung rỗng không gửi; "Đang gửi" rồi đổi.
   - **Acceptance criteria:** *Soạn và gửi*.
 

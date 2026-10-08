@@ -196,6 +196,11 @@ export function mailTime(at: string, now: Date, timeZone: string | undefined, ex
 
 const STATUS_LABELS = { SENDING: 'Đang gửi', SENT: 'Đã gửi', SEEN: 'Đã xem', FAILED: 'Không gửi được' } as const
 
+/** What an own email still has to say about sending: "Đang gửi" or "Không gửi được"; nothing once it went out. */
+export function sendState(message: Message & { kind: 'MESSAGE' }): string | null {
+  return message.status === 'SENDING' || message.status === 'FAILED' ? STATUS_LABELS[message.status] : null
+}
+
 /** "08:24 · Đang gửi" under an own bubble (only own messages have a status), the time alone under the others. */
 export function bubbleMeta(message: Message & { kind: 'MESSAGE' }, timeZone?: string): string {
   const time = formatClock(new Date(message.at), timeZone)

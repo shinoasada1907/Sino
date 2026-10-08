@@ -8,6 +8,7 @@ import { Button } from '@/shared/ui/button'
 import { Spec } from '@/shared/ui/spec'
 import { bubbleMeta, formatFileSize, memberPlaceholder, threadSubtitle, withDayLines } from '../format'
 import type { ConversationDetail, ConversationItem, LinkedKind, Member, Message } from '../inbox.types'
+import { useSendMessage } from '../useInbox'
 import { Composer } from './Composer'
 import { MailDot } from './icons'
 
@@ -44,6 +45,7 @@ export function ChatThread({
   const group = item.memberCount !== null
   const name = nameOf(item.provider)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const sendMessage = useSendMessage(item.id)
   const placed = useRef(false)
   const messageCount = detail?.messages.length ?? 0
 
@@ -122,6 +124,7 @@ export function ChatThread({
         placeholder={`Nhắn tin tới ${item.title}…`}
         account={account.externalAccountId}
         via={`${name} · ${account.externalAccountId}`}
+        onSend={(text) => sendMessage.mutate(text)}
       />
     </section>
   )

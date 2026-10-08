@@ -1,12 +1,13 @@
 import { ChevronDown, Paperclip, Send } from 'lucide-react'
-import { useId } from 'react'
+import { useId, useState, type KeyboardEvent } from 'react'
 import { Button } from '@/shared/ui/button'
 import { Kbd } from '@/shared/ui/kbd'
 import { Spec } from '@/shared/ui/spec'
 
 /**
- * The reply box of the canvas (`.composer`): an email has the sending account and "Gửi lúc…" (Ctrl Enter), a chat
- * names the account it goes through (Enter). Attaching, choosing the account and "Gửi lúc…" have no flow yet (D-52).
+ * The reply box of the canvas (`.composer`): an email has the sending account and "Gửi lúc…" and sends with Ctrl Enter
+ * (Enter starts a line), a chat names the account it goes through and sends with Enter (Shift Enter starts a line).
+ * Nothing empty is sent. Attaching, choosing the account and "Gửi lúc…" have no flow yet (D-52).
  */
 export function Composer({
   kind,
@@ -14,6 +15,7 @@ export function Composer({
   placeholder,
   account,
   via,
+  onSend,
 }: {
   kind: 'EMAIL' | 'CHAT'
   label: string
@@ -21,9 +23,29 @@ export function Composer({
   account: string
   /** "Zalo · +84 9•• ••• 218" for a chat. */
   via: string
+  onSend: (text: string) => void
 }) {
   const id = useId()
   const email = kind === 'EMAIL'
+  const [text, setText] = useState('')
+  const empty = text.trim() === ''
+
+  const send = () => {
+    if (!empty) {
+      onSend(text.trim())
+      setText('')
+    }
+  }
+  const sendOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // An input method (Telex, VNI…) uses Enter to finish a word; that Enter must not send.
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) {
+      return
+    }
+    if (email ? event.ctrlKey || event.metaKey : !event.shiftKey) {
+      event.preventDefault()
+      send()
+    }
+  }
   return (
     <div className="flex flex-col gap-2 border-t bg-background px-6 pt-4 pb-5">
       <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-surface py-2.5 pr-3 pl-3.5 transition-[border-color,box-shadow] duration-(--dur-hover) ease-out focus-within:border-foreground focus-within:ring-3 focus-within:ring-foreground/14">
@@ -34,6 +56,9 @@ export function Composer({
           id={id}
           rows={email ? 2 : 1}
           placeholder={placeholder}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={sendOnShortcut}
           className="min-h-11 resize-none border-none bg-transparent text-sm text-foreground outline-none placeholder:text-subtle-foreground"
         />
         <div className="flex items-center gap-2">
@@ -54,7 +79,7 @@ export function Composer({
           <Kbd className="ml-auto">{email ? 'Ctrl Enter' : 'Enter'}</Kbd>
           {email ? (
             <div className="inline-flex">
-              <Button type="button" variant="primary" size="sm" className="rounded-r-none">
+              <Button type="button" variant="primary" size="sm" className="rounded-r-none" disabled={empty} onClick={send}>
                 Gửi
                 <Send strokeWidth={1.6} />
               </Button>
@@ -69,7 +94,7 @@ export function Composer({
               </Button>
             </div>
           ) : (
-            <Button type="button" variant="primary" size="sm">
+            <Button type="button" variant="primary" size="sm" disabled={empty} onClick={send}>
               Gửi
               <Send strokeWidth={1.6} />
             </Button>

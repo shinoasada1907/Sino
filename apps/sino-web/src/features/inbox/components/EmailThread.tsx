@@ -7,8 +7,9 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { firstLine, formatFileSize, linkedMeta, mailTime, paragraphs, threadMeta, threadSubtitle } from '../format'
+import { firstLine, formatFileSize, linkedMeta, mailTime, paragraphs, sendState, threadMeta, threadSubtitle } from '../format'
 import type { ConversationDetail, ConversationItem, LinkedItem, LinkedKind, Message } from '../inbox.types'
+import { useSendMessage } from '../useInbox'
 import { Composer } from './Composer'
 import { MailDot } from './icons'
 
@@ -41,6 +42,7 @@ export function EmailThread({
   const newest = mails.at(-1)
   const [opened, setOpened] = useState<string[]>([])
   const toggle = (id: string) => setOpened((ids) => (ids.includes(id) ? ids.filter((open) => open !== id) : [...ids, id]))
+  const sendMessage = useSendMessage(item.id)
 
   return (
     <>
@@ -87,6 +89,7 @@ export function EmailThread({
         placeholder={`Trả lời ${item.title}…`}
         account={account.externalAccountId}
         via={`${nameOf(item.provider)} · ${account.externalAccountId}`}
+        onSend={(text) => sendMessage.mutate(text)}
       />
     </>
   )
@@ -155,7 +158,12 @@ function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date;
       </span>
     </>
   )
-  const time = <Spec className="text-foreground">{mailTime(mail.at, now, undefined, true)}</Spec>
+  const state = sendState(mail)
+  const time = (
+    <Spec className={state === 'Không gửi được' ? 'text-danger-ink' : 'text-foreground'}>
+      {[mailTime(mail.at, now, undefined, true), state].filter(Boolean).join(' · ')}
+    </Spec>
+  )
 
   return (
     <article className="flex flex-col gap-4 rounded-md border bg-surface p-5">
