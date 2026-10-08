@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42) và change `openspec/changes/fe-ui-accounts` (màn Tài khoản). Đã xong: BE-27, BE-28, BE-29, FE-01, UI-01, UI-02, UI-03, AC-01, AC-02, AC-03, AC-04.
+> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42) change `openspec/changes/fe-ui-accounts` (màn Tài khoản) và change `openspec/changes/fe-ui-connect` (luồng kết nối tài khoản). Đã xong: BE-27, BE-28, BE-29, FE-01, UI-01, UI-02, UI-03, AC-01, AC-02, AC-03, AC-04, CN-01, CN-02, CN-03.
 > **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
@@ -603,6 +603,66 @@ bấm công tắc
 - **Chrome thật** (đồng hồ cố định 14:05): 1440 / 1024 / 768 / 390px × sáng / tối cho cả hai trang; không trang nào cuộn ngang; Tab tới nút mở chi tiết có viền 2px; bấm giữa hàng mở chi tiết; hộp thoại giữ focus, Esc trả focus về nút mở; xác nhận ngắt kết nối về danh sách còn 2 tài khoản.
 - **Bẫy của script kiểm tra:** gửi phím Enter qua DevTools Protocol mà thiếu `text: '\r'` thì Chrome không coi là bấm nút, hộp thoại không mở. Lỗi nằm ở script, không phải ở trang: trước khi sửa trang, kiểm xem công cụ đo có đúng không.
 
+## 7. Luồng kết nối tài khoản (fe-ui-connect)
+
+### 7.0 Bức tranh: đi rồi về
+- **Ở đâu:** `src/features/accounts/components/ConnectWizard.tsx`, `ConnectError.tsx`, `connect.types.ts`, `connect.format.ts`, `connect.sample.ts`, `useConnect.ts`, `accounts.api.ts`, `AccountsPage.tsx`.
+- **Là gì:** hộp thoại 5 bước của canvas `ConnectWizard`, mở từ "Kết nối tài khoản" và "Đăng nhập lại". Phần giữa của luồng **không** nằm trong Sino: người dùng rời Sino sang trang của Google, rồi Google gửi họ về.
+
+```text
+"Kết nối tài khoản" -> 1 Nhà cung cấp -> 2 Quyền -> 3 Đăng nhập
+"Đăng nhập lại"     -> /accounts?reconnect=id -----> 2 Quyền (kèm accountId)
+                                   3: POST /api/accounts/connect/{provider} -> { authorizationUrl }
+                                      window.location.assign(authorizationUrl)   (rời Sino)
+                         ... trang của Google: chọn tài khoản, đồng ý quyền ...
+backend callback -> 302 /accounts?connected=id      -> 4 Đồng bộ -> 5 Xong
+                 -> 302 /accounts?connectError=CODE -> cảnh báo + "Thử lại"
+```
+
+- **Dữ liệu mẫu đóng vai cả Google:** `startConnect` mẫu trả `authorizationUrl = /accounts?connected=acc-gmail`, nên trên trình duyệt thật vòng "đi rồi về" chạy đủ mà không cần Google. Khi nối API (FE-30 của F04a), chỉ đổi thân các hàm trong `accounts.api.ts`.
+
+### 7.1 Khi canvas và backend vênh nhau (D-47…D-50)
+- **Chuyện gì:** canvas vẽ cửa sổ bật lên (popup) của Google, xem lại quyền **sau** khi đăng nhập, có công tắc "Gửi thư · tùy chọn" và bước chọn khoảng đồng bộ. Backend F04a (người dùng đã duyệt) chuyển **cả trang**, xin quyền **ngay trong** yêu cầu gửi sang Google, chỉ xin quyền đọc (gửi để F10), và để F04b chốt cửa sổ nhập thư.
+- **Cách chọn (agent chốt theo ủy quyền, ghi ở `design.md` để người dùng xem lại):** giữ luồng backend, giao diện theo canvas nhiều nhất có thể.
+  - **D-47:** đổi thứ tự: Quyền lên trước Đăng nhập. Quyền đã cấp ở Google rồi thì "xem lại" không còn quyết định được gì.
+  - **D-48:** bỏ công tắc "Gửi thư": hiện một lựa chọn không có thật còn tệ hơn không hiện.
+  - **D-49:** giữ bước Đồng bộ như một **đề xuất có hình dạng cụ thể** cho F04b (khoảng 30 / 90 / toàn bộ, ước tính số thư).
+  - **D-50:** provider chưa có luồng kết nối hiện "Sắp có" theo dữ liệu `connectable`, không viết cứng.
+- **Bài học:** khi bản vẽ và hợp đồng đã duyệt mâu thuẫn, không âm thầm làm theo một bên. Ghi rõ chỗ khác, phương án bị loại, và cái giá nếu đổi ý (ở đây: chỉ phần web phải sửa).
+
+### 7.2 Rời trang và quay về
+- **`leaveTo(url)`** (`accounts.api.ts`) gọi `window.location.assign(url)`: trình duyệt tải trang mới, toàn bộ state của React mất. Vì vậy mọi thứ cần biết khi quay về phải nằm **trong URL** (`?connected=id`) hoặc ở server, không nằm trong bộ nhớ.
+- **Vì sao bọc trong một hàm riêng:** jsdom không chuyển trang được; test thay `leaveTo` bằng hàm giả (`vi.mock`) rồi kiểm nó được gọi với đúng địa chỉ.
+- **Xóa tham số sau khi đọc:** `setSearchParams(..., { replace: true })`. `replace` thay mục lịch sử hiện tại thay vì thêm mục mới. Nếu không xóa, tải lại trang sẽ mở lại hộp thoại hoặc hiện lại lỗi; nếu xóa mà không `replace`, nút "Back" sẽ đưa người dùng về đúng địa chỉ có tham số và mọi chuyện lặp lại.
+
+### 7.3 State của hộp thoại là union theo bước
+- **Ở đâu:** `WizardState` trong `ConnectWizard.tsx`.
+
+```text
+{ step: 1 | 2 | 3, provider, accountId }   trước khi rời Sino
+{ step: 4, accountId, options }            sau khi về: tùy chọn đồng bộ
+{ step: 5, accountId, status }             đã bắt đầu đồng bộ: tiến độ
+```
+
+- **Vì sao không gom hết vào một object nhiều trường tùy chọn:** mỗi bước chỉ có đúng những trường nó cần; TypeScript báo lỗi nếu bước 5 thiếu `status`, hay bước 4 lỡ đọc `provider`.
+- **Bẫy, thu hẹp kiểu:** `state.step <= 3 ? state.provider : ...` bị `tsc` báo lỗi, vì TypeScript chỉ thu hẹp union qua so sánh **bằng** (`===`) hoặc kiểm thuộc tính, không qua `<=`. Sửa: `'provider' in state`.
+
+### 7.4 Đặt state theo URL mà không dùng effect
+- **Cách đầu và vì sao bỏ:** đọc `?reconnect` trong `useEffect` rồi `setWizard(...)`. Lint `react(set-state-in-effect)` báo: effect chạy **sau** khi vẽ, đặt state xong React phải vẽ lại thêm một lần (vẽ dây chuyền); effect nên dành cho việc đồng bộ với hệ thống bên ngoài.
+- **Cách đúng, "điều chỉnh state khi đầu vào đổi":** mỗi lượt điều hướng có một `location.key` riêng. Trang nhớ key đã xử lý; gặp key mới thì **ngay lúc render** đọc tham số và đặt state (React cho phép gọi `setState` trong render nếu có điều kiện chặn như vậy). Effect chỉ còn làm việc với hệ thống bên ngoài: xóa tham số khỏi URL.
+- **Lợi thêm:** bấm "Đăng nhập lại" của cùng một tài khoản lần thứ hai vẫn mở hộp thoại, vì đó là một lượt điều hướng mới (key mới). Có test cho đúng ca này.
+
+### 7.5 Nút chọn và ô chọn theo canvas, vẫn là phần tử gốc
+- **Nhóm nút chọn nhà cung cấp:** `<input type="radio">` thật, `appearance-none` để tự vẽ vòng tròn, `checked:border-[5px]` cho chấm đặc; thẻ bao ngoài đổi viền bằng `has-checked:` (CSS `:has()`). Nhờ là radio thật: cả nhóm chỉ là **một điểm dừng** của phím Tab, mũi tên lên/xuống đổi lựa chọn, `disabled` làm "Sắp có" không chọn được, trình đọc màn hình đọc đúng "nút chọn, 1 trên 5".
+- **Ô "Đồng bộ thư từ":** `<select>` thật với `appearance-none` và mũi tên vẽ thêm; nhãn gắn bằng `htmlFor` + `useId` nên test tìm được `getByRole('combobox', { name: 'Đồng bộ thư từ' })`.
+- **Công tắc có nhãn:** `<label>` bọc `Switch`; nút `role="switch"` lấy tên từ chữ trong nhãn, bấm vào chữ cũng gạt được.
+
+### 7.6 Kiểm chứng CN-01…CN-03
+- **Test viết trước:** CN-01 16 test đỏ; CN-02 10 test đỏ (8 mới, 2 test cũ phải đổi vì "Đăng nhập lại" thành liên kết); CN-03 7 test đỏ. Cuối cùng 180/180.
+- **Kiểm tra ngược:** CN-01 28 lỗi, 25 bị bắt ngay, 2 lọt do thiếu ca (chữ bước 3 với danh tính khác "Google"; khoảng đồng bộ khác 90 ngày), 1 lỗi gài viết sai cú pháp làm cả file test không chạy (script tưởng là "lọt"; đọc kỹ thì số test chạy bị hụt). CN-02 25 lỗi, 24 bị bắt, 1 lọt ("Quay lại" ở bước 3). CN-03 23 lỗi, 22 bị bắt; lỗi lọt nằm ở một đoạn chặn **không bao giờ chạy tới**, nên đoạn đó bị bỏ thay vì viết test cho một tình huống không có thật.
+- **Chrome thật:** vòng đầy đủ: bước 1–3, `window.location.assign` thật, quay về `/accounts` không còn tham số, hộp thoại tự mở ở bước 4, chọn 30 ngày thì ước tính đổi, bước 5 có tiến độ và danh sách phía sau đổi theo; 1440 / 390px × sáng / tối; Tab đi vòng trong hộp thoại.
+- **Bẫy lint "fast refresh":** file component export thêm một hằng số (`DEFAULT_SYNC_OPTIONS`) thì Vite không tải lại nóng component được (`react(only-export-components)`); hằng số chuyển sang `connect.types.ts`.
+
 ---
 
 ## Tự kiểm tra
@@ -657,3 +717,9 @@ bấm công tắc
 48. Vì sao chữ ẩn `sr-only` làm cả trang cuộn ngang ở 768px, và vì sao thêm `relative` cho khung cuộn thì hết?
 49. Test chập chờn ở màn Tổng quan: giả thuyết đầu là gì, số đo nói gì, và vì sao nâng thời gian chờ không che lỗi thật?
 50. Ở AC-04, lỗi cố ý "công tắc nào cũng gửi kênh Thư đến" sống sót. Test đã hở chỗ nào, và sửa thế nào?
+51. Vì sao bước "Quyền" phải đứng trước bước "Đăng nhập" trong luồng chuyển trang của F04a?
+52. `window.location.assign` khác điều hướng của React Router ở chỗ nào? Vì sao thông tin cần khi quay về phải nằm trong URL?
+53. Vì sao xóa `?connected` khỏi URL phải dùng `replace: true`? Không xóa, hoặc xóa mà không `replace`, thì chuyện gì xảy ra?
+54. `WizardState` là union theo bước. Vì sao `state.step <= 3 ? state.provider : …` bị `tsc` báo lỗi, và sửa thế nào?
+55. Vì sao đọc tham số URL rồi `setState` trong `useEffect` bị lint báo? Cách dùng `location.key` khác gì, và vì sao nó còn đúng khi bấm cùng một liên kết hai lần?
+56. Vì sao nhóm chọn nhà cung cấp dùng `<input type="radio">` thật thay vì `div` bấm được? Kể ba thứ người dùng bàn phím và trình đọc màn hình được hưởng.
