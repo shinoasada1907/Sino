@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code agent memory (per machine; the shared .claude/ is at the repo root)
+.claude/
