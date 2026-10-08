@@ -10,7 +10,10 @@ import dev.sino.common.error.SinoException;
 public enum AccountErrorCode implements ErrorCode {
 
     /** No account with this ID belongs to the caller. An account of another user is reported the same way. */
-    ACCOUNT_NOT_FOUND(ErrorCategory.NOT_FOUND);
+    ACCOUNT_NOT_FOUND(ErrorCategory.NOT_FOUND),
+
+    /** The provider exists but is not connected over OAuth2, so the connect flow cannot start (F04a). */
+    CONNECT_NOT_SUPPORTED(ErrorCategory.INVALID);
 
     private final ErrorCategory category;
 

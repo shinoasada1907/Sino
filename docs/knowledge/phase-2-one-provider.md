@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30.
-> **Cập nhật:** 2026-10-07. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30, BE-31.
+> **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
 
@@ -36,7 +36,8 @@ Xóa account -> báo Google thu hồi token             BE-33
 | Task | Đã làm | Trạng thái |
 |---|---|---|
 | BE-30 | SPI `oauth2()`, connector Gmail khung, cấu hình Google, WireMock | xong |
-| BE-31…BE-34 | Bắt đầu kết nối, callback, thu hồi khi xóa, thử với Google thật | chưa làm |
+| BE-31 | Bắt đầu kết nối: `POST /api/accounts/connect/{provider}`, state + PKCE trong session | xong |
+| BE-32…BE-34 | Callback, thu hồi khi xóa, thử với Google thật | chưa làm |
 | FE-30 | Nút "Thêm Gmail", "Kết nối lại" | chưa làm |
 
 ---
@@ -129,6 +130,77 @@ Làm hỏng code mỗi lần một chỗ (16 lần), lần nào cũng có test �
 
 ---
 
+## 2. Bắt đầu kết nối: state, PKCE, session (BE-31)
+
+### 2.1 Luồng của `POST /api/accounts/connect/{provider}`
+- **Ở đâu:** `account/api/ConnectController`, `account/application/ConnectService`, `account/infrastructure/oauth/OAuth2Clients`.
+
+```text
+ConnectController   lấy owner hiện tại, gọi start
+ConnectService      tìm connector (404 UNKNOWN_PROVIDER)
+                    lấy oauth2() (422 CONNECT_NOT_SUPPORTED nếu rỗng)
+                    kết nối lại? account phải của owner, chưa xóa,
+                    cùng provider (404 ACCOUNT_NOT_FOUND)
+OAuth2Clients       dựng request gửi Google: state, PKCE, scope,
+                    tham số riêng, login_hint, redirect URI
+ConnectController   cất PendingConnect vào session, trả authorizationUrl
+```
+
+- **Vì sao chia ba lớp:** controller lo HTTP và session; service lo quy tắc nghiệp vụ (account nào được kết nối lại) và không biết HTTP; lớp `infrastructure/oauth` lo phần giao thức với Spring. Đổi một lớp không kéo theo lớp khác.
+
+### 2.2 `state`: chống CSRF cho luồng OAuth
+- **Là gì:** 32 byte ngẫu nhiên từ `SecureRandom`, mã hóa base64url (43 ký tự). Google trả nguyên giá trị này về ở callback.
+- **Chống cái gì:** kẻ xấu tự kết nối Gmail của *họ*, dừng ở bước callback, rồi lừa bạn mở đường link callback đó. Không có `state`, Sino của bạn sẽ nhận Gmail của kẻ xấu, và thư bạn gửi từ Sino sau này đi qua tài khoản của họ. Có `state` gắn với session của bạn thì đường link đó vô dụng: state trong link không có trong session của bạn.
+- **Vì sao `SecureRandom`:** `Random` thường đoán được dãy số tiếp theo; `SecureRandom` thì không.
+
+### 2.3 PKCE: lấy trộm `code` cũng vô dụng
+- **Là gì:** Sino tạo một chuỗi bí mật (`code_verifier`), gửi Google **bản băm** SHA-256 của nó (`code_challenge`, kiểu `S256`). Khi đổi `code` lấy token (BE-32), Sino gửi bản gốc; Google băm lại và so.
+- **Chống cái gì:** `code` đi qua thanh địa chỉ trình duyệt, có thể lọt vào lịch sử hoặc log. Kẻ có `code` mà không có verifier thì không đổi được token.
+- **Ở đâu:** `OAuth2AuthorizationRequestCustomizers.withPkce()` của Spring thêm cả hai vào request; verifier nằm trong `attributes` của `OAuth2AuthorizationRequest`, không bao giờ ra khỏi server.
+
+### 2.4 Vì sao cất trong session, không cất trong database
+- **Session gắn với một trình duyệt.** Chỉ trình duyệt đã bắt đầu mới hoàn tất được; đó chính là điều `state` cần bảo vệ.
+- **`PendingConnects`:** một `LinkedHashMap` theo `state`, cất trong session: mỗi state dùng **một lần** (`take` xóa ngay, kể cả khi sau đó lỗi), sống **10 phút**, tối đa **5** cái (mở nhiều tab vẫn được; thừa thì bỏ cái cũ nhất). `LinkedHashMap` giữ thứ tự thêm vào, nên cái cũ nhất luôn đứng đầu: `pollFirstEntry()` lấy nó ra.
+- **Cái hết hạn không cần dọn riêng:** cái hết hạn luôn là cái cũ nhất, nên khi đầy nó bị bỏ trước; còn `take` không bao giờ trả cái đã hết hạn. Bản đầu có thêm một dòng `removeIf` dọn cái hết hạn mỗi lần thêm. Kiểm tra ngược cho thấy xóa dòng đó đi thì không test nào đỏ, và suy luận cũng ra không có trường hợp nào nó làm khác đi (gọi là *mutant tương đương*). Dòng code không thay đổi được kết quả nào là dòng thừa, nên đã bỏ.
+- **Khóa session khi sửa:** hai tab bấm cùng lúc là hai request song song trên cùng session; `synchronized (WebUtils.getSessionMutex(session))` để map không bị hỏng.
+- **`Serializable`:** đối tượng trong session nên ghi ra được (một số cấu hình lưu session ra đĩa hoặc chia sẻ giữa các server). Có test ghi ra rồi đọc lại.
+
+### 2.5 `login_hint` khi kết nối lại
+- **Là gì:** gợi ý cho Google chọn sẵn tài khoản nào. Sino gửi `externalAccountId` của account, với Gmail là `sub`.
+- **Vì sao không gửi email như design ban đầu:** Sino không lưu email riêng; tên hiển thị mặc định là email nhưng bạn đổi tên được. Tài liệu Google ghi `login_hint` nhận email **hoặc** `sub`.
+
+### 2.6 Redirect URI từ `SINO_PUBLIC_BASE_URL`
+- **Là gì:** `SINO_PUBLIC_BASE_URL` + `/api/accounts/connect/gmail/callback`. Khi dev là `http://localhost:5173`, đi qua proxy của Vite (D-36).
+- **Vì sao không tự đoán từ request:** header `Host` của request giả được; Google cũng đòi redirect URI khớp từng ký tự với URI đã đăng ký.
+- **Kiểm lúc khởi động:** có connector OAuth2 mà thiếu địa chỉ, hoặc địa chỉ không phải `http(s)`, hoặc có `?`/`#` thì dừng ngay. Có connector OAuth2 mà thiếu client của nó cũng dừng. Không có connector OAuth2 thì không cần địa chỉ (test và CI vẫn chạy).
+- **Test cả app khi chưa có Google project (`GmailOffTests`):** không client id, không secret, không địa chỉ: app vẫn chạy, `/api/providers` không có `gmail`, và `POST /api/accounts/connect/gmail` trả `404 UNKNOWN_PROVIDER`. Test đơn vị của `OAuth2Clients` đã kiểm quy tắc "không có connector OAuth2 thì không cần địa chỉ"; test này kiểm thêm phần lắp ráp: khi Gmail tắt, Spring thật sự không tạo bean Gmail, `OAuth2Clients` nhận danh sách rỗng và app khởi động được.
+
+### 2.7 Kiểm tra ngược (BE-31)
+Làm hỏng code mỗi lần một chỗ (18 lần), lần nào cũng có test đỏ:
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| `take` chỉ đọc, không xóa state | mỗi state chỉ lấy được một lần |
+| Không bao giờ hết hạn | sống đúng 10 phút |
+| Đúng phút thứ 10 vẫn còn dùng được | sống đúng 10 phút |
+| Không giới hạn số kết nối đang chờ | giữ 5 cái mới nhất |
+| Thừa thì bỏ cái **mới** nhất | giữ 5 cái mới nhất; cái hết hạn nhường chỗ chứ không đẩy cái mới |
+| Bỏ PKCE | URL có `code_challenge` kiểu `S256` khớp với verifier (3 test) |
+| State 16 byte thay vì 32 | state dài 43 ký tự base64url |
+| Bỏ `login_hint` | kết nối lại thì có `login_hint` (2 test) |
+| Bỏ tham số riêng của connector | URL có `access_type=offline`, `prompt=consent` (2 test) |
+| Redirect URI lấy từ mẫu của `ClientRegistration` | redirect URI = địa chỉ public + đường callback (3 test) |
+| Không kiểm địa chỉ public | địa chỉ rỗng, thiếu `http(s)`, có `?` hay `#` thì dừng |
+| Giữ dấu `/` cuối của địa chỉ | không ra `//api/...` |
+| Connector OAuth2 thiếu client vẫn khởi động | thiếu client thì dừng, thông báo nêu tên connector và client |
+| Đòi địa chỉ public cả khi Gmail tắt | `GmailOffTests` (app không khởi động được) và test đơn vị |
+| Cho kết nối lại account của provider khác | account của provider khác là `404` |
+| Quên cất vào session | session có kết nối đang chờ (3 test) |
+| Tên provider sai định dạng ném lỗi thô | tên không thể là provider vẫn là `404 UNKNOWN_PROVIDER` |
+| Kết nối lại mà không gửi định danh | kết nối lại thì có `login_hint` = `sub` |
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -138,3 +210,8 @@ Làm hỏng code mỗi lần một chỗ (16 lần), lần nào cũng có test �
 5. Không đặt timeout cho lời gọi HTTP thì chuyện gì có thể xảy ra với server?
 6. Vì sao `@ConditionalOnProperty` không hợp với biến khai báo kiểu `${SINO_GOOGLE_CLIENT_ID:}`?
 7. Một dòng log in đối tượng `ClientRegistration` gây ra chuyện gì?
+8. Không có `state`, kẻ xấu làm gì được với Sino của bạn?
+9. PKCE bảo vệ trường hợp nào mà `state` không bảo vệ được?
+10. Vì sao `take` phải xóa state ngay cả khi lần dùng đó thất bại?
+11. Vì sao `login_hint` dùng `sub` chứ không dùng tên hiển thị của account?
+12. Xóa một dòng code mà không test nào đỏ: khi nào nên thêm test, khi nào nên xóa luôn dòng đó?

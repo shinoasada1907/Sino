@@ -6,6 +6,8 @@ spring:
     name: sino-api
 
 sino:
+  # Where the browser reaches Sino; the connect flow builds its redirect URI from it.
+  public-base-url: http://localhost:5173
   owner:
     email: owner@sino.test
     display-name: Test Owner

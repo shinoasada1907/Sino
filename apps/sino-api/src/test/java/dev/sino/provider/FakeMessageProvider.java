@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -13,6 +14,7 @@ import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.MessageType;
 import dev.sino.provider.spi.NormalizedMessage;
+import dev.sino.provider.spi.OAuth2Connection;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -36,6 +38,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private final String displayName;
     private final ProviderCapabilities capabilities;
     private final List<List<RawMessage>> pages;
+    private final OAuth2Connection oauth2;
     private final List<SendMessageCommand> sent = new ArrayList<>();
 
     private FakeMessageProvider(Builder builder) {
@@ -43,6 +46,7 @@ public final class FakeMessageProvider implements MessageProvider {
         this.displayName = builder.displayName;
         this.capabilities = builder.capabilities;
         this.pages = List.copyOf(builder.pages);
+        this.oauth2 = builder.oauth2;
     }
 
     public static Builder builder(String type) {
@@ -71,6 +75,11 @@ public final class FakeMessageProvider implements MessageProvider {
     @Override
     public ProviderCapabilities capabilities() {
         return capabilities;
+    }
+
+    @Override
+    public Optional<OAuth2Connection> oauth2() {
+        return Optional.ofNullable(oauth2);
     }
 
     @Override
@@ -147,6 +156,7 @@ public final class FakeMessageProvider implements MessageProvider {
         private String displayName;
         private ProviderCapabilities capabilities = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES);
         private final List<List<RawMessage>> pages = new ArrayList<>();
+        private OAuth2Connection oauth2;
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -159,6 +169,12 @@ public final class FakeMessageProvider implements MessageProvider {
 
         public Builder capabilities(ProviderCapability... capabilities) {
             this.capabilities = ProviderCapabilities.of(capabilities);
+            return this;
+        }
+
+        /** Makes the fake connect over OAuth2, like Gmail. */
+        public Builder oauth2(OAuth2Connection oauth2) {
+            this.oauth2 = oauth2;
             return this;
         }
 

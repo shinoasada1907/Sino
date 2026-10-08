@@ -62,6 +62,9 @@ sino:
       active-key-id: ${SINO_CREDENTIAL_ACTIVE_KEY_ID:}
       keys:
         k1: ${SINO_CREDENTIAL_KEY_K1:}
+  # The address the browser uses to reach Sino (D-36), for example http://localhost:5173 in development. Required as
+  # soon as a connector connects over OAuth2 (Gmail): the connect flow builds its redirect URI from it.
+  public-base-url: ${SINO_PUBLIC_BASE_URL:}
   google:
     # D-38/D-40: Sino's Google OAuth client (Google Cloud console, type "Web application"). Without both values
     # Gmail is off and the app still starts; with only one the app stops. The secret only comes from the environment.

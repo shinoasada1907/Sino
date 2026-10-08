@@ -82,7 +82,7 @@ Google: chọn tài khoản, đồng ý quyền
 
 | Method | Path | Quyền | Body / tham số | Thành công | Lỗi |
 |---|---|---|---|---|---|
-| POST | `/api/accounts/connect/{provider}` | đã đăng nhập, CSRF | `{"accountId": "<uuid>"}` tùy chọn (kết nối lại) | `200 {"authorizationUrl": "..."}` | `404 UNKNOWN_PROVIDER`, `422 CONNECT_NOT_SUPPORTED`, `404 ACCOUNT_NOT_FOUND` (không có, đã xóa, của người khác, hoặc khác provider), `400 VALIDATION_FAILED` |
+| POST | `/api/accounts/connect/{provider}` | đã đăng nhập, CSRF | `{"accountId": "<uuid>"}` tùy chọn (kết nối lại) | `200 {"authorizationUrl": "..."}` | `404 UNKNOWN_PROVIDER`, `422 CONNECT_NOT_SUPPORTED`, `404 ACCOUNT_NOT_FOUND` (không có, đã xóa, của người khác, hoặc khác provider), ~~`400 VALIDATION_FAILED`~~ `400 MALFORMED_REQUEST` (`accountId` không phải UUID; **làm khi BE-31**, **LÝ DO:** body không đọc được thành request là `MALFORMED_REQUEST` theo `api-conventions`; `VALIDATION_FAILED` dành cho Bean Validation, endpoint này không có ràng buộc nào) |
 | GET | `/api/accounts/connect/{provider}/callback` | công khai ở tầng security (người dùng xác định bằng `state` trong session) | `code`, `state` hoặc `error`, `state` | `302` `Location: /accounts?connected={accountId}` | `302` `Location: /accounts?connectError={CODE}` |
 
 - Callback luôn trả `302`, không trả JSON: đây là một lần chuyển trang của trình duyệt. `Location` là đường dẫn tương đối, cố định (`/accounts`), không lấy từ tham số của request (không có open redirect). Trình duyệt hiểu nó theo origin của callback, tức `SINO_PUBLIC_BASE_URL`.
@@ -97,7 +97,7 @@ Google: chọn tài khoản, đồng ý quyền
 ### Tham số gửi Google (từ `GmailProvider.oauth2()`)
 - Scope: `openid`, `email`, `https://www.googleapis.com/auth/gmail.readonly` — tối thiểu để đọc thư; quyền gửi (F10) xin thêm sau.
 - `access_type=offline` (để có refresh token), `prompt=consent` (Google chỉ cấp refresh token ở lần đồng ý đầu, kết nối lại phải ép hiện lại màn đồng ý).
-- `login_hint` = email của account đích, chỉ khi kết nối lại (luồng chung thêm vào, không phải connector).
+- ~~`login_hint` = email của account đích~~ → **làm khi BE-31:** `login_hint` = `externalAccountId` của account đích (với Gmail là `sub`), chỉ khi kết nối lại (luồng chung thêm vào, không phải connector). **LÝ DO:** Sino không lưu email riêng; tên hiển thị mặc định là email nhưng người dùng đổi tên được (`PATCH`). Google nhận `login_hint` là email **hoặc** `sub` (https://developers.google.com/identity/openid-connect/openid-connect).
 - Kiểm **scope thật được cấp** trong token response: màn đồng ý của Google cho bỏ tick từng quyền; thiếu `gmail.readonly` → `CONNECT_SCOPE_DENIED`. Thiếu refresh token → `CONNECT_FAILED`.
 
 ### Định danh tài khoản

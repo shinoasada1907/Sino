@@ -20,11 +20,11 @@
 - **THEN** response là `422` với `code` = `CONNECT_NOT_SUPPORTED`
 
 ### Requirement: Kết nối lại một account
-Body `{"accountId": ...}` MUST biến lệnh bắt đầu thành kết nối lại account đó: `authorizationUrl` MUST mang thêm `login_hint` là email của account. `accountId` không tồn tại, đã xóa, thuộc owner khác hoặc thuộc provider khác MUST trả `404` `ACCOUNT_NOT_FOUND`. Ở callback, nếu định danh của tài khoản vừa đồng ý khác `externalAccountId` của account đích thì MUST NOT tạo hay sửa account nào và MUST redirect với `CONNECT_WRONG_ACCOUNT`.
+Body `{"accountId": ...}` MUST biến lệnh bắt đầu thành kết nối lại account đó: `authorizationUrl` MUST mang thêm `login_hint` là định danh của account ở provider (`externalAccountId`; với Google là `sub`, giá trị Google nhận cho `login_hint`). `accountId` không tồn tại, đã xóa, thuộc owner khác hoặc thuộc provider khác MUST trả `404` `ACCOUNT_NOT_FOUND`. Ở callback, nếu định danh của tài khoản vừa đồng ý khác `externalAccountId` của account đích thì MUST NOT tạo hay sửa account nào và MUST redirect với `CONNECT_WRONG_ACCOUNT`.
 
 #### Scenario: Kết nối lại đúng tài khoản
 - **WHEN** owner kết nối lại một account `AUTH_EXPIRED` và chọn đúng tài khoản ở provider
-- **THEN** account đó (cùng ID) có credential mới, `status` = `CONNECTED`, và callback redirect tới `/accounts?connected={accountId}`
+- **THEN** `authorizationUrl` có `login_hint` = `externalAccountId` của account, và sau khi provider gọi về, account đó (cùng ID) có credential mới, `status` = `CONNECTED`, callback redirect tới `/accounts?connected={accountId}`
 
 #### Scenario: Kết nối lại nhưng chọn tài khoản khác
 - **WHEN** owner kết nối lại account A nhưng ở provider chọn tài khoản B
