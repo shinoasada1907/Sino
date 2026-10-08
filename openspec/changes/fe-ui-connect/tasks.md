@@ -6,7 +6,10 @@
 
 ## 1. Dữ liệu
 
-- [ ] 1.1 **CN-01 — Hợp đồng bổ sung, dữ liệu mẫu, hàm chữ, hook**
+- [x] 1.1 **CN-01 — Hợp đồng bổ sung, dữ liệu mẫu, hàm chữ, hook**
+  - **Thực hiện (2026-10-08, AUTO):** `connect.types.ts` (`ConnectableProvider`, `SyncRange`, `SyncOptions`, `SyncEstimate`, `InitialSyncStatus`); `connect.sample.ts` (5 provider, chỉ Gmail `connectable`; ước tính và tiến độ đầu theo khoảng: 30 ngày 420 thư / 1–2 phút, 90 ngày 1.180 / 3–5, toàn bộ 6.400 / 15–25); `connect.format.ts` (mô tả provider, nhãn Đọc/Gửi/Đăng ký hoặc "Sắp có", danh tính đăng nhập, câu "để làm gì" của quyền, câu quyền không xin, chữ của 5 bước theo thứ tự D-47, thông báo lỗi, ước tính, tiến độ); `accounts.api.ts` thêm `fetchConnectProviders`, `startConnect` (mẫu trả `/accounts?connected=…`), `leaveTo`, `fetchSyncEstimate`, `startInitialSync`; `useConnect.ts` (`useConnectProviders`, `useStartConnect` gọi rồi rời trang, `useSyncEstimate` theo khoảng, `useStartInitialSync` ghi tiến độ vào tài khoản trong danh sách).
+  - **Làm khác kế hoạch:** scenario "Bắt đầu đồng bộ" của spec đổi sang giữ 90 ngày, thêm scenario "Ước tính theo khoảng đồng bộ". **LÝ DO:** ước tính và tiến độ đi theo khoảng đã chọn, nên tiến độ "412 / 1.180" của canvas chỉ đúng với 90 ngày. Mã scope gửi dạng ngắn như trang chi tiết (`gmail.readonly`, `userinfo.email`), không gửi `openid` (ghi ở `design.md`).
+  - **Kiểm chứng (2026-10-08):** RED 16/16 trên stub; GREEN 77/77 trong `src/features/accounts`. Kiểm tra ngược 28 lỗi gài: 25 bị bắt; 2 lọt vì test thiếu ca (chữ bước 3 với danh tính khác "Google"; lần đồng bộ đầu với khoảng khác 90 ngày) → thêm ca → bị bắt; 1 lỗi gài viết sai cú pháp làm file test không chạy → viết lại → bị bắt. `pnpm lint` 0/0, `pnpm test` 164/164, `pnpm build` ok.
   - **Files:** `src/features/accounts/{connect.types,connect.format,useConnect}.ts`, `accounts.api.ts`, `accounts.sample.ts`, `accounts.types.ts`, test.
   - **Hướng làm:** kiểu đúng `design.md`; danh mục mẫu 5 provider (chỉ Gmail `connectable`, scope `gmail.readonly` + `userinfo.email`); `startConnect` mẫu trả `/accounts?connected=…`; `leaveTo`; ước tính và lần đồng bộ đầu mẫu (1.180 thư, 3–5 phút; 412 / 1.180, còn 3 phút).
   - **Test:** mô tả provider, nhãn Đọc/Gửi, câu quyền, thông báo lỗi (mã lạ → câu chung), ước tính, tiến độ; dữ liệu mẫu nhất quán; hook gọi đúng hàm với đúng tham số; kiểm tra ngược.

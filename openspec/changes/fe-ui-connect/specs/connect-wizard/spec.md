@@ -39,6 +39,10 @@ Khi trang Tài khoản mở với `?connected={accountId}` của một tài kho�
 - **WHEN** trang mở ở `/accounts?connectError=CONNECT_CANCELLED`
 - **THEN** trang hiện "Bạn đã hủy kết nối." với nút "Thử lại", và đường dẫn chỉ còn `/accounts`
 
+#### Scenario: Ước tính theo khoảng đồng bộ
+- **WHEN** ở bước 4 người dùng đổi từ "90 ngày gần nhất" sang "30 ngày gần nhất"
+- **THEN** dải ước tính đổi từ "khoảng 1.180 thư · 3–5 phút" sang "khoảng 420 thư · 1–2 phút"
+
 #### Scenario: Bắt đầu đồng bộ
-- **WHEN** ở bước 4 người dùng chọn "30 ngày gần nhất" rồi bấm "Bắt đầu đồng bộ"
-- **THEN** tùy chọn gửi đi có khoảng `DAYS_30`, và bước 5 hiện "Đã kết nối an.nguyen@gmail.com" cùng tiến độ "412 / 1.180 thư · còn khoảng 3 phút"
+- **WHEN** ở bước 4 người dùng giữ "90 ngày gần nhất", tắt "Dùng nhãn Gmail làm bộ lọc trong Sino" rồi bấm "Bắt đầu đồng bộ"
+- **THEN** tùy chọn gửi đi là khoảng `DAYS_90`, không dùng nhãn làm bộ lọc, tải tệp khi mở; bước 5 hiện "Đã kết nối an.nguyen@gmail.com" cùng tiến độ "412 / 1.180 thư · còn khoảng 3 phút"

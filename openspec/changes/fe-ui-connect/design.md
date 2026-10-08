@@ -44,7 +44,8 @@ Mỗi provider trong danh mục có `connectable`; chỉ provider `connectable` 
 interface ConnectableProvider extends ProviderInfo {   // ProviderInfo = { type, displayName }
   capabilities: string[]        // đã có: READ_MESSAGES, SEND_MESSAGES, ... -> nhãn "Đọc", "Gửi"
   connectable: boolean          // cần thêm: có luồng kết nối (connector OAuth2)
-  scopes: string[]              // cần thêm: quyền sẽ xin khi kết nối, ví dụ "gmail.readonly", "userinfo.email"
+  scopes: string[]              // cần thêm: quyền sẽ xin khi kết nối, mã ngắn như trang chi tiết
+                                // ("gmail.readonly", "userinfo.email"); scope kỹ thuật "openid" không gửi
 }
 
 // Bắt đầu kết nối: đã có (BE-31)
