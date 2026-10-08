@@ -84,7 +84,11 @@ Good to know:
 - "Google hasn't verified this app" is expected for your own app: *Continue*.
 - You can always take Sino's access away by hand at <https://myaccount.google.com/permissions>.
 
-### Try it with real Google, without the web app
+### Try it with real Google
+
+Through the web app (tried on 2026-10-08): start the backend with the `.env` as is (`SINO_PUBLIC_BASE_URL=http://localhost:5173`) and the web dev server (`pnpm dev` in `apps/sino-web`), sign in at <http://localhost:5173>, open *Tài khoản*, connect Gmail, and come back to `/accounts?connected=<accountId>`.
+
+Without the web app:
 
 The browser that finishes the connect must hold the session that started it (the state and the PKCE verifier live
 there), so everything happens in one browser tab on the backend's own address:

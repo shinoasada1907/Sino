@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30…BE-33; BE-34 xong phần README, phần thử thật chưa chạy.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30…BE-34 và FE-30; còn nghiệm thu F04a.
 > **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -41,8 +41,8 @@ Xóa account -> báo Google thu hồi token             BE-33
 | BE-31 | Bắt đầu kết nối: `POST /api/accounts/connect/{provider}`, state + PKCE trong session | xong |
 | BE-32 | Callback: đổi code lấy token, kiểm scope, đăng ký, thu hồi grant không dùng | xong |
 | BE-33 | Xóa account thì Google rút quyền: gửi sau commit, ngoài transaction | xong |
-| BE-34 | README Google project, thử với Google thật | README xong; thử thật chưa chạy |
-| FE-30 | Nút "Thêm Gmail", "Kết nối lại" | chưa làm |
+| BE-34 | README Google project, thử với Google thật | xong (Gmail thật: kết nối, kết nối lại, xóa) |
+| FE-30 | Nút "Thêm Gmail", "Kết nối lại" | xong (phiên web) |
 
 ---
 
@@ -371,7 +371,15 @@ Làm hỏng code mỗi lần một chỗ (8 lần), lần nào cũng có test đ
 ### 5.3 Vì sao thử thật phải dùng một tab trình duyệt
 - Kế hoạch ban đầu là đăng nhập bằng `curl` rồi mở `authorizationUrl` trên trình duyệt. Cách đó không chạy: `state` và PKCE verifier nằm trong session, mà session của `curl` nằm trong cookie jar của `curl`. Trình duyệt quay về từ Google không mang cookie đó, nên callback trả `CONNECT_STATE_INVALID`. Đây chính là điều `state` được thiết kế để chặn (mục 2.2).
 - Cách đúng: làm cả luồng trên `http://localhost:8080` trong một tab, gọi API từ console của trình duyệt (`fetch` gửi kèm `X-XSRF-TOKEN` đọc từ cookie).
-- **Trạng thái:** phần thử với Google thật chưa chạy, đợi Google project của bạn (NOT VERIFIED).
+- **Thực tế đã thử qua giao diện web** ở `:5173` (web đã có đăng nhập và nút kết nối): một lần thử kiểm cả backend lẫn web.
+
+### 5.4 Kết quả với Google thật (2026-10-08)
+- **Kết nối:** account Gmail mới, định danh là `sub` (một dãy số), tên là email, refresh token lưu dạng mã hóa.
+- **D-51 được xác nhận:** scope Google ghi lại là `gmail.readonly`, `https://www.googleapis.com/auth/userinfo.email`, `openid`. Đúng như dự đoán: `email` bị đổi thành `userinfo.email`. Nếu callback đòi mọi scope đã xin nguyên văn, lần kết nối thật này đã hỏng, dù mọi test với WireMock đều xanh. Bài học: giả lập chỉ giỏi bằng hiểu biết của người viết nó về hệ thống thật.
+- **Kết nối lại:** cùng ID, quay về `CONNECTED`, credential được ghi mới.
+- **Xóa:** account được đánh dấu xóa, credential mất hẳn, và "Sino (dev)" biến mất khỏi trang quyền của tài khoản Google: lệnh thu hồi sau commit (BE-33) chạy thật.
+- **Không lộ bí mật:** log backend và log web không chứa token, `code` hay client secret.
+- **Chưa thử thật:** chọn nhầm tài khoản Google khác (cần tài khoản thứ hai) và bỏ tick quyền đọc thư; hai nhánh này có test với WireMock.
 
 ---
 
