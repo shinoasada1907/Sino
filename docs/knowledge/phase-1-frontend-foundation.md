@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), và change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42). Đang làm: xong BE-27, BE-28, BE-29, FE-01, UI-01, UI-02, UI-03.
-> **Cập nhật:** 2026-10-07. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
+> **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42) và change `openspec/changes/fe-ui-accounts` (màn Tài khoản). Đã xong: BE-27, BE-28, BE-29, FE-01, UI-01, UI-02, UI-03, AC-01, AC-02, AC-03, AC-04.
+> **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
 
@@ -479,6 +479,130 @@ Lối tắt           ẩn               ẩn                  4 cột
 - **Kiểm tra ngược:** UI-02, 19 lỗi cố ý, 18 bị bắt ngay; lỗi sống sót ("Hôm qua" cho cả 2 ngày trước) chỉ ra test thiếu ca 2 ngày, thêm vào thì bị bắt. Trước đó tự soát và thêm 2 ca ranh giới mà một lỗi làm tròn sẽ lọt qua (7/4/1 trên 12 làm tròn hay làm tròn xuống đều ra 58/33/8). UI-03, 15 lỗi, 14 bị bắt; lỗi sống sót là do **chính lỗi cố ý viết sai** (`history.pushState` không đi qua React Router nên ở app thật cũng không chuyển trang); viết lại bằng `useNavigate` thì bị bắt. Bài học: trước khi kết luận "test hở", kiểm xem lỗi cố ý có thực tế không.
 - **Đồng hồ cố định trên Chrome thật:** qua DevTools Protocol, đặt múi giờ `Asia/Ho_Chi_Minh` (`Emulation.setTimezoneOverride`) và chèn một đoạn script chạy trước trang (`Page.addScriptToEvaluateOnNewDocument`) làm `Date` luôn bắt đầu từ 14:05 thứ Sáu 02/10/2026. Dữ liệu mẫu vì thế ra đúng giờ của canvas, và ảnh chụp so được trực tiếp với ảnh artboard người dùng gửi: cùng giờ, cùng nội dung, cùng bố cục, ở 1440px tối và sáng, 1024px và 390px.
 
+## 6. Màn Tài khoản (fe-ui-accounts)
+
+### 6.0 Bức tranh: hai trang, một nguồn dữ liệu
+- **Phạm vi (D-45, D-46, người dùng 2026-10-08):** trang danh sách `/accounts` và trang chi tiết `/accounts/:accountId`, trên desktop, tablet và mobile. Tìm, lọc, mở chi tiết, bật/tắt kênh và ngắt kết nối **chạy thật trên dữ liệu mẫu** trong cache của TanStack Query (tải lại trang thì mất). Luồng kết nối 5 bước làm sau, cùng API bắt đầu kết nối (BE-31).
+- **Dữ liệu nằm ở đâu:** mỗi mục trong cache có một "khóa" (query key). Trang nào cần gì thì đọc khóa đó; mỗi thay đổi đi qua một mutation và sửa đúng các khóa liên quan.
+
+```text
+cache (TanStack Query)
+  ['accounts']                  danh sách: AccountsData
+  ['accounts', id, 'extras']    phần thêm của 1 tài khoản: quyền, website, lịch sử, hoạt động
+  ['shell']                     số đếm trên điều hướng
+  ['overview']                  màn Tổng quan
+
+trang danh sách  đọc ['accounts']
+trang chi tiết   đọc ['accounts'] (hàng của tài khoản) + ['accounts', id, 'extras']
+
+useSetChannel        sửa ['accounts']
+useDisconnectAccount sửa ['accounts'], ['shell'], ['overview'], xóa ['accounts', id, 'extras']
+```
+
+### 6.1 Tab "Thêm" và trang con trên mobile: `handle` của route (AC-01)
+- **Ở đâu:** `src/app/shell/navItems.ts` (`MORE_PATHS`), `TabBar.tsx`, `AppShell.tsx` (`ShellHandle`), `MobilePageHeader.tsx`, `src/app/router.tsx`.
+- **Tab "Thêm":** trên mobile, Tài khoản, Ghi chú, Dịch vụ, Cài đặt… nằm dưới tab "Thêm" (canvas `MobileMore`). Tab này sáng khi đường dẫn **bằng hoặc bắt đầu bằng** một đường dẫn trong `MORE_PATHS` (`/accounts` và `/accounts/acc-gmail` đều tính).
+- **`handle` là gì:** một object tùy ý gắn vào route trong bảng route. Khung app đọc `handle` của mọi route đang khớp bằng `useMatches()` và gộp lại. Trang danh sách khai báo `{ mobilePageHeader: true }`: khung app ẩn thanh trên của mobile, vì trang tự vẽ đầu trang có nút quay lại. Trang chi tiết thêm `hideTabBar: true`: không có thanh dưới, đúng như canvas `MobileAccountDetail`.
+
+```text
+route /accounts            handle { mobilePageHeader }
+route /accounts/:accountId handle { mobilePageHeader, hideTabBar }
+        |
+AppShell: useMatches() -> gộp handle
+  mobilePageHeader -> thanh trên của khung app: max-md:hidden
+  hideTabBar       -> không vẽ TabBar
+```
+
+- **Vì sao không để trang tự ẩn khung app:** trang nằm **bên trong** khung app (`<Outlet />`), không với ra ngoài được. `handle` để trang "khai báo nhu cầu", còn khung app quyết định, nên dòng chảy vẫn một chiều từ ngoài vào trong.
+- **Đầu trang con dính ở mép trên:** `sticky top-0` giữ nó đứng yên khi danh sách cuộn, như `mob-top` của canvas.
+- **Bẫy, landmark:** `<header>` nằm trong `<main>` không phải landmark "banner" (chỉ `<header>` cấp trang mới là banner). Test không tìm được nó bằng `getByRole('banner')`, nên tìm qua tiêu đề `h1` của nó rồi `closest('header')`.
+
+### 6.2 Hộp thoại dùng chung `Dialog` (AC-01, dùng ở AC-04)
+- **Ở đâu:** `src/shared/ui/dialog.tsx`, `src/features/accounts/components/DisconnectDialog.tsx`.
+- **Radix Dialog tự làm gì:** vẽ hộp thoại vào cuối `<body>` (portal) để không bị khung cha cắt; **giữ focus bên trong** (Tab đi vòng giữa các nút của hộp, không lọt ra trang phía sau); Esc đóng; gắn tên cho hộp từ `DialogTitle`; đóng xong thì **trả focus về nút đã mở nó**.
+- **Vì sao viết tay thay vì `shadcn add dialog`:** lệnh đó đòi ghi đè `button.tsx` (Dialog dùng Button) và sẽ xóa phần đã chỉnh theo canvas. Mã được lấy từ `--dry-run --view` rồi viết lại, giữ Button đã chỉnh.
+- **Vì sao trang chi tiết có hai hộp thoại:** có hai nút mở, một của desktop, một của mobile; luôn có một nút bị ẩn bằng CSS. Mỗi nút gắn một hộp riêng (`DialogTrigger` của nó). Nếu dùng chung một hộp, Radix có thể ghi nhớ nút đang bị ẩn làm "nút mở", và lúc đóng không trả focus về đâu được, người dùng bàn phím mất chỗ đứng.
+- **An toàn khi xóa:** công tắc "Xóa luôn tin nhắn đã lưu" về **tắt** mỗi khi hộp đóng mà không xác nhận, để lần mở sau không mang theo một lựa chọn nguy hiểm đã hủy.
+
+### 6.3 Gom phần dùng chung trước khi viết màn thứ hai (AC-02)
+- **Ở đâu:** `src/shared/domain.ts` (`Instant`, `ProviderType`, `AccountStatus`, `ProviderInfo`), `src/shared/format.ts` (`formatCount`, `foldText`, `providerNameOf`, `methodLabel`), `src/shared/time/local.ts` (`formatDate`, `formatSince`).
+- **Vì sao:** kiểu trạng thái tài khoản, tên provider, số kiểu "1.284" là của **cả hai** màn Tổng quan và Tài khoản. Để trong `features/overview` thì màn Tài khoản phải phụ thuộc màn Tổng quan, hoặc chép lại. Chép thì hai bản sẽ lệch nhau.
+- **Kiểm chứng "không đổi hành vi":** tách xong, toàn bộ 86 test cũ vẫn xanh trước khi viết dòng nào của màn mới.
+- **`foldText` (tìm không dấu):** `"Nguyễn Đức"` thành `"nguyen duc"`. `normalize('NFD')` tách chữ có dấu thành chữ gốc cộng dấu rời (`ễ` = `e` + dấu mũ + dấu ngã); bỏ mọi dấu rời bằng `/\p{M}/gu`; rồi viết thường. **Bẫy:** `đ` không phải "d + dấu" trong Unicode mà là một chữ riêng, NFD không tách được, nên phải thay riêng `đ`/`Đ` thành `d`/`D`.
+
+### 6.4 Một tài khoản chỉ nằm một chỗ trong cache (AC-02)
+- **Ở đâu:** `src/features/accounts/useAccounts.ts` (`useAccounts`, `useAccount`), `accounts.types.ts` (`AccountsData`, `AccountItem`, `AccountExtras`).
+- **Là gì:** trang chi tiết **không** tải lại tài khoản. Nó lấy hàng của tài khoản từ danh sách đã có, và chỉ tải riêng phần thêm (`AccountExtras`).
+- **Để làm gì:** bật/tắt một kênh ở trang chi tiết chỉ sửa **một chỗ**, và cột "Dịch vụ" ngoài danh sách tự đổi theo. Nếu chi tiết giữ bản sao riêng, mỗi thay đổi phải sửa hai bản, quên một bản là hai trang hiện hai số khác nhau.
+- **Làm khác kế hoạch:** thiết kế ban đầu có `AccountDetailData` chứa cả tài khoản; đã đổi và ghi lý do trong `tasks.md`.
+- **Bẫy 1, "không tìm thấy" quá sớm:** lúc danh sách còn đang tải, `account` cũng là `undefined`. Nếu kết luận "không tìm thấy" ngay, trang sẽ chớp thông báo lỗi trước khi hiện đúng. Vì vậy `notFound = list !== undefined && account === undefined`.
+- **Bẫy 2, gọi API vô ích:** phần thêm chỉ tải khi tài khoản có thật (`enabled: account !== undefined`); với `id` lạ thì không gửi yêu cầu nào.
+
+### 6.5 Mutation: cập nhật lạc quan và trả lại khi lỗi (AC-02)
+- **Ở đâu:** `useAccounts.ts` (`useSetChannel`, `useDisconnectAccount`, `withChannel`, `withoutAccount`), `accounts.api.ts`.
+- **Cập nhật lạc quan (optimistic update):** công tắc đổi **ngay khi bấm**, không chờ server trả lời; nếu lưu lỗi thì trả về chỗ cũ. Với TanStack Query:
+
+```text
+bấm công tắc
+  onMutate:   chụp lại danh sách hiện tại (previous)
+              ghi danh sách mới vào cache  -> giao diện đổi ngay
+  mutationFn: gửi lên server (hiện tại: dữ liệu mẫu, không gửi gì)
+  onError:    ghi lại previous vào cache   -> công tắc về chỗ cũ
+```
+
+- **Vì sao với công tắc thì lạc quan, còn ngắt kết nối thì không:** công tắc sai thì trả lại được, người dùng thấy ngay; ngắt kết nối là việc lớn, phải chờ server xác nhận rồi mới bỏ tài khoản và chuyển trang.
+- **Hàm thuần `withChannel`, `withoutAccount`:** nhận dữ liệu cũ, **trả object mới**, không sửa object cũ. React và TanStack Query so sánh bằng tham chiếu: sửa thẳng object cũ thì "trước" và "sau" là cùng một object, màn hình có thể không vẽ lại, và bản chụp `previous` để trả lại cũng bị sửa theo. Test kiểm cả việc dữ liệu đầu vào còn nguyên.
+- **`accounts.api.ts`, chỗ duy nhất đổi khi nối API:** bốn hàm `fetchAccounts`, `fetchAccountExtras`, `saveChannel`, `deleteAccount`, hiện trả dữ liệu mẫu. Nối API thật thì chỉ sửa thân bốn hàm này.
+- **Test giả lỗi mạng:** `vi.mock('./accounts.api', ...)` thay riêng `saveChannel` bằng một hàm giả, rồi `mockRejectedValueOnce(new Error('offline'))` cho lần gọi đầu thất bại. Test kiểm công tắc trở về bật.
+
+### 6.6 Trang danh sách: bảng ARIA và liên kết phủ cả hàng (AC-03)
+- **Ở đâu:** `src/features/accounts/AccountsPage.tsx`, `components/AccountsTable.tsx`, `components/MobileAccountList.tsx`, `src/shared/ui/segmented.tsx`.
+- **Bảng bằng vai trò ARIA:** canvas vẽ bảng bằng `div` lưới CSS. Thêm `role="table"`, `row`, `columnheader`, `cell` để trình đọc màn hình biết đây là bảng, đi được theo hàng và cột, đọc tên cột kèm từng ô. Test cũng tìm "hàng có `an.nguyen@gmail.com`" bằng `getByRole('row', { name: /an\.nguyen@gmail\.com/ })`.
+- **Liên kết phủ cả hàng (stretched link):**
+
+```text
+<div role="row" class="relative ...">       <- hàng là mốc định vị
+  ... các ô ...
+  <a href="/accounts/acc-gmail"
+     aria-label="Mở chi tiết tài khoản Gmail an.nguyen@gmail.com"
+     class="after:absolute after:inset-0">  <- lớp ::after phủ kín hàng
+    (mũi tên)
+  </a>
+</div>
+```
+
+  Bấm vào đâu trên hàng cũng trúng lớp phủ của liên kết. Phím Tab chỉ dừng **một lần** mỗi hàng, tên đọc ra rõ ràng. Gắn `onClick` cho cả hàng thì chuột bấm được nhưng bàn phím và trình đọc màn hình không biết hàng bấm được.
+- **Tìm và lọc:** chữ đang gõ và nút lọc là `useState` của trang; danh sách hiện ra là `filterAccounts(accounts, { query, filter }, nameOf)`, một hàm thuần đã có test riêng. Dòng đầu "TÀI KHOẢN · 3 ĐÃ KẾT NỐI" luôn đếm **tất cả**, không đếm theo kết quả lọc.
+- **Nút lọc `Segmented` (canvas `.seg`):** mỗi nút có `aria-pressed="true|false"`, trình đọc màn hình đọc "đã nhấn" cho nút đang chọn.
+- **Mobile dùng lại trạng thái của thẻ Tổng quan:** "Ổn định", thanh 64%, "Quyền hết hạn từ 21:04 hôm qua" do cùng hàm `accountStatusView` tạo ra, nên hai màn luôn nói giống nhau.
+- **Tablet (canvas không vẽ):** giữ đủ 7 cột; bảng rộng tối thiểu 896px, hẹp hơn thì bảng **cuộn ngang trong khung của nó**, cả trang không cuộn.
+
+### 6.7 Bẫy `position: absolute` thoát khỏi khung cuộn (AC-03)
+- **Triệu chứng:** ở 768px cả trang cuộn ngang được, dù bảng đã có khung `overflow-x-auto`. Test trong jsdom không thấy (jsdom không tính bố cục); chỉ Chrome thật mới lộ ra.
+- **Nguyên nhân:** tiêu đề cột cuối có chữ ẩn "Chi tiết" với class `sr-only`, mà `sr-only` dùng `position: absolute`. Một phần tử absolute chỉ bị khung cha **cắt** khi khung đó (hoặc một cha nằm giữa) có `position`. Khung cuộn của bảng chưa có, nên chữ ẩn "thoát" ra, nằm ngoài mép phải và kéo giãn cả trang.
+- **Cách tìm:** liệt kê mọi phần tử có mép phải vượt bề rộng cửa sổ; trong danh sách có `SPAN.sr-only`.
+- **Cách sửa:** thêm `relative` cho khung cuộn. Bài học: `overflow` cắt con thường, nhưng con `absolute` thì còn tùy "khối chứa" của nó.
+
+### 6.8 Test chập chờn: đo trước khi sửa (AC-03)
+- **Triệu chứng:** test "opens the inbox, the calendar and the notifications" của màn Tổng quan thỉnh thoảng đỏ (3 trên 27 lần chạy cả bộ), không đổi dòng code nào. Lỗi: không tìm thấy liên kết "Mở lịch" sau khi quay về `/overview`.
+- **Giả thuyết đầu tiên:** truy vấn `findByRole` chậm vì phải tính tên đọc được của mọi phần tử. **Số đo nói khác:** truy vấn cả màn chỉ mất khoảng 26ms; thứ tốn thời gian là React **vẽ lại cả màn** sau khi điều hướng: 260–380ms, và lâu hơn khi 15 file test chạy song song làm máy bận. Khi vượt 1 giây (mức chờ mặc định của `findBy…`), test đỏ.
+- **Cách sửa:** `configure({ asyncUtilTimeout: 3000 })` trong `src/test/setup.ts`. Không che lỗi thật: phần tử không bao giờ xuất hiện thì test vẫn đỏ, chỉ đỏ sau 3 giây thay vì 1 giây. Sau khi sửa: 0/12 lần đỏ.
+- **Bài học:** với lỗi chập chờn, đo trước rồi mới sửa. Nếu tin giả thuyết đầu, cách sửa sẽ là "thu hẹp truy vấn", vừa tốn công vừa không chữa được.
+
+### 6.9 Trang chi tiết: thẻ có tên, công tắc, phần rỗng (AC-04)
+- **Ở đâu:** `src/features/accounts/AccountDetailPage.tsx`, `components/SectionCard.tsx`, `components/Channels.tsx`, `components/DetailCards.tsx`, `components/MobileAccountDetail.tsx`.
+- **Lưới 12 cột, thẻ 7/5 như canvas:** `grid-cols-12`, thẻ `col-span-7` và `col-span-5` xen nhau. Mỗi thẻ là `<section aria-labelledby>` trỏ tới `<h2>` của nó, nên là một vùng có tên ("Kênh đã kết nối", "Quyền đã cấp"…).
+- **Công tắc kênh:** `Switch` của Radix có `role="switch"` và `aria-checked`; trình đọc màn hình đọc "Thư đến, công tắc, bật". Kênh cần thêm quyền thì `disabled`. Kênh của tài khoản hết quyền mà đang bật thì hiện nhãn "Tạm dừng" thay cho công tắc (canvas mobile).
+- **Phần chưa có dữ liệu:** `scopes`, `sites`, `syncRuns`, `activity` có thể là `null`; thẻ tương ứng ghi "Chưa có dữ liệu", các thẻ khác vẫn hiện. Mở Zalo (dữ liệu mẫu để trống cả bốn phần) để xem.
+- **Tiêu đề thanh trên ở tablet:** khung app tìm tiêu đề theo **tiền tố** đường dẫn, nên `/accounts/acc-gmail` vẫn ghi "Tài khoản".
+- **Bẫy trong test, dữ liệu tải sau:** phần thêm đến **sau** lần vẽ đầu (một `Promise`). Đọc ngay bằng `getByText` thì chưa có gì; phải dùng `findByText` để chờ.
+
+### 6.10 Kiểm chứng AC-01…AC-04
+- **Test viết trước, mỗi task:** AC-01 3 test khung app đỏ trước; AC-02 16 test hàm chữ cộng 11 test dữ liệu mẫu và hook đỏ trước; AC-03 10/10 test trang đỏ trên trang rỗng; AC-04 4 test hàm chữ cộng 12/12 test trang đỏ trước. Cuối cùng 148/148.
+- **Kiểm tra ngược:** AC-01 8/8 bị bắt; AC-02 60/60; AC-03 25 lỗi, 23 bị bắt, 2 lọt (dòng đầu đếm theo kết quả lọc; danh sách mobile bị lọc theo), thêm kiểm tra thì bị bắt; AC-04 42 lỗi, 41 bị bắt, 1 lọt (công tắc nào cũng gửi kênh "Thư đến", vì test chỉ bấm đúng "Thư đến"), thêm test bấm "Gửi thư" thì bị bắt.
+- **Chrome thật** (đồng hồ cố định 14:05): 1440 / 1024 / 768 / 390px × sáng / tối cho cả hai trang; không trang nào cuộn ngang; Tab tới nút mở chi tiết có viền 2px; bấm giữa hàng mở chi tiết; hộp thoại giữ focus, Esc trả focus về nút mở; xác nhận ngắt kết nối về danh sách còn 2 tài khoản.
+- **Bẫy của script kiểm tra:** gửi phím Enter qua DevTools Protocol mà thiếu `text: '\r'` thì Chrome không coi là bấm nút, hộp thoại không mở. Lỗi nằm ở script, không phải ở trang: trước khi sửa trang, kiểm xem công cụ đo có đúng không.
+
 ---
 
 ## Tự kiểm tra
@@ -521,3 +645,15 @@ Lối tắt           ẩn               ẩn                  4 cột
 36. Làm sao một bộ component hiện ba bộ thẻ khác nhau cho desktop, tablet, mobile, và đưa thẻ Hôm nay lên đầu trên mobile?
 37. Vì sao biểu đồ cột có `role="img"` và `aria-label`?
 38. Ở UI-03, lỗi cố ý "lối tắt chuyển trang bằng `history.pushState`" sống sót. Vì sao đó không phải lỗ hổng của test?
+39. Route `handle` dùng để làm gì, và vì sao khung app gộp `handle` của mọi route đang khớp thay vì để trang tự ẩn thanh trên?
+40. Vì sao `<header>` của trang con nằm trong `<main>` không phải landmark "banner", và test tìm nó bằng cách nào?
+41. Radix Dialog tự làm những gì cho người dùng bàn phím? Vì sao trang chi tiết có hai hộp thoại thay vì một?
+42. `foldText("Nguyễn Đức")` ra gì? Vì sao phải thay riêng chữ "đ"?
+43. Vì sao trang chi tiết lấy tài khoản từ cache của danh sách thay vì tải riêng? Lợi gì khi bật/tắt kênh?
+44. Vì sao `notFound` chỉ được đúng khi danh sách đã tải xong?
+45. Cập nhật lạc quan là gì? Nếu lưu lỗi thì chuyện gì xảy ra, và test giả lỗi mạng thế nào?
+46. Vì sao `withChannel` phải trả object mới thay vì sửa thẳng object cũ?
+47. Liên kết phủ cả hàng hoạt động thế nào, và vì sao tốt hơn gắn `onClick` cho cả hàng?
+48. Vì sao chữ ẩn `sr-only` làm cả trang cuộn ngang ở 768px, và vì sao thêm `relative` cho khung cuộn thì hết?
+49. Test chập chờn ở màn Tổng quan: giả thuyết đầu là gì, số đo nói gì, và vì sao nâng thời gian chờ không che lỗi thật?
+50. Ở AC-04, lỗi cố ý "công tắc nào cũng gửi kênh Thư đến" sống sót. Test đã hở chỗ nào, và sửa thế nào?
