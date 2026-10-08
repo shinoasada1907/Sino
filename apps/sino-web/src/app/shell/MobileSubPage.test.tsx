@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { AppProviders } from '@/app/providers'
+import { ME_QUERY_KEY } from '@/features/auth/useAuth'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { AppShell } from './AppShell'
 import { MobilePageHeader } from './MobilePageHeader'
@@ -41,6 +42,8 @@ const routes: RouteObject[] = [
 function renderAt(path: string) {
   const queryClient = new QueryClient()
   queryClient.setQueryData(SHELL_QUERY_KEY, createShellSample(new Date()))
+  // The owner menu of the shell asks who is signed in.
+  queryClient.setQueryData(ME_QUERY_KEY, { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' })
   const router = createMemoryRouter(routes, { initialEntries: [path] })
   render(
     <AppProviders queryClient={queryClient}>

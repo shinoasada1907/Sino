@@ -4,6 +4,7 @@ import { Avatar } from '@/shared/ui/avatar'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { badgeOf, NAV_ITEMS, type NavItem } from './navItems'
 import type { ShellData } from './shell.types'
+import { UserMenu } from './UserMenu'
 
 // Tablet navigation (768-1279 px), the canvas `Rail`: icons only, so every link carries an accessible name.
 export function Rail({ shell, className }: { shell: ShellData | undefined; className?: string }) {
@@ -29,7 +30,16 @@ export function Rail({ shell, className }: { shell: ShellData | undefined; class
         {items('identity')}
       </div>
       {items('footer')}
-      <Avatar role="img" aria-label={shell?.owner.displayName ?? 'Tài khoản Sino'} className="mt-1.5" />
+      <UserMenu>
+        <button
+          type="button"
+          aria-label="Tài khoản Sino của bạn"
+          title={shell?.owner.displayName}
+          className="mt-1.5 grid cursor-pointer place-items-center rounded-full outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+        >
+          <Avatar aria-hidden="true" />
+        </button>
+      </UserMenu>
     </nav>
   )
 }

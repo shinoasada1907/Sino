@@ -49,7 +49,7 @@ Trang `/login` MUST theo thiết kế `SiteLogin` của canvas "Sino UI" với �
 - **THEN** trang hiện thông báo tạm khóa và phải chờ 15 phút
 
 ### Requirement: Khung app và điều hướng
-Sau khi đăng nhập, web MUST hiện khung app theo canvas: cột điều hướng chỉ gồm các trang đã có (Phase 1: Accounts) và menu người dùng có email của owner, nút đổi sáng/tối và nút đăng xuất. `/` MUST chuyển tới `/accounts`; đường dẫn không tồn tại MUST hiện trang 404 theo thiết kế `SiteNotFound`. Khung app MUST dùng được trên desktop và mobile theo `Breakpoints` của canvas.
+Sau khi đăng nhập, web MUST hiện khung app theo canvas (thanh bên từ 1280px, rail từ 768px, thanh dưới trên mobile; màn chưa dựng hiện trang "đang xây", D-42) và menu người dùng có tên, email của owner, nút đổi sáng/tối và nút đăng xuất: mở từ nút "Tài khoản Sino của bạn" ở thanh bên và ở rail, trên mobile nằm trong trang "Thêm". `/` MUST chuyển tới `/overview`; đường dẫn không tồn tại MUST hiện trang 404 theo thiết kế `SiteNotFound`. Khung app MUST dùng được trên desktop và mobile theo `Breakpoints` của canvas.
 
 #### Scenario: Đăng xuất
 - **WHEN** người dùng bấm "Đăng xuất" trong menu người dùng

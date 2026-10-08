@@ -6,6 +6,7 @@ import { RequireAuth } from '@/features/auth/RequireAuth'
 import { InboxPage } from '@/features/inbox/InboxPage'
 import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotFoundPage } from './NotFoundPage'
+import { MorePage } from './shell/MorePage'
 import { AppShell, type ShellHandle } from './shell/AppShell'
 import { PAGES } from './shell/navItems'
 import { UnderConstructionPage } from './UnderConstructionPage'
@@ -15,6 +16,7 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/overview': { element: <OverviewPage /> },
   '/inbox': { element: <InboxPage />, handle: { mobilePageHeader: true } },
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
+  '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
 }
 
 // Every page sits behind RequireAuth except sign-in and 404 (spec web-app-foundation).

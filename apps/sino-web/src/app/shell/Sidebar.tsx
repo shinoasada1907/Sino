@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/button'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { badgeOf, NAV_GROUP_LABELS, NAV_ITEMS, type NavItem } from './navItems'
 import type { ShellData } from './shell.types'
+import { UserMenu } from './UserMenu'
 
 // Desktop navigation (>= 1280 px), the canvas `Sidebar`.
 export function Sidebar({ shell, className }: { shell: ShellData | undefined; className?: string }) {
@@ -40,9 +41,11 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
               {shell ? `${shell.accountCount} tài khoản` : ''}
             </span>
           </div>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Tài khoản Sino của bạn">
-            <Ellipsis strokeWidth={1.6} />
-          </Button>
+          <UserMenu>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Tài khoản Sino của bạn">
+              <Ellipsis strokeWidth={1.6} />
+            </Button>
+          </UserMenu>
         </div>
       </div>
     </aside>

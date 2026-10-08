@@ -1,6 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createBrowserRouter, RouterProvider } from 'react-router'
+import { createBrowserRouter } from 'react-router'
+// The DOM build of RouterProvider: it is the one that honours `flushSync` on a navigation (sign-out needs it).
+import { RouterProvider } from 'react-router/dom'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import './index.css'

@@ -1,16 +1,23 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert } from 'lucide-react'
+import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
+import { onSessionExpired } from '@/shared/api/client'
 import { Button } from '@/shared/ui/button'
 import { SinoMark } from '@/shared/ui/sino-mark'
-import { useMe } from './useAuth'
+import { forgetSession, useMe } from './useAuth'
 
 /**
  * The gate in front of every page but sign-in and 404: it asks `GET /api/auth/me` once, sends a signed-out visitor to
- * `/login?returnTo=<this page>`, and offers "Thử lại" when the server cannot be reached.
+ * `/login?returnTo=<this page>`, and offers "Thử lại" when the server cannot be reached. When any request later answers
+ * 401, the session has ended: the cache is cleared and the same redirect happens.
  */
 export function RequireAuth() {
   const { data: me, isPending, isError, isFetching, refetch } = useMe()
   const location = useLocation()
+  const queryClient = useQueryClient()
+
+  useEffect(() => onSessionExpired(() => forgetSession(queryClient)), [queryClient])
 
   if (isPending) {
     return (

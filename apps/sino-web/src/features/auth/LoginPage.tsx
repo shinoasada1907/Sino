@@ -1,4 +1,5 @@
 import { Check, Eye, EyeOff, TriangleAlert } from 'lucide-react'
+import { useIsMutating } from '@tanstack/react-query'
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useSearchParams } from 'react-router'
 import { ApiError } from '@/shared/api/problem'
@@ -10,7 +11,7 @@ import { Spec } from '@/shared/ui/spec'
 import { Switch } from '@/shared/ui/switch'
 import { loginFailure } from './format'
 import { safeReturnTo } from './returnTo'
-import { useLogin, useMe } from './useAuth'
+import { LOGOUT_MUTATION_KEY, useLogin, useMe } from './useAuth'
 
 const POINTS = ['Một hộp thư cho mọi tài khoản.', 'Việc, lịch, ghi chú từ chính tin nhắn.', 'Nhắc đúng giờ, chỉ qua Sino.']
 
@@ -24,6 +25,7 @@ export function LoginPage() {
   const returnTo = safeReturnTo(params.get('returnTo'))
   const { data: me } = useMe()
   const signIn = useLogin()
+  const signingOut = useIsMutating({ mutationKey: LOGOUT_MUTATION_KEY }) > 0
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
@@ -33,7 +35,7 @@ export function LoginPage() {
   const emailId = useId()
   const passwordId = useId()
 
-  if (me) {
+  if (me && !signingOut) {
     return <Navigate to={returnTo} replace />
   }
 
