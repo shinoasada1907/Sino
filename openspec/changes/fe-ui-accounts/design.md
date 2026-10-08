@@ -63,11 +63,8 @@ interface AccountItem {
   channels: { kind: ChannelKind; available: boolean; enabled: boolean }[]
 }
 
-// Chi tiết: GET /api/accounts/{id} (mở rộng) — các phần mới có thể null
-interface AccountDetailData {
-  generatedAt: Instant
-  providers: { type: ProviderType; displayName: string }[]
-  account: AccountItem
+// Chi tiết: hàng tài khoản lấy từ danh sách; phần thêm dưới đây từ GET /api/accounts/{id} (mở rộng) — mỗi phần có thể null
+interface AccountExtras {
   scopes: { code: string; granted: boolean }[] | null          // "gmail.readonly"…
   sites: { total: number; items: { name: string; domain: string; method: string; sensitive: boolean; since: Instant }[] } | null
   syncRuns: { at: Instant; result: 'OK' | 'SLOW' | 'FAILED'; messages: number; durationMs: number }[] | null
@@ -76,7 +73,7 @@ interface AccountDetailData {
 
 type AccountActivity =
   | { id: string; at: Instant; kind: 'SCOPE_GRANTED'; scope: string }
-  | { id: string; at: Instant; kind: 'SITES_DETECTED'; count: number }
+  | { id: string; at: Instant; kind: 'SITES_DETECTED'; count: number; method: string }   // "tài khoản Google này"
   | { id: string; at: Instant; kind: 'ACCOUNT_CONNECTED'; initialMessages: number; durationMinutes: number }
   | { id: string; at: Instant; kind: 'AUTH_EXPIRED' }
 
@@ -109,8 +106,9 @@ Giao diện tự suy ra: chữ trạng thái đồng bộ ("Đang hoạt động
 
 ```text
 src/features/accounts/
-  accounts.types.ts        hợp đồng (AccountsData, AccountItem, AccountDetailData…)
-  accounts.sample.ts       createAccountsSample(now), createAccountDetailSample(id, now)
+  accounts.types.ts        hợp đồng (AccountsData, AccountItem, AccountExtras…)
+  accounts.sample.ts       createAccountsSample(now), createAccountExtrasSample(id, now)
+  accounts.api.ts          fetchAccounts, fetchAccountExtras, saveChannel, deleteAccount: chỗ duy nhất đổi khi nối API
   useAccounts.ts           useAccounts(), useAccount(id), useSetChannel(), useDisconnectAccount()
   format.ts                chữ trạng thái, lần cuối, sức khỏe, tóm tắt, lọc + tìm không dấu, nhãn quyền, câu hoạt động
   AccountsPage.tsx         danh sách (bảng trên desktop/tablet, danh sách gọn trên mobile)

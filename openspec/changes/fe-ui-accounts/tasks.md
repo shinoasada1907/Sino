@@ -18,7 +18,15 @@
 
 ## 2. Dữ liệu
 
-- [ ] 2.1 **AC-02 — Hợp đồng dữ liệu, dữ liệu mẫu, hàm, mutation**
+- [x] 2.1 **AC-02 — Hợp đồng dữ liệu, dữ liệu mẫu, hàm, mutation**
+  - **Thực hiện (2026-10-08, AUTO):** gom phần dùng chung của hai màn trước: `src/shared/domain.ts` (`Instant`, `ProviderType`, `AccountStatus`, `ProviderInfo`), `src/shared/format.ts` (`formatCount`, `foldText` bỏ dấu để tìm, `providerNameOf`, `methodLabel`), `formatDate`/`formatSince` vào `src/shared/time/local.ts`; màn Tổng quan và khung app dùng lại (không đổi hành vi). Màn Tài khoản: `accounts.types.ts` (hợp đồng), `accounts.sample.ts` (giờ viết đúng như canvas, dời theo đồng hồ thật), `accounts.api.ts`, `useAccounts.ts` (`useAccounts`, `useAccount`, `useSetChannel` cập nhật lạc quan và trả lại khi lưu lỗi, `useDisconnectAccount` sửa cache danh sách + khung app + Tổng quan), `format.ts` (21 hàm chữ của hai trang).
+  - **Làm khác kế hoạch:**
+    - ~~`AccountDetailData` gồm cả tài khoản~~ → chi tiết = hàng tài khoản lấy từ danh sách + `AccountExtras` (scopes, sites, syncRuns, activity). **LÝ DO:** một tài khoản chỉ nằm một chỗ trong cache, nên bật/tắt kênh hay ngắt kết nối chỉ sửa một chỗ và hai trang luôn khớp nhau; `design.md`, spec và `proposal.md` đã sửa theo.
+    - Thêm `accounts.api.ts` (4 hàm gửi/nhận, hiện trả dữ liệu mẫu). **LÝ DO:** test cần giả "lưu lỗi" để kiểm phần trả công tắc về chỗ cũ; đồng thời đây là chỗ duy nhất phải đổi khi nối API (D-45).
+    - `SITES_DETECTED` có thêm `method`. **LÝ DO:** canvas ghi "tài khoản **Google** này" (danh tính đăng nhập), không phải tên nhà cung cấp "Gmail".
+    - Chữ theo canvas thay cho dự kiến: hoạt động "Bạn cấp thêm quyền gửi thư." (nhãn ngắn riêng, không dùng "Gửi thư thay bạn"); kênh đang tạm dừng ghi "Lần cuối 21:04 hôm qua" và trang tự thêm nhãn "Tạm dừng" (`MobileAccountDetail`).
+    - "Đồng bộ gần nhất" tính từ dữ liệu (14:04, lần của Zalo) thay vì "14:02" vẽ sẵn trên canvas. **LÝ DO:** canvas tự mâu thuẫn (Zalo "vừa xong" lúc 14:05).
+  - **Kiểm chứng (2026-10-08):** RED: 16 test của `format.ts` đỏ trên bản stub, 11/13 test của dữ liệu mẫu + hook đỏ (2 test còn lại kiểm "không làm gì" nên stub qua được). GREEN 34/34 trong `src/features/accounts`. Kiểm tra ngược 60 lỗi gài bằng script, cả 60 bị bắt. `pnpm lint` 0/0, `pnpm test` 120/120, `pnpm build` ok.
   - **Files:** `src/features/accounts/{accounts.types,accounts.sample,useAccounts,format}.ts`, test.
   - **Hướng làm:** kiểu đúng `design.md`; mẫu theo canvas (Gmail, Zalo 64%, Messenger hết quyền 21:04 hôm qua; 3.912 thư); `useAccounts`, `useAccount(id)` qua TanStack Query; `useSetChannel`, `useDisconnectAccount` sửa cache của cả danh sách lẫn chi tiết.
   - **Test:** từng hàm (lọc, tìm không dấu, chữ trạng thái, lần cuối, sức khỏe, tóm tắt, cảnh báo, số kênh bật, nhãn quyền, câu hoạt động, thời lượng); dữ liệu mẫu nhất quán; mutation đổi đúng tài khoản và đúng kênh; kiểm tra ngược.

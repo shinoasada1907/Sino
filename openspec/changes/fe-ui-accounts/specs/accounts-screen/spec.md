@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Dữ liệu của màn Tài khoản theo hợp đồng
-Danh sách MUST lấy dữ liệu từ một nguồn có kiểu `AccountsData` qua `useAccounts()`, chi tiết từ `AccountDetailData` qua `useAccount(id)` (hợp đồng trong `design.md`). Ở change này các hook MUST trả dữ liệu mẫu sinh theo thời điểm hiện tại; component MUST NOT tự chứa dữ liệu mẫu. Các phần `scopes`, `sites`, `syncRuns`, `activity` của chi tiết có thể là `null`; khi đó khối tương ứng MUST hiện "Chưa có dữ liệu" và các khối khác hiện bình thường.
+Danh sách MUST lấy dữ liệu từ một nguồn có kiểu `AccountsData` qua `useAccounts()`; chi tiết qua `useAccount(id)`, gồm hàng tài khoản lấy từ danh sách và các phần thêm có kiểu `AccountExtras` (hợp đồng trong `design.md`). Ở change này các hook MUST trả dữ liệu mẫu sinh theo thời điểm hiện tại; component MUST NOT tự chứa dữ liệu mẫu. Các phần `scopes`, `sites`, `syncRuns`, `activity` của chi tiết có thể là `null`; khi đó khối tương ứng MUST hiện "Chưa có dữ liệu" và các khối khác hiện bình thường.
 
 #### Scenario: Backend chưa có lịch sử đồng bộ
 - **WHEN** `syncRuns` là `null`

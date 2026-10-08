@@ -1,5 +1,6 @@
-/** ISO-8601 instant in UTC, as the API sends it. */
-export type Instant = string
+import type { Instant } from '@/shared/domain'
+
+export type { Instant } from '@/shared/domain'
 
 export interface NavCounts {
   inboxUnread: number

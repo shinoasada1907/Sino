@@ -1,22 +1,18 @@
-import type { Instant } from '@/app/shell/shell.types'
+import type { AccountStatus, Instant, ProviderInfo, ProviderType } from '@/shared/domain'
+
+export type { AccountStatus, ProviderType } from '@/shared/domain'
 
 /**
  * Data contract of the Tổng quan screen (D-42), handed to the backend. The API sends raw values (UTC instants,
  * counts, codes); the screen turns them into text. A section the backend does not provide yet is `null`.
  */
 
-/** A provider type as the API names it: "gmail", "zalo", "messenger". */
-export type ProviderType = string
-
-/** Same values as `AccountStatus` in the backend. */
-export type AccountStatus = 'CONNECTED' | 'DEGRADED' | 'AUTH_EXPIRED' | 'ERROR' | 'DISABLED'
-
 export type Health = 'OK' | 'WARNING' | 'ERROR'
 
 export interface OverviewData {
   generatedAt: Instant
   /** The provider catalog (`GET /api/providers`), to name providers without hard-coding them. */
-  providers: { type: ProviderType; displayName: string }[]
+  providers: ProviderInfo[]
   accounts: OverviewAccount[]
   inbox: InboxSummary | null
   today: TodaySummary | null

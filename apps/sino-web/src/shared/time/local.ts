@@ -78,6 +78,21 @@ export function calendarDaysBetween(from: Date, to: Date, timeZone?: string): nu
   return Math.round((Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000)
 }
 
+/** "29/09/2026" */
+export function formatDate(date: Date, timeZone?: string): string {
+  const { day, month, year } = localParts(date, timeZone)
+  return `${pad(day)}/${pad(month)}/${year}`
+}
+
+/** Since when: "21:04" today, "21:04 hôm qua", or the date. */
+export function formatSince(date: Date, now: Date, timeZone?: string): string {
+  const days = calendarDaysBetween(date, now, timeZone)
+  if (days <= 0) {
+    return formatClock(date, timeZone)
+  }
+  return days === 1 ? `${formatClock(date, timeZone)} hôm qua` : formatDayMonth(date, timeZone)
+}
+
 /** When something happened: the time today, "Hôm qua", or the date. */
 export function formatWhen(date: Date, now: Date, timeZone?: string): string {
   const days = calendarDaysBetween(date, now, timeZone)

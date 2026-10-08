@@ -1,31 +1,23 @@
 // Turns the raw overview data (instants, counts, codes) into the Vietnamese text of the screen.
-import { calendarDaysBetween, formatClock, formatDayMonth, localParts } from '@/shared/time/local'
+import { capitalize, methodLabel, type ProviderNameOf } from '@/shared/format'
+import { calendarDaysBetween, formatClock, formatDayMonth, formatSince, localParts } from '@/shared/time/local'
 import type { StatusTone } from '@/shared/ui/status'
 import type {
   ActivityItem,
   InboxConversation,
   InboxSummary,
   OverviewAccount,
-  OverviewData,
   RegistrationSummary,
   SyncActivity,
   TodayItem,
 } from './overview.types'
 
-export type ProviderNameOf = (type: string) => string
+export { formatCount, methodLabel, providerNameOf, type ProviderNameOf } from '@/shared/format'
 /** A piece of a sentence; `{ strong }` is shown in bold. */
 export type TextPart = string | { strong: string }
 export type AccountStatusView =
   | { tone: StatusTone; label: string; progress?: number }
   | { tone: 'err'; detail: string; action: string }
-
-const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
-
-/** Looks up a provider name in the catalog; an unknown code is shown capitalized. */
-export function providerNameOf(providers: OverviewData['providers']): ProviderNameOf {
-  const names = new Map(providers.map((provider) => [provider.type, provider.displayName]))
-  return (type) => names.get(type) ?? capitalize(type)
-}
 
 export function greeting(date: Date, timeZone?: string): string {
   const { hour } = localParts(date, timeZone)
@@ -46,11 +38,6 @@ const NUMBER_WORDS = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', '
 /** 0..10 as words ("hai"), bigger numbers as digits. */
 export function numberWord(value: number): string {
   return NUMBER_WORDS[value] ?? String(value)
-}
-
-/** "1.284" */
-export function formatCount(value: number): string {
-  return value.toLocaleString('vi-VN')
 }
 
 const needsAction = (account: OverviewAccount) => account.status === 'AUTH_EXPIRED' || account.status === 'ERROR'
@@ -81,15 +68,6 @@ export function accountsHeader(accounts: OverviewAccount[]): string {
   return issues > 0 ? `${accounts.length} · ${issues} cần xử lý` : String(accounts.length)
 }
 
-/** "21:04" today, "21:04 hôm qua", or the date. */
-function sinceText(date: Date, now: Date, timeZone?: string): string {
-  const days = calendarDaysBetween(date, now, timeZone)
-  if (days <= 0) {
-    return formatClock(date, timeZone)
-  }
-  return days === 1 ? `${formatClock(date, timeZone)} hôm qua` : formatDayMonth(date, timeZone)
-}
-
 export function accountStatusView(account: OverviewAccount, now: Date, timeZone?: string): AccountStatusView {
   switch (account.status) {
     case 'CONNECTED':
@@ -102,7 +80,7 @@ export function accountStatusView(account: OverviewAccount, now: Date, timeZone?
       return {
         tone: 'err',
         detail: account.statusChangedAt
-          ? `Quyền hết hạn từ ${sinceText(new Date(account.statusChangedAt), now, timeZone)}`
+          ? `Quyền hết hạn từ ${formatSince(new Date(account.statusChangedAt), now, timeZone)}`
           : 'Quyền truy cập đã hết hạn',
         action: 'Đăng nhập lại',
       }
@@ -209,19 +187,6 @@ export function axisStartLabel(start: string, now: Date, timeZone?: string): str
   const days = calendarDaysBetween(date, now, timeZone)
   const suffix = days === 1 ? ' hôm qua' : days > 1 ? ` ${formatDayMonth(date, timeZone)}` : ''
   return `${formatClock(date, timeZone)}${suffix}`
-}
-
-const METHOD_LABELS: Record<string, string> = {
-  google: 'Google',
-  email: 'Email',
-  facebook: 'Facebook',
-  zalo: 'Zalo',
-  apple: 'Apple',
-  github: 'GitHub',
-}
-
-export function methodLabel(method: string): string {
-  return METHOD_LABELS[method] ?? capitalize(method)
 }
 
 /** "may.forum · qua Zalo · 30/09" */

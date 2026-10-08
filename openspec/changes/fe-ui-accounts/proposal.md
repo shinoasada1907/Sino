@@ -8,7 +8,7 @@ Màn thứ hai của cách làm "giao diện trước với dữ liệu mẫu" (
 - **Chi tiết tài khoản** `/accounts/:id` theo `AccountDetail` và `MobileAccountDetail`: kênh đã kết nối (bật/tắt), quyền đã cấp, website dùng danh tính này, lịch sử đồng bộ, hoạt động, vùng "Ngắt kết nối" với hộp thoại xác nhận theo `Overlays` ("Ngắt kết nối …?", tùy chọn "Xóa luôn tin nhắn đã lưu").
 - **Tương tác chạy trên dữ liệu mẫu** (D-45): tìm, lọc, mở chi tiết, bật/tắt kênh, ngắt kết nối. Thay đổi nằm trong bộ nhớ (cache TanStack Query), tải lại trang là về như cũ; khi nối API chỉ thay thân các hàm sang `PATCH`/`DELETE`.
 - **Khung app**: tab "Thêm" của mobile sáng cho các màn nằm dưới "Thêm"; route khai báo được "trang con trên mobile" (trang tự vẽ đầu trang có nút quay lại, khung app ẩn thanh trên của mobile) và ẩn thanh dưới; component `Dialog` theo `.modal` của canvas.
-- **Hợp đồng dữ liệu** `AccountsData`, `AccountDetailData` cùng bảng đối chiếu với API trong `design.md`.
+- **Hợp đồng dữ liệu** `AccountsData`, `AccountExtras` cùng bảng đối chiếu với API trong `design.md`.
 
 ## Capabilities
 
