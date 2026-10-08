@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Search, TriangleAlert } from 'lucide-react'
+import { Plus, RefreshCw, Search } from 'lucide-react'
 import { useState } from 'react'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { formatCount, providerNameOf } from '@/shared/format'
@@ -9,6 +9,7 @@ import { Segmented } from '@/shared/ui/segmented'
 import { Status } from '@/shared/ui/status'
 import { AccountsTable } from './components/AccountsTable'
 import { MobileAccountList } from './components/MobileAccountList'
+import { ReauthAlert } from './components/ReauthAlert'
 import {
   accountsHeadline,
   filterAccounts,
@@ -154,20 +155,4 @@ export function AccountsPage() {
 /** A number inside a sentence of the ribbon (canvas `.num`). */
 function Num({ children }: { children: string }) {
   return <span className="font-mono text-[13px] leading-[18px] font-medium text-foreground">{children}</span>
-}
-
-// Canvas `.alert.alert-err`. Signing in again belongs to the connect flow, not built yet (D-46).
-function ReauthAlert({ title, detail }: ReturnType<typeof reauthNotice>) {
-  return (
-    <div className="flex items-start gap-3 rounded-sm border border-[color-mix(in_srgb,var(--danger)_40%,var(--border))] bg-surface px-4 py-3.5">
-      <TriangleAlert className="mt-px size-4.5 shrink-0 text-danger" strokeWidth={1.6} />
-      <div className="flex min-w-0 grow flex-col gap-0.5">
-        <span className="text-sm font-semibold">{title}</span>
-        <span className="text-sm text-muted-foreground">{detail}</span>
-      </div>
-      <Button type="button" variant="primary" size="sm">
-        Đăng nhập lại
-      </Button>
-    </div>
-  )
 }

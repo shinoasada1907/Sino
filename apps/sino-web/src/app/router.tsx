@@ -1,4 +1,5 @@
 import { Navigate, type RouteObject } from 'react-router'
+import { AccountDetailPage } from '@/features/accounts/AccountDetailPage'
 import { AccountsPage } from '@/features/accounts/AccountsPage'
 import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotFoundPage } from './NotFoundPage'
@@ -22,6 +23,11 @@ export const routes: RouteObject[] = [
         path: to.slice(1),
         ...(SCREENS[to] ?? { element: <UnderConstructionPage title={title} /> }),
       })),
+      {
+        path: 'accounts/:accountId',
+        element: <AccountDetailPage />,
+        handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+      },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

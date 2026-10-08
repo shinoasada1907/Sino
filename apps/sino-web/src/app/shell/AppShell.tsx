@@ -19,7 +19,8 @@ export function AppShell() {
   const { shell, receivedAt } = useShellData()
   const { pathname } = useLocation()
   const handle: ShellHandle = Object.assign({}, ...useMatches().map((match) => (match.handle ?? {}) as ShellHandle))
-  const title = PAGES.find((page) => page.to === pathname)?.title ?? 'Sino'
+  // A sub-page such as /accounts/acc-gmail keeps the title of its section.
+  const title = PAGES.find((page) => pathname === page.to || pathname.startsWith(`${page.to}/`))?.title ?? 'Sino'
 
   return (
     <div className="grid h-svh grid-rows-[minmax(0,1fr)_auto] bg-background md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-1 xl:grid-cols-[248px_minmax(0,1fr)]">

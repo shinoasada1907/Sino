@@ -5,22 +5,27 @@ import {
   accessNote,
   accountActivityText,
   accountsHeadline,
+  blockedNotice,
   channelHint,
   channelLabel,
   channelSummary,
   disconnectNote,
+  disconnectPrompt,
   enabledChannelCount,
   filterAccounts,
   formatDuration,
   healthView,
   lastSyncLabel,
   latestSyncTime,
+  mobileDisconnectNote,
   mobileSubtitle,
   needsAttention,
   reauthNotice,
   ribbonItems,
   scopeLabel,
   stampLabel,
+  storedSince,
+  syncRunsLabel,
   syncRunView,
   syncStatusView,
 } from './format'
@@ -238,6 +243,38 @@ describe('detail sections', () => {
 
   it('stamps a time with its day', () => {
     expect(stampLabel('2026-10-01T02:12:00Z', TZ)).toBe('01/10 · 09:12')
+  })
+
+  it('heads the sync history with its day', () => {
+    expect(syncRunsLabel([{ at: '2026-10-02T07:03:00Z', result: 'OK', messages: 1, durationMs: 1000 }], now, TZ)).toBe('hôm nay')
+    expect(syncRunsLabel([{ at: '2026-10-01T07:03:00Z', result: 'OK', messages: 1, durationMs: 1000 }], now, TZ)).toBe('01/10')
+    expect(syncRunsLabel([], now, TZ)).toBeNull()
+  })
+
+  it('tells on mobile what an expired account blocks', () => {
+    expect(blockedNotice(messenger, nameOf)).toEqual({
+      title: 'Sino không đọc và gửi tin Messenger được',
+      detail: 'Tin nhắn mới tạm dừng; 1.204 tin đã lưu vẫn còn. Đăng nhập lại để nhận tiếp.',
+    })
+    expect(blockedNotice(account({ status: 'AUTH_EXPIRED' }), nameOf).title).toBe('Sino không đọc và gửi thư Gmail được')
+  })
+
+  it('says since when messages are stored', () => {
+    expect(storedSince(messenger, TZ)).toBe('TIN NHẮN · TỪ 29/09')
+    expect(storedSince(gmail, TZ)).toBe('THƯ · TỪ 29/09')
+  })
+
+  it('asks before disconnecting, with the stored messages to keep or delete', () => {
+    expect(disconnectPrompt(messenger, nameOf)).toEqual({
+      title: 'Ngắt kết nối Messenger?',
+      text: 'Sino sẽ dừng đồng bộ và xóa quyền truy cập đã cấp. 1.204 tin nhắn đã lưu vẫn được giữ lại, bạn có thể xóa chúng trong phần Quyền riêng tư.',
+      deleteLabel: 'Xóa luôn tin nhắn đã lưu',
+    })
+    expect(disconnectPrompt(gmail, nameOf).deleteLabel).toBe('Xóa luôn thư đã lưu')
+    expect(mobileDisconnectNote(messenger, nameOf)).toBe(
+      'Ngắt kết nối sẽ xóa quyền truy cập Sino đang giữ. Task và ghi chú tạo từ tin Messenger vẫn còn.',
+    )
+    expect(mobileDisconnectNote(gmail, nameOf)).toContain('tạo từ thư Gmail')
   })
 
   it('says what disconnecting keeps', () => {

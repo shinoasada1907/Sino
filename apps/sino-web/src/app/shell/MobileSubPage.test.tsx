@@ -16,6 +16,7 @@ const routes: RouteObject[] = [
     element: <AppShell />,
     children: [
       { path: 'plain', element: <h1>Trang thường</h1> },
+      { path: 'notes/:noteId', element: <h1>Một ghi chú</h1> },
       {
         path: 'list',
         handle: { mobilePageHeader: true },
@@ -97,6 +98,13 @@ describe('tab bar "Thêm"', () => {
       expect(tabbar.getByRole('link', { name: 'Tổng quan' })).not.toHaveAttribute('aria-current')
       view.unmount()
     }
+  })
+
+  it('stays current on a sub-page of a screen under Thêm that keeps the tab bar', async () => {
+    renderAt('/notes/n-1')
+    await screen.findByRole('heading', { name: 'Một ghi chú' })
+
+    expect(within(shellPart('tabbar')).getByRole('link', { name: 'Thêm' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('is not current on a screen that has its own tab', async () => {

@@ -13,7 +13,7 @@ const DAY = 86_400_000
 const SOON_DAYS = 7
 
 /** Email accounts talk about "thư", chat accounts about "tin nhắn". */
-const isMail = (provider: string) => provider === 'gmail'
+export const isMail = (provider: string) => provider === 'gmail'
 
 export const needsAttention = (account: AccountItem) => account.status === 'AUTH_EXPIRED' || account.status === 'ERROR'
 
@@ -255,4 +255,44 @@ export function accountActivityText(item: AccountActivity, account: AccountItem,
     case 'AUTH_EXPIRED':
       return `Quyền truy cập ${nameOf(account.provider)} hết hạn.`
   }
+}
+
+
+/** The day above "Lịch sử đồng bộ": "hôm nay" when the newest run is today, otherwise its date. */
+export function syncRunsLabel(runs: SyncRun[], now: Date, timeZone?: string): string | null {
+  if (runs.length === 0) {
+    return null
+  }
+  const newest = new Date(runs[0].at)
+  return calendarDaysBetween(newest, now, timeZone) === 0 ? 'hôm nay' : formatDayMonth(newest, timeZone)
+}
+
+/** The box on the mobile detail of an account whose access expired. */
+export function blockedNotice(account: AccountItem, nameOf: ProviderNameOf) {
+  const [item, short] = isMail(account.provider) ? ['Thư', 'thư'] : ['Tin nhắn', 'tin']
+  return {
+    title: `Sino không đọc và gửi ${short} ${nameOf(account.provider)} được`,
+    detail: `${item} mới tạm dừng; ${formatCount(account.storedMessages)} ${short} đã lưu vẫn còn. Đăng nhập lại để nhận tiếp.`,
+  }
+}
+
+/** "TIN NHẮN · TỪ 14/09" */
+export function storedSince(account: AccountItem, timeZone?: string): string {
+  return `${isMail(account.provider) ? 'THƯ' : 'TIN NHẮN'} · TỪ ${formatDayMonth(new Date(account.createdAt), timeZone)}`
+}
+
+/** The disconnect dialog: its question, what happens to the stored messages, and the switch to delete them. */
+export function disconnectPrompt(account: AccountItem, nameOf: ProviderNameOf) {
+  const noun = isMail(account.provider) ? 'thư' : 'tin nhắn'
+  return {
+    title: `Ngắt kết nối ${nameOf(account.provider)}?`,
+    text: `Sino sẽ dừng đồng bộ và xóa quyền truy cập đã cấp. ${formatCount(account.storedMessages)} ${noun} đã lưu vẫn được giữ lại, bạn có thể xóa chúng trong phần Quyền riêng tư.`,
+    deleteLabel: `Xóa luôn ${noun} đã lưu`,
+  }
+}
+
+/** The line under the disconnect button on mobile. */
+export function mobileDisconnectNote(account: AccountItem, nameOf: ProviderNameOf): string {
+  const short = isMail(account.provider) ? 'thư' : 'tin'
+  return `Ngắt kết nối sẽ xóa quyền truy cập Sino đang giữ. Task và ghi chú tạo từ ${short} ${nameOf(account.provider)} vẫn còn.`
 }
