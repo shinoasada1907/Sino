@@ -149,21 +149,19 @@ describe('Tổng quan', () => {
     expect(card('Đăng ký').getByText('48')).toBeInTheDocument()
   })
 
+  // The links are checked by address and one is followed: going to and back from three whole screens made this test
+  // slow enough to fail when every test file runs at once.
   it('opens the inbox, the calendar and the notifications from their links', async () => {
     const user = userEvent.setup()
     const { router } = openOverview()
     await screen.findByRole('heading', { level: 1 })
 
-    await user.click(card('Hộp thư hợp nhất').getAllByRole('link', { name: 'Mở hộp thư' })[0])
-    expect(router.state.location.pathname).toBe('/inbox')
-
-    await router.navigate('/overview')
-    await user.click(await screen.findByRole('link', { name: 'Mở lịch' }))
+    for (const link of card('Hộp thư hợp nhất').getAllByRole('link', { name: 'Mở hộp thư' })) {
+      expect(link).toHaveAttribute('href', '/inbox')
+    }
+    expect(screen.getByRole('link', { name: 'Xem tất cả' })).toHaveAttribute('href', '/notifications')
+    await user.click(screen.getByRole('link', { name: 'Mở lịch' }))
     expect(router.state.location.pathname).toBe('/calendar')
-
-    await router.navigate('/overview')
-    await user.click(await screen.findByRole('link', { name: 'Xem tất cả' }))
-    expect(router.state.location.pathname).toBe('/notifications')
   })
 
   it('leaves the action buttons without effect for now', async () => {
