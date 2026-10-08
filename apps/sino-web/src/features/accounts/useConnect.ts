@@ -7,9 +7,9 @@ import { ACCOUNTS_QUERY_KEY } from './useAccounts'
 
 export const PROVIDERS_QUERY_KEY = ['providers'] as const
 
-/** The provider catalog of the connect wizard. */
-export function useConnectProviders(): { providers: ConnectableProvider[] | undefined } {
-  const { data } = useQuery({ queryKey: PROVIDERS_QUERY_KEY, queryFn: fetchConnectProviders, staleTime: Infinity })
+/** The provider catalog of the connect wizard, asked for only while the wizard is open. */
+export function useConnectProviders(open = true): { providers: ConnectableProvider[] | undefined } {
+  const { data } = useQuery({ queryKey: PROVIDERS_QUERY_KEY, queryFn: fetchConnectProviders, staleTime: Infinity, enabled: open })
   return { providers: data }
 }
 

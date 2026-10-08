@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
 import { server } from '@/test/msw/server'
-import { deleteAccount, fetchAccountExtras, fetchAccounts, saveChannel } from './accounts.api'
+import { deleteAccount, fetchAccountExtras, fetchAccounts, fetchConnectProviders, INITIAL_SYNC_READY, saveChannel, startConnect } from './accounts.api'
 
 describe('the Tài khoản requests on the backend API (D-56)', () => {
   it('turns the accounts and providers of the API into the screen contract, with null for what the API lacks', async () => {
@@ -73,5 +73,36 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
     await deleteAccount({ accountId: 'acc-2' })
 
     expect(removed).toBe('acc-2')
+  })
+
+  it('lists the providers of the API as connectable, without the scopes it does not tell yet', async () => {
+    server.use(http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)))
+
+    expect(await fetchConnectProviders()).toEqual([
+      { type: 'gmail', displayName: 'Gmail', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'], connectable: true, scopes: null },
+    ])
+  })
+
+  it('starts a connect, or signs an account in again, and returns where to send the browser', async () => {
+    const sent: unknown[] = []
+    server.use(
+      http.post('/api/accounts/connect/:provider', async ({ params, request }) => {
+        const text = await request.text()
+        sent.push([params.provider, text === '' ? null : JSON.parse(text)])
+        return HttpResponse.json({ authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=s1' })
+      }),
+    )
+
+    expect(await startConnect('gmail', null)).toEqual({ authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=s1' })
+    await startConnect('gmail', 'acc-2')
+
+    expect(sent).toEqual([
+      ['gmail', null],
+      ['gmail', { accountId: 'acc-2' }],
+    ])
+  })
+
+  it('says the first sync is not on the API yet (F04b)', () => {
+    expect(INITIAL_SYNC_READY).toBe(false)
   })
 })

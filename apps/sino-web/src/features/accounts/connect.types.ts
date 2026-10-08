@@ -10,8 +10,8 @@ export interface ConnectableProvider extends ProviderInfo {
   capabilities: string[]
   /** To add: the provider has a connect flow (an OAuth2 connector). */
   connectable: boolean
-  /** To add: the scopes asked for when connecting, as short codes ("gmail.readonly"). */
-  scopes: string[]
+  /** To add: the scopes asked for when connecting, as short codes ("gmail.readonly"); null while the API does not tell. */
+  scopes: string[] | null
 }
 
 export type SyncRange = 'DAYS_30' | 'DAYS_90' | 'ALL'

@@ -6,9 +6,17 @@ import { renderApp } from '@/test/renderApp'
 import { startInitialSync } from './accounts.api'
 import { createAccountsSample } from './accounts.sample'
 
+// The return on the full contract of fe-ui-connect: the first sync is assumed ready (F04b), with sample providers.
 vi.mock('./accounts.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./accounts.api')>()
-  return { ...api, startInitialSync: vi.fn(api.startInitialSync), leaveTo: vi.fn() }
+  const { createConnectProvidersSample } = await import('./connect.sample')
+  return {
+    ...api,
+    INITIAL_SYNC_READY: true,
+    fetchConnectProviders: vi.fn(async () => createConnectProvidersSample()),
+    startInitialSync: vi.fn(api.startInitialSync),
+    leaveTo: vi.fn(),
+  }
 })
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.

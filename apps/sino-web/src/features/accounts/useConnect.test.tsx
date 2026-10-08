@@ -9,9 +9,17 @@ import { createConnectProvidersSample, createInitialSyncSample, createSyncEstima
 import { useConnectProviders, useStartConnect, useStartInitialSync, useSyncEstimate } from './useConnect'
 import { ACCOUNTS_QUERY_KEY } from './useAccounts'
 
+// The wizard on the full contract of fe-ui-connect (sample providers with scopes, the sample round trip); the API path
+// is tested in ConnectOnApi.test.tsx.
 vi.mock('./accounts.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./accounts.api')>()
-  return { ...api, startConnect: vi.fn(api.startConnect), leaveTo: vi.fn() }
+  const { createConnectProvidersSample } = await import('./connect.sample')
+  return {
+    ...api,
+    fetchConnectProviders: vi.fn(async () => createConnectProvidersSample()),
+    startConnect: vi.fn(async (_provider: string, accountId: string | null) => ({ authorizationUrl: `/accounts?connected=${accountId ?? 'acc-gmail'}` })),
+    leaveTo: vi.fn(),
+  }
 })
 
 const now = new Date('2026-10-02T07:05:00Z')
@@ -31,7 +39,7 @@ describe('connect sample data', () => {
     expect(providers.filter((provider) => provider.connectable).map((provider) => provider.type)).toEqual(['gmail'])
     const gmail = providers[0]
     expect(gmail.scopes).toEqual(['gmail.readonly', 'userinfo.email'])
-    expect(gmail.scopes.every((scope) => scopePurpose(scope) !== null)).toBe(true)
+    expect((gmail.scopes ?? []).every((scope) => scopePurpose(scope) !== null)).toBe(true)
   })
 
   it('estimates each range and starts the first sync with the same total', () => {

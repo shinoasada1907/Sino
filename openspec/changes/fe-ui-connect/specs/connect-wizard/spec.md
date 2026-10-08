@@ -8,14 +8,14 @@ Nút "Kết nối tài khoản" (desktop, mobile) và nút "Thêm tài khoản" 
 - **THEN** hộp thoại "Chọn nhà cung cấp" hiện với "KẾT NỐI TÀI KHOẢN · 1/5" và Gmail được chọn sẵn
 
 ### Requirement: Chọn nhà cung cấp
-Bước 1 MUST liệt kê các provider của danh mục, mỗi provider có tên, mô tả và nhãn khả năng ("Đọc", "Gửi"). Provider không `connectable` MUST hiện "Sắp có" và không chọn được.
+Bước 1 MUST liệt kê các provider của danh mục, mỗi provider có tên, mô tả và nhãn khả năng ("Đọc", "Gửi"). Provider không `connectable` MUST hiện "Sắp có" và không chọn được. Khi danh mục không có provider nào kết nối được (máy chủ chưa bật provider nào), bước 1 MUST nói "Máy chủ Sino chưa bật nhà cung cấp nào để kết nối." và nút "Tiếp tục" MUST bị vô hiệu.
 
 #### Scenario: Provider chưa kết nối được
 - **WHEN** danh mục có Telegram với `connectable = false`
 - **THEN** lựa chọn Telegram có nhãn "Sắp có" và bị vô hiệu
 
 ### Requirement: Xem quyền trước khi đăng nhập
-Bước 2 MUST liệt kê các quyền mà provider đã chọn sẽ xin (từ `scopes`), mỗi quyền có tên và câu nói để làm gì, cùng câu cho biết những quyền Sino không xin. Bước 3 MUST giải thích việc đăng nhập diễn ra trên trang của nhà cung cấp; nút "Tiếp tục tới Google" MUST gọi bắt đầu kết nối rồi chuyển trình duyệt tới `authorizationUrl` nhận được.
+Bước 2 MUST liệt kê các quyền mà provider đã chọn sẽ xin (từ `scopes`), mỗi quyền có tên và câu nói để làm gì, cùng câu cho biết những quyền Sino không xin; khi API chưa cho biết `scopes` (`null`, D-56), bước 2 MUST nói trang của nhà cung cấp sẽ liệt kê từng quyền. Bước 3 MUST giải thích việc đăng nhập diễn ra trên trang của nhà cung cấp; nút "Tiếp tục tới Google" MUST gọi bắt đầu kết nối rồi chuyển trình duyệt tới `authorizationUrl` nhận được.
 
 #### Scenario: Đi tới Google
 - **WHEN** người dùng chọn Gmail, bấm "Tiếp tục", rồi "Đồng ý và tiếp tục", rồi "Tiếp tục tới Google"
@@ -29,7 +29,7 @@ Nút "Đăng nhập lại" của một tài khoản (cảnh báo trên danh sác
 - **THEN** bắt đầu kết nối được gọi cho `messenger` kèm `accountId = acc-messenger`
 
 ### Requirement: Kết quả quay về
-Khi trang Tài khoản mở với `?connected={accountId}` của một tài khoản có trong danh sách, hộp thoại MUST mở ở bước 4 "Tùy chọn đồng bộ" cho tài khoản đó. "Bắt đầu đồng bộ" MUST gửi tùy chọn đã chọn (khoảng đồng bộ, nhãn làm bộ lọc, tải tệp khi mở) và chuyển sang bước 5 "Hoàn tất" với "Đã kết nối <tài khoản>", tiến độ đồng bộ, nút "Mở hộp thư" và "Kết nối thêm tài khoản". Với `?connectError={CODE}`, trang MUST hiện cảnh báo theo bảng thông báo (mã lạ dùng câu chung) kèm nút "Thử lại" mở bước 1. Tham số kết quả MUST được xóa khỏi URL sau khi xử lý, không thêm mục lịch sử.
+Khi trang Tài khoản mở với `?connected={accountId}` của một tài khoản có trong danh sách (đọc sau khi danh sách đã tải), hộp thoại MUST mở ở bước 4 "Tùy chọn đồng bộ" cho tài khoản đó; khi backend chưa có đồng bộ lần đầu (F04b), hộp thoại MUST mở thẳng bước 5 "Hoàn tất" với "Đã kết nối <tài khoản>", câu cho biết chưa đồng bộ, không có tiến độ. "Bắt đầu đồng bộ" MUST gửi tùy chọn đã chọn (khoảng đồng bộ, nhãn làm bộ lọc, tải tệp khi mở) và chuyển sang bước 5 "Hoàn tất" với "Đã kết nối <tài khoản>", tiến độ đồng bộ, nút "Mở hộp thư" và "Kết nối thêm tài khoản". Với `?connectError={CODE}`, trang MUST hiện cảnh báo theo bảng thông báo (mã lạ dùng câu chung) kèm nút "Thử lại" mở bước 1. Tham số kết quả MUST được xóa khỏi URL sau khi xử lý, không thêm mục lịch sử.
 
 #### Scenario: Quay về sau khi kết nối
 - **WHEN** trang mở ở `/accounts?connected=acc-gmail`

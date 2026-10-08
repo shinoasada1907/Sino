@@ -34,7 +34,8 @@ import { useConnectProviders, useStartConnect, useStartInitialSync, useSyncEstim
 export type WizardState =
   | { step: 1 | 2 | 3; provider: string | null; accountId: string | null }
   | { step: 4; accountId: string; options: SyncOptions }
-  | { step: 5; accountId: string; status: InitialSyncStatus }
+  /** `status` is null while the first sync has no API (F04b): the account is connected, nothing syncs yet. */
+  | { step: 5; accountId: string; status: InitialSyncStatus | null }
 
 
 const STEPS = [1, 2, 3, 4, 5] as const
@@ -54,7 +55,8 @@ export function ConnectWizard({
   accounts: AccountItem[]
   nameOf: ProviderNameOf
 }) {
-  const { providers = [] } = useConnectProviders()
+  const { providers: catalog } = useConnectProviders(state !== null)
+  const providers = catalog ?? []
   const startConnect = useStartConnect()
   const startSync = useStartInitialSync()
   const sync = state?.step === 4 ? state : null
@@ -78,6 +80,7 @@ export function ConnectWizard({
     const identity = identityName(type, provider?.displayName ?? nameOf(type))
     const meta = wizardStep(state.step, identity)
     const canBack = state.step === 3 || (state.step === 2 && state.accountId === null)
+    const nothingToPick = state.step === 1 && !providers.some((item) => item.connectable)
 
     const next = () => {
       switch (state.step) {
@@ -118,9 +121,14 @@ export function ConnectWizard({
         </ol>
         <DialogBody className="min-h-0 flex-1 gap-3.5 overflow-y-auto sm:min-h-93">
           {state.step === 1 && (
-            <ProviderChoice providers={providers} selected={type} onSelect={(picked) => go({ ...state, provider: picked })} />
+            <ProviderChoice
+              providers={providers}
+              loaded={catalog !== undefined}
+              selected={type}
+              onSelect={(picked) => go({ ...state, provider: picked })}
+            />
           )}
-          {state.step === 2 && provider && <ScopeReview provider={provider} account={account} />}
+          {state.step === 2 && provider && <ScopeReview provider={provider} account={account} identity={identity} />}
           {state.step === 3 && <SignIn type={type} identity={identity} failed={startConnect.isError} />}
           {state.step === 4 && account && (
             <SyncChoice
@@ -147,7 +155,7 @@ export function ConnectWizard({
               </Button>
             )}
             {meta.next && (
-              <Button type="button" variant="primary" disabled={startConnect.isPending || startSync.isPending} onClick={next}>
+              <Button type="button" variant="primary" disabled={nothingToPick || startConnect.isPending || startSync.isPending} onClick={next}>
                 {meta.next}
               </Button>
             )}
@@ -174,13 +182,19 @@ export function ConnectWizard({
 // Step 1, canvas `.opt`: one radio per provider; one without a connect flow is shown as "Sắp có" and disabled (D-50).
 function ProviderChoice({
   providers,
+  loaded,
   selected,
   onSelect,
 }: {
   providers: ConnectableProvider[]
+  loaded: boolean
   selected: string
   onSelect: (type: string) => void
 }) {
+  // The server lists only the providers it has turned on (Gmail needs a Google client in its settings).
+  if (loaded && !providers.some((provider) => provider.connectable)) {
+    return <p className="text-sm text-muted-foreground">Máy chủ Sino chưa bật nhà cung cấp nào để kết nối.</p>
+  }
   return (
     <div role="radiogroup" aria-label="Nhà cung cấp" className="flex flex-col gap-2.5">
       {providers.map((provider) => {
@@ -239,12 +253,14 @@ function AccountRow({ account, tone, label }: { account: AccountItem; tone: Stat
 }
 
 // Step 2 (step 3 of the canvas, moved before the sign-in by D-47): the scopes that will be asked for, and why.
-function ScopeReview({ provider, account }: { provider: ConnectableProvider; account: AccountItem | undefined }) {
+function ScopeReview({ provider, account, identity }: { provider: ConnectableProvider; account: AccountItem | undefined; identity: string }) {
   const notAsked = notAskedNote(provider.type)
   return (
     <div className="flex flex-col gap-4">
       {account && <AccountRow account={account} tone="err" label="Cần đăng nhập lại" />}
-      {provider.scopes.length > 0 ? (
+      {provider.scopes === null ? (
+        <p className="text-sm text-muted-foreground">Trang của {identity} liệt kê từng quyền Sino xin; bạn xem và đồng ý ở đó.</p>
+      ) : provider.scopes.length > 0 ? (
         <div>
           {provider.scopes.map((code) => (
             <div key={code} className="grid grid-cols-[18px_minmax(0,1fr)] items-start gap-x-3 border-t py-3 first:border-t-0 first:pt-0">
@@ -387,9 +403,10 @@ function SyncChoice({
   )
 }
 
-// Step 5 of the canvas: the account is connected and its first sync is running.
-function Done({ account, status, onMore }: { account: AccountItem; status: InitialSyncStatus; onMore: () => void }) {
-  const progress = initialSyncView(status)
+// Step 5 of the canvas: the account is connected and its first sync is running, or not yet possible (F04b).
+function Done({ account, status, onMore }: { account: AccountItem; status: InitialSyncStatus | null; onMore: () => void }) {
+  const progress = status && initialSyncView(status)
+  const noun = isMail(account.provider) ? 'thư' : 'tin nhắn'
   return (
     <div className="flex flex-col items-start gap-5 pt-2">
       <span
@@ -400,15 +417,21 @@ function Done({ account, status, onMore }: { account: AccountItem; status: Initi
       </span>
       <div className="flex flex-col gap-1.5">
         <h3 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">Đã kết nối {account.externalAccountId}</h3>
-        <p className="text-sm text-muted-foreground">Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.</p>
+        <p className="text-sm text-muted-foreground">
+          {progress
+            ? 'Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.'
+            : `Sino chưa đồng bộ ${noun} của tài khoản này; đồng bộ lần đầu sẽ có ở bản sau.`}
+        </p>
       </div>
-      <div className="flex w-full flex-col gap-2">
-        <div className="flex items-center justify-between gap-3">
-          <Status tone="warn">Đang đồng bộ</Status>
-          <Spec>{progress.text}</Spec>
+      {progress && (
+        <div className="flex w-full flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <Status tone="warn">Đang đồng bộ</Status>
+            <Spec>{progress.text}</Spec>
+          </div>
+          {progress.percent !== null && <Progress value={progress.percent} />}
         </div>
-        {progress.percent !== null && <Progress value={progress.percent} />}
-      </div>
+      )}
       <Button type="button" variant="ghost" size="sm" className="-ml-3" onClick={onMore}>
         <Plus strokeWidth={1.6} />
         Kết nối thêm tài khoản

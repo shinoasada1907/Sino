@@ -6,9 +6,17 @@ import { renderApp } from '@/test/renderApp'
 import { leaveTo, startConnect } from './accounts.api'
 import { createAccountsSample } from './accounts.sample'
 
+// The wizard on the full contract of fe-ui-connect (sample providers with scopes, the sample round trip); the API path
+// is tested in ConnectOnApi.test.tsx.
 vi.mock('./accounts.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./accounts.api')>()
-  return { ...api, startConnect: vi.fn(api.startConnect), leaveTo: vi.fn() }
+  const { createConnectProvidersSample } = await import('./connect.sample')
+  return {
+    ...api,
+    fetchConnectProviders: vi.fn(async () => createConnectProvidersSample()),
+    startConnect: vi.fn(async (_provider: string, accountId: string | null) => ({ authorizationUrl: `/accounts?connected=${accountId ?? 'acc-gmail'}` })),
+    leaveTo: vi.fn(),
+  }
 })
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.

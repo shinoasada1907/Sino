@@ -12,6 +12,7 @@ import { AccountsTable } from './components/AccountsTable'
 import { ConnectError } from './components/ConnectError'
 import { ListUnavailable } from './components/ListUnavailable'
 import { ConnectWizard, type WizardState } from './components/ConnectWizard'
+import { INITIAL_SYNC_READY } from './accounts.api'
 import { DEFAULT_SYNC_OPTIONS } from './connect.types'
 import { MobileAccountList } from './components/MobileAccountList'
 import { ReauthAlert } from './components/ReauthAlert'
@@ -63,7 +64,7 @@ export function AccountsPage() {
     if (reconnect) {
       setWizard({ step: 2, provider: reconnect.provider, accountId: reconnect.id })
     } else if (connected) {
-      setWizard({ step: 4, accountId: connected.id, options: DEFAULT_SYNC_OPTIONS })
+      setWizard(INITIAL_SYNC_READY ? { step: 4, accountId: connected.id, options: DEFAULT_SYNC_OPTIONS } : { step: 5, accountId: connected.id, status: null })
     } else if (searchParams.get('connect') === 'new') {
       setWizard({ step: 1, provider: null, accountId: null })
     }
@@ -73,9 +74,11 @@ export function AccountsPage() {
     }
   }
 
-  // Then the parameters leave the address without a new history entry, so reloading does not repeat them.
+  // Then, once read (the list must have arrived: an id is checked against it), the parameters leave the address without a
+  // new history entry, so reloading does not repeat them.
+  const read = handledVisit === location.key
   useEffect(() => {
-    if (WIZARD_PARAMS.some((name) => searchParams.has(name))) {
+    if (read && WIZARD_PARAMS.some((name) => searchParams.has(name))) {
       setSearchParams(
         (params) => {
           WIZARD_PARAMS.forEach((name) => params.delete(name))
@@ -84,7 +87,7 @@ export function AccountsPage() {
         { replace: true },
       )
     }
-  }, [searchParams, setSearchParams])
+  }, [read, searchParams, setSearchParams])
 
   if (!list && error) {
     return (

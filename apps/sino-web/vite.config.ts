@@ -20,6 +20,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     restoreMocks: true,
+    // The slowest tests (a whole sign-in, typing and sending a message) take 1.6-2.3 s alone and about 2.5 times that
+    // when all files run in parallel, past the default 5 s; 15 s still stops a test that really hangs.
+    testTimeout: 15_000,
     unstubGlobals: true,
     // Times on screen depend on the time zone; fix it so tests read the same on every machine and in CI (UTC).
     env: { TZ: 'Asia/Ho_Chi_Minh' },
