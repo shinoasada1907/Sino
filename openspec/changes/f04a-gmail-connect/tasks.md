@@ -71,7 +71,8 @@
 
 ## 2. Frontend — nút kết nối (sau Phase 1 change 2)
 
-- [ ] 2.1 **FE-30 — "Thêm Gmail", "Kết nối lại", thông báo kết quả**
+- [x] 2.1 **FE-30 — "Thêm Gmail", "Kết nối lại", thông báo kết quả**
+  - **Thực hiện (2026-10-08, phiên web):** làm trong change `fe-ui-connect`, task CN-05, commit `a36bded` (hộp kết nối gọi `GET /api/providers` và `POST /api/accounts/connect/{provider}`, không body khi kết nối mới, `{accountId}` khi kết nối lại; đọc `?connected=` / `?connectError=` với 5 mã của `ConnectErrorCode`). Bằng chứng ở `openspec/changes/fe-ui-connect/tasks.md` mục CN-05: RED 8 → GREEN, 12/12 lỗi gài bị bắt, Chrome chạy trọn vòng trên `vite` với API trả lời qua CDP. Tick ở đây theo đề nghị của phiên web (phiên backend giữ file này). **Với Google thật: NOT VERIFIED**, chờ BE-34.
   - **Goal / Why:** người dùng kết nối Gmail từ web, không cần curl.
   - **Depends on:** BE-32; trang Accounts của Phase 1 change 2. (Số FE-30 theo khối của F04a, không theo thứ tự FE của Phase 1.)
   - **Files:** trang Accounts trong `apps/sino-web/src/features/accounts/*` (theo cấu trúc của Phase 1), test.
