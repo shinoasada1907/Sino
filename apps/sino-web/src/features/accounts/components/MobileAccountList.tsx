@@ -1,4 +1,5 @@
 import { ChevronRight, Plus } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { accountStatusView } from '@/features/overview/format'
 import type { ProviderNameOf } from '@/shared/format'
@@ -16,16 +17,20 @@ export function MobileAccountList({
   now,
   nameOf,
   onConnect,
+  notice,
   className,
 }: {
   accounts: AccountItem[]
   now: Date
   nameOf: ProviderNameOf
   onConnect: () => void
+  /** A message above the list, such as the result of a connect. */
+  notice?: ReactNode
   className?: string
 }) {
   return (
     <div className={cn('flex flex-col gap-4 px-4 pt-4 pb-5', className)}>
+      {notice}
       {accounts.length === 0 ? (
         <p className="text-sm text-muted-foreground">Chưa kết nối tài khoản nào.</p>
       ) : (

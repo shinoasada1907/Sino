@@ -9,7 +9,9 @@ import { Input } from '@/shared/ui/input'
 import { Segmented } from '@/shared/ui/segmented'
 import { Status } from '@/shared/ui/status'
 import { AccountsTable } from './components/AccountsTable'
+import { ConnectError } from './components/ConnectError'
 import { ConnectWizard, type WizardState } from './components/ConnectWizard'
+import { DEFAULT_SYNC_OPTIONS } from './connect.types'
 import { MobileAccountList } from './components/MobileAccountList'
 import { ReauthAlert } from './components/ReauthAlert'
 import {
@@ -23,6 +25,9 @@ import {
 } from './format'
 import { useAccounts } from './useAccounts'
 
+// Parameters that ask this page to open the connect wizard or show its result; each is read once, then dropped.
+const WIZARD_PARAMS = ['reconnect', 'connected', 'connectError']
+
 const FILTERS: { value: AccountFilter; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
   { value: 'attention', label: 'Cần xử lý' },
@@ -30,8 +35,8 @@ const FILTERS: { value: AccountFilter; label: string }[] = [
 
 /**
  * The Tài khoản screen (canvas `Accounts`, `MobileAccounts`): a table with search and filter from 768 px,
- * a short list under its own header on mobile. "Kết nối tài khoản" and "Đăng nhập lại" open the connect wizard
- * (`?reconnect={id}` opens it for that account); "Đồng bộ tất cả" has no flow yet.
+ * a short list under its own header on mobile. "Kết nối tài khoản" and "Đăng nhập lại" open the connect wizard, which
+ * also reopens when the provider sends the user back (`?connected`, `?connectError`); "Đồng bộ tất cả" has no flow yet.
  */
 export function AccountsPage() {
   const { list, receivedAt } = useAccounts()
@@ -41,26 +46,35 @@ export function AccountsPage() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AccountFilter>('all')
   const [wizard, setWizard] = useState<WizardState | null>(null)
+  const [connectError, setConnectError] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
   const [handledVisit, setHandledVisit] = useState<string | null>(null)
 
-  // "Đăng nhập lại" anywhere links here with ?reconnect=id. Each visit (location.key) is read once, while rendering,
-  // as React advises for state that follows an input; clicking the same link again is a new visit.
+  // Each visit (location.key) is read once, while rendering, as React advises for state that follows an input:
+  // ?reconnect=id from "Đăng nhập lại", ?connected=id or ?connectError=CODE from the provider's callback (F04a).
   if (list && location.key !== handledVisit) {
     setHandledVisit(location.key)
-    const account = list.accounts.find((item) => item.id === searchParams.get('reconnect'))
-    if (account) {
-      setWizard({ step: 2, provider: account.provider, accountId: account.id })
+    const find = (name: string) => list.accounts.find((item) => item.id === searchParams.get(name))
+    const reconnect = find('reconnect')
+    const connected = find('connected')
+    if (reconnect) {
+      setWizard({ step: 2, provider: reconnect.provider, accountId: reconnect.id })
+    } else if (connected) {
+      setWizard({ step: 4, accountId: connected.id, options: DEFAULT_SYNC_OPTIONS })
+    }
+    const error = searchParams.get('connectError')
+    if (error) {
+      setConnectError(error)
     }
   }
 
-  // Then the parameter leaves the address without a new history entry, so reloading does not open the wizard again.
+  // Then the parameters leave the address without a new history entry, so reloading does not repeat them.
   useEffect(() => {
-    if (searchParams.has('reconnect')) {
+    if (WIZARD_PARAMS.some((name) => searchParams.has(name))) {
       setSearchParams(
         (params) => {
-          params.delete('reconnect')
+          WIZARD_PARAMS.forEach((name) => params.delete(name))
           return params
         },
         { replace: true },
@@ -81,7 +95,11 @@ export function AccountsPage() {
   const shown = filterAccounts(accounts, { query, filter }, nameOf)
   const ribbon = ribbonItems(accounts)
   const lastSync = latestSyncTime(accounts)
-  const connect = () => setWizard({ step: 1, provider: null, accountId: null })
+  const connect = () => {
+    setConnectError(null)
+    setWizard({ step: 1, provider: null, accountId: null })
+  }
+  const errorNotice = connectError && <ConnectError code={connectError} onRetry={connect} />
 
   return (
     <>
@@ -95,7 +113,7 @@ export function AccountsPage() {
           </Button>
         }
       />
-      <MobileAccountList accounts={accounts} now={now} nameOf={nameOf} onConnect={connect} className="md:hidden" />
+      <MobileAccountList accounts={accounts} now={now} nameOf={nameOf} onConnect={connect} notice={errorNotice} className="md:hidden" />
       <ConnectWizard state={wizard} onChange={setWizard} accounts={accounts} nameOf={nameOf} />
 
       <div className="hidden flex-col gap-5 p-6 md:flex xl:gap-6 xl:p-8">
@@ -139,6 +157,8 @@ export function AccountsPage() {
             Đã lưu <Num>{formatCount(list.storedMessages)}</Num> thư và tin nhắn
           </span>
         </div>
+
+        {errorNotice}
 
         {accounts
           .filter((account) => account.status === 'AUTH_EXPIRED')

@@ -23,6 +23,9 @@ export interface SyncOptions {
   attachmentsOnOpen: boolean
 }
 
+/** The options of step 4 as the canvas shows them first. */
+export const DEFAULT_SYNC_OPTIONS: SyncOptions = { range: 'DAYS_90', labelsAsFilters: true, attachmentsOnOpen: true }
+
 export interface SyncEstimate {
   messages: number
   minMinutes: number
