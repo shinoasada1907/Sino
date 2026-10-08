@@ -11,7 +11,7 @@ import { UnderConstructionPage } from './UnderConstructionPage'
 /** Screens already built, with what they ask of the shell; every other page shows the under-construction page (D-42). */
 const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellHandle }> = {
   '/overview': { element: <OverviewPage /> },
-  '/inbox': { element: <InboxPage /> },
+  '/inbox': { element: <InboxPage />, handle: { mobilePageHeader: true } },
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
 }
 
@@ -25,7 +25,11 @@ export const routes: RouteObject[] = [
         path: to.slice(1),
         ...(SCREENS[to] ?? { element: <UnderConstructionPage title={title} /> }),
       })),
-      { path: 'inbox/:conversationId', element: <InboxPage /> },
+      {
+        path: 'inbox/:conversationId',
+        element: <InboxPage />,
+        handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+      },
       {
         path: 'accounts/:accountId',
         element: <AccountDetailPage />,

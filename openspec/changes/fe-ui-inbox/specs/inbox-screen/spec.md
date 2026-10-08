@@ -50,7 +50,7 @@ Trang MUST hiện theo `InboxState`: đang tải, chưa có nguồn nào ("Hộp
 - **THEN** trang hiện "Hộp thư đang trống." và nút "Kết nối" cho từng nhà cung cấp
 
 ### Requirement: Nút chưa có chức năng trên màn Hộp thư
-Tìm trong cuộc trò chuyện, đánh dấu chưa đọc, lưu trữ, tạm ẩn, "Mở trong …", các nút thao tác trên một thư (tạo task, nhắc tôi, lịch hẹn, ghi chú), đính kèm tệp, "Gửi lúc…", "Tắt thông báo…", "Hiện trong Tổng quan" MUST hiện như canvas và MUST NOT đổi dữ liệu.
+Tìm trong cuộc trò chuyện, đánh dấu chưa đọc, lưu trữ, tạm ẩn, "Mở trong …", các nút thao tác trên một thư (tạo task, nhắc tôi, lịch hẹn, ghi chú), đính kèm tệp, "Gửi lúc…", "Tắt thông báo…", "Hiện trong Tổng quan", "Thêm thao tác" (tablet), "Tìm kiếm", "Bộ lọc" và "Thông tin cuộc trò chuyện" (mobile) MUST hiện như canvas và MUST NOT đổi dữ liệu.
 
 #### Scenario: Bấm Lưu trữ
 - **WHEN** người dùng bấm "Lưu trữ" ở một cuộc trò chuyện

@@ -4,19 +4,21 @@ import { Link } from 'react-router'
 import { Button } from '@/shared/ui/button'
 
 /**
- * The header of a sub-page on mobile (canvas `.mob-top.has-back`, e.g. `MobileAccounts`): back button, title,
- * optional subtitle and action. Shown below 768 px only and stays at the top while the page scrolls; the route declares
+ * The header of a sub-page on mobile (canvas `.mob-top.has-back`, e.g. `MobileAccounts`): back button, optional
+ * picture (the avatars of `MobileConversation`), title, optional subtitle and action. Shown below 768 px only and stays at the top while the page scrolls; the route declares
  * `handle.mobilePageHeader` so the shell hides its own mobile top bar.
  */
 export function MobilePageHeader({
   back,
   title,
   subtitle,
+  media,
   action,
 }: {
   back: { to: string; label: string }
   title: string
   subtitle?: string
+  media?: ReactNode
   action?: ReactNode
 }) {
   return (
@@ -26,6 +28,7 @@ export function MobilePageHeader({
           <ChevronLeft strokeWidth={1.6} />
         </Link>
       </Button>
+      {media}
       <div className="flex min-w-0 grow flex-col">
         <h1 className="truncate text-sm font-semibold">{title}</h1>
         {subtitle && (

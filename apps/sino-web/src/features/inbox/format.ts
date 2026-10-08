@@ -9,7 +9,7 @@ import {
   weekdayNumbered,
   weekdayShort,
 } from '@/shared/time/local'
-import type { ConversationItem, LinkedItem, LinkedKind, Member, Message } from './inbox.types'
+import type { ConversationItem, InboxData, LinkedItem, LinkedKind, Member, Message } from './inbox.types'
 
 export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
 export interface InboxFilter {
@@ -123,8 +123,30 @@ export function sourceLabel(item: ConversationItem, nameOf: ProviderNameOf): str
   return item.memberCount ? `${name} · nhóm ${item.memberCount} người` : name
 }
 
+/** The subtitle of a conversation in the mobile header: "Zalo · 6 người" for a group, the source name otherwise. */
+export function mobileThreadSubtitle(item: ConversationItem, nameOf: ProviderNameOf): string {
+  const name = nameOf(item.provider)
+  return item.memberCount ? `${name} · ${item.memberCount} người` : name
+}
+
 export function unreadLabel(count: number): string {
   return count > 0 ? `${count} chưa đọc` : 'Đã đọc hết'
+}
+
+/** One source of the inbox: its unread messages, or null when all its accounts need signing in again. */
+export interface SourceCount {
+  type: string
+  name: string
+  unread: number | null
+}
+
+export function sourceCounts(inbox: Pick<InboxData, 'providers' | 'accounts' | 'counts'>, nameOf: ProviderNameOf): SourceCount[] {
+  return inbox.providers.map((provider) => {
+    const accounts = inbox.accounts.filter((account) => account.provider === provider.type)
+    const needsLogin = accounts.length > 0 && accounts.every((account) => account.status === 'AUTH_EXPIRED')
+    const unread = inbox.counts.byProvider.find((entry) => entry.provider === provider.type)?.unread ?? 0
+    return { type: provider.type, name: nameOf(provider.type), unread: needsLogin ? null : unread }
+  })
 }
 
 const isSnoozed = (item: ConversationItem, now: Date) =>

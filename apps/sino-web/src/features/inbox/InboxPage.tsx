@@ -1,22 +1,26 @@
+import { Clock, Info } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { providerNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { useNow } from '@/shared/time/useNow'
 import { Button } from '@/shared/ui/button'
 import { ChatThread } from './components/ChatThread'
+import { ConversationAvatars } from './components/ConversationAvatars'
 import { ConversationInfo } from './components/ConversationInfo'
 import { ConversationList } from './components/ConversationList'
 import { EmailThread } from './components/EmailThread'
 import { SourcePane } from './components/SourcePane'
-import { filterConversations, unreadLabel } from './format'
+import { filterConversations, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
 import { useConversation, useMarkRead } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
 
 /**
  * The Hộp thư screen (canvas `Inbox`): sources and filters, the conversation list, and an open email in the right
  * column. A chat is a page of its own from 1280px (canvas `Conversation`: chat and info column) and sits in the right
- * column on tablet. `/inbox/:conversationId` opens a conversation and marks it as read.
+ * column on tablet. `/inbox/:conversationId` opens a conversation and marks it as read. Below 768px the list and an
+ * open conversation are two screens (canvas `MobileInbox`, `MobileConversation`), each with its own header.
  */
 export function InboxPage() {
   const { conversationId } = useParams()
@@ -52,11 +56,31 @@ export function InboxPage() {
     : inbox.counts.unread
   const account = item && inbox.accounts.find((entry) => entry.id === item.accountId)
   const chat = item?.kind === 'CHAT' && account !== undefined
+  const mobileHeader = item && (
+    <MobilePageHeader
+      back={{ to: `/inbox${search}`, label: 'Quay lại Hộp thư' }}
+      title={item.title}
+      subtitle={mobileThreadSubtitle(item, nameOf)}
+      media={item.kind === 'CHAT' ? <ConversationAvatars item={item} members={detail?.members ?? null} /> : undefined}
+      action={
+        <>
+          <Button type="button" variant="ghost" size="icon" aria-label="Tạm ẩn">
+            <Clock strokeWidth={1.6} />
+          </Button>
+          {item.kind === 'CHAT' && (
+            <Button type="button" variant="ghost" size="icon" aria-label="Thông tin cuộc trò chuyện">
+              <Info strokeWidth={1.6} />
+            </Button>
+          )}
+        </>
+      }
+    />
+  )
 
   return (
     <div
       className={cn(
-        'grid h-full min-h-0 bg-background md:grid-cols-[minmax(0,360px)_minmax(0,1fr)]',
+        'grid h-full min-h-0 bg-background md:grid-cols-[320px_minmax(0,1fr)]',
         chat ? 'xl:grid-cols-[minmax(0,1fr)_320px]' : 'xl:grid-cols-[232px_400px_minmax(0,1fr)]',
       )}
     >
@@ -64,39 +88,43 @@ export function InboxPage() {
       <ConversationList
         conversations={filterConversations(inbox.conversations, filter, now)}
         unread={unreadLabel(unread)}
-        view={filter.view}
-        onView={(view) => navigate({ search: searchFor({ view }) })}
+        total={inbox.counts.unread}
+        sources={sourceCounts(inbox, nameOf)}
+        filter={filter}
+        onFilter={(change) => navigate({ search: searchFor(change) })}
         selectedId={conversationId ?? null}
         search={search}
         now={now}
         nameOf={nameOf}
-        className={chat ? 'hidden md:block xl:hidden' : selected ? 'hidden md:block' : undefined}
+        className={chat ? 'hidden md:flex xl:hidden' : selected ? 'hidden md:flex' : 'flex'}
       />
       {chat && item && account ? (
         <>
-          <ChatThread key={item.id} item={item} detail={detail} account={account} backSearch={search} now={now} nameOf={nameOf} />
+          <div className="flex min-h-0 min-w-0 flex-col *:last:min-h-0 *:last:flex-1">
+            {mobileHeader}
+            <ChatThread key={item.id} item={item} detail={detail} account={account} backSearch={search} now={now} nameOf={nameOf} />
+          </div>
           <ConversationInfo key={`info-${item.id}`} item={item} detail={detail} account={account} now={now} nameOf={nameOf} className="hidden min-h-0 xl:grid" />
         </>
       ) : (
-        <section
-          aria-label="Cuộc trò chuyện đang mở"
-          className={cn(
-            'min-h-0 min-w-0',
-            item && account ? 'grid grid-rows-[auto_minmax(0,1fr)_auto]' : 'grid place-items-center',
-            !selected && 'hidden md:grid',
-          )}
-        >
-          {!selected && <p className="text-sm text-muted-foreground">Chọn một cuộc trò chuyện để đọc.</p>}
-          {selected && notFound && (
-            <div className="flex flex-col items-center gap-3">
-              <p className="text-base">Không tìm thấy cuộc trò chuyện này.</p>
-              <Button asChild variant="secondary" size="sm">
-                <Link to="/inbox">Về hộp thư</Link>
-              </Button>
-            </div>
-          )}
-          {item && account && <EmailThread key={item.id} item={item} detail={detail} account={account} now={now} nameOf={nameOf} />}
-        </section>
+        <div className={cn('flex min-h-0 min-w-0 flex-col', !selected && 'hidden md:flex')}>
+          {mobileHeader}
+          <section
+            aria-label="Cuộc trò chuyện đang mở"
+            className={cn('grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)]', item && account ? 'grid-rows-[auto_minmax(0,1fr)_auto]' : 'place-items-center')}
+          >
+            {!selected && <p className="text-sm text-muted-foreground">Chọn một cuộc trò chuyện để đọc.</p>}
+            {selected && notFound && (
+              <div className="flex flex-col items-center gap-3">
+                <p className="text-base">Không tìm thấy cuộc trò chuyện này.</p>
+                <Button asChild variant="secondary" size="sm">
+                  <Link to="/inbox">Về hộp thư</Link>
+                </Button>
+              </div>
+            )}
+            {item && account && <EmailThread key={item.id} item={item} detail={detail} account={account} now={now} nameOf={nameOf} />}
+          </section>
+        </div>
       )}
     </div>
   )

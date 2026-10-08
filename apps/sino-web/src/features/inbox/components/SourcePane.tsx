@@ -6,7 +6,7 @@ import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { StatusDot, type StatusTone } from '@/shared/ui/status'
-import type { InboxFilter, InboxView } from '../format'
+import { sourceCounts, type InboxFilter, type InboxView } from '../format'
 import type { InboxAccount, InboxData } from '../inbox.types'
 import { MailDot } from './icons'
 
@@ -46,13 +46,6 @@ export function SourcePane({
   nameOf: ProviderNameOf
   className?: string
 }) {
-  const unreadOf = (provider: string) => inbox.counts.byProvider.find((entry) => entry.provider === provider)?.unread ?? 0
-  // A source whose accounts all need signing in again shows a red dot instead of a count, as the canvas does.
-  const needsLogin = (provider: string) => {
-    const accounts = inbox.accounts.filter((account) => account.provider === provider)
-    return accounts.length > 0 && accounts.every((account) => account.status === 'AUTH_EXPIRED')
-  }
-
   return (
     <aside aria-label="Nguồn và bộ lọc" className={cn('min-h-0 overflow-auto border-r', className)}>
       <div className="flex flex-col gap-6 px-3 py-5">
@@ -62,24 +55,25 @@ export function SourcePane({
             <span>Tất cả</span>
             <Count value={inbox.counts.unread} />
           </Link>
-          {inbox.providers.map((provider) => (
+          {sourceCounts(inbox, nameOf).map((source) => (
             <Link
-              key={provider.type}
-              to={{ search: searchFor({ source: provider.type }) }}
-              aria-current={filter.source === provider.type ? 'page' : undefined}
+              key={source.type}
+              to={{ search: searchFor({ source: source.type }) }}
+              aria-current={filter.source === source.type ? 'page' : undefined}
               className={ITEM}
             >
               <span className="grid size-6 place-items-center rounded-[7px] border bg-raised text-foreground">
-                <ProviderIcon provider={provider.type} className="size-3.5" />
+                <ProviderIcon provider={source.type} className="size-3.5" />
               </span>
-              <span>{nameOf(provider.type)}</span>
-              {needsLogin(provider.type) ? (
+              <span>{source.name}</span>
+              {/* A source whose accounts all need signing in again shows a red dot instead of a count, as the canvas does. */}
+              {source.unread === null ? (
                 <span className="justify-self-center">
                   <StatusDot tone="err" />
                   <span className="sr-only">cần đăng nhập lại</span>
                 </span>
               ) : (
-                <Count value={unreadOf(provider.type)} />
+                <Count value={source.unread} />
               )}
             </Link>
           ))}

@@ -1,4 +1,4 @@
-import { AlarmClock, Archive, Calendar, CalendarPlus, Clock, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
+import { AlarmClock, Archive, Calendar, CalendarPlus, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
@@ -24,6 +24,8 @@ const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string }> = {
 /**
  * An email thread in the right column of the canvas `Inbox`: header and tools, linked items, the older emails folded
  * (a click opens one), the newest in full with its attachments, and the reply box. The tools have no flow yet (D-52).
+ * From 768 to 1279px it keeps "Lưu trữ" and "Thêm thao tác" and drops the tools of each email (canvas `TabletInbox`);
+ * below 768px it fills the screen under the page header, without the tools (no canvas for an email on a phone).
  */
 export function EmailThread({
   item,
@@ -46,9 +48,9 @@ export function EmailThread({
 
   return (
     <>
-      <header className="flex items-start justify-between gap-4 border-b px-6 py-5">
+      <header className="flex items-start justify-between gap-4 border-b p-4 md:px-5 xl:px-6 xl:py-5">
         <div className="flex min-w-0 flex-col gap-2">
-          <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{item.subject ?? item.title}</h2>
+          <h2 className="text-lg leading-6.5 font-semibold tracking-[-0.01em] md:text-xl md:leading-7">{item.subject ?? item.title}</h2>
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="grid size-6 place-items-center rounded-[7px] border bg-raised text-foreground">
               <ProviderIcon provider={item.provider} className="size-3.5" />
@@ -57,20 +59,21 @@ export function EmailThread({
             {detail && <Spec>{threadMeta(detail.messages)}</Spec>}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Tool label="Tìm trong cuộc trò chuyện" icon={Search} />
-          <Tool label="Đánh dấu chưa đọc" icon={MailDot} />
+        <div className="hidden shrink-0 items-center gap-1 md:flex">
+          <Tool label="Tìm trong cuộc trò chuyện" icon={Search} className="max-xl:hidden" />
+          <Tool label="Đánh dấu chưa đọc" icon={MailDot} className="max-xl:hidden" />
           <Tool label="Lưu trữ" icon={Archive} />
-          <Tool label="Tạm ẩn" icon={Clock} />
-          <span aria-hidden="true" className="mx-2 h-6 w-px bg-border" />
-          <Button type="button" variant="secondary" size="sm">
+          <Tool label="Tạm ẩn" icon={Clock} className="max-xl:hidden" />
+          <Tool label="Thêm thao tác" icon={Ellipsis} className="xl:hidden" />
+          <span aria-hidden="true" className="mx-2 h-6 w-px bg-border max-xl:hidden" />
+          <Button type="button" variant="secondary" size="sm" className="max-xl:hidden">
             <ExternalLink strokeWidth={1.6} />
             Mở trong {nameOf(item.provider)}
           </Button>
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-col gap-3 overflow-auto p-6">
+      <div className="flex min-h-0 flex-col gap-3 overflow-auto p-4 md:p-5 xl:p-6">
         {detail?.linked && detail.linked.length > 0 && <LinkedChips items={detail.linked} now={now} />}
         {mails.map((mail) =>
           mail === newest ? (
@@ -95,9 +98,9 @@ export function EmailThread({
   )
 }
 
-function Tool({ label, icon: Icon }: { label: string; icon: LucideIcon | typeof MailDot }) {
+function Tool({ label, icon: Icon, className }: { label: string; icon: LucideIcon | typeof MailDot; className?: string }) {
   return (
-    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label}>
+    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className={className}>
       <Icon strokeWidth={1.6} />
     </Button>
   )
@@ -153,7 +156,7 @@ function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date;
     <>
       <Avatar placeholder={placeholderOf(mail)} className="size-8" />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm font-semibold">{mail.sender}</span>
+        <span className="truncate text-sm font-semibold">{mail.sender}</span>
         {mail.to && <Spec className="truncate">tới {mail.to}</Spec>}
       </span>
     </>
@@ -166,7 +169,7 @@ function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date;
   )
 
   return (
-    <article className="flex flex-col gap-4 rounded-md border bg-surface p-5">
+    <article className="flex flex-col gap-4 rounded-md border bg-surface p-4 md:p-5">
       {onFold ? (
         <button
           type="button"
@@ -181,7 +184,7 @@ function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date;
         <div className={cn('grid items-center gap-x-3', tools ? 'grid-cols-[32px_minmax(0,1fr)_auto_auto]' : 'grid-cols-[32px_minmax(0,1fr)_auto]')}>
           {head}
           {tools && (
-            <div role="toolbar" aria-label="Thao tác với thư này" className="mr-2.5 flex gap-0.5 rounded-[10px] border bg-raised p-0.75">
+            <div role="toolbar" aria-label="Thao tác với thư này" className="mr-2.5 flex gap-0.5 rounded-[10px] max-xl:hidden border bg-raised p-0.75">
               <MailTool label="Tạo task" icon={SquareCheck} />
               <MailTool label="Nhắc tôi" icon={AlarmClock} />
               <MailTool label="Lịch hẹn" icon={CalendarPlus} />

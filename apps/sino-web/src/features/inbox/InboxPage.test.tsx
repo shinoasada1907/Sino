@@ -87,10 +87,11 @@ describe('Hộp thư on desktop', () => {
     expect(list().getByText('4 chưa đọc')).toBeInTheDocument()
     expect(sources().getByRole('link', { name: /Zalo/ })).toHaveAttribute('aria-current', 'page')
 
-    await user.click(list().getByRole('button', { name: 'Chưa đọc' }))
+    const views = within(list().getByRole('group', { name: 'Lọc danh sách' }))
+    await user.click(views.getByRole('button', { name: 'Chưa đọc' }))
     expect(router.state.location.search).toBe('?source=zalo&view=unread')
     expect(rowTitles()).toEqual(['Gia đình'])
-    expect(list().getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
+    expect(views.getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
     expect(sources().getByRole('link', { name: /Chưa đọc/ })).toHaveAttribute('aria-current', 'page')
 
     await user.click(sources().getByRole('link', { name: /Đã hẹn giờ/ }))
