@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30, BE-31, BE-32, BE-33.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30…BE-33; BE-34 xong phần README, phần thử thật chưa chạy.
 > **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -41,7 +41,7 @@ Xóa account -> báo Google thu hồi token             BE-33
 | BE-31 | Bắt đầu kết nối: `POST /api/accounts/connect/{provider}`, state + PKCE trong session | xong |
 | BE-32 | Callback: đổi code lấy token, kiểm scope, đăng ký, thu hồi grant không dùng | xong |
 | BE-33 | Xóa account thì Google rút quyền: gửi sau commit, ngoài transaction | xong |
-| BE-34 | README Google project, thử với Google thật | chưa làm |
+| BE-34 | README Google project, thử với Google thật | README xong; thử thật chưa chạy |
 | FE-30 | Nút "Thêm Gmail", "Kết nối lại" | chưa làm |
 
 ---
@@ -357,6 +357,24 @@ Làm hỏng code mỗi lần một chỗ (8 lần), lần nào cũng có test đ
 
 ---
 
+## 5. Google project và thử với Google thật (BE-34, phần README)
+
+### 5.1 Dựng Google project
+- **Ở đâu:** `apps/sino-api/README.md`, mục "Gmail: Google project and a first real connect" (7 bước, theo giao diện Google Cloud tháng 10/2026: *Google Auth Platform* gồm Branding, Audience, Data Access, Clients).
+- **Testing:** chỉ các tài khoản trong danh sách test user được đồng ý; refresh token sống 7 ngày, sau đó phải kết nối lại.
+- **Client secret chỉ hiện một lần** (client tạo từ tháng 6/2025): chép ngay vào `.env`; mất thì tạo secret mới trong trang của client.
+
+### 5.2 Vì sao redirect URI phải khớp từng ký tự
+- Google chỉ gửi `code` tới đúng địa chỉ đã đăng ký trong OAuth client. Nếu khớp "gần đúng" cũng được, kẻ xấu có thể đăng ký một đường dẫn na ná để hứng `code`. Vì vậy chỉ cần lệch một dấu `/` ở cuối, khác cổng, hay `http` thay cho `https` là Google báo `redirect_uri_mismatch`.
+- Sino dựng redirect URI từ `SINO_PUBLIC_BASE_URL` (bỏ dấu `/` cuối), nên giá trị trong `.env` và trong Google Cloud phải đi đôi với nhau.
+
+### 5.3 Vì sao thử thật phải dùng một tab trình duyệt
+- Kế hoạch ban đầu là đăng nhập bằng `curl` rồi mở `authorizationUrl` trên trình duyệt. Cách đó không chạy: `state` và PKCE verifier nằm trong session, mà session của `curl` nằm trong cookie jar của `curl`. Trình duyệt quay về từ Google không mang cookie đó, nên callback trả `CONNECT_STATE_INVALID`. Đây chính là điều `state` được thiết kế để chặn (mục 2.2).
+- Cách đúng: làm cả luồng trên `http://localhost:8080` trong một tab, gọi API từ console của trình duyệt (`fetch` gửi kèm `X-XSRF-TOKEN` đọc từ cookie).
+- **Trạng thái:** phần thử với Google thật chưa chạy, đợi Google project của bạn (NOT VERIFIED).
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -378,3 +396,5 @@ Làm hỏng code mỗi lần một chỗ (8 lần), lần nào cũng có test đ
 17. Bạn có Gmail A và B trong Sino, kết nối lại A nhưng chọn nhầm B: vì sao Sino không được thu hồi token vừa nhận?
 18. Nếu gửi lệnh thu hồi trước khi commit mà transaction rollback thì chuyện gì xảy ra với account đó?
 19. Vì sao gọi Google trong `afterCommit` vẫn chưa thật sự "ngoài transaction"?
+20. Vì sao Google từ chối nếu redirect URI lệch một dấu `/`?
+21. Đăng nhập bằng `curl` rồi mở `authorizationUrl` trên trình duyệt thì callback trả mã gì, vì sao?

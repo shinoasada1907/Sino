@@ -196,7 +196,7 @@ Log ghi lý do cụ thể của `CONNECT_FAILED` (loại lỗi, mã HTTP), khôn
 
 ## Risks / Trade-offs
 
-- [Ngoại lệ "personal use" của Google có thể không áp dụng cho scope restricted khi "In production"] → Kiểm thật ở BE-34. Nếu không được: ở lại Testing và chấp nhận kết nối lại mỗi 7 ngày (luồng kết nối lại đã có), ghi vào README.
+- [Ngoại lệ "personal use" của Google có thể không áp dụng cho scope restricted khi "In production"] → Kiểm thật ở BE-34. **Khi làm BE-34 (2026-10-08):** trang https://support.google.com/cloud/answer/13464323 vẫn chỉ nói app dùng cá nhân (dưới 100 người dùng) được dùng không cần thẩm định, kèm màn "unverified app", và không nói gì về scope restricted; chỉ kiểm được bằng cách bấm *Publish app* với tài khoản thật. README khuyên ở lại Testing cho tới khi thử. Nếu không được: ở lại Testing và chấp nhận kết nối lại mỗi 7 ngày (luồng kết nối lại đã có), ghi vào README.
 - [Hai change cùng sửa requirement `/api/**` yêu cầu xác thực] → `fe-f01-web-foundation` archive trước; delta của change này viết trên bản của fe-f01. Nếu thứ tự đổi, sửa delta trước khi archive.
 - [Session mất (khởi động lại, hết hạn) khi đang ở màn Google] → `CONNECT_STATE_INVALID`, người dùng thử lại.
 - [Callback công khai ở tầng security] → không có tác dụng gì nếu thiếu `PendingConnect` hợp lệ trong session.

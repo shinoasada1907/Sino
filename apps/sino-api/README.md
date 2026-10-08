@@ -49,6 +49,74 @@ to `apps/sino-api`; otherwise `.env` is not found.
 Flyway applies `src/main/resources/db/migration` on startup and Hibernate only validates the schema. Never edit a
 migration that was already applied: add a new `V{n}__{module}_{description}.sql` instead.
 
+## Gmail: Google project and a first real connect
+
+Sino connects Gmail through its own Google OAuth client (F04a, D-38, D-40). Without one, Gmail is off and the rest
+of the app works. Setting one up takes about ten minutes in the [Google Cloud console](https://console.cloud.google.com/),
+signed in with the Google account you want to connect (menu names as of October 2026):
+
+1. **Project.** In the project picker of the top bar, *New project*, for example `sino-dev`.
+2. **Gmail API.** *APIs & Services > Library*, search *Gmail API*, *Enable*.
+3. **Consent screen.** *Google Auth Platform > Branding > Get started*: an app name such as `Sino (dev)` and your
+   email as support email; *Audience*: **External**; a contact email; accept the policy; *Create*. The app starts in
+   **Testing**.
+4. **Test users.** *Google Auth Platform > Audience > Test users > Add users*: every Gmail address you will connect.
+   In Testing, only these accounts can give consent.
+5. **Scopes** (recommended). *Google Auth Platform > Data Access > Add or remove scopes*: `openid`,
+   `.../auth/userinfo.email` and `https://www.googleapis.com/auth/gmail.readonly` (a restricted scope). Sino asks for
+   them in every consent request anyway; listing them here shows them on the consent screen.
+6. **OAuth client.** *Google Auth Platform > Clients > Create client*, type **Web application**, any name, and two
+   *Authorized redirect URIs*, exactly as written (scheme, port, path, no trailing slash):
+   - `http://localhost:5173/api/accounts/connect/gmail/callback` (through the web dev server, D-36)
+   - `http://localhost:8080/api/accounts/connect/gmail/callback` (the backend alone, for the test below)
+
+   *Create*, then **copy the client secret right away**: Google shows it only once. Lost it? Open the client and add
+   a new secret.
+7. **`.env`.** Set `SINO_GOOGLE_CLIENT_ID`, `SINO_GOOGLE_CLIENT_SECRET` and `SINO_PUBLIC_BASE_URL=http://localhost:5173`,
+   then restart. The startup log no longer says "Gmail is off", and `GET /api/providers` lists `gmail`.
+
+Good to know:
+
+- In **Testing**, Google lets a refresh token live **7 days**; after that the account has to be reconnected.
+  Publishing the app (*Audience > Publish app*) without verification is allowed for personal use (fewer than 100
+  users) behind an "unverified app" warning; Google does not say whether that holds for the restricted Gmail scope
+  (open risk in the F04a design), so stay in Testing until it is tried.
+- "Google hasn't verified this app" is expected for your own app: *Continue*.
+- You can always take Sino's access away by hand at <https://myaccount.google.com/permissions>.
+
+### Try it with real Google, without the web app
+
+The browser that finishes the connect must hold the session that started it (the state and the PKCE verifier live
+there), so everything happens in one browser tab on the backend's own address:
+
+1. Start the backend alone, with Google sending the browser back to it (the environment wins over `.env`):
+
+   ```bash
+   SINO_PUBLIC_BASE_URL=http://localhost:8080 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+   ```
+
+   PowerShell: `$env:SINO_PUBLIC_BASE_URL="http://localhost:8080"; .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=local"`.
+2. Open <http://localhost:8080/api/auth/me> (a `401` is fine: it hands out the CSRF cookie), open the developer
+   console (F12) and run, with the owner email and password from `.env`:
+
+   ```js
+   const xsrf = () => document.cookie.match(/XSRF-TOKEN=([^;]+)/)[1];
+   const call = (method, path, body) => fetch(path, { method, body: body && JSON.stringify(body),
+       headers: { 'X-XSRF-TOKEN': xsrf(), 'Content-Type': 'application/json' } });
+   await call('POST', '/api/auth/login', { email: 'OWNER_EMAIL', password: 'OWNER_PASSWORD', rememberMe: false });
+   await fetch('/api/auth/me');
+   location.href = (await (await call('POST', '/api/accounts/connect/gmail')).json()).authorizationUrl;
+   ```
+
+3. At Google, pick the Gmail account and allow reading mail. The browser comes back to
+   `http://localhost:8080/accounts?connected=<accountId>`. That page itself is an error (there is no web app on
+   8080); the address is what counts. In the console (redefine `xsrf` and `call` first, the page changed):
+   `await (await fetch('/api/accounts')).json()` shows the account, `CONNECTED`.
+4. Reconnect: `location.href = (await (await call('POST', '/api/accounts/connect/gmail', { accountId: '<accountId>' })).json()).authorizationUrl;`
+   comes back with the same id. Picking another Google account there ends on `connectError=CONNECT_WRONG_ACCOUNT`.
+5. Remove: `(await call('DELETE', '/api/accounts/<accountId>')).status` is `204`, and Sino disappears from
+   <https://myaccount.google.com/permissions> (it can take a minute).
+
 ## Endpoints available today
 
 | Path | Access | Notes |
@@ -122,6 +190,9 @@ Decided in D-03 (`openspec/specs/module-boundaries/spec.md`).
 | App stops with `sino.owner.password (SINO_OWNER_PASSWORD) must be set and at least 12 characters long` or the same for `sino.auth.remember-me-key` | Add `SINO_OWNER_PASSWORD` and `SINO_REMEMBER_ME_KEY` to `.env` (see `.env.example`). The message never shows the value. |
 | App stops with `SINO_GOOGLE_CLIENT_SECRET (sino.google.client-secret) is missing` (or the same for the client id) | Only half of the Google OAuth client is set. Set both `SINO_GOOGLE_CLIENT_ID` and `SINO_GOOGLE_CLIENT_SECRET`, or clear both to run without Gmail. |
 | App stops with `SINO_PUBLIC_BASE_URL (sino.public-base-url) must be the http(s) address ...` | Gmail is on but the public address is missing or not an `http(s)` URL. Set `SINO_PUBLIC_BASE_URL` (for example `http://localhost:5173`). |
+| Google shows `Error 400: redirect_uri_mismatch` | The redirect URI Sino sends (`SINO_PUBLIC_BASE_URL` + `/api/accounts/connect/gmail/callback`) is not listed in the OAuth client character for character: scheme, host, port, path, no trailing slash. Add it under *Google Auth Platform > Clients*. |
+| Google shows `Error 403: access_denied` ("has not completed the Google verification process") | The Google account is not a test user. Add it under *Google Auth Platform > Audience > Test users*. |
+| A Gmail account stops working about a week after connecting | The Google project is in Testing, where refresh tokens last 7 days. Reconnect it. |
 | Connecting Gmail ends on `/accounts?connectError=CONNECT_FAILED` | Look for `Connecting gmail failed: ...` in the log: it names the reason (the token endpoint's HTTP status or OAuth error, no refresh token, profile not readable), never a code or a token. |
 | Connecting Gmail ends on `/accounts?connectError=CONNECT_STATE_INVALID` | The callback came more than 10 minutes after the start, in another browser, after a restart (the session is gone), or twice. Start again. |
 | App stops with `sino.owner` validation errors | `SINO_OWNER_EMAIL` / `SINO_OWNER_DISPLAY_NAME` are missing or the email is not valid. Copy them from `.env.example`. |
