@@ -80,8 +80,8 @@ public class ConnectService {
 
     /**
      * Finishes a connect with what the provider sent back: a {@code code}, or an {@code error}. Exchanges the code,
-     * checks the granted scopes, asks the connector who the account is and registers it (F02). A grant Sino will not
-     * use (scope missing, wrong account) is revoked at once.
+     * asks the connector who the account is, checks the granted scopes and registers it (F02). A grant Sino will not
+     * use is revoked at once, unless it belongs to an account of the owner (D-54).
      *
      * @return the ID of the new or reconnected account
      * @throws ConnectFailure with the code the web shows; the log says why, never with a code or a token
@@ -109,36 +109,59 @@ public class ConnectService {
         } catch (OAuth2ExchangeException failure) {
             throw failed(provider, failure.getMessage());
         }
-        if (!tokens.grantedScopes().containsAll(connection.requiredScopes())) {
-            revoke(connector, connection, tokens);
-            throw stopped(provider, ConnectErrorCode.CONNECT_SCOPE_DENIED);
-        }
-        if (tokens.refreshToken() == null) {
-            throw failed(provider, "the token endpoint gave no refresh token");
-        }
-
         OAuth2Credentials credentials = new OAuth2Credentials(tokens.accessToken(), tokens.expiresAt(),
                 tokens.grantedScopes());
-        AccountProfile profile;
+        AccountProfile profile = null;
         try {
-            profile = connector.getAccountProfile(new ProviderContext(pending.accountId(), null, credentials));
-        } catch (ProviderException failure) {
-            throw failed(provider, "reading the account profile failed (" + failure.errorCode() + ")");
-        } catch (IllegalArgumentException failure) {
-            throw failed(provider, "the provider described the account incompletely");
+            // Who the account is comes first (the sign-in scopes are always granted), so a grant that is not used
+            // is revoked only when it belongs to no account of the owner (D-54).
+            profile = profileOf(connector, pending, credentials);
+            if (!tokens.grantedScopes().containsAll(connection.requiredScopes())) {
+                throw stopped(provider, ConnectErrorCode.CONNECT_SCOPE_DENIED);
+            }
+            if (tokens.refreshToken() == null) {
+                throw failed(provider, "the token endpoint gave no refresh token");
+            }
+            if (pending.accountId() != null) {
+                if (!pending.externalAccountId().equals(profile.externalAccountId())) {
+                    throw stopped(provider, ConnectErrorCode.CONNECT_WRONG_ACCOUNT);
+                }
+                if (!accounts.hasAccount(pending.ownerId(), connector.type(), pending.externalAccountId())) {
+                    throw failed(provider, "the account to reconnect was removed meanwhile");
+                }
+            }
+            return registration.register(new RegisterAccountCommand(pending.ownerId(), connector.type(), profile,
+                    credentials, tokens.refreshToken()));
+        } catch (RuntimeException failure) {
+            dropUnusedGrant(pending.ownerId(), connector, connection, tokens, profile);
+            throw failure;
         }
-        if (pending.externalAccountId() != null && !pending.externalAccountId().equals(profile.externalAccountId())) {
-            revoke(connector, connection, tokens);
-            throw stopped(provider, ConnectErrorCode.CONNECT_WRONG_ACCOUNT);
-        }
-        return registration.register(new RegisterAccountCommand(pending.ownerId(), connector.type(), profile,
-                credentials, tokens.refreshToken()));
     }
 
-    // Revoking the refresh token drops the whole grant.
-    private void revoke(MessageProvider connector, OAuth2Connection connection, OAuth2Tokens tokens) {
-        revoker.revoke(connector.type(), connection.revocationUri(),
-                tokens.refreshToken() != null ? tokens.refreshToken() : tokens.accessToken());
+    private static AccountProfile profileOf(MessageProvider connector, PendingConnect pending,
+            OAuth2Credentials credentials) {
+        try {
+            return connector.getAccountProfile(new ProviderContext(pending.accountId(), null, credentials));
+        } catch (ProviderException failure) {
+            throw failed(pending.provider(), "reading the account profile failed (" + failure.errorCode() + ")");
+        } catch (IllegalArgumentException failure) {
+            throw failed(pending.provider(), "the provider described the account incompletely");
+        }
+    }
+
+    // Revoking drops everything that account at the provider granted Sino, so the grant of an account of the owner
+    // stays. Unknown account (no profile): revoke. Revoking the refresh token drops the whole grant.
+    private void dropUnusedGrant(UUID ownerId, MessageProvider connector, OAuth2Connection connection,
+            OAuth2Tokens tokens, AccountProfile profile) {
+        try {
+            if (profile != null && accounts.hasAccount(ownerId, connector.type(), profile.externalAccountId())) {
+                return;
+            }
+            revoker.revoke(connector.type(), connection.revocationUri(),
+                    tokens.refreshToken() != null ? tokens.refreshToken() : tokens.accessToken());
+        } catch (RuntimeException failure) {
+            LOG.warn("Dropping an unused {} grant failed: {}", connector.type(), failure.getClass().getSimpleName());
+        }
     }
 
     private static ConnectFailure failed(String provider, String reason) {

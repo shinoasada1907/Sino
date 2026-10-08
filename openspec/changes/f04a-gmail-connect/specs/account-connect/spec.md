@@ -30,12 +30,20 @@ Body `{"accountId": ...}` MUST biến lệnh bắt đầu thành kết nối l�
 - **WHEN** owner kết nối lại account A nhưng ở provider chọn tài khoản B
 - **THEN** không account nào được tạo hay sửa, token vừa nhận bị thu hồi, và callback redirect tới `/accounts?connectError=CONNECT_WRONG_ACCOUNT`
 
+#### Scenario: Kết nối lại nhưng chọn một account khác đang kết nối
+- **WHEN** owner có account A và B, kết nối lại A nhưng ở provider chọn B
+- **THEN** response là `302` tới `/accounts?connectError=CONNECT_WRONG_ACCOUNT` và provider không nhận lệnh thu hồi nào, nên quyền của B vẫn còn
+
+#### Scenario: Account đích bị xóa trong lúc kết nối lại
+- **WHEN** owner bắt đầu kết nối lại account A, xóa A, rồi đồng ý ở provider
+- **THEN** response là `302` tới `/accounts?connectError=CONNECT_FAILED`, A vẫn đã xóa, và token vừa nhận bị thu hồi
+
 #### Scenario: Account đích không hợp lệ
 - **WHEN** owner gọi bắt đầu kết nối với `accountId` của một account đã xóa
 - **THEN** response là `404` với `code` = `ACCOUNT_NOT_FOUND`
 
 ### Requirement: Hoàn tất kết nối ở callback
-`GET /api/accounts/connect/{provider}/callback` MUST lấy và xóa yêu cầu đang chờ theo `state` trước mọi việc khác, rồi đổi `code` lấy token có gửi PKCE verifier, kiểm scope thật được cấp, lấy hồ sơ account từ connector và gọi use case đăng ký kết nối của F02 với credential và refresh token. Thành công MUST trả `302` tới `/accounts?connected={accountId}`. Mọi lỗi MUST trả `302` tới `/accounts?connectError={CODE}`; callback MUST NOT trả body JSON. `Location` MUST là đường dẫn cố định, không lấy từ tham số của request.
+`GET /api/accounts/connect/{provider}/callback` MUST lấy và xóa yêu cầu đang chờ theo `state` trước mọi việc khác, rồi đổi `code` lấy token có gửi PKCE verifier, kiểm scope thật được cấp, lấy hồ sơ account từ connector và gọi use case đăng ký kết nối của F02 với credential và refresh token. Thành công MUST trả `302` tới `/accounts?connected={accountId}`. Mọi lỗi MUST trả `302` tới `/accounts?connectError={CODE}`; callback MUST NOT trả body JSON. `Location` MUST là đường dẫn cố định, không lấy từ tham số của request. Khi đã nhận token mà kết nối không thành, hệ thống MUST hỏi hồ sơ account trước, MUST thu hồi token vừa nhận nếu tài khoản đó không phải account còn sống của owner (hoặc không biết là ai), và MUST NOT thu hồi nếu nó là account còn sống của owner, vì thu hồi rút cả quyền tài khoản đó đã cấp cho Sino (D-54). Kết nối lại mà account đích đã bị xóa trong lúc chờ MUST redirect với `CONNECT_FAILED` và MUST NOT làm account đó sống lại.
 
 #### Scenario: Kết nối Gmail mới
 - **WHEN** provider gọi callback với `code` hợp lệ và `state` đang chờ trong session của owner
@@ -70,6 +78,10 @@ Callback MUST đọc scope trong token response và so với scope bắt buộc 
 #### Scenario: Người dùng bỏ tick quyền đọc Gmail
 - **WHEN** token response không có `gmail.readonly`
 - **THEN** không account nào được tạo, provider nhận lệnh thu hồi token, và response là `302` tới `/accounts?connectError=CONNECT_SCOPE_DENIED`
+
+#### Scenario: Thêm lại một account đang kết nối mà bỏ tick quyền đọc
+- **WHEN** owner đã có account Gmail B, bấm "Thêm Gmail", chọn B và bỏ tick `gmail.readonly`
+- **THEN** response là `302` tới `/accounts?connectError=CONNECT_SCOPE_DENIED`, B không đổi, và provider không nhận lệnh thu hồi nào
 
 #### Scenario: Provider đổi tên scope đăng nhập
 - **WHEN** Gmail xin `email` và token response ghi `https://www.googleapis.com/auth/userinfo.email` cùng `gmail.readonly`

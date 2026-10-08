@@ -56,6 +56,9 @@ BE-30…BE-34 làm ngay, trong khi phần web của Phase 1 đang làm; phần w
 ### D-51 — Scope phải được cấp tách khỏi scope xin · **Accepted: A** (người dùng, 2026-10-08, khi làm BE-32)
 `OAuth2Connection` có thêm `requiredScopes`: tập con của `scopes` mà callback đòi phải có trong scope được cấp. Gmail: `scopes` = `openid`, `email`, `gmail.readonly`; `requiredScopes` = `gmail.readonly`. **LÝ DO:** Google không trả lại đúng chuỗi đã xin: xin `email` thì token response ghi `https://www.googleapis.com/auth/userinfo.email`, nên đòi mọi scope đã xin thì lần nào cũng thành `CONNECT_SCOPE_DENIED`. Các scope đăng nhập (`openid`, `email`, `profile`) được đồng ý ở bước riêng; người dùng chỉ bỏ tick được scope còn lại (https://developers.google.com/identity/protocols/oauth2/resources/granular-permissions). Phương án bị loại: B. xin bằng tên đầy đủ và đòi mọi scope đã xin (không đổi SPI, nhưng chỉ cần Google đổi tên thêm một scope là mọi lần kết nối hỏng); C. `account` tự biết `email` = `userinfo.email` (kiến thức riêng của Google lọt vào module chung).
 
+### D-54 — Callback chỉ thu hồi quyền Sino không dùng · **Accepted: A** (người dùng, 2026-10-08, sau review BE-32)
+Khi đã đổi được token mà kết nối không thành (thiếu scope bắt buộc, chọn nhầm tài khoản, không có refresh token, lấy hồ sơ lỗi, đăng ký lỗi), callback hỏi hồ sơ account trước (`openid`/`email` luôn được cấp nên hỏi được cả khi thiếu `gmail.readonly`); nếu tài khoản đó đang là account sống của owner thì **không** thu hồi, còn lại thì thu hồi (best-effort; không biết là ai vì hồ sơ lỗi thì cũng thu hồi). Kết nối lại mà account đích đã bị xóa trong lúc chờ → `CONNECT_FAILED`, account không sống lại. **LÝ DO:** với Google, thu hồi là rút cả quyền người dùng đó đã cấp cho Sino; review BE-32 chỉ ra: có Gmail A và B, kết nối lại A mà chọn nhầm B thì thu hồi giết luôn token B đang lưu. Phương án bị loại: B. không thu hồi trong callback (Google giữ quyền thừa); C. giữ như cũ (chọn nhầm sang Gmail đang kết nối thì Gmail đó phải kết nối lại).
+
 ## Backend design
 
 ### Luồng
@@ -133,9 +136,10 @@ provider/infrastructure/gmail/         GmailProvider (type "gmail", tên "Gmail"
 
 ### Thu hồi token
 - **Khi xóa account:** đọc refresh token (giải mã) → xóa trong transaction (như F02) → **sau khi commit** POST tới `revocationUri`. Lỗi (mạng, Google `4xx`/`5xx`) chỉ ghi `WARN` (account id, provider, mã HTTP), xóa vẫn trả `204`. Provider không có `revocationUri` thì bỏ qua.
-- **Ngay trong callback:** với `CONNECT_SCOPE_DENIED` và `CONNECT_WRONG_ACCOUNT`, token vừa nhận được thu hồi luôn (best-effort), để Google không giữ một quyền mà Sino không dùng.
+- ~~**Ngay trong callback:** với `CONNECT_SCOPE_DENIED` và `CONNECT_WRONG_ACCOUNT`, token vừa nhận được thu hồi luôn (best-effort), để Google không giữ một quyền mà Sino không dùng.~~ → **làm khi sửa review BE-32 (D-54):** mọi lần đã nhận token mà kết nối không thành, callback hỏi hồ sơ trước rồi chỉ thu hồi khi tài khoản đó không phải account còn sống của owner. **LÝ DO:** thu hồi rút cả quyền tài khoản Google đó đã cấp cho Sino; chọn nhầm sang một Gmail đang kết nối thì quyền của Gmail đó không được mất.
 - **Không** đưa token vào event `AccountRemoved`: Event Publication Registry của Modulith lưu event xuống bảng trong database.
 - Google: thu hồi refresh token là thu hồi cả quyền đã cấp; địa chỉ `https://oauth2.googleapis.com/revoke`.
+- **Giới hạn đã biết (review BE-32):** lệnh thu hồi không gửi kèm xác thực client. RFC 7009 §2.1 đòi xác thực với client có secret; Google không đòi. Provider OAuth2 sau Gmail cần thì thêm vào `OAuth2TokenRevoker`.
 
 ### Cấu hình
 

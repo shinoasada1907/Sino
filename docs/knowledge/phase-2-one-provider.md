@@ -33,6 +33,7 @@ Xóa account -> báo Google thu hồi token             BE-33
 | D-40 | Google project: Testing khi dev, "In production" không thẩm định khi dùng thật |
 | D-41 | Backend F04a làm song song với web của Phase 1 |
 | D-51 | `OAuth2Connection.requiredScopes`: callback chỉ đòi scope bắt buộc, không đòi mọi scope đã xin |
+| D-54 | Callback chỉ thu hồi quyền Sino không dùng: không bao giờ thu hồi quyền của một account đang kết nối |
 
 | Task | Đã làm | Trạng thái |
 |---|---|---|
@@ -250,7 +251,9 @@ ConnectController   302 /accounts?connected={id}
 
 ### 3.5 Thu hồi grant không dùng
 - **Ở đâu:** `OAuth2TokenRevoker`, theo RFC 7009: `POST` form `token=...` tới địa chỉ thu hồi của provider.
-- **Khi nào:** thiếu scope bắt buộc, hoặc kết nối lại mà chọn nhầm tài khoản Google. Sino đã nhận token nhưng sẽ không dùng, nên báo Google rút quyền lại.
+- **Khi nào:** ~~thiếu scope bắt buộc, hoặc kết nối lại mà chọn nhầm tài khoản Google~~ → mọi lần đã nhận token mà kết nối không thành (thiếu scope, chọn nhầm tài khoản, không có refresh token, lấy hồ sơ lỗi, đăng ký lỗi), **trừ khi** tài khoản Google đó đang là account của bạn trong Sino (D-54, sửa sau review BE-32).
+- **Vì sao có ngoại lệ:** với Google, thu hồi là rút **cả quyền** tài khoản đó đã cấp cho Sino, không riêng token vừa nhận. Ví dụ bạn có Gmail A và B; bấm "Kết nối lại" A nhưng ở Google lỡ chọn B. Nếu Sino thu hồi, token B đang lưu cũng chết theo và B hỏng âm thầm tới lần refresh sau. Vì vậy callback hỏi "đây là ai" **trước** (các scope đăng nhập luôn được cấp nên hỏi được cả khi thiếu quyền đọc thư), rồi mới quyết định có thu hồi không.
+- **Kết nối lại một account vừa bị xóa:** nếu bạn xóa A trong lúc đang ở màn đồng ý của Google, callback trả `CONNECT_FAILED` và A không sống lại (trước đây `register` tìm cả account đã xóa và làm nó sống lại).
 - **Thu hồi token nào:** refresh token nếu có. Với Google, thu hồi refresh token là rút cả quyền đã cấp.
 - **Best-effort:** Google lỗi hay chậm thì chỉ ghi `WARN` (provider, mã HTTP), không ném lỗi ra ngoài. BE-33 dùng lại lớp này khi xóa account.
 
@@ -325,3 +328,4 @@ Làm hỏng code mỗi lần một chỗ (26 lần), lần nào cũng có test �
 14. Vì sao test bằng WireMock không phát hiện được chuyện Google đổi `email` thành `userinfo.email`?
 15. Callback trả `302` về `/accounts?connectError=...`: điều gì xảy ra nếu đường dẫn đó lấy từ tham số `next` của request?
 16. Vì sao chỉ ghi tham số `error` vào log khi nó giống một mã lỗi OAuth?
+17. Bạn có Gmail A và B trong Sino, kết nối lại A nhưng chọn nhầm B: vì sao Sino không được thu hồi token vừa nhận?

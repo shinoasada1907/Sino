@@ -51,6 +51,7 @@ import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import dev.sino.Browser;
 import dev.sino.Browser.Response;
 import dev.sino.TestcontainersConfiguration;
+import dev.sino.account.application.AccountManagementService;
 import dev.sino.account.application.AccountRegistrationService;
 import dev.sino.account.application.RegisterAccountCommand;
 import dev.sino.identity.infrastructure.AppUserRepository;
@@ -94,6 +95,9 @@ class ConnectCallbackTests {
 
     @Autowired
     private AccountRegistrationService registration;
+
+    @Autowired
+    private AccountManagementService management;
 
     @Autowired
     private AppUserRepository users;
@@ -204,7 +208,48 @@ class ConnectCallbackTests {
         assertThat(connectErrorIn(callback)).isEqualTo("CONNECT_SCOPE_DENIED");
         assertThat(browser.get("/api/accounts").value("$.length()")).isEqualTo(0);
         google.verify(postRequestedFor(urlPathEqualTo("/revoke")).withFormParam("token", equalTo(REFRESH)));
-        google.verify(0, getRequestedFor(urlPathEqualTo("/v1/userinfo")));
+    }
+
+    // D-54: revoking drops everything that Google account granted Sino, so a connected account would lose its grant.
+    @Test
+    void choosingAnotherConnectedAccountWhenReconnectingKeepsThatAccountsGrant() {
+        UUID expired = anExpiredGmailAccount(SUB);
+        aConnectedGmailAccount(OTHER_SUB);
+        googleGivesTokens(GMAIL_READONLY, true);
+        googleSaysTheAccountIs(OTHER_SUB, "someone@gmail.test");
+
+        Response callback = callback("code=" + CODE + "&state=" + reconnect(expired).get("state"));
+
+        assertThat(connectErrorIn(callback)).isEqualTo("CONNECT_WRONG_ACCOUNT");
+        google.verify(0, postRequestedFor(urlPathEqualTo("/revoke")));
+    }
+
+    @Test
+    void addingAConnectedAccountAgainWithoutTheGmailPermissionKeepsItsGrant() {
+        aConnectedGmailAccount(SUB);
+        googleGivesTokens("", true);
+        googleSaysTheAccountIs(SUB, "owner@gmail.test");
+
+        Response callback = callback("code=" + CODE + "&state=" + startGmail().get("state"));
+
+        assertThat(connectErrorIn(callback)).isEqualTo("CONNECT_SCOPE_DENIED");
+        assertThat(browser.get("/api/accounts").json("$[0].status")).isEqualTo("CONNECTED");
+        google.verify(0, postRequestedFor(urlPathEqualTo("/revoke")));
+    }
+
+    @Test
+    void anAccountRemovedWhileItWasBeingReconnectedStaysRemoved() {
+        UUID account = anExpiredGmailAccount(SUB);
+        String state = reconnect(account).get("state");
+        management.remove(owner(), account);
+        googleGivesTokens(GMAIL_READONLY, true);
+        googleSaysTheAccountIs(SUB, "owner@gmail.test");
+
+        Response callback = callback("code=" + CODE + "&state=" + state);
+
+        assertThat(connectErrorIn(callback)).isEqualTo("CONNECT_FAILED");
+        assertThat(browser.get("/api/accounts").value("$.length()")).isEqualTo(0);
+        google.verify(postRequestedFor(urlPathEqualTo("/revoke")).withFormParam("token", equalTo(REFRESH)));
     }
 
     @Test
@@ -303,6 +348,7 @@ class ConnectCallbackTests {
 
         assertThat(connectErrorIn(callback)).isEqualTo("CONNECT_FAILED");
         assertThat(browser.get("/api/accounts").value("$.length()")).isEqualTo(0);
+        google.verify(postRequestedFor(urlPathEqualTo("/revoke")).withFormParam("token", equalTo(ACCESS)));
     }
 
     @Test
@@ -314,6 +360,7 @@ class ConnectCallbackTests {
 
         assertThat(connectErrorIn(callback)).isEqualTo("CONNECT_FAILED");
         assertThat(browser.get("/api/accounts").value("$.length()")).isEqualTo(0);
+        google.verify(postRequestedFor(urlPathEqualTo("/revoke")).withFormParam("token", equalTo(REFRESH)));
     }
 
     @Test
@@ -325,6 +372,7 @@ class ConnectCallbackTests {
 
         assertThat(connectErrorIn(callback)).isEqualTo("CONNECT_FAILED");
         assertThat(browser.get("/api/accounts").value("$.length()")).isEqualTo(0);
+        google.verify(postRequestedFor(urlPathEqualTo("/revoke")).withFormParam("token", equalTo(REFRESH)));
     }
 
     // The error comes through the browser, so anyone can put anything in it.
@@ -370,12 +418,19 @@ class ConnectCallbackTests {
     }
 
     private UUID anExpiredGmailAccount(String sub) {
-        UUID owner = users.findIdByEmail("owner@sino.test").orElseThrow();
-        UUID account = registration.register(new RegisterAccountCommand(owner, ProviderType.of("gmail"),
-                new AccountProfile(sub, "owner@gmail.test", null),
-                new OAuth2Credentials("ya29.old-access-token", null, Set.of(GMAIL_READONLY)), "1//old-refresh"));
+        UUID account = aConnectedGmailAccount(sub);
         jdbc.update("update connected_account set status = 'AUTH_EXPIRED' where id = ?", account);
         return account;
+    }
+
+    private UUID aConnectedGmailAccount(String sub) {
+        return registration.register(new RegisterAccountCommand(owner(), ProviderType.of("gmail"),
+                new AccountProfile(sub, sub + "@gmail.test", null),
+                new OAuth2Credentials("ya29.old-access-token", null, Set.of(GMAIL_READONLY)), "1//old-refresh"));
+    }
+
+    private UUID owner() {
+        return users.findIdByEmail("owner@sino.test").orElseThrow();
     }
 
     private static void googleGivesTokens(String extraScope, boolean withRefreshToken) {
