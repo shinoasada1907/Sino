@@ -1,5 +1,5 @@
 // Turns the raw account data (instants, counts, codes) into the Vietnamese text of the Tài khoản screens.
-import { foldText, formatCount, methodLabel, type ProviderNameOf } from '@/shared/format'
+import { capitalize, foldText, formatCount, methodLabel, type ProviderNameOf } from '@/shared/format'
 import { calendarDaysBetween, formatClock, formatDate, formatDayMonth, formatSince } from '@/shared/time/local'
 import { formatAgo } from '@/shared/time/relative'
 import type { StatusTone } from '@/shared/ui/status'
@@ -14,6 +14,11 @@ const SOON_DAYS = 7
 
 /** Email accounts talk about "thư", chat accounts about "tin nhắn". */
 export const isMail = (provider: string) => provider === 'gmail'
+
+/** "1.284 thư", or just "thư" while the API does not count them yet (D-56). */
+function stored(count: number | null, noun: string): string {
+  return count === null ? noun : `${formatCount(count)} ${noun}`
+}
 
 export const needsAttention = (account: AccountItem) => account.status === 'AUTH_EXPIRED' || account.status === 'ERROR'
 
@@ -59,6 +64,9 @@ export function latestSyncTime(accounts: AccountItem[], timeZone?: string): stri
 export function healthView(account: AccountItem, now: Date): ToneLabel {
   if (account.status === 'AUTH_EXPIRED') {
     return { tone: 'err', label: 'Cần đăng nhập lại' }
+  }
+  if (account.access === null) {
+    return { tone: 'ok', label: 'Tốt' }
   }
   const { autoRenew, expiresAt } = account.access
   if (autoRenew) {
@@ -111,7 +119,7 @@ export function reauthNotice(account: AccountItem, nameOf: ProviderNameOf, now: 
   const [item, short] = isMail(account.provider) ? ['Thư', 'thư'] : ['Tin nhắn', 'tin']
   return {
     title: `${nameOf(account.provider)} ${account.externalAccountId} cần đăng nhập lại`,
-    detail: `${when} ${item} mới tạm dừng; ${formatCount(account.storedMessages)} ${short} đã lưu vẫn còn.`,
+    detail: `${when} ${item} mới tạm dừng; ${stored(account.storedMessages, short)} đã lưu vẫn còn.`,
   }
 }
 
@@ -165,10 +173,12 @@ export function channelHint(channel: Channel, account: AccountItem, now: Date, t
         if (account.status === 'AUTH_EXPIRED' && account.lastSyncedAt) {
           return `Lần cuối ${formatSince(new Date(account.lastSyncedAt), now, timeZone)}`
         }
-        const stored = `${formatCount(account.storedMessages)} ${mail ? 'thư' : 'tin nhắn'}`
-        return account.syncIntervalMinutes === null
-          ? `${stored} đã lưu`
-          : `Đồng bộ mỗi ${account.syncIntervalMinutes} phút · ${stored}`
+        const noun = mail ? 'thư' : 'tin nhắn'
+        if (account.storedMessages === null) {
+          return account.syncIntervalMinutes === null ? `Nhận ${noun} mới` : `Đồng bộ mỗi ${account.syncIntervalMinutes} phút`
+        }
+        const count = stored(account.storedMessages, noun)
+        return account.syncIntervalMinutes === null ? `${count} đã lưu` : `Đồng bộ mỗi ${account.syncIntervalMinutes} phút · ${count}`
       }
       case 'SEND':
         return mail ? 'Trả lời từ Sino bằng địa chỉ này' : 'Trả lời từ Sino bằng tài khoản này'
@@ -183,6 +193,9 @@ export function channelHint(channel: Channel, account: AccountItem, now: Date, t
 
 /** The line under the scopes: how the access is renewed, or when it expires. */
 export function accessNote(access: AccountItem['access'], now: Date, timeZone?: string): string | null {
+  if (access === null) {
+    return null
+  }
   if (access.autoRenew) {
     return access.lastRenewedAt
       ? `Quyền tự gia hạn. Lần gần nhất lúc ${formatSince(new Date(access.lastRenewedAt), now, timeZone)}.`
@@ -240,8 +253,8 @@ export function stampLabel(at: string, timeZone?: string): string {
 
 /** What happens to the stored messages when the account is disconnected. */
 export function disconnectNote(account: AccountItem): string {
-  const stored = `${formatCount(account.storedMessages)} ${isMail(account.provider) ? 'thư' : 'tin nhắn'}`
-  return `Sino dừng đồng bộ và xóa quyền truy cập đã cấp. ${stored} đã lưu được giữ lại cho tới khi bạn xóa trong Quyền riêng tư.`
+  const kept = capitalize(stored(account.storedMessages, isMail(account.provider) ? 'thư' : 'tin nhắn'))
+  return `Sino dừng đồng bộ và xóa quyền truy cập đã cấp. ${kept} đã lưu được giữ lại cho tới khi bạn xóa trong Quyền riêng tư.`
 }
 
 export function accountActivityText(item: AccountActivity, account: AccountItem, nameOf: ProviderNameOf): string {
@@ -272,7 +285,7 @@ export function blockedNotice(account: AccountItem, nameOf: ProviderNameOf) {
   const [item, short] = isMail(account.provider) ? ['Thư', 'thư'] : ['Tin nhắn', 'tin']
   return {
     title: `Sino không đọc và gửi ${short} ${nameOf(account.provider)} được`,
-    detail: `${item} mới tạm dừng; ${formatCount(account.storedMessages)} ${short} đã lưu vẫn còn. Đăng nhập lại để nhận tiếp.`,
+    detail: `${item} mới tạm dừng; ${stored(account.storedMessages, short)} đã lưu vẫn còn. Đăng nhập lại để nhận tiếp.`,
   }
 }
 
@@ -281,13 +294,12 @@ export function storedSince(account: AccountItem, timeZone?: string): string {
   return `${isMail(account.provider) ? 'THƯ' : 'TIN NHẮN'} · TỪ ${formatDayMonth(new Date(account.createdAt), timeZone)}`
 }
 
-/** The disconnect dialog: its question, what happens to the stored messages, and the switch to delete them. */
+/** The disconnect dialog: its question, and what happens to the stored messages (kept: deleting them waits for F05). */
 export function disconnectPrompt(account: AccountItem, nameOf: ProviderNameOf) {
-  const noun = isMail(account.provider) ? 'thư' : 'tin nhắn'
+  const kept = capitalize(stored(account.storedMessages, isMail(account.provider) ? 'thư' : 'tin nhắn'))
   return {
     title: `Ngắt kết nối ${nameOf(account.provider)}?`,
-    text: `Sino sẽ dừng đồng bộ và xóa quyền truy cập đã cấp. ${formatCount(account.storedMessages)} ${noun} đã lưu vẫn được giữ lại, bạn có thể xóa chúng trong phần Quyền riêng tư.`,
-    deleteLabel: `Xóa luôn ${noun} đã lưu`,
+    text: `Sino sẽ dừng đồng bộ và xóa quyền truy cập đã cấp. ${kept} đã lưu vẫn được giữ lại, bạn có thể xóa chúng trong phần Quyền riêng tư.`,
   }
 }
 

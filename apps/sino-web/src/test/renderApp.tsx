@@ -23,7 +23,8 @@ const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn'
 
 /**
  * Renders the whole app at `path` with the given shell, overview, accounts and inbox data already in the query cache;
- * `inbox: null` leaves the inbox to its request (to see it loading or failing). The owner is signed in unless `me`
+ * `inbox: null` and `accounts: null` leave those screens to their requests (answered by MSW, or to see them loading or
+ * failing). The owner is signed in unless `me`
  * says otherwise: `null` is signed out, `'request'` leaves the sign-in check to its request (answered by MSW).
  */
 export function renderApp(
@@ -34,12 +35,14 @@ export function renderApp(
     accounts = createAccountsSample(new Date()),
     inbox = createInboxSample(new Date()),
     me = SIGNED_IN,
-  }: { shell?: ShellData; overview?: OverviewData; accounts?: AccountsData; inbox?: InboxData | null; me?: Me | null | 'request' } = {},
+  }: { shell?: ShellData; overview?: OverviewData; accounts?: AccountsData | null; inbox?: InboxData | null; me?: Me | null | 'request' } = {},
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData(SHELL_QUERY_KEY, shell)
   queryClient.setQueryData(OVERVIEW_QUERY_KEY, overview)
-  queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accounts)
+  if (accounts) {
+    queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accounts)
+  }
   if (inbox) {
     queryClient.setQueryData(INBOX_QUERY_KEY, inbox)
   }

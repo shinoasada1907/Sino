@@ -14,41 +14,34 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/shared/ui/dialog'
-import { Switch } from '@/shared/ui/switch'
 import type { AccountItem } from '../accounts.types'
 import { disconnectPrompt } from '../format'
 import { useDisconnectAccount } from '../useAccounts'
 
 /**
  * The disconnect confirmation of the canvas `Overlays`, opened by `trigger`. Confirming removes the account and goes
- * back to the list; "Hủy", the close button and Esc change nothing.
+ * back to the list; "Hủy", the close button and Esc change nothing. The stored messages are kept: the switch to delete
+ * them waits for F05, which decides what removing an account does to its history (D-56).
  */
 export function DisconnectDialog({ account, nameOf, trigger }: { account: AccountItem; nameOf: ProviderNameOf; trigger: ReactElement }) {
   const [open, setOpen] = useState(false)
-  const [deleteMessages, setDeleteMessages] = useState(false)
   const disconnect = useDisconnectAccount()
   const navigate = useNavigate()
   const prompt = disconnectPrompt(account, nameOf)
 
-  const changeOpen = (next: boolean) => {
-    setOpen(next)
-    if (!next) {
-      setDeleteMessages(false)
-    }
-  }
   const confirm = () =>
     disconnect.mutate(
-      { accountId: account.id, deleteMessages },
+      { accountId: account.id },
       {
         onSuccess: () => {
-          changeOpen(false)
+          setOpen(false)
           navigate('/accounts')
         },
       },
     )
 
   return (
-    <Dialog open={open} onOpenChange={changeOpen}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -56,10 +49,6 @@ export function DisconnectDialog({ account, nameOf, trigger }: { account: Accoun
         </DialogHeader>
         <DialogBody>
           <DialogDescription>{prompt.text}</DialogDescription>
-          <label className="inline-flex cursor-pointer items-center gap-3 self-start text-sm font-medium">
-            <Switch checked={deleteMessages} onCheckedChange={setDeleteMessages} />
-            {prompt.deleteLabel}
-          </label>
         </DialogBody>
         <DialogFooter>
           <DialogClose asChild>

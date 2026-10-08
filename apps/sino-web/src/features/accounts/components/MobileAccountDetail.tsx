@@ -65,14 +65,16 @@ export function MobileAccountDetail({
 
       <MobileSection title="Đồng bộ">
         <div className="flex flex-col overflow-hidden rounded-md border bg-surface">
-          <div className="grid min-h-16 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 border-b px-3.5 py-2.5">
-            <RefreshCw className="size-4.5 text-muted-foreground" strokeWidth={1.6} />
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-[15px] leading-5 font-medium">Đã lưu</span>
-              <Spec>{storedSince(account)}</Spec>
+          {account.storedMessages !== null && (
+            <div className="grid min-h-16 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 border-b px-3.5 py-2.5">
+              <RefreshCw className="size-4.5 text-muted-foreground" strokeWidth={1.6} />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-[15px] leading-5 font-medium">Đã lưu</span>
+                <Spec>{storedSince(account)}</Spec>
+              </div>
+              <span className="font-mono text-[13px] leading-[18px] font-medium">{formatCount(account.storedMessages)}</span>
             </div>
-            <span className="font-mono text-[13px] leading-[18px] font-medium">{formatCount(account.storedMessages)}</span>
-          </div>
+          )}
           <div className="grid min-h-16 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 px-3.5 py-2.5">
             <Clock className="size-4.5 text-muted-foreground" strokeWidth={1.6} />
             <span className="text-[15px] leading-5 font-medium">Kết nối lúc</span>

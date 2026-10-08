@@ -11,7 +11,7 @@ const HOUR = 3_600_000
 describe('accounts sample data', () => {
   it('stores as many messages in total as all accounts together', () => {
     expect(list.storedMessages).toBe(3912)
-    expect(list.storedMessages).toBe(list.accounts.reduce((sum, account) => sum + account.storedMessages, 0))
+    expect(list.storedMessages).toBe(list.accounts.reduce((sum, account) => sum + (account.storedMessages ?? 0), 0))
   })
 
   it('agrees with the shell and the overview', () => {

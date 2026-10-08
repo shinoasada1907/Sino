@@ -264,13 +264,11 @@ describe('detail sections', () => {
     expect(storedSince(gmail, TZ)).toBe('THƯ · TỪ 29/09')
   })
 
-  it('asks before disconnecting, with the stored messages to keep or delete', () => {
+  it('asks before disconnecting, saying the stored messages are kept', () => {
     expect(disconnectPrompt(messenger, nameOf)).toEqual({
       title: 'Ngắt kết nối Messenger?',
       text: 'Sino sẽ dừng đồng bộ và xóa quyền truy cập đã cấp. 1.204 tin nhắn đã lưu vẫn được giữ lại, bạn có thể xóa chúng trong phần Quyền riêng tư.',
-      deleteLabel: 'Xóa luôn tin nhắn đã lưu',
     })
-    expect(disconnectPrompt(gmail, nameOf).deleteLabel).toBe('Xóa luôn thư đã lưu')
     expect(mobileDisconnectNote(messenger, nameOf)).toBe(
       'Ngắt kết nối sẽ xóa quyền truy cập Sino đang giữ. Task và ghi chú tạo từ tin Messenger vẫn còn.',
     )
@@ -298,5 +296,34 @@ describe('detail sections', () => {
       accountActivityText({ id: 'c', at: '', kind: 'ACCOUNT_CONNECTED', initialMessages: 1180, durationMinutes: 4 }, gmail, nameOf),
     ).toBe('Kết nối tài khoản. Lần đồng bộ đầu lấy 1.180 thư trong 4 phút.')
     expect(accountActivityText({ id: 'd', at: '', kind: 'AUTH_EXPIRED' }, messenger, nameOf)).toBe('Quyền truy cập Messenger hết hạn.')
+  })
+})
+
+describe('what the API does not give yet (D-56)', () => {
+  const inbound = { kind: 'INBOUND', available: true, enabled: true } as const
+  const fromApi = account({ access: null, storedMessages: null, syncIntervalMinutes: null, channels: [inbound] })
+  const expiredChat = account({ provider: 'messenger', status: 'AUTH_EXPIRED', access: null, storedMessages: null, statusChangedAt: null })
+
+  it('leaves the count of stored messages out of the sentences', () => {
+    expect(reauthNotice(expiredChat, nameOf, now, TZ).detail).toBe('Quyền truy cập đã hết hạn. Tin nhắn mới tạm dừng; tin đã lưu vẫn còn.')
+    expect(blockedNotice(expiredChat, nameOf).detail).toBe('Tin nhắn mới tạm dừng; tin đã lưu vẫn còn. Đăng nhập lại để nhận tiếp.')
+    expect(disconnectNote(fromApi)).toBe(
+      'Sino dừng đồng bộ và xóa quyền truy cập đã cấp. Thư đã lưu được giữ lại cho tới khi bạn xóa trong Quyền riêng tư.',
+    )
+    expect(disconnectPrompt(fromApi, nameOf).text).toBe(
+      'Sino sẽ dừng đồng bộ và xóa quyền truy cập đã cấp. Thư đã lưu vẫn được giữ lại, bạn có thể xóa chúng trong phần Quyền riêng tư.',
+    )
+  })
+
+  it('describes the inbound channel without a count', () => {
+    expect(channelHint(inbound, fromApi, now, TZ)).toBe('Nhận thư mới')
+    expect(channelHint(inbound, { ...fromApi, provider: 'zalo' }, now, TZ)).toBe('Nhận tin nhắn mới')
+    expect(channelHint(inbound, { ...fromApi, syncIntervalMinutes: 15 }, now, TZ)).toBe('Đồng bộ mỗi 15 phút')
+    expect(channelSummary(fromApi)).toBe('1 bật · 0 tắt')
+  })
+
+  it('has no warning about an access it knows nothing of', () => {
+    expect(healthView(fromApi, now)).toEqual({ tone: 'ok', label: 'Tốt' })
+    expect(accessNote(null, now, TZ)).toBeNull()
   })
 })

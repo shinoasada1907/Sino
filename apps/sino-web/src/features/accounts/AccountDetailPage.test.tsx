@@ -3,7 +3,19 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { renderApp, shellPart } from '@/test/renderApp'
-import { createAccountsSample } from './accounts.sample'
+import { createAccountExtrasSample, createAccountsSample } from './accounts.sample'
+
+// The screen on the full contract of the change (sample data): the detail sections come back as the sample, and the
+// changes are accepted. The requests themselves are tested on the API in accounts.api.test.ts and AccountsOnApi.test.tsx.
+vi.mock('./accounts.api', async (importOriginal) => {
+  const api = await importOriginal<typeof import('./accounts.api')>()
+  return {
+    ...api,
+    fetchAccountExtras: vi.fn(async (accountId: string) => createAccountExtrasSample(accountId, new Date())),
+    saveChannel: vi.fn(async () => undefined),
+    deleteAccount: vi.fn(async () => undefined),
+  }
+})
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
@@ -138,13 +150,11 @@ describe('Chi tiết tài khoản', () => {
     await user.click(await card('Ngắt kết nối tài khoản').findByRole('button', { name: 'Ngắt kết nối an.nguyen.92' }))
     const dialog = screen.getByRole('dialog', { name: 'Ngắt kết nối Messenger?' })
     expect(within(dialog).getByText(/1\.204 tin nhắn đã lưu vẫn được giữ lại/)).toBeInTheDocument()
-    await user.click(within(dialog).getByRole('switch', { name: 'Xóa luôn tin nhắn đã lưu' }))
+    expect(within(dialog).queryByRole('switch')).toBeNull()
     await user.click(within(dialog).getByRole('button', { name: 'Hủy' }))
     expect(screen.queryByRole('dialog')).toBeNull()
 
-    // Reopened, the dialog does not remember a choice to delete that was cancelled.
     await user.click(card('Ngắt kết nối tài khoản').getByRole('button', { name: 'Ngắt kết nối an.nguyen.92' }))
-    expect(within(screen.getByRole('dialog')).getByRole('switch', { name: 'Xóa luôn tin nhắn đã lưu' })).not.toBeChecked()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
 
@@ -158,13 +168,13 @@ describe('Chi tiết tài khoản', () => {
 
     await user.click(await card('Ngắt kết nối tài khoản').findByRole('button', { name: 'Ngắt kết nối an.nguyen.92' }))
     const dialog = within(screen.getByRole('dialog', { name: 'Ngắt kết nối Messenger?' }))
-    await user.click(dialog.getByRole('switch', { name: 'Xóa luôn tin nhắn đã lưu' }))
     await user.click(dialog.getByRole('button', { name: 'Ngắt kết nối' }))
 
     expect(router.state.location.pathname).toBe('/accounts')
     expect(await screen.findByText('TÀI KHOẢN · 2 ĐÃ KẾT NỐI')).toBeInTheDocument()
     expect(screen.queryByRole('row', { name: /an\.nguyen\.92/ })).toBeNull()
-    expect(screen.getByText((_, element) => element?.textContent === 'Đã lưu 2.708 thư và tin nhắn' && element.tagName === 'SPAN')).toBeInTheDocument()
+    // The stored messages are kept (D-56: deleting them waits for F05), so the total does not change.
+    expect(screen.getByText((_, element) => element?.textContent === 'Đã lưu 3.912 thư và tin nhắn' && element.tagName === 'SPAN')).toBeInTheDocument()
   })
 
   it('says so for an account that does not exist', async () => {

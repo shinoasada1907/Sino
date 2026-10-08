@@ -40,7 +40,7 @@ Mỗi công tắc kênh MUST đổi trạng thái bật/tắt của kênh đó q
 - **THEN** khối kênh ghi "2 bật · 2 tắt" và cột Dịch vụ của hàng Gmail trong danh sách là 2
 
 ### Requirement: Ngắt kết nối tài khoản
-Nút "Ngắt kết nối …" MUST mở hộp thoại theo canvas `Overlays`: tiêu đề "Ngắt kết nối <tên nhà cung cấp>?", đoạn giải thích, công tắc "Xóa luôn tin nhắn đã lưu", nút "Hủy" và "Ngắt kết nối". "Hủy" hoặc phím Esc MUST đóng hộp thoại mà không đổi gì. "Ngắt kết nối" MUST gọi mutation `disconnect` (kèm lựa chọn xóa tin), bỏ tài khoản khỏi danh sách và đưa người dùng về `/accounts`.
+Nút "Ngắt kết nối …" MUST mở hộp thoại theo canvas `Overlays`: tiêu đề "Ngắt kết nối <tên nhà cung cấp>?", đoạn giải thích (tin đã lưu được giữ lại), nút "Hủy" và "Ngắt kết nối". Công tắc "Xóa luôn tin nhắn đã lưu" của canvas MUST NOT hiện cho tới khi F05 chốt việc giữ hay xóa lịch sử khi xóa tài khoản (D-56: API chưa làm được). "Hủy" hoặc phím Esc MUST đóng hộp thoại mà không đổi gì. "Ngắt kết nối" MUST gọi mutation `disconnect` (`DELETE /api/accounts/{id}`), bỏ tài khoản khỏi danh sách và đưa người dùng về `/accounts`.
 
 #### Scenario: Hủy ngắt kết nối
 - **WHEN** người dùng mở hộp thoại ngắt kết nối Messenger rồi bấm "Hủy"

@@ -22,7 +22,13 @@ import {
 
 vi.mock('./accounts.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./accounts.api')>()
-  return { ...api, saveChannel: vi.fn(api.saveChannel) }
+  return {
+    ...api,
+    fetchAccounts: vi.fn(async () => createAccountsSample(new Date())),
+    fetchAccountExtras: vi.fn(async (accountId: string) => createAccountExtrasSample(accountId, new Date())),
+    saveChannel: vi.fn(async () => undefined),
+    deleteAccount: vi.fn(async () => undefined),
+  }
 })
 
 const now = new Date('2026-10-02T07:05:00Z')
@@ -51,12 +57,11 @@ describe('cache updates', () => {
     expect(channelsOf(before, 'acc-gmail')[0].enabled).toBe(true)
   })
 
-  it('removes an account, and its stored messages only when asked to delete them', () => {
+  it('removes an account and keeps its stored messages in the total (deleting them waits for F05)', () => {
     const before = createAccountsSample(now)
-    const kept = withoutAccount(before, 'acc-messenger', false)
-    expect(kept.accounts.map((account) => account.id)).toEqual(['acc-gmail', 'acc-zalo'])
-    expect(kept.storedMessages).toBe(3912)
-    expect(withoutAccount(before, 'acc-messenger', true).storedMessages).toBe(3912 - 1204)
+    const after = withoutAccount(before, 'acc-messenger')
+    expect(after.accounts.map((account) => account.id)).toEqual(['acc-gmail', 'acc-zalo'])
+    expect(after.storedMessages).toBe(3912)
     expect(before.accounts).toHaveLength(3)
   })
 })
@@ -106,7 +111,7 @@ describe('mutations', () => {
     const { queryClient, wrapper } = setup()
     queryClient.setQueryData(['accounts', 'acc-messenger', 'extras'], createAccountExtrasSample('acc-messenger', now))
     const { result } = renderHook(() => useDisconnectAccount(), { wrapper })
-    await act(() => result.current.mutateAsync({ accountId: 'acc-messenger', deleteMessages: false }))
+    await act(() => result.current.mutateAsync({ accountId: 'acc-messenger' }))
     expect(queryClient.getQueryData(['accounts', 'acc-messenger', 'extras'])).toBeUndefined()
     expect(queryClient.getQueryData<AccountsData>(ACCOUNTS_QUERY_KEY)!.accounts).toHaveLength(2)
     const shell = queryClient.getQueryData<ShellData>(SHELL_QUERY_KEY)!
@@ -119,7 +124,7 @@ describe('mutations', () => {
   it('disconnecting an account that needs no action keeps the action count, and creates no overview', async () => {
     const { queryClient, wrapper } = setup({ overview: false })
     const { result } = renderHook(() => useDisconnectAccount(), { wrapper })
-    await act(() => result.current.mutateAsync({ accountId: 'acc-gmail', deleteMessages: true }))
+    await act(() => result.current.mutateAsync({ accountId: 'acc-gmail' }))
     expect(queryClient.getQueryData<ShellData>(SHELL_QUERY_KEY)!.navCounts.accountsNeedingAction).toBe(1)
     expect(queryClient.getQueryData(OVERVIEW_QUERY_KEY)).toBeUndefined()
   })

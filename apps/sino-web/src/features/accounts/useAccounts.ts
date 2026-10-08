@@ -10,31 +10,36 @@ import { needsAttention } from './format'
 export const ACCOUNTS_QUERY_KEY = ['accounts'] as const
 const extrasKey = (accountId: string) => ['accounts', accountId, 'extras'] as const
 
-/**
- * The account list, and when it arrived (milliseconds since the epoch, 0 before any data).
- * The data comes from `fetchAccounts` (sample data for now, see `accounts.api.ts`).
- */
-export function useAccounts(): { list: AccountsData | undefined; receivedAt: number } {
-  const { data, dataUpdatedAt } = useQuery({
+export interface AccountsQuery {
+  list: AccountsData | undefined
+  /** When the list arrived (milliseconds since the epoch, 0 before any data). */
+  receivedAt: number
+  /** Why the last load failed; the pages show it only while there is no list. */
+  error: Error | null
+  retry: () => void
+}
+
+/** The account list, from `fetchAccounts` (the backend API, D-56). */
+export function useAccounts(): AccountsQuery {
+  const { data, dataUpdatedAt, error, refetch } = useQuery({
     queryKey: ACCOUNTS_QUERY_KEY,
     queryFn: fetchAccounts,
     staleTime: Infinity,
   })
-  return { list: data, receivedAt: dataUpdatedAt }
+  return { list: data, receivedAt: dataUpdatedAt, error, retry: () => void refetch() }
 }
 
 /**
  * One account for the detail page. The account itself comes from the list, so a change made on either page shows
  * on both; the detail sections (`AccountExtras`) load on their own. `notFound` is true once the list has no such id.
  */
-export function useAccount(accountId: string): {
-  list: AccountsData | undefined
+export function useAccount(accountId: string): AccountsQuery & {
   account: AccountItem | undefined
   extras: AccountExtras | undefined
   notFound: boolean
-  receivedAt: number
 } {
-  const { list, receivedAt } = useAccounts()
+  const query = useAccounts()
+  const { list } = query
   const account = list?.accounts.find((item) => item.id === accountId)
   const { data: extras } = useQuery({
     queryKey: extrasKey(accountId),
@@ -42,7 +47,7 @@ export function useAccount(accountId: string): {
     staleTime: Infinity,
     enabled: account !== undefined,
   })
-  return { list, account, extras, notFound: list !== undefined && account === undefined, receivedAt }
+  return { ...query, account, extras, notFound: list !== undefined && account === undefined }
 }
 
 /** The list with one channel of one account turned on or off. */
@@ -57,14 +62,9 @@ export function withChannel(data: AccountsData, accountId: string, kind: Channel
   }
 }
 
-/** The list without one account; its stored messages leave the total only when they are deleted too. */
-export function withoutAccount(data: AccountsData, accountId: string, deleteMessages: boolean): AccountsData {
-  const removed = data.accounts.find((account) => account.id === accountId)
-  return {
-    ...data,
-    accounts: data.accounts.filter((account) => account.id !== accountId),
-    storedMessages: data.storedMessages - (deleteMessages && removed ? removed.storedMessages : 0),
-  }
+/** The list without one account; its stored messages stay, so the total does not change (deleting them waits for F05). */
+export function withoutAccount(data: AccountsData, accountId: string): AccountsData {
+  return { ...data, accounts: data.accounts.filter((account) => account.id !== accountId) }
 }
 
 type SetChannel = { accountId: string; kind: ChannelKind; enabled: boolean }
@@ -92,7 +92,7 @@ export function useSetChannel() {
   })
 }
 
-type Disconnect = { accountId: string; deleteMessages: boolean }
+type Disconnect = { accountId: string }
 
 /**
  * Disconnects an account, then takes it out of every screen that shows it: the list, the shell counts and the overview.
@@ -101,11 +101,11 @@ export function useDisconnectAccount() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: deleteAccount,
-    onSuccess: (_result, { accountId, deleteMessages }: Disconnect) => {
+    onSuccess: (_result, { accountId }: Disconnect) => {
       const list = queryClient.getQueryData<AccountsData>(ACCOUNTS_QUERY_KEY)
       const removed = list?.accounts.find((account) => account.id === accountId)
       if (list) {
-        queryClient.setQueryData(ACCOUNTS_QUERY_KEY, withoutAccount(list, accountId, deleteMessages))
+        queryClient.setQueryData(ACCOUNTS_QUERY_KEY, withoutAccount(list, accountId))
       }
       queryClient.removeQueries({ queryKey: extrasKey(accountId) })
       queryClient.setQueryData<ShellData>(SHELL_QUERY_KEY, (shell) =>

@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/button'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
 import { ChannelRows } from './components/Channels'
+import { ListUnavailable } from './components/ListUnavailable'
 import { ActivityCard, ScopesCard, SitesCard, SyncHistoryCard } from './components/DetailCards'
 import { DisconnectDialog } from './components/DisconnectDialog'
 import { MobileAccountDetail } from './components/MobileAccountDetail'
@@ -24,7 +25,7 @@ import { useAccount } from './useAccounts'
  */
 export function AccountDetailPage() {
   const { accountId = '' } = useParams()
-  const { list, account, extras, notFound, receivedAt } = useAccount(accountId)
+  const { list, account, extras, notFound, receivedAt, error, retry } = useAccount(accountId)
   const clock = useNow()
   // Data that arrives between two clock ticks is measured from its arrival, as in the top bar.
   const now = new Date(Math.max(clock.getTime(), receivedAt))
@@ -40,6 +41,14 @@ export function AccountDetailPage() {
             <Link to="/accounts">Về danh sách tài khoản</Link>
           </Button>
         </div>
+      </>
+    )
+  }
+  if (!list && error) {
+    return (
+      <>
+        <MobilePageHeader back={back} title="Tài khoản" />
+        <ListUnavailable onRetry={retry} />
       </>
     )
   }

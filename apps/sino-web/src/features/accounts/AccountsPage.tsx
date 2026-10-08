@@ -10,6 +10,7 @@ import { Segmented } from '@/shared/ui/segmented'
 import { Status } from '@/shared/ui/status'
 import { AccountsTable } from './components/AccountsTable'
 import { ConnectError } from './components/ConnectError'
+import { ListUnavailable } from './components/ListUnavailable'
 import { ConnectWizard, type WizardState } from './components/ConnectWizard'
 import { DEFAULT_SYNC_OPTIONS } from './connect.types'
 import { MobileAccountList } from './components/MobileAccountList'
@@ -39,7 +40,7 @@ const FILTERS: { value: AccountFilter; label: string }[] = [
  * also reopens when the provider sends the user back (`?connected`, `?connectError`); "Đồng bộ tất cả" has no flow yet.
  */
 export function AccountsPage() {
-  const { list, receivedAt } = useAccounts()
+  const { list, receivedAt, error, retry } = useAccounts()
   const clock = useNow()
   // Data that arrives between two clock ticks is measured from its arrival, as in the top bar.
   const now = new Date(Math.max(clock.getTime(), receivedAt))
@@ -85,6 +86,14 @@ export function AccountsPage() {
     }
   }, [searchParams, setSearchParams])
 
+  if (!list && error) {
+    return (
+      <>
+        <MobilePageHeader back={{ to: '/more', label: 'Quay lại Thêm' }} title="Tài khoản" />
+        <ListUnavailable onRetry={retry} />
+      </>
+    )
+  }
   if (!list) {
     return (
       <p role="status" className="p-8 text-sm text-muted-foreground">
@@ -156,9 +165,11 @@ export function AccountsPage() {
               Đồng bộ gần nhất <Num>{lastSync}</Num>
             </span>
           )}
-          <span className="text-sm text-muted-foreground">
-            Đã lưu <Num>{formatCount(list.storedMessages)}</Num> thư và tin nhắn
-          </span>
+          {list.storedMessages !== null && (
+            <span className="text-sm text-muted-foreground">
+              Đã lưu <Num>{formatCount(list.storedMessages)}</Num> thư và tin nhắn
+            </span>
+          )}
         </div>
 
         {errorNotice}

@@ -1,29 +1,84 @@
-import { createAccountExtrasSample, createAccountsSample } from './accounts.sample'
-import type { AccountExtras, AccountsData, ChannelKind } from './accounts.types'
+import { api } from '@/shared/api/client'
+import type { AccountStatus, Instant, ProviderInfo } from '@/shared/domain'
+import type { AccountExtras, AccountItem, AccountsData, ChannelKind } from './accounts.types'
 import { createConnectProvidersSample, createInitialSyncSample, createSyncEstimateSample } from './connect.sample'
 import type { ConnectableProvider, InitialSyncStatus, SyncEstimate, SyncOptions, SyncRange } from './connect.types'
 
 /*
- * The requests of the Tài khoản screens. They return sample data until the backend has the contract (D-42, D-45);
- * connecting the API means changing only the bodies below.
+ * The requests of the Tài khoản screens. The list, its channel switch and removing an account use the backend API
+ * (D-56): what the API does not give yet is null. Connecting still runs on sample data until FE-30.
  */
 
-/** Later `GET /api/accounts`. */
+/** One account of `GET /api/accounts` (F02). */
+interface AccountResponse {
+  id: string
+  provider: string
+  externalAccountId: string
+  displayName: string
+  avatarUrl: string | null
+  status: AccountStatus
+  syncEnabled: boolean
+  lastSyncedAt: Instant | null
+  capabilities: string[]
+  createdAt: Instant
+}
+
+/** One provider of `GET /api/providers` (F03). */
+interface ProviderResponse {
+  type: string
+  displayName: string
+  capabilities: string[]
+}
+
+// The only channel the API can tell and change today: receiving, which is automatic sync (`syncEnabled`).
+function toAccountItem(account: AccountResponse): AccountItem {
+  return {
+    id: account.id,
+    provider: account.provider,
+    externalAccountId: account.externalAccountId,
+    displayName: account.displayName,
+    avatarUrl: account.avatarUrl,
+    status: account.status,
+    syncEnabled: account.syncEnabled,
+    lastSyncedAt: account.lastSyncedAt,
+    createdAt: account.createdAt,
+    syncProgress: null,
+    statusChangedAt: null,
+    access: null,
+    storedMessages: null,
+    syncIntervalMinutes: null,
+    channels: [{ kind: 'INBOUND', available: account.capabilities.includes('READ_MESSAGES'), enabled: account.syncEnabled }],
+  }
+}
+
+/** `GET /api/accounts` and `GET /api/providers`. */
 export async function fetchAccounts(): Promise<AccountsData> {
-  return createAccountsSample(new Date())
+  const [accounts, providers] = await Promise.all([api.get<AccountResponse[]>('/api/accounts'), api.get<ProviderResponse[]>('/api/providers')])
+  return {
+    generatedAt: new Date().toISOString(),
+    providers: providers.map(({ type, displayName }): ProviderInfo => ({ type, displayName })),
+    accounts: accounts.map(toAccountItem),
+    storedMessages: null,
+  }
 }
 
-/** Later the detail sections of `GET /api/accounts/{id}`. */
-export async function fetchAccountExtras(accountId: string): Promise<AccountExtras> {
-  return createAccountExtrasSample(accountId, new Date())
+/** The detail sections: the API has none of them yet, so nothing is asked. */
+export async function fetchAccountExtras(_accountId: string): Promise<AccountExtras> {
+  return { scopes: null, sites: null, syncRuns: null, activity: null }
 }
 
-/** Later `PATCH /api/accounts/{id}` with `{ channels: { [kind]: enabled } }`. */
-export async function saveChannel(_change: { accountId: string; kind: ChannelKind; enabled: boolean }): Promise<void> {}
+/** `PATCH /api/accounts/{id}`: the inbound channel is automatic sync; the API has no other channel yet. */
+export async function saveChannel({ accountId, kind, enabled }: { accountId: string; kind: ChannelKind; enabled: boolean }): Promise<void> {
+  if (kind !== 'INBOUND') {
+    throw new Error(`The API cannot change the ${kind} channel yet`)
+  }
+  await api.patch(`/api/accounts/${accountId}`, { syncEnabled: enabled })
+}
 
-/** Later `DELETE /api/accounts/{id}?deleteMessages=…`. */
-export async function deleteAccount(_request: { accountId: string; deleteMessages: boolean }): Promise<void> {}
-
+/** `DELETE /api/accounts/{id}`: the access is revoked and deleted; the stored messages stay (F05 decides). */
+export async function deleteAccount({ accountId }: { accountId: string }): Promise<void> {
+  await api.delete(`/api/accounts/${accountId}`)
+}
 
 /** Later `GET /api/providers` with `connectable` and `scopes` (D-50). */
 export async function fetchConnectProviders(): Promise<ConnectableProvider[]> {

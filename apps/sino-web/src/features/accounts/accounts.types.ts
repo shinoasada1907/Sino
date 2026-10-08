@@ -2,7 +2,8 @@ import type { AccountStatus, Instant, ProviderInfo, ProviderType } from '@/share
 
 /**
  * Data contract of the Tài khoản screens (D-42), handed to the backend. The fields marked "already" come from
- * `GET /api/accounts` as it is today; the others are what the screens need on top (see the change design.md).
+ * `GET /api/accounts` as it is today; the others are what the screens need on top (see the change design.md). On the
+ * real API, what the backend does not give yet is null and the screens leave it out (D-56).
  */
 
 export type ChannelKind = 'INBOUND' | 'SEND' | 'ATTACHMENTS' | 'CONTACTS'
@@ -13,7 +14,7 @@ export interface AccountsData {
   providers: ProviderInfo[]
   accounts: AccountItem[]
   /** Messages and emails stored for all accounts. */
-  storedMessages: number
+  storedMessages: number | null
 }
 
 export interface AccountItem {
@@ -31,8 +32,8 @@ export interface AccountItem {
   /** 0..100 while the first sync runs, otherwise null. */
   syncProgress: number | null
   statusChangedAt: Instant | null
-  access: { expiresAt: Instant | null; autoRenew: boolean; lastRenewedAt: Instant | null }
-  storedMessages: number
+  access: { expiresAt: Instant | null; autoRenew: boolean; lastRenewedAt: Instant | null } | null
+  storedMessages: number | null
   syncIntervalMinutes: number | null
   /** What Sino does with this account; `available` is false when the provider or the granted scopes do not allow it. */
   channels: { kind: ChannelKind; available: boolean; enabled: boolean }[]
