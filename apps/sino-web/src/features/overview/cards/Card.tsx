@@ -43,14 +43,7 @@ export function Card({
   )
 }
 
-/** The small monospace text of the canvas (`.spec`): counts, times, hints. */
-export function Spec({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <span className={cn('font-mono text-[11px] leading-4 font-medium text-muted-foreground tabular-nums', className)}>
-      {children}
-    </span>
-  )
-}
+export { Spec } from '@/shared/ui/spec'
 
 export function NoData() {
   return <p className="text-sm text-muted-foreground">Chưa có dữ liệu</p>

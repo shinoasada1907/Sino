@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react'
 import { Navigate, type RouteObject } from 'react-router'
+import { AccountsPage } from '@/features/accounts/AccountsPage'
 import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotFoundPage } from './NotFoundPage'
-import { AppShell } from './shell/AppShell'
+import { AppShell, type ShellHandle } from './shell/AppShell'
 import { PAGES } from './shell/navItems'
 import { UnderConstructionPage } from './UnderConstructionPage'
 
-/** Screens already built; every other page of the shell shows the under-construction page (D-42). */
-const SCREENS: Record<string, ReactNode> = {
-  '/overview': <OverviewPage />,
+/** Screens already built, with what they ask of the shell; every other page shows the under-construction page (D-42). */
+const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellHandle }> = {
+  '/overview': { element: <OverviewPage /> },
+  '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
 }
 
 export const routes: RouteObject[] = [
@@ -19,7 +20,7 @@ export const routes: RouteObject[] = [
       { index: true, element: <Navigate to="/overview" replace /> },
       ...PAGES.map(({ to, title }) => ({
         path: to.slice(1),
-        element: SCREENS[to] ?? <UnderConstructionPage title={title} />,
+        ...(SCREENS[to] ?? { element: <UnderConstructionPage title={title} /> }),
       })),
     ],
   },

@@ -10,6 +10,11 @@ const DOT: Record<StatusTone, string> = {
   off: 'bg-transparent shadow-[inset_0_0_0_1.5px_var(--text-subtle)]',
 }
 
+/** The canvas `.dot` alone, for a state that the text around it already names. */
+function StatusDot({ tone, className }: { tone: StatusTone; className?: string }) {
+  return <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', DOT[tone], className)} />
+}
+
 // The canvas `.status` + `.dot` rules: a coloured dot followed by a short text.
 function Status({ tone, children, className }: { tone: StatusTone; children: ReactNode; className?: string }) {
   return (
@@ -21,10 +26,10 @@ function Status({ tone, children, className }: { tone: StatusTone; children: Rea
         className,
       )}
     >
-      <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', DOT[tone])} />
+      <StatusDot tone={tone} />
       {children}
     </span>
   )
 }
 
-export { Status }
+export { Status, StatusDot }

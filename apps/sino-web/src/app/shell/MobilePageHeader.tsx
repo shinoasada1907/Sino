@@ -5,8 +5,8 @@ import { Button } from '@/shared/ui/button'
 
 /**
  * The header of a sub-page on mobile (canvas `.mob-top.has-back`, e.g. `MobileAccounts`): back button, title,
- * optional subtitle and action. Shown below 768 px only; the route declares `handle.mobilePageHeader` so the shell
- * hides its own mobile top bar.
+ * optional subtitle and action. Shown below 768 px only and stays at the top while the page scrolls; the route declares
+ * `handle.mobilePageHeader` so the shell hides its own mobile top bar.
  */
 export function MobilePageHeader({
   back,
@@ -20,7 +20,7 @@ export function MobilePageHeader({
   action?: ReactNode
 }) {
   return (
-    <header className="flex min-h-15 items-center gap-2 border-b bg-background py-2 pr-2 pl-1 md:hidden">
+    <header className="sticky top-0 z-10 flex min-h-15 items-center gap-2 border-b bg-background py-2 pr-2 pl-1 md:hidden">
       <Button asChild variant="ghost" size="icon">
         <Link to={back.to} aria-label={back.label}>
           <ChevronLeft strokeWidth={1.6} />

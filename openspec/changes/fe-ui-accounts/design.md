@@ -117,7 +117,7 @@ src/features/accounts/
 src/app/shell/MobilePageHeader.tsx, src/shared/ui/dialog.tsx
 ```
 
-Bố cục: danh sách theo `.page` (desktop padding 32, tablet 24, mobile theo `mob-scroll`); bảng `tbl-acc2` 7 cột trên desktop và tablet; mobile dùng `list-group`. Chi tiết: lưới 12 cột từ tablet (thẻ 7 / 5 như canvas), một cột trên mobile theo `MobileAccountDetail` (khối nhận diện, cảnh báo khi cần đăng nhập lại, danh sách kênh, đồng bộ, nút ngắt kết nối).
+Bố cục: danh sách theo `.page` (desktop padding 32, tablet 24, mobile theo `mob-scroll`); bảng `tbl-acc2` 7 cột trên desktop và tablet (rộng tối thiểu 896px, hẹp hơn thì bảng cuộn ngang trong khung của nó); mobile dùng `list-group`. Chi tiết: lưới 12 cột từ tablet (thẻ 7 / 5 như canvas), một cột trên mobile theo `MobileAccountDetail` (khối nhận diện, cảnh báo khi cần đăng nhập lại, danh sách kênh, đồng bộ, nút ngắt kết nối).
 
 ## Testing
 

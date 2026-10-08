@@ -1,7 +1,7 @@
 import { cn } from '@/shared/lib/utils'
-import { Avatar } from '@/shared/ui/avatar'
+import { AccountAvatar } from '@/shared/ui/account-avatar'
 import { Button } from '@/shared/ui/button'
-import { ProviderIcon } from '@/shared/ui/provider-icon'
+import { Progress } from '@/shared/ui/progress'
 import { Status } from '@/shared/ui/status'
 import { accountStatusView, accountsHeader, type ProviderNameOf } from '../format'
 import type { OverviewAccount } from '../overview.types'
@@ -34,24 +34,14 @@ function AccountRow({ account, now, name }: { account: OverviewAccount; now: Dat
 
   return (
     <div className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-3">
-      <Avatar>
-        <span className="absolute -right-1 -bottom-1 grid size-4.5 place-items-center rounded-[6px] border bg-surface text-foreground">
-          <ProviderIcon provider={account.provider} className="size-2.75" />
-        </span>
-      </Avatar>
+      <AccountAvatar provider={account.provider} />
       {'progress' in view && view.progress !== undefined ? (
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex justify-between gap-2">
             <span className="text-sm font-semibold">{name}</span>
             <Spec className="truncate">{account.externalAccountId}</Spec>
           </div>
-          <span
-            role="img"
-            aria-label={`Đã đồng bộ ${view.progress}%`}
-            className="block h-1 overflow-hidden rounded-full bg-hover"
-          >
-            <span className="block h-full rounded-full bg-warning" style={{ width: `${view.progress}%` }} />
-          </span>
+          <Progress value={view.progress} />
         </div>
       ) : (
         <div className="flex min-w-0 flex-col gap-0.5">
