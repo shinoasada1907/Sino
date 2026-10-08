@@ -35,10 +35,10 @@ Mọi trang trừ `/login` và trang 404 MUST chỉ hiện khi `GET /api/auth/me
 
 #### Scenario: returnTo trỏ ra ngoài
 - **WHEN** người dùng đăng nhập thành công từ `/login?returnTo=//evil.example`
-- **THEN** web chuyển tới `/accounts`, không chuyển ra địa chỉ ngoài
+- **THEN** web chuyển tới `/overview` (trang chính), không chuyển ra địa chỉ ngoài
 
 ### Requirement: Trang đăng nhập
-Trang `/login` MUST theo thiết kế `SiteLogin` của canvas "Sino UI" với ô email, ô mật khẩu (có nút hiện/ẩn), ô "Giữ đăng nhập trên máy này" và nút "Đăng nhập". Nút Google, "Quên mật khẩu?", "Bắt đầu tại đây", nút chọn ngôn ngữ và link điều khoản MUST bị ẩn ở MVP. Lỗi `INVALID_CREDENTIALS` MUST hiện số lần còn được thử; `LOGIN_LOCKED` MUST hiện thời gian phải chờ; sau lỗi, ô mật khẩu MUST được xóa còn email được giữ.
+Trang `/login` MUST theo thiết kế `SiteLogin` của canvas "Sino UI" với ô email, ô mật khẩu (có nút hiện/ẩn), ô "Giữ đăng nhập trên máy này" và nút "Đăng nhập". Nút Google, "Quên mật khẩu?", "Bắt đầu tại đây", nút chọn ngôn ngữ, link điều khoản và nút "Trang chủ" MUST bị ẩn ở MVP. Lỗi `INVALID_CREDENTIALS` MUST hiện số lần còn được thử; `LOGIN_LOCKED` MUST hiện thời gian phải chờ; sau lỗi, ô mật khẩu MUST được xóa còn email được giữ.
 
 #### Scenario: Sai mật khẩu
 - **WHEN** API trả `401` `INVALID_CREDENTIALS` với `remainingAttempts` = 4

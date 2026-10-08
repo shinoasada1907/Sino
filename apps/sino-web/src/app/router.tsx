@@ -1,6 +1,8 @@
 import { Navigate, type RouteObject } from 'react-router'
 import { AccountDetailPage } from '@/features/accounts/AccountDetailPage'
 import { AccountsPage } from '@/features/accounts/AccountsPage'
+import { LoginPage } from '@/features/auth/LoginPage'
+import { RequireAuth } from '@/features/auth/RequireAuth'
 import { InboxPage } from '@/features/inbox/InboxPage'
 import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotFoundPage } from './NotFoundPage'
@@ -15,25 +17,32 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
 }
 
+// Every page sits behind RequireAuth except sign-in and 404 (spec web-app-foundation).
 export const routes: RouteObject[] = [
+  { path: '/login', element: <LoginPage /> },
   {
     path: '/',
-    element: <AppShell />,
+    element: <RequireAuth />,
     children: [
-      { index: true, element: <Navigate to="/overview" replace /> },
-      ...PAGES.map(({ to, title }) => ({
-        path: to.slice(1),
-        ...(SCREENS[to] ?? { element: <UnderConstructionPage title={title} /> }),
-      })),
       {
-        path: 'inbox/:conversationId',
-        element: <InboxPage />,
-        handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
-      },
-      {
-        path: 'accounts/:accountId',
-        element: <AccountDetailPage />,
-        handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+        element: <AppShell />,
+        children: [
+          { index: true, element: <Navigate to="/overview" replace /> },
+          ...PAGES.map(({ to, title }) => ({
+            path: to.slice(1),
+            ...(SCREENS[to] ?? { element: <UnderConstructionPage title={title} /> }),
+          })),
+          {
+            path: 'inbox/:conversationId',
+            element: <InboxPage />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
+            path: 'accounts/:accountId',
+            element: <AccountDetailPage />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+        ],
       },
     ],
   },

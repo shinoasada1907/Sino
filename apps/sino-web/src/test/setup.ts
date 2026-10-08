@@ -4,6 +4,16 @@ import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
 import { stubOsColorScheme } from './matchMedia'
 import { server } from './msw/server'
 
+// jsdom has no ResizeObserver; every browser does. Radix measures the hidden input of a form control with it (a Switch
+// inside a <form>, as on the sign-in page). Nothing in the tests depends on sizes, so observing does nothing.
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+
 // A whole screen re-rendered after a navigation takes about 0.3 s in jsdom and more when the test files run in parallel;
 // the default 1 s wait of `findBy…` and `waitFor` was sometimes too short (seen on the Tổng quan links test).
 configure({ asyncUtilTimeout: 3000 })

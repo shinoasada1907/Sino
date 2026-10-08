@@ -77,7 +77,15 @@
   - **Acceptance criteria:** requirement *Xử lý API thống nhất* (spec `web-app-foundation`).
   - **Hints:** Level 1 — "vì sao chỉ thử lại đúng một lần?"; `document.cookie`, `Response.headers.get('content-type')`.
 
-- [ ] 2.3 **FE-03 — Đăng nhập: `useMe`/`useLogin`/`useLogout`, `RequireAuth`, `LoginPage`**
+- [x] 2.3 **FE-03 — Đăng nhập: `useMe`/`useLogin`/`useLogout`, `RequireAuth`, `LoginPage`**
+  - **Thực hiện (2026-10-08, AUTO):** `src/features/auth/`: `auth.api.ts` (`fetchMe` trả `null` khi `401`, `login`, `logout`), `useAuth.ts` (`useMe`: hỏi một lần mỗi lượt mở app, không tự thử lại; `useLogin`: xong thì hỏi lại `me`), `returnTo.ts` (`safeReturnTo`: chỉ nhận đường dẫn của app; `//…`, `/\…`, địa chỉ ngoài và chính `/login` → `/overview`), `format.ts` (`loginFailure`: câu cho `INVALID_CREDENTIALS`, `LOGIN_LOCKED`, lỗi mạng / máy chủ), `RequireAuth.tsx` (route bố cục: đang hỏi → màn chờ có tên "Đang kiểm tra đăng nhập"; chưa đăng nhập → `/login?returnTo=<đường dẫn + query>`; không gọi được máy chủ → "Không mở được Sino" + "Thử lại"), `LoginPage.tsx` theo `SiteLogin` (cột thương hiệu từ 768px, email, mật khẩu có nút hiện/ẩn, công tắc "Giữ đăng nhập trên máy này" bật sẵn như canvas, gửi `rememberMe`; lỗi → xóa và focus ô mật khẩu, giữ email, `aria-invalid` khi sai mật khẩu; đã đăng nhập thì đi thẳng tới `returnTo`). Router: `/login` công khai, mọi trang trong khung app nằm sau `RequireAuth`, 404 vẫn công khai. `renderApp` nhận `me` (mặc định đã đăng nhập; `null` chưa đăng nhập; `'request'` để MSW trả lời).
+  - **Làm khác kế hoạch:**
+    - Không có `useLogout` ở task này. **LÝ DO:** đăng xuất nằm trong menu người dùng của FE-04; `logout()` trong `auth.api.ts` đã có sẵn.
+    - Sau khi đăng nhập về `/overview`, không phải `/accounts` (spec sửa theo). **LÝ DO:** ghi chú hoãn của D-42: `/` giờ là Tổng quan.
+    - Ẩn thêm "Trang chủ" (spec sửa theo); trên mobile hiện logo Sino ở đầu thẻ thay chỗ thanh "Trang chủ / VI". **LÝ DO:** chưa có trang công khai (Landing).
+    - Không gọi `.trim()` cho email. **LÝ DO:** ô `type="email"` đã tự bỏ khoảng trắng hai đầu (chuẩn HTML, cả jsdom).
+    - Thêm `ResizeObserver` rỗng vào `src/test/setup.ts`. **LÝ DO:** radix `Switch` đặt trong `<form>` đo ô input ẩn bằng `ResizeObserver`; jsdom không có (trình duyệt nào cũng có).
+  - **Kiểm chứng (2026-10-08):** RED 10/11 (1 ca của `safeReturnTo` qua được vì stub trả nguyên đầu vào) + 3 test câu lỗi; GREEN; thêm 1 test `returnTo` giữ query khi chuẩn bị kiểm tra ngược. Kiểm tra ngược 19 lỗi gài, cả 19 bị bắt. Chrome 1440 tối / 390 sáng trên `vite` dev, `/api/auth/*` trả lời qua CDP (mã của app không đổi): mở `/accounts` → `/login?returnTo=%2Faccounts`; sai mật khẩu → "Còn 4 lần thử…", ô mật khẩu trống và đang focus; bị khóa → "Thử lại sau 15 phút."; đúng → về `/accounts`; không cuộn ngang. `pnpm lint` 0/0, `tsc -b` ok, `pnpm test` 276/276, `pnpm build` ok (mã thoát từng lệnh đều 0).
   - **Goal / Why:** người dùng vào được app bằng trình duyệt, và trang nào cũng được chặn khi chưa đăng nhập.
   - **Depends on:** FE-02.
   - **Files:** `src/features/auth/*`, test.
