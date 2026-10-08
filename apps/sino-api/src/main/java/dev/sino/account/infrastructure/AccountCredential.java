@@ -3,6 +3,7 @@ package dev.sino.account.infrastructure;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -102,6 +103,10 @@ class AccountCredential {
 
     EncryptedValue accessToken() {
         return new EncryptedValue(encryptionKeyId, accessTokenEnc);
+    }
+
+    Optional<EncryptedValue> refreshToken() {
+        return Optional.ofNullable(refreshTokenEnc).map(ciphertext -> new EncryptedValue(encryptionKeyId, ciphertext));
     }
 
     Instant expiresAt() {

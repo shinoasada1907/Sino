@@ -73,6 +73,13 @@ public class CredentialStore {
         });
     }
 
+    /** The decrypted refresh token of an OAuth2 credential, for revoking it. Empty when there is none. */
+    @Transactional(readOnly = true)
+    public Optional<String> refreshToken(UUID accountId) {
+        return credentials.findByAccountId(accountId).flatMap(AccountCredential::refreshToken)
+                .map(refresh -> cipher.decrypt(refresh, accountId, REFRESH_TOKEN));
+    }
+
     @Transactional
     public void delete(UUID accountId) {
         credentials.deleteByAccountId(accountId);

@@ -157,7 +157,7 @@ public class ConnectService {
             if (profile != null && accounts.hasAccount(ownerId, connector.type(), profile.externalAccountId())) {
                 return;
             }
-            revoker.revoke(connector.type(), connection.revocationUri(),
+            revoker.revoke(connector.type(), null, connection.revocationUri(),
                     tokens.refreshToken() != null ? tokens.refreshToken() : tokens.accessToken());
         } catch (RuntimeException failure) {
             LOG.warn("Dropping an unused {} grant failed: {}", connector.type(), failure.getClass().getSimpleName());

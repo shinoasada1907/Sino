@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -36,6 +37,7 @@ class OAuth2TokenRevokerTests {
 
     private static final ProviderType GMAIL = ProviderType.of("gmail");
     private static final String TOKEN = "1//token-to-revoke";
+    private static final UUID ACCOUNT = UUID.fromString("0b9f3c8e-6f0e-4a59-9a39-7d7f2a0c1e55");
 
     private static WireMockServer google;
 
@@ -61,7 +63,7 @@ class OAuth2TokenRevokerTests {
     void postsTheTokenAsAForm() {
         google.stubFor(post(urlPathEqualTo("/revoke")).willReturn(ok()));
 
-        revoker.revoke(GMAIL, revocationUri(), TOKEN);
+        revoker.revoke(GMAIL, ACCOUNT, revocationUri(), TOKEN);
 
         google.verify(postRequestedFor(urlPathEqualTo("/revoke"))
                 .withHeader("Content-Type", containing("application/x-www-form-urlencoded"))
@@ -69,13 +71,14 @@ class OAuth2TokenRevokerTests {
     }
 
     @Test
-    void aRefusalIsOnlyAWarningWithoutTheToken(CapturedOutput output) {
+    void aRefusalIsOnlyAWarningNamingTheAccountWithoutTheToken(CapturedOutput output) {
         google.stubFor(post(urlPathEqualTo("/revoke")).willReturn(aResponse().withStatus(503)
                 .withBody("down " + TOKEN)));
 
-        revoker.revoke(GMAIL, revocationUri(), TOKEN);
+        revoker.revoke(GMAIL, ACCOUNT, revocationUri(), TOKEN);
 
-        assertThat(output).contains("WARN").contains("gmail").contains("503").doesNotContain(TOKEN);
+        assertThat(output).contains("WARN").contains("gmail").contains(ACCOUNT.toString()).contains("503")
+                .doesNotContain(TOKEN);
     }
 
     @Test
@@ -83,7 +86,7 @@ class OAuth2TokenRevokerTests {
         google.stubFor(post(urlPathEqualTo("/revoke")).willReturn(ok().withFixedDelay(3000)));
         long start = System.nanoTime();
 
-        revoker.revoke(GMAIL, revocationUri(), TOKEN);
+        revoker.revoke(GMAIL, null, revocationUri(), TOKEN);
 
         assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(2));
         assertThat(output).contains("WARN").contains("gmail").doesNotContain(TOKEN);
@@ -91,7 +94,7 @@ class OAuth2TokenRevokerTests {
 
     @Test
     void withoutARevocationAddressThereIsNothingToDo() {
-        revoker.revoke(GMAIL, null, TOKEN);
+        revoker.revoke(GMAIL, ACCOUNT, null, TOKEN);
 
         google.verify(0, anyRequestedFor(anyUrl()));
     }

@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30, BE-31, BE-32.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30, BE-31, BE-32, BE-33.
 > **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -40,7 +40,8 @@ Xóa account -> báo Google thu hồi token             BE-33
 | BE-30 | SPI `oauth2()`, connector Gmail khung, cấu hình Google, WireMock | xong |
 | BE-31 | Bắt đầu kết nối: `POST /api/accounts/connect/{provider}`, state + PKCE trong session | xong |
 | BE-32 | Callback: đổi code lấy token, kiểm scope, đăng ký, thu hồi grant không dùng | xong |
-| BE-33…BE-34 | Thu hồi khi xóa, thử với Google thật | chưa làm |
+| BE-33 | Xóa account thì Google rút quyền: gửi sau commit, ngoài transaction | xong |
+| BE-34 | README Google project, thử với Google thật | chưa làm |
 | FE-30 | Nút "Thêm Gmail", "Kết nối lại" | chưa làm |
 
 ---
@@ -310,6 +311,52 @@ Làm hỏng code mỗi lần một chỗ (26 lần), lần nào cũng có test �
 
 ---
 
+## 4. Xóa account thì Google cũng rút quyền (BE-33)
+
+### 4.1 Thứ tự: xóa xong, commit xong, rồi mới gọi Google
+- **Ở đâu:** `account/application/AccountManagementService.remove`.
+
+```text
+TransactionTemplate.execute (một transaction)
+  tìm account của owner           (404 nếu không có)
+  đọc refresh token đã giải mã    (TRƯỚC khi xóa credential)
+  đọc địa chỉ thu hồi của connector
+  xóa mềm account, xóa credential, publish AccountRemoved
+commit, trả kết nối database về pool
+gọi Google thu hồi refresh token  (ngoài transaction, best-effort)
+```
+
+- **Vì sao đọc token trước:** sau khi xóa credential thì không còn gì để gửi Google.
+- **Vì sao gọi Google sau commit:** nếu gọi trước mà transaction sau đó rollback, account vẫn còn trong Sino nhưng Google đã rút quyền, và account hỏng âm thầm. Gọi sau commit thì rollback ném lỗi trước, không có lệnh thu hồi nào được gửi.
+- **Vì sao không dùng `TransactionSynchronization.afterCommit`:** đọc mã nguồn Spring (`AbstractPlatformTransactionManager.processCommit`) thấy `afterCommit` chạy **trước** khi kết nối database được trả về pool. Google chậm 10 giây là một kết nối bị giữ 10 giây. `TransactionTemplate` làm thứ tự rõ ràng: `execute` trả về là transaction đã xong hẳn.
+- **`TransactionTemplate` là gì:** cách viết transaction bằng code thay vì `@Transactional`. Đoạn code trong lambda chạy trong một transaction; ném lỗi là rollback, chạy hết là commit. Dùng khi cần làm gì đó *sau* transaction trong cùng một method.
+- **Bẫy:** `remove` phải được gọi **ngoài** transaction. Nếu nằm trong một transaction lớn hơn, `TransactionTemplate` nhập vào transaction đó, và lệnh thu hồi đi trước khi transaction lớn commit.
+
+### 4.2 Thu hồi lỗi không làm việc xóa thất bại
+- Google trả lỗi hay không trả lời: vẫn `204`, account vẫn bị xóa, log ghi `WARN` nêu provider, account id và mã HTTP, không bao giờ nêu token.
+- **Vì sao:** bạn bảo Sino xóa account thì account phải biến mất khỏi Sino. Quyền còn sót ở Google bạn tự gỡ được ở trang quyền của tài khoản Google; ngược lại, một account không xóa được vì Google đang lỗi thì không gỡ được.
+
+### 4.3 Test "sau commit" bằng cách chụp database đúng lúc Google nhận lệnh
+- **`RemoveAccountRevokesTests`:** WireMock có `RequestListener`, được gọi khi nhận request, **trước khi** trả lời (đã soi bytecode của WireMock để chắc thứ tự). Listener dùng một kết nối database khác hỏi: account đã bị đánh dấu xóa chưa, credential còn không. Lúc đó Sino vẫn đang chờ Google trả lời, nên nếu Sino gọi Google trước khi commit thì kết nối khác sẽ chưa thấy thay đổi.
+- **Rollback:** một `@EventListener` trong test ném lỗi khi nhận `AccountRemoved`, làm transaction xóa rollback. Kiểm: `500`, account còn, credential còn, Google không nhận lệnh nào.
+- Kiểm tra ngược đã thử đúng lỗi "thu hồi ngay trong transaction": test chụp database đỏ.
+
+### 4.4 Kiểm tra ngược (BE-33)
+Làm hỏng code mỗi lần một chỗ (8 lần), lần nào cũng có test đỏ:
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Thu hồi trong transaction, trước khi commit | lúc Google nhận lệnh, database đã xóa xong |
+| Thu hồi trước khi xóa | transaction rollback thì không thu hồi |
+| Đọc refresh token sau khi xóa credential | Google nhận đúng refresh token (2 test) |
+| Không bao giờ thu hồi | Google nhận đúng refresh token (2 test) |
+| Log không nêu account | cảnh báo nêu account id |
+| Lỗi thu hồi bay ra ngoài | thu hồi lỗi vẫn `204` (2 test) |
+| Giải mã refresh token như access token | đọc lại refresh token; xóa thu hồi đúng token (3 test) |
+| Log của bộ thu hồi bỏ account | cảnh báo nêu account id (2 test) |
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -329,3 +376,5 @@ Làm hỏng code mỗi lần một chỗ (26 lần), lần nào cũng có test �
 15. Callback trả `302` về `/accounts?connectError=...`: điều gì xảy ra nếu đường dẫn đó lấy từ tham số `next` của request?
 16. Vì sao chỉ ghi tham số `error` vào log khi nó giống một mã lỗi OAuth?
 17. Bạn có Gmail A và B trong Sino, kết nối lại A nhưng chọn nhầm B: vì sao Sino không được thu hồi token vừa nhận?
+18. Nếu gửi lệnh thu hồi trước khi commit mà transaction rollback thì chuyện gì xảy ra với account đó?
+19. Vì sao gọi Google trong `afterCommit` vẫn chưa thật sự "ngoài transaction"?

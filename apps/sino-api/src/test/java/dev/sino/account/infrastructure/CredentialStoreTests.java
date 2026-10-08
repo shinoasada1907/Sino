@@ -182,6 +182,21 @@ class CredentialStoreTests {
     }
 
     @Test
+    void readsBackTheRefreshTokenOnItsOwn() {
+        store.save(accountA, OAUTH, REFRESH);
+        store.save(accountB, new OAuth2Credentials("ya29.b-token", null, Set.of()), null);
+        clearCache();
+
+        assertThat(store.refreshToken(accountA)).contains(REFRESH);
+        assertThat(store.refreshToken(accountB)).isEmpty();
+    }
+
+    @Test
+    void anAccountWithoutCredentialHasNoRefreshToken() {
+        assertThat(store.refreshToken(accountA)).isEmpty();
+    }
+
+    @Test
     void aTokenCredentialHasNoRefreshToken() {
         assertThatThrownBy(() -> store.save(accountA, new TokenCredentials("bot-token-123"), REFRESH))
                 .isInstanceOf(IllegalArgumentException.class)
