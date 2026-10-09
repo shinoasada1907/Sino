@@ -1,25 +1,21 @@
 package dev.sino.provider.infrastructure.gmail;
 
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Supplier;
-
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderType;
+import dev.sino.provider.infrastructure.gmail.GmailApi.HistoryPage;
+import dev.sino.provider.infrastructure.gmail.GmailApi.MessageList;
+import dev.sino.provider.infrastructure.gmail.GmailApi.Profile;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.OAuth2Connection;
@@ -27,13 +23,13 @@ import dev.sino.provider.spi.OAuth2Credentials;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
+import dev.sino.provider.spi.SkippedItem;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 
 /**
- * The Gmail connector. For now it knows who the account is and how it connects; reading mail
- * ({@code READ_MESSAGES}) comes with F04b. Every call to Google has a time limit, so a hanging Google cannot hold
- * a request thread.
+ * The Gmail connector: who the account is, how it connects, and its mail (F04b). Reads only; every call to Google
+ * goes through {@link GmailApi}, with a time limit.
  */
 class GmailProvider implements MessageProvider {
 
@@ -47,26 +43,24 @@ class GmailProvider implements MessageProvider {
     // Google issues a refresh token only for offline access, and only on a fresh consent: a reconnect must ask again.
     private static final Map<String, String> CONSENT_PARAMETERS = Map.of("access_type", "offline",
             "prompt", "consent");
-    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT =
-            new ParameterizedTypeReference<>() {
-            };
+    private static final ProviderCapabilities CAPABILITIES = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
+            ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS);
+    // Not mail of the inbox: Sino leaves these out without counting them as skipped.
+    private static final Set<String> HIDDEN_LABELS = Set.of("DRAFT", "SPAM", "TRASH");
 
-    private final URI userInfoUri;
     private final OAuth2Connection connection;
-    private final RestClient google;
+    private final GmailApi api;
 
     GmailProvider(GmailProperties properties) {
-        this(properties.userInfoUri(), properties.revocationUri(), CONNECT_TIMEOUT, READ_TIMEOUT);
+        this(properties.userInfoUri(), properties.gmailApiUri(), properties.revocationUri(), CONNECT_TIMEOUT,
+                READ_TIMEOUT);
     }
 
-    GmailProvider(URI userInfoUri, URI revocationUri, Duration connectTimeout, Duration readTimeout) {
-        this.userInfoUri = userInfoUri;
+    GmailProvider(URI userInfoUri, URI gmailApiUri, URI revocationUri, Duration connectTimeout,
+            Duration readTimeout) {
         this.connection = new OAuth2Connection(REGISTRATION_ID, SCOPES, Set.of(GMAIL_READONLY), CONSENT_PARAMETERS,
                 revocationUri);
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(connectTimeout).build());
-        requestFactory.setReadTimeout(readTimeout);
-        this.google = RestClient.builder().requestFactory(requestFactory).build();
+        this.api = new GmailApi(userInfoUri, gmailApiUri, connectTimeout, readTimeout);
     }
 
     @Override
@@ -81,7 +75,7 @@ class GmailProvider implements MessageProvider {
 
     @Override
     public ProviderCapabilities capabilities() {
-        return ProviderCapabilities.of();
+        return CAPABILITIES;
     }
 
     @Override
@@ -92,19 +86,84 @@ class GmailProvider implements MessageProvider {
     /** The Google subject ({@code sub}) never changes, unlike the email, so it identifies the account. */
     @Override
     public AccountProfile getAccountProfile(ProviderContext context) {
-        String accessToken = accessTokenOf(context);
-        Map<String, Object> userInfo = call(() -> google.get()
-                .uri(userInfoUri)
-                .headers(headers -> headers.setBearerAuth(accessToken))
-                .retrieve()
-                .body(JSON_OBJECT));
+        Map<String, Object> userInfo = api.userInfo(accessTokenOf(context));
         return new AccountProfile(text(userInfo, "sub"), text(userInfo, "email"), null);
     }
 
+    /**
+     * The first sync (an initial cursor) lists the mail since {@code since}, {@value GmailApi#PAGE_SIZE} messages a
+     * page, then goes on with the changes since the mailbox's history id when it started; later calls read those
+     * changes. Mail from before {@code since} never comes in, not even when a change touches it. Drafts, spam and
+     * trash are left out, and so is a message deleted meanwhile; a message Sino cannot read is a skipped item. Any
+     * other failure fails the whole call, never half a batch.
+     */
     @Override
     public SyncBatch fetchUpdates(ProviderContext context, SyncCursor cursor) {
-        throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
-                TYPE + " does not support " + ProviderCapability.READ_MESSAGES + " yet");
+        String accessToken = accessTokenOf(context);
+        // A cursor Sino did not write is refused before Google hears of it.
+        GmailCursor position = cursor.isInitial() ? null : GmailCursor.of(cursor.value());
+        Profile profile = api.profile(accessToken);
+        if (position == null) {
+            position = GmailCursor.firstSync(historyIdOf(profile.historyId()), cursor.since());
+        }
+        return position.listing()
+                ? firstSyncPage(accessToken, profile.emailAddress(), position)
+                : changesPage(accessToken, profile, position);
+    }
+
+    private SyncBatch firstSyncPage(String accessToken, String selfEmail, GmailCursor position) {
+        MessageList page = api.messages(accessToken, position.since(), position.pageToken());
+        boolean more = page.nextPageToken() != null;
+        GmailCursor next = more ? position.onPage(null, page.nextPageToken())
+                : GmailCursor.changesSince(position.historyId(), position.since());
+        return batchOf(accessToken, selfEmail, page.ids(), position.since(), next, more);
+    }
+
+    // A run of history pages ends at the mailbox's history id read before its first page: whatever changes while
+    // it pages on is read again next time (harmless, items have external ids), never lost.
+    private SyncBatch changesPage(String accessToken, Profile profile, GmailCursor position) {
+        String end = position.endHistoryId() != null ? position.endHistoryId() : historyIdOf(profile.historyId());
+        HistoryPage page = api.history(accessToken, position.historyId(), position.pageToken());
+        boolean more = page.nextPageToken() != null;
+        GmailCursor next = more ? position.onPage(end, page.nextPageToken())
+                : GmailCursor.changesSince(end, position.since());
+        return batchOf(accessToken, profile.emailAddress(), page.ids(), position.since(), next, more);
+    }
+
+    // Each message once, in the order Gmail named them. Mail from before since stays out: a change can touch old
+    // mail, and Gmail's after: counts in whole seconds.
+    private SyncBatch batchOf(String accessToken, String selfEmail, List<String> ids, Instant since,
+            GmailCursor next, boolean more) {
+        List<NormalizedGmailMessage> messages = new ArrayList<>();
+        List<SkippedItem> skipped = new ArrayList<>();
+        for (String id : new LinkedHashSet<>(ids)) {
+            try {
+                api.message(accessToken, id).filter(GmailProvider::isShown)
+                        .map(message -> GmailMessageNormalizer.normalize(message, selfEmail))
+                        .filter(normalized -> since == null || !normalized.message().sentAt().isBefore(since))
+                        .ifPresent(messages::add);
+            } catch (ProviderException failure) {
+                if (failure.errorCode() != ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED) {
+                    throw failure;
+                }
+                skipped.add(new SkippedItem(SkippedItem.Kind.MESSAGE, id, failure.errorCode(), failure.getMessage()));
+            }
+        }
+        return new SyncBatch(GmailMessageNormalizer.threadsOf(messages),
+                messages.stream().map(NormalizedGmailMessage::message).toList(), skipped, next.toSyncCursor(), more);
+    }
+
+    // Archived mail is shown too: it still belongs to its thread.
+    private static boolean isShown(GmailMessage message) {
+        return message.labelIds().stream().noneMatch(HIDDEN_LABELS::contains);
+    }
+
+    private static String historyIdOf(String historyId) {
+        if (historyId == null || !historyId.matches("\\d{1,20}")) {
+            throw new ProviderException(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED,
+                    "Gmail sent no usable history id for the mailbox");
+        }
+        return historyId;
     }
 
     private static String accessTokenOf(ProviderContext context) {
@@ -116,45 +175,6 @@ class GmailProvider implements MessageProvider {
 
     private static String text(Map<String, Object> json, String name) {
         return json != null && json.get(name) instanceof String value ? value : null;
-    }
-
-    // Messages name the failure only: never the token, never what Google sent back.
-    private static <T> T call(Supplier<T> request) {
-        try {
-            return request.get();
-        } catch (RestClientResponseException failure) {
-            throw failureFor(failure.getStatusCode(), failure.getResponseHeaders());
-        } catch (ResourceAccessException failure) {
-            throw new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE,
-                    "Google could not be reached or did not answer in time");
-        } catch (RestClientException failure) {
-            throw new ProviderException(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED,
-                    "Google sent an answer Sino cannot read");
-        }
-    }
-
-    private static ProviderException failureFor(HttpStatusCode status, HttpHeaders headers) {
-        int code = status.value();
-        if (code == 401) {
-            return new ProviderException(ProviderErrorCode.AUTH_EXPIRED, "Google refused the access token (401)");
-        }
-        if (code == 429) {
-            return ProviderException.rateLimited("Google is throttling Sino (429)", retryAfter(headers));
-        }
-        if (status.is5xxServerError()) {
-            return new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE, "Google answered " + code);
-        }
-        return new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "Google refused the request (" + code + ")");
-    }
-
-    // Only the delay-seconds form of Retry-After; a date or anything else means "not said".
-    private static Duration retryAfter(HttpHeaders headers) {
-        String value = headers == null ? null : headers.getFirst(HttpHeaders.RETRY_AFTER);
-        if (value == null || !value.strip().matches("\\d{1,9}")) {
-            return null;
-        }
-        long seconds = Long.parseLong(value.strip());
-        return seconds > 0 ? Duration.ofSeconds(seconds) : null;
     }
 
 }

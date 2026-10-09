@@ -10,26 +10,29 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties("sino.google")
 record GmailProperties(String clientId, String clientSecret, URI authorizationUri, URI tokenUri, URI userInfoUri,
-        URI revocationUri) {
+        URI revocationUri, URI gmailApiUri) {
 
     // From https://accounts.google.com/.well-known/openid-configuration
     static final URI GOOGLE_AUTHORIZATION = URI.create("https://accounts.google.com/o/oauth2/v2/auth");
     static final URI GOOGLE_TOKEN = URI.create("https://oauth2.googleapis.com/token");
     static final URI GOOGLE_USER_INFO = URI.create("https://openidconnect.googleapis.com/v1/userinfo");
     static final URI GOOGLE_REVOCATION = URI.create("https://oauth2.googleapis.com/revoke");
+    // From https://developers.google.com/workspace/gmail/api/reference/rest
+    static final URI GOOGLE_GMAIL_API = URI.create("https://gmail.googleapis.com");
 
     GmailProperties {
         authorizationUri = authorizationUri == null ? GOOGLE_AUTHORIZATION : authorizationUri;
         tokenUri = tokenUri == null ? GOOGLE_TOKEN : tokenUri;
         userInfoUri = userInfoUri == null ? GOOGLE_USER_INFO : userInfoUri;
         revocationUri = revocationUri == null ? GOOGLE_REVOCATION : revocationUri;
+        gmailApiUri = gmailApiUri == null ? GOOGLE_GMAIL_API : gmailApiUri;
     }
 
     @Override
     public String toString() {
         return "GmailProperties[clientId=" + clientId + ", clientSecret=****, authorizationUri=" + authorizationUri
                 + ", tokenUri=" + tokenUri + ", userInfoUri=" + userInfoUri + ", revocationUri=" + revocationUri
-                + "]";
+                + ", gmailApiUri=" + gmailApiUri + "]";
     }
 
 }

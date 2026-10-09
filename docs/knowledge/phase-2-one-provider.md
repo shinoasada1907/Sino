@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35, BE-36, BE-37.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-38; còn BE-39 (thử với Gmail thật).
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -52,6 +52,7 @@ Xóa account -> báo Google thu hồi token             BE-33
 | BE-35 | Contract: `SyncCursor.initial(since)`, `CURSOR_EXPIRED`, kit kiểm mốc thời gian | xong |
 | BE-36 | `ProviderAccess`: gọi connector với token còn hạn, refresh, hết quyền | xong |
 | BE-37 | Chuẩn hóa thư Gmail: cây MIME, chữ (jsoup), tệp, người tham gia, thread | xong |
+| BE-38 | `GmailProvider.fetchUpdates`: lần đầu, theo dõi thay đổi, lỗi, capability | xong |
 
 ---
 
@@ -683,6 +684,96 @@ Các sửa nhỏ khác:
 - Header gập dòng được nối lại.
 - Người gửi của thư `SENT` luôn là chính account, kể cả khi gửi từ alias.
 
+## 9. Gmail đọc thư thật: lần đầu và theo dõi thay đổi (BE-38)
+
+BE-38 nối các mảnh lại: `ProviderAccess` (BE-36) đưa token, `GmailProvider.fetchUpdates` gọi Gmail API, lớp chuẩn hóa (BE-37) biến thư thành dữ liệu chung. Gmail giờ khai báo capability `READ_MESSAGES`, `THREADS`, `ATTACHMENTS`, và bộ test chung của F03 chạy đủ phần đọc thư cho Gmail.
+
+- **Ở đâu:** `provider/infrastructure/gmail/`:
+  - `GmailApi`: mọi lời gọi tới Google, có giới hạn thời gian, và dịch lỗi;
+  - `GmailCursor`: đọc và ghi cursor;
+  - `GmailProvider`: điều phối.
+
+### 9.1 Hai giai đoạn
+
+```text
+Lần đầu (cursor khởi tạo, có thể có since)
+  users.getProfile            -> email (nhận "mình"), historyId H lúc bắt đầu
+  messages.list q=after:<since>, 50 thư/trang
+  messages.get từng thư       -> chuẩn hóa
+  còn trang:  cursor v1|list|H|<since>|<pageToken>   hasMore = true
+  hết trang:  cursor v1|history|H|<since>             hasMore = false
+
+Theo dõi thay đổi (cursor v1|history|H|<since>)
+  users.getProfile            -> E = historyId lúc này (trước trang đầu)
+  history.list từ H: thư mới, nhãn thêm, nhãn bớt
+  messages.get mỗi thư MỘT lần, bỏ thư cũ hơn since
+  còn trang:  cursor v1|history|H|<since>|E|<pageToken>
+  hết trang:  cursor v1|history|E|<since>
+  Gmail không còn giữ thay đổi từ H (404) -> CURSOR_EXPIRED
+```
+
+### 9.2 Vì sao ghi `historyId` lúc **bắt đầu** lần đọc đầu
+- `historyId` là số thứ tự của mọi thay đổi trong hộp thư; nó chỉ tăng.
+- Lần đọc đầu có thể kéo dài nhiều trang, nhiều phút. Thư đến trong lúc đó nằm ở đầu danh sách (mới nhất trước), tức là ở những trang Sino *đã đọc qua*, nên lần đọc đầu bỏ sót chúng.
+- Nếu lấy `historyId` lúc *kết thúc*, các thư đó nằm trước mốc theo dõi và mất luôn. Lấy lúc *bắt đầu* thì lần theo dõi đầu tiên đọc lại mọi thứ từ lúc bắt đầu: không sót thư nào.
+- Cái giá: vài thư có thể được trả hai lần. Vô hại, vì mọi item có external ID và F05 sẽ ghi đè thay vì tạo bản trùng (contract F03).
+- Test `theLastPageOfTheFirstSyncMovesOnToTheChangesSinceItStarted`: profile lúc đó đã là 2000, nhưng cursor vẫn là `v1|history|1000`.
+
+### 9.3 Cursor là chuỗi Sino tự viết
+- `v1|list|1000|1759998600000|page-2` chứa đủ thứ để đi tiếp: `historyId` lúc bắt đầu, mốc `since` tính bằng mili giây (để trang 2 vẫn lọc theo mốc, bài học BE-35), và token trang của Gmail.
+- **"v1":** nếu sau này đổi định dạng, cursor cũ vẫn nhận ra được.
+- **Kiểm trước khi gọi Google:** cursor không đúng định dạng thì `REQUEST_REJECTED` ngay, không tốn một lời gọi nào. Test đếm số request tới Gmail giả: phải là 0.
+- **Java:** `record GmailCursor` cùng các hàm tạo tĩnh `firstSync`, `changesSince`, `of(value)`; regex `Pattern`/`Matcher` để đọc chuỗi.
+
+### 9.4 Thư nào bị bỏ, thư nào bị "bỏ qua có ghi lại"
+- **Bỏ im lặng:** thư nháp, Spam, Trash (theo nhãn), và thư đã bị xóa giữa lúc liệt kê và lúc lấy (`404`). Đó không phải lỗi, chỉ là không thuộc hộp thư.
+- **Bỏ qua có ghi lại (`SkippedItem`):** thư Sino không chuẩn hóa được, ví dụ thiếu From, hoặc Gmail trả JSON không đọc được cho riêng thư đó.
+- **Cả lời gọi thất bại:** lỗi mạng, `5xx`, hết hạn mức, token bị từ chối, hay trang danh sách không đọc được. Không trả nửa batch: bên gọi thử lại với cùng cursor.
+- **Mỗi thư một lần:** một thư vừa được thêm vừa đổi nhãn xuất hiện nhiều lần trong `history.list`. `LinkedHashSet` vừa bỏ trùng vừa giữ thứ tự Gmail trả.
+
+### 9.5 Đọc lý do của lỗi 403
+- Gmail trả `403` cho cả "vượt hạn mức" lẫn "không có quyền". Cái trước là tạm thời (`RATE_LIMITED`, thử lại sau), cái sau thì không (`REQUEST_REJECTED`).
+- Lý do nằm trong body JSON: `"reason": "userRateLimitExceeded"`. Sino dò bằng regex **chỉ để phân loại**; body không bao giờ vào thông báo lỗi, vì có thể chứa token hay dữ liệu thư.
+
+### 9.6 Test với một Gmail API giả
+- **`GmailSyncTests`:** WireMock trả lời như Gmail API (`/gmail/v1/users/me/...`), dùng các thư mẫu của BE-37.
+- **Hai "hộp thư" trên một server:** bộ test chung F03 cần một connector bình thường và một connector có thư hỏng. Hai connector trỏ tới hai tiền tố đường dẫn khác nhau (`""` và `/broken`) của cùng một WireMock.
+- **Kiểm request, không chỉ kết quả:** test kiểm Sino gửi đúng `q=after:...`, `maxResults=50`, `historyTypes`, `format=full`, header `Authorization`. Nếu Sino gửi sai, Gmail thật sẽ trả kết quả khác, và chỉ nhìn kết quả thì không phát hiện được.
+
+### 9.7 Sau review: giữ đúng khoảng người dùng chọn, không mất thay đổi
+Agent review tìm ra một lỗi MEDIUM và vài chỗ "chưa kiểm". Sửa hết, kèm bằng chứng:
+- **Thư cũ lọt vào qua đường theo dõi thay đổi (MEDIUM).** Bạn chọn nhập 30 ngày, rồi trên Gmail bấm "đánh dấu tất cả đã đọc" cho 40 000 thư quảng cáo cũ. Mỗi lần đổi nhãn là một bản ghi trong `history.list`, nên bản đầu kéo cả 40 000 thư cũ vào Sino.
+  - Sửa: `since` ở lại trong *mọi* cursor, và connector bỏ thư có `sentAt` trước `since`.
+  - Cùng chỗ sửa đó cũng chữa luôn việc `after:` của Gmail chỉ tính theo giây: mốc 10,5 giây vẫn lọt thư lúc 10,3 giây.
+- **Đứt kết nối giữa lúc đọc thư bị coi là "thư hỏng".** Đọc mã nguồn `DefaultRestClient` của Spring 7.0.9 thì thấy: lỗi IO xảy ra *trong lúc đọc body* bị gói thành `RestClientException` có `IOException` bên trong, không phải `ResourceAccessException`. Bản đầu coi đó là JSON hỏng, đẩy thư vào danh sách bỏ qua, cursor đi tiếp: thư mất vĩnh viễn vì một lần mạng chập chờn.
+  - Dựng lại bằng WireMock: header gửi ngay, body nhỏ giọt chậm hơn read timeout. Trước khi sửa, test đỏ đúng như dự đoán.
+  - Sửa: lần theo chuỗi `getCause()`, gặp `IOException` thì đó là lỗi mạng (`PROVIDER_UNAVAILABLE`, thử lại được).
+  - Bài học: phân loại lỗi theo **nguyên nhân**, không theo kiểu ngoại lệ ở lớp ngoài cùng.
+- **Lượt đọc history nhiều trang:** bản đầu kết thúc ở `historyId` Gmail trả cùng trang cuối. Nếu Gmail lật trang trên một ảnh chụp cố định, những thay đổi xảy ra trong lúc lật trang sẽ mất.
+  - Sửa: kết thúc ở `historyId` đọc *trước* trang đầu. Lần sau đọc lại một ít, trùng thì vô hại.
+  - Đây vẫn là nguyên tắc của mục 9.2: khi không chắc, chọn đọc trùng thay vì có thể bỏ sót.
+- **Page token Gmail không còn nhận (`400`):** bản đầu báo `REQUEST_REJECTED` nên mỗi lần thử lại đều hỏng y như cũ. Giờ báo `CURSOR_EXPIRED`, bên gọi đọc lại từ đầu.
+- **Page token có ký tự `+`, `/`, `{`:** gửi dưới dạng *biến URI*, Spring mã hóa đầy đủ. Viết thẳng vào mẫu URI thì `{` bị hiểu là chỗ thay biến.
+
+### 9.8 Kiểm tra ngược (BE-38)
+Làm hỏng code mỗi lần một chỗ (29 lần), lần nào cũng có test đỏ. Một số lỗi tiêu biểu:
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Cursor quên `since`, trang sau quên `since` | lần đầu theo mốc; trang cuối của lần đầu |
+| Bỏ `q=after:`, trang 100 thư, bỏ `historyTypes`, bỏ `format=full` | các test kiểm request |
+| Quên token trang (list hoặc history) | đọc hết hộp thư nhiều trang; còn thay đổi ở trang sau |
+| `404` của history không thành `CURSOR_EXPIRED`; `404` của một thư làm hỏng cả lời gọi | cursor hết hạn; thư bị xóa giữa chừng |
+| `403` hết hạn mức thành "từ chối", mất `Retry-After` | hạn mức; chờ theo `Retry-After` |
+| Gọi Google trước khi kiểm cursor | cursor lạ bị từ chối mà không có request nào |
+| Lần đầu kết thúc ở `historyId` khác lúc bắt đầu | trang cuối của lần đầu |
+| Lấy một thư hai lần, giữ thư nháp/Spam/Trash | mỗi thư một lần; bỏ nháp, Spam, Trash |
+| Thư không đọc được làm hỏng cả trang | thư hỏng bị bỏ qua (cả trong bộ test chung F03) |
+| Bỏ `labelsRemoved`, không bỏ bản ghi `null` | các test history |
+| Bỏ capability `THREADS`, không có conversation | test capability; test "mình" trong thư |
+
+Sau review thêm 14 lỗi cố ý cho phần sửa (cursor bỏ `since` hay điểm kết thúc, không lọc thư cũ, kết thúc lượt history ở `historyId` mới nhất, đứt kết nối coi là thư hỏng, page token hết hạn, page token ghi thẳng vào mẫu URI, body rỗng, `RESOURCE_EXHAUSTED`): cả 14 có test đỏ.
+
 ---
 
 ## Tự kiểm tra
@@ -727,3 +818,9 @@ Các sửa nhỏ khác:
 38. Hai encoded word liền nhau: vì sao phải gộp byte của chúng rồi mới đổi ra chữ?
 39. Vì sao ảnh nhúng không được tính là tệp đính kèm, và vì sao ID của tệp là `partId`?
 40. Một thư có header không có giá trị ném `NullPointerException` thay vì `ProviderException`: vì sao điều đó làm kẹt cả lần đồng bộ chứ không chỉ một thư?
+41. Vì sao ghi `historyId` lúc **bắt đầu** lần đọc đầu chứ không phải lúc kết thúc? Cái giá của lựa chọn đó là gì?
+42. Gmail trả `404` cho `history.list` và cho `messages.get`: hai trường hợp được xử lý khác nhau thế nào, vì sao?
+43. Vì sao cursor lạ phải bị từ chối trước khi gọi Google?
+44. Gmail trả `403`: làm sao Sino biết đó là vượt hạn mức hay không có quyền, mà không đưa body của Google vào thông báo lỗi?
+45. Bạn nhập 30 ngày rồi đánh dấu đã đọc hàng nghìn thư cũ trên Gmail: vì sao Sino không được nhập các thư đó, và connector làm gì để chặn?
+46. Kết nối đứt giữa lúc đọc một thư: vì sao coi đó là "thư hỏng" lại làm mất thư vĩnh viễn?

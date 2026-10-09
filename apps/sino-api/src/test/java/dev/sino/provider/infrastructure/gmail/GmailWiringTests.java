@@ -1,6 +1,7 @@
 package dev.sino.provider.infrastructure.gmail;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -43,7 +44,8 @@ class GmailWiringTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].type").value("gmail"))
                 .andExpect(jsonPath("$[0].displayName").value("Gmail"))
-                .andExpect(jsonPath("$[0].capabilities").isEmpty());
+                .andExpect(jsonPath("$[0].capabilities", containsInAnyOrder("READ_MESSAGES", "THREADS",
+                        "ATTACHMENTS")));
     }
 
     @Test

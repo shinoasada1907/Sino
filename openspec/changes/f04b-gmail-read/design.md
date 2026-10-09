@@ -105,14 +105,15 @@ Lần đầu  SyncCursor.initial(since)
   users.getProfile                 -> emailAddress (nhận "mình"), historyId lúc bắt đầu
   messages.list q=after:<since giây>, maxResults=50, pageToken
   messages.get format=full từng thư -> chuẩn hóa
-  cursor: v1|list|<historyId lúc bắt đầu>|<since giây hoặc ->|<pageToken>
-  hết trang -> cursor v1|history|<historyId lúc bắt đầu>   hasMore=false
+  cursor: v1|list|<historyId lúc bắt đầu>|<since ms hoặc ->|<pageToken>
+  hết trang -> cursor v1|history|<historyId lúc bắt đầu>|<since>   hasMore=false
 
 Theo dõi thay đổi  cursor v1|history|<historyId>
   users.getProfile                 -> emailAddress
   history.list startHistoryId, historyTypes=messageAdded,labelAdded,labelRemoved, pageToken
   messages.get format=full cho các thư có thay đổi (mỗi id một lần)
-  cursor: v1|history|<historyId>|<pageToken> khi còn trang; hết trang -> v1|history|<historyId mới>
+  cursor: v1|history|<historyId>|<since>|<end>|<pageToken> khi còn trang (end = historyId của profile đọc
+          trước trang đầu của lượt); hết trang -> v1|history|<end>|<since>
   404 -> CURSOR_EXPIRED
 ```
 
@@ -133,6 +134,8 @@ Theo dõi thay đổi  cursor v1|history|<historyId>
 
 - Header mã hóa RFC 2047 (`=?UTF-8?B?…?=`): nếu Gmail trả dạng chưa giải mã thì connector giải mã; test Gmail thật (D-58) kiểm điều này.
 - Thư thiếu From hoặc thiếu `internalDate` → vào danh sách bỏ qua (`SkippedItem`, external ID + lý do), các thư khác đi tiếp.
+- **Sau review BE-38:** (a) `since` ở lại trong mọi cursor (cả theo dõi thay đổi) và connector bỏ thư có `sentAt` trước `since`: theo dõi thay đổi không kéo thư cũ ngoài khoảng người dùng chọn vào (ví dụ đánh dấu đã đọc hàng loạt thư cũ trên Gmail), và `after:` của Gmail chỉ tính theo giây. `since` lưu theo mili giây. (b) Một lượt đọc history nhiều trang kết thúc ở `historyId` của profile đọc trước trang đầu, không ở `historyId` Gmail trả cùng trang cuối: thay đổi xảy ra trong lúc lật trang được đọc lại lần sau (trùng thì vô hại), không bao giờ mất. (c) Page token Gmail không còn nhận (`400` khi có `pageToken`) → `CURSOR_EXPIRED`, không kẹt mãi ở `REQUEST_REJECTED`; page token gửi dưới dạng biến URI để giữ nguyên mọi ký tự. (d) Đứt kết nối hay hết read timeout giữa lúc đọc body (Spring gói thành `RestClientException` có `IOException` bên trong) → `PROVIDER_UNAVAILABLE`, không coi là thư hỏng. (e) Body rỗng → `PAYLOAD_NORMALIZATION_FAILED`, không `NullPointerException`. (f) `403` có `status: RESOURCE_EXHAUSTED` cũng là hết hạn mức. Không bọc mọi `RuntimeException` của bước chuẩn hóa: sau review BE-37 nó chỉ ném `ProviderException`, bọc hết sẽ giấu lỗi thật.
+- **Chốt kỹ thuật BE-38 (agent):** `GmailApi` (gọi Google, dịch lỗi) tách khỏi `GmailProvider` (điều phối); `GmailCursor` đọc/ghi cursor, cursor lạ bị từ chối trước khi gọi Google; `users.getProfile` gọi ở mỗi lần `fetchUpdates` (email để nhận `self`; `historyId` chỉ dùng ở lần đầu); `history.list` cũng `maxResults=50`; `messages.get` trả JSON không đọc được → `SkippedItem` (JSON hỏng ở mức trang vẫn làm cả lời gọi thất bại); trang cuối của `history.list` không có `historyId` hợp lệ → giữ `historyId` của cursor; địa chỉ Gmail API là cấu hình `sino.google.gmail-api-uri` (mặc định `https://gmail.googleapis.com`), chỉ test đổi.
 - **Chốt kỹ thuật BE-37 (agent):**
   - JSON `format=full` đọc vào record `GmailMessage` (Jackson; chỉ những trường Sino dùng). Lớp chuẩn hóa (`GmailMessageNormalizer`) không gọi Google; BE-38 lấy thư rồi gọi nó.
   - ID tệp = `partId` (ổn định trong một thư), không phải `attachmentId`: Gmail được báo là đổi `attachmentId` mỗi lần gọi `messages.get`, nên cùng một tệp sẽ thành hai bản ghi khi F05 nhập lại. F06 tải tệp bằng cách gọi `messages.get` rồi tìm phần theo `partId` để lấy `attachmentId` lúc đó. BE-39 kiểm với Gmail thật.

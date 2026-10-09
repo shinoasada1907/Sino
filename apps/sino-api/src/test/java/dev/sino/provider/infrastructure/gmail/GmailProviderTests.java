@@ -12,7 +12,6 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.net.URI;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -20,22 +19,19 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 
+import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.AccountProfile;
-import dev.sino.provider.spi.MessageProvider;
-import dev.sino.provider.spi.MessageProviderContractTest;
 import dev.sino.provider.spi.OAuth2Connection;
 import dev.sino.provider.spi.OAuth2Credentials;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
-import dev.sino.provider.spi.SyncCursor;
 import dev.sino.provider.spi.TokenCredentials;
 
 /**
@@ -66,14 +62,13 @@ class GmailProviderTests {
     }
 
     @Test
-    void isGmailAndCannotDoAnythingWithMessagesYet() {
+    void isGmailAndReadsMailInThreadsWithAttachments() {
         GmailProvider gmail = gmail();
 
         assertThat(gmail.type()).isEqualTo(ProviderType.of("gmail"));
         assertThat(gmail.displayName()).isEqualTo("Gmail");
-        for (ProviderCapability capability : ProviderCapability.values()) {
-            assertThat(gmail.capabilities().supports(capability)).as(capability.name()).isFalse();
-        }
+        assertThat(gmail.capabilities()).isEqualTo(ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
+                ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS));
     }
 
     @Test
@@ -155,7 +150,7 @@ class GmailProviderTests {
         google.stubFor(get(urlPathEqualTo(USERINFO))
                 .willReturn(okJson("{\"sub\": \"" + SUB + "\", \"email\": \"owner@gmail.test\"}")
                         .withFixedDelay(3_000)));
-        GmailProvider impatient = new GmailProvider(uri(USERINFO), uri("/revoke"), Duration.ofSeconds(1),
+        GmailProvider impatient = new GmailProvider(uri(USERINFO), uri(""), uri("/revoke"), Duration.ofSeconds(1),
                 Duration.ofMillis(300));
 
         long started = System.nanoTime();
@@ -185,49 +180,8 @@ class GmailProviderTests {
         google.verify(0, getRequestedFor(urlPathEqualTo(USERINFO)));
     }
 
-    @Test
-    void doesNotCallGoogleToSyncYet() {
-        assertThatExceptionOfType(ProviderException.class)
-                .isThrownBy(() -> gmail().fetchUpdates(context(), SyncCursor.initial()))
-                .extracting(ProviderException::errorCode)
-                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
-        assertThat(google.getAllServeEvents()).isEmpty();
-    }
-
-    @Nested
-    class Contract extends MessageProviderContractTest {
-
-        private final GmailProvider gmail = gmail();
-
-        @Override
-        protected MessageProvider provider() {
-            return gmail;
-        }
-
-        @Override
-        protected MessageProvider providerWithOneBrokenMessage() {
-            return gmail;
-        }
-
-        @Override
-        protected ProviderContext context() {
-            return GmailProviderTests.context();
-        }
-
-        @Override
-        protected Set<String> expectedMessageIds() {
-            return Set.of();
-        }
-
-        @Override
-        protected Instant since() {
-            return Instant.EPOCH;
-        }
-
-    }
-
     private static GmailProvider gmail() {
-        return new GmailProvider(uri(USERINFO), uri("/revoke"), Duration.ofSeconds(1), Duration.ofSeconds(2));
+        return new GmailProvider(uri(USERINFO), uri(""), uri("/revoke"), Duration.ofSeconds(1), Duration.ofSeconds(2));
     }
 
     private static ProviderContext context() {

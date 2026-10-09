@@ -74,6 +74,8 @@ class GmailConfigurationTests {
                             .isEqualTo("https://openidconnect.googleapis.com/v1/userinfo");
                     assertThat(context.getBean(GmailProvider.class).oauth2().orElseThrow().revocationUri())
                             .isEqualTo(URI.create("https://oauth2.googleapis.com/revoke"));
+                    assertThat(context.getBean(GmailProperties.class).gmailApiUri())
+                            .isEqualTo(URI.create("https://gmail.googleapis.com"));
                 });
     }
 
@@ -84,7 +86,8 @@ class GmailConfigurationTests {
                 "sino.google.authorization-uri=http://localhost:9999/auth",
                 "sino.google.token-uri=http://localhost:9999/token",
                 "sino.google.user-info-uri=http://localhost:9999/userinfo",
-                "sino.google.revocation-uri=http://localhost:9999/revoke").run(context -> {
+                "sino.google.revocation-uri=http://localhost:9999/revoke",
+                "sino.google.gmail-api-uri=http://localhost:9999").run(context -> {
                     ClientRegistration google = context.getBean(ClientRegistration.class);
                     assertThat(google.getProviderDetails().getAuthorizationUri())
                             .isEqualTo("http://localhost:9999/auth");
@@ -93,6 +96,8 @@ class GmailConfigurationTests {
                             .isEqualTo("http://localhost:9999/userinfo");
                     assertThat(context.getBean(GmailProvider.class).oauth2().orElseThrow().revocationUri())
                             .isEqualTo(URI.create("http://localhost:9999/revoke"));
+                    assertThat(context.getBean(GmailProperties.class).gmailApiUri())
+                            .isEqualTo(URI.create("http://localhost:9999"));
                 });
     }
 
@@ -125,7 +130,7 @@ class GmailConfigurationTests {
 
     @Test
     void neverPrintsTheClientSecret() {
-        GmailProperties properties = new GmailProperties(CLIENT_ID, CLIENT_SECRET, null, null, null, null);
+        GmailProperties properties = new GmailProperties(CLIENT_ID, CLIENT_SECRET, null, null, null, null, null);
 
         assertThat(properties.toString()).contains(CLIENT_ID).doesNotContain(CLIENT_SECRET);
     }
