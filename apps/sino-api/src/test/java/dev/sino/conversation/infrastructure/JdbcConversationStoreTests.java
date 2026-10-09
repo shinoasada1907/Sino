@@ -49,7 +49,7 @@ import tools.jackson.databind.json.JsonMapper;
 /** Storing pages of mail (BE-42) in a real PostgreSQL; each test runs in a transaction that is rolled back. */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ TestcontainersConfiguration.class, JdbcConversationStore.class })
+@Import({ TestcontainersConfiguration.class, JdbcConversationStore.class, ConversationSummaries.class })
 @ActiveProfiles("test")
 class JdbcConversationStoreTests {
 

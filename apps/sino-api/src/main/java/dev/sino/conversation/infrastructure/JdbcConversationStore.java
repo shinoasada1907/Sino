@@ -40,17 +40,16 @@ public class JdbcConversationStore implements ConversationStore {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final JdbcClient jdbc;
+    private final ConversationSummaries summaries;
 
-    JdbcConversationStore(JdbcClient jdbc) {
+    JdbcConversationStore(JdbcClient jdbc, ConversationSummaries summaries) {
         this.jdbc = jdbc;
+        this.summaries = summaries;
     }
 
     @Override
     public StoreResult store(UUID accountId, SyncBatch page) {
-        // Stores of one account take turns: each locks rows in the order of its page, and two pages in different
-        // orders would deadlock. Other accounts do not wait. The lock is held until the caller commits.
-        jdbc.sql("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))")
-                .param("key", "conversation:" + accountId).query().singleRow();
+        summaries.lock(accountId);
         SyncBatch batch = WithoutNul.of(page);
         Map<String, StoredConversation> conversations = storeConversations(accountId, batch);
         Map<Participant, UUID> participants = storeParticipants(batch, conversations);
@@ -74,7 +73,7 @@ public class JdbcConversationStore implements ConversationStore {
                 updated++;
             }
         }
-        summarize(conversations.values().stream().map(StoredConversation::id).toList());
+        summaries.summarize(conversations.values().stream().map(StoredConversation::id).toList());
         unarchive(unarchived);
         return new StoreResult(created, updated);
     }
@@ -264,66 +263,6 @@ public class JdbcConversationStore implements ConversationStore {
                 : jdbc.sql("DELETE FROM attachment WHERE message_id = :message AND external_attachment_id NOT IN (:kept)")
                         .param("message", messageId).param("kept", kept).update();
         return changed > 0;
-    }
-
-    /**
-     * Step 5. The summary of each conversation the page touched, worked out again from all its stored messages, so a
-     * page that holds a single old message cannot make it wrong. Written only where a value changed.
-     */
-    private void summarize(List<UUID> conversations) {
-        if (conversations.isEmpty()) {
-            return;
-        }
-        jdbc.sql("""
-                WITH summary AS (
-                    SELECT c.id,
-                           COALESCE(latest.sent_at, c.last_message_at) AS last_message_at,
-                           latest.preview,
-                           latest.sender AS last_message_from,
-                           COALESCE(
-                               (SELECT COALESCE(p.display_name, p.external_participant_id)
-                                FROM message m JOIN conversation_participant p ON p.id = m.sender_participant_id
-                                WHERE m.conversation_id = c.id AND m.direction = 'INBOUND'
-                                ORDER BY m.sent_at DESC, m.id DESC LIMIT 1),
-                               (SELECT COALESCE(p.display_name, p.external_participant_id)
-                                FROM conversation_participant p
-                                WHERE p.conversation_id = c.id AND NOT p.is_self
-                                ORDER BY p.id LIMIT 1)) AS counterpart,
-                           (SELECT count(*) FROM message m
-                            WHERE m.conversation_id = c.id AND NOT m.is_read)::integer AS unread_count,
-                           EXISTS (SELECT 1 FROM attachment a JOIN message m ON m.id = a.message_id
-                                   WHERE m.conversation_id = c.id) AS has_attachments,
-                           COALESCE(latest.needs_reply, false) AS needs_reply
-                    FROM conversation c
-                    LEFT JOIN LATERAL (
-                        SELECT m.sent_at,
-                               NULLIF(rtrim(left(btrim(regexp_replace(m.text_content,
-                                   '[[:space:]' || chr(160) || ']+', ' ', 'g')), 200)), '') AS preview,
-                               COALESCE(p.display_name, p.external_participant_id) AS sender,
-                               m.direction = 'INBOUND' AND COALESCE(m.metadata ->> :bulk, '') <> 'true' AS needs_reply
-                        FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
-                        WHERE m.conversation_id = c.id
-                        ORDER BY m.sent_at DESC, m.id DESC
-                        LIMIT 1) latest ON true
-                    WHERE c.id IN (:conversations)
-                )
-                UPDATE conversation c
-                SET last_message_at = s.last_message_at,
-                    last_message_preview = s.preview,
-                    last_message_from = s.last_message_from,
-                    counterpart = s.counterpart,
-                    unread_count = s.unread_count,
-                    has_attachments = s.has_attachments,
-                    needs_reply = s.needs_reply,
-                    updated_at = now()
-                FROM summary s
-                WHERE c.id = s.id
-                  AND (c.last_message_at, c.last_message_preview, c.last_message_from, c.counterpart, c.unread_count,
-                       c.has_attachments, c.needs_reply)
-                      IS DISTINCT FROM
-                      (s.last_message_at, s.preview, s.last_message_from, s.counterpart, s.unread_count,
-                       s.has_attachments, s.needs_reply)
-                """).param("conversations", conversations).param("bulk", NormalizedMessage.BULK).update();
     }
 
     private void unarchive(Set<UUID> conversations) {

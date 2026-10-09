@@ -29,7 +29,9 @@ CREATE TABLE conversation
 
 -- The conversations of one account, newest first (02B section 5).
 CREATE INDEX conversation_account_last_message_idx ON conversation (account_id, last_message_at DESC);
--- Pages of the inbox (BE-44): newest first, the id breaking ties, archived conversations left out.
-CREATE INDEX conversation_inbox_idx ON conversation (last_message_at DESC, id DESC) WHERE NOT archived;
+-- Pages of the inbox (BE-44): the newest conversations of one account, in the exact order of a page, archived ones
+-- left out. Without account_id first, PostgreSQL walked past every newer conversation of another account.
+CREATE INDEX conversation_account_inbox_idx ON conversation (account_id, last_message_at DESC, id DESC)
+    WHERE NOT archived;
 -- Accounts with unread conversations (02B section 5).
 CREATE INDEX conversation_unread_idx ON conversation (account_id) WHERE unread_count > 0;

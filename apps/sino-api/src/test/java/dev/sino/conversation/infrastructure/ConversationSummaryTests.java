@@ -40,7 +40,7 @@ import dev.sino.provider.spi.SyncCursor;
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ TestcontainersConfiguration.class, JdbcConversationStore.class })
+@Import({ TestcontainersConfiguration.class, JdbcConversationStore.class, ConversationSummaries.class })
 @ActiveProfiles("test")
 class ConversationSummaryTests {
 

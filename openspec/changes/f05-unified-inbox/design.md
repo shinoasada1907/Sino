@@ -89,7 +89,7 @@ sync_checkpoint                     module sync
   estimated_count int NULL, last_started_at, last_success_at, last_error_code varchar, updated_at
 ```
 
-Index: `conversation(account_id, last_message_at DESC)` (02B §5); `conversation(last_message_at DESC, id DESC) WHERE NOT archived` cho danh sách Hộp thư; `conversation(account_id) WHERE unread_count > 0` (02B §5); `message(conversation_id, sent_at DESC)` (02B §5). Tên migration theo quy ước `V<n>__<module>_<việc>`.
+Index: `conversation(account_id, last_message_at DESC)` (02B §5); ~~`conversation(last_message_at DESC, id DESC) WHERE NOT archived` cho danh sách Hộp thư~~ → `conversation(account_id, last_message_at DESC, id DESC) WHERE NOT archived` (đổi ở BE-44 sau khi đo `EXPLAIN ANALYZE`: không có `account_id` đứng đầu thì PostgreSQL đi qua mọi conversation mới hơn của account khác); `conversation(account_id) WHERE unread_count > 0` (02B §5); `message(conversation_id, sent_at DESC)` (02B §5). Tên migration theo quy ước `V<n>__<module>_<việc>`.
 
 ### 2. Lưu một trang thư — `ConversationStore.store(accountId, batch)`
 
@@ -165,7 +165,7 @@ PATCH /api/conversations/{id}     { read?: boolean, archived?: boolean }  -> Con
 - `ConversationItem`: `id`, `accountId`, `provider`, `kind` (`THREAD` → `EMAIL`, còn lại → `CHAT`), `title` (email: `counterpart`; chat: tiêu đề), `subject` (email: tiêu đề thread; chat: null), `memberCount` (chat nhóm), `snippetFrom` (chat nhóm: người gửi thư mới nhất), `snippet`, `lastMessageAt`, `unreadCount`, `needsReply`, `hasAttachments`, `archived`; `snooze`, `scheduledSend`, `linked` = `null`/`false`.
 - `PATCH`: `read: true` → mọi thư `is_read = true`; `read: false` → thư mới nhất `is_read = false`; `archived` bật/tắt; tính lại tổng hợp; không ghi sang provider (D-67). Không thuộc owner, account đã xóa/`DISABLED`, hoặc không có → `404 CONVERSATION_NOT_FOUND`.
 - `AccountDirectory` (gói gốc `account`): `accountsOf(ownerId)` → `List<AccountSummary(id, provider, status, externalAccountId)>` của account chưa xóa; `find(ownerId, accountId)` → `Optional<AccountSummary>`.
-- Phụ thuộc module: `sync` → `account`, `conversation`, `provider` (gốc: `ProviderType`), `provider::spi`; `conversation` → `account`, `provider` (gốc: `ProviderType`, qua `AccountSummary.provider()`), `provider::spi`; `account` không phụ thuộc hai module mới. (Sửa sau review BE-41: trước ghi thiếu gói gốc của `provider`.)
+- Phụ thuộc module: `sync` → `account`, `conversation`, `provider` (gốc: `ProviderType`), `provider::spi`; `conversation` → `account`, `provider` (gốc: `ProviderType`, qua `AccountSummary.provider()`), `provider::spi`, `identity` (`CurrentUser`, BE-44); `account` không phụ thuộc hai module mới. (Sửa sau review BE-41: trước ghi thiếu gói gốc của `provider`.)
 
 ### 5. Contract và Gmail
 - `MessageProvider.estimateMessages(ProviderContext context, Instant since)` → `OptionalLong`, mặc định rỗng; connector không có `READ_MESSAGES` trả rỗng; lỗi provider ném `ProviderException` như các thao tác khác (bên gọi coi là không có ước lượng).

@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40, BE-41, BE-42, BE-43.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-44.
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1170,6 +1170,110 @@ Làm hỏng code mỗi lần một chỗ (28 lần, sau review thêm 6); lần c
 
 ---
 
+## 15. API Hộp thư (BE-44)
+
+Web (FE-50) đã dựng màn Hộp thư theo design mục 4, chạy trên dữ liệu giả. BE-44 làm API thật cho nó.
+
+```text
+GET   /api/conversations?view=&provider=&accountId=&cursor=&limit=   -> { items, nextCursor }
+GET   /api/conversations/counts                                      -> { unread, byProvider, needsReply, ... }
+GET   /api/conversations/{id}                                        -> item + participants
+PATCH /api/conversations/{id}   { read?, archived? }                 -> item
+```
+
+### 15.1 Ba lớp trong module `conversation`
+- **`api`:** `ConversationsController` và các DTO. `ConversationResponse.from(...)` quyết cách hiện một dòng: thread email thì `kind = EMAIL`, tiêu đề dòng là người bên kia, `subject` là tiêu đề thread; chat thì tiêu đề là tên nhóm, và nhóm có thêm `memberCount`, `snippetFrom`.
+- **`application`:** `InboxService` lo phạm vi account, các câu SQL đọc và `PATCH`. Hộp thư là phía *đọc*: không có quy tắc nghiệp vụ nào cần một lớp domain, nên câu SQL nằm ngay trong service, đọc thẳng các cột tổng hợp mà BE-43 đã tính sẵn.
+- **`infrastructure`:** `ConversationSummaries` (khóa theo account và `summarize`) được tách ra khỏi `store` để `PATCH` dùng chung, đúng như review BE-43 yêu cầu (mục 14.9).
+
+### 15.2 Phạm vi: account nào được hiện
+- `InboxService` hỏi `AccountDirectory` (mục 12) danh sách account của owner. Danh sách đó đã bỏ account đã xóa (D-66); service bỏ thêm account `DISABLED`.
+- Mọi câu đọc Hộp thư (danh sách, số đếm, tìm một conversation) đều có `account_id` thuộc danh sách đó. Câu lấy người tham gia và các câu `UPDATE` của `PATCH` chỉ lọc theo ID, nhưng chỉ chạy **sau** khi đã tìm thấy conversation trong phạm vi. Conversation của owner khác, của account đã xóa hay đã tắt đều trả `404 CONVERSATION_NOT_FOUND`, giống hệt conversation không tồn tại: không lộ việc "có nhưng không phải của bạn".
+- Account `AUTH_EXPIRED` (cần kết nối lại) **vẫn hiện**: thư đã lưu của nó vẫn đọc được, chỉ không có thư mới. Chỉ `DISABLED` (người dùng tự tắt) bị ẩn.
+- `provider` và `accountId` lọc trên danh sách account trong Java. Một account không thuộc Hộp thư thì cho kết quả rỗng, không lỗi. `provider` không phân biệt hoa thường (`Gmail` như `gmail`), và để trống thì coi như không lọc.
+
+### 15.3 Phân trang keyset (câu gợi ý của task)
+Câu hỏi: vì sao phân trang keyset phải sắp theo cả `id` chứ không chỉ `last_message_at`?
+- **Keyset** nghĩa là: trang sau bắt đầu **ngay sau dòng cuối của trang trước**, theo đúng thứ tự sắp xếp. Cursor `"<lastMessageAt>|<id>"` được mã hóa base64url, nên web chỉ việc gửi lại nó.
+- **Vì sao cần `id`:** nhiều conversation có thể cùng `last_message_at` (thư nhập hàng loạt, provider tính theo giây). Chỉ sắp theo giờ thì thứ tự giữa chúng không xác định, và điều kiện `last_message_at < :after` bỏ mất những dòng cùng giờ còn lại; còn `<=` thì lặp lại chúng. Thêm `id` (duy nhất) làm cho thứ tự là **toàn phần**: `(last_message_at, id) < (:after, :afterId)` chỉ ra đúng một chỗ để tiếp tục. Test `pagesThroughConversationsOfTheSameTimeEachOnce` có 5 conversation cùng giờ, lật trang 2 dòng một.
+- **Vì sao không dùng `OFFSET`:** thư mới đến giữa hai lần lật trang đẩy mọi dòng xuống, nên `OFFSET 30` lặp lại dòng đã thấy. `OFFSET 50 000` cũng bắt database đọc rồi bỏ 50 000 dòng.
+
+### 15.4 Đo bằng `EXPLAIN ANALYZE`: lỗ mà review BE-42 đoán trước
+- Review BE-42 lo rằng index Hộp thư `(last_message_at DESC, id DESC)` không có `account_id`. Tôi đo trên PostgreSQL 18.6 (locale `en_US.utf8`) với dữ liệu tự sinh. Đây là một test tạm, đo xong thì xóa.
+- **Câu đầu tiên** viết `WHERE account_id IN (...) ORDER BY last_message_at DESC, id DESC LIMIT 31`:
+
+```text
+trường hợp                                                      thời gian
+owner nhỏ (2 account x 50 conversation), có owner khác 200 000   0,17 ms
+owner lớn (200 000 conversation mới nhất), trang đầu             0,13 ms
+owner lớn, trang sau 50 000 dòng                                  0,19 ms
+owner LỚN NHƯNG CŨ HƠN (100 000), owner khác 200 000 mới hơn     122 ms   <- đi qua 172 960 dòng của người khác
+```
+
+- Trường hợp cuối: PostgreSQL chọn đi theo index Hộp thư từ thư mới nhất, rồi bỏ từng dòng không phải của owner này. Ngoài thực tế, đó là một người dùng có hộp thư lớn nhưng ít hoạt động gần đây.
+- **Cách sửa:** lấy trang mới nhất **của từng account riêng**, rồi chọn những dòng mới nhất trong số đó.
+
+```text
+SELECT c.* FROM unnest(ARRAY[account...]) AS a(id)
+CROSS JOIN LATERAL (SELECT ... FROM conversation c WHERE c.account_id = a.id ...
+                    ORDER BY c.last_message_at DESC, c.id DESC LIMIT 31) c
+ORDER BY c.last_message_at DESC, c.id DESC LIMIT 31
+```
+
+  Mỗi account đi theo index của riêng nó, đọc vài chục dòng đầu. Sắp lại nhiều nhất "số account x 31" dòng.
+- **Lần đo đầu, với index sẵn có:** trường hợp xấu còn 0,24 ms, trang sau 40 000 dòng 0,69 ms. Lúc đó tôi kết luận "không cần index mới".
+- **Review chỉ ra kết luận đó vội:** trong câu `LATERAL`, PostgreSQL chưa biết account nào sẽ được hỏi, nên ước lượng theo số account **trung bình**. Lần đo đầu có 6 account. Tôi đo lại với đúng tình huống của MVP: **một** người dùng, hai Gmail, "cá nhân" có 100 000 conversation mới, "công việc" có 1 000 conversation cũ hơn.
+
+```text
+lọc accountId = công việc                                        thời gian
+index sẵn có                                                      9 ms     <- đi theo index Hộp thư, bỏ 100 000 dòng
+thêm (account_id, last_message_at DESC, id DESC) WHERE NOT archived   0,1 ms
+và bỏ index Hộp thư cũ (last_message_at DESC, id DESC)            0,07 ms
+```
+
+  Thời gian của trường hợp xấu tăng theo số dòng bị bỏ qua: 1 triệu conversation thì khoảng 90 ms. Vì vậy V6 giờ có index `conversation_account_inbox_idx (account_id, last_message_at DESC, id DESC) WHERE NOT archived`, khớp đúng thứ tự của một trang, thay cho index Hộp thư cũ. (Sửa thẳng V6 vì nó chưa từng chạy trên database lâu dài nào và commit BE-42 chưa push; đã ghi lý do trong `tasks.md`.)
+- **Không phải mọi view đều chỉ đọc vài chục dòng:** view `unread`, `reply`, `attachments`, `archived` lọc trên các dòng của account. Một hộp thư 100 000 conversation đã đọc hết mà hỏi `view=unread` sẽ phải đi qua cả 100 000 dòng: khoảng 12 ms, như view "đã lưu trữ" khi không có gì được lưu trữ.
+- **Số đếm:** một câu đếm theo account, đọc mọi conversation chưa lưu trữ của owner: 20 ms với 100 000. Chấp nhận được cho MVP; muốn nhanh hơn thì phải lưu sẵn số đếm (để sau).
+- **Chi tiết nhỏ:** điều kiện thừa `last_message_at <= :after` giúp index nhảy thẳng tới chỗ cursor. Số thành viên chỉ được đếm cho chat nhóm, không đếm cho mọi dòng.
+- **Bài học:** đừng đoán. Một câu SQL nhanh với dữ liệu thử nhỏ có thể chậm gấp 500 lần với một kiểu dữ liệu khác. `EXPLAIN ANALYZE` cho thấy database thật sự làm gì: đi theo index nào, đọc bao nhiêu dòng, bỏ bao nhiêu. Và phải đo đúng kiểu dữ liệu của người dùng thật: lần đo đầu có nhiều account nên đã bỏ sót trường hợp ít account.
+
+### 15.5 Lỗi `400` mà không cần viết code bắt lỗi
+- **`view`:** `@Pattern(regexp = "all|unread|...")` trên tham số, và **`limit`:** `@Min(1) @Max(100)`. Spring MVC (6.1+) tự kiểm các ràng buộc này trên tham số của controller và ném `HandlerMethodValidationException`. Handler chung đã đổi nó thành `400 VALIDATION_FAILED`.
+- **`accountId`, `id`:** kiểu `UUID`; chuỗi sai thì Spring báo lỗi kiểu, ra `400 MALFORMED_REQUEST`.
+- **`cursor`:** kiểu `InboxCursor` có hàm tĩnh `valueOf(String)`. Spring tự dùng hàm này để đổi tham số chuỗi thành đối tượng. Hàm ném lỗi thì Spring coi là lỗi kiểu, nên cũng ra `400 MALFORMED_REQUEST`.
+- **Vì sao không ném `SinoException`:** loại `INVALID` của nó ra `422` (yêu cầu đúng dạng nhưng sai quy tắc nghiệp vụ). Spec muốn `400`: tham số sai dạng.
+- **Cursor có năm quá lớn** (`+10000-01-01...`): Java đọc được, nhưng PostgreSQL không lưu được, nên lỗi rơi xuống tận database thành `500`. `InboxCursor.valueOf` chặn trước các năm ngoài 1–9999 (review BE-44).
+- **`PATCH {}`** (hoặc gõ sai tên trường): một `@AssertTrue` trên request đòi có ít nhất `read` hoặc `archived`, ra `400 VALIDATION_FAILED`, thay vì lấy khóa và tính lại tổng hợp mà không đổi gì.
+
+### 15.6 `PATCH`: chỉ trong Sino, dưới cùng một khóa
+- `read: true` đánh dấu mọi thư đã đọc; `read: false` chỉ đánh dấu thư **mới nhất** chưa đọc (giống "đánh dấu chưa đọc" của Gmail); `archived` bật tắt lưu trữ. Trường không gửi thì giữ nguyên.
+- **Chỉ trong Sino (D-67):** chỉ đổi `is_read`, không đụng `provider_read`, và không gọi Gmail. Lần đồng bộ sau, Gmail nói lại điều cũ thì lựa chọn trong Sino vẫn giữ (mục 14.4).
+- **Khóa:** `PATCH` lấy khóa theo account trước khi ghi, rồi tính lại tổng hợp bằng cùng `summarize` với `store` (mục 14.9). Test `aChangeWaitsForAStoreOfTheSameAccount` giữ một lượt `store` mở trong một luồng khác: `PATCH` phải chờ, và chạy xong ngay khi lượt kia commit.
+
+### 15.7 Kiểm tra ngược (BE-44)
+Làm hỏng code mỗi lần một chỗ (33 lần, sau review thêm 6); lần chạy mốc khi chưa sửa gì thì xanh. Lần đầu có **hai lỗi sống sót**, cả hai do test chưa dựng đúng tình huống:
+- **Bỏ điều kiện phạm vi khi tìm một conversation:** trong test "ngoài tầm với", owner không còn account nào hoạt động, nên service trả "không tìm thấy" ngay mà không chạy câu SQL. Test giờ cho owner một account hoạt động.
+- **Bỏ bước đặt sẵn số 0 cho từng provider:** account telegram trong test có một conversation đã đọc, nên số 0 vẫn tự có. Test giờ có thêm một account không có conversation nào.
+
+Sau khi sửa test, cả hai bị bắt.
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Sắp cũ trước; hai dòng cùng giờ theo `id` tăng dần; bỏ `ORDER BY` bên ngoài | lật trang cùng giờ; lật trang nhiều account; các view |
+| Bỏ cursor; cursor gồm cả dòng cuối (`<=`); không lấy dư một dòng; cursor từ dòng sai | hai test lật trang |
+| Hiện account `DISABLED`; bỏ lọc provider; bỏ lọc account | danh sách; lọc; số đếm; ngoài tầm với |
+| Mỗi view (unread, reply, attachments) gồm cả đã lưu trữ; `all` gồm đã lưu trữ; `archived` gồm tất cả; `scheduled` có dữ liệu | mỗi view |
+| Số đếm gồm đã lưu trữ; "chưa đọc" đếm nhầm "cần trả lời"; bỏ số 0 của provider (sống sót lần đầu) | số đếm |
+| Tìm conversation không theo phạm vi (sống sót lần đầu) | ngoài tầm với |
+| "Chưa đọc" đánh dấu thư cũ nhất; "đã đọc" không làm gì; lưu trữ không làm gì; không tính lại tổng hợp; không lấy khóa | các test `PATCH`; `PATCH` chờ `store` |
+| Chat hiện như email; tiêu đề email là tiêu đề thread; số thành viên cho mọi chat; nhóm không có người gửi; `linked` là `null` | các test nội dung dòng |
+| Cursor bỏ kiểm tra dấu phân cách; `limit` tới 1000; `limit` từ 0 | test cursor; tham số sai |
+| Sau review: chỉ hiện account `CONNECTED` (ẩn cả `AUTH_EXPIRED`); `provider` phân biệt hoa thường; `provider` rỗng vẫn lọc; cursor không giới hạn năm; `PATCH {}` được nhận; không kiểm request | danh sách; số đếm; lọc; cursor; `PATCH` phải nói đổi gì |
+
+Hai thay đổi chỉ ảnh hưởng tốc độ (bỏ `LIMIT` trong từng account, bỏ điều kiện thừa `last_message_at <= :after`) sẽ không làm test nào đỏ, vì kết quả vẫn đúng. Chúng được kiểm bằng `EXPLAIN ANALYZE` (mục 15.4), không bằng test.
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -1246,3 +1350,10 @@ Làm hỏng code mỗi lần một chỗ (28 lần, sau review thêm 6); lần c
 72. Vì sao một test chỉ có giá trị khi đã thấy nó đỏ? Với BE-43, làm sao có lần đỏ đó khi code đã viết xong?
 73. Vì sao mọi test chỉ có một conversation thì không bắt được lỗi "đếm chưa đọc trên cả trang"?
 74. `PATCH` đánh dấu đã đọc commit đúng lúc `store` đang tổng hợp: nếu `PATCH` không lấy khóa theo account thì số chưa đọc sai thế nào?
+75. Vì sao phân trang keyset phải sắp theo cả `id`? Điều gì xảy ra với 5 conversation cùng giờ nếu chỉ sắp theo giờ?
+76. Vì sao `OFFSET` không hợp với một Hộp thư đang nhận thư mới?
+77. Câu `account_id IN (...) ORDER BY ... LIMIT 31` chậm 122 ms trong trường hợp nào, và vì sao lấy top-N theo từng account lại nhanh?
+78. `limit=0`, `cursor=abc`, `accountId=xyz`: mỗi lỗi ra mã gì, và phần nào của Spring tạo ra nó?
+79. Vì sao conversation của owner khác trả `404` chứ không phải `403`?
+80. "Đánh dấu chưa đọc" trong Sino rồi Gmail gửi lại thư đó (vẫn đã đọc trên Gmail): thư hiện thế nào, vì sao?
+81. Vì sao lần đo đầu (6 account) không thấy trường hợp chậm mà lần đo với 2 account lại thấy? `LATERAL` làm planner ước lượng thế nào?
