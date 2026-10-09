@@ -85,7 +85,13 @@
   - **Test:** hàm thuần hàng mới / ≤ 6 / > 6 / chữ; màn: `sync` → 2 hàng trượt + "2 thư mới", `user` → không báo, bấm dòng báo → lên đầu; số điều hướng theo counts.
   - **Acceptance criteria:** spec `inbox-live` (Hàng mới và dòng báo, Số Hộp thư).
 
-- [ ] 2.3 **FE-55 — "Đồng bộ ngay", trạng thái đồng bộ, báo mất kết nối**
+- [x] 2.3 **FE-55 — "Đồng bộ ngay", trạng thái đồng bộ, báo mất kết nối**
+  - **Thực hiện (2026-10-10, AUTO):** `accounts.api.ts`: `fetchSyncStatus` (`GET …/sync`), `requestSync` (`POST …/sync`); `useLiveSync.ts`: `useSyncStatus` (khóa `['accounts', id, 'sync']`, nên `account.changed` đọc lại; chỉ hỏi khi lần nhập đã `DONE`), `useRequestSync`. Trang chi tiết: tài khoản đã nhập xong → "Đồng bộ ngay" gọi `POST` (không mở bước "Đồng bộ"); dòng "Đồng bộ lần cuối … · thư mới về ngay / sau khoảng 1 phút"; lỗi đồng bộ gần nhất; `409 IMPORT_NOT_DONE` / `ACCOUNT_DISABLED` có câu riêng (`role="alert"`). `useRealtimeDown`: luồng không mở quá 30 s → `connecting` hoặc `closed`; Hộp thư hiện `RealtimeBanner` khi còn mạng.
+  - **Làm khác kế hoạch:**
+    - Thêm trường hợp trình duyệt bỏ hẳn luồng (`closed`): "Thư mới có thể về chậm · tải lại trang để kết nối lại" + nút "Tải lại". **LÝ DO:** lúc đó trình duyệt không tự nối lại nữa (ví dụ phiên hết hạn, hoặc backend chưa có `/api/events/stream` nên trả `404`); câu "đang kết nối lại…" sẽ sai.
+    - "Đồng bộ ngay" và dòng trạng thái chỉ ở đầu trang chi tiết màn lớn; trang chi tiết điện thoại chưa có nút này. **LÝ DO:** trang vẽ hai bố cục rồi ẩn một; đặt nút ở cả hai thì có hai nút trong DOM; để sau.
+  - **Kiểm chứng (2026-10-10):** RED (hook chưa có, trang chưa gọi API), GREEN; hai test chi tiết cũ trả lời thêm `GET …/sync`. Chrome: 1440 tối — chi tiết hiện "Đồng bộ lần cuối 2 phút trước · thư mới về sau khoảng 1 phút" và "Lần đồng bộ gần nhất lỗi: Gmail chưa trả lời. Hãy thử lại sau.", bấm "Đồng bộ ngay" → `POST /api/accounts/acc-1/sync`, không có hộp thoại; Hộp thư khi luồng trả `404`: trước 30 s không có dòng báo, sau 31 s có "… tải lại trang để kết nối lại" + "Tải lại" ở 1440 tối và 390 sáng. `pnpm lint` 0, `tsc -b` 0, `vitest` 481/481, `pnpm build` 0.
+  - **Lưu ý:** backend người dùng đang chạy chưa có BE-50, nên Hộp thư sẽ hiện dòng báo này sau 30 s cho tới khi có BE-50.
   - **Goal / Why:** "Đồng bộ ngay" chỉ đọc thay đổi; người dùng biết thư mới về ngay hay chậm và khi realtime mất kết nối (D-94, D-95).
   - **Depends on:** FE-53; hợp đồng `live-sync` (`POST`/`GET /api/accounts/{id}/sync`).
   - **Files:** `src/features/accounts/` (`accounts.api.ts`, trang chi tiết, `ImportAlert`), `src/features/inbox/` (dòng báo mất kết nối), test.

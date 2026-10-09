@@ -9,6 +9,16 @@ import type { InitialSyncStatus } from './connect.types'
 
 export type ChannelKind = 'INBOUND' | 'SEND' | 'ATTACHMENTS' | 'CONTACTS'
 
+/** The live sync of an imported account (`GET /api/accounts/{id}/sync`, BE-48). */
+export interface SyncStatus {
+  importDone: boolean
+  lastSyncAt: Instant | null
+  lastError: string | null
+  /** `ACTIVE` while the provider pushes changes (new mail at once); otherwise Sino asks about every minute. */
+  push: 'ACTIVE' | 'OFF' | 'FAILED'
+  pushExpiresAt: Instant | null
+}
+
 /** List screen: `GET /api/accounts`, extended. */
 export interface AccountsData {
   generatedAt: Instant

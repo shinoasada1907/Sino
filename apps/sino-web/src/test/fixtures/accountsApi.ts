@@ -47,3 +47,8 @@ export function apiInitialSync(overrides: Record<string, unknown> = {}) {
     ...overrides,
   }
 }
+
+/** `GET /api/accounts/{id}/sync` (BE-48): imported, never synced since, no push unless told otherwise. */
+export function apiSyncStatus(overrides: Record<string, unknown> = {}) {
+  return { importDone: true, lastSyncAt: null, lastError: null, push: 'OFF', pushExpiresAt: null, ...overrides }
+}

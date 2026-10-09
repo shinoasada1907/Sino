@@ -1,6 +1,8 @@
 // The Vietnamese text of the connect wizard, from provider types, capability and scope codes, and error codes.
 import { ApiError } from '@/shared/api/problem'
 import { formatCount, methodLabel } from '@/shared/format'
+import { formatAgo } from '@/shared/time/relative'
+import type { SyncStatus } from './accounts.types'
 import type { ConnectableProvider, InitialSyncStatus, SyncEstimate } from './connect.types'
 
 const CAPABILITY_TAGS: [capability: string, tag: string][] = [
@@ -120,4 +122,26 @@ export function initialSyncFailure(code: string | null, providerName: string): {
 /** Why the first import could not start. */
 export function startSyncFailure(error: unknown): string {
   return error instanceof ApiError && error.code === 'ACCOUNT_DISABLED' ? DISABLED : 'Chưa bắt đầu đồng bộ được. Hãy thử lại.'
+}
+
+/** "Đồng bộ lần cuối 2 phút trước · thư mới về ngay" (D-95). */
+export function liveSyncText(status: SyncStatus, now: Date): string {
+  const last = status.lastSyncAt ? `Đồng bộ lần cuối ${formatAgo(new Date(status.lastSyncAt), now)}` : 'Chưa đồng bộ lần nào'
+  return `${last} · ${status.push === 'ACTIVE' ? 'thư mới về ngay' : 'thư mới về sau khoảng 1 phút'}`
+}
+
+const SYNC_ERRORS_WITH_A_FIX = ['RATE_LIMITED', 'PROVIDER_UNAVAILABLE', 'AUTH_EXPIRED', 'ACCOUNT_DISABLED']
+
+/** The last live sync error, in the words of the first import where it has one; otherwise Sino tries again. */
+export function liveSyncError(code: string, providerName: string): string {
+  const text = SYNC_ERRORS_WITH_A_FIX.includes(code) ? initialSyncFailure(code, providerName).text : 'Sino sẽ thử lại ở lượt sau.'
+  return `Lần đồng bộ gần nhất lỗi: ${text}`
+}
+
+/** Why "Đồng bộ ngay" could not start. */
+export function syncNowFailure(error: unknown): string {
+  if (error instanceof ApiError && error.code === 'IMPORT_NOT_DONE') {
+    return 'Lần nhập đầu chưa xong nên chưa đồng bộ được.'
+  }
+  return error instanceof ApiError && error.code === 'ACCOUNT_DISABLED' ? DISABLED : 'Chưa đồng bộ được. Hãy thử lại.'
 }

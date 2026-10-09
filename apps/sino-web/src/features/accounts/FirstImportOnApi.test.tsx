@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
+import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync, apiSyncStatus } from '@/test/fixtures/accountsApi'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
 
@@ -24,6 +24,7 @@ function backend(imports: Record<string, object[]>) {
     http.get('/api/accounts', () => HttpResponse.json(ACCOUNTS)),
     http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
     http.get('/api/accounts/:id/initial-sync/estimate', () => HttpResponse.json({ messages: 1180, minMinutes: 3, maxMinutes: 5 })),
+    http.get('/api/accounts/:id/sync', () => HttpResponse.json(apiSyncStatus())),
     http.post('/api/accounts/:id/initial-sync', async ({ params, request }) => {
       starts.push([params.id, await request.json()])
       return HttpResponse.json(RUNNING, { status: 202 })

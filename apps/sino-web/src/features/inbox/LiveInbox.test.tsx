@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
@@ -78,5 +78,26 @@ describe('the inbox while mail arrives (FE-54)', () => {
 
     await vi.waitFor(() => expect(api.listReads()).toBe(reads + 1))
     expect(screen.queryByRole('button', { name: /thư mới/ })).toBeNull()
+  })
+
+  it('says new mail may come late while the stream stays down for 30 s (FE-55, D-94)', () => {
+    // Opening again reads the inbox again, so the API answers too.
+    backend()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      renderApp('/inbox')
+      act(() => lastStream().open())
+      act(() => lastStream().drop())
+      act(() => vi.advanceTimersByTime(29_000))
+      expect(screen.queryByText(/Thư mới có thể về chậm/)).toBeNull()
+
+      act(() => vi.advanceTimersByTime(1_000))
+      expect(screen.getAllByRole('status').map((status) => status.textContent)).toContain('Thư mới có thể về chậm · đang kết nối lại…')
+
+      act(() => lastStream().open())
+      expect(screen.queryByText(/Thư mới có thể về chậm/)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

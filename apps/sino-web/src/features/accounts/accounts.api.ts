@@ -1,6 +1,6 @@
 import { api } from '@/shared/api/client'
 import type { AccountStatus, Instant, ProviderInfo } from '@/shared/domain'
-import type { AccountExtras, AccountItem, AccountsData, ChannelKind } from './accounts.types'
+import type { AccountExtras, AccountItem, AccountsData, ChannelKind, SyncStatus } from './accounts.types'
 import { initialSyncView } from './connect.format'
 import type { ConnectableProvider, InitialSyncState, InitialSyncStatus, SyncEstimate, SyncOptions, SyncRange } from './connect.types'
 
@@ -154,4 +154,14 @@ export async function startInitialSync(accountId: string, options: SyncOptions):
 /** `GET /api/accounts/{id}/initial-sync`. */
 export async function fetchInitialSync(accountId: string): Promise<InitialSyncStatus> {
   return toInitialSync(await api.get<InitialSyncResponse>(`/api/accounts/${accountId}/initial-sync`))
+}
+
+/** `GET /api/accounts/{id}/sync`: when the account last synced, its last error, and whether the provider pushes. */
+export async function fetchSyncStatus(accountId: string): Promise<SyncStatus> {
+  return api.get<SyncStatus>(`/api/accounts/${accountId}/sync`)
+}
+
+/** `POST /api/accounts/{id}/sync`: reads what changed since the last sync, not the whole range again (D-95). */
+export async function requestSync(accountId: string): Promise<SyncStatus> {
+  return api.post<SyncStatus>(`/api/accounts/${accountId}/sync`)
 }

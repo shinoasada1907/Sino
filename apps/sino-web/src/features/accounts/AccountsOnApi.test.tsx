@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
+import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync, apiSyncStatus } from '@/test/fixtures/accountsApi'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
 
@@ -15,6 +15,7 @@ function backend() {
     http.get('/api/accounts', () => HttpResponse.json(accounts)),
     http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
     http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync({ storedMessages: 1284 }))),
+    http.get('/api/accounts/:id/sync', () => HttpResponse.json(apiSyncStatus())),
     http.patch('/api/accounts/:id', async ({ params, request }) => {
       calls.push(`PATCH ${params.id} ${JSON.stringify(await request.json())}`)
       return HttpResponse.json(accounts.find((account) => account.id === params.id))

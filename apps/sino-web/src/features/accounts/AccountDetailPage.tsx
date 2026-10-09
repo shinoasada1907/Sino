@@ -16,8 +16,10 @@ import { ImportAlert } from './components/ImportAlert'
 import { MobileAccountDetail } from './components/MobileAccountDetail'
 import { ReauthAlert } from './components/ReauthAlert'
 import { SectionCard } from './components/SectionCard'
+import { liveSyncError, liveSyncText, syncNowFailure } from './connect.format'
 import { channelSummary, disconnectNote, reauthNotice, syncStatusView } from './format'
 import { useAccount } from './useAccounts'
+import { useRequestSync, useSyncStatus } from './useLiveSync'
 
 /**
  * The detail of one account (canvas `AccountDetail`, `MobileAccountDetail`): six cards on a 12-column grid from 768 px,
@@ -31,6 +33,9 @@ export function AccountDetailPage() {
   // Data that arrives between two clock ticks is measured from its arrival, as in the top bar.
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const back = { to: '/accounts', label: 'Quay lại Tài khoản' }
+  const importDone = account?.firstImport?.state === 'DONE'
+  const liveSync = useSyncStatus(accountId, importDone)
+  const syncNow = useRequestSync()
 
   if (notFound) {
     return (
@@ -91,15 +96,23 @@ export function AccountDetailPage() {
                 {name} · {account.displayName} · kết nối từ {formatDate(new Date(account.createdAt))}
               </span>
               <Status tone={sync.tone}>{sync.label}</Status>
+              {liveSync && <span className="text-sm text-muted-foreground">{liveSyncText(liveSync, now)}</span>}
             </div>
+            {liveSync?.lastError && <p className="text-sm text-danger-ink">{liveSyncError(liveSync.lastError, name)}</p>}
+            {syncNow.isError && (
+              <p role="alert" className="text-sm text-danger-ink">
+                {syncNowFailure(syncNow.error)}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap justify-end gap-2.5">
             <Button type="button" variant="ghost" size="sm">
               <ExternalLink strokeWidth={1.6} />
               Mở {name}
             </Button>
-            {account.firstImport?.state === 'RUNNING' ? (
-              <Button type="button" variant="secondary" size="sm" disabled>
+            {account.firstImport?.state === 'RUNNING' || importDone ? (
+              // An imported account syncs what changed (D-95); one still importing cannot.
+              <Button type="button" variant="secondary" size="sm" disabled={!importDone || syncNow.isPending} onClick={() => syncNow.mutate(account.id)}>
                 <RefreshCw strokeWidth={1.6} />
                 Đồng bộ ngay
               </Button>

@@ -1009,6 +1009,11 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Hiệu ứng bằng CSS:** `@keyframes row-in` (lệch 6 px, mờ) khai trong `@theme` của Tailwind 4 thành `animate-row-in`; `motion-reduce:` đổi sang chỉ mờ cho người bật giảm chuyển động.
 - **Một query nhẹ cho số trên điều hướng:** shell có mặt ở mọi trang, nên nó dùng query riêng `['inbox-unread']` (một request `/counts`) thay vì giữ cả khung Hộp thư (3 request mỗi lần bị đánh dấu cũ).
 
+### 14.3 "Đồng bộ ngay" và khi realtime mất kết nối (FE-55)
+- **Khóa query có thứ bậc:** trạng thái đồng bộ dùng khóa `['accounts', id, 'sync']`; `invalidateQueries({ queryKey: ['accounts'] })` khớp mọi khóa bắt đầu bằng `'accounts'`, nên sự kiện `account.changed` đọc lại cả danh sách lẫn trạng thái này mà không phải liệt kê.
+- **Đợi trước khi báo:** server đóng mỗi luồng sau 20 phút và trình duyệt nối lại trong vài giây; báo ngay thì dòng báo nhấp nháy vô nghĩa. `useRealtimeDown` chỉ báo khi luồng không mở quá 30 s, và mỗi lần trạng thái đổi thì đếm lại từ đầu.
+- **Hai kiểu mất:** `connecting` (trình duyệt còn thử, "đang kết nối lại…") khác `closed` (trình duyệt đã bỏ: phiên hết hạn hay server không có luồng; chỉ tải lại trang mới thử lại).
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1119,3 +1124,4 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 106. Một sự kiện tới lúc trang đang tải lần đầu thì vì sao không có request mới? Khi nào điều đó thành vấn đề?
 107. Vì sao một trang tải thêm ở cuối danh sách không bị coi là thư mới? Lần tải đầu thì sao?
 108. Vì sao số "Hộp thư" của thanh điều hướng có query riêng thay vì đọc từ khung Hộp thư?
+109. Vì sao dòng "Thư mới có thể về chậm" đợi 30 giây mới hiện? `connecting` và `closed` khác nhau thế nào với người dùng?

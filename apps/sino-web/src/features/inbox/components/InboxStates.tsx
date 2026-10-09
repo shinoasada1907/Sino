@@ -1,5 +1,5 @@
 import { onlineManager } from '@tanstack/react-query'
-import { Inbox, RotateCw, TriangleAlert, WifiOff } from 'lucide-react'
+import { Inbox, RotateCw, TriangleAlert, Unplug, WifiOff } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router'
 import type { ProviderInfo } from '@/shared/domain'
@@ -143,6 +143,27 @@ export function OfflineBanner({ savedAt }: { savedAt: number }) {
       <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => onlineManager.setOnline(navigator.onLine)}>
         Thử kết nối lại
       </Button>
+    </div>
+  )
+}
+
+/**
+ * Above the inbox while the event stream has been down for 30 s (D-94; canvas `Surfaces`, alert "Mất kết nối"): new mail
+ * still comes on the next reading, only later. A stream the browser gave up on comes back with the page.
+ */
+export function RealtimeBanner({ state }: { state: 'connecting' | 'closed' }) {
+  return (
+    <div role="status" className="flex items-center gap-3 border-b bg-surface px-4 py-2.5 text-[13px] leading-4.5 font-medium md:px-8">
+      <Unplug className="size-4.5 shrink-0 text-warning" strokeWidth={1.6} />
+      <span>
+        <span className="font-semibold">Thư mới có thể về chậm</span>
+        <span className="text-muted-foreground">{state === 'connecting' ? ' · đang kết nối lại…' : ' · tải lại trang để kết nối lại'}</span>
+      </span>
+      {state === 'closed' && (
+        <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => window.location.reload()}>
+          Tải lại
+        </Button>
+      )}
     </div>
   )
 }

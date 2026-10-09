@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { providerNameOf } from '@/shared/format'
 import { useOnline } from '@/shared/lib/useOnline'
+import { useRealtimeDown } from '@/shared/realtime/useRealtimeDown'
 import { cn } from '@/shared/lib/utils'
 import { useNow } from '@/shared/time/useNow'
 import { Button } from '@/shared/ui/button'
@@ -12,7 +13,7 @@ import { ConversationAvatars } from './components/ConversationAvatars'
 import { ConversationInfo } from './components/ConversationInfo'
 import { ConversationList } from './components/ConversationList'
 import { EmailThread } from './components/EmailThread'
-import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
+import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
 import { SourcePane } from './components/SourcePane'
 import { failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
@@ -45,6 +46,7 @@ export function InboxPage() {
   const { mutate: update } = useUpdateConversation()
   const unreadOpen = item !== undefined && item.unreadCount > 0
   const online = useOnline()
+  const realtimeDown = useRealtimeDown()
   const readOnce = useRef<string | null>(null)
 
   // Opening a conversation reads it, once per opening: marking it unread, or a refused read that puts the count back,
@@ -132,6 +134,7 @@ export function InboxPage() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       {!online && <OfflineBanner savedAt={receivedAt} />}
+      {online && realtimeDown && <RealtimeBanner state={realtimeDown} />}
       <div
         className={cn(
           'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)]',
