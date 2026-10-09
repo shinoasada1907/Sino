@@ -19,7 +19,11 @@
   - **Acceptance criteria:** delta `provider-contract` (*Ước lượng số thư*, *Khóa metadata dùng chung*), delta `gmail-reading`.
   - **Hints:** Level 1 — "vì sao hàm ước lượng có cài đặt mặc định trong interface, còn `fetchUpdates` thì không?".
 
-- [ ] 1.2 **BE-41 — `AccountDirectory`: module khác đọc danh sách account**
+- [x] 1.2 **BE-41 — `AccountDirectory`: module khác đọc danh sách account**
+  - **Thực hiện (2026-10-09, AUTO):** gói gốc `account`: interface `AccountDirectory` (`accountsOf(ownerId)` cũ trước mới, mọi trạng thái; `find(ownerId, accountId)` → `Optional`, mọi trạng thái) và record `AccountSummary(id, provider, status, externalAccountId)` (bắt buộc cả bốn). Cài đặt `account/application/AccountDirectoryService` (`@Transactional(readOnly = true)`) dùng lại hai truy vấn của API account (`findByOwnerIdAndRemovedAtIsNullOrderByCreatedAtAscIdAsc`, `findByIdAndOwnerIdAndRemovedAtIsNull`); `ConnectedAccountRepository` không đổi. Test: `AccountDirectoryServiceTests` (`@DataJpaTest`, PostgreSQL thật), `AccountSummaryTests` (đúng bốn trường, không credential).
+  - **Làm khác kế hoạch:** không cần truy vấn mới trong `ConnectedAccountRepository` (kế hoạch ghi "nếu cần"). **LÝ DO:** hai truy vấn của API account đã đúng luật (chưa xóa, đúng owner, cũ trước mới); dùng lại để luật chỉ nằm một chỗ.
+  - **Kiểm chứng (2026-10-09):** RED: 4 test đỏ trên service tạm trả rỗng. GREEN. Kiểm tra ngược 12/12, lần chạy mốc xanh. `./mvnw -B -ntp verify`: 687 test, 0 lỗi, 3 bỏ qua, BUILD SUCCESS, `ModularityTests` 2/2.
+  - **Sau review (2026-10-09):** agent `senior-reviewer` không thấy CRITICAL/HIGH. MEDIUM: test thứ tự đặt `created_at` đúng theo thứ tự mong đợi, nên một truy vấn quên `ORDER BY` có thể xanh nhờ thứ tự dòng của PostgreSQL; file kiến thức khẳng định quá. Chạy thử: lỗi "bỏ `ORDER BY`" vẫn bị test cũ bắt (PostgreSQL đọc qua index unique), nhưng đó là may → đổi thứ tự cập nhật để thứ tự lưu, thứ tự cập nhật và thứ tự index đều khác kết quả mong đợi; lỗi đó vẫn bị bắt; sửa mục 12.4. LOW đã sửa: `find` trả account `DISABLED`/`AUTH_EXPIRED` có test và Javadoc (lỗi "`find` chỉ trả `CONNECTED`" bị bắt); `design.md` dòng phụ thuộc module thêm gói gốc `provider` (`ProviderType`). LOW không sửa: hai tham số UUID liền nhau có thể bị đảo ở bên gọi → BE-44/45 test `find` với account thật. Sau sửa: `AccountDirectoryServiceTests` 6/6, `AccountSummaryTests` 2/2, `ModularityTests` 2/2; full verify chạy trước các sửa này (code chính chỉ đổi Javadoc).
   - **Goal / Why:** `conversation` và `sync` cần biết account nào của owner còn hoạt động, provider gì, trạng thái gì, mà không chạm vào bảng của `account`.
   - **Depends on:** —.
   - **Files:** `account/AccountDirectory`, `account/AccountSummary` (gói gốc), cài đặt trong `account/application`, `ConnectedAccountRepository` nếu cần truy vấn mới, test.
@@ -54,6 +58,7 @@
   - **Test:** MockMvc + DB thật: các view; lọc; lật trang khi nhiều conversation cùng giờ; account đã xóa và `DISABLED` bị ẩn; `400` (view, limit, cursor, accountId); `404`; `PATCH`; số đếm; CSRF cho `PATCH`; `EXPLAIN ANALYZE` câu danh sách (ghi vào file kiến thức).
   - **Acceptance criteria:** spec `inbox-api`.
   - **Hints:** Level 1 — "vì sao phân trang keyset phải sắp theo cả `id` chứ không chỉ `last_message_at`?".
+  - **Hẹn với phiên web (sino-web-33, 2026-10-09; web làm FE-50 trên MSW theo design mục 4):** `lastMessageAt` là ISO-8601 UTC đuôi `Z`, có thể có mili giây (giờ Gmail); `participants[]` đề xuất `{ externalId, name, avatarUrl, self }` (`name`, `avatarUrl` có thể `null`). Hình dạng khác đề xuất này thì nhắn "sino-web-33" trước khi commit.
 
 - [ ] 1.6 **BE-45 — Module `sync`: lần nhập đầu chạy nền**
   - **Goal / Why:** người dùng chọn khoảng, thấy ước lượng và tiến độ, việc nhập chạy nền và chịu được lỗi, khởi động lại (D-64, D-69).

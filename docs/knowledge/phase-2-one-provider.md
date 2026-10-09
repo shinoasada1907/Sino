@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40, BE-41.
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -900,6 +900,57 @@ Làm hỏng code mỗi lần một chỗ (16 lần), lần nào cũng có test �
 
 ---
 
+## 12. Module khác đọc danh sách account: `AccountDirectory` (BE-41)
+
+Từ F05, hai module mới cần biết về account. `conversation` (Hộp thư, BE-44) cần biết owner có những account nào còn được hiện. `sync` (lần nhập đầu, BE-45) cần biết account có thuộc owner không và của provider nào. BE-41 cho họ một cửa đọc.
+
+### 12.1 Interface ở gói gốc, cài đặt ở `application`
+- **Ở đâu:** `account/AccountDirectory.java` và `account/AccountSummary.java` (gói gốc của module); cài đặt ở `account/application/AccountDirectoryService.java`.
+- **Là gì:**
+  - `accountsOf(ownerId)`: các account chưa xóa của owner, cũ trước mới;
+  - `find(ownerId, accountId)`: account đó, hoặc `Optional.empty()` khi nó không thuộc owner, đã xóa hay không tồn tại.
+
+  Mỗi account là một `AccountSummary(id, provider, status, externalAccountId)`.
+- **Vì sao tách interface và cài đặt:** Spring Modulith coi gói gốc của module là API công khai, còn gói con là nội bộ. Module khác chỉ được dùng `AccountDirectory`; nếu nó chạm vào `AccountDirectoryService` thì `ModularityTests` đỏ. Cách làm giống `ProviderAccess` ở mục 7.
+- **Không thêm truy vấn mới:** service dùng lại hai truy vấn mà API account đang dùng (`...AndRemovedAtIsNull`). Luật "account đã xóa coi như không có" chỉ nằm ở một chỗ.
+- **`@Transactional(readOnly = true)`:** cả lần đọc nằm trong một transaction chỉ đọc. Hibernate biết sẽ không có gì để ghi, nên bỏ bước so sánh entity trước khi commit.
+
+### 12.2 Vì sao module khác không được tự `JOIN` bảng `connected_account` (câu gợi ý của task)
+- **Bảng là chi tiết bên trong của module `account`.** Đổi tên cột hay đổi luật thì module tự `JOIN` vỡ mà không ai báo trước. Modulith và ArchUnit chỉ thấy phụ thuộc giữa các class Java. Một câu `JOIN` nằm trong chuỗi SQL qua mặt mọi kiểm tra đó.
+- **Luật phải đi cùng dữ liệu.** Account đã xóa vẫn nằm trong bảng (D-13 B), và account của owner khác phải coi như không có. Nếu mỗi module tự viết lại các điều kiện đó, sẽ có ngày một chỗ quên `removed_at IS NULL`: thư của account đã xóa hiện lại trong Hộp thư (trái D-66).
+- **Ngay cạnh là bảng credential.** Module khác không có lý do gì để đến gần token.
+- **Cái giá:** hai bước thay vì một câu `JOIN`. Bên gọi lấy danh sách account trước, rồi lọc dữ liệu của mình theo các ID đó. Mỗi owner chỉ có vài account, nên rẻ.
+
+### 12.3 Trả một record riêng, không trả entity
+- **Không trả `ConnectedAccount`:** entity có các method đổi trạng thái (`disable()`, `markAuthExpired()`...) và được JPA theo dõi. Module khác cầm entity trong transaction của mình là có thể sửa account mà module `account` không hay biết. Thêm một cột vào entity cũng tự động lộ cột đó ra ngoài.
+- **`AccountSummary` là record bất biến, bốn trường:** không credential, không tên hiển thị hay ảnh. Test `carriesNoCredentialAndNoProfileData` giữ đúng bốn trường đó: ai thêm trường thứ năm thì phải sửa test, tức là phải nghĩ lại.
+- **Trả cả account `DISABLED`, `AUTH_EXPIRED`** (cả `accountsOf` lẫn `find`, có test cho từng trạng thái): cửa đọc không quyết thay bên gọi. Hộp thư sẽ ẩn account `DISABLED` (BE-44). Màn đồng bộ thì vẫn cần thấy account `AUTH_EXPIRED` để báo "kết nối lại". Luật lọc thuộc về bên dùng.
+
+### 12.4 Bẫy khi test thứ tự "cũ trước mới"
+- Hai account tạo liền nhau trong một test có thể có cùng `created_at`. Khi đó test có thể xanh hay đỏ tùy lần chạy.
+- Vì vậy test lưu account trước, rồi đặt `created_at` bằng SQL.
+- Không có `ORDER BY` thì PostgreSQL trả dòng theo cách nó chọn để đọc, và test không được trùng với bất kỳ cách nào trong số đó:
+  - đọc lần lượt cả bảng: ra theo thứ tự các dòng nằm trong bảng. Một câu `UPDATE` ghi bản mới của dòng vào cuối bảng, nên thứ tự này là thứ tự **cập nhật**, không phải thứ tự lưu;
+  - đọc qua index unique `(user_id, provider, external_account_id)`: ra theo provider rồi ID bên provider.
+
+  Test chọn thứ tự lưu, thứ tự cập nhật và thứ tự của index đều khác thứ tự mong đợi. Khi đó kết quả đúng thì chỉ có thể là nhờ `ORDER BY created_at`.
+- **Sau review:** bản đầu của test cập nhật đúng theo thứ tự mong đợi. Reviewer chỉ ra rằng như vậy một truy vấn quên `ORDER BY` có thể vẫn xanh. Chạy thử thì lỗi đó vẫn bị bắt, vì lần đó PostgreSQL đọc qua index. Nhưng đó là may mắn, nên thứ tự cập nhật đã được đổi.
+- Sau câu SQL phải gọi `entityManager.clear()`. Nếu không, JPA trả bản entity đang giữ trong bộ nhớ, với `created_at` cũ.
+
+### 12.5 Kiểm tra ngược (BE-41)
+Làm hỏng code mỗi lần một chỗ (12 lần, sau review thêm 2), lần nào cũng có test đỏ; lần chạy mốc khi chưa sửa gì thì xanh.
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Danh sách giữ account đã xóa; `find` thấy cả account đã xóa | account đã xóa bị bỏ ra |
+| Danh sách gồm account của mọi owner; `find` không kiểm owner | account của owner khác bị bỏ ra |
+| Mới trước cũ; quên hẳn `ORDER BY` (thêm sau review) | danh sách cũ trước mới, mọi trạng thái |
+| Trạng thái luôn `CONNECTED`, provider luôn `gmail`, tên hiển thị thay cho ID bên provider | danh sách; tìm một account |
+| `find` chỉ trả account `CONNECTED` (thêm sau review) | tìm account mọi trạng thái |
+| Bỏ từng kiểm tra `null` của `AccountSummary` (bốn lần) | mọi trường đều bắt buộc |
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -956,3 +1007,7 @@ Làm hỏng code mỗi lần một chỗ (16 lần), lần nào cũng có test �
 52. Vì sao "thư hàng loạt" là một khóa metadata chứ không phải một trường mới của `NormalizedMessage`?
 53. Số thư đã nhập vượt số ước lượng: vì sao đó không phải lỗi, và vì sao vòng nhập không được dừng khi đạt số ước lượng?
 54. Một thư của nhóm thảo luận có `List-Unsubscribe`: Sino xếp nó thế nào, và cái giá của quy tắc đó là gì?
+55. Vì sao module `conversation` không được tự `JOIN` bảng `connected_account`, dù làm vậy chỉ cần một câu SQL?
+56. Vì sao `AccountDirectory` trả `AccountSummary` chứ không trả entity `ConnectedAccount`?
+57. Vì sao `accountsOf` trả cả account `DISABLED` và `AUTH_EXPIRED`, để bên gọi tự lọc?
+58. Hai account tạo liền nhau có thể cùng `created_at`: test thứ tự "cũ trước mới" phải làm gì để không xanh nhờ may mắn?
