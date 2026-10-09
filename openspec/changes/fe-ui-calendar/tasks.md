@@ -52,6 +52,11 @@
   - **Kiểm chứng (2026-10-09):** RED 3 (cột còn hiện khi chưa chọn, còn sau "Đóng"), GREEN. Chrome 1440 tối: `/calendar` lịch rộng 1192 px, không có cột; `/calendar/event-call` lịch 852 px + cột 340 px; `/tasks` danh sách 1192 px; `/tasks/task-bill` 792 px + cột 400 px; không cuộn ngang. `pnpm lint` 0, `tsc -b` 0, `vitest` 446/446, `pnpm build` 0.
   - **Ghi nhận, chưa sửa:** dữ liệu mẫu dời mọi giờ đúng bằng khoảng cách từ bây giờ tới lúc của canvas (`clockFrom`), nên trên đồng hồ thật lịch hẹn rơi vào giờ lẻ ("Chạy bộ Hồ Tây" 14:28 thay vì 06:00).
 
+- [x] 2.5 **CA-02b — Cột ngày thẳng với lưới giờ** (người dùng 2026-10-09: "bảng calendar chưa đều")
+  - **Lỗi:** thanh cuộn dọc của lưới giờ (15 px trên Windows) lấy bớt bề ngang của bảy cột bên dưới, còn dải ngày và hàng "cả ngày" phía trên không có thanh cuộn; cột lệch dần, Chủ nhật lệch 13 px. Lần kiểm tra Chrome của CA-02 có chụp nhưng không đo nên không thấy.
+  - **Sửa:** `WeekView.tsx`: hai hàng trên chừa chỗ cho thanh cuộn (`overflow-hidden [scrollbar-gutter:stable]`).
+  - **Kiểm chứng (2026-10-09):** Chrome đo mép trái của cột ở dải ngày, hàng "cả ngày" và lưới giờ: trước 304/466/…/1278 so với 304/464/…/1265; sau khớp nhau ở 1440 px (có và không có cột chi tiết) và 1024 px. `pnpm lint` 0, `tsc -b` 0, `vitest` 446/446, `pnpm build` 0. Không có test tự động: jsdom không tính bố cục.
+
 ## 3. Nghiệm thu (để sau, theo ý người dùng)
 
 - [ ] 3.1 **CA-05 — Nghiệm thu, tài liệu, archive**

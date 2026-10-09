@@ -13,6 +13,8 @@ const HOURS = Array.from({ length: 23 }, (_, index) => index + 1)
 // Where the grid opens: 06:00 at the top, as the canvas draws it (D-88), with room for its label.
 const OPEN_AT = 6 * HOUR_PX - 10
 const COLUMNS = 'grid grid-cols-[56px_repeat(7,minmax(0,1fr))]'
+// The rows above the hours keep room for the grid's scrollbar, or their days run wider than the days below.
+const SCROLLBAR_ROOM = 'overflow-hidden [scrollbar-gutter:stable]'
 
 /** An open task that is late or one that is done, for the chips (`data-tone`). */
 function taskTone(task: CalendarTask, now: Date): 'over' | 'done' | undefined {
@@ -69,7 +71,7 @@ export function WeekView({
 
   return (
     <section aria-label={`Tuần ${title}`} className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)]">
-      <div className={cn(COLUMNS, 'border-b')}>
+      <div className={cn(COLUMNS, SCROLLBAR_ROOM, 'border-b')}>
         <span />
         {days.map((day) => (
           <div
@@ -94,7 +96,7 @@ export function WeekView({
         ))}
       </div>
 
-      <div className={cn(COLUMNS, 'border-b')}>
+      <div className={cn(COLUMNS, SCROLLBAR_ROOM, 'border-b')}>
         <span className="pt-2.25 pr-2 text-right font-mono text-[10px] leading-3.5 font-medium text-subtle-foreground">cả ngày</span>
         {days.map((day) => (
           <div key={day.date} className="flex min-h-8.5 flex-col gap-1 border-l px-1 py-1.25">
@@ -117,7 +119,7 @@ export function WeekView({
         ))}
       </div>
 
-      <div ref={scroll} className="min-h-0 overflow-auto">
+      <div ref={scroll} className="min-h-0 overflow-auto [scrollbar-gutter:stable]">
         <div className={COLUMNS} style={{ height: 24 * HOUR_PX }}>
           <div className="relative">
             {HOURS.map((hour) => (

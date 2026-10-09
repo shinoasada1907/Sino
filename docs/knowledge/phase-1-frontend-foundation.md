@@ -955,6 +955,11 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Không vẽ, chứ không ẩn:** khi chưa chọn, cột không có trong trang (không phải `hidden`), nên trình đọc màn hình không gặp một vùng "Chi tiết việc" rỗng, và test kiểm được bằng `queryByRole('complementary')` trả về `null`.
 - **Đánh đổi:** mở một lịch hẹn thì lịch hẹp lại (1192 → 852 px), các cột ngày co theo. Đổi lại, lúc chỉ xem lịch thì có thêm chỗ cho tên lịch hẹn.
 
+### 12.6 Thanh cuộn làm lệch cột (CA-02b)
+- **Lỗi:** dải ngày và hàng "cả ngày" nằm ngoài khung cuộn, lưới giờ nằm trong. Trên Windows thanh cuộn chiếm 15 px trong khung, nên bảy cột của lưới hẹp hơn bảy cột phía trên một chút, và càng sang phải càng lệch (Chủ nhật 13 px). Trên macOS thanh cuộn nổi trên nội dung, không chiếm chỗ, nên không thấy lỗi.
+- **Sửa:** `scrollbar-gutter: stable` bảo trình duyệt chừa chỗ cho thanh cuộn dù chưa cần cuộn. Thuộc tính này chỉ có tác dụng với khối có `overflow` khác `visible`, nên hai hàng trên được thêm `overflow-hidden`. Ở máy có thanh cuộn nổi, cả hai bên đều không chừa gì, vẫn khớp.
+- **Bài học kiểm tra:** ảnh chụp lúc CA-02 có lỗi này nhưng mắt không thấy được 2–13 px. Với bảng nhiều cột, đo mép trái của từng cột ở mỗi hàng (`getBoundingClientRect().left`) rồi so sánh thì chắc hơn nhìn ảnh.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1056,3 +1061,4 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 97. Trên điện thoại chọn Chủ nhật 04/10 thì web hỏi khoảng ngày nào, và lịch trình bắt đầu từ đâu? Vì sao không hỏi từ 04/10?
 98. Trang con trên điện thoại từng chỉ cao bằng nội dung. Vì sao ẩn thanh trên làm `main` thấp đi, và vì sao test không phát hiện?
 99. Muốn cột chi tiết chỉ mở khi chọn, phải đổi hai chỗ nào? Chỉ đổi một chỗ thì màn trông ra sao?
+100. Vì sao cột của lưới tuần lệch trên Windows mà không lệch trên macOS, và `scrollbar-gutter: stable` sửa thế nào?
