@@ -33,7 +33,7 @@ Bấm ô đánh dấu MUST chuyển việc đang mở sang Đã xong (và ngư�
 - **THEN** việc đó vào "ĐÃ XONG" với "Đã tạo lần kế tiếp: T2 02/11", và một "Chuyển tiền nhà tháng 10" hạn 02/11 17:00 hiện trong "SẮP TỚI"
 
 ### Requirement: Chi tiết một việc
-Mở một việc (`/tasks/:taskId`) MUST hiện tiêu đề, hạn, nhắc nhở, lặp lại ("Không" khi không lặp), lúc tạo (và "từ Hộp thư" khi tạo từ tin nhắn), liên kết tin nhắn gốc mở cuộc trò chuyện trong Hộp thư, ghi chú sửa được (lưu khi rời ô), các mục liên quan, và nút đánh dấu xong. Từ 1280 px chi tiết là cột phải và dòng đang mở được đánh dấu, "Đóng" về danh sách; dưới 1280 px chi tiết là trang riêng có nút quay lại. Việc không tồn tại MUST báo "Không tìm thấy việc này."
+Mở một việc (`/tasks/:taskId`) MUST hiện tiêu đề, hạn, nhắc nhở, lặp lại ("Không" khi không lặp), lúc tạo (và "từ Hộp thư" khi tạo từ tin nhắn), liên kết tin nhắn gốc (người gửi · nhà cung cấp, tiêu đề thư) mở cuộc trò chuyện trong Hộp thư, ghi chú sửa được (lưu khi rời ô), các mục liên quan, và nút đánh dấu xong. Từ 1280 px chi tiết là cột phải và dòng đang mở được đánh dấu, "Đóng" về danh sách; dưới 1280 px chi tiết là trang riêng có nút quay lại. Việc không tồn tại MUST báo "Không tìm thấy việc này."
 
 #### Scenario: Mở việc trả lời hợp đồng
 - **WHEN** người dùng mở "Trả lời: Hợp đồng thuê văn phòng — bản sửa lần 2"
@@ -54,8 +54,8 @@ Trang MUST hiện khung xương khi đang tải, "Không tải được việc c
 - **THEN** trang hiện "Chưa có việc nào." và ô "Thêm việc mới" vẫn dùng được
 
 ### Requirement: Nút chưa có chức năng trên màn Việc cần làm
-"Thêm thao tác" của khối chi tiết MUST hiện như canvas và MUST NOT đổi dữ liệu (D-80).
+"Thêm thao tác", "Nhắc lại sau…" và "Xóa task" của khối chi tiết MUST hiện như canvas và MUST NOT đổi dữ liệu (D-80).
 
 #### Scenario: Bấm Thêm thao tác
-- **WHEN** người dùng bấm "Thêm thao tác" trong khối chi tiết
+- **WHEN** người dùng bấm "Xóa task" trong khối chi tiết
 - **THEN** việc không đổi

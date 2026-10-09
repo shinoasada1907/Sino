@@ -13,7 +13,7 @@
 ## Decisions
 
 ### D-80 — Change này gồm danh sách, thêm, xong / mở lại, chi tiết và ghi chú; sửa hạn, nhắc, lặp là change sau · **Agent chốt** (2026-10-09)
-Làm: danh sách theo nhóm, lọc, thêm việc bằng tiêu đề (không hạn, như chữ trong ô: "chọn hạn sau"), đánh dấu xong / mở lại (việc lặp tạo lần kế tiếp), chi tiết (hạn, nhắc, lặp, tạo lúc, tin nhắn gốc, liên quan), sửa ghi chú, các trạng thái. Để sau: sửa hạn, nhắc nhở, quy tắc lặp, xóa việc, "Thêm thao tác"; nút hiện như canvas nhưng chưa làm gì.
+Làm: danh sách theo nhóm, lọc, thêm việc bằng tiêu đề (không hạn, như chữ trong ô: "chọn hạn sau"), đánh dấu xong / mở lại (việc lặp tạo lần kế tiếp), chi tiết (hạn, nhắc, lặp, tạo lúc, tin nhắn gốc, liên quan), sửa ghi chú, các trạng thái. Để sau: sửa hạn, nhắc nhở, quy tắc lặp, xóa việc; các nút "Thêm thao tác", "Nhắc lại sau…", "Xóa task" hiện như canvas nhưng chưa làm gì.
 **LÝ DO:** canvas `Tasks` vẽ danh sách và khối chi tiết (ghi chú là ô nhập thật) nhưng không vẽ bộ chọn ngày giờ, nhắc nhở, lặp; bộ chọn của Phase 4 nằm ở `InboxTask`, `InboxRemind` (thao tác trên thư, D-52) và nên dựng một lần cho cả hai chỗ. Giống D-46 (danh sách + chi tiết trước, luồng sau).
 **Phương án bị loại:** làm luôn bộ chọn (tự vẽ giao diện canvas chưa có, dễ lệch khi dựng `InboxTask`); chỉ danh sách, không chi tiết (mất khối "Chi tiết việc" của canvas).
 
@@ -39,7 +39,7 @@ Web nhóm và viết chữ theo múi giờ của trình duyệt (như Hộp thư
 
 ### Chốt kỹ thuật (agent, trong phạm vi trên)
 - **Đường dẫn:** `/tasks`, `/tasks/:taskId`; lọc `?filter=all|messages|repeat` (mặc định `all`, không ghi vào URL).
-- **Thứ tự trong nhóm:** việc có hạn theo hạn tăng dần (ngày cả-ngày đứng trước các giờ của cùng ngày); "Không có hạn" theo lúc tạo, mới trước; "Đã xong" theo lúc xong, mới trước.
+- **Thứ tự trong nhóm:** việc có hạn theo hạn tăng dần, ~~ngày cả-ngày đứng trước các giờ của cùng ngày~~ trong cùng một ngày việc có giờ đứng trước việc cả ngày (**LÝ DO (TK-01):** canvas đặt "Chuyển tiền nhà" 17:00 trước "Trả lời: Ảnh chuyến đi Đà Lạt" cả ngày hôm nay); "Không có hạn" theo lúc tạo, mới trước; "Đã xong" theo lúc xong, mới trước.
 - **Thêm việc:** Enter lưu, ô trống lại và giữ focus; chữ rỗng hoặc chỉ khoảng trắng không gửi; tiêu đề dài hơn 200 ký tự bị chặn ở ô nhập (`maxLength`). Việc mới hiện ngay trong "Không có hạn".
 - **Ghi chú:** lưu khi rời ô (blur) nếu chữ đã đổi.
 - **Đã xong:** hợp đồng chỉ gồm việc xong trong 7 ngày gần nhất (máy chủ lọc); mở lại thì việc về nhóm theo hạn của nó.
@@ -81,6 +81,7 @@ interface TaskItem {
     conversationId: string                   // mở Hộp thư
     provider: ProviderType
     title: string                            // người gửi hoặc tên cuộc trò chuyện
+    subject: string | null                   // tiêu đề thư; null với chat
     missing: boolean                         // tin gốc đã bị xóa
   } | null
   createdAt: Instant

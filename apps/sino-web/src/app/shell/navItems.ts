@@ -44,7 +44,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Việc cần làm',
     icon: SquareCheck,
     group: 'plan',
-    count: { key: 'tasksOpen', text: 'chưa xong', tone: 'neutral' },
+    count: { key: 'tasksDue', text: 'tới hạn', tone: 'neutral' },
     alert: tasksOverdue,
   },
   { to: '/notes', label: 'Ghi chú', icon: StickyNote, group: 'plan' },

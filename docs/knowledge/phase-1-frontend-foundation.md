@@ -870,6 +870,31 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Lần chạy đầu với backend thật dạy thêm một điều:** backend chưa có BE-44 nên trả `404 RESOURCE_NOT_FOUND`, còn màn ghi "Máy chủ Sino không phản hồi", câu viết từ lúc dữ liệu mẫu chưa bao giờ lỗi thật. Máy chủ trả lỗi (có mã HTTP) và máy chủ không trả lời (`status` 0) là hai chuyện khác nhau, người dùng xử lý khác nhau; `failureReason` chọn câu theo `status`.
 - **Chưa kiểm chứng:** chạy với backend thật (IN-09) cần BE-44 (API) và BE-45 (nhập thư).
 
+## 11. Màn Việc cần làm (fe-ui-tasks)
+
+### 11.0 Bức tranh
+- **Ở đâu:** `src/features/tasks/`; `src/shared/time/localDate.ts`; `src/app/shell/{navItems,shell.types,shell.sample}.ts`.
+- **Là gì:** màn `/tasks` dựng trước với dữ liệu mẫu (D-42), hợp đồng giao backend F16. Phạm vi sản phẩm đã chốt từ trước ở `planner-from-messages` (D-25, D-27); change này chốt phần giao diện (D-80…D-84, agent chốt, người dùng xem lại).
+
+### 11.1 Ngày lịch không phải thời điểm (TK-01, D-81)
+- **`Instant` và `LocalDate`:** "hạn 17:00 thứ Tư" là một thời điểm (`2026-10-07T10:00:00Z`). "Hạn cả ngày 15/10" là một **ngày lịch** (`"2026-10-15"`): ở Việt Nam hay ở Paris thì vẫn là ngày 15. Viết ngày cả-ngày thành thời điểm thì phải chọn nửa đêm của múi giờ nào, và đọc ở múi giờ khác sẽ thành ngày 14. Hợp đồng có hai trường riêng, `dueAt` và `dueDate`, giống hai cột `due_at`, `due_date` của backend.
+- **Tính trên ngày lịch không cần múi giờ:** `localDate.ts` đổi `"2026-10-15"` thành nửa đêm UTC chỉ để đếm và cộng ngày; so sánh hai ngày là so sánh chuỗi (`"2026-09-30" < "2026-10-02"`), vì dạng năm-tháng-ngày xếp theo chữ cũng đúng theo thời gian.
+- **"Quá hạn" khác nhau cho hai loại hạn:** hạn có giờ quá hạn ngay khi qua giờ đó (09:00 hôm nay, bây giờ 14:05 → "Hạn 09:00 · trễ 5 giờ"); hạn cả ngày chỉ quá hạn khi ngày đó hết.
+
+### 11.2 Ai tính lần kế tiếp của việc lặp (D-84)
+- Đánh dấu xong một việc lặp thì máy chủ tạo lần kế tiếp và trả về `{ task, next }`. Web không tự tính: quy tắc lặp có nhiều ca biên (ngày 31 sang tháng 30 ngày rồi quay lại 31, 29/02, xong trễ nhiều tuần thì bỏ các lần đã lỡ), viết ở hai nơi thì sẽ có lúc lệch. Dữ liệu mẫu có `nextOccurrenceSample` chỉ đủ cho bốn việc mẫu, và nói rõ điều đó.
+- **Bẫy, tạo hai lần:** xong → mở lại → xong lần nữa thì máy chủ mẫu trả lại cùng một lần kế tiếp; hook bỏ qua lần đã có (cùng chuỗi, cùng hạn), như máy chủ thật sẽ làm.
+
+### 11.3 Con số trên điều hướng là gì (D-83)
+- Canvas ghi "Việc cần làm 3" ở thanh bên nhưng "8 việc đang mở" trong màn. 3 = 1 quá hạn + 2 hôm nay, nên con số là việc **tới hạn**. Đổi tên trường `tasksOpen` → `tasksDue` để tên nói đúng nghĩa (tên sai sẽ dẫn người sau đếm sai), chữ đọc "Việc cần làm, 3 tới hạn".
+- Trên dữ liệu mẫu, mỗi thay đổi tính lại hai số từ danh sách (không cộng trừ), nên không bao giờ lệch.
+
+### 11.4 Kiểm chứng TK-01
+- 36 lỗi gài, 27 bị bắt ngay. Chín lỗi sống dạy ba điều:
+  - **Điều kiện thừa:** một kiểm tra mà mọi nơi gọi đã làm trước → bỏ.
+  - **Ca biên chưa có test (7):** hạn đúng bằng bây giờ, trễ 45 phút, ngày 31… → thêm test.
+  - **Lỗi chỉ lộ ở múi giờ khác:** `getUTCDay()` → `getDay()` cho cùng kết quả ở múi giờ dương như Việt Nam (nửa đêm UTC là 07:00 cùng ngày) nhưng sai ở múi giờ âm. Test chạy cố định `Asia/Ho_Chi_Minh` nên không thấy. **Bài học:** một lỗi gài sống không luôn nghĩa là thiếu test; có khi là môi trường test không đủ rộng. Ghi lại là đủ, không đổi cấu hình test chỉ vì một dòng.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -954,3 +979,7 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 80. `countsAfter(số đếm, trước, sau)` tính số mới thế nào, và vì sao một hàm lo được cả đọc, chưa đọc, lưu trữ, bỏ lưu trữ?
 81. Sau khi lưu trữ, danh sách đang hiện không tải lại nhưng "Đã lưu trữ" thì có. `refetchType: 'none'` làm gì?
 82. Vì sao test "máy chủ từ chối đọc" phải cho máy chủ giả trả lời chậm 50 ms mới bắt được lỗi "đọc lại vô tận"?
+83. D-81: vì sao hạn cả ngày là `"2026-10-15"` chứ không phải một `Instant` lúc nửa đêm?
+84. Vì sao web không tự tính lần kế tiếp của việc lặp, dù dữ liệu mẫu có tính?
+85. Con số "3" cạnh "Việc cần làm" đếm gì, và vì sao đổi tên `tasksOpen` thành `tasksDue`?
+86. Lỗi gài `getUTCDay()` → `getDay()` sống. Vì sao, và vì sao không đổi cấu hình test để bắt nó?

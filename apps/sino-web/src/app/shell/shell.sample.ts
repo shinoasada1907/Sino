@@ -5,7 +5,7 @@ export function createShellSample(now: Date): ShellData {
   return {
     owner: { displayName: 'An Nguyễn', shortName: 'An' },
     accountCount: 3,
-    navCounts: { inboxUnread: 12, tasksOpen: 3, tasksOverdue: 1, accountsNeedingAction: 1, registrationsNew: 1 },
+    navCounts: { inboxUnread: 12, tasksDue: 3, tasksOverdue: 1, accountsNeedingAction: 1, registrationsNew: 1 },
     unreadNotifications: 3,
     sync: { state: 'OK', lastSyncedAt: new Date(now.getTime() - 2 * 60_000).toISOString(), progress: null },
   }

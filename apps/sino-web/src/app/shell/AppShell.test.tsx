@@ -48,7 +48,7 @@ describe('sidebar (desktop)', () => {
     renderApp('/overview', {
       shell: shellWith((s) => {
         s.navCounts.inboxUnread = 5
-        s.navCounts.tasksOpen = 7
+        s.navCounts.tasksDue = 7
         s.owner.displayName = 'Bình Trần'
         s.accountCount = 2
       }),
@@ -56,7 +56,7 @@ describe('sidebar (desktop)', () => {
     const sidebar = within(shellPart('sidebar'))
 
     expect(await sidebar.findByRole('link', { name: 'Hộp thư, 5 chưa đọc' })).toBeInTheDocument()
-    expect(sidebar.getByRole('link', { name: 'Việc cần làm, 7 chưa xong' })).toBeInTheDocument()
+    expect(sidebar.getByRole('link', { name: 'Việc cần làm, 7 tới hạn' })).toBeInTheDocument()
     expect(sidebar.getByText('Bình Trần')).toBeInTheDocument()
     expect(sidebar.getByText('2 tài khoản')).toBeInTheDocument()
   })
@@ -81,7 +81,7 @@ describe('rail (tablet)', () => {
   })
 
   it('says nothing extra when nothing needs attention', async () => {
-    renderApp('/overview', { shell: shellWith((s) => (s.navCounts = { inboxUnread: 0, tasksOpen: 0, tasksOverdue: 0, accountsNeedingAction: 0, registrationsNew: 0 })) })
+    renderApp('/overview', { shell: shellWith((s) => (s.navCounts = { inboxUnread: 0, tasksDue: 0, tasksOverdue: 0, accountsNeedingAction: 0, registrationsNew: 0 })) })
     const rail = within(shellPart('rail'))
     const tabbar = within(shellPart('tabbar'))
 

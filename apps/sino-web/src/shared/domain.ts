@@ -3,6 +3,9 @@
 /** ISO-8601 instant in UTC, as the API sends it. */
 export type Instant = string
 
+/** A calendar day without a time, as the API sends it: "2026-10-15" (all-day due dates and events). */
+export type LocalDate = string
+
 /** A provider type as the API names it: "gmail", "zalo", "messenger". */
 export type ProviderType = string
 

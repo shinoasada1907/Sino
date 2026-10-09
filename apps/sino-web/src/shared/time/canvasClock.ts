@@ -1,3 +1,6 @@
+import type { LocalDate } from '@/shared/domain'
+import { addDays } from './localDate'
+
 // The moment the "Sino UI" canvas shows: Friday 02/10/2026, 14:05 in Vietnam.
 export const CANVAS_NOW = Date.parse('2026-10-02T14:05:00+07:00')
 
@@ -7,4 +10,13 @@ export const CANVAS_NOW = Date.parse('2026-10-02T14:05:00+07:00')
  */
 export function clockFrom(now: Date) {
   return (canvasTime: string) => new Date(Date.parse(canvasTime) + now.getTime() - CANVAS_NOW).toISOString()
+}
+
+/**
+ * The same for a calendar day written as on the canvas ("2026-09-30"): moved by the whole days in that time, rounded,
+ * so whole-day items keep their place among the timed ones.
+ */
+export function dayClockFrom(now: Date) {
+  const days = Math.round((now.getTime() - CANVAS_NOW) / 86_400_000)
+  return (canvasDate: LocalDate) => addDays(canvasDate, days)
 }

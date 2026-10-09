@@ -4,7 +4,8 @@ export type { Instant } from '@/shared/domain'
 
 export interface NavCounts {
   inboxUnread: number
-  tasksOpen: number
+  /** Tasks that are due: late, or due today (D-83). */
+  tasksDue: number
   tasksOverdue: number
   accountsNeedingAction: number
   registrationsNew: number
