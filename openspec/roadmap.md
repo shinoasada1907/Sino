@@ -122,7 +122,7 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 
 #### F04 — Gmail connector + luồng Connect · ~L (feature lớn nhất)
 
-> **Tách làm hai change (D-37, người dùng chốt 2026-10-07):** **F04a** `openspec/changes/f04a-gmail-connect` — luồng kết nối OAuth2, kết nối lại, thu hồi token khi xóa, connector Gmail khung; backend làm song song với web của Phase 1 (D-41). **F04b** — refresh token (D-15 = A'), `fetchUpdates` bằng Gmail API, chuẩn hóa thread/MIME; làm ngay trước F05.
+> **Tách làm hai change (D-37, người dùng chốt 2026-10-07):** **F04a** `openspec/changes/f04a-gmail-connect` — luồng kết nối OAuth2, kết nối lại, thu hồi token khi xóa, connector Gmail khung; backend làm song song với web của Phase 1 (D-41). **F04b** `openspec/changes/f04b-gmail-read` — refresh token (D-15 = A'), `fetchUpdates` bằng Gmail API, chuẩn hóa thread/MIME; làm ngay trước F05. Quyết định khi mở (người dùng, 2026-10-09): D-57 phạm vi connector + token (lưu thư, `startInitialSync`, tiến độ → F05), D-58 kiểm Gmail thật bằng test có tag, D-59 cursor khởi tạo mang mốc thời gian, D-60 mã lỗi `CURSOR_EXPIRED`, D-61 jsoup, D-62 `ProviderAccess`.
 
 - **BE:** luồng OAuth2 authorization code (tạo URL + `state` → Google → callback kiểm tra `state` → đổi code lấy token → `getAccountProfile` → use case `register` của F02); connector Gmail implement SPI F03 (profile, `fetchUpdates` bằng Gmail API, chuẩn hóa thread/message/MIME); refresh token theo D-15; connector vượt contract test kit.
 - **FE:** nút "Add account → Gmail", màn hình kết quả connect (thành công/lỗi có hướng dẫn).
