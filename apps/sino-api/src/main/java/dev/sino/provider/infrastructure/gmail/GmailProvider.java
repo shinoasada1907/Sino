@@ -84,11 +84,15 @@ class GmailProvider implements MessageProvider {
         return Optional.of(connection);
     }
 
-    /** The Google subject ({@code sub}) never changes, unlike the email, so it identifies the account. */
+    /**
+     * The Google subject ({@code sub}) never changes, unlike the email, so it identifies the account. The email is
+     * the address and the default name.
+     */
     @Override
     public AccountProfile getAccountProfile(ProviderContext context) {
         Map<String, Object> userInfo = api.userInfo(accessTokenOf(context));
-        return new AccountProfile(text(userInfo, "sub"), text(userInfo, "email"), null);
+        String email = text(userInfo, "email");
+        return new AccountProfile(text(userInfo, "sub"), email, null, email);
     }
 
     /**

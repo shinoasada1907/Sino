@@ -100,7 +100,7 @@ public final class FakeMessageProvider implements MessageProvider {
 
     @Override
     public AccountProfile getAccountProfile(ProviderContext context) {
-        return new AccountProfile("fake-account", "Fake Account", null);
+        return new AccountProfile("fake-account", "Fake Account", null, null);
     }
 
     @Override

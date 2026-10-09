@@ -294,7 +294,7 @@ class ProviderAccessTests {
     @Test
     void aDisabledAccountIsNeverCalled() {
         UUID chat = registration.register(new RegisterAccountCommand(owner, ProviderType.of("fake-chat"),
-                new AccountProfile("chat-1", "Chat", null), new TokenCredentials("chat-bot-token-1"), null));
+                new AccountProfile("chat-1", "Chat", null, null), new TokenCredentials("chat-bot-token-1"), null));
         jdbc.update("update connected_account set status = 'DISABLED' where id = ?", chat);
 
         assertThatExceptionOfType(SinoException.class).isThrownBy(() -> access.call(chat, this::answer))
@@ -305,7 +305,7 @@ class ProviderAccessTests {
     @Test
     void aRefusedPlainTokenEndsTheAuthorization() {
         UUID chat = registration.register(new RegisterAccountCommand(owner, ProviderType.of("fake-chat"),
-                new AccountProfile("chat-1", "Chat", null), new TokenCredentials("chat-bot-token-1"), null));
+                new AccountProfile("chat-1", "Chat", null, null), new TokenCredentials("chat-bot-token-1"), null));
 
         assertThatAuthExpired(() -> access.call(chat, refused(1)));
 
@@ -317,7 +317,7 @@ class ProviderAccessTests {
     @Test
     void aRefusedTokenWithoutARefreshTokenEndsTheAuthorization() {
         UUID gmail = registration.register(new RegisterAccountCommand(owner, ProviderType.of("gmail"),
-                new AccountProfile(GOOGLE_ID, "owner@gmail.test", null),
+                new AccountProfile(GOOGLE_ID, "owner@gmail.test", null, null),
                 new OAuth2Credentials(ACCESS, inAnHour(), SCOPES), null));
 
         assertThatAuthExpired(() -> access.call(gmail, refused(1)));
@@ -330,8 +330,8 @@ class ProviderAccessTests {
     @Test
     void anOAuth2TokenOfAConnectorWithoutOAuth2CannotBeRefreshed() {
         UUID chat = registration.register(new RegisterAccountCommand(owner, ProviderType.of("fake-chat"),
-                new AccountProfile("chat-1", "Chat", null), new OAuth2Credentials(ACCESS, inHalfAMinute(), SCOPES),
-                REFRESH));
+                new AccountProfile("chat-1", "Chat", null, null),
+                new OAuth2Credentials(ACCESS, inHalfAMinute(), SCOPES), REFRESH));
 
         assertThatAuthExpired(() -> access.call(chat, refused(1)));
 
@@ -451,7 +451,7 @@ class ProviderAccessTests {
 
     private UUID gmailAccount(Instant expiresAt) {
         return registration.register(new RegisterAccountCommand(owner, ProviderType.of("gmail"),
-                new AccountProfile(GOOGLE_ID, "owner@gmail.test", null),
+                new AccountProfile(GOOGLE_ID, "owner@gmail.test", null, null),
                 new OAuth2Credentials(ACCESS, expiresAt, SCOPES), REFRESH));
     }
 

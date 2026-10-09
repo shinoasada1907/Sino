@@ -165,7 +165,7 @@ class RemoveAccountRevokesTests {
     @Test
     void anAccountWhoseProviderHasNoRevocationRevokesNothing() throws Exception {
         UUID fake = registration.register(new RegisterAccountCommand(owner, ProviderType.of("fake"),
-                new AccountProfile("bot-1", "Bot", null), new TokenCredentials("bot-token-123"), null));
+                new AccountProfile("bot-1", "Bot", null, null), new TokenCredentials("bot-token-123"), null));
 
         remove(fake).andExpect(status().isNoContent());
 
@@ -183,7 +183,7 @@ class RemoveAccountRevokesTests {
 
     private UUID gmailAccount() {
         return registration.register(new RegisterAccountCommand(owner, ProviderType.of("gmail"),
-                new AccountProfile("110248495921238986420", "owner@gmail.test", null),
+                new AccountProfile("110248495921238986420", "owner@gmail.test", null, null),
                 new OAuth2Credentials(ACCESS, null, Set.of(GMAIL_READONLY)), REFRESH));
     }
 

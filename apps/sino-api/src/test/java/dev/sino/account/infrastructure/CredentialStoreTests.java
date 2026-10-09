@@ -77,8 +77,8 @@ class CredentialStoreTests {
     void createAccounts() {
         UUID owner = users.save(new AppUser("alice@example.com", "Alice")).id();
         ProviderType gmail = ProviderType.of("gmail");
-        accountA = accounts.save(ConnectedAccount.register(owner, gmail, "a@gmail.com", "A", null)).id();
-        accountB = accounts.save(ConnectedAccount.register(owner, gmail, "b@gmail.com", "B", null)).id();
+        accountA = accounts.save(ConnectedAccount.register(owner, gmail, "a@gmail.com", "A", null, null)).id();
+        accountB = accounts.save(ConnectedAccount.register(owner, gmail, "b@gmail.com", "B", null, null)).id();
     }
 
     @Test

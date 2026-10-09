@@ -139,7 +139,7 @@ class AccountDirectoryServiceTests {
     }
 
     private static ConnectedAccount register(UUID owner, ProviderType provider, String externalAccountId) {
-        return ConnectedAccount.register(owner, provider, externalAccountId, "Account", null);
+        return ConnectedAccount.register(owner, provider, externalAccountId, "Account", null, null);
     }
 
 }

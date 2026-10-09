@@ -146,6 +146,7 @@ class AccountsApiTests {
                 .andExpect(jsonPath("$.provider").value("fake"))
                 .andExpect(jsonPath("$.externalAccountId").value("me@fake.test"))
                 .andExpect(jsonPath("$.displayName").value("Fake account"))
+                .andExpect(jsonPath("$.address").value(nullValue()))
                 .andExpect(jsonPath("$.avatarUrl").value(nullValue()))
                 .andExpect(jsonPath("$.status").value("CONNECTED"))
                 .andExpect(jsonPath("$.syncEnabled").value(true))
@@ -157,8 +158,37 @@ class AccountsApiTests {
 
         Map<String, Object> fields = JsonPath.read(body, "$");
         assertThat(fields.keySet()).containsExactlyInAnyOrder("id", "provider", "externalAccountId", "displayName",
-                "avatarUrl", "status", "syncEnabled", "lastSyncedAt", "capabilities", "createdAt", "updatedAt");
+                "address", "avatarUrl", "status", "syncEnabled", "lastSyncedAt", "capabilities", "createdAt",
+                "updatedAt");
         assertThat(body).doesNotContain(ACCESS).doesNotContain(REFRESH).doesNotContain("mail.read");
+    }
+
+    @Test
+    void showsTheAddressOfAnAccountInTheListAndAlone() throws Exception {
+        UUID id = connect(owner, FAKE, "1157", "2026-10-05T03:15:00Z");
+        jdbc.update("update connected_account set address = 'me@fake.test' where id = ?", id);
+
+        mvc.perform(get("/api/accounts").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].externalAccountId").value("1157"))
+                .andExpect(jsonPath("$[0].address").value("me@fake.test"));
+        mvc.perform(get("/api/accounts/{id}", id).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.address").value("me@fake.test"));
+    }
+
+    @Test
+    void aPatchCannotChangeTheAddress() throws Exception {
+        UUID id = connect(owner, FAKE, "1157", "2026-10-05T03:15:00Z");
+        jdbc.update("update connected_account set address = 'me@fake.test' where id = ?", id);
+
+        mvc.perform(patchAccount(id, "{\"displayName\": \"Công việc\", \"address\": \"other@example.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("Công việc"))
+                .andExpect(jsonPath("$.address").value("me@fake.test"));
+
+        assertThat(jdbc.queryForObject("select address from connected_account where id = ?", String.class, id))
+                .isEqualTo("me@fake.test");
     }
 
     @Test
@@ -390,8 +420,8 @@ class AccountsApiTests {
 
     /** Saves an account directly, then pins its timestamps so the expected order and JSON are known. */
     private UUID connect(UUID user, ProviderType provider, String externalAccountId, String createdAt) {
-        UUID id = accounts.save(ConnectedAccount.register(user, provider, externalAccountId, "Fake account", null))
-                .id();
+        UUID id = accounts.save(ConnectedAccount.register(user, provider, externalAccountId, "Fake account", null,
+                null)).id();
         OffsetDateTime time = OffsetDateTime.ofInstant(Instant.parse(createdAt), ZoneOffset.UTC);
         jdbc.update("update connected_account set created_at = ?, updated_at = ? where id = ?", time, time, id);
         return id;

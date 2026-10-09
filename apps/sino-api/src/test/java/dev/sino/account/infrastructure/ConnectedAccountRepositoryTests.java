@@ -58,7 +58,7 @@ class ConnectedAccountRepositoryTests {
     @Test
     void savesAndReadsEveryField() {
         ConnectedAccount saved = accounts.saveAndFlush(ConnectedAccount.register(alice, GMAIL, "alice@gmail.com",
-                "Gmail Alice", "https://example.com/a.png"));
+                "Gmail Alice", "https://example.com/a.png", null));
         entityManager.clear();
 
         ConnectedAccount read = accounts.findById(saved.id()).orElseThrow();
@@ -164,7 +164,7 @@ class ConnectedAccountRepositoryTests {
     }
 
     private static ConnectedAccount register(UUID owner, String externalAccountId) {
-        return ConnectedAccount.register(owner, GMAIL, externalAccountId, "Gmail", null);
+        return ConnectedAccount.register(owner, GMAIL, externalAccountId, "Gmail", null, null);
     }
 
 }

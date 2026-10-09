@@ -29,7 +29,7 @@ class MessageProviderTests {
 
         @Override
         public AccountProfile getAccountProfile(ProviderContext context) {
-            return new AccountProfile("alice", "Alice", null);
+            return new AccountProfile("alice", "Alice", null, null);
         }
 
         @Override

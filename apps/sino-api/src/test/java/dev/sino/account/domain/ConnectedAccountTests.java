@@ -11,6 +11,7 @@ import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import dev.sino.account.AccountStatus;
@@ -24,7 +25,7 @@ class ConnectedAccountTests {
 
     enum Action {
 
-        RECONNECT(account -> account.reconnect("Alice", null)),
+        RECONNECT(account -> account.reconnect("Alice", null, null)),
         DISABLE(ConnectedAccount::disable),
         ENABLE(ConnectedAccount::enable),
         AUTH_EXPIRED(ConnectedAccount::markAuthExpired),
@@ -96,14 +97,15 @@ class ConnectedAccountTests {
 
     @Test
     void aNewAccountIsConnectedAndSyncs() {
-        ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "alice@example.com", " Alice ",
-                "https://example.com/a.png");
+        ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "1157", " Alice ",
+                "https://example.com/a.png", " alice@example.com ");
 
         assertThat(account.ownerId()).isEqualTo(OWNER);
         assertThat(account.provider()).isEqualTo(GMAIL);
-        assertThat(account.externalAccountId()).isEqualTo("alice@example.com");
+        assertThat(account.externalAccountId()).isEqualTo("1157");
         assertThat(account.displayName()).isEqualTo("Alice");
         assertThat(account.avatarUrl()).isEqualTo("https://example.com/a.png");
+        assertThat(account.address()).isEqualTo("alice@example.com");
         assertThat(account.status()).isEqualTo(AccountStatus.CONNECTED);
         assertThat(account.syncEnabled()).isTrue();
         assertThat(account.lastSyncedAt()).isNull();
@@ -111,19 +113,19 @@ class ConnectedAccountTests {
 
     @Test
     void refusesMissingData() {
-        assertThatThrownBy(() -> ConnectedAccount.register(null, GMAIL, "alice", "Alice", null))
+        assertThatThrownBy(() -> ConnectedAccount.register(null, GMAIL, "alice", "Alice", null, null))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> ConnectedAccount.register(OWNER, null, "alice", "Alice", null))
+        assertThatThrownBy(() -> ConnectedAccount.register(OWNER, null, "alice", "Alice", null, null))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> ConnectedAccount.register(OWNER, GMAIL, " ", "Alice", null))
+        assertThatThrownBy(() -> ConnectedAccount.register(OWNER, GMAIL, " ", "Alice", null, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> ConnectedAccount.register(OWNER, GMAIL, "alice", " ", null))
+        assertThatThrownBy(() -> ConnectedAccount.register(OWNER, GMAIL, "alice", " ", null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void shortensALongNameFromTheProvider() {
-        ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "alice", "a".repeat(120), null);
+        ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "alice", "a".repeat(120), null, null);
 
         assertThat(account.displayName()).hasSize(ConnectedAccount.MAX_DISPLAY_NAME_LENGTH);
     }
@@ -131,7 +133,7 @@ class ConnectedAccountTests {
     @Test
     void shortensWithoutCuttingAnEmojiInHalf() {
         ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "alice", "a".repeat(99) + EMOJI + EMOJI,
-                null);
+                null, null);
 
         assertThat(account.displayName()).isEqualTo("a".repeat(99) + EMOJI);
     }
@@ -141,10 +143,30 @@ class ConnectedAccountTests {
         ConnectedAccount account = accountIn(AccountStatus.AUTH_EXPIRED);
         account.rename("Work");
 
-        account.reconnect("Alice B", "https://example.com/b.png");
+        account.reconnect("Alice B", "https://example.com/b.png", "alice.b@example.com");
 
         assertThat(account.displayName()).isEqualTo("Alice B");
         assertThat(account.avatarUrl()).isEqualTo("https://example.com/b.png");
+        assertThat(account.address()).isEqualTo("alice.b@example.com");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "   ")
+    void aBlankAddressFromTheProviderIsNoAddress(String address) {
+        ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "1157", "Alice", null, address);
+
+        assertThat(account.address()).isNull();
+    }
+
+    @Test
+    void reconnectWithoutAnAddressDropsTheOldOne() {
+        ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "1157", "Alice", null,
+                "alice@example.com");
+
+        account.reconnect("Alice", null, " ");
+
+        assertThat(account.address()).isNull();
     }
 
     @Test
@@ -225,7 +247,7 @@ class ConnectedAccountTests {
         account.pauseSync();
         account.remove(Instant.parse("2026-10-07T09:00:00Z"));
 
-        Optional<StatusChange> change = account.reconnect("Alice", null);
+        Optional<StatusChange> change = account.reconnect("Alice", null, null);
 
         assertThat(account.isRemoved()).isFalse();
         assertThat(account.removedAt()).isNull();
@@ -238,7 +260,7 @@ class ConnectedAccountTests {
         ConnectedAccount account = accountIn(AccountStatus.AUTH_EXPIRED);
         account.pauseSync();
 
-        account.reconnect("Alice", null);
+        account.reconnect("Alice", null, null);
 
         assertThat(account.syncEnabled()).isFalse();
         assertThat(account.isRemoved()).isFalse();
@@ -251,7 +273,7 @@ class ConnectedAccountTests {
     }
 
     private static ConnectedAccount accountIn(AccountStatus status) {
-        ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "alice@example.com", "Alice", null);
+        ConnectedAccount account = ConnectedAccount.register(OWNER, GMAIL, "alice@example.com", "Alice", null, null);
         switch (status) {
             case CONNECTED -> {
             }

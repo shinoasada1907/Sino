@@ -124,6 +124,18 @@ class AccountRegistrationServiceTests {
     }
 
     @Test
+    void keepsTheAddressFromTheProviderAndTakesTheNewOneOnReconnect() {
+        UUID id = registration.register(new RegisterAccountCommand(owner, FAKE,
+                new AccountProfile("1157", "Me", null, "me@fake.test"), CREDENTIALS, REFRESH));
+        assertThat(accounts.findById(id).orElseThrow().address()).isEqualTo("me@fake.test");
+
+        registration.register(new RegisterAccountCommand(owner, FAKE,
+                new AccountProfile("1157", "Me", null, "new@fake.test"), CREDENTIALS, null));
+
+        assertThat(accounts.findById(id).orElseThrow().address()).isEqualTo("new@fake.test");
+    }
+
+    @Test
     void reconnectingAHealthyAccountChangesNoStatus(AssertablePublishedEvents events) {
         registration.register(command("me@fake.test", "Me", CREDENTIALS, REFRESH));
 
@@ -136,7 +148,7 @@ class AccountRegistrationServiceTests {
     @Test
     void anUnknownProviderIsRefusedAndNothingIsWritten(AssertablePublishedEvents events) {
         RegisterAccountCommand command = new RegisterAccountCommand(owner, ProviderType.of("nope"),
-                new AccountProfile("me@nope.test", "Me", null), CREDENTIALS, null);
+                new AccountProfile("me@nope.test", "Me", null, null), CREDENTIALS, null);
 
         assertThatThrownBy(() -> registration.register(command))
                 .isInstanceOfSatisfying(SinoException.class, failure -> assertThat(failure.errorCode())
@@ -181,7 +193,7 @@ class AccountRegistrationServiceTests {
 
     private RegisterAccountCommand command(String externalAccountId, String displayName,
             OAuth2Credentials credential, String refreshToken) {
-        return new RegisterAccountCommand(owner, FAKE, new AccountProfile(externalAccountId, displayName, null),
+        return new RegisterAccountCommand(owner, FAKE, new AccountProfile(externalAccountId, displayName, null, null),
                 credential, refreshToken);
     }
 

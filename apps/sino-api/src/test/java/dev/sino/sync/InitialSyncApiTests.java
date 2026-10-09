@@ -603,7 +603,8 @@ class InitialSyncApiTests {
 
     private UUID connect(UUID user) {
         return registration.register(new RegisterAccountCommand(user, ScriptedProvider.TYPE,
-                new AccountProfile("fake-" + UUID.randomUUID(), "Fake", null), new TokenCredentials(TOKEN), null));
+                new AccountProfile("fake-" + UUID.randomUUID(), "Fake", null, null), new TokenCredentials(TOKEN),
+                null));
     }
 
     private org.springframework.test.web.servlet.ResultActions start(UUID account, String range) throws Exception {
@@ -665,7 +666,7 @@ class InitialSyncApiTests {
 
         @Override
         public AccountProfile getAccountProfile(ProviderContext context) {
-            return new AccountProfile("stuck", "Stuck", null);
+            return new AccountProfile("stuck", "Stuck", null, null);
         }
 
         @Override

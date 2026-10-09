@@ -47,6 +47,9 @@ Một conversation cần trả lời khi thư mới nhất là thư đến và k
 ### D-74 — Thư qua nhóm vẫn là thư hàng loạt · **Accepted: A** (người dùng, 2026-10-09: "chọn A")
 Thư có header `List-Unsubscribe` vẫn được đánh dấu `bulk`, kể cả thư đi qua Google Groups hay một địa chỉ chung kiểu `support@` dựng bằng nhóm: các conversation đó vẫn ở Hộp thư nhưng không vào "Cần trả lời". Giữ nguyên D-68 như BE-40 đã cài. Số D-70…D-73 do phiên web giữ cho FE-50 (`openspec/changes/fe-ui-inbox/design.md`). **Phương án bị loại:** B. thư có `List-Id` mà không có nhãn `CATEGORY_*` thì không coi là hàng loạt; C. để người dùng đánh dấu tay sau này.
 
+### D-75 — Địa chỉ của account (`address`) · **Accepted: A** (người dùng, 2026-10-09)
+`GET /api/accounts` và `GET /api/accounts/{id}` có thêm `address` (chuỗi hoặc `null`): địa chỉ người khác dùng để liên lạc với account, với Gmail là claim `email` lúc kết nối hoặc kết nối lại. Lưu ở cột mới `connected_account.address` (V11), cho phép `null`; người dùng không sửa được (khác `displayName`). Account kết nối trước thay đổi này giữ `null` tới lần kết nối lại; web hiện `address ?? displayName`. Không đổi scope Google. Lý do: `externalAccountId` của Gmail là `sub` (định danh bất biến, spec `account-connect`), web hiện nó như email nên người dùng thấy một dãy số; `displayName` chỉ là email tới khi người dùng đổi tên. Phiên web (sino-web-33) đề nghị trường này. **Phương án bị loại:** B. như A nhưng migration chép `displayName` sang `address` cho account Gmail cũ trông giống email (phỏng đoán, sai nếu người dùng đã đổi tên); C. không thêm, web hiện `displayName` (mất email khi đổi tên).
+
 ### Chốt kỹ thuật (agent, trong phạm vi trên)
 - `conversation` đọc/ghi bằng SQL qua `JdbcClient` (`INSERT … ON CONFLICT … DO UPDATE`, truy vấn danh sách keyset), không có entity JPA: upsert hàng loạt và projection là SQL thuần.
 - Không khóa ngoại sang `connected_account` (bảng của module khác; quy ước giữa module chỉ giữ ID). Khóa ngoại trong cùng module: `conversation_participant`/`message` → `conversation`, `attachment` → `message`, `message.sender_participant_id` → `conversation_participant`.
@@ -54,7 +57,7 @@ Thư có header `List-Unsubscribe` vẫn được đánh dấu `bulk`, kể cả
 - Đoạn xem trước: 200 ký tự đầu của `text_content` thư mới nhất, khoảng trắng gộp; không có chữ thì `null`. Không dùng `snippet` riêng của Gmail (contract không có).
 - Cột `counterpart` (tên người bên kia, cho `title` của email) tính ở bước tổng hợp: người gửi thư đến mới nhất, không có thì người tham gia đầu tiên không phải mình (tên, không có tên thì email/ID).
 - View `scheduled`, `snoozed` hợp lệ nhưng trả rỗng (tính năng sau); số đếm tương ứng là 0.
-- `syncProgress`, `storedMessages` của trang Tài khoản lấy từ `GET /api/accounts/{id}/initial-sync`; `GET /api/accounts` không đổi (module `account` không phụ thuộc hai module mới).
+- `syncProgress`, `storedMessages` của trang Tài khoản lấy từ `GET /api/accounts/{id}/initial-sync`; ~~`GET /api/accounts` không đổi~~ → chỉ thêm `address` (D-75, BE-47). **LÝ DO:** người dùng thấy mã Google thay cho email trên màn thật; module `account` vẫn không phụ thuộc hai module mới.
 - Thử lại khi nhập: `RATE_LIMITED` chờ `Retry-After` (không có thì 30 giây, tối đa 5 phút), tối đa 5 lần liên tiếp; `PROVIDER_UNAVAILABLE` sau 10/30/60 giây; thời gian chờ là cấu hình để test chạy nhanh.
 - Số phút ước lượng: tốc độ giả định ban đầu 200–400 thư/phút (đọc tuần tự, mỗi thư một lời gọi); BE-46 đo tốc độ thật với Gmail và chỉnh.
 - Giả định một tiến trình backend (MVP): chạy tiếp các dòng `RUNNING` khi ứng dụng sẵn sàng; nhiều tiến trình cần lease/khóa theo account (F07).
@@ -194,17 +197,20 @@ PATCH /api/conversations/{id}     { read?: boolean, archived?: boolean }  -> Con
 ## Migration Plan
 
 - V6–V9 (`conversation`), V10 (`sync`): bảng mới, không đổi bảng cũ; rollback = bỏ bảng (chưa có dữ liệu người dùng ngoài máy local).
+- V11 (`account`, BE-47): thêm cột `address` cho phép `null` vào `connected_account`, không điền ngược (D-75); rollback = bỏ cột.
+- Delta `account-connect` của change này sửa requirement "Định danh Gmail bất biến" mà `f04a-gmail-connect` thêm vào: archive f04a trước f05; nếu requirement đó còn được sửa trong f04a thì chép lại câu chữ mới sang delta của f05, kẻo archive f05 ghi đè bằng bản cũ (review BE-47).
 - Người dùng kết nối Gmail (đang kết nối từ BE-39; Testing: 7 ngày) để chạy test thật ở BE-46.
 
 ## Open Questions
 
+- **Decision Needed — kết nối lại có đè tên người dùng đặt không?** (review BE-47, 2026-10-10). Từ F02, `reconnect` thay `displayName` bằng tên của provider (với Gmail là email), nên tên người dùng tự đặt ("Công việc") mất sau mỗi lần kết nối lại. Trước D-75 đó là cách duy nhất để email quay lại màn hình; nay email đã có `address` riêng. Phương án: (A) giữ như spec `connected-accounts` hiện tại; (B) chỉ lấy tên của provider lúc tạo account, kết nối lại giữ tên đang có; (C) như B nhưng chỉ giữ khi người dùng đã đổi tên (cần cột đánh dấu). Đề xuất B: đơn giản, đúng ý người dùng; đổi spec `connected-accounts` và một test domain.
 - "Dùng nhãn Gmail làm bộ lọc" và "Chỉ tải tệp đính kèm khi bạn mở" trên bước "Đồng bộ" của canvas: F05 không lưu nhãn Gmail và không tải nội dung tệp (F06), nên hai lựa chọn chưa có tác dụng. F04b từng ghi lọc theo nhãn cho F05; buổi brainstorm F05 chưa chốt — đề xuất hoãn tới khi có yêu cầu lọc theo nhãn cụ thể; web giữ hai công tắc ở dữ liệu mẫu hoặc ẩn.
 - Cách hiện thư "Bạn" khi người gửi là chính account trong `snippetFrom`/`title`: web quyết hiển thị (API trả tên/email; `participants[].self` cho biết).
 - ~~**Decision Needed — thư qua nhóm có phải thư hàng loạt?**~~ → **chốt D-74 = A** (người dùng, 2026-10-09). (review BE-40, 2026-10-09). D-68 đánh dấu `bulk` khi có header `List-Unsubscribe`. Thư đi qua Google Groups, kể cả địa chỉ chung kiểu `support@` dựng bằng nhóm, thường cũng có header này (chưa kiểm với hộp thư thật), nên thư khách hỏi tới đó sẽ không vào "Cần trả lời". Phương án: (A) giữ quy tắc như đã duyệt; (B) thư có `List-Id` mà không có nhãn `CATEGORY_*` thì không coi là hàng loạt; (C) để người dùng đánh dấu tay sau này. BE-40 cài đúng D-68 (A); đổi sang B chỉ sửa `GmailMessageNormalizer` và thư mẫu. Cần chốt trước BE-43.
 
 ## Definition of Done — F05
 
-- [ ] Các scenario của `conversation-store`, `inbox-api`, `initial-sync` và delta `provider-contract`, `gmail-reading`, `connected-accounts` có test và xanh.
+- [ ] Các scenario của `conversation-store`, `inbox-api`, `initial-sync` và delta `provider-contract`, `gmail-reading`, `connected-accounts`, `account-connect` có test và xanh.
 - [ ] `./mvnw -B -ntp verify` xanh; `ModularityTests` xanh (không vòng phụ thuộc); kiểm tra ngược từng task.
 - [ ] Nhập thật với Gmail (`real-gmail`) chạy với account thật, có số đếm và tốc độ đo được; hoặc ghi rõ NOT VERIFIED và lý do.
 - [ ] README (API Hộp thư, lần nhập đầu, chạy test thật), file kiến thức Phase 2 (`.md` + `.docx`).

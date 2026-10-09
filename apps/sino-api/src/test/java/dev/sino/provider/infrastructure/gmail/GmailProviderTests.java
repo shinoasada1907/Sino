@@ -97,6 +97,7 @@ class GmailProviderTests {
 
         assertThat(profile.externalAccountId()).isEqualTo(SUB);
         assertThat(profile.displayName()).isEqualTo("owner@gmail.test");
+        assertThat(profile.address()).isEqualTo("owner@gmail.test");
         assertThat(profile.avatarUrl()).isNull();
         google.verify(1, getRequestedFor(urlPathEqualTo(USERINFO)));
     }

@@ -91,7 +91,7 @@ class AccountLifecycleEndToEndTests {
     void anAccountGoesThroughItsWholeLifeWithoutItsTokensShowingAnywhere(CapturedOutput output) throws Exception {
         UUID owner = users.findIdByEmail("owner@sino.test").orElseThrow();
         UUID id = registration.register(new RegisterAccountCommand(owner, FAKE,
-                new AccountProfile("me@fake.test", "Me", null),
+                new AccountProfile("me@fake.test", "Me", null, null),
                 new OAuth2Credentials(ACCESS, Instant.parse("2026-10-07T10:00:00Z"), Set.of("mail.read")), REFRESH));
 
         // The database holds ciphertext only, read with the real psql inside the database container.

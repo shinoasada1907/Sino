@@ -573,7 +573,7 @@ class ConversationsApiTests {
 
     private UUID connect(UUID user, String provider, String externalAccountId) {
         return accounts.save(ConnectedAccount.register(user, ProviderType.of(provider), externalAccountId, "Account",
-                null)).id();
+                null, null)).id();
     }
 
     private void expire(UUID account) {

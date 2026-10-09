@@ -145,6 +145,7 @@ class ConnectCallbackTests {
         assertThat(accounts.json("$[0].provider")).isEqualTo("gmail");
         assertThat(accounts.json("$[0].externalAccountId")).isEqualTo(SUB);
         assertThat(accounts.json("$[0].displayName")).isEqualTo("owner@gmail.test");
+        assertThat(accounts.json("$[0].address")).isEqualTo("owner@gmail.test");
         assertThat(accounts.json("$[0].status")).isEqualTo("CONNECTED");
         String storedRefreshToken = jdbc.queryForObject(
                 "select refresh_token_enc from account_credential where account_id = ?", String.class, accountId);
@@ -174,13 +175,16 @@ class ConnectCallbackTests {
     @Test
     void reconnectsTheAccountWhoseAuthorizationRanOut() {
         UUID account = anExpiredGmailAccount(SUB);
+        assertThat(browser.get("/api/accounts/" + account).json("$.address")).as("connected before D-75").isNull();
         googleGivesTokens(GMAIL_READONLY, true);
         googleSaysTheAccountIs(SUB, "owner@gmail.test");
 
         Response callback = callback("code=" + CODE + "&state=" + reconnect(account).get("state"));
 
         assertThat(connectedAccountIn(callback)).isEqualTo(account);
-        assertThat(browser.get("/api/accounts/" + account).json("$.status")).isEqualTo("CONNECTED");
+        Response reconnected = browser.get("/api/accounts/" + account);
+        assertThat(reconnected.json("$.status")).isEqualTo("CONNECTED");
+        assertThat(reconnected.json("$.address")).isEqualTo("owner@gmail.test");
     }
 
     @Test
@@ -425,7 +429,7 @@ class ConnectCallbackTests {
 
     private UUID aConnectedGmailAccount(String sub) {
         return registration.register(new RegisterAccountCommand(owner(), ProviderType.of("gmail"),
-                new AccountProfile(sub, sub + "@gmail.test", null),
+                new AccountProfile(sub, sub + "@gmail.test", null, null),
                 new OAuth2Credentials("ya29.old-access-token", null, Set.of(GMAIL_READONLY)), "1//old-refresh"));
     }
 

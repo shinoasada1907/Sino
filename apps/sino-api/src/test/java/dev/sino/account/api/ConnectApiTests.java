@@ -150,7 +150,7 @@ class ConnectApiTests {
     @Test
     void anAccountOfAnotherProviderIsNotFoundForGmail() throws Exception {
         UUID fake = registration.register(new RegisterAccountCommand(owner, ProviderType.of("fake"),
-                new AccountProfile("me@fake.test", "Me", null), credentials(), null));
+                new AccountProfile("me@fake.test", "Me", null, null), credentials(), null));
 
         reconnect("gmail", fake).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
@@ -211,7 +211,7 @@ class ConnectApiTests {
 
     private UUID connectGmail() {
         return registration.register(new RegisterAccountCommand(owner, ProviderType.of("gmail"),
-                new AccountProfile(SUB, "owner@gmail.test", null), credentials(), "1//sample-refresh-token"));
+                new AccountProfile(SUB, "owner@gmail.test", null, null), credentials(), "1//sample-refresh-token"));
     }
 
     private static OAuth2Credentials credentials() {

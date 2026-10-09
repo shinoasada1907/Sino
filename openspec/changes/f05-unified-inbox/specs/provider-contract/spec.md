@@ -17,3 +17,16 @@ Metadata của `NormalizedMessage` MAY có khóa dùng chung `bulk` với giá t
 #### Scenario: Thư quảng cáo
 - **WHEN** connector biết một thư là thư hàng loạt
 - **THEN** metadata của thư có `bulk` = `"true"`
+
+## MODIFIED Requirements
+
+### Requirement: Contract lấy hồ sơ account
+`getAccountProfile(context)` MUST trả `externalAccountId` không rỗng và tên hiển thị; ảnh đại diện và địa chỉ (`address`, ví dụ email, D-75) là tùy chọn.
+
+#### Scenario: Lấy hồ sơ sau khi xác thực
+- **WHEN** bên gọi truyền context có credential hợp lệ
+- **THEN** connector trả hồ sơ account có `externalAccountId` ổn định giữa các lần gọi
+
+#### Scenario: Hồ sơ không có địa chỉ
+- **WHEN** connector tạo hồ sơ không có ảnh đại diện và không có địa chỉ
+- **THEN** hồ sơ hợp lệ, `avatarUrl` và `address` là `null`

@@ -1394,6 +1394,79 @@ Làm hỏng code mỗi lần một chỗ (28 lần); lần chạy mốc khi chư
 | `POST` trả 200 thay vì 202; không bắt buộc `range` | nhập hết các trang; thiếu `range` |
 | Sau review: `ProviderAccess` gọi account đã tắt; bắt đầu nhập account đã tắt; `POST` không nhận lại dòng kẹt; không đặt lại tốc độ của vòng; hỏi mãi cursor không tiến; ghi `FAILED` khi đang tắt máy; không log ID item bỏ qua; bật lại chi tiết lỗi của PostgreSQL | các test account đã tắt; dòng không còn ai chạy; tốc độ của vòng; cursor không tiến; tắt máy ở lần thử cuối; log; `DatabaseErrorsTests` |
 
+## 17. Địa chỉ của account: trường `address` (BE-47)
+
+Trên màn thật, mục "Tài khoản" của Hộp thư hiện `115758365451560723981` thay cho địa chỉ Gmail. Web đang hiện `externalAccountId` ở mọi chỗ canvas ghi địa chỉ, vì trong dữ liệu mẫu trường đó là email. Với Gmail thật, `externalAccountId` là `sub`: mã Google gán cho tài khoản, không phải thứ để người dùng đọc. Người dùng chốt **D-75**: thêm trường `address` vào API account.
+
+```text
+Google userinfo { sub, email }
+  -> GmailProvider.getAccountProfile        AccountProfile(sub, email, null, email)
+                                                           |      |           |
+                                          externalAccountId  displayName  address
+  -> ConnectService (callback F04a)         RegisterAccountCommand
+  -> AccountRegistrationService.register    mới: ConnectedAccount.register(..., address)
+                                            có rồi: account.reconnect(..., address)
+  -> connected_account.address (V11, cho phép NULL)
+  -> AccountResponse -> GET /api/accounts   { ..., "displayName", "address", ... }
+  -> web hiện  address ?? displayName
+```
+
+### 17.1 Vì sao không dùng luôn email làm `externalAccountId` (câu gợi ý của task)
+- **Định danh phải không đổi.** `externalAccountId` nằm trong khóa duy nhất `(user_id, provider, external_account_id)`; nhờ khóa đó mà kết nối lại cùng một tài khoản Google thì dùng lại đúng dòng cũ, không sinh account thứ hai. Email thì đổi được: tài khoản Google Workspace đổi tên miền, người dùng đổi địa chỉ chính. Nếu định danh là email, lần kết nối sau khi đổi địa chỉ sẽ tạo account mới, và thư đã nhập nằm ở account cũ.
+- **Mỗi trường một việc.** `externalAccountId` để máy nhận ra tài khoản; `displayName` để người dùng đặt tên (đổi được qua `PATCH`); `address` để hiện cho người đọc biết đây là hộp thư nào. Dồn hai việc vào một trường thì sửa việc này làm hỏng việc kia.
+- **Vì sao không chỉ dùng `displayName`?** Lúc kết nối, tên mặc định của Gmail đúng là email. Nhưng người dùng đổi tên thành "Công việc" thì email biến mất khỏi giao diện. `address` thì người dùng không sửa được.
+
+### 17.2 Thêm một thành phần vào `record`
+`AccountProfile` là `record`. Thêm `address` vào danh sách thành phần làm đổi **constructor chuẩn** (canonical constructor): mọi chỗ đang viết `new AccountProfile(a, b, c)` thành lỗi biên dịch. Đó là điều tốt: trình biên dịch liệt kê đủ mọi chỗ cần nghĩ lại, không sót chỗ nào.
+
+- Có thể thêm một constructor phụ 3 đối số để code cũ khỏi sửa. Task này **không** làm vậy: với constructor phụ, một connector mới quên địa chỉ vẫn biên dịch được và lặng lẽ có `address = null`. Viết rõ `null` ở mỗi chỗ thì người đọc thấy ngay "chỗ này cố ý không có địa chỉ".
+- `ConnectedAccount.register` và `reconnect` cũng thêm tham số `address`. 35 chỗ gọi trong test được sửa bằng script đếm đối số, rồi trình biên dịch xác nhận không còn chỗ nào sót.
+
+### 17.3 Dữ liệu lạ từ provider: chuẩn hóa, không từ chối
+Tên và địa chỉ đến từ provider, Sino không kiểm soát. Quy tắc của module `account` là **một giá trị lạ không được chặn việc kết nối**:
+
+| Giá trị từ provider | `displayName` | `address` |
+|---|---|---|
+| Có khoảng trắng hai đầu | bỏ khoảng trắng | bỏ khoảng trắng |
+| Rỗng hoặc chỉ khoảng trắng | từ chối (bắt buộc có tên) | lưu là `null` |
+| Dài hơn giới hạn | cắt còn 100 ký tự | giữ nguyên (cột `text`) |
+
+Cắt ngắn một địa chỉ sẽ cho ra địa chỉ sai, nên cột `address` là `text`, không giới hạn độ dài như `display_name`. Kết nối lại luôn **thay** địa chỉ bằng giá trị mới, kể cả khi provider không đưa: địa chỉ cũ không còn đúng thì hiện `displayName` còn hơn hiện sai.
+
+### 17.4 Migration thêm cột cho phép NULL
+```sql
+ALTER TABLE connected_account ADD COLUMN address text;
+```
+- PostgreSQL thêm cột cho phép `NULL`, không có giá trị mặc định, chỉ bằng cách sửa mô tả bảng: không ghi lại dòng nào, chạy tức thì dù bảng lớn.
+- **Không điền ngược** cho account cũ (D-75). Đoán từ `display_name` sẽ sai nếu người dùng đã đổi tên; account cũ có địa chỉ ở lần kết nối lại, trong lúc chờ web hiện `displayName`.
+- `spring.jpa.hibernate.ddl-auto: validate`: nếu entity có `@Column(name = "address")` mà database chưa có cột, ứng dụng không khởi động. Một lỗi cố ý đổi tên cột trong entity làm mọi test chạy cả ứng dụng đỏ ngay.
+
+### 17.5 `PATCH` không đổi được `address`
+`UpdateAccountRequest` không có trường `address`. Jackson của Spring Boot mặc định **bỏ qua** trường JSON lạ (`FAIL_ON_UNKNOWN_PROPERTIES = false`), nên body `{"displayName": "Công việc", "address": "other@example.com"}` đổi tên và để nguyên địa chỉ. Test `aPatchCannotChangeTheAddress` chứng minh điều đó: nếu một ngày ai đó thêm `address` vào request, test sẽ đỏ.
+
+### 17.6 Kiểm chứng (BE-47)
+- **Đỏ trước:** thêm chữ ký mới nhưng chưa có logic (`address()` trả `null`, chưa có cột) rồi chạy 5 lớp test: 4 test sai (địa chỉ `null`) và 2 test lỗi (cột `address` chưa có). Sau khi cài: 102 test xanh.
+- **Kiểm tra ngược:** 10 lỗi cố ý, tất cả bị bắt; lần chạy mốc không sửa gì thì xanh.
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Không bỏ khoảng trắng hai đầu của địa chỉ | `aNewAccountIsConnectedAndSyncs` |
+| Giữ chuỗi chỉ có khoảng trắng | `aBlankAddressFromTheProviderIsNoAddress`, `reconnectWithoutAnAddressDropsTheOldOne` |
+| Đăng ký mới bỏ mất địa chỉ | `aNewAccountIsConnectedAndSyncs`, `keepsTheAddressFromTheProviderAndTakesTheNewOneOnReconnect` |
+| Kết nối lại giữ địa chỉ cũ khi provider không đưa | `reconnectWithoutAnAddressDropsTheOldOne` |
+| `address()` luôn trả `null` | test của service và của API |
+| Đổi tên cột trong entity | mọi test chạy cả ứng dụng (`ddl-auto: validate`) |
+| Service không chuyển địa chỉ khi đăng ký, hoặc khi kết nối lại | `keepsTheAddressFromTheProviderAndTakesTheNewOneOnReconnect` |
+| Gmail không đưa địa chỉ | `theProfileIsTheGoogleSubjectAndTheEmail` |
+| API không trả địa chỉ | `showsTheAddressOfAnAccountInTheListAndAlone`, `aPatchCannotChangeTheAddress` |
+
+- **Toàn bộ:** `./mvnw -B -ntp verify` → 835 test, 0 lỗi, 3 bỏ qua.
+- **Sau review:** không có lỗi nặng. Ba điểm nhỏ đã sửa:
+  - Test đi hết luồng kết nối (callback) chưa kiểm `address`, nên nếu `ConnectService` sau này dựng lại hồ sơ mà quên địa chỉ thì chỉ test của service đỏ. Giờ test callback kiểm cả hai đường: kết nối mới có email; account cũ đang `null` nhận email khi kết nối lại. Hai lỗi cố ý tương ứng giờ bị test callback bắt.
+  - README từng ghi `PATCH` "bỏ qua" `address`. Đúng khi có trường khác đi kèm; còn body chỉ có `address` thì như `{}`: không có trường hợp lệ nào, nên `400 VALIDATION_FAILED`.
+  - Delta `account-connect` của F05 sửa một requirement do F04a thêm: phải archive F04a trước, và sửa câu chữ ở F04a thì phải chép lại sang F05.
+- **Câu hỏi còn mở (chờ người dùng):** kết nối lại vẫn thay tên người dùng tự đặt bằng email (từ F02). Nay email đã có `address` riêng, nên có thể giữ tên người dùng đặt; xem Open Questions trong design của F05.
+
 ---
 
 ## Tự kiểm tra
@@ -1489,3 +1562,8 @@ Làm hỏng code mỗi lần một chỗ (28 lần); lần chạy mốc khi chư
 89. Vì sao chặn account đã tắt ở `ProviderAccess` chứ không chỉ ở API nhập thư?
 90. "Đếm số yêu cầu" khác "nhớ account nào đang chạy" ở điểm nào, và trường hợp nào thì cách thứ hai làm mất một lần bấm "Bắt đầu"?
 91. Vì sao một lỗi `CHECK` của PostgreSQL có thể đưa nội dung thư vào log, và `logServerErrorDetail=false` chặn nó thế nào?
+92. Vì sao `externalAccountId` của Gmail là `sub` chứ không là email, và vì sao vẫn cần thêm `address`?
+93. Thêm một thành phần vào `record` thì các chỗ đang gọi constructor ra sao? Vì sao task này không thêm constructor phụ 3 đối số?
+94. Vì sao tên quá dài từ provider bị cắt ngắn, còn địa chỉ thì không?
+95. Vì sao migration V11 không chép `display_name` sang `address` cho account cũ, dù với account của bạn hai giá trị đang giống nhau?
+96. Client gửi `PATCH` có `"address"`: phần nào của Spring làm trường đó bị bỏ qua, và test nào sẽ đỏ nếu sau này ai đó cho sửa nó?

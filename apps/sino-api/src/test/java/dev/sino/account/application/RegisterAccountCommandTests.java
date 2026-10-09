@@ -16,7 +16,7 @@ class RegisterAccountCommandTests {
     @Test
     void neverPrintsASecret() {
         RegisterAccountCommand command = new RegisterAccountCommand(UUID.randomUUID(), ProviderType.of("gmail"),
-                new AccountProfile("me@gmail.com", "Me", null),
+                new AccountProfile("me@gmail.com", "Me", null, null),
                 new OAuth2Credentials("ya29.sample-access-token", null, Set.of()), "1//sample-refresh-token");
 
         assertThat(command.toString())
