@@ -185,6 +185,26 @@ export function monthCells(range: CalendarRange, anchor: LocalDate, today: Local
 
 type ItemKind = 'event' | 'task' | 'reminder'
 
+/** The mark before an item (canvas `.mo-item`, `.ag-item`): `source` is the icon of the provider it came from. */
+export type ItemIcon = 'done' | 'reminder' | 'source' | 'repeat' | 'task' | 'event'
+
+// Canvas order: a done task, a reminder, then where it came from, then whether it repeats, then what it is.
+function iconOf(item: { kind: ItemKind; done: boolean; source: TaskSource | null; recurrence: unknown }): { icon: ItemIcon; provider: string | null } {
+  if (item.done) {
+    return { icon: 'done', provider: null }
+  }
+  if (item.kind === 'reminder') {
+    return { icon: 'reminder', provider: null }
+  }
+  if (item.source) {
+    return { icon: 'source', provider: item.source.provider }
+  }
+  if (item.recurrence) {
+    return { icon: 'repeat', provider: null }
+  }
+  return { icon: item.kind === 'task' ? 'task' : 'event', provider: null }
+}
+
 // The lists below are built appointments, then tasks, then reminders, and sorting keeps that order at one time (the sort
 // of JavaScript is stable): at 09:00 the appointment, the task, then the reminder.
 const byTime = (a: { at: string }, b: { at: string }) => Date.parse(a.at) - Date.parse(b.at)
@@ -202,6 +222,8 @@ const taskLink = (taskId: string) => `/tasks/${taskId}`
 export interface MonthItem {
   kind: ItemKind
   id: string
+  icon: ItemIcon
+  provider: string | null
   /** "10:00 Họp thiết kế"; a whole-day item without the time. */
   text: string
   tone: 'over' | 'done' | null
@@ -215,22 +237,39 @@ export function monthItems(data: CalendarData, day: LocalDate, now: Date, timeZo
   const taskItem = (task: CalendarTask, text: string): MonthItem => ({
     kind: 'task',
     id: task.id,
+    ...iconOf({ kind: 'task', done: task.status === 'DONE', source: task.source, recurrence: task.recurrence }),
     text,
     tone: task.status === 'DONE' ? 'done' : isLate(task, now, timeZone) ? 'over' : null,
     to: taskLink(task.taskId),
   })
   const whole = allDay.map((item) =>
-    'eventId' in item ? { kind: 'event' as const, id: item.id, text: item.title, tone: null, to: `/calendar/${item.id}` } : taskItem(item, item.title),
+    'eventId' in item
+      ? { kind: 'event' as const, id: item.id, ...iconOf({ kind: 'event', done: false, source: item.source, recurrence: item.recurrence }), text: item.title, tone: null, to: `/calendar/${item.id}` }
+      : taskItem(item, item.title),
   )
   const timedItems = [
     ...timed.map((event) => ({
       at: event.startsAt!,
-      item: { kind: 'event' as const, id: event.id, text: `${clock(event.startsAt!)} ${event.title}`, tone: null, to: `/calendar/${event.id}` },
+      item: {
+        kind: 'event' as const,
+        id: event.id,
+        ...iconOf({ kind: 'event', done: false, source: event.source, recurrence: event.recurrence }),
+        text: `${clock(event.startsAt!)} ${event.title}`,
+        tone: null,
+        to: `/calendar/${event.id}`,
+      },
     })),
     ...chips.map((task) => ({ at: task.dueAt!, item: taskItem(task, `${clock(task.dueAt!)} ${task.title}`) })),
     ...reminders.map((reminder) => ({
       at: reminder.at,
-      item: { kind: 'reminder' as const, id: reminder.id, text: `${clock(reminder.at)} ${reminder.taskTitle}`, tone: null, to: taskLink(reminder.taskId) },
+      item: {
+        kind: 'reminder' as const,
+        id: reminder.id,
+        ...iconOf({ kind: 'reminder', done: false, source: reminder.source, recurrence: null }),
+        text: `${clock(reminder.at)} ${reminder.taskTitle}`,
+        tone: null,
+        to: taskLink(reminder.taskId),
+      },
     })),
   ].sort(byTime)
   return [...whole, ...timedItems.map((entry) => entry.item)]
@@ -245,6 +284,8 @@ export function reminderTitle(taskTitle: string): string {
 export interface AgendaItem {
   kind: ItemKind
   id: string
+  icon: ItemIcon
+  provider: string | null
   /** "16:00 – 17:00", "07:45", "Hạn 30/09", "cả ngày". */
   time: string
   title: string
@@ -278,6 +319,7 @@ export function agendaDays(data: CalendarData, now: Date, timeZone?: string): Ag
     return {
       kind: 'task',
       id: task.id,
+      ...iconOf({ kind: 'task', done: task.status === 'DONE', source: task.source, recurrence: task.recurrence }),
       time: over && daysLate >= 1 ? `Hạn ${dayMonthOfDate(dueDay(task))}` : task.dueAt ? clock(task.dueAt) : 'cả ngày',
       title: task.title,
       source: task.source,
@@ -304,6 +346,7 @@ export function agendaDays(data: CalendarData, now: Date, timeZone?: string): Ag
     return {
       kind: 'event',
       id: event.id,
+      ...iconOf({ kind: 'event', done: false, source: event.source, recurrence: event.recurrence }),
       time: timed ? `${clock(event.startsAt!)} – ${clock(event.endsAt!)}` : 'cả ngày',
       title: event.title,
       source: event.source,
@@ -317,6 +360,7 @@ export function agendaDays(data: CalendarData, now: Date, timeZone?: string): Ag
   const reminderItem = (reminder: CalendarReminder): AgendaItem => ({
     kind: 'reminder',
     id: reminder.id,
+    ...iconOf({ kind: 'reminder', done: false, source: reminder.source, recurrence: null }),
     time: clock(reminder.at),
     title: reminderTitle(reminder.taskTitle),
     source: reminder.source,

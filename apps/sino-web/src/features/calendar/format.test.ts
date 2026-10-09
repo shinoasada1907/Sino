@@ -196,6 +196,37 @@ describe('the month', () => {
     ])
     expect(items.map((item) => item.to)).toEqual(['/tasks/photos', '/tasks/clinic', '/tasks/late', '/calendar/call', '/tasks/rent', '/tasks/task-x'])
   })
+
+  it('marks each item as the canvas does: done, reminder, source, repeat, then task or appointment', () => {
+    const rule = weekly
+    const items = monthItems(
+      data({
+        events: [
+          event({ id: 'plain', startsAt: vn('2026-10-02T10:00'), endsAt: vn('2026-10-02T11:00') }),
+          event({ id: 'from-chat', startsAt: vn('2026-10-02T11:00'), endsAt: vn('2026-10-02T12:00'), recurrence: rule, source: { ...source, preview: null } }),
+          event({ id: 'repeat', startsAt: vn('2026-10-02T12:00'), endsAt: vn('2026-10-02T13:00'), recurrence: rule }),
+        ],
+        tasks: [
+          task({ id: 'done', status: 'DONE', dueAt: vn('2026-10-02T13:00'), source }),
+          task({ id: 'task', dueAt: vn('2026-10-02T14:00') }),
+          task({ id: 'repeat-task', dueAt: vn('2026-10-02T15:00'), recurrence: rule }),
+        ],
+        reminders: [reminder({ id: 'r', at: vn('2026-10-02T16:00'), source })],
+      }),
+      TODAY,
+      now,
+      TZ,
+    )
+    expect(items.map((item) => [item.id, item.icon, item.provider])).toEqual([
+      ['plain', 'event', null],
+      ['from-chat', 'source', 'zalo'],
+      ['repeat', 'repeat', null],
+      ['done', 'done', null],
+      ['task', 'task', null],
+      ['repeat-task', 'repeat', null],
+      ['r', 'reminder', null],
+    ])
+  })
 })
 
 describe('the month, at one time', () => {
@@ -263,8 +294,11 @@ describe('the agenda', () => {
       ['09:00', 'Nhắc: Trả lời “Hợp đồng thuê văn phòng”', null, null],
       ['cả ngày', 'Sinh nhật Hà', null, null],
     ])
-    expect(items[0]).toMatchObject({ kind: 'task', over: true, done: false, to: '/tasks/bill' })
-    expect(items[3]).toMatchObject({ kind: 'event', to: '/calendar/call', source: { title: 'Gia đình' } })
+    expect(items[0]).toMatchObject({ kind: 'task', over: true, done: false, to: '/tasks/bill', icon: 'task' })
+    expect(items[1]).toMatchObject({ icon: 'done' })
+    expect(items[2]).toMatchObject({ icon: 'reminder' })
+    expect(items[3]).toMatchObject({ kind: 'event', to: '/calendar/call', source: { title: 'Gia đình' }, icon: 'source', provider: 'zalo' })
+    expect(items[4]).toMatchObject({ icon: 'repeat' })
   })
 
   it('names a reminder by its task', () => {

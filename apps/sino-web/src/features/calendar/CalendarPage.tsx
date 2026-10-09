@@ -4,7 +4,9 @@ import { cn } from '@/shared/lib/utils'
 import { useNow } from '@/shared/time/useNow'
 import { Button } from '@/shared/ui/button'
 import { CalendarHeader, CalendarLegend } from './components/CalendarHeader'
+import { AgendaView } from './components/AgendaView'
 import { EventDetail } from './components/EventDetail'
+import { MonthView } from './components/MonthView'
 import { WeekView } from './components/WeekView'
 import { calendarHead, rangeOf, timeZoneLabel } from './format'
 import { useCalendar, useCalendarView } from './useCalendar'
@@ -38,7 +40,11 @@ export function CalendarPage() {
           </p>
         ) : view === 'week' ? (
           <WeekView data={data} range={range} title={head.title} today={today} now={now} selectedId={itemId} search={search} />
-        ) : null}
+        ) : view === 'month' ? (
+          <MonthView data={data} range={range} title={head.title} anchor={anchor} today={today} now={now} search={search} />
+        ) : (
+          <AgendaView data={data} now={now} search={search} />
+        )}
       </section>
 
       <aside

@@ -29,7 +29,11 @@
   - **Kiểm chứng (2026-10-09):** test màn viết trước, chạy sau khi dựng; 3 ca đỏ vì test tìm lưới tuần trước khi dữ liệu về → chờ lưới. Kiểm tra ngược 23 lỗi gài: 20 bị bắt; 3 sống vì thiếu ca (chiều cao khối dài, chip của lần lặp sắp tới mở task gốc, thẻ nguồn có cả tiêu đề thư lẫn đoạn đầu) → thêm test, cả 3 bị bắt. Test của router lấy `/calendar` làm trang "đang được dựng" → đổi sang `/services`. Chrome 1440 tối và sáng: lịch 852 px + cột chi tiết 340 px, lưới mở ở 06:00, "Về nhà ăn cơm" 18:30–21:00 cao 115 px và có viền đang mở, "Gọi Minh Anh" 16:00–17:00, vạch bây giờ 14:05, không cuộn ngang. Lỗi gặp khi xem ảnh: khối một giờ mất dòng tiêu đề (dòng có `overflow: hidden` co về 0 trong cột flex) → `*:shrink-0`; nhãn 06:00 bị che nửa → mở cao hơn 10 px. `pnpm lint` 0, `tsc -b` 0, `vitest` 432/432 (50 file), `pnpm build` 0.
   - **Acceptance criteria:** *Đầu trang và chế độ xem*, *Xem theo tuần*, *Chi tiết lịch hẹn* (desktop), *Nút chưa có chức năng*.
 
-- [ ] 2.2 **CA-03 — Tháng và Lịch trình**
+- [x] 2.2 **CA-03 — Tháng và Lịch trình**
+  - **Thực hiện (2026-10-09, AUTO):** `components/MonthView.tsx` (lưới `role="grid"` theo tuần, thứ Hai đầu; ngày ngoài tháng nhạt, hôm nay đánh dấu; mỗi ngày 3 mục theo giờ, mục cả ngày đầu tiên, rồi "+N mục" mở ngày đó ở chế độ Tuần); `components/AgendaView.tsx` (ngày từ đầu khoảng, mỗi mục: giờ, dấu, tiêu đề và nguồn, ghi chú bên phải; trên điện thoại cột ngày nằm trên); `components/ItemMark.tsx`; `format.ts` thêm `icon` và `provider` cho mục của Tháng và Lịch trình (thứ tự theo canvas: việc đã xong, nhắc nhở, nguồn tin nhắn, lặp lại, rồi task / lịch hẹn).
+  - **Làm khác kế hoạch:**
+    - Ô tháng giữ 3 mục và thêm "+N mục". **LÝ DO:** canvas không có ngày nào quá 3 mục (nó bỏ bớt mục của ngày 02/10), còn dữ liệu dùng chung với màn Việc có 7 mục hôm nay; ô 132 px vừa 3 mục và một dòng.
+  - **Kiểm chứng (2026-10-09):** `icon` RED 2 (1 test hàm chữ + 1 ca lịch trình), GREEN; test màn viết trước khi có hai chế độ. Kiểm tra ngược 13 lỗi gài: cả 13 bị bắt. Chrome 1440: Tháng tối (5 hàng từ 28/9 tới 1/11, ô hôm nay "+4 mục", "09:00 Báo cáo tuần" mọi thứ Hai, "06:00 Chạy bộ" mọi Chủ nhật), Lịch trình sáng có cột chi tiết "Gọi Minh Anh" ("Quá hạn 2 ngày" đỏ, "Đã xong", "Đã báo", "sau 2 giờ", "Hằng tháng · ngày 2", "Nhà bố mẹ"); không cuộn ngang. `pnpm lint` 0, `tsc -b` 0, `vitest` 438/438 (51 file), `pnpm build` 0.
   - **Acceptance criteria:** *Xem theo tháng*, *Lịch trình*.
 
 - [ ] 2.3 **CA-04 — Điện thoại, tablet, trạng thái**
