@@ -21,7 +21,10 @@ public enum ProviderErrorCode {
     PAYLOAD_NORMALIZATION_FAILED(false),
 
     /** The operation is not among the capabilities the connector declares. */
-    CAPABILITY_NOT_SUPPORTED(false);
+    CAPABILITY_NOT_SUPPORTED(false),
+
+    /** The cursor can no longer be read from; the caller starts again with an initial cursor. */
+    CURSOR_EXPIRED(false);
 
     private final boolean retryable;
 

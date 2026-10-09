@@ -7,7 +7,9 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,12 @@ public abstract class MessageProviderContractTest {
      * when the connector declares {@code READ_MESSAGES}.
      */
     protected abstract Set<String> expectedMessageIds();
+
+    /**
+     * A moment between the sample messages of {@link #provider()}: the first sync from it keeps at least one of
+     * them and leaves out at least one. Only used when the connector declares {@code READ_MESSAGES}.
+     */
+    protected abstract Instant since();
 
     /** What the send checks send; override when the fake provider needs a known conversation. */
     protected SendMessageCommand sendCommand() {
@@ -97,6 +105,19 @@ public abstract class MessageProviderContractTest {
         SyncBatch again = provider().fetchUpdates(context(), SyncCursor.initial());
 
         assertThat(messageIds(again)).containsExactlyInAnyOrderElementsOf(messageIds(first));
+    }
+
+    @Test
+    void theFirstSyncFromAMomentLeavesOutOlderItems() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
+        Instant since = since();
+        SyncBatch batch = provider().fetchUpdates(context(), SyncCursor.initial(since));
+
+        assertThat(messageIds(batch)).as("only the sample messages from the moment on").isNotEmpty()
+                .isSubsetOf(expectedMessageIds()).hasSizeLessThan(expectedMessageIds().size());
+        assertThat(batch.messages()).allSatisfy(message -> assertThat(message.sentAt()).isAfterOrEqualTo(since));
+        assertThat(batch.conversations()).map(NormalizedConversation::lastActivityAt).filteredOn(Objects::nonNull)
+                .allSatisfy(lastActivityAt -> assertThat(lastActivityAt).isAfterOrEqualTo(since));
     }
 
     @Test

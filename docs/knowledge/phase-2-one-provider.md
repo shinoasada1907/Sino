@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2). Đang làm: xong BE-30…BE-34 và FE-30; còn nghiệm thu F04a.
-> **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35.
+> **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
 
@@ -34,6 +34,12 @@ Xóa account -> báo Google thu hồi token             BE-33
 | D-41 | Backend F04a làm song song với web của Phase 1 |
 | D-51 | `OAuth2Connection.requiredScopes`: callback chỉ đòi scope bắt buộc, không đòi mọi scope đã xin |
 | D-54 | Callback chỉ thu hồi quyền Sino không dùng: không bao giờ thu hồi quyền của một account đang kết nối |
+| D-57 | F04b chỉ làm connector đọc thư và token; lưu thư, lần nhập đầu, ước lượng số thư để F05 |
+| D-58 | Thử với Gmail thật bằng một test JUnit gắn tag, chạy tay, chỉ in số đếm |
+| D-59 | Lần sync đầu có thể mang mốc thời gian: `SyncCursor.initial(since)` |
+| D-60 | Mã lỗi `CURSOR_EXPIRED`: cursor không đọc tiếp được, bên gọi đọc lại từ đầu |
+| D-61 | Thư chỉ có HTML: lấy chữ bằng thư viện jsoup |
+| D-62 | `ProviderAccess.call(accountId, (connector, context) -> ...)`: module khác gọi connector mà không thấy token; refresh một lần khi token bị từ chối |
 
 | Task | Đã làm | Trạng thái |
 |---|---|---|
@@ -43,6 +49,7 @@ Xóa account -> báo Google thu hồi token             BE-33
 | BE-33 | Xóa account thì Google rút quyền: gửi sau commit, ngoài transaction | xong |
 | BE-34 | README Google project, thử với Google thật | xong (Gmail thật: kết nối, kết nối lại, xóa) |
 | FE-30 | Nút "Thêm Gmail", "Kết nối lại" | xong (phiên web) |
+| BE-35 | Contract: `SyncCursor.initial(since)`, `CURSOR_EXPIRED`, kit kiểm mốc thời gian | xong |
 
 ---
 
@@ -383,6 +390,64 @@ Làm hỏng code mỗi lần một chỗ (8 lần), lần nào cũng có test đ
 
 ---
 
+## 6. Contract: lần sync đầu có mốc thời gian, cursor hết hạn (BE-35)
+
+F04b bắt đầu bằng việc sửa contract chung (F03) trước khi viết connector Gmail đọc thư. Hai chỗ: lần sync đầu biết lấy từ ngày nào, và connector báo được "cursor này hết dùng được".
+
+### 6.1 `since` chỉ nằm ở cursor khởi tạo
+- **Ở đâu:** `provider/spi/SyncCursor`.
+- **Là gì:** `record SyncCursor(String value, Instant since)`. `SyncCursor.initial(since)` là lần sync đầu tính từ mốc `since`; `SyncCursor.initial()` là lần sync đầu đọc toàn bộ, và bằng `initial(null)`. Cursor tiếp theo chỉ có `value`, là chuỗi riêng của connector.
+- **Để làm gì:** canvas cho người dùng chọn nhập 30 ngày, 90 ngày hay toàn bộ. F05 đổi lựa chọn đó thành một mốc ngày; connector chỉ thấy mốc, không biết con số 30 hay 90.
+- **Vì sao chỉ ở cursor khởi tạo:** câu hỏi "lấy từ ngày nào" chỉ có nghĩa ở lần đầu. Sau lần đầu, connector tự ghi vị trí của nó vào `value` (Gmail: `historyId`); nếu mọi cursor đều mang thêm `since` thì có hai nguồn sự thật cho cùng một việc, và chúng có thể nói khác nhau. Constructor từ chối cursor có cả `value` lẫn `since` (`IllegalArgumentException`), nên lỗi này bị chặn ngay lúc tạo.
+- **Phương án đã bỏ:** thêm một method SPI riêng cho lần đầu (connector nào cũng phải làm hai đường vào); cố định 90 ngày trong connector (lựa chọn trên canvas thành vô dụng).
+- **Bẫy:** cursor của trang 2 không còn `since`, nên connector phải tự mang mốc sang các trang sau. Connector giả làm vậy bằng cursor `page-1@2026-09-15T00:00:00Z`; Gmail sẽ mang mốc trong cursor `v1|list|...` (BE-38). Quên bước này thì trang 1 đúng, trang 2 trở đi lại có thư cũ. Test `leavesOutOlderMessagesOnEveryPageOfTheFirstSync` bắt đúng lỗi đó.
+
+```text
+initial(since=15/09)          -> trang 0, bỏ thư trước 15/09
+   nextCursor "page-1@2026-09-15T00:00:00Z"
+                              -> trang 1, vẫn bỏ thư trước 15/09
+   nextCursor "page-2@2026-09-15T00:00:00Z"
+                              -> hết trang: batch rỗng, hasMore = false
+```
+
+- **Java dùng ở đây:**
+  - *Compact constructor* của record (`public SyncCursor { ... }`): chạy trước khi gán field, chỗ đặt điều kiện hợp lệ.
+  - *Constructor phụ* `SyncCursor(String value)` gọi `this(value, null)`: code cũ viết `new SyncCursor("page-1")` không phải sửa.
+  - Record so sánh theo giá trị: `new SyncCursor(null, null)` bằng `SyncCursor.initial()` dù là hai object khác nhau. Vì vậy bản đầu có nhánh `since == null ? INITIAL : new SyncCursor(null, since)` là thừa: không test nào phân biệt được hai nhánh, nên nhánh đó đã bị bỏ.
+
+### 6.2 `CURSOR_EXPIRED`: cursor hết dùng được
+- **Ở đâu:** `provider/spi/ProviderErrorCode.CURSOR_EXPIRED`, không retryable.
+- **Khi nào:** provider không đọc tiếp được từ cursor bên gọi truyền vào. Với Gmail: `historyId` quá cũ (Google chỉ giữ lịch sử thay đổi một thời gian, thường ít nhất một tuần) thì `history.list` trả `404`.
+- **Bên gọi làm gì:** đọc lại từ đầu bằng `SyncCursor.initial(since)` với mốc nó tự chọn. Thư đã có trong Sino không bị trùng vì mọi item mang external ID (contract F03).
+- **Vì sao không retryable:** gọi lại với cùng cursor thì vẫn hỏng y như cũ; retry chỉ tốn hạn mức.
+- **Phương án đã bỏ:** connector tự đọc lại từ đầu (connector không biết mốc người dùng chọn, có thể kéo cả hộp thư, và bên gọi không biết để báo người dùng); dùng `REQUEST_REJECTED` (bên gọi không phân biệt được "cursor cũ" với "request sai").
+
+### 6.3 Contract test kit: thêm một kiểm tra cho mọi connector
+- **Ở đâu:** `src/test/java/dev/sino/provider/spi/MessageProviderContractTest`: test `theFirstSyncFromAMomentLeavesOutOlderItems` và hook `since()`. Lớp test của connector trả một mốc nằm giữa các thư mẫu.
+- **Kiểm gì:** lần sync đầu từ mốc đó trả ít nhất một thư; các thư trả về là tập con của thư mẫu và **ít hơn** thư mẫu; không thư nào có `sentAt` trước mốc; conversation nào có `lastActivityAt` thì cũng không trước mốc.
+- **Vì sao đòi "không rỗng" và "ít hơn mẫu":** câu "mọi thư đều sau mốc" luôn đúng khi danh sách rỗng. Không có hai điều kiện đó, một connector trả rỗng, hoặc một bộ mẫu toàn thư mới, vẫn xanh mà không chứng minh được gì.
+- **Gmail:** chưa khai báo `READ_MESSAGES`, nên kiểm tra này tự bỏ qua (assumption) như các kiểm tra sync khác; `since()` của Gmail tạm trả `Instant.EPOCH` cho tới BE-38.
+
+### 6.4 Kiểm tra ngược (BE-35)
+Làm hỏng code mỗi lần một chỗ (10 lần), lần nào cũng có test đỏ:
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Cho cursor có `value` mang cả `since` | `onlyTheInitialCursorHasAMoment` |
+| `initial(since)` bỏ mốc | `anInitialCursorKeepsItsMoment` và kiểm mốc của kit (2 test nữa) |
+| `CURSOR_EXPIRED` thành retryable | hai test của `ProviderErrorCodeTests` |
+| Connector giả không bỏ thư nào | kiểm mốc của kit, test nhiều trang |
+| Bỏ kiểm `sentAt` rỗng trước khi so mốc | test nhiều trang (thư thiếu `sentAt` phải vào danh sách bỏ qua, không làm sập) |
+| So ngược: bỏ thư **sau** mốc | kiểm mốc của kit, test nhiều trang |
+| Trang đầu quên mốc | kiểm mốc của kit, test nhiều trang |
+| Cursor trang sau làm rơi mốc | test nhiều trang |
+| Cursor có mốc hỏng làm bay lỗi lạ ra ngoài | `rejectsACursorItDidNotIssue` |
+| Cursor không mốc vẫn đọc mốc | `followsItsPages` |
+
+**Bài học từ chính lần kiểm này:** lần chạy đầu báo cả 10 lỗi "đều bị bắt", nhưng sai: `cmd` không chạy được `mvnw.cmd` (Windows không tìm lệnh trong thư mục hiện tại khi có biến `NoDefaultCurrentDirectoryInExePath`), nên build nào cũng thất bại và script tính đó là "test đỏ". Lộ ra vì script được sửa để in **tên test** đỏ và in ra không có tên nào. Từ đó script có thêm một lần chạy không làm hỏng gì, lần đó phải xanh, và chỉ tính "bắt được" khi thấy tên test đỏ. Kiểm tra ngược cũng cần được kiểm tra.
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -406,3 +471,7 @@ Làm hỏng code mỗi lần một chỗ (8 lần), lần nào cũng có test đ
 19. Vì sao gọi Google trong `afterCommit` vẫn chưa thật sự "ngoài transaction"?
 20. Vì sao Google từ chối nếu redirect URI lệch một dấu `/`?
 21. Đăng nhập bằng `curl` rồi mở `authorizationUrl` trên trình duyệt thì callback trả mã gì, vì sao?
+22. Vì sao mốc thời gian chỉ nằm ở cursor khởi tạo mà không ở mọi cursor?
+23. Vì sao `CURSOR_EXPIRED` không retryable, và bên gọi phải làm gì khi gặp nó?
+24. Test "mọi thư đều sau mốc" xanh với một batch rỗng: test đó còn chứng minh được gì?
+25. Vì sao một lần kiểm tra ngược báo "test nào cũng bắt được lỗi" vẫn có thể là kết quả sai?

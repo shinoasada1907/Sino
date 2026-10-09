@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -216,6 +217,11 @@ class GmailProviderTests {
         @Override
         protected Set<String> expectedMessageIds() {
             return Set.of();
+        }
+
+        @Override
+        protected Instant since() {
+            return Instant.EPOCH;
         }
 
     }

@@ -14,4 +14,9 @@ class ProviderErrorCodeTests {
                 .containsExactlyInAnyOrder(ProviderErrorCode.RATE_LIMITED, ProviderErrorCode.PROVIDER_UNAVAILABLE);
     }
 
+    @Test
+    void anExpiredCursorIsNotRetryable() {
+        assertThat(ProviderErrorCode.CURSOR_EXPIRED.retryable()).isFalse();
+    }
+
 }
