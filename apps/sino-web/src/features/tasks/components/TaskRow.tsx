@@ -30,7 +30,8 @@ export function TaskRow({
   return (
     <div
       className={cn(
-        'grid grid-cols-[22px_minmax(0,1fr)] items-start gap-x-3.5 rounded-xl border border-transparent px-3.5 py-3 transition-colors duration-(--dur-hover) ease-out hover:bg-hover',
+        // On a phone the rows are full-width lines (canvas `.mob .trk`); from 768 px rounded cards.
+        'grid grid-cols-[22px_minmax(0,1fr)] items-start gap-x-3.5 border-b px-1 py-3 transition-colors duration-(--dur-hover) ease-out hover:bg-hover md:rounded-xl md:border md:border-transparent md:px-3.5',
         selected && 'border-border-strong bg-raised hover:bg-raised',
       )}
     >

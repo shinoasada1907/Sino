@@ -17,7 +17,7 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/overview': { element: <OverviewPage /> },
   '/inbox': { element: <InboxPage />, handle: { mobilePageHeader: true } },
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
-  '/tasks': { element: <TasksPage /> },
+  '/tasks': { element: <TasksPage />, handle: { mobilePageHeader: true } },
   '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
 }
 
@@ -44,6 +44,7 @@ export const routes: RouteObject[] = [
           {
             path: 'tasks/:taskId',
             element: <TasksPage />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
           },
           {
             path: 'accounts/:accountId',

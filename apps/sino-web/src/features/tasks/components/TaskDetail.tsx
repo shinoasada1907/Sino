@@ -43,7 +43,8 @@ export function TaskDetail({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
+      {/* On a phone the sub-page header leads back; this row is for the column and the tablet page. */}
+      <div className="hidden items-center justify-between gap-3 md:flex">
         <span className="text-xs leading-4 font-semibold text-muted-foreground">Task</span>
         <div className="flex items-center gap-0.5">
           <Button type="button" variant="ghost" size="icon-sm" aria-label="Thêm thao tác" title="Thêm thao tác">

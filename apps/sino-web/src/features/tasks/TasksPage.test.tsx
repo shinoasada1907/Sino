@@ -41,7 +41,9 @@ describe('Việc cần làm on desktop', () => {
   it('lists the tasks in their groups with their lines, as the canvas does', () => {
     open('/tasks')
 
-    expect(list().getByRole('heading', { level: 1, name: 'Việc cần làm' })).toBeInTheDocument()
+    // One title for the phone header and one for the page header from 768 px; CSS shows one of them.
+    expect(list().getAllByRole('heading', { level: 1, name: 'Việc cần làm' })).toHaveLength(2)
+    expect(list().getByText('KẾ HOẠCH')).toBeInTheDocument()
     expect(list().getByText(/8 việc đang mở/)).toHaveTextContent('8 việc đang mở · 1 quá hạn · 5 việc tạo từ tin nhắn')
     expect(list().getByText('1 quá hạn')).toHaveClass('text-danger-ink')
     expect(group('QUÁ HẠN').getByText('QUÁ HẠN')).toHaveClass('text-danger-ink')

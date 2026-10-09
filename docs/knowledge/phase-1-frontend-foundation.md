@@ -901,6 +901,12 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Bẫy, cột flex có cuộn co phần tử con:** danh sách là `flex-col` + `overflow-auto`. Khi nội dung dài hơn khung, các phần tử con được phép co (`flex-shrink: 1`) tới chiều cao tối thiểu của nội dung. Ô thêm việc đặt `h-13` (52 px) nhưng nội dung chỉ cao 20 px, nên bị ép còn 25 px. Test không thấy (jsdom không tính bố cục); ảnh Chrome thấy. Sửa: `*:shrink-0` cho con của cột.
 - **Bẫy, test "không lưu" bằng so sánh object:** TanStack Query giữ nguyên object khi dữ liệu mới bằng dữ liệu cũ (chia sẻ cấu trúc), nên "object không đổi" không chứng minh được là không có lần lưu nào. Test theo dõi chính lời gọi `saveTaskNotes`.
 
+### 11.6 Điện thoại và trạng thái (TK-03)
+- **Bố cục theo CSS, chữ theo JavaScript:** ẩn/hiện và đổi bố cục theo cỡ màn đều là lớp `md:`, `xl:`. Riêng chữ gợi ý của ô nhập ("Thêm việc mới" trên điện thoại, cả câu trên màn lớn) CSS không đổi được, nên dùng `useMediaQuery`, viết bằng `useSyncExternalStore`: React đọc `matchMedia(...).matches` và vẽ lại khi trình duyệt báo đổi.
+- **Một trang chi tiết, ba cách hiện:** cùng một khối chi tiết là cột phải từ 1280 px, là trang thay chỗ danh sách ở tablet, và có thêm đầu trang con (nút quay lại) trên điện thoại. Khung app biết trang muốn gì qua `handle` của route: `mobilePageHeader` (ẩn thanh trên của khung), `hideTabBar` (bỏ thanh tab ở trang con).
+- **Menu chọn một trong nhiều:** `menuitemradio` + `aria-checked`, không phải các `menuitem` thường, để trình đọc màn hình nói "đã chọn".
+- **Bẫy, lỗi gài sai cú pháp:** đổi thẻ mở mà quên thẻ đóng làm file không biên dịch; các file test dùng nó không chạy, và script báo "sống" vì không có test nào đỏ. Con số test chạy (28 thay vì 50) là dấu hiệu.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -991,3 +997,5 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 86. Lỗi gài `getUTCDay()` → `getDay()` sống. Vì sao, và vì sao không đổi cấu hình test để bắt nó?
 87. Vì sao ô đánh dấu xong là một checkbox thật, và vì sao nó không nằm trong liên kết mở việc?
 88. Ô thêm việc bị ép còn 25 px trong Chrome mà test vẫn xanh. Vì sao bị ép, và vì sao test không thấy?
+89. Vì sao chữ gợi ý của ô thêm việc phải chọn bằng `useMediaQuery`, còn ẩn/hiện các khối thì không?
+90. Một lỗi gài báo "sống" nhưng chỉ 28/50 test chạy. Chuyện gì đã xảy ra?
