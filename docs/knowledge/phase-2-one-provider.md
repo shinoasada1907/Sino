@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35, BE-36.
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -50,6 +50,7 @@ Xóa account -> báo Google thu hồi token             BE-33
 | BE-34 | README Google project, thử với Google thật | xong (Gmail thật: kết nối, kết nối lại, xóa) |
 | FE-30 | Nút "Thêm Gmail", "Kết nối lại" | xong (phiên web) |
 | BE-35 | Contract: `SyncCursor.initial(since)`, `CURSOR_EXPIRED`, kit kiểm mốc thời gian | xong |
+| BE-36 | `ProviderAccess`: gọi connector với token còn hạn, refresh, hết quyền | xong |
 
 ---
 
@@ -446,6 +447,130 @@ Làm hỏng code mỗi lần một chỗ (10 lần), lần nào cũng có test �
 
 **Bài học từ chính lần kiểm này:** lần chạy đầu báo cả 10 lỗi "đều bị bắt", nhưng sai: `cmd` không chạy được `mvnw.cmd` (Windows không tìm lệnh trong thư mục hiện tại khi có biến `NoDefaultCurrentDirectoryInExePath`), nên build nào cũng thất bại và script tính đó là "test đỏ". Lộ ra vì script được sửa để in **tên test** đỏ và in ra không có tên nào. Từ đó script có thêm một lần chạy không làm hỏng gì, lần đó phải xanh, và chỉ tính "bắt được" khi thấy tên test đỏ. Kiểm tra ngược cũng cần được kiểm tra.
 
+## 7. Gọi connector mà không thấy token: `ProviderAccess` (BE-36)
+
+Từ F04b, module khác (F05 nhập thư, F07 đồng bộ) phải gọi connector Gmail với một access token còn hạn. Access token của Google sống khoảng 1 giờ; hết hạn thì phải dùng refresh token xin cái mới. BE-36 đặt toàn bộ chuyện đó trong module `account`.
+
+### 7.1 Một hàm nhận lambda, không trả token ra ngoài (D-62)
+- **Ở đâu:** `account/ProviderAccess`, `account/ProviderCall` (gói gốc, module khác dùng được); cài đặt ở `account/application/ProviderAccessService`.
+- **Cách dùng:**
+
+```text
+String result = providerAccess.call(accountId, (connector, context) ->
+        connector.fetchUpdates(context, cursor));
+```
+
+- **Là gì:** module khác đưa cho `account` *việc cần làm* (một lambda), chứ không xin token về tự làm. `account` nạp và giải mã credential, refresh nếu cần, dựng `ProviderContext`, gọi lambda, và nếu provider báo token bị từ chối thì refresh rồi gọi lại.
+- **Vì sao không trả token (phương án A, bị loại):** token còn hạn mà Google vẫn trả `401` (bạn đổi mật khẩu, thu hồi quyền) thì bên gọi phải tự refresh và thử lại; F05 và F07 sẽ lặp lại cùng một đoạn logic, và token rời khỏi module `account` (trái D-15 A').
+- **Java dùng ở đây:**
+  - *Functional interface* `ProviderCall<T>`: interface có đúng một method trừu tượng, nên viết được bằng lambda `(connector, context) -> ...`.
+  - *Generic method* `<T> T call(UUID accountId, ProviderCall<T> call)`: kiểu trả về theo lambda; lambda trả `SyncBatch` thì `call` trả `SyncBatch`, không cần ép kiểu.
+- **Bẫy:** lambda có thể chạy **hai lần** (lần hai sau khi refresh), nên việc trong lambda phải lặp lại được mà không hỏng gì. Đọc thư thì được; gửi thư thì phải cẩn thận (F10).
+
+### 7.2 Luồng của một lời gọi
+
+```text
+call(accountId, lambda)
+  account chưa xóa?                không -> ACCOUNT_NOT_FOUND
+  account AUTH_EXPIRED?            có    -> AUTH_EXPIRED, không gọi ai
+  connector của provider           không còn -> UNKNOWN_PROVIDER
+  đọc credential (snapshot: token, refresh token, version)
+  OAuth2 và còn < 60 giây, refresh được?
+      có -> refresh (gọi Google, NGOÀI transaction)
+            lưu nếu credential chưa đổi (TRONG transaction)
+  gọi lambda
+      provider báo AUTH_EXPIRED?
+        vừa refresh xong          -> hết quyền
+        không refresh được        -> hết quyền
+        còn lại                   -> refresh, gọi lambda lần hai
+                                     vẫn AUTH_EXPIRED -> hết quyền
+hết quyền = trong transaction: markAuthExpired() + AccountStatusChanged
+            rồi ném ProviderException(AUTH_EXPIRED)
+```
+
+- **Mỗi lời gọi refresh tối đa một lần:** token mới tinh vẫn bị từ chối nghĩa là quyền đã mất; refresh thêm chỉ tốn một lời gọi Google.
+- **Vì sao refresh trước 60 giây:** token còn 10 giây có thể hết hạn ngay giữa lúc đang đọc trang thư thứ 30.
+- **Token sắp hết hạn mà không refresh được** (không có refresh token, connector không còn OAuth2): vẫn dùng. Chỉ khi provider thật sự từ chối mới chuyển `AUTH_EXPIRED`. Đánh dấu sớm là báo sai cho người dùng.
+
+### 7.3 Gọi Google ngoài transaction, lưu token trong transaction
+- **Gọi Google ngoài transaction:** một transaction giữ một kết nối database. Google chậm 10 giây là một kết nối bị giữ 10 giây; vài lời gọi như vậy cùng lúc là pool hết kết nối, cả Sino đứng (bài học BE-33).
+- **Lưu trong transaction:** credential gồm nhiều cột (token, refresh token, hạn, scope, khóa mã hóa); phải ghi tất cả hoặc không ghi gì.
+- **`TransactionTemplate`** (như BE-33) cho phần "hết quyền": đổi trạng thái và publish `AccountStatusChanged` trong cùng một transaction, nên không bao giờ có trạng thái đổi mà không có event, hay ngược lại.
+
+### 7.4 Không đè lên credential mới hơn: so `version` trước khi lưu
+- **Vấn đề:** trong lúc Sino đang chờ Google refresh (có thể vài giây), ba chuyện có thể xảy ra:
+  - người dùng kết nối lại account, có credential mới;
+  - một lời gọi khác cũng refresh xong trước;
+  - người dùng xóa account, credential bị xóa.
+
+  Nếu cứ lưu kết quả refresh, Sino sẽ đè lên credential mới, hoặc tệ hơn là **tạo lại** credential cho account vừa bị xóa: `save` thấy không có dòng nào thì tạo dòng mới.
+- **Cách làm:**
+  - `CredentialStore.snapshot` đọc credential kèm `version` (cột `@Version`, tăng mỗi lần ghi).
+  - `replaceIfUnchanged(accountId, version, ...)` chỉ ghi khi dòng còn đúng `version` đó. Đổi rồi, hay mất rồi, thì không ghi gì.
+  - Sau đó luôn đọc lại credential đang lưu và dùng nó: của mình nếu ghi được, của người kia nếu không, `ACCOUNT_NOT_FOUND` nếu không còn.
+- **`@Version` (optimistic locking) làm gì ở đây:** Hibernate viết `update ... where id = ? and version = ?`. Nếu ai đó ghi chen đúng giữa lúc Sino kiểm `version` và lúc commit, câu `update` không trúng dòng nào và Spring ném `OptimisticLockingFailureException`. Sino bắt lỗi đó và xử lý như "đã bị ghi".
+- **Gọi là "optimistic" vì:** không khóa gì trước, cứ làm, đến lúc ghi mới kiểm có ai chen vào không. Hợp với chuyện hiếm khi xung đột như refresh.
+
+### 7.5 Phân loại lỗi khi refresh
+
+| Token endpoint trả | Sino báo | Account |
+|---|---|---|
+| `400` `invalid_grant` | `AUTH_EXPIRED` | chuyển `AUTH_EXPIRED` + event |
+| `400` lỗi OAuth khác, `401` (ví dụ `invalid_client`), `4xx` khác | `REQUEST_REJECTED` | giữ nguyên |
+| `429` | `RATE_LIMITED` | giữ nguyên |
+| `5xx`, quá thời gian, không kết nối được, câu trả lời không đọc được | `PROVIDER_UNAVAILABLE` | giữ nguyên |
+
+- **Vì sao `invalid_client` không làm account hết quyền:** đó là client secret của Sino sai (cấu hình), không phải lỗi của account. Đánh dấu hết quyền thì mọi account Gmail cùng đỏ, và người dùng kết nối lại cũng không sửa được.
+- **Spring lo phần giao thức:** `RestClientRefreshTokenTokenResponseClient` gửi `grant_type=refresh_token`. Đọc mã nguồn Spring Security 7.1.1 thấy: Google không gửi refresh token mới thì Spring giữ cái cũ; không gửi `scope` thì giữ scope của token cũ. Sino không phải tự viết hai chuyện đó.
+- **Thông báo lỗi** chỉ nêu loại lỗi và mã HTTP hoặc mã OAuth, không bao giờ nêu nội dung Google trả về (có thể chứa token).
+
+### 7.6 Test: chen một việc vào đúng lúc Google đang trả lời
+- **`ProviderAccessTests`:** server thật, database thật, WireMock đóng vai token endpoint của Google; lambda trong test đóng vai connector: ghi lại token nó nhận, ném `AUTH_EXPIRED` mấy lần đầu tùy test.
+- **Kết nối lại hay xóa account đúng lúc đang refresh:** dùng lại mẹo `RequestListener` của BE-33. WireMock gọi listener *trước khi* trả lời, nên listener ghi credential mới (hoặc xóa account) đúng lúc Sino đang chờ Google. Kiểm: Sino dùng credential mới, không đè lên; account đã xóa thì không có credential nào bị tạo lại.
+- **Ghi chen giữa lúc kiểm và lúc commit:** khe thời gian quá hẹp để WireMock chen vào, nên test dùng `@MockitoSpyBean`: bọc `CredentialStore` thật, riêng `replaceIfUnchanged` thì cho một luồng khác ghi credential rồi ném `OptimisticLockingFailureException`.
+- **Bẫy gặp khi viết test này:** lần đầu cho ghi ngay trong câu trả lời giả thì test đỏ, vì câu trả lời chạy bên trong transaction của `replaceIfUnchanged` (proxy `@Transactional` bọc ngoài spy). Câu trả lời ném lỗi nên transaction rollback, xóa luôn lần ghi vừa làm. Ngoài đời người ghi chen là một transaction khác, nên test cho ghi từ một luồng khác (`CompletableFuture.runAsync`).
+- **Event:** `@RecordApplicationEvents` ghi lại mọi event được publish trong test; kiểm đúng một `AccountStatusChanged` từ `CONNECTED` sang `AUTH_EXPIRED`, không chứa token.
+
+### 7.7 Kiểm tra ngược (BE-36)
+Làm hỏng code mỗi lần một chỗ (28 lần), lần nào cũng có test đỏ. Một số lỗi tiêu biểu:
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Account `AUTH_EXPIRED` vẫn được gọi | account phải kết nối lại thì không gọi gì |
+| Không refresh sớm 60 giây / refresh sớm 2 giờ | token sắp hết hạn được refresh trước; token còn hạn dùng nguyên |
+| Refresh khi không có refresh token, hay khi connector không còn OAuth2 | hai test "không refresh được" |
+| Refresh hai lần trong một lời gọi | token vừa refresh mà bị từ chối thì không refresh nữa |
+| Lần hai vẫn bị từ chối mà không chuyển `AUTH_EXPIRED` | token mới bị từ chối thì hết quyền |
+| Mọi lỗi của provider đều coi là token bị từ chối | lỗi khác đi qua nguyên vẹn |
+| `invalid_grant` không làm hết quyền | refresh token bị từ chối thì hết quyền |
+| Không lưu token mới | token sắp hết hạn được lưu mã hóa (4 test) |
+| Lỗi ghi chen trước commit bay ra ngoài | credential ghi chen vẫn thắng |
+| Không publish event / chuyển nhầm sang `DEGRADED` | các test hết quyền |
+| Gọi cả account đã xóa | account đã xóa hay không có thì `ACCOUNT_NOT_FOUND` |
+| Log không nêu account | log nêu account id (2 test) |
+| `5xx`, quá thời gian, câu trả lời hỏng thành `REQUEST_REJECTED`; `429` không thành `RATE_LIMITED` | 4 test của `OAuth2ClientsTests` |
+| Bỏ timeout của client refresh | refresh chậm thất bại trong giới hạn thời gian |
+| Đưa nội dung Google trả về vào thông báo lỗi | lỗi `503` không lộ nội dung |
+| Lưu không cần so `version` | refresh không đè credential mới hơn (2 test) |
+| `snapshot` sai `version` hoặc thiếu refresh token | test của `CredentialStoreTests` |
+
+Một lỗi cố ý viết sai lúc đầu (Java không cho guard của `case` là hằng `false`, nên nó không biên dịch được); viết lại thành `value() == 999` thì bị bắt. Lỗi không biên dịch không chứng minh gì về test, nên phải tách riêng, không tính là "bị bắt".
+
+### 7.8 Sau review: account vừa kết nối lại bị đánh dấu oan
+- **Lỗi agent review tìm ra (MEDIUM):** bản đầu so `version` khi *lưu* token, nhưng không so khi *đánh dấu hết quyền*. Kịch bản:
+  1. Bạn rút quyền của Sino ở trang Google. Account vẫn `CONNECTED`.
+  2. Một lần đồng bộ dài đang chạy.
+  3. Bạn kết nối lại, nên Sino có credential mới.
+  4. Lần đồng bộ cũ nhận `401` và refresh bằng refresh token cũ (đã chết); Google trả `invalid_grant`.
+  5. Sino đánh dấu `AUTH_EXPIRED` cho account bạn **vừa** kết nối lại.
+- **Sửa:** `expire` nhận credential mà lời gọi đã dùng. Trong transaction, nó chỉ đánh dấu khi credential đang lưu vẫn là cái đó (`CredentialStore.isCurrent`: cùng dòng, cùng `version`). Đã đổi thì không đánh dấu và báo `PROVIDER_UNAVAILABLE` (retryable); lần sau dùng credential mới.
+- **Bài học:** quy tắc "đừng đè lên cái mới hơn" phải áp cho **mọi** thay đổi dựa trên dữ liệu đọc từ trước, không chỉ cho việc ghi token. Ở đây đổi trạng thái account cũng là một thay đổi như thế.
+- **Vì sao so cả id dòng lẫn `version`:** xóa account thì xóa luôn dòng credential. Kết nối lại account đó thì có dòng mới, `version` lại bắt đầu từ 0, nên `version` trùng mà thực ra là credential khác.
+- **Các sửa nhỏ khác:**
+  - Gọi `ProviderAccess` bên trong một transaction thì báo `IllegalStateException` ngay. Spec nói "MUST ngoài transaction"; trước đây chỉ có Javadoc nhắc.
+  - Luật ArchUnit `ProviderAccessArchitectureTests`: ngoài `dev.sino.provider..` không class nào được gọi `ProviderContext.credentials()`. Lambda vẫn cầm `context`, nhưng chỉ để chuyển cho connector; luật này biến "module khác không đọc token" thành kiểm tra tự động, không còn là lời hứa.
+- **Giới hạn còn lại** (ghi ở design): vẫn còn một khe vài mili giây giữa lúc kiểm và lúc commit. Chặn hẳn phải khóa dòng account ở cả luồng kết nối lại, quá nặng so với rủi ro.
+
 ---
 
 ## Tự kiểm tra
@@ -475,3 +600,11 @@ Làm hỏng code mỗi lần một chỗ (10 lần), lần nào cũng có test �
 23. Vì sao `CURSOR_EXPIRED` không retryable, và bên gọi phải làm gì khi gặp nó?
 24. Test "mọi thư đều sau mốc" xanh với một batch rỗng: test đó còn chứng minh được gì?
 25. Vì sao một lần kiểm tra ngược báo "test nào cũng bắt được lỗi" vẫn có thể là kết quả sai?
+26. Vì sao `ProviderAccess` nhận một lambda thay vì trả access token cho module khác?
+27. Lambda đưa cho `ProviderAccess` có thể chạy mấy lần? Điều đó đòi hỏi gì ở việc nó làm?
+28. Vì sao gọi Google để refresh phải nằm ngoài transaction, còn lưu token mới thì nằm trong?
+29. Đang refresh thì người dùng xóa account: nếu Sino cứ `save` kết quả refresh thì chuyện gì xảy ra?
+30. `@Version` bắt được loại xung đột nào, và vì sao gọi là optimistic?
+31. Token endpoint trả `401 invalid_client`: vì sao Sino không chuyển account sang `AUTH_EXPIRED`?
+32. Vì sao so `version` khi lưu token thôi là chưa đủ, mà còn phải so trước khi đánh dấu account hết quyền?
+33. Xóa account rồi kết nối lại: vì sao chỉ so `version` của credential có thể nhầm?

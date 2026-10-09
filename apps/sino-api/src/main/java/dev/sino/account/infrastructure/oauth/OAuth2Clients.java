@@ -15,12 +15,15 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
+import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGrantRequest;
 import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.RestClientRefreshTokenTokenResponseClient;
 import org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestCustomizers;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
+import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationExchange;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
@@ -35,17 +38,22 @@ import org.springframework.web.client.RestClientResponseException;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.OAuth2Connection;
+import dev.sino.provider.spi.OAuth2Credentials;
+import dev.sino.provider.spi.ProviderErrorCode;
+import dev.sino.provider.spi.ProviderException;
 
 /**
  * Sino's OAuth2 clients (D-38): finds the client a connector names, builds the consent request with a fresh
- * state, PKCE and the redirect URI of the connect flow, and exchanges the code the provider sends back, with
- * Spring doing the protocol. Checked at startup: every OAuth2 connector needs its client and a public base URL, so
- * a wrong setup stops the app instead of failing at the first connect.
+ * state, PKCE and the redirect URI of the connect flow, exchanges the code the provider sends back, and refreshes
+ * an access token (F04b), with Spring doing the protocol. Checked at startup: every OAuth2 connector needs its
+ * client and a public base URL, so a wrong setup stops the app instead of failing at the first connect.
  */
 @Component
 public class OAuth2Clients {
 
     static final String CALLBACK_PATH = "/api/accounts/connect/%s/callback";
+    private static final String INVALID_GRANT = "invalid_grant";
+    private static final int TOO_MANY_REQUESTS = 429;
     private static final int STATE_BYTES = 32;
 
     private final Map<String, ClientRegistration> registrations;
@@ -53,6 +61,8 @@ public class OAuth2Clients {
     private final SecureRandom random = new SecureRandom();
     private final RestClientAuthorizationCodeTokenResponseClient tokenClient =
             new RestClientAuthorizationCodeTokenResponseClient();
+    private final RestClientRefreshTokenTokenResponseClient refreshClient =
+            new RestClientRefreshTokenTokenResponseClient();
 
     // Spring passes an empty list when there is no client registration.
     @Autowired
@@ -75,14 +85,16 @@ public class OAuth2Clients {
         }
         this.publicBaseUrl = oauth2Connectors.isEmpty() ? null : checkedBaseUrl(properties.publicBaseUrl());
         // Spring's own client, plus time limits: what Spring sets up by default, on a request factory with timeouts.
-        tokenClient.setRestClient(RestClient.builder()
+        RestClient restClient = RestClient.builder()
                 .requestFactory(TimedRequests.factory(connectTimeout, readTimeout))
                 .configureMessageConverters(converters -> {
                     converters.addCustomConverter(new FormHttpMessageConverter());
                     converters.addCustomConverter(new OAuth2AccessTokenResponseHttpMessageConverter());
                 })
                 .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler())
-                .build());
+                .build();
+        tokenClient.setRestClient(restClient);
+        refreshClient.setRestClient(restClient);
     }
 
     /** The consent request for one connect; {@code loginHint} picks the account when reconnecting. */
@@ -132,6 +144,57 @@ public class OAuth2Clients {
         Set<String> granted = access.getScopes().isEmpty() ? request.getScopes() : access.getScopes();
         return new OAuth2Tokens(access.getTokenValue(), access.getExpiresAt(), granted,
                 answer.getRefreshToken() == null ? null : answer.getRefreshToken().getTokenValue());
+    }
+
+    /**
+     * Asks the token endpoint of the client {@code registrationId} for a new access token. When the answer carries no
+     * refresh token or no scope, the current ones are kept (Spring fills them in).
+     *
+     * @throws ProviderException with {@code AUTH_EXPIRED} when the provider no longer accepts the refresh token
+     *         ({@code invalid_grant}); {@code PROVIDER_UNAVAILABLE} when the endpoint fails, is too slow or answers
+     *         nonsense; {@code RATE_LIMITED} on HTTP 429; {@code REQUEST_REJECTED} when it refuses for another reason,
+     *         such as Sino's own client being refused
+     */
+    public OAuth2Tokens refresh(String registrationId, OAuth2Credentials current, String refreshToken) {
+        ClientRegistration registration = Objects.requireNonNull(registrations.get(registrationId),
+                "no OAuth client is named " + registrationId);
+        OAuth2AccessToken access = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, current.accessToken(),
+                null, current.expiresAt(), current.scopes());
+        OAuth2AccessTokenResponse answer;
+        try {
+            answer = refreshClient.getTokenResponse(new OAuth2RefreshTokenGrantRequest(registration, access,
+                    new OAuth2RefreshToken(refreshToken, null)));
+        } catch (OAuth2AuthorizationException failure) {
+            throw refreshFailure(failure);
+        }
+        OAuth2AccessToken fresh = answer.getAccessToken();
+        return new OAuth2Tokens(fresh.getTokenValue(), fresh.getExpiresAt(), fresh.getScopes(),
+                answer.getRefreshToken().getTokenValue());
+    }
+
+    // Like reasonOf: the kind of failure only, never the provider's text.
+    private static ProviderException refreshFailure(OAuth2AuthorizationException failure) {
+        if (failure.getCause() == null) {
+            String code = failure.getError().getErrorCode();
+            return INVALID_GRANT.equals(code)
+                    ? new ProviderException(ProviderErrorCode.AUTH_EXPIRED,
+                            "The token endpoint refused the refresh token (" + code + ")")
+                    : new ProviderException(ProviderErrorCode.REQUEST_REJECTED,
+                            "The token endpoint refused the refresh (" + code + ")");
+        }
+        return switch (failure.getCause()) {
+            case RestClientResponseException http when http.getStatusCode().is5xxServerError() ->
+                new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE,
+                        "The token endpoint answered HTTP " + http.getStatusCode().value());
+            case RestClientResponseException http when http.getStatusCode().value() == TOO_MANY_REQUESTS ->
+                ProviderException.rateLimited("The token endpoint answered HTTP " + TOO_MANY_REQUESTS, null);
+            case RestClientResponseException http -> new ProviderException(ProviderErrorCode.REQUEST_REJECTED,
+                    "The token endpoint answered HTTP " + http.getStatusCode().value());
+            case ResourceAccessException _ -> new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE,
+                    "The token endpoint could not be reached or did not answer in time");
+            default -> new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE,
+                    "The token endpoint sent an answer Sino cannot read");
+        };
     }
 
     // Spring's messages may quote the provider's answer; Sino names the kind of failure only.

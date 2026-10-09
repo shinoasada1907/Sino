@@ -49,6 +49,8 @@ class CredentialStoreTests {
     private static final String REFRESH = "1//sample-refresh-token";
     private static final OAuth2Credentials OAUTH = new OAuth2Credentials(ACCESS,
             Instant.parse("2026-10-03T10:15:30Z"), Set.of("gmail.readonly", "gmail.send"));
+    private static final OAuth2Credentials REFRESHED = new OAuth2Credentials("ya29.refreshed-access-token",
+            Instant.parse("2026-10-03T11:15:30Z"), Set.of("gmail.readonly", "gmail.send"));
 
     @Autowired
     private CredentialStore store;
@@ -214,6 +216,105 @@ class CredentialStoreTests {
                 .contains("account_credential_account_fk")
                 .doesNotContain(ACCESS)
                 .doesNotContain(REFRESH));
+    }
+
+    @Test
+    void aSnapshotHasTheCredentialItsRefreshTokenAndItsVersion() {
+        store.save(accountA, OAUTH, REFRESH);
+        clearCache();
+
+        CredentialSnapshot snapshot = store.snapshot(accountA).orElseThrow();
+
+        assertThat(snapshot.credential()).isEqualTo(OAUTH);
+        assertThat(snapshot.refreshToken()).isEqualTo(REFRESH);
+        assertThat(snapshot.version()).isEqualTo(jdbc.queryForObject(
+                "select version from account_credential where account_id = ?", Long.class, accountA));
+        assertThat(snapshot.toString()).doesNotContain(ACCESS).doesNotContain(REFRESH);
+    }
+
+    @Test
+    void anAccountWithoutCredentialHasNoSnapshot() {
+        assertThat(store.snapshot(accountA)).isEmpty();
+    }
+
+    @Test
+    void aRefreshReplacesACredentialThatDidNotChange() {
+        store.save(accountA, OAUTH, REFRESH);
+        clearCache();
+        CredentialSnapshot read = store.snapshot(accountA).orElseThrow();
+        long version = read.version();
+
+        store.replaceIfUnchanged(accountA, read, REFRESHED, REFRESH);
+        clearCache();
+
+        CredentialSnapshot after = store.snapshot(accountA).orElseThrow();
+        assertThat(after.credential()).isEqualTo(REFRESHED);
+        assertThat(after.refreshToken()).isEqualTo(REFRESH);
+        assertThat(after.version()).isGreaterThan(version);
+        String row = jdbc.queryForObject("select row_to_json(c)::text from account_credential c where account_id = ?",
+                String.class, accountA);
+        assertThat(row).doesNotContain(REFRESHED.accessToken()).doesNotContain(REFRESH);
+    }
+
+    @Test
+    void aRefreshNeverOverwritesACredentialWrittenSinceTheSnapshot() {
+        store.save(accountA, OAUTH, REFRESH);
+        clearCache();
+        CredentialSnapshot read = store.snapshot(accountA).orElseThrow();
+        OAuth2Credentials reconnected = new OAuth2Credentials("ya29.reconnected", OAUTH.expiresAt(), OAUTH.scopes());
+        store.save(accountA, reconnected, "1//reconnected");
+        clearCache();
+
+        assertThat(store.isCurrent(accountA, read)).isFalse();
+        store.replaceIfUnchanged(accountA, read, REFRESHED, REFRESH);
+        clearCache();
+
+        CredentialSnapshot after = store.snapshot(accountA).orElseThrow();
+        assertThat(after.credential()).isEqualTo(reconnected);
+        assertThat(after.refreshToken()).isEqualTo("1//reconnected");
+    }
+
+    @Test
+    void aRefreshNeverBringsBackADeletedCredential() {
+        store.save(accountA, OAUTH, REFRESH);
+        clearCache();
+        CredentialSnapshot read = store.snapshot(accountA).orElseThrow();
+        store.delete(accountA);
+        clearCache();
+
+        assertThat(store.isCurrent(accountA, read)).isFalse();
+        store.replaceIfUnchanged(accountA, read, REFRESHED, REFRESH);
+        clearCache();
+
+        assertThat(store.snapshot(accountA)).isEmpty();
+    }
+
+    @Test
+    void aRefreshNeverOverwritesACredentialCreatedAgainAtTheSameVersion() {
+        store.save(accountA, OAUTH, REFRESH);
+        clearCache();
+        CredentialSnapshot read = store.snapshot(accountA).orElseThrow();
+        // Removed and connected again: a new row, back at the first version.
+        store.delete(accountA);
+        clearCache();
+        OAuth2Credentials reconnected = new OAuth2Credentials("ya29.reconnected", OAUTH.expiresAt(), OAUTH.scopes());
+        store.save(accountA, reconnected, "1//reconnected");
+        clearCache();
+        assertThat(store.snapshot(accountA).orElseThrow().version()).isEqualTo(read.version());
+
+        assertThat(store.isCurrent(accountA, read)).isFalse();
+        store.replaceIfUnchanged(accountA, read, REFRESHED, REFRESH);
+        clearCache();
+
+        assertThat(store.snapshot(accountA).orElseThrow().credential()).isEqualTo(reconnected);
+    }
+
+    @Test
+    void anUntouchedCredentialIsCurrent() {
+        store.save(accountA, OAUTH, REFRESH);
+        clearCache();
+
+        assertThat(store.isCurrent(accountA, store.snapshot(accountA).orElseThrow())).isTrue();
     }
 
     @Test

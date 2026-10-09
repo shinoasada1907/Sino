@@ -20,7 +20,8 @@ import dev.sino.provider.spi.TokenCredentials;
 
 /**
  * The only way to store or read a credential: encrypts on the way in, decrypts on the way out, and never hands out
- * ciphertext. Internal to the account module (F02 exports no way to read credentials; F07 decides that for sync).
+ * ciphertext. Internal to the account module: other modules reach a connector through
+ * {@link dev.sino.account.ProviderAccess} and never see a credential (D-62).
  * There is deliberately no way to change one token: every save rewrites the whole credential with the active key.
  */
 @Component
@@ -44,6 +45,58 @@ public class CredentialStore {
         Objects.requireNonNull(credential, "credential must not be null");
         AccountCredential row = credentials.findByAccountId(accountId)
                 .orElseGet(() -> new AccountCredential(accountId));
+        write(row, credential, refreshToken);
+        credentials.save(row);
+    }
+
+    /** The decrypted credential, for one call to a connector. Empty when the account has none. */
+    @Transactional(readOnly = true)
+    public Optional<ProviderCredentials> load(UUID accountId) {
+        return credentials.findByAccountId(accountId).map(this::credentialOf);
+    }
+
+    /** The decrypted credential with its refresh token and the version it was read at. Empty when there is none. */
+    @Transactional(readOnly = true)
+    public Optional<CredentialSnapshot> snapshot(UUID accountId) {
+        return credentials.findByAccountId(accountId).map(row -> new CredentialSnapshot(credentialOf(row),
+                row.refreshToken().map(refresh -> cipher.decrypt(refresh, accountId, REFRESH_TOKEN)).orElse(null),
+                row.id(), row.version()));
+    }
+
+    /**
+     * Stores what a refresh produced, unless the stored credential is no longer the one {@code read} saw: a
+     * reconnect or another refresh wrote a newer one, or the account was removed. Then nothing is written. A write
+     * between this check and the commit ends in an {@link org.springframework.dao.OptimisticLockingFailureException}.
+     */
+    @Transactional
+    public void replaceIfUnchanged(UUID accountId, CredentialSnapshot read, OAuth2Credentials credential,
+            String refreshToken) {
+        credentials.findByAccountId(accountId).filter(row -> isSame(row, read)).ifPresent(row -> {
+            write(row, credential, refreshToken);
+            credentials.save(row);
+        });
+    }
+
+    /** Whether the stored credential is still the one {@code read} saw: same row, not written since. */
+    @Transactional(readOnly = true)
+    public boolean isCurrent(UUID accountId, CredentialSnapshot read) {
+        return credentials.findByAccountId(accountId).filter(row -> isSame(row, read)).isPresent();
+    }
+
+    /** The decrypted refresh token of an OAuth2 credential, for revoking it. Empty when there is none. */
+    @Transactional(readOnly = true)
+    public Optional<String> refreshToken(UUID accountId) {
+        return credentials.findByAccountId(accountId).flatMap(AccountCredential::refreshToken)
+                .map(refresh -> cipher.decrypt(refresh, accountId, REFRESH_TOKEN));
+    }
+
+    @Transactional
+    public void delete(UUID accountId) {
+        credentials.deleteByAccountId(accountId);
+    }
+
+    private void write(AccountCredential row, ProviderCredentials credential, String refreshToken) {
+        UUID accountId = row.accountId();
         switch (credential) {
             case OAuth2Credentials oauth -> row.replace(CredentialType.OAUTH2,
                     cipher.encrypt(oauth.accessToken(), accountId, ACCESS_TOKEN),
@@ -57,32 +110,19 @@ public class CredentialStore {
                         null, List.of());
             }
         }
-        credentials.save(row);
     }
 
-    /** The decrypted credential, for one call to a connector. Empty when the account has none. */
-    @Transactional(readOnly = true)
-    public Optional<ProviderCredentials> load(UUID accountId) {
-        return credentials.findByAccountId(accountId).map(row -> {
-            EncryptedValue access = row.accessToken();
-            String accessToken = cipher.decrypt(access, accountId, ACCESS_TOKEN);
-            return switch (row.type()) {
-                case OAUTH2 -> new OAuth2Credentials(accessToken, row.expiresAt(), Set.copyOf(row.scopes()));
-                case TOKEN -> new TokenCredentials(accessToken);
-            };
-        });
+    private static boolean isSame(AccountCredential row, CredentialSnapshot read) {
+        return row.id().equals(read.credentialId()) && row.version() == read.version();
     }
 
-    /** The decrypted refresh token of an OAuth2 credential, for revoking it. Empty when there is none. */
-    @Transactional(readOnly = true)
-    public Optional<String> refreshToken(UUID accountId) {
-        return credentials.findByAccountId(accountId).flatMap(AccountCredential::refreshToken)
-                .map(refresh -> cipher.decrypt(refresh, accountId, REFRESH_TOKEN));
-    }
-
-    @Transactional
-    public void delete(UUID accountId) {
-        credentials.deleteByAccountId(accountId);
+    private ProviderCredentials credentialOf(AccountCredential row) {
+        EncryptedValue access = row.accessToken();
+        String accessToken = cipher.decrypt(access, row.accountId(), ACCESS_TOKEN);
+        return switch (row.type()) {
+            case OAUTH2 -> new OAuth2Credentials(accessToken, row.expiresAt(), Set.copyOf(row.scopes()));
+            case TOKEN -> new TokenCredentials(accessToken);
+        };
     }
 
 }

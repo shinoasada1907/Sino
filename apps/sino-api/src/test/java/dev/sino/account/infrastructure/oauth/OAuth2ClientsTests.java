@@ -45,6 +45,9 @@ import dev.sino.provider.FakeMessageProvider;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.OAuth2Connection;
+import dev.sino.provider.spi.OAuth2Credentials;
+import dev.sino.provider.spi.ProviderErrorCode;
+import dev.sino.provider.spi.ProviderException;
 
 class OAuth2ClientsTests {
 
@@ -56,6 +59,10 @@ class OAuth2ClientsTests {
              "refresh_token": "1//exchanged-refresh-token",
              "scope": "openid https://www.googleapis.com/auth/userinfo.email %s"}
             """.formatted(GMAIL_READONLY);
+
+    private static final String REFRESH_TOKEN = "1//current-refresh-token";
+    private static final OAuth2Credentials CURRENT = new OAuth2Credentials("ya29.current-access-token",
+            Instant.parse("2026-10-09T05:00:00Z"), Set.of("openid", GMAIL_READONLY));
 
     private static WireMockServer tokenEndpoint;
     private static final OAuth2Connection GMAIL_LIKE = new OAuth2Connection("google",
@@ -264,6 +271,99 @@ class OAuth2ClientsTests {
         assertThat(tokens.toString()).doesNotContain("ya29.secret-access").doesNotContain("1//secret-refresh");
     }
 
+    @Test
+    void refreshesWithTheRefreshTokenAndKeepsWhatTheAnswerLeavesOut() {
+        answer(okJson("{\"access_token\": \"ya29.refreshed-access-token\", \"expires_in\": 3599, "
+                + "\"token_type\": \"Bearer\"}"));
+        Instant before = Instant.now();
+
+        OAuth2Tokens tokens = exchanging(Duration.ofSeconds(5)).refresh("google", CURRENT, REFRESH_TOKEN);
+
+        assertThat(tokens.accessToken()).isEqualTo("ya29.refreshed-access-token");
+        assertThat(tokens.expiresAt()).isBetween(before.plusSeconds(3598), Instant.now().plusSeconds(3600));
+        assertThat(tokens.grantedScopes()).isEqualTo(CURRENT.scopes());
+        assertThat(tokens.refreshToken()).isEqualTo(REFRESH_TOKEN);
+        String clientAuth = Base64.getEncoder()
+                .encodeToString("client-1:client-secret-1".getBytes(StandardCharsets.UTF_8));
+        tokenEndpoint.verify(postRequestedFor(urlPathEqualTo("/token"))
+                .withFormParam("grant_type", equalTo("refresh_token"))
+                .withFormParam("refresh_token", equalTo(REFRESH_TOKEN))
+                .withHeader("Authorization", equalTo("Basic " + clientAuth)));
+    }
+
+    @Test
+    void aNewRefreshTokenAndScopeReplaceTheOldOnes() {
+        answer(okJson("""
+                {"access_token": "ya29.refreshed-access-token", "expires_in": 3599, "token_type": "Bearer",
+                 "refresh_token": "1//rotated-refresh-token", "scope": "openid %s"}
+                """.formatted(GMAIL_READONLY)));
+
+        OAuth2Tokens tokens = exchanging(Duration.ofSeconds(5)).refresh("google", CURRENT, REFRESH_TOKEN);
+
+        assertThat(tokens.refreshToken()).isEqualTo("1//rotated-refresh-token");
+        assertThat(tokens.grantedScopes()).containsExactlyInAnyOrder("openid", GMAIL_READONLY);
+    }
+
+    @Test
+    void aRefusedRefreshTokenMeansTheAuthorizationIsGone() {
+        answer(aResponse().withStatus(400).withHeader("Content-Type", "application/json").withBody(
+                "{\"error\": \"invalid_grant\", \"error_description\": \"Token has been revoked ya29.leaked\"}"));
+
+        assertThatRefreshFailure(ProviderErrorCode.AUTH_EXPIRED).withMessageContaining("invalid_grant")
+                .withMessageNotContaining("ya29.leaked");
+    }
+
+    @Test
+    void anotherRefusalIsARejectedRequestNotAnEndedAuthorization() {
+        answer(aResponse().withStatus(400).withHeader("Content-Type", "application/json")
+                .withBody("{\"error\": \"unauthorized_client\"}"));
+
+        assertThatRefreshFailure(ProviderErrorCode.REQUEST_REJECTED).withMessageContaining("unauthorized_client");
+    }
+
+    @Test
+    void aRefusedClientIsARejectedRequestNotAnEndedAuthorization() {
+        answer(aResponse().withStatus(401).withHeader("Content-Type", "application/json")
+                .withBody("{\"error\": \"invalid_client\"}"));
+
+        assertThatRefreshFailure(ProviderErrorCode.REQUEST_REJECTED).withMessageContaining("401");
+    }
+
+    @Test
+    void aThrottledRefreshIsRateLimited() {
+        answer(aResponse().withStatus(429));
+
+        assertThatRefreshFailure(ProviderErrorCode.RATE_LIMITED).withMessageContaining("429");
+    }
+
+    @Test
+    void aServerErrorDuringARefreshIsTemporary() {
+        answer(aResponse().withStatus(503).withBody("down, see ya29.leaked"));
+
+        assertThatRefreshFailure(ProviderErrorCode.PROVIDER_UNAVAILABLE).withMessageContaining("503")
+                .withMessageNotContaining("ya29.leaked");
+    }
+
+    @Test
+    void anUnreadableRefreshAnswerIsTemporary() {
+        answer(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("not json"));
+
+        assertThatRefreshFailure(ProviderErrorCode.PROVIDER_UNAVAILABLE);
+    }
+
+    @Test
+    void aSlowRefreshFailsWithinTheReadTimeout() {
+        answer(okJson("{\"access_token\": \"ya29.late\", \"token_type\": \"Bearer\"}").withFixedDelay(3000));
+        OAuth2Clients clients = exchanging(Duration.ofMillis(300));
+        long start = System.nanoTime();
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> clients.refresh("google", CURRENT, REFRESH_TOKEN))
+                .satisfies(failure -> assertThat(failure.errorCode())
+                        .isEqualTo(ProviderErrorCode.PROVIDER_UNAVAILABLE));
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(2));
+    }
+
     private static void answer(ResponseDefinitionBuilder response) {
         tokenEndpoint.stubFor(post(urlPathEqualTo("/token")).willReturn(response));
     }
@@ -275,6 +375,17 @@ class OAuth2ClientsTests {
         return assertThatExceptionOfType(OAuth2ExchangeException.class)
                 .isThrownBy(() -> clients.exchange(request, CODE))
                 .withMessageNotContaining(CODE)
+                .withMessageNotContaining("client-secret-1");
+    }
+
+    // Every failure message names the failure, never a token or the client secret.
+    private ThrowableAssertAlternative<ProviderException> assertThatRefreshFailure(ProviderErrorCode code) {
+        OAuth2Clients clients = exchanging(Duration.ofSeconds(5));
+        return assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> clients.refresh("google", CURRENT, REFRESH_TOKEN))
+                .satisfies(failure -> assertThat(failure.errorCode()).isEqualTo(code))
+                .withMessageNotContaining(REFRESH_TOKEN)
+                .withMessageNotContaining(CURRENT.accessToken())
                 .withMessageNotContaining("client-secret-1");
     }
 

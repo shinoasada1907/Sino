@@ -93,6 +93,10 @@ class AccountCredential {
         this.encryptionKeyId = accessToken.keyId();
     }
 
+    UUID id() {
+        return id;
+    }
+
     UUID accountId() {
         return accountId;
     }
@@ -115,6 +119,10 @@ class AccountCredential {
 
     List<String> scopes() {
         return scopes;
+    }
+
+    long version() {
+        return version;
     }
 
     @PrePersist
