@@ -5,6 +5,7 @@ import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
 import { INBOX_QUERY_KEY } from '@/features/inbox/useInbox'
 import type { OverviewData } from '@/features/overview/overview.types'
 import { OVERVIEW_QUERY_KEY } from '@/features/overview/useOverview'
+import { useStreamState } from '@/shared/realtime/streamState'
 import { deleteAccount, fetchAccountExtras, fetchAccounts, saveChannel } from './accounts.api'
 import type { AccountExtras, AccountItem, AccountsData, ChannelKind } from './accounts.types'
 import { needsAttention } from './format'
@@ -24,16 +25,19 @@ export interface AccountsQuery {
 }
 
 /**
- * The account list, from `fetchAccounts` (the backend API, D-56), asked again every 2 s while a first import runs. When an
- * import is done the inbox is read again, since it now has the imported conversations.
+ * The account list, from `fetchAccounts` (the backend API, D-56). While a first import runs it is read again on each
+ * `account.changed` of the event stream, or every 2 s when the stream is not open (D-91). When an import is done the inbox
+ * is read again, since it now has the imported conversations.
  */
 export function useAccounts(): AccountsQuery {
   const queryClient = useQueryClient()
+  const live = useStreamState() === 'open'
   const { data, dataUpdatedAt, error, refetch } = useQuery({
     queryKey: ACCOUNTS_QUERY_KEY,
     queryFn: fetchAccounts,
     staleTime: Infinity,
-    refetchInterval: (query) => (query.state.data?.accounts.some((account) => account.firstImport?.state === 'RUNNING') ? SYNC_POLL_MS : false),
+    refetchInterval: (query) =>
+      !live && query.state.data?.accounts.some((account) => account.firstImport?.state === 'RUNNING') ? SYNC_POLL_MS : false,
   })
   const imported = data?.accounts.filter((account) => account.firstImport?.state === 'DONE').map((account) => account.id).join(' ') ?? ''
   useEffect(() => {

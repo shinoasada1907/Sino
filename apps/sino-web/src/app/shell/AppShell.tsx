@@ -1,4 +1,5 @@
 import { Outlet, useLocation, useMatches } from 'react-router'
+import { useEventStream } from '../realtime/useEventStream'
 import { PAGES } from './navItems'
 import { Rail } from './Rail'
 import { Sidebar } from './Sidebar'
@@ -16,6 +17,7 @@ export interface ShellHandle {
 }
 
 export function AppShell() {
+  useEventStream()
   const { shell, receivedAt } = useShellData()
   const { pathname } = useLocation()
   const handle: ShellHandle = Object.assign({}, ...useMatches().map((match) => (match.handle ?? {}) as ShellHandle))

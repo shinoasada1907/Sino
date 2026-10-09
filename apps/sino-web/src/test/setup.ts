@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
+import { stubEventSource } from './eventSource'
 import { stubOsColorScheme } from './matchMedia'
 import { server } from './msw/server'
 
@@ -31,8 +32,12 @@ beforeAll(() =>
   }),
 )
 
-// The OS states no dark-mode preference unless a test says otherwise; `unstubGlobals` resets it after each test.
-beforeEach(() => stubOsColorScheme('light'))
+// The OS states no dark-mode preference unless a test says otherwise, and every signed-in screen opens the event stream
+// (F08), which jsdom lacks; `unstubGlobals` resets both after each test.
+beforeEach(() => {
+  stubOsColorScheme('light')
+  stubEventSource()
+})
 
 afterEach(() => {
   cleanup()

@@ -987,6 +987,21 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Sửa:** web có trường `address` để hiện, lấy `address ?? displayName` ngay ở lớp đọc API (`??` chỉ thay khi giá trị là `null` hoặc `undefined`, khác `||` thay cả chuỗi rỗng). `externalAccountId` giữ đúng nghĩa là mã, không còn được hiện.
 - **Cách test bắt lỗi kiểu này:** fixture API dùng mã số thật cho `externalAccountId`; màn nào còn hiện mã thì test tìm email sẽ đỏ.
 
+## 14. Hộp thư realtime: phía web (F08, `f07-f08-realtime-inbox`)
+
+### 14.0 Bức tranh
+- **Ở đâu:** `src/app/realtime/useEventStream.ts`, `src/shared/realtime/streamState.ts`, `src/test/eventSource.ts`.
+- **Là gì:** backend đẩy sự kiện qua SSE (`GET /api/events/stream`); web giữ đúng một kết nối cho cả app. Sự kiện không mang nội dung thư, chỉ nói "Hộp thư đổi" hay "tài khoản đổi"; web đánh dấu query tương ứng là cũ và đọc lại từ API như bình thường.
+
+### 14.1 EventSource (FE-53)
+- **Có sẵn trong trình duyệt:** `new EventSource(url)` mở một request GET kéo dài; server gửi các khối chữ `event: tên` + `data: ...` cách nhau bởi một dòng trống. Tên sự kiện riêng phải nghe bằng `addEventListener('tên', ...)`; `onmessage` chỉ nhận sự kiện không có tên.
+- **Tự nối lại:** mất kết nối thì trình duyệt tự mở lại sau khoảng `retry:` server đã gửi (Sino: 3000 ms). Server trả lỗi (ví dụ `401` khi hết phiên) thì trình duyệt bỏ hẳn: `readyState` = `CLOSED`.
+- **Không gửi được header tự đặt:** nên xác thực bằng cookie phiên (D-22) là vừa; request GET không cần CSRF.
+- **Bù sự kiện lỡ:** luồng của Sino không có `id:`, nên mỗi lần mở lại web đọc lại Hộp thư và tài khoản một lần.
+- **Bẫy, sự kiện tới lúc trang còn đang tải:** `invalidateQueries` của TanStack Query tải lại các query đang hiện; nhưng nếu query đó đang tải lần đầu (chưa có dữ liệu), nó chỉ chờ request đang chạy chứ không gửi thêm. Thấy được trên Chrome thật, không thấy trong test.
+- **Trạng thái dùng chung ngoài React:** `streamState.ts` là một biến của module kèm danh sách người nghe; `useSyncExternalStore` cho component vẽ lại khi nó đổi. Trang Tài khoản dùng nó để chỉ hỏi lại mỗi 2 s khi luồng không mở.
+- **Test:** jsdom không có EventSource; lớp giả trong `test/eventSource.ts` ghi lại các luồng app mở và cho test đóng vai server (`open`, `emit`, `drop`, `fail`).
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1093,3 +1108,5 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 102. Vì sao phần trăm nhập thư dừng ở 99 % thay vì tính thẳng `imported / estimated`?
 103. Vì sao trạng thái lần nhập được ghép vào query danh sách tài khoản thay vì mỗi tài khoản một query? Cái giá là gì?
 104. `address ?? displayName` và `address || displayName` khác nhau khi nào?
+105. Vì sao Sino dùng `addEventListener('conversations.changed', ...)` mà không dùng `onmessage`? Sau khi mất kết nối, ai mở lại luồng, và web làm gì khi luồng mở lại?
+106. Một sự kiện tới lúc trang đang tải lần đầu thì vì sao không có request mới? Khi nào điều đó thành vấn đề?
