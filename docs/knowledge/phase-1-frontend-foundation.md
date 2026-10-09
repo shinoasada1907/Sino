@@ -924,6 +924,12 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Chia cột khi trùng giờ:** xếp theo giờ bắt đầu; mỗi lịch hẹn vào cột trống đầu tiên (cột mà lịch hẹn trước đã kết thúc); một "nhóm" là chuỗi lịch hẹn chạm nhau, cả nhóm chia đều số cột lớn nhất của nhóm.
 - **Bẫy, điều kiện thừa vì sort ổn định:** "cùng giờ thì lịch hẹn trước, task sau, nhắc nhở cuối" không cần so sánh phụ: danh sách được dựng đúng thứ tự đó và `Array.prototype.sort` giữ nguyên thứ tự các phần tử bằng nhau (bắt buộc từ ES2019). Lỗi gài xóa so sánh phụ vẫn xanh là dấu hiệu.
 
+### 12.3 Lưới tuần trên trình duyệt (CA-02)
+- **Mở ở 06:00:** lưới cao 24 × 46 px, nằm trong một khung cuộn; `useLayoutEffect` đặt `scrollTop` một lần khi màn vừa vẽ (trước khi trình duyệt hiện ra), nên người dùng không thấy lưới nhảy từ 00:00 xuống.
+- **Khối chia cột:** `left = cột × 100% / số cột + 4px`, `width = 100% / số cột − 8px`, tính bằng `calc()` nên tự co theo bề ngang cột ngày.
+- **Bẫy lần thứ hai, cột flex co dòng `overflow: hidden`:** khối một giờ (46 px) không đủ chỗ cho tiêu đề, giờ và nguồn; dòng tiêu đề có `overflow: hidden` nên chiều cao tối thiểu là 0 và bị co mất trước tiên, trong khi canvas muốn giữ tiêu đề và cắt phần thừa ở dưới. `*:shrink-0` cho các dòng giữ chiều cao của mình; khối `overflow: hidden` cắt phần không vừa.
+- **Chip của lần lặp sắp tới:** "Báo cáo tuần" ngày 12/10 chưa có trong database (chỉ có lần 05/10 đang mở); chip mở `task-weekly`, task đang mở của chuỗi (`taskId`), không phải id của lần đó.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1019,3 +1025,5 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 91. Vì sao khoảng ngày `to` không gồm (`[28/09, 05/10)`), và một tháng hiện mấy hàng?
 92. Lịch hẹn 22:00 → 01:00 hôm sau được vẽ thế nào trên hai cột ngày?
 93. Tuần chứa 01/01/2026 là tuần mấy của năm nào, theo ISO 8601? Vì sao?
+94. Vì sao lưới tuần đặt `scrollTop` trong `useLayoutEffect` chứ không phải `useEffect`?
+95. Khối một giờ từng mất dòng tiêu đề. Vì sao, và `*:shrink-0` sửa thế nào?

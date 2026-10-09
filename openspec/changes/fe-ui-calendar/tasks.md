@@ -19,7 +19,14 @@
 
 ## 2. Màn hình
 
-- [ ] 2.1 **CA-02 — Desktop: đầu trang, chú giải, Tuần, khối chi tiết lịch hẹn**
+- [x] 2.1 **CA-02 — Desktop: đầu trang, chú giải, Tuần, khối chi tiết lịch hẹn**
+  - **Thực hiện (2026-10-09, AUTO):** `CalendarPage.tsx` (`/calendar`, `/calendar/:itemId`; lịch và cột "Chi tiết lịch hẹn" 340 px từ 1280 px; dưới 1280 px lịch hẹn đang mở thay chỗ lịch); `components/CalendarHeader.tsx` (`CalendarHeader`: dòng nhỏ, tiêu đề, "Hôm nay", khoảng trước / sau, Tuần / Tháng / Lịch trình, "Lịch hẹn"; `CalendarLegend`: chú giải và múi giờ); `components/WeekView.tsx` (dải ngày, hàng cả ngày, lưới 00:00–24:00 mở ở 06:00, khối lịch hẹn chia cột khi trùng, mờ khi đã qua, viền khi đang mở; chip task — đỏ khi quá hạn, gạch khi xong — và dấu nhắc mở màn Việc cần làm; vạch "Bây giờ"); `components/EventDetail.tsx` (loại, giờ, nhắc, lặp, địa điểm, tin nhắn đã tạo ra nó, ghi chú, liên quan; "Sửa", "Thêm thao tác", "Xóa lịch hẹn" chưa làm gì; "Đóng"); route trong `router.tsx`. Tháng và Lịch trình đổi được đầu trang nhưng chưa vẽ thân (CA-03).
+  - **Làm khác kế hoạch:**
+    - "Sinh nhật Hà" lặp hằng năm. **LÝ DO:** nhãn trên canvas có dấu lặp.
+    - Thẻ nguồn ghi tiêu đề thư, không có thì đoạn đầu tin. **LÝ DO:** canvas: "Trần Minh Anh · Gmail" ghi tiêu đề thư, "Gia đình · Zalo" ghi tin của Mẹ.
+    - Cột chi tiết có thêm "Đóng" (như màn Việc cần làm); không chọn lịch hẹn nào thì ghi "Chọn một lịch hẹn để xem chi tiết.". **LÝ DO:** canvas luôn vẽ một lịch hẹn đang mở, không có cách đóng; người dùng bàn phím cần một nút.
+    - Mốc thời gian của chip việc liên quan theo canvas Lịch ("T7 17:00"), khác màn Việc ("T5 08/10"). **LÝ DO:** mỗi màn theo canvas của nó.
+  - **Kiểm chứng (2026-10-09):** test màn viết trước, chạy sau khi dựng; 3 ca đỏ vì test tìm lưới tuần trước khi dữ liệu về → chờ lưới. Kiểm tra ngược 23 lỗi gài: 20 bị bắt; 3 sống vì thiếu ca (chiều cao khối dài, chip của lần lặp sắp tới mở task gốc, thẻ nguồn có cả tiêu đề thư lẫn đoạn đầu) → thêm test, cả 3 bị bắt. Test của router lấy `/calendar` làm trang "đang được dựng" → đổi sang `/services`. Chrome 1440 tối và sáng: lịch 852 px + cột chi tiết 340 px, lưới mở ở 06:00, "Về nhà ăn cơm" 18:30–21:00 cao 115 px và có viền đang mở, "Gọi Minh Anh" 16:00–17:00, vạch bây giờ 14:05, không cuộn ngang. Lỗi gặp khi xem ảnh: khối một giờ mất dòng tiêu đề (dòng có `overflow: hidden` co về 0 trong cột flex) → `*:shrink-0`; nhãn 06:00 bị che nửa → mở cao hơn 10 px. `pnpm lint` 0, `tsc -b` 0, `vitest` 432/432 (50 file), `pnpm build` 0.
   - **Acceptance criteria:** *Đầu trang và chế độ xem*, *Xem theo tuần*, *Chi tiết lịch hẹn* (desktop), *Nút chưa có chức năng*.
 
 - [ ] 2.2 **CA-03 — Tháng và Lịch trình**

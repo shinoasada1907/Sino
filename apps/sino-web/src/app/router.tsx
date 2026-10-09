@@ -1,6 +1,7 @@
 import { Navigate, type RouteObject } from 'react-router'
 import { AccountDetailPage } from '@/features/accounts/AccountDetailPage'
 import { AccountsPage } from '@/features/accounts/AccountsPage'
+import { CalendarPage } from '@/features/calendar/CalendarPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { InboxPage } from '@/features/inbox/InboxPage'
@@ -18,6 +19,7 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/inbox': { element: <InboxPage />, handle: { mobilePageHeader: true } },
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
   '/tasks': { element: <TasksPage />, handle: { mobilePageHeader: true } },
+  '/calendar': { element: <CalendarPage /> },
   '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
 }
 
@@ -40,6 +42,10 @@ export const routes: RouteObject[] = [
             path: 'inbox/:conversationId',
             element: <InboxPage />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
+            path: 'calendar/:itemId',
+            element: <CalendarPage />,
           },
           {
             path: 'tasks/:taskId',

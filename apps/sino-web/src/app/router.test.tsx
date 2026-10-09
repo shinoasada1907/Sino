@@ -12,10 +12,10 @@ describe('routes', () => {
   })
 
   it('shows a screen that is not built yet inside the shell, with a way back to Tổng quan', async () => {
-    renderApp('/calendar')
+    renderApp('/services')
 
-    expect(await screen.findByRole('heading', { name: 'Màn Lịch đang được dựng' })).toBeInTheDocument()
-    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Lịch' })).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByRole('heading', { name: 'Màn Dịch vụ đang được dựng' })).toBeInTheDocument()
+    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Dịch vụ' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Về Tổng quan' })).toHaveAttribute('href', '/overview')
   })
 

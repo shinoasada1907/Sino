@@ -45,7 +45,7 @@ function appointments(now: Date): CalendarEvent[] {
   const at = clockFrom(now)
   const day = dayClockFrom(now)
   const timed = (id: string, title: string, start: string, end: string) => ({ ...base, id, eventId: id, title, startsAt: at(start), endsAt: at(end) })
-  const minhAnh = from('conv-1', 'gmail', 'Trần Minh Anh', 'Hợp đồng thuê văn phòng — bản sửa lần 2', null)
+  const minhAnh = from('conv-1', 'gmail', 'Trần Minh Anh', 'Hợp đồng thuê văn phòng — bản sửa lần 2', 'Chào anh An, em gửi lại bản hợp đồng đã sửa theo góp ý hôm qua.')
   const call = timed('event-call', 'Gọi Minh Anh về phụ lục giá', '2026-10-02T16:00:00+07:00', '2026-10-02T17:00:00+07:00')
   const home = timed('event-home', 'Về nhà ăn cơm', '2026-10-03T18:30:00+07:00', '2026-10-03T21:00:00+07:00')
   const checkup = timed('event-checkup', 'Khám sức khỏe', '2026-10-05T08:30:00+07:00', '2026-10-05T09:30:00+07:00')
@@ -55,7 +55,16 @@ function appointments(now: Date): CalendarEvent[] {
       ...timed('event-design', 'Họp thiết kế với Lê Hoàng', '2026-09-29T10:00:00+07:00', '2026-09-29T11:00:00+07:00'),
       source: from('conv-4', 'messenger', 'Lê Hoàng', null, 'Lê Hoàng: Thứ Ba họp chốt bản thiết kế nhé.'),
     },
-    { ...base, id: 'event-birthday', eventId: 'event-birthday', title: 'Sinh nhật Hà', startDate: day('2026-10-01'), endDate: day('2026-10-02') },
+    {
+      ...base,
+      id: 'event-birthday',
+      eventId: 'event-birthday',
+      title: 'Sinh nhật Hà',
+      startDate: day('2026-10-01'),
+      endDate: day('2026-10-02'),
+      // The canvas marks the pill as repeating: a birthday comes back every year.
+      recurrence: { freq: 'YEARLY', interval: 1, byWeekdays: null, byMonthDay: null, untilDate: null, count: null },
+    },
     {
       ...call,
       location: 'Gọi điện',
