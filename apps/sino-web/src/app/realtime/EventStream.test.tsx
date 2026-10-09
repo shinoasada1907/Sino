@@ -7,6 +7,15 @@ import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
 
 const AT = '2026-10-02T07:05:00Z'
+
+// The shell keeps the unread count on every page (D-93), so an inbox event reads it again.
+function serveInboxFrame() {
+  server.use(
+    http.get('/api/conversations/counts', () =>
+      HttpResponse.json({ unread: 0, byProvider: {}, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0 }),
+    ),
+  )
+}
 const changed = { type: 'conversations.changed', accountId: 'acc-1', conversationIds: ['conv-1'], newInbound: 1, source: 'sync', at: AT }
 
 describe('the event stream of the web (FE-53)', () => {
@@ -26,6 +35,7 @@ describe('the event stream of the web (FE-53)', () => {
   })
 
   it('reads the inbox again when its conversations change, and the accounts when an account changes', async () => {
+    serveInboxFrame()
     const { queryClient } = renderApp('/overview')
     await screen.findByRole('heading', { level: 1 })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
@@ -33,14 +43,15 @@ describe('the event stream of the web (FE-53)', () => {
     stream.open()
 
     stream.emit('conversations.changed', changed)
-    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['inbox']])
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['inbox'], ['inbox-unread']])
 
     invalidate.mockClear()
     stream.emit('account.changed', { type: 'account.changed', accountId: 'acc-1', at: AT })
-    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['accounts'], ['inbox']])
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['accounts'], ['inbox'], ['inbox-unread']])
   })
 
   it('reads both again when the stream opens again after a loss, not when it first opens', async () => {
+    serveInboxFrame()
     const { queryClient } = renderApp('/overview')
     await screen.findByRole('heading', { level: 1 })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
@@ -51,7 +62,7 @@ describe('the event stream of the web (FE-53)', () => {
 
     stream.drop()
     stream.open()
-    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['inbox'], ['accounts']])
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['inbox'], ['inbox-unread'], ['accounts']])
     expect(FakeEventSource.instances).toHaveLength(1)
   })
 

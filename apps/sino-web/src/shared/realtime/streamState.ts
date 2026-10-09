@@ -24,3 +24,27 @@ function subscribe(listener: () => void) {
 export function useStreamState(): StreamState {
   return useSyncExternalStore(subscribe, () => state)
 }
+
+/** The data of a `conversations.changed` event (spec `realtime-events`): ids and numbers, never content. */
+export interface ConversationsChanged {
+  accountId: string
+  conversationIds: string[]
+  newInbound: number
+  source: 'import' | 'sync' | 'user'
+  at: string
+}
+
+const conversationListeners = new Set<(event: ConversationsChanged) => void>()
+
+/** Called by the stream for each `conversations.changed`. */
+export function publishConversationsChanged(event: ConversationsChanged) {
+  conversationListeners.forEach((listener) => listener(event))
+}
+
+/** Hears every `conversations.changed`; returns the way to stop. */
+export function onConversationsChanged(listener: (event: ConversationsChanged) => void): () => void {
+  conversationListeners.add(listener)
+  return () => {
+    conversationListeners.delete(listener)
+  }
+}

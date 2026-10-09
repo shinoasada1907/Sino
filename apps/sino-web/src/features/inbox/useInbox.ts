@@ -4,11 +4,13 @@ import { useNavigate } from 'react-router'
 import { ApiError } from '@/shared/api/problem'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, type InboxFilter } from './format'
-import { fetchConversation, fetchConversations, fetchInbox, sendMessage, updateConversation } from './inbox.api'
+import { fetchConversation, fetchConversations, fetchInbox, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
 import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, OpenConversation } from './inbox.types'
 
 /** Accounts, providers and counts of the inbox. */
 export const INBOX_QUERY_KEY = ['inbox'] as const
+/** Apart from `['inbox']`: the shell keeps it on every page, and it is one light request (D-93). */
+export const INBOX_UNREAD_QUERY_KEY = ['inbox-unread'] as const
 const LISTS_KEY = ['inbox', 'list'] as const
 /** The pages of one view and source. */
 export const conversationsKey = ({ view, source }: InboxFilter) => [...LISTS_KEY, view, source] as const
@@ -25,6 +27,12 @@ export interface InboxQuery {
   /** When `error` happened. */
   failedAt: number
   retry: () => void
+}
+
+/** The unread conversations for the count of the navigation; undefined until it arrives. */
+export function useInboxUnread(): number | undefined {
+  const { data } = useQuery({ queryKey: INBOX_UNREAD_QUERY_KEY, queryFn: fetchUnreadCount, staleTime: Infinity })
+  return data
 }
 
 export function useInbox(): InboxQuery {

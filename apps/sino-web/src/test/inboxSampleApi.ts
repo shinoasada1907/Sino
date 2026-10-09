@@ -24,6 +24,7 @@ const notFound = () => new ApiError(404, 'CONVERSATION_NOT_FOUND', null)
 export function sampleInboxApi(api: typeof InboxApi): typeof InboxApi {
   return {
     ...api,
+    fetchUnreadCount: vi.fn(async () => served().counts.unread),
     fetchInbox: vi.fn(async () => {
       const { generatedAt, providers, accounts, counts } = served()
       return { generatedAt, providers, accounts, counts }

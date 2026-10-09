@@ -77,6 +77,11 @@ function toMember({ externalId, name, self }: ParticipantResponse): Member {
   return { name: self ? 'Bạn' : (name ?? externalId), owner: false, joinedRecently: false }
 }
 
+/** `GET /api/conversations/counts`, the unread conversations only: the count of the navigation (D-93). */
+export async function fetchUnreadCount(): Promise<number> {
+  return (await api.get<CountsResponse>('/api/conversations/counts')).unread
+}
+
 /** `GET /api/accounts`, `GET /api/providers` and `GET /api/conversations/counts`. */
 export async function fetchInbox(): Promise<InboxData> {
   const [accounts, providers, counts] = await Promise.all([

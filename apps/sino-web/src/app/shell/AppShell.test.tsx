@@ -1,10 +1,17 @@
 import { act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { createInboxSample } from '@/features/inbox/inbox.sample'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
 import type { ShellData } from './shell.types'
 import { SHELL_QUERY_KEY } from './useShellData'
+
+// The inbox count of the navigation comes from the inbox (D-93), not from the shell data.
+function inboxWithUnread(unread: number) {
+  const inbox = createInboxSample(new Date())
+  return { ...inbox, counts: { ...inbox.counts, unread } }
+}
 
 function shellWith(change: (shell: ShellData) => void): ShellData {
   const shell = createShellSample(new Date())
@@ -44,10 +51,11 @@ describe('sidebar (desktop)', () => {
     expect(sidebar.getByRole('link', { name: /^Hộp thư/ })).not.toHaveAttribute('aria-current')
   })
 
-  it('takes the counts and the owner from the shell data', async () => {
+  it('takes the counts and the owner from the shell data, and the inbox count from the inbox (D-93)', async () => {
     renderApp('/overview', {
+      inbox: inboxWithUnread(5),
       shell: shellWith((s) => {
-        s.navCounts.inboxUnread = 5
+        s.navCounts.inboxUnread = 99
         s.navCounts.tasksDue = 7
         s.owner.displayName = 'Bình Trần'
         s.accountCount = 2
@@ -62,7 +70,7 @@ describe('sidebar (desktop)', () => {
   })
 
   it('shows no count when it is zero', async () => {
-    renderApp('/overview', { shell: shellWith((s) => (s.navCounts.inboxUnread = 0)) })
+    renderApp('/overview', { inbox: inboxWithUnread(0), shell: shellWith((s) => (s.navCounts.inboxUnread = 0)) })
 
     expect(await within(shellPart('sidebar')).findByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
   })
@@ -81,7 +89,10 @@ describe('rail (tablet)', () => {
   })
 
   it('says nothing extra when nothing needs attention', async () => {
-    renderApp('/overview', { shell: shellWith((s) => (s.navCounts = { inboxUnread: 0, tasksDue: 0, tasksOverdue: 0, accountsNeedingAction: 0, registrationsNew: 0 })) })
+    renderApp('/overview', {
+      inbox: inboxWithUnread(0),
+      shell: shellWith((s) => (s.navCounts = { inboxUnread: 0, tasksDue: 0, tasksOverdue: 0, accountsNeedingAction: 0, registrationsNew: 0 })),
+    })
     const rail = within(shellPart('rail'))
     const tabbar = within(shellPart('tabbar'))
 

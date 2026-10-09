@@ -71,7 +71,14 @@
   - **Test:** sự kiện → đúng query bị đọc lại; nối lại → đọc lại cả hai; `CLOSED` → không mở lại; polling 2 s chỉ khi luồng không mở.
   - **Acceptance criteria:** spec `inbox-live` (Web nghe sự kiện, Nối lại).
 
-- [ ] 2.2 **FE-54 — Hàng mới, "N thư mới", số Hộp thư thật**
+- [x] 2.2 **FE-54 — Hàng mới, "N thư mới", số Hộp thư thật**
+  - **Thực hiện (2026-10-10, AUTO):** `format.ts`: `arrivedRows` (hàng chưa thấy nằm **trên** hàng cũ đầu tiên; tối đa 6 thì trượt), `newMailText`. `ConversationList`: `useArrivedRows` giữ hàng vừa tới tới lần đổi sau (để hiệu ứng chạy hết), đổi bộ lọc hoặc đang tải view khác thì không tính; hàng mới có `data-arrived="slide"` → `animate-row-in` (6 px + mờ dần, `--dur-page`, `--ease-out`), giảm chuyển động → chỉ mờ; dòng "N thư mới" (`role="status"`) ở đầu danh sách, bấm thì cuộn lên đầu. `useNewMailNotice`: cộng `newInbound` của sự kiện `source = sync`, ẩn sau 6 s kể từ thư cuối. `shared/realtime/streamState.ts`: `publishConversationsChanged` / `onConversationsChanged`. Số "Hộp thư" của thanh điều hướng: query `['inbox-unread']` (`GET /api/conversations/counts`).
+  - **Làm khác kế hoạch:**
+    - ~~D-93 dùng chung query `['inbox']`~~ → query riêng `['inbox-unread']`, chỉ hỏi `/counts`. **LÝ DO:** shell giữ nó ở mọi trang; dùng chung `['inbox']` thì mọi lần Hộp thư bị đánh dấu cũ (sự kiện, lần nhập xong) đều tải lại cả khung (3 request) dù đang ở trang khác; các test của màn Tài khoản đỏ vì vậy.
+    - ~~Dòng báo tự ẩn khi đã cuộn lên đầu~~ → ẩn sau 6 s hoặc khi bấm. **LÝ DO:** đủ cho mục đích báo; theo dõi vị trí cuộn là thêm một listener cho mỗi danh sách.
+    - Hàng bên dưới không trượt xuống (MotionSpec: `ease.standard`), mà nhảy ngay. **LÝ DO:** cần đo vị trí từng hàng trước và sau (FLIP); để sau nếu cần.
+    - Dòng báo nằm trong vùng đầu danh sách (cạnh chữ "Hộp thư" ở màn lớn, che một phần chip lọc ở tablet trong 6 s).
+  - **Kiểm chứng (2026-10-10):** hàm thuần RED 4 / hook RED / màn RED, GREEN; test của shell đặt số "Hộp thư" qua dữ liệu Hộp thư. Chrome (EventSource thật, luồng do CDP trả lời, sự kiện tới sau 2,5 s) 1440 tối và 390 sáng: **lỗi tìm được** — lần tải đầu (danh sách từ rỗng sang có) làm mọi hàng trượt vào; sửa: danh sách trước rỗng thì không có gì để so (test thêm ca này, đỏ rồi xanh); sau khi sửa: lần tải đầu 0 hàng "mới", sự kiện → 2 hàng `row-in`, "2 thư mới", số "Hộp thư" 1 → 3, không cuộn ngang. `pnpm lint` 0, `tsc -b` 0, `vitest` 475/475, `pnpm build` 0.
   - **Goal / Why:** thư mới hiện như canvas MotionSpec C và người dùng thấy ngay có thư (D-92, D-93).
   - **Depends on:** FE-53.
   - **Files:** `src/features/inbox/` (danh sách: nhớ ID, đánh dấu hàng mới; dòng báo), `src/app/shell/` (số "Hộp thư" từ counts), test.

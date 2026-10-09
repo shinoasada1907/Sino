@@ -17,6 +17,7 @@ import { SourcePane } from './components/SourcePane'
 import { failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
+import { useNewMailNotice } from './useNewMailNotice'
 
 /**
  * The Hộp thư screen (canvas `Inbox`): sources and filters, the conversation list, and an open email in the right
@@ -35,6 +36,7 @@ export function InboxPage() {
   const navigate = useNavigate()
   const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null)
   const list = useConversationList(filter, now)
+  const notice = useNewMailNotice()
   const opened = useConversation(
     conversationId,
     list.loaded.find((conversation) => conversation.id === conversationId),
@@ -155,6 +157,7 @@ export function InboxPage() {
           body={listBody}
           switching={list.switching}
           more={list.more}
+          notice={notice}
           className={chat ? 'hidden md:flex xl:hidden' : selected ? 'hidden md:flex' : 'flex'}
         />
         {chat && item && account ? (

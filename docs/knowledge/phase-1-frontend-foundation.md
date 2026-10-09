@@ -1002,6 +1002,13 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Trạng thái dùng chung ngoài React:** `streamState.ts` là một biến của module kèm danh sách người nghe; `useSyncExternalStore` cho component vẽ lại khi nó đổi. Trang Tài khoản dùng nó để chỉ hỏi lại mỗi 2 s khi luồng không mở.
 - **Test:** jsdom không có EventSource; lớp giả trong `test/eventSource.ts` ghi lại các luồng app mở và cho test đóng vai server (`open`, `emit`, `drop`, `fail`).
 
+### 14.2 Hàng mới và "N thư mới" (FE-54)
+- **Hàng nào là mới:** so danh sách vừa tải với danh sách trước, chỉ lấy các hàng chưa thấy nằm **trên** hàng cũ đầu tiên (thư mới luôn lên đầu). Trang cũ tải thêm ở cuối khi cuộn, hay một cuộc trò chuyện cũ được đẩy lên, không tính.
+- **Bẫy, lần tải đầu:** danh sách đi từ rỗng (đang tải) sang có dữ liệu thì mọi hàng đều "chưa thấy". Test không bắt được vì chỉ kiểm sau khi có sự kiện; Chrome thật cho thấy mọi hàng cùng trượt vào lúc mở trang. Luật thêm: danh sách trước rỗng thì không có gì để so.
+- **Giữ trạng thái theo prop đổi:** `useArrivedRows` so `idsKey` mới với cái đã lưu ngay trong lúc vẽ và gọi `setState` (cách React khuyên cho "state đi theo một prop"), nên đánh dấu hàng mới còn tới lần danh sách đổi sau, hiệu ứng chạy hết.
+- **Hiệu ứng bằng CSS:** `@keyframes row-in` (lệch 6 px, mờ) khai trong `@theme` của Tailwind 4 thành `animate-row-in`; `motion-reduce:` đổi sang chỉ mờ cho người bật giảm chuyển động.
+- **Một query nhẹ cho số trên điều hướng:** shell có mặt ở mọi trang, nên nó dùng query riêng `['inbox-unread']` (một request `/counts`) thay vì giữ cả khung Hộp thư (3 request mỗi lần bị đánh dấu cũ).
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1110,3 +1117,5 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 104. `address ?? displayName` và `address || displayName` khác nhau khi nào?
 105. Vì sao Sino dùng `addEventListener('conversations.changed', ...)` mà không dùng `onmessage`? Sau khi mất kết nối, ai mở lại luồng, và web làm gì khi luồng mở lại?
 106. Một sự kiện tới lúc trang đang tải lần đầu thì vì sao không có request mới? Khi nào điều đó thành vấn đề?
+107. Vì sao một trang tải thêm ở cuối danh sách không bị coi là thư mới? Lần tải đầu thì sao?
+108. Vì sao số "Hộp thư" của thanh điều hướng có query riêng thay vì đọc từ khung Hộp thư?

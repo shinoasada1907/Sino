@@ -1,6 +1,6 @@
 // Turns the raw inbox data (instants, counts, codes) into the Vietnamese text of the Hộp thư screens.
 import type { AccountStatus } from '@/shared/domain'
-import type { ProviderNameOf } from '@/shared/format'
+import { formatCount, type ProviderNameOf } from '@/shared/format'
 import {
   calendarDaysBetween,
   daysSinceMonday,
@@ -367,4 +367,30 @@ export function linkedInfoSpec(linked: LinkedItem, now: Date, timeZone?: string)
     parts.push(`nhắc ${remindLabel(new Date(linked.remindAt), now, timeZone)}`)
   }
   return parts.join(' · ').toUpperCase()
+}
+
+// MotionSpec C: at most six new rows slide in at a time; more appear at once.
+const MAX_SLIDE = 6
+
+/**
+ * The rows of a list read again that were not there before: those above the first row already shown, since new mail goes
+ * to the top. Rows loaded at the end (older pages) and a known conversation that moves up are not new. `before` is null
+ * when there is nothing to compare with (another filter); an empty `before` is a list still loading, so nothing is new.
+ */
+export function arrivedRows(before: ReadonlySet<string> | null, ids: readonly string[]): { ids: Set<string>; slide: boolean } {
+  const fresh = new Set<string>()
+  if (before !== null && before.size > 0) {
+    for (const id of ids) {
+      if (before.has(id)) {
+        break
+      }
+      fresh.add(id)
+    }
+  }
+  return { ids: fresh, slide: fresh.size > 0 && fresh.size <= MAX_SLIDE }
+}
+
+/** "2 thư mới" */
+export function newMailText(count: number): string {
+  return `${formatCount(count)} thư mới`
 }

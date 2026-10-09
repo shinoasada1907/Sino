@@ -1,5 +1,5 @@
 import { Calendar, CalendarClock, ChevronDown, Clock, ListFilter, Paperclip, Search, SquareCheck, StickyNote, TriangleAlert, type LucideIcon } from 'lucide-react'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -8,7 +8,19 @@ import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Segmented } from '@/shared/ui/segmented'
 import { Spec } from '@/shared/ui/spec'
-import { groupConversations, previewText, rowFlag, rowTime, sourceLabel, type InboxFilter, type InboxView, type RowFlag, type SourceCount } from '../format'
+import {
+  arrivedRows,
+  groupConversations,
+  newMailText,
+  previewText,
+  rowFlag,
+  rowTime,
+  sourceLabel,
+  type InboxFilter,
+  type InboxView,
+  type RowFlag,
+  type SourceCount,
+} from '../format'
 import type { ConversationItem } from '../inbox.types'
 import type { LoadMore } from '../useInbox'
 import { ListSkeleton } from './InboxStates'
@@ -52,6 +64,7 @@ export function ConversationList({
   body,
   switching = false,
   more,
+  notice,
   className,
 }: {
   conversations: ConversationItem[]
@@ -69,9 +82,13 @@ export function ConversationList({
   body?: ReactNode
   switching?: boolean
   more?: LoadMore
+  /** "N thư mới" while there is new mail from sync (D-92). */
+  notice?: { count: number; dismiss: () => void }
   className?: string
 }) {
   const groups = groupConversations(conversations, now)
+  const arrived = useArrivedRows(conversations, `${filter.view} ${filter.source ?? ''} ${switching}`)
+  const scroller = useRef<HTMLElement>(null)
   const label = (name: string, count: number | null) => (count ? `${name} · ${count}` : name)
   const filters = body === undefined
 
@@ -100,7 +117,21 @@ export function ConversationList({
         </div>
       )}
 
-      <section aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto border-t md:border-t-0">
+      <section ref={scroller} aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto border-t md:border-t-0">
+        {notice && notice.count > 0 && (
+          <div role="status" className="pointer-events-none sticky top-3 z-2 flex h-0 justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                scroller.current?.scrollTo?.({ top: 0, behavior: 'smooth' })
+                notice.dismiss()
+              }}
+              className="pointer-events-auto h-8 cursor-pointer rounded-full bg-foreground px-3.5 text-xs leading-4 font-semibold text-background shadow-popover outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid motion-safe:animate-row-in"
+            >
+              {newMailText(notice.count)}
+            </button>
+          </div>
+        )}
         {filters && (
           <div role="group" aria-label="Lọc" className="sticky top-0 z-1 hidden flex-wrap gap-2 border-b bg-background px-3 pt-3.5 pb-3 md:flex xl:hidden">
             <span className="relative inline-flex">
@@ -148,7 +179,15 @@ export function ConversationList({
                 <div className="px-4 pt-4 pb-1.5 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] text-muted-foreground md:px-5.5">{group.label}</div>
                 <div className="flex flex-col md:gap-0.5 md:px-2 md:pb-1">
                   {group.items.map((item) => (
-                    <ConversationRow key={item.id} item={item} selected={item.id === selectedId} search={search} now={now} nameOf={nameOf} />
+                    <ConversationRow
+                      key={item.id}
+                      item={item}
+                      selected={item.id === selectedId}
+                      arrived={arrived.ids.has(item.id) ? (arrived.slide ? 'slide' : 'show') : null}
+                      search={search}
+                      now={now}
+                      nameOf={nameOf}
+                    />
                   ))}
                 </div>
               </div>
@@ -161,17 +200,38 @@ export function ConversationList({
   )
 }
 
+/**
+ * The rows that arrived since the list was last read (MotionSpec C), kept until the list changes again so that their
+ * animation runs to the end. `resetKey` names what the list shows: another filter or a view still loading starts afresh.
+ */
+function useArrivedRows(conversations: ConversationItem[], resetKey: string): { ids: Set<string>; slide: boolean } {
+  const ids = conversations.map((item) => item.id)
+  const idsKey = ids.join(' ')
+  const [tracked, setTracked] = useState<{ resetKey: string; idsKey: string; seen: Set<string>; arrived: ReturnType<typeof arrivedRows> } | null>(
+    null,
+  )
+  // Read while rendering, as React advises for state that follows a prop.
+  if (tracked === null || tracked.idsKey !== idsKey || tracked.resetKey !== resetKey) {
+    const before = tracked !== null && tracked.resetKey === resetKey ? tracked.seen : null
+    setTracked({ resetKey, idsKey, seen: new Set(ids), arrived: arrivedRows(before, ids) })
+  }
+  return tracked?.arrived ?? { ids: new Set(), slide: false }
+}
+
 // Canvas `.mrow` (and `.mob-row` on mobile): unread rows are bold; a chat shows how many messages are unread, an email
-// a dot. The source next to the name and the flag line show from 1280px, as in the canvas.
+// a dot. The source next to the name and the flag line show from 1280px, as in the canvas. A row that has just arrived
+// slides in (only fades when motion is reduced), or appears at once when many arrived together.
 function ConversationRow({
   item,
   selected,
+  arrived,
   search,
   now,
   nameOf,
 }: {
   item: ConversationItem
   selected: boolean
+  arrived: 'slide' | 'show' | null
   search: string
   now: Date
   nameOf: ProviderNameOf
@@ -184,7 +244,8 @@ function ConversationRow({
     <Link
       to={{ pathname: `/inbox/${item.id}`, search }}
       aria-current={selected ? 'page' : undefined}
-      className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 border-b px-4 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3.5 md:rounded-xl md:border md:border-transparent md:p-3.5 md:aria-[current=page]:border-border-strong md:aria-[current=page]:bg-raised"
+      data-arrived={arrived ?? undefined}
+      className="grid grid-cols-[40px_minmax(0,1fr)_auto] data-[arrived=slide]:motion-safe:animate-row-in data-[arrived=slide]:motion-reduce:animate-fade-in items-start gap-x-3 border-b px-4 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3.5 md:rounded-xl md:border md:border-transparent md:p-3.5 md:aria-[current=page]:border-border-strong md:aria-[current=page]:bg-raised"
     >
       <span className="grid size-10 place-items-center rounded-xl border bg-raised text-foreground md:size-9 md:rounded-sm">
         <ProviderIcon provider={item.provider} />

@@ -1,4 +1,5 @@
 import { Outlet, useLocation, useMatches } from 'react-router'
+import { useInboxUnread } from '@/features/inbox/useInbox'
 import { useEventStream } from '../realtime/useEventStream'
 import { PAGES } from './navItems'
 import { Rail } from './Rail'
@@ -18,7 +19,10 @@ export interface ShellHandle {
 
 export function AppShell() {
   useEventStream()
-  const { shell, receivedAt } = useShellData()
+  const { shell: sample, receivedAt } = useShellData()
+  // The inbox count is the real one (D-93), so that new mail changes it; the other counts are still sample data.
+  const inboxUnread = useInboxUnread()
+  const shell = inboxUnread !== undefined && sample ? { ...sample, navCounts: { ...sample.navCounts, inboxUnread } } : sample
   const { pathname } = useLocation()
   const handle: ShellHandle = Object.assign({}, ...useMatches().map((match) => (match.handle ?? {}) as ShellHandle))
   // A sub-page such as /accounts/acc-gmail keeps the title of its section.

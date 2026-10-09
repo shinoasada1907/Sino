@@ -3,6 +3,7 @@ import { ApiError } from '@/shared/api/problem'
 import { providerNameOf } from '@/shared/format'
 import type { ConversationItem, LinkedItem, Message } from './inbox.types'
 import {
+  arrivedRows,
   bubbleMeta,
   chatDayLabel,
   dayGroupLabel,
@@ -17,6 +18,7 @@ import {
   linkedMeta,
   mailTime,
   memberPlaceholder,
+  newMailText,
   notArrivedSince,
   paragraphs,
   previewText,
@@ -350,5 +352,31 @@ describe('the open conversation', () => {
       text: 'Trả lời từ Sino sẽ có ở bản sau. Bây giờ bạn trả lời trong Gmail.',
     })
     expect(sendBlockText('NOT_READY', 'CHAT', 'Zalo', '+84 9•• ••• 218').title).toBe('Sino chưa gửi được tin')
+  })
+})
+
+describe('conversations that arrive while the list is open (FE-54, MotionSpec C)', () => {
+  it('finds the rows above the first one already shown, and slides them in up to six', () => {
+    expect(arrivedRows(null, ['a', 'b'])).toEqual({ ids: new Set(), slide: false })
+    // The first page coming in after the list was empty (loading) is not mail that arrived.
+    expect(arrivedRows(new Set(), ['a', 'b'])).toEqual({ ids: new Set(), slide: false })
+    expect(arrivedRows(new Set(['a', 'b']), ['n1', 'n2', 'a', 'b'])).toEqual({ ids: new Set(['n1', 'n2']), slide: true })
+    expect(arrivedRows(new Set(['a', 'b']), ['a', 'b'])).toEqual({ ids: new Set(), slide: false })
+  })
+
+  it('does not count older rows loaded at the end, nor a known conversation that moves to the top', () => {
+    expect(arrivedRows(new Set(['a', 'b']), ['a', 'b', 'c', 'd'])).toEqual({ ids: new Set(), slide: false })
+    expect(arrivedRows(new Set(['a', 'b']), ['b', 'a'])).toEqual({ ids: new Set(), slide: false })
+  })
+
+  it('shows more than six new rows at once, without sliding', () => {
+    const fresh = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7']
+    expect(arrivedRows(new Set(['a']), [...fresh, 'a'])).toEqual({ ids: new Set(fresh), slide: false })
+    expect(arrivedRows(new Set(['a']), [...fresh.slice(0, 6), 'a']).slide).toBe(true)
+  })
+
+  it('says how many new emails came', () => {
+    expect(newMailText(1)).toBe('1 thư mới')
+    expect(newMailText(1200)).toBe('1.200 thư mới')
   })
 })

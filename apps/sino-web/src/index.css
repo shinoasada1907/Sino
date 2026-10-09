@@ -73,6 +73,21 @@
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --ease-std: cubic-bezier(.4, 0, .2, 1);
 
+  /* MotionSpec C: a row that arrives slides 6 px and fades in; with reduced motion it only fades. */
+  --animate-row-in: row-in var(--dur-page) var(--ease-out) both;
+  --animate-fade-in: fade-in var(--dur-page) var(--ease-out) both;
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
   --shadow-popover: var(--shadow-pop);
 
   /* Canvas roles. */
