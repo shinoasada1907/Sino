@@ -26,6 +26,7 @@ Hợp đồng có hai trường, nhiều nhất một trường khác `null`: `d
 `/tasks/:taskId` mở chi tiết. Từ 1280 px chi tiết là cột phải như canvas, dòng đang mở được đánh dấu, "Đóng" về `/tasks`. Dưới 1280 px (tablet, mobile) danh sách chiếm cả màn, bấm một việc mở trang chi tiết với đầu trang con (`MobilePageHeader`, nút quay lại), cùng nội dung khối chi tiết. Bộ lọc nằm trong URL (`?filter=messages|repeat`) và đi theo khi mở/đóng chi tiết.
 **LÝ DO:** canvas chỉ vẽ chi tiết ở desktop; cách này giống Hộp thư (tải lại, nút Back, gửi link đều giữ đúng việc đang xem), không cần thành phần mới.
 **Phương án bị loại:** không có chi tiết trên màn nhỏ (không xem được ghi chú, tin nhắn gốc); tấm trượt từ dưới lên (chưa có thành phần, canvas không vẽ).
+**Sửa 2026-10-09 (TK-03b, CA-04b):** cột phải ~~luôn có, trống thì ghi "Chọn một việc để xem chi tiết."~~ chỉ mở khi có việc (hoặc lịch hẹn) đang mở; chưa chọn thì danh sách dùng hết bề ngang. **LÝ DO:** người dùng 2026-10-09: "Nó đang tự động hiện ra tốt nhất là khi nào chọn xem thì mới mở phần chi tiết này". Canvas luôn vẽ sẵn một mục đang mở nên không nói tới lúc chưa chọn.
 
 ### D-83 — Số "Việc cần làm" trên điều hướng là số việc tới hạn (quá hạn + hôm nay) · **Agent chốt**
 Thanh bên của canvas ghi "Việc cần làm 3" còn màn `Tasks` ghi "8 việc đang mở · 1 quá hạn"; 3 đúng bằng 1 việc quá hạn + 2 việc hôm nay. Số trên điều hướng là việc tới hạn, đọc là "Việc cần làm, 3 tới hạn" (trước: "3 chưa xong"); dấu đỏ vẫn là việc quá hạn. Trên dữ liệu mẫu, mỗi thay đổi trong danh sách tính lại hai số này từ danh sách.

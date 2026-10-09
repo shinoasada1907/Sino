@@ -24,8 +24,8 @@ const FILTERS: { value: TaskFilter; label: string }[] = [
 ]
 
 /**
- * The Việc cần làm screen (canvas `Tasks`, `MobileTasks`): the list in groups with its filter and the quick add, and the
- * open task in the right column from 1280 px. `/tasks/:taskId` opens a task; below 1280 px its detail takes the place
+ * The Việc cần làm screen (canvas `Tasks`, `MobileTasks`): the list in groups with its filter and the quick add, and
+ * from 1280 px a right column for the open task, only while one is open. `/tasks/:taskId` opens a task; below 1280 px its detail takes the place
  * of the list, under a sub-page header on a phone (D-82). Below 768 px the list has its own header with a "Lọc" menu.
  */
 export function TasksPage() {
@@ -51,7 +51,7 @@ export function TasksPage() {
   const filterName = FILTERS.find((option) => option.value === filter)!.label
 
   return (
-    <div className="grid h-full min-h-0 xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className={cn('grid h-full min-h-0', taskId && 'xl:grid-cols-[minmax(0,1fr)_400px]')}>
       <section
         aria-label="Danh sách việc"
         // A scrolling flex column shrinks its children once they overflow; the quick add (52 px) must keep its height.
@@ -126,31 +126,31 @@ export function TasksPage() {
         ))}
       </section>
 
-      <aside aria-label="Chi tiết việc" className={cn('min-h-0 flex-col overflow-auto bg-surface md:border-l', taskId ? 'flex' : 'hidden xl:flex')}>
-        {taskId && <MobilePageHeader back={{ to: `/tasks${search}`, label: 'Quay lại Việc cần làm' }} title="Chi tiết việc" />}
-        <div className="flex grow flex-col gap-5 p-4 *:shrink-0 md:p-7">
-          {selected ? (
-            <TaskDetail
-              key={selected.id}
-              task={selected}
-              now={now}
-              nameOf={nameOf}
-              close={`/tasks${search}`}
-              onToggle={() => toggle(selected)}
-              onSaveNotes={(notes) => saveNotes({ task: selected, notes })}
-            />
-          ) : taskId ? (
-            <div className="flex flex-col items-start gap-3">
-              <p className="text-base">Không tìm thấy việc này.</p>
-              <Button asChild variant="secondary" size="sm">
-                <Link to="/tasks">Về danh sách việc</Link>
-              </Button>
-            </div>
-          ) : (
-            <p className="m-auto text-sm text-muted-foreground">Chọn một việc để xem chi tiết.</p>
-          )}
-        </div>
-      </aside>
+      {taskId && (
+        <aside aria-label="Chi tiết việc" className="flex min-h-0 flex-col overflow-auto bg-surface md:border-l">
+          <MobilePageHeader back={{ to: `/tasks${search}`, label: 'Quay lại Việc cần làm' }} title="Chi tiết việc" />
+          <div className="flex grow flex-col gap-5 p-4 *:shrink-0 md:p-7">
+            {selected ? (
+              <TaskDetail
+                key={selected.id}
+                task={selected}
+                now={now}
+                nameOf={nameOf}
+                close={`/tasks${search}`}
+                onToggle={() => toggle(selected)}
+                onSaveNotes={(notes) => saveNotes({ task: selected, notes })}
+              />
+            ) : (
+              <div className="flex flex-col items-start gap-3">
+                <p className="text-base">Không tìm thấy việc này.</p>
+                <Button asChild variant="secondary" size="sm">
+                  <Link to="/tasks">Về danh sách việc</Link>
+                </Button>
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
     </div>
   )
 }

@@ -110,6 +110,7 @@ describe('Lịch on desktop', () => {
     await user.click(detail().getByRole('link', { name: 'Đóng' }))
     expect(router.state.location.pathname).toBe('/calendar')
     expect(router.state.location.search).toBe('?date=2026-10-03')
+    expect(screen.queryByRole('complementary', { name: 'Chi tiết lịch hẹn' })).toBeNull()
   })
 
   it('names an email source by its subject', async () => {
@@ -133,9 +134,11 @@ describe('Lịch on desktop', () => {
     expect(detail().getByText('Lặp lại').nextElementSibling).toHaveTextContent('Mỗi Chủ nhật')
   })
 
-  it('asks to pick an appointment while none is open, and says so for one it does not know', async () => {
+  it('opens the detail column only once an appointment is picked, and says so for one it does not know', async () => {
     const view = open('/calendar')
-    expect(await (await findDetail()).findByText('Chọn một lịch hẹn để xem chi tiết.')).toBeInTheDocument()
+    await findWeek()
+    expect(screen.queryByRole('complementary', { name: 'Chi tiết lịch hẹn' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Lịch' }).parentElement).not.toHaveClass('xl:grid-cols-[minmax(0,1fr)_340px]')
     view.unmount()
 
     open('/calendar/event-nope')

@@ -47,6 +47,11 @@
   - **Còn lại:** ở 768 px nút "Lịch hẹn" xuống dòng thứ hai của đầu trang và khối lịch hẹn của Tuần cắt chữ vì cột hẹp (canvas không có bản tablet cho Lịch); điện thoại chưa có cách sang tuần khác ngoài "Hôm nay" (canvas không vẽ nút hay vuốt).
   - **Acceptance criteria:** *Lịch trên điện thoại*, *Chi tiết lịch hẹn* (dưới 1280 px), *Trạng thái màn Lịch*.
 
+- [x] 2.4 **CA-04b — Cột chi tiết chỉ mở khi chọn một lịch hẹn** (cùng commit với TK-03b của Việc cần làm)
+  - **Làm khác kế hoạch:** ~~từ 1280 px cột "Chi tiết lịch hẹn" luôn có, trống thì ghi "Chọn một lịch hẹn để xem chi tiết."~~ → cột chỉ mở khi có lịch hẹn đang mở (`/calendar/:itemId`); chưa chọn thì lịch dùng hết bề ngang. **LÝ DO:** người dùng 2026-10-09: "Nó đang tự động hiện ra tốt nhất là khi nào chọn xem thì mới mở phần chi tiết này". Sửa spec *Chi tiết lịch hẹn*.
+  - **Kiểm chứng (2026-10-09):** RED 3 (cột còn hiện khi chưa chọn, còn sau "Đóng"), GREEN. Chrome 1440 tối: `/calendar` lịch rộng 1192 px, không có cột; `/calendar/event-call` lịch 852 px + cột 340 px; `/tasks` danh sách 1192 px; `/tasks/task-bill` 792 px + cột 400 px; không cuộn ngang. `pnpm lint` 0, `tsc -b` 0, `vitest` 446/446, `pnpm build` 0.
+  - **Ghi nhận, chưa sửa:** dữ liệu mẫu dời mọi giờ đúng bằng khoảng cách từ bây giờ tới lúc của canvas (`clockFrom`), nên trên đồng hồ thật lịch hẹn rơi vào giờ lẻ ("Chạy bộ Hồ Tây" 14:28 thay vì 06:00).
+
 ## 3. Nghiệm thu (để sau, theo ý người dùng)
 
 - [ ] 3.1 **CA-05 — Nghiệm thu, tài liệu, archive**

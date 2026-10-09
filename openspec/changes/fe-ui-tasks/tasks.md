@@ -44,6 +44,10 @@
   - **Test:** mobile và tablet, trang chi tiết, trạng thái.
   - **Acceptance criteria:** *Chi tiết một việc* (dưới 1280 px), *Lọc việc* (mobile), *Trạng thái màn Việc cần làm*.
 
+- [x] 2.3 **TK-03b — Cột chi tiết chỉ mở khi chọn một việc** (cùng commit với CA-04b của Lịch)
+  - **Làm khác kế hoạch:** ~~từ 1280 px cột chi tiết luôn có, trống thì ghi "Chọn một việc để xem chi tiết."~~ → cột chỉ mở khi có việc đang mở (`/tasks/:taskId`); chưa chọn thì danh sách dùng hết bề ngang. **LÝ DO:** người dùng 2026-10-09: "Nó đang tự động hiện ra tốt nhất là khi nào chọn xem thì mới mở phần chi tiết này". Sửa D-82 và spec *Chi tiết một việc*.
+  - **Kiểm chứng (2026-10-09):** RED 3 (cột còn hiện khi chưa chọn, còn sau "Đóng"), GREEN. Chrome 1440 tối: `/calendar` lịch rộng 1192 px, không có cột; `/calendar/event-call` lịch 852 px + cột 340 px; `/tasks` danh sách 1192 px; `/tasks/task-bill` 792 px + cột 400 px; không cuộn ngang. `pnpm lint` 0, `tsc -b` 0, `vitest` 446/446, `pnpm build` 0.
+
 ## 3. Nghiệm thu (để sau, theo ý người dùng)
 
 - [ ] 3.1 **TK-04 — Nghiệm thu, tài liệu, archive**

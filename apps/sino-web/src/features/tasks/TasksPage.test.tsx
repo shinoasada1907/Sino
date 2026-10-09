@@ -71,9 +71,19 @@ describe('Việc cần làm on desktop', () => {
     expect(group('QUÁ HẠN').getByRole('checkbox', { name: 'Đánh dấu xong: Gửi lại hóa đơn tháng 9 cho kế toán' })).not.toBeChecked()
   })
 
-  it('asks to pick a task while none is open', () => {
-    open('/tasks')
-    expect(detail().getByText('Chọn một việc để xem chi tiết.')).toBeInTheDocument()
+  it('opens the detail column only once a task is picked, and closes it again', async () => {
+    const { router } = open('/tasks')
+    const user = userEvent.setup()
+    const list = screen.getByRole('region', { name: 'Danh sách việc' })
+    expect(screen.queryByRole('complementary', { name: 'Chi tiết việc' })).toBeNull()
+    expect(list.parentElement).not.toHaveClass('xl:grid-cols-[minmax(0,1fr)_400px]')
+
+    await user.click(screen.getByRole('link', { name: /Gửi lại hóa đơn/ }))
+    expect(list.parentElement).toHaveClass('xl:grid-cols-[minmax(0,1fr)_400px]')
+    await user.click(detail().getByRole('link', { name: 'Đóng' }))
+
+    expect(router.state.location.pathname).toBe('/tasks')
+    expect(screen.queryByRole('complementary', { name: 'Chi tiết việc' })).toBeNull()
   })
 
   it('filters by source and by repeat, keeping the choice in the address', async () => {

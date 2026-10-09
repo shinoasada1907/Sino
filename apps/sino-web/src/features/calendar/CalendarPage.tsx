@@ -21,8 +21,8 @@ const AGENDA_DAYS = 14
 
 /**
  * The Lịch screen (canvas `Calendar`, `MobileCalendar`). From 768 px: the head of the range with its views, the legend,
- * the week, the month or the agenda, and the open appointment in the right column from 1280 px (below that its detail
- * takes the place of the calendar, as the tasks screen, D-82). Below 768 px the layout and the days it asks for differ
+ * the week, the month or the agenda, and from 1280 px a right column for the open appointment, only while one is open
+ * (below that its detail takes the place of the calendar, as the tasks screen, D-82). Below 768 px the layout and the days it asks for differ
  * (a week strip over the agenda), so the page picks one in JavaScript rather than drawing both and hiding one.
  * `/calendar/:itemId` opens an appointment; the view and the day live in the address (D-87).
  */
@@ -47,15 +47,13 @@ export function CalendarPage() {
 
   const detail = selected ? (
     <EventDetail key={selected.id} event={selected} now={now} nameOf={nameOf} close={close} />
-  ) : itemId ? (
+  ) : (
     <div className="flex flex-col items-start gap-3">
       <p className="text-base">Không tìm thấy lịch hẹn này.</p>
       <Button asChild variant="secondary" size="sm">
         <Link to="/calendar">Về lịch</Link>
       </Button>
     </div>
-  ) : (
-    <p className="m-auto text-sm text-muted-foreground">Chọn một lịch hẹn để xem chi tiết.</p>
   )
 
   if (!wide) {
@@ -81,7 +79,7 @@ export function CalendarPage() {
   }
 
   return (
-    <div className="grid h-full min-h-0 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <div className={cn('grid h-full min-h-0', itemId && 'xl:grid-cols-[minmax(0,1fr)_340px]')}>
       <section aria-label="Lịch" className={cn('min-h-0 min-w-0 grid-rows-[auto_auto_minmax(0,1fr)]', itemId ? 'hidden xl:grid' : 'grid')}>
         <CalendarHeader kicker={head.kicker} title={head.title} view={view} onView={setView} onShift={shift} onToday={goToday} />
         <CalendarLegend timeZone={timeZoneLabel(now)} />
@@ -94,12 +92,11 @@ export function CalendarPage() {
         )}
       </section>
 
-      <aside
-        aria-label="Chi tiết lịch hẹn"
-        className={cn('min-h-0 flex-col gap-5 overflow-auto border-l bg-surface p-7 *:shrink-0', itemId ? 'flex' : 'hidden xl:flex')}
-      >
-        {detail}
-      </aside>
+      {itemId && (
+        <aside aria-label="Chi tiết lịch hẹn" className="flex min-h-0 flex-col gap-5 overflow-auto border-l bg-surface p-7 *:shrink-0">
+          {detail}
+        </aside>
+      )}
     </div>
   )
 }

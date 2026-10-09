@@ -949,6 +949,12 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 
   `row-start-2` ghim `main` vào hàng 2 dù hàng 1 có gì. Trước khi sửa, trên màn 844 px: chi tiết lịch hẹn 675 px, chi tiết việc 515 px, hội thoại 172 px, hàng nút nổi giữa màn. Test không thấy vì jsdom không tính bố cục; chỉ đo trên trình duyệt thật mới ra.
 
+### 12.5 Cột chi tiết chỉ mở khi chọn (TK-03b, CA-04b, góp ý của người dùng)
+- **Đổi gì:** từ 1280 px, Lịch và Việc cần làm từng luôn có cột phải, trống thì ghi "Chọn một ... để xem chi tiết.". Giờ cột chỉ có khi đường dẫn có id (`/tasks/:taskId`, `/calendar/:itemId`); chưa chọn thì danh sách và lịch dùng hết bề ngang (1192 px thay vì 792 hoặc 852 px ở màn 1440 px).
+- **Hai chỗ cùng đổi theo id:** lưới chỉ có hai cột khi có id (`taskId && 'xl:grid-cols-[...]'`), và `<aside>` chỉ được vẽ khi có id (`{taskId && <aside>}`). Chỉ bỏ `<aside>` mà giữ lưới hai cột thì còn lại một cột trống 400 px; chỉ đổi lưới mà vẫn vẽ `<aside>` thì nó rơi xuống dưới danh sách.
+- **Không vẽ, chứ không ẩn:** khi chưa chọn, cột không có trong trang (không phải `hidden`), nên trình đọc màn hình không gặp một vùng "Chi tiết việc" rỗng, và test kiểm được bằng `queryByRole('complementary')` trả về `null`.
+- **Đánh đổi:** mở một lịch hẹn thì lịch hẹp lại (1192 → 852 px), các cột ngày co theo. Đổi lại, lúc chỉ xem lịch thì có thêm chỗ cho tên lịch hẹn.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1049,3 +1055,4 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 96. Vì sao màn Lịch chọn bố cục điện thoại bằng `useMediaQuery`, trong khi màn Việc cần làm đổi bố cục bằng lớp `md:`?
 97. Trên điện thoại chọn Chủ nhật 04/10 thì web hỏi khoảng ngày nào, và lịch trình bắt đầu từ đâu? Vì sao không hỏi từ 04/10?
 98. Trang con trên điện thoại từng chỉ cao bằng nội dung. Vì sao ẩn thanh trên làm `main` thấp đi, và vì sao test không phát hiện?
+99. Muốn cột chi tiết chỉ mở khi chọn, phải đổi hai chỗ nào? Chỉ đổi một chỗ thì màn trông ra sao?

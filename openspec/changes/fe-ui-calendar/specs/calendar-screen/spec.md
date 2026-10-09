@@ -33,7 +33,7 @@ Chế độ Lịch trình MUST liệt kê theo ngày từ hôm nay ("Hôm nay", 
 - **THEN** nhóm "Hôm nay · THỨ SÁU 02/10" bắt đầu bằng "Gửi lại hóa đơn tháng 9 cho kế toán" với "Hạn 30/09" và "Quá hạn 2 ngày", và có "Gọi Minh Anh về phụ lục giá" 16:00 – 17:00 với "sau 2 giờ"
 
 ### Requirement: Chi tiết lịch hẹn
-Bấm một lịch hẹn MUST mở chi tiết (`/calendar/:itemId`, giữ chế độ và ngày): loại ("Lịch hẹn" / "Lịch hẹn lặp lại"), tiêu đề, ngày giờ, nhắc ("17:30 · 1 giờ trước"), lặp lại, địa điểm, tin nhắn đã tạo ra nó (mở Hộp thư), ghi chú, liên quan. Từ 1280 px chi tiết là cột phải; dưới 1280 px là trang riêng có nút quay lại. Bấm một task hoặc nhắc nhở MUST mở việc đó ở màn Việc cần làm.
+Bấm một lịch hẹn MUST mở chi tiết (`/calendar/:itemId`, giữ chế độ và ngày): loại ("Lịch hẹn" / "Lịch hẹn lặp lại"), tiêu đề, ngày giờ, nhắc ("17:30 · 1 giờ trước"), lặp lại, địa điểm, tin nhắn đã tạo ra nó (mở Hộp thư), ghi chú, liên quan. Từ 1280 px chi tiết là cột phải, chỉ mở khi có lịch hẹn đang mở (chưa chọn thì lịch dùng hết bề ngang); dưới 1280 px là trang riêng có nút quay lại. Bấm một task hoặc nhắc nhở MUST mở việc đó ở màn Việc cần làm.
 
 #### Scenario: Mở bữa cơm cuối tuần
 - **WHEN** người dùng bấm "Về nhà ăn cơm"
@@ -42,6 +42,10 @@ Bấm một lịch hẹn MUST mở chi tiết (`/calendar/:itemId`, giữ chế 
 #### Scenario: Mở một task từ lịch
 - **WHEN** người dùng bấm chip "Chuyển tiền nhà tháng 10"
 - **THEN** trang chuyển tới `/tasks/task-rent`
+
+#### Scenario: Chưa chọn lịch hẹn nào
+- **WHEN** người dùng mở `/calendar` trên màn 1440 px
+- **THEN** không có cột chi tiết, lịch dùng hết bề ngang; bấm một lịch hẹn thì cột mở, bấm "Đóng" thì cột đóng
 
 ### Requirement: Lịch trên điện thoại
 Dưới 768 px trang MUST hiện như `MobileCalendar`: đầu trang "Lịch" với tháng, "Hôm nay", "Thêm lịch hẹn", dải bảy ngày của tuần, và lịch trình bên dưới.
