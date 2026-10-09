@@ -125,7 +125,42 @@ account:       AccountStatusChanged | AccountConnected | AccountRemoved    -> ac
 Google Cloud Console (cùng dự án với OAuth client): bật Pub/Sub API; tạo topic; cấp `Pub/Sub Publisher` cho `gmail-api-push@system.gserviceaccount.com` trên topic; tạo một tài khoản dịch vụ cho push; tạo push subscription trỏ tới `https://<domain ngrok>/api/webhooks/gmail`, bật xác thực với tài khoản dịch vụ đó và `audience` tự đặt. Máy local: ngrok với domain cố định miễn phí và traffic policy **chỉ cho `POST /api/webhooks/gmail` đi qua** (đường hầm mở máy ra Internet; không được lộ trang đăng nhập hay actuator).
 
 ## Web
-> Phiên web viết mục này và các task FE.
+> Phiên web (sino-web-33). Mode HYBRID, frontend AUTO; người dùng 2026-10-10: "làm luôn không cần trình bày hay hỏi nữa" — các chỗ **Agent chốt** dưới đây là lựa chọn của agent, có phương án bị loại, để người dùng xem lại.
+
+Hiện trạng: Hộp thư và trang Tài khoản chạy trên API thật (FE-50…FE-52). Mọi query của Hộp thư có `staleTime: Infinity` (chỉ tải lại khi bị đánh dấu cũ); danh sách tài khoản hỏi lại mỗi 2 s khi có lần nhập đang chạy; số "Hộp thư" ở thanh điều hướng vẫn là dữ liệu mẫu; "Đồng bộ ngay" mở bước "Đồng bộ" để nhập lại cả khoảng (tạm, AC-07).
+
+### D-90 — Một EventSource cho cả app, chỉ báo "cần đọc lại" · **Agent chốt**
+`src/shared/realtime/useEventStream.ts`, gắn một lần ở `AppShell` (chỉ có khi đã đăng nhập): `new EventSource('/api/events/stream')`, cùng origin nên cookie phiên tự đi; GET nên không cần CSRF. Theo tên sự kiện:
+- `conversations.changed` → `invalidateQueries(['inbox'])`: khung (số đếm, tài khoản), mọi danh sách đã tải, cuộc trò chuyện đang mở. Query đang hiện tự tải lại; query không hiện chỉ bị đánh dấu cũ, lần mở sau mới tải.
+- `account.changed` → `invalidateQueries(['accounts'])` và `['inbox']` (thanh bên Hộp thư có trạng thái tài khoản).
+- `open` lần thứ hai trở đi (đã nối lại) → đọc lại `['inbox']` và `['accounts']`: bù các sự kiện lỡ trong lúc mất kết nối, vì luồng không có `id:`.
+- Lỗi: EventSource tự nối lại theo `retry: 3000`. Khi trình duyệt bỏ hẳn (`readyState` = `CLOSED`, ví dụ phiên hết hạn nên `401`), web không tự mở lại; lần gọi API kế tiếp nhận `401` và về trang đăng nhập như hiện nay.
+- Dữ liệu sự kiện chỉ dùng để chọn query cần đọc lại và cho dòng báo (D-92); nội dung luôn đến từ API, nên mọi kiểm tra quyền vẫn ở API.
+**Phương án bị loại:** mỗi màn tự mở luồng (nhiều kết nối; HTTP/1.1 chỉ cho 6 kết nối mỗi origin, luồng nằm sẵn ăn chỗ của request thường); sửa thẳng cache theo dữ liệu sự kiện (sự kiện không mang nội dung — D-78; tự tính lại số đếm và thứ tự là chép logic của server).
+
+### D-91 — Danh sách tài khoản chỉ hỏi lại mỗi 2 s khi luồng không mở · **Agent chốt**
+`account.changed` đến sau mỗi trang nhập, nên khi luồng đang mở, polling 2 s của FE-52 là thừa. Polling chỉ chạy khi có lần nhập `RUNNING` **và** luồng không ở trạng thái mở (dự phòng khi realtime hỏng). **Phương án bị loại:** giữ polling song song (request thừa); bỏ hẳn polling (luồng hỏng thì tiến độ đứng yên).
+
+### D-92 — Hàng mới theo MotionSpec C; dòng "N thư mới" khi thư đến từ đồng bộ · **Agent chốt** (theo canvas và lựa chọn của người dùng ở D-78)
+- Danh sách nhớ ID các hàng đang hiện. Sau khi tải lại, hàng có ID mới ở đầu danh sách: tối đa 6 hàng thì trượt 6 px + mờ dần (`ease.out`), hàng dưới dời xuống; hơn 6 thì hiện ngay, không chuyển động. `prefers-reduced-motion`: không trượt.
+- Sự kiện `source = sync` với `newInbound > 0` → dòng nhỏ "N thư mới" ở đầu danh sách (`role="status"`), N cộng dồn nếu nhiều sự kiện tới liền nhau; bấm vào thì cuộn danh sách lên đầu; tự ẩn khi đã cuộn lên đầu hoặc sau 6 s. `source = import` (lần nhập đầu) và `user` (đánh dấu đọc, lưu trữ) không có dòng báo.
+- Số đếm thanh bên và chấm chưa đọc đổi theo dữ liệu tải lại, không có hiệu ứng riêng.
+**Phương án bị loại:** dòng báo cho mọi thay đổi (người dùng tự bấm đọc cũng hiện "thư mới"); chỉ có dòng báo, không chuyển động (lệch canvas).
+
+### D-93 — Số "Hộp thư" ở thanh điều hướng lấy từ `GET /api/conversations/counts` · **Agent chốt**
+Hiện là dữ liệu mẫu ("12"), nên thư mới không làm nó đổi. Nối vào `unread` của counts, dùng chung query `['inbox']` để `conversations.changed` cập nhật luôn. Thẻ Tổng quan vẫn là dữ liệu mẫu (ngoài phạm vi). **Phương án bị loại:** để nguyên mẫu (realtime mà số không đổi).
+
+### D-94 — Báo khi realtime mất kết nối · **Agent chốt**
+Mạng tắt: banner ngoại tuyến sẵn có của Hộp thư. Mạng còn mà luồng không mở được quá 30 s: dòng nhỏ ở đầu Hộp thư "Thư mới có thể về chậm · đang kết nối lại…" (kiểu alert "Mất kết nối" của canvas `Surfaces`), ẩn khi luồng mở lại. **Phương án bị loại:** báo ngay khi mất (nhấp nháy mỗi lần server đóng luồng sau 20 phút); không báo (người dùng không biết vì sao thư không về).
+
+### D-95 — "Đồng bộ ngay" gọi `POST /api/accounts/{id}/sync` · **Agent chốt**
+Tài khoản đã nhập xong: "Đồng bộ ngay" gọi API đồng bộ (đọc thay đổi từ con trỏ), không mở bước "Đồng bộ" để nhập lại nữa (thay cách tạm của AC-07). Tài khoản chưa nhập vẫn "Nhập thư" → bước "Đồng bộ". `409 IMPORT_NOT_DONE` / `ACCOUNT_DISABLED` → câu báo riêng. Trang chi tiết đọc `GET /api/accounts/{id}/sync`: "Đồng bộ lần cuối", lỗi gần nhất (dùng cùng bảng chữ của lỗi nhập, FE-51) và "Thư mới về ngay" khi `push = ACTIVE` / "Thư mới về sau khoảng 1 phút" khi `OFF`. **Phương án bị loại:** giữ nhập lại cả khoảng (tốn hạn mức Gmail, vài phút).
+
+### Test (web)
+- jsdom không có EventSource: `src/test/eventSource.ts` thay `globalThis.EventSource` bằng lớp giả ghi lại URL và cho test `open()`, `emit(type, data)`, `drop()`, `close()`; dọn sau mỗi test.
+- Hàm thuần: hàng nào là mới và có trượt không (≤ 6 / > 6), chữ "N thư mới", cộng dồn N.
+- Màn (MSW cho API, EventSource giả cho luồng): `conversations.changed` (`sync`, `newInbound` = 2) → danh sách tải lại, 2 hàng mới đánh dấu trượt, dòng "2 thư mới"; `source = user` → tải lại, không dòng báo; `account.changed` → danh sách tài khoản tải lại; nối lại → tải lại; luồng mở → không polling 2 s, luồng đóng → polling; số "Hộp thư" theo counts; "Đồng bộ ngay" → `POST …/sync`, các lỗi `409`; mất kết nối quá 30 s → dòng báo.
+- Chrome: luồng thật cần backend có BE-50 (CDP không giữ được một response kéo dài); trước đó kiểm bố cục với dữ liệu giả.
 
 ## Testing
 

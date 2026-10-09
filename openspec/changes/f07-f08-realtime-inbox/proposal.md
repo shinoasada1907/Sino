@@ -17,6 +17,7 @@ F05 nhập được thư Gmail thật vào Sino (người dùng đã nhập qua 
 - `live-sync`: đồng bộ tăng dần sau lần nhập đầu; các cò (webhook, hỏi định kỳ, "Đồng bộ ngay", khởi động); account nào được đồng bộ; xử lý lỗi; API trạng thái.
 - `gmail-push`: đăng ký và gia hạn watch của Gmail; webhook Pub/Sub và cách kiểm token; từ thông báo tới account.
 - `realtime-events`: luồng SSE, loại sự kiện, envelope, kết nối lại, giới hạn.
+- `inbox-live` (web): web nghe sự kiện và đọc lại Hộp thư / tài khoản, nối lại, hàng mới và dòng "N thư mới", số Hộp thư thật, "Đồng bộ ngay" trên web, báo mất kết nối.
 
 ### Modified Capabilities
 - `provider-contract`: hàm tùy chọn đăng ký nhận báo thay đổi.

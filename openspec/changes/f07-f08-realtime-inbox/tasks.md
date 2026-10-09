@@ -59,4 +59,31 @@
   - **Acceptance criteria:** DoD trong `design.md` (phần backend).
 
 ## 2. Web — phiên web (sino-web-33)
-> Phiên web thêm các task FE-53… ở đây.
+> Mode HYBRID, frontend AUTO; người dùng 2026-10-10: "làm luôn không cần trình bày hay hỏi nữa". Mỗi task: test đỏ trước rồi xanh, `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build`, Chrome một lượt ở cỡ màn task đụng tới (quy ước kiểm chứng frontend trong `CLAUDE.md`), file kiến thức Phase 1 + `.docx`, commit riêng trên `dev`. Làm trước theo hợp đồng trong spec (contract-first, như FE-50), chạy với backend thật ở FE-56.
+
+- [ ] 2.1 **FE-53 — Kênh sự kiện của web**
+  - **Goal / Why:** web đang mở biết khi nào cần đọc lại Hộp thư và danh sách tài khoản (D-90, D-91).
+  - **Depends on:** hợp đồng `realtime-events` (không cần backend chạy: EventSource giả trong test).
+  - **Files:** `src/shared/realtime/useEventStream.ts` (+ trạng thái luồng cho D-91, D-94), `src/app/shell/AppShell.tsx`, `src/features/accounts/useAccounts.ts` (polling chỉ khi luồng không mở), `src/test/eventSource.ts`, test.
+  - **Test:** sự kiện → đúng query bị đọc lại; nối lại → đọc lại cả hai; `CLOSED` → không mở lại; polling 2 s chỉ khi luồng không mở.
+  - **Acceptance criteria:** spec `inbox-live` (Web nghe sự kiện, Nối lại).
+
+- [ ] 2.2 **FE-54 — Hàng mới, "N thư mới", số Hộp thư thật**
+  - **Goal / Why:** thư mới hiện như canvas MotionSpec C và người dùng thấy ngay có thư (D-92, D-93).
+  - **Depends on:** FE-53.
+  - **Files:** `src/features/inbox/` (danh sách: nhớ ID, đánh dấu hàng mới; dòng báo), `src/app/shell/` (số "Hộp thư" từ counts), test.
+  - **Test:** hàm thuần hàng mới / ≤ 6 / > 6 / chữ; màn: `sync` → 2 hàng trượt + "2 thư mới", `user` → không báo, bấm dòng báo → lên đầu; số điều hướng theo counts.
+  - **Acceptance criteria:** spec `inbox-live` (Hàng mới và dòng báo, Số Hộp thư).
+
+- [ ] 2.3 **FE-55 — "Đồng bộ ngay", trạng thái đồng bộ, báo mất kết nối**
+  - **Goal / Why:** "Đồng bộ ngay" chỉ đọc thay đổi; người dùng biết thư mới về ngay hay chậm và khi realtime mất kết nối (D-94, D-95).
+  - **Depends on:** FE-53; hợp đồng `live-sync` (`POST`/`GET /api/accounts/{id}/sync`).
+  - **Files:** `src/features/accounts/` (`accounts.api.ts`, trang chi tiết, `ImportAlert`), `src/features/inbox/` (dòng báo mất kết nối), test.
+  - **Test:** `POST …/sync` cho tài khoản đã nhập, `409` hai loại; trạng thái "lần cuối", lỗi, push; mất kết nối > 30 s → dòng báo, mở lại → ẩn.
+  - **Acceptance criteria:** spec `inbox-live` (Đồng bộ ngay trên web, Báo mất kết nối).
+
+- [ ] 2.4 **FE-56 — Chạy với backend thật (sau BE-50; đủ khi có BE-53)**
+  - **Goal / Why:** bằng chứng: gửi một thư tới Gmail, thư hiện trong Hộp thư đang mở không cần tải lại.
+  - **Depends on:** FE-53…FE-55, BE-48…BE-50 (lịch 60 s đủ cho lần đầu; webhook khi có BE-52 và cấu hình Pub/Sub).
+  - **Test:** chạy thật trên backend người dùng chạy từ `dev`; ghi thời gian từ lúc gửi tới lúc hàng hiện; ảnh chụp 1440 và 390; không ghi nội dung thư.
+  - **Acceptance criteria:** spec `inbox-live` toàn bộ; DoD (phần web).
