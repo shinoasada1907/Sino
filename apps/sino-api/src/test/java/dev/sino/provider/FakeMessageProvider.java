@@ -95,6 +95,10 @@ public final class FakeMessageProvider implements MessageProvider {
 
     @Override
     public SyncBatch fetchUpdates(ProviderContext context, SyncCursor cursor) {
+        if (!capabilities.supports(ProviderCapability.READ_MESSAGES)) {
+            throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
+                    type + " does not support " + ProviderCapability.READ_MESSAGES);
+        }
         Position position = position(cursor);
         int page = position.page();
         if (page >= pages.size()) {

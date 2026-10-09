@@ -190,14 +190,14 @@ Theo dõi thay đổi  cursor v1|history|<historyId>
 
 - Dùng `snippet` do Gmail tạo sẵn hay tự cắt từ `textContent` cho Hộp thư: F05 chốt (F04b có đủ `textContent`).
 - Cách F05 kích hoạt lần nhập đầu và lưu lựa chọn khoảng nhập (`startInitialSync`): F05.
-- `attachmentId` của Gmail có đổi giữa hai lần `messages.get` của cùng một thư không (lý do dùng `partId`): BE-39 kiểm với Gmail thật.
-- Ảnh dán thẳng vào thư (ảnh chụp màn hình, ảnh từ iPhone) cũng là phần `inline` có `Content-ID`, nên đang không được tính là tệp; tới F06 (hiện HTML) người dùng mới thấy. BE-39 đếm trong hộp thư thật bao nhiêu thư có ảnh nhúng loại này để người dùng chọn lại nếu cần.
-- Thư chuyển tiếp dạng tệp (`message/rfc822`): Gmail có trả các phần bên trong không; nếu có thì `text/plain` của thư được chuyển tiếp có thể đứng trước bản HTML của thư ngoài. BE-39 kiểm.
+- `attachmentId` của Gmail có đổi giữa hai lần `messages.get` của cùng một thư không (lý do dùng `partId`): BE-39 chạy với Gmail thật nhưng hộp thư test không có thư kèm tệp trong 7 ngày (0 trên 0), **chưa trả lời**. `partId` đúng trong cả hai trường hợp; muốn trả lời thì gửi một thư có tệp vào hộp thư test rồi chạy lại `./mvnw test -Preal-gmail`.
+- Ảnh dán thẳng vào thư (ảnh chụp màn hình, ảnh từ iPhone) cũng là phần `inline` có `Content-ID`, nên đang không được tính là tệp; tới F06 (hiện HTML) người dùng mới thấy. BE-39 đếm: 0 thư có ảnh nhúng trong 5 thư của hộp thư test, **chưa đủ để chọn lại**; xem lại khi có hộp thư thật lớn hơn (F05).
+- Thư chuyển tiếp dạng tệp (`message/rfc822`): Gmail có trả các phần bên trong không. BE-39: 0 thư như vậy, **chưa trả lời**. Header gập dòng: 0 (code đã nối lại từ review BE-37).
 
 ## Definition of Done — F04b
 
-- [ ] Các scenario của `provider-access`, `gmail-reading` và delta `provider-contract` có test và xanh.
-- [ ] `./mvnw -B -ntp verify` xanh; `ModularityTests` xanh; kiểm tra ngược từng task.
-- [ ] Test Gmail thật (D-58) chạy với account thật, có số đếm; hoặc ghi rõ NOT VERIFIED và lý do.
-- [ ] README (chạy test Gmail thật), file kiến thức Phase 2 (`.md` + `.docx`).
-- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có lý do; `PROJECT_STATE.md` cập nhật; change archive (sau `f04a-gmail-connect`).
+- [x] Các scenario của `provider-access`, `gmail-reading` và delta `provider-contract` có test và xanh (2026-10-09; scenario *Connector chưa đọc được tin* chạy trên mẫu `SendOnly` của connector giả, vì Gmail giờ đọc được thư).
+- [x] `./mvnw -B -ntp verify` xanh; `ModularityTests` xanh; kiểm tra ngược từng task (BE-35 10, BE-36 28 + 7, BE-37 43 + 19, BE-38 29 + 14).
+- [x] Test Gmail thật (D-58) chạy với account thật, có số đếm (2026-10-09: 5 thư, 5 có chữ, 0 bỏ qua, 0 header còn mã hóa; refresh với Google thật).
+- [x] README (chạy test Gmail thật), file kiến thức Phase 2 (`.md` + `.docx`).
+- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có lý do; `PROJECT_STATE.md` cập nhật (xong 2026-10-09); change archive (sau `f04a-gmail-connect`, mà F04a còn chờ archive `fe-f01-web-foundation`): **chưa**.

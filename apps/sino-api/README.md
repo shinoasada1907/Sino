@@ -121,6 +121,29 @@ there), so everything happens in one browser tab on the backend's own address:
 5. Remove: `(await call('DELETE', '/api/accounts/<accountId>')).status` is `204`, and Sino disappears from
    <https://myaccount.google.com/permissions> (it can take a minute).
 
+### Read a real mailbox (F04b)
+
+`RealGmailTests` reads the Gmail account connected on this machine. It is tagged `real-gmail`, so `./mvnw test`,
+`./mvnw verify` and CI never run it; run it by hand:
+
+1. Have the Compose database running (`docker compose up -d`), the Google client in `.env`, and a Gmail account
+   connected through the web app as above (in Testing mode a connect lasts 7 days; reconnect when it expired).
+2. From `apps/sino-api`:
+
+   ```bash
+   ./mvnw test -Preal-gmail
+   ```
+
+   PowerShell: `.\mvnw.cmd test -Preal-gmail`. The `real-gmail` Maven profile runs only the tagged tests, with the
+   `local` Spring profile (`.env`, the Compose database) and no web port, so a backend running on 8080 is fine.
+3. Read the lines starting with `[real-gmail]`: counts only, never mail content, subjects or addresses.
+
+What it checks on the first page of the last 7 days, through `ProviderAccess` (so the token is refreshed when
+needed): no error, every message is from the last 7 days, most messages have text, no subject or name is still
+RFC 2047 encoded (`=?...?=`). It also reports what the F04b design left to real Gmail: whether `attachmentId`
+changes between two reads of a message, how many messages embed images (mailing lists or not), forwarded messages
+attached as files, folded header values. Without a connected Gmail account both tests are skipped, not failed.
+
 ## Endpoints available today
 
 | Path | Access | Notes |
@@ -168,6 +191,7 @@ The error code catalog is in the F01 design (`openspec/changes/archive/2026-10-0
 | All tests | `./mvnw test` |
 | Full build, as CI runs it | `./mvnw -B verify` |
 | Module boundaries only | `./mvnw test -Dtest=ModularityTests` |
+| Read the real Gmail account connected on this machine (by hand, never in CI) | `./mvnw test -Preal-gmail` (see *Read a real mailbox*) |
 
 Tests run with the `test` profile (`src/test/resources/application-test.yaml`, fake owner `owner@sino.test` /
 `test-owner-password`) against PostgreSQL 18 started by Testcontainers. GitHub Actions

@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-38; còn BE-39 (thử với Gmail thật).
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a).
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -53,6 +53,7 @@ Xóa account -> báo Google thu hồi token             BE-33
 | BE-36 | `ProviderAccess`: gọi connector với token còn hạn, refresh, hết quyền | xong |
 | BE-37 | Chuẩn hóa thư Gmail: cây MIME, chữ (jsoup), tệp, người tham gia, thread | xong |
 | BE-38 | `GmailProvider.fetchUpdates`: lần đầu, theo dõi thay đổi, lỗi, capability | xong |
+| BE-39 | Test Gmail thật chạy tay (`-Preal-gmail`), README, nghiệm thu F04b | xong (Gmail thật: đọc 5 thư, refresh) |
 
 ---
 
@@ -774,6 +775,47 @@ Làm hỏng code mỗi lần một chỗ (29 lần), lần nào cũng có test �
 
 Sau review thêm 14 lỗi cố ý cho phần sửa (cursor bỏ `since` hay điểm kết thúc, không lọc thư cũ, kết thúc lượt history ở `historyId` mới nhất, đứt kết nối coi là thư hỏng, page token hết hạn, page token ghi thẳng vào mẫu URI, body rỗng, `RESOURCE_EXHAUSTED`): cả 14 có test đỏ.
 
+## 10. Thử với Gmail thật bằng một test chạy tay (BE-39)
+
+WireMock chỉ giỏi bằng hiểu biết của người viết nó về Google (bài học D-51 ở mục 5.4). BE-39 cho phần đọc thư chạy với hộp thư Gmail thật của bạn trước khi F05 lưu thư (D-58).
+
+### 10.1 Test có tag, chạy tay
+- **Ở đâu:** `src/test/java/.../gmail/RealGmailTests.java`, gắn `@Tag("real-gmail")`.
+- **Chạy:** `./mvnw test -Preal-gmail`, từ `apps/sino-api`. Cần database Compose đang chạy và một Gmail đã kết nối qua web.
+- **Vì sao không chạy trong `./mvnw verify` hay CI:**
+  - cần một tài khoản Gmail thật, đã kết nối, cùng client secret của Google, mà CI không có và không được có;
+  - kết quả phụ thuộc hộp thư lúc đó, nên không lặp lại được;
+  - nó chạm vào dữ liệu cá nhân.
+
+  Test của CI phải chạy được ở bất cứ đâu và luôn cho cùng kết quả.
+- **Maven và JUnit:**
+  - Surefire loại tag `real-gmail` bằng `excludedGroups`.
+  - Profile Maven `real-gmail` (`-Preal-gmail`) bỏ loại trừ đó và chỉ chọn tag này (`groups`).
+  - Lệnh kiểu `-Dgroups=real-gmail` không đủ, vì loại trừ luôn thắng lựa chọn.
+- **Profile Spring `local`:** test dùng `@ActiveProfiles("local")`, nên đọc `.env` và database Compose giống hệt backend khi chạy trên máy.
+- **Bẫy đã gặp:** lúc đầu test dùng `webEnvironment = NONE` để khỏi mở cổng, nhưng context không lên: cấu hình bảo mật cần `HttpSecurity`, mà bean này chỉ có khi có web context. Môi trường web *giả* (mặc định của `@SpringBootTest`) có web context mà không mở cổng nào, nên backend đang chạy ở `:8080` không bị ảnh hưởng.
+
+### 10.2 Bỏ qua chứ không đỏ
+- Chưa kết nối Gmail thì test gọi `assumeFalse(...)`: JUnit đánh dấu **bỏ qua** (skipped), không phải thất bại. "Không có gì để kiểm" khác với "kiểm mà sai".
+- Lần chạy đầu (account Gmail đã bị xóa ở BE-34) cho đúng kết quả đó: 2 test bỏ qua, kèm lý do "Connect a Gmail account on this machine first".
+
+### 10.3 Chỉ in số đếm
+- Test in các dòng `[real-gmail] ...`: bao nhiêu thư, bao nhiêu có chữ, bao nhiêu bị bỏ qua... Không bao giờ in nội dung thư, tiêu đề hay địa chỉ: log của test có thể bị chép, dán, lưu lại.
+- **Test thứ hai chỉ báo cáo**, không kiểm gì. Nó trả lời các câu design để lại cho Gmail thật:
+  - `attachmentId` có đổi giữa hai lần đọc không (lý do dùng `partId`);
+  - bao nhiêu thư có ảnh nhúng, trong đó bao nhiêu không đến từ danh sách thư (có thể là ảnh người gửi dán vào);
+  - thư chuyển tiếp dạng tệp (`message/rfc822`);
+  - header gập dòng.
+- **Lấy token trong test:** test gọi thẳng Gmail API bằng token lấy trong lambda của `ProviderAccess`. Luật ArchUnit "chỉ connector đọc `credentials()`" (mục 7.8) chỉ áp cho code chính, không áp cho test.
+
+### 10.4 Kết quả với Gmail thật
+**Kết quả ngày 2026-10-09:**
+- **Kết nối:** bạn kết nối lại Gmail qua web bằng tài khoản test user. Một tài khoản khác bị Google chặn ngay trên trang của Google (`403 access_denied`): chế độ Testing chỉ cho các test user, và Sino không hề nhận được lời gọi nào.
+- **Đọc 7 ngày gần nhất:** 5 thư, 5 conversation, cả 5 thư có chữ, 0 bị bỏ qua, 0 tiêu đề hay tên còn dạng `=?...?=`, cả 5 conversation nhận ra chính account.
+- **Refresh thật:** đặt hạn token trong database local về quá khứ rồi chạy lại. `ProviderAccess` refresh với Google thật: hạn mới thêm khoảng 1 giờ, `version` của credential tăng 0 → 1, refresh token giữ nguyên, account vẫn `CONNECTED`. Log không có token nào.
+- **Các câu hỏi để ngỏ:** hộp thư test 7 ngày qua không có thư kèm tệp, ảnh nhúng hay thư chuyển tiếp, nên câu "`attachmentId` có đổi không" là **0 trên 0**: chưa trả lời. `partId` đúng trong cả hai trường hợp. Muốn biết thì gửi một thư có tệp vào hộp thư test rồi chạy lại.
+- **Nghiệm thu còn tìm ra một lỗ:** scenario "connector không có `READ_MESSAGES` phải từ chối đọc" trước đây được kiểm nhờ Gmail *chưa* đọc được thư. BE-38 làm Gmail đọc được, nên không còn connector nào chạy kiểm tra đó. Đã thêm một mẫu connector giả "chỉ gửi". Bài học: một test bị **bỏ qua** ở mọi nơi thì không bảo vệ gì cả, và chỉ đối chiếu từng scenario với test mới thấy điều đó.
+
 ---
 
 ## Tự kiểm tra
@@ -824,3 +866,6 @@ Sau review thêm 14 lỗi cố ý cho phần sửa (cursor bỏ `since` hay đi�
 44. Gmail trả `403`: làm sao Sino biết đó là vượt hạn mức hay không có quyền, mà không đưa body của Google vào thông báo lỗi?
 45. Bạn nhập 30 ngày rồi đánh dấu đã đọc hàng nghìn thư cũ trên Gmail: vì sao Sino không được nhập các thư đó, và connector làm gì để chặn?
 46. Kết nối đứt giữa lúc đọc một thư: vì sao coi đó là "thư hỏng" lại làm mất thư vĩnh viễn?
+47. Vì sao test với Gmail thật không được chạy trong `./mvnw verify` của CI?
+48. Chưa kết nối Gmail thì test bị "bỏ qua" chứ không "đỏ": khác nhau thế nào, và vì sao chọn bỏ qua?
+49. Vì sao `-Dgroups=real-gmail` một mình không chạy được test có tag đó trong dự án này?

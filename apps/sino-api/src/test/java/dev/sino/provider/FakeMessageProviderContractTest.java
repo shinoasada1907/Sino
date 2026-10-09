@@ -77,6 +77,42 @@ class FakeMessageProviderContractTest {
 
     }
 
+    // A connector that only sends: the kit's check that reading is refused without READ_MESSAGES runs on it.
+    @Nested
+    class SendOnly extends MessageProviderContractTest {
+
+        private final FakeMessageProvider provider = FakeMessageProvider.builder("fake-sender")
+                .capabilities(SEND_MESSAGES)
+                .page(message("m-1"))
+                .build();
+
+        @Override
+        protected MessageProvider provider() {
+            return provider;
+        }
+
+        @Override
+        protected MessageProvider providerWithOneBrokenMessage() {
+            return provider;
+        }
+
+        @Override
+        protected ProviderContext context() {
+            return CONTEXT;
+        }
+
+        @Override
+        protected Set<String> expectedMessageIds() {
+            return Set.of();
+        }
+
+        @Override
+        protected Instant since() {
+            return BETWEEN;
+        }
+
+    }
+
     @Nested
     class Sending extends MessageProviderContractTest {
 
