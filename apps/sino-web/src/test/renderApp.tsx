@@ -19,13 +19,16 @@ import { VIEWS } from '@/features/inbox/useInboxFilter'
 import { createOverviewSample } from '@/features/overview/overview.sample'
 import type { OverviewData } from '@/features/overview/overview.types'
 import { OVERVIEW_QUERY_KEY } from '@/features/overview/useOverview'
+import { createTasksSample } from '@/features/tasks/tasks.sample'
+import type { TasksData } from '@/features/tasks/tasks.types'
+import { TASKS_QUERY_KEY } from '@/features/tasks/useTasks'
 import { serveInboxSample } from './inboxSampleApi'
 
 const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' }
 
 /**
- * Renders the whole app at `path` with the given shell, overview, accounts and inbox data already in the query cache;
- * `inbox: null` and `accounts: null` leave those screens to their requests (answered by MSW, or to see them loading or
+ * Renders the whole app at `path` with the given shell, overview, accounts, inbox and tasks data already in the query
+ * cache; `inbox: null`, `accounts: null` and `tasks: null` leave those screens to their requests (answered by MSW, or to see them loading or
  * failing). The inbox sample fills the frame and one page of every view and source; a test file that mocks inbox.api
  * with `sampleInboxApi` gets its later requests answered from the same sample. The owner is signed in unless `me`
  * says otherwise: `null` is signed out, `'request'` leaves the sign-in check to its request (answered by MSW).
@@ -37,8 +40,16 @@ export function renderApp(
     overview = createOverviewSample(new Date()),
     accounts = createAccountsSample(new Date()),
     inbox = createInboxSample(new Date()),
+    tasks = createTasksSample(new Date()),
     me = SIGNED_IN,
-  }: { shell?: ShellData; overview?: OverviewData; accounts?: AccountsData | null; inbox?: InboxSample | null; me?: Me | null | 'request' } = {},
+  }: {
+    shell?: ShellData
+    overview?: OverviewData
+    accounts?: AccountsData | null
+    inbox?: InboxSample | null
+    tasks?: TasksData | null
+    me?: Me | null | 'request'
+  } = {},
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData(SHELL_QUERY_KEY, shell)
@@ -50,6 +61,9 @@ export function renderApp(
     seedInbox(queryClient, inbox)
   }
   serveInboxSample(inbox ?? createInboxSample(new Date()))
+  if (tasks) {
+    queryClient.setQueryData(TASKS_QUERY_KEY, tasks)
+  }
   if (me !== 'request') {
     queryClient.setQueryData(ME_QUERY_KEY, me)
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
-import { doneLabel, dueLabel, groupTasks, navCountsOf, nextOccurrenceLabel, recurrenceLabel, reminderLabel, tasksHeadline } from './format'
+import { groupTasks, navCountsOf, taskMeta, tasksHeadline } from './format'
 import { createTasksSample, nextOccurrenceSample } from './tasks.sample'
 
 const TZ = 'Asia/Ho_Chi_Minh'
@@ -24,15 +24,7 @@ describe('tasks sample data', () => {
 
   it('writes every row line of the canvas', () => {
     const lines = groupTasks(tasks, now, TZ).flatMap((group) =>
-      group.tasks.map((task) =>
-        [
-          task.status === 'DONE' ? doneLabel(task, now, TZ) : dueLabel(task, now, TZ),
-          reminderLabel(task, now, TZ),
-          recurrenceLabel(task.recurrence),
-          nextOccurrenceLabel(task, tasks, TZ),
-          task.source?.title ?? null,
-        ].filter(Boolean),
-      ),
+      group.tasks.map((task) => [...taskMeta(task, tasks, now, TZ).map((meta) => meta.text), ...(task.source ? [task.source.title] : [])]),
     )
     expect(lines).toEqual([
       ['Hạn 30/09 · trễ 2 ngày', 'Đã nhắc 08:12'],
@@ -44,7 +36,7 @@ describe('tasks sample data', () => {
       ['T5 15/10 · cả ngày', 'T2 12/10 09:00', 'Bảo hiểm Tâm An'],
       ['Lê Hoàng'],
       ['Xong 07:45 hôm nay', 'Phòng khám Ánh Dương'],
-      ['Xong T2 28/09', 'Mỗi thứ Hai', 'Đã tạo lần kế tiếp: T2 05/10'],
+      ['Xong T2 28/09', 'Đã tạo lần kế tiếp: T2 05/10'],
     ])
   })
 

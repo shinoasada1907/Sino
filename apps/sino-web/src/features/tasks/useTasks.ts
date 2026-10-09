@@ -3,12 +3,14 @@ import type { ShellData } from '@/app/shell/shell.types'
 import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
 import { navCountsOf } from './format'
 import { addTask, completeTask, fetchTasks, reopenTask, saveTaskNotes } from './tasks.api'
+import type { ProviderInfo } from '@/shared/domain'
 import type { CompletedTask, TaskItem, TasksData } from './tasks.types'
 
 export const TASKS_QUERY_KEY = ['tasks'] as const
 
 export interface TasksQuery {
   tasks: TaskItem[] | undefined
+  providers: ProviderInfo[]
   /** When the list arrived (milliseconds since the epoch, 0 before any data). */
   receivedAt: number
   /** Why the last load failed; the page shows it only while there is no list. */
@@ -19,7 +21,7 @@ export interface TasksQuery {
 
 export function useTasks(): TasksQuery {
   const { data, dataUpdatedAt, error, errorUpdatedAt, refetch } = useQuery({ queryKey: TASKS_QUERY_KEY, queryFn: fetchTasks, staleTime: Infinity })
-  return { tasks: data?.tasks, receivedAt: dataUpdatedAt, error, failedAt: errorUpdatedAt, retry: () => void refetch() }
+  return { tasks: data?.tasks, providers: data?.providers ?? [], receivedAt: dataUpdatedAt, error, failedAt: errorUpdatedAt, retry: () => void refetch() }
 }
 
 /** One task, from the list, so a change shows in its row and its detail at once. `notFound` once the list has no such id. */

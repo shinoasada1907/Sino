@@ -895,6 +895,12 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
   - **Ca biên chưa có test (7):** hạn đúng bằng bây giờ, trễ 45 phút, ngày 31… → thêm test.
   - **Lỗi chỉ lộ ở múi giờ khác:** `getUTCDay()` → `getDay()` cho cùng kết quả ở múi giờ dương như Việt Nam (nửa đêm UTC là 07:00 cùng ngày) nhưng sai ở múi giờ âm. Test chạy cố định `Asia/Ho_Chi_Minh` nên không thấy. **Bài học:** một lỗi gài sống không luôn nghĩa là thiếu test; có khi là môi trường test không đủ rộng. Ghi lại là đủ, không đổi cấu hình test chỉ vì một dòng.
 
+### 11.5 Desktop (TK-02)
+- **Hai thứ bấm được không lồng nhau:** một dòng vừa có ô xong vừa mở được việc. Đặt nút trong liên kết là HTML sai (trình duyệt và trình đọc màn hình xử lý khác nhau). Dòng là lưới hai cột: ô xong, rồi một liên kết gồm tiêu đề và các dòng.
+- **Checkbox thật cho ô xong:** canvas viết `.check { appearance: none }`, tức là một checkbox được vẽ lại. Dùng `<input type="checkbox">` thì trình đọc màn hình nói được "đã chọn", phím cách đánh dấu được, không phải tự viết.
+- **Bẫy, cột flex có cuộn co phần tử con:** danh sách là `flex-col` + `overflow-auto`. Khi nội dung dài hơn khung, các phần tử con được phép co (`flex-shrink: 1`) tới chiều cao tối thiểu của nội dung. Ô thêm việc đặt `h-13` (52 px) nhưng nội dung chỉ cao 20 px, nên bị ép còn 25 px. Test không thấy (jsdom không tính bố cục); ảnh Chrome thấy. Sửa: `*:shrink-0` cho con của cột.
+- **Bẫy, test "không lưu" bằng so sánh object:** TanStack Query giữ nguyên object khi dữ liệu mới bằng dữ liệu cũ (chia sẻ cấu trúc), nên "object không đổi" không chứng minh được là không có lần lưu nào. Test theo dõi chính lời gọi `saveTaskNotes`.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -983,3 +989,5 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 84. Vì sao web không tự tính lần kế tiếp của việc lặp, dù dữ liệu mẫu có tính?
 85. Con số "3" cạnh "Việc cần làm" đếm gì, và vì sao đổi tên `tasksOpen` thành `tasksDue`?
 86. Lỗi gài `getUTCDay()` → `getDay()` sống. Vì sao, và vì sao không đổi cấu hình test để bắt nó?
+87. Vì sao ô đánh dấu xong là một checkbox thật, và vì sao nó không nằm trong liên kết mở việc?
+88. Ô thêm việc bị ép còn 25 px trong Chrome mà test vẫn xanh. Vì sao bị ép, và vì sao test không thấy?

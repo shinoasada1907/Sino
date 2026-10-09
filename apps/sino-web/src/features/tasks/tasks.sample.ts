@@ -141,7 +141,15 @@ export function createTasksSample(now: Date): TasksData {
       completedAt: at('2026-09-28T10:30:00+07:00'),
     },
   ]
-  return { generatedAt: now.toISOString(), tasks }
+  return {
+    generatedAt: now.toISOString(),
+    providers: [
+      { type: 'gmail', displayName: 'Gmail' },
+      { type: 'zalo', displayName: 'Zalo' },
+      { type: 'messenger', displayName: 'Messenger' },
+    ],
+    tasks,
+  }
 }
 
 // The sample's own clock: the canvas is in Vietnam, which keeps +07:00 all year.

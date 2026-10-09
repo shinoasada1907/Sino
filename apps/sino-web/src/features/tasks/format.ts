@@ -177,6 +177,45 @@ export function nextOccurrenceLabel(task: TaskItem, tasks: TaskItem[], timeZone?
   return day ? `Đã tạo lần kế tiếp: ${day}` : null
 }
 
+/** One line under a task's title, with the icon the canvas gives it; late lines are red, today's bold. */
+export interface TaskMeta {
+  icon: 'due' | 'today' | 'reminder' | 'repeat' | 'done'
+  text: string
+  tone: 'over' | 'today' | null
+}
+
+/**
+ * The lines of a row, in the canvas order: for an open task its due, reminder and repeat rule; for a done one when it
+ * was done and, in a series, the next occurrence (canvas `Tasks`, "ĐÃ XONG"). The source tag follows them.
+ */
+export function taskMeta(task: TaskItem, tasks: TaskItem[], now: Date, timeZone?: string): TaskMeta[] {
+  if (task.status === 'DONE') {
+    const next = nextOccurrenceLabel(task, tasks, timeZone)
+    return [{ icon: 'done', text: doneLabel(task, now, timeZone), tone: null }, ...(next ? [{ icon: 'repeat' as const, text: next, tone: null }] : [])]
+  }
+  const lines: TaskMeta[] = []
+  const due = dueLabel(task, now, timeZone)
+  if (due) {
+    const group = groupOf(task, now, timeZone)
+    lines.push(
+      group === 'OVERDUE'
+        ? { icon: 'due', text: due, tone: 'over' }
+        : group === 'TODAY'
+          ? { icon: 'today', text: due, tone: 'today' }
+          : { icon: 'due', text: due, tone: null },
+    )
+  }
+  const reminder = reminderLabel(task, now, timeZone)
+  if (reminder) {
+    lines.push({ icon: 'reminder', text: reminder, tone: null })
+  }
+  const rule = recurrenceLabel(task.recurrence)
+  if (rule) {
+    lines.push({ icon: 'repeat', text: rule, tone: null })
+  }
+  return lines
+}
+
 /** The line under the title: "8 việc đang mở · 1 quá hạn · 5 việc tạo từ tin nhắn", in parts (the late one is red). */
 export function tasksHeadline(tasks: TaskItem[], now: Date, timeZone?: string): { open: string; overdue: string | null; fromMessages: string | null } {
   const open = tasks.filter((task) => task.status === 'OPEN')

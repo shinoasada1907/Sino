@@ -5,6 +5,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { InboxPage } from '@/features/inbox/InboxPage'
 import { OverviewPage } from '@/features/overview/OverviewPage'
+import { TasksPage } from '@/features/tasks/TasksPage'
 import { NotFoundPage } from './NotFoundPage'
 import { MorePage } from './shell/MorePage'
 import { AppShell, type ShellHandle } from './shell/AppShell'
@@ -16,6 +17,7 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/overview': { element: <OverviewPage /> },
   '/inbox': { element: <InboxPage />, handle: { mobilePageHeader: true } },
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
+  '/tasks': { element: <TasksPage /> },
   '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
 }
 
@@ -38,6 +40,10 @@ export const routes: RouteObject[] = [
             path: 'inbox/:conversationId',
             element: <InboxPage />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
+            path: 'tasks/:taskId',
+            element: <TasksPage />,
           },
           {
             path: 'accounts/:accountId',

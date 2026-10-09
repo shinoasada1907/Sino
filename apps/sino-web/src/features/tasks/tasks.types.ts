@@ -1,4 +1,4 @@
-import type { Instant, LocalDate, ProviderType } from '@/shared/domain'
+import type { Instant, LocalDate, ProviderInfo, ProviderType } from '@/shared/domain'
 
 /**
  * Data contract of the Việc cần làm screen (D-42), handed to the backend for F16 (`GET /api/tasks`); see the change
@@ -7,9 +7,10 @@ import type { Instant, LocalDate, ProviderType } from '@/shared/domain'
 
 export type Weekday = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'
 
-/** Open tasks, and tasks done in the last 7 days. */
+/** `GET /api/tasks` (open tasks, and tasks done in the last 7 days) and `GET /api/providers` (names of the sources). */
 export interface TasksData {
   generatedAt: Instant
+  providers: ProviderInfo[]
   tasks: TaskItem[]
 }
 

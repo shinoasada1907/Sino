@@ -52,9 +52,10 @@ Nguyên tắc như D-42: API trả dữ liệu thô, giao diện tự đổi ra 
 type LocalDate = string                      // "2026-10-15"
 type Weekday = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'
 
-// GET /api/tasks: việc đang mở và việc xong trong 7 ngày
+// GET /api/tasks: việc đang mở và việc xong trong 7 ngày; GET /api/providers: tên nhà cung cấp của nguồn
 interface TasksData {
   generatedAt: Instant
+  providers: ProviderInfo[]
   tasks: TaskItem[]
 }
 

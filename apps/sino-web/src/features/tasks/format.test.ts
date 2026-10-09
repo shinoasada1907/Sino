@@ -13,6 +13,7 @@ import {
   reminderLabel,
   tasksHeadline,
   openCountLabel,
+  taskMeta,
 } from './format'
 import type { Recurrence, TaskItem } from './tasks.types'
 
@@ -139,6 +140,31 @@ describe('the lines of a task row', () => {
     // Only an open occurrence is the next one; an open task has no "next" line.
     expect(nextOccurrenceLabel(series[0], [series[0], { ...series[1], status: 'DONE' }], TZ)).toBeNull()
     expect(nextOccurrenceLabel(series[1], [...series, { ...series[1], id: 'next-2', dueAt: vn('2026-10-12T09:00') }], TZ)).toBeNull()
+  })
+})
+
+describe('taskMeta', () => {
+  it('lists the lines of an open row: due (late in red, today bold), reminder, repeat', () => {
+    expect(taskMeta(task({ id: 'a', dueDate: '2026-09-30', reminder: { at: vn('2026-10-02T08:12'), state: 'FIRED' } }), [], now, TZ)).toEqual([
+      { icon: 'due', text: 'Hạn 30/09 · trễ 2 ngày', tone: 'over' },
+      { icon: 'reminder', text: 'Đã nhắc 08:12', tone: null },
+    ])
+    const rule = { ...weekly(null), freq: 'MONTHLY' as const, byMonthDay: 2 }
+    expect(taskMeta(task({ id: 'a', dueAt: vn('2026-10-02T17:00'), recurrence: rule }), [], now, TZ)).toEqual([
+      { icon: 'today', text: 'Hôm nay · 17:00', tone: 'today' },
+      { icon: 'repeat', text: 'Hằng tháng · ngày 2', tone: null },
+    ])
+    expect(taskMeta(task({ id: 'a', dueDate: '2026-10-15' }), [], now, TZ)).toEqual([{ icon: 'due', text: 'T5 15/10 · cả ngày', tone: null }])
+    expect(taskMeta(task({ id: 'a' }), [], now, TZ)).toEqual([])
+  })
+
+  it('lists for a done row when it was done and the next occurrence, without its rule or reminder', () => {
+    const done = task({ id: 'old', status: 'DONE', seriesId: 's', recurrence: weekly(['MONDAY']), completedAt: vn('2026-09-28T10:30') })
+    const next = task({ id: 'next', seriesId: 's', dueAt: vn('2026-10-05T09:00') })
+    expect(taskMeta(done, [done, next], now, TZ)).toEqual([
+      { icon: 'done', text: 'Xong T2 28/09', tone: null },
+      { icon: 'repeat', text: 'Đã tạo lần kế tiếp: T2 05/10', tone: null },
+    ])
   })
 })
 

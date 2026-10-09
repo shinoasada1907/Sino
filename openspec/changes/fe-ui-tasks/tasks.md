@@ -20,7 +20,14 @@
 
 ## 2. Màn hình
 
-- [ ] 2.1 **TK-02 — Desktop: đầu trang, lọc, thêm việc, nhóm, dòng, khối chi tiết**
+- [x] 2.1 **TK-02 — Desktop: đầu trang, lọc, thêm việc, nhóm, dòng, khối chi tiết**
+  - **Thực hiện (2026-10-09, AUTO):** `TasksPage.tsx` (`/tasks`, `/tasks/:taskId`; danh sách và cột "Chi tiết việc" 400 px từ 1280 px; dưới 1280 px một việc đang mở thay chỗ danh sách, D-82); `useTaskFilter.ts` (`?filter=messages|repeat`, "Tất cả" để địa chỉ sạch, giá trị lạ là "Tất cả"); `components/TaskRow.tsx` (ô xong, tiêu đề và các dòng là một liên kết mở việc, nhãn nguồn), `TaskCheck.tsx`, `QuickAdd.tsx` (Enter, bỏ khoảng trắng, tối đa 200 ký tự, giữ focus), `TaskDetail.tsx` (dữ kiện, tin nhắn gốc, ghi chú lưu khi rời ô, liên quan, "Đánh dấu xong" / "Mở lại", "Đóng"); `format.taskMeta` (dòng và biểu tượng của một việc theo canvas); route trong `router.tsx`; `renderApp` nhận `tasks`.
+  - **Làm khác kế hoạch:**
+    - `TasksData` có thêm `providers` (tên nhà cung cấp cho "Trần Minh Anh · Gmail"). **LÝ DO:** API việc không có tên nhà cung cấp; như Hộp thư, adapter sẽ hỏi thêm `GET /api/providers`.
+    - Ô xong là checkbox thật (`appearance: none`), không phải nút. **LÝ DO:** lớp `.check` của canvas viết cho checkbox; trình đọc màn hình đọc được "đã chọn / chưa chọn".
+    - Dòng việc đã xong chỉ ghi "Xong …" và "Đã tạo lần kế tiếp …" (không ghi quy tắc lặp, nhắc). **LÝ DO:** canvas, nhóm "ĐÃ XONG".
+    - Không chọn việc nào thì cột phải ghi "Chọn một việc để xem chi tiết."; nút chính của việc đã xong là "Mở lại"; "Đóng" là liên kết về danh sách (giữ bộ lọc). **LÝ DO:** canvas chỉ vẽ cột phải đang mở một việc chưa xong; theo cách Hộp thư làm.
+  - **Kiểm chứng (2026-10-09):** `taskMeta` RED 3 (2 test hàm chữ + 1 test mẫu) rồi GREEN; test màn viết trước code, chạy sau khi dựng (không có lần RED riêng), kiểm bằng lỗi gài. Kiểm tra ngược 28 lỗi gài: 24 bị bắt; 4 sống vì thiếu ca (nhãn "QUÁ HẠN" đỏ, rời ô ghi chú không sửa thì không lưu, dòng "Lặp lại" của việc lặp, bộ lọc lạ trong địa chỉ) → thêm test, cả 4 bị bắt (ca ghi chú phải theo dõi lời gọi `saveTaskNotes`, vì TanStack giữ nguyên object khi dữ liệu không đổi). Chrome (headless, `vite` dev :5174, chỉ `/api/auth/me` trả lời qua CDP): 1440 tối và sáng: danh sách 792 px, cột chi tiết 400 px, ô thêm 52 px, dòng đang mở được đánh dấu; xong việc quá hạn + thêm một việc → "8 việc đang mở · 5 việc tạo từ tin nhắn", hết nhóm "QUÁ HẠN"; 1024: danh sách chiếm cả màn, mở một việc thì chi tiết thay chỗ; không cuộn ngang. Lỗi gặp khi xem ảnh: ô thêm bị ép còn 25 px vì cột flex có cuộn co các phần tử con khi tràn → `*:shrink-0`. Lint báo 2 cảnh báo `jsx-key` (JSX trong một mảng dữ kiện) → thay bằng thành phần `Fact`; `pnpm lint` 0 cảnh báo, `tsc -b` 0, `vitest` 386/386 (45 file), `pnpm build` 0.
   - **Files:** `src/features/tasks/TasksPage.tsx`, `components/*`, `src/app/router.tsx`, test.
   - **Hướng làm:** theo canvas `Tasks` (1440): danh sách và khối "Chi tiết việc" 2 cột từ 1280 px; `/tasks/:taskId` chọn việc; lọc trong URL; ghi chú lưu khi rời ô.
   - **Test:** nhóm và dòng như canvas, lọc, thêm việc, xong / mở lại, chi tiết, tin nhắn gốc, đóng, việc không tồn tại.
