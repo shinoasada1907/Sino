@@ -72,6 +72,13 @@ describe('the first import on the Tài khoản pages (FE-52)', () => {
     expect(await within(screen.getByRole('dialog')).findByText('khoảng 1.180 thư')).toBeInTheDocument()
   })
 
+  it('opens the sync step on the range the account was imported with, since importing again reads all of it', async () => {
+    backend({ 'acc-1': [apiInitialSync({ range: 'DAYS_30' })] })
+    renderApp('/accounts?sync=acc-1', { accounts: null })
+
+    expect(await screen.findByRole('combobox', { name: 'Đồng bộ thư từ' })).toHaveValue('DAYS_30')
+  })
+
   it('goes on with an import that stopped, on its range, from the detail', async () => {
     const starts = backend({ 'acc-1': [failed('RATE_LIMITED', 'DAYS_30'), RUNNING] })
     renderApp('/accounts/acc-1', { accounts: null })
