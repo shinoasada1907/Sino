@@ -907,6 +907,23 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Menu chọn một trong nhiều:** `menuitemradio` + `aria-checked`, không phải các `menuitem` thường, để trình đọc màn hình nói "đã chọn".
 - **Bẫy, lỗi gài sai cú pháp:** đổi thẻ mở mà quên thẻ đóng làm file không biên dịch; các file test dùng nó không chạy, và script báo "sống" vì không có test nào đỏ. Con số test chạy (28 thay vì 50) là dấu hiệu.
 
+## 12. Màn Lịch (fe-ui-calendar)
+
+### 12.0 Bức tranh
+- **Ở đâu:** `src/features/calendar/`.
+- **Là gì:** màn `/calendar` dựng trước với dữ liệu mẫu (D-42), hợp đồng giao backend F17 (`GET /api/calendar?from=&to=`). Ba chế độ: Tuần, Tháng, Lịch trình. Quyết định D-85…D-89 (agent chốt, người dùng xem lại).
+
+### 12.1 Một khoảng ngày, mọi lần lặp từ máy chủ (CA-01, D-86)
+- **Khoảng của từng chế độ:** Tuần là thứ Hai → Chủ nhật; Tháng là các tuần chạm tháng (tháng 10/2026 từ thứ Hai 28/9 tới Chủ nhật 1/11: 5 hàng; tháng 11/2026: 6 hàng); Lịch trình là 14 ngày từ ngày đang xem. `to` không gồm: `[28/09, 05/10)` là đúng 7 ngày, khỏi cộng trừ 1 ở mọi chỗ.
+- **Lần lặp:** "Chạy bộ mỗi Chủ nhật" chỉ có một dòng trong database; máy chủ tính ra từng lần giao với khoảng đang xem và đặt id riêng cho mỗi lần (`event-run@2026-10-04`). Web không tính, như D-84.
+- **Tuần ISO:** tuần là của năm chứa **thứ Năm** của nó. Tuần chứa 01/01/2026 bắt đầu thứ Hai 29/12/2025 nhưng thứ Năm là 01/01/2026, nên là "TUẦN 1 · 2026".
+
+### 12.2 Vẽ lưới tuần (CA-01, D-88)
+- **Giờ thành pixel:** 46 px một giờ, nên vị trí = số phút từ 00:00 × 46 / 60. 18:30 → 851 px; 14:05 (vạch "bây giờ") → 647,8 px.
+- **Cắt ở hai đầu ngày:** lịch hẹn 22:00 → 01:00 hôm sau vẽ 22:00–24:00 ở ngày đầu và 00:00–01:00 ở ngày sau; số phút được tính tương đối với ngày đang vẽ (âm trước ngày, quá 1440 sau ngày) rồi kẹp vào 0–1440.
+- **Chia cột khi trùng giờ:** xếp theo giờ bắt đầu; mỗi lịch hẹn vào cột trống đầu tiên (cột mà lịch hẹn trước đã kết thúc); một "nhóm" là chuỗi lịch hẹn chạm nhau, cả nhóm chia đều số cột lớn nhất của nhóm.
+- **Bẫy, điều kiện thừa vì sort ổn định:** "cùng giờ thì lịch hẹn trước, task sau, nhắc nhở cuối" không cần so sánh phụ: danh sách được dựng đúng thứ tự đó và `Array.prototype.sort` giữ nguyên thứ tự các phần tử bằng nhau (bắt buộc từ ES2019). Lỗi gài xóa so sánh phụ vẫn xanh là dấu hiệu.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -999,3 +1016,6 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 88. Ô thêm việc bị ép còn 25 px trong Chrome mà test vẫn xanh. Vì sao bị ép, và vì sao test không thấy?
 89. Vì sao chữ gợi ý của ô thêm việc phải chọn bằng `useMediaQuery`, còn ẩn/hiện các khối thì không?
 90. Một lỗi gài báo "sống" nhưng chỉ 28/50 test chạy. Chuyện gì đã xảy ra?
+91. Vì sao khoảng ngày `to` không gồm (`[28/09, 05/10)`), và một tháng hiện mấy hàng?
+92. Lịch hẹn 22:00 → 01:00 hôm sau được vẽ thế nào trên hai cột ngày?
+93. Tuần chứa 01/01/2026 là tuần mấy của năm nào, theo ISO 8601? Vì sao?

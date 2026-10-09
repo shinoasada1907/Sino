@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, dayMonthOfDate, daysBetweenDates, localDateOf, weekdayOfDate } from './localDate'
+import { addDays, addMonths, dayMonthOfDate, daysBetweenDates, localDateOf, weekdayOfDate } from './localDate'
 
 const TZ = 'Asia/Ho_Chi_Minh'
 
@@ -19,6 +19,13 @@ describe('calendar days without a time', () => {
     expect(addDays('2026-10-31', 1)).toBe('2026-11-01')
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28')
     expect(addDays('2026-12-31', 1)).toBe('2027-01-01')
+  })
+
+  it('moves by months, keeping the day or taking the last day of a shorter month', () => {
+    expect(addMonths('2026-10-31', 1)).toBe('2026-11-30')
+    expect(addMonths('2026-12-15', 1)).toBe('2027-01-15')
+    expect(addMonths('2026-03-31', -1)).toBe('2026-02-28')
+    expect(addMonths('2024-01-31', 1)).toBe('2024-02-29')
   })
 
   it('names the weekday and the day and month', () => {

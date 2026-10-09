@@ -31,6 +31,16 @@ export function addDays(date: LocalDate, days: number): LocalDate {
   return dateOfUtc(utcOf(date) + days * DAY_MS)
 }
 
+/** The same day N months later (or earlier); the last day of a shorter month when that day does not exist. */
+export function addMonths(date: LocalDate, months: number): LocalDate {
+  const [year, month, day] = date.split('-').map(Number)
+  const index = year * 12 + month - 1 + months
+  const nextYear = Math.floor(index / 12)
+  const nextMonth = index - nextYear * 12 + 1
+  const last = new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate()
+  return `${nextYear}-${pad(nextMonth)}-${pad(Math.min(day, last))}`
+}
+
 /** 0 = Sunday, as `WEEKDAY_NAMES`. */
 export function weekdayOfDate(date: LocalDate): number {
   return new Date(utcOf(date)).getUTCDay()

@@ -49,7 +49,8 @@ export function createTasksSample(now: Date): TasksData {
       ...base,
       id: 'task-bill',
       title: 'Gửi lại hóa đơn tháng 9 cho kế toán',
-      dueDate: day('2026-09-30'),
+      // 17:00, as the canvas Lịch places it; the Tasks canvas only says "Hạn 30/09 · trễ 2 ngày".
+      dueAt: at('2026-09-30T17:00:00+07:00'),
       reminder: { at: at('2026-10-02T08:12:00+07:00'), state: 'FIRED' },
       createdAt: at('2026-09-25T10:00:00+07:00'),
     },
