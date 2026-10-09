@@ -156,6 +156,7 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 - **BE:** module `sync`; bảng `sync_checkpoint`, `sync_run` (02B); scheduler; **khóa theo account** để một account không bị sync song song; sync tăng dần theo cursor, chỉ tiến checkpoint sau khi lưu thành công (02A §7); retry có backoff cho `RATE_LIMITED`/`PROVIDER_UNAVAILABLE`; chuyển trạng thái account (`AUTH_EXPIRED`, `DEGRADED`...); listener `AccountConnected` → initial sync; `POST /api/accounts/{id}/sync`; event `AccountSync*`; export credential cho `sync` qua named interface riêng (F02 đã để ngỏ).
 - **FE:** trạng thái sync/lỗi theo từng account, nút "Sync now" (canvas `Accounts`, `Topbar`, `Dashboard`).
 - **Bạn sẽ học:** job nền, idempotency khi chạy đồng thời, khóa trong PostgreSQL (advisory lock / `SKIP LOCKED`), backoff, listener tin cậy nhờ Event Publication Registry.
+- **Đã mở 2026-10-10 (gộp với F08):** `openspec/changes/f07-f08-realtime-inbox` — người dùng bảo bỏ kế hoạch cũ nếu không còn hợp: Gmail báo qua webhook Pub/Sub có hỏi dự phòng (D-76), SSE (D-77), thư mới chỉ hiện trong Sino (D-78), đồng bộ tăng dần trong `sync` với `@Scheduled` (D-79). `sync_run` và lease nhiều tiến trình chưa làm.
 
 #### F08 — Realtime (SSE) · ~M
 
