@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35, BE-36.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35, BE-36, BE-37.
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -51,6 +51,7 @@ Xóa account -> báo Google thu hồi token             BE-33
 | FE-30 | Nút "Thêm Gmail", "Kết nối lại" | xong (phiên web) |
 | BE-35 | Contract: `SyncCursor.initial(since)`, `CURSOR_EXPIRED`, kit kiểm mốc thời gian | xong |
 | BE-36 | `ProviderAccess`: gọi connector với token còn hạn, refresh, hết quyền | xong |
+| BE-37 | Chuẩn hóa thư Gmail: cây MIME, chữ (jsoup), tệp, người tham gia, thread | xong |
 
 ---
 
@@ -571,6 +572,117 @@ Một lỗi cố ý viết sai lúc đầu (Java không cho guard của `case` l
   - Luật ArchUnit `ProviderAccessArchitectureTests`: ngoài `dev.sino.provider..` không class nào được gọi `ProviderContext.credentials()`. Lambda vẫn cầm `context`, nhưng chỉ để chuyển cho connector; luật này biến "module khác không đọc token" thành kiểm tra tự động, không còn là lời hứa.
 - **Giới hạn còn lại** (ghi ở design): vẫn còn một khe vài mili giây giữa lúc kiểm và lúc commit. Chặn hẳn phải khóa dòng account ở cả luồng kết nối lại, quá nặng so với rủi ro.
 
+## 8. Biến một thư Gmail thành dữ liệu chung của Sino (BE-37)
+
+Gmail trả một thư dưới dạng JSON (`messages.get`, `format=full`). Hộp thư của Sino cần thứ khác: ai gửi, gửi cho ai, chữ của thư, có tệp gì, thuộc cuộc trò chuyện nào. BE-37 viết lớp chuyển đổi đó; nó không gọi Google (BE-38 gọi).
+
+- **Ở đâu:** `provider/infrastructure/gmail/`:
+  - `GmailMessage`: record theo JSON của Gmail;
+  - `GmailMessageNormalizer`: thư thành `NormalizedMessage`, các thư thành conversation;
+  - `MailHeaders`: header mã hóa, danh sách địa chỉ;
+  - `HtmlText`: HTML thành chữ.
+
+### 8.1 Một thư là một cây MIME
+
+```text
+multipart/mixed                        (cả thư)
+  multipart/related
+    multipart/alternative              (hai bản của cùng nội dung)
+      text/plain                       <- thân thư: Sino lấy phần này
+      text/html                        <- bản HTML, dùng khi không có text/plain
+    image/png  Content-ID: <logo>      <- ảnh nhúng trong HTML (cid:), không phải tệp
+  application/pdf  "Hợp đồng.pdf"      <- tệp đính kèm
+  text/plain       "notes.txt"         <- cũng là tệp, dù là text/plain
+```
+
+- **Quy tắc chọn chữ:** phần `text/plain` đầu tiên *không phải tệp* (không có tên tệp); không có thì phần `text/html` đầu tiên, qua jsoup. Duyệt theo chiều sâu, theo thứ tự trong thư.
+- **Java dùng ở đây: đệ quy.** `firstBody(part)` kiểm chính phần đó, rồi gọi lại chính nó cho từng phần con. Cây lồng bao nhiêu tầng cũng được, code vẫn ngắn.
+- **Bẫy:** Gmail để thân thư lớn ở chỗ khác: có `attachmentId`, không có `data`. Phần như thế bị bỏ qua, và Sino lấy bản HTML nếu có (test `plain-as-attachment.json`).
+
+### 8.2 Thân thư: base64url, rồi charset
+- **base64url:** Gmail gửi nội dung đã mã hóa base64 kiểu URL (dùng `-` và `_` thay cho `+` và `/`) để nhét an toàn vào JSON. Giải mã bằng `Base64.getUrlDecoder()` ra **byte**, chưa phải chữ.
+- **charset:** cùng một dãy byte có thể là chữ khác nhau. Ví dụ byte `E9` là "é" trong ISO-8859-1 nhưng không hợp lệ trong UTF-8. Charset nằm trong header của chính phần đó: `Content-Type: text/plain; charset="ISO-8859-1"`. Không có hoặc Java không biết charset đó thì dùng UTF-8.
+- **Java:** `new String(bytes, charset)`; `Charset.forName("x-made-up")` ném `IllegalArgumentException`.
+- **Sau đó:** đổi xuống dòng kiểu email (`\r\n`) thành `\n`, bỏ khoảng trắng cuối, cắt 100 000 ký tự. Khi cắt thì không chẻ đôi một ký tự gồm hai `char` (emoji là "surrogate pair" trong Java).
+
+### 8.3 HTML thành chữ bằng jsoup (D-61)
+- **Vì sao không dùng regex xóa thẻ:** HTML thật đầy chỗ bẫy: `<script>` chứa dấu `<`, comment, entity `&amp;`, thẻ không đóng. jsoup phân tích HTML như trình duyệt.
+- **Cách làm:**
+  - bỏ `head`, `script`, `style`, `template`;
+  - đi qua cây bằng `NodeVisitor`: `head(node)` được gọi khi vào một node, `tail(node)` khi ra. Gặp chữ thì nối chữ, gặp `<br>` thì xuống dòng, ra khỏi một thẻ khối (`p`, `div`, `li`, `td`...) thì xuống dòng;
+  - cuối cùng gộp khoảng trắng (kể cả `&nbsp;`) và để tối đa một dòng trống.
+- **Vì sao không dùng `Jsoup.parse(html).text()`:** hàm đó gộp cả thư thành một dòng. D-61 đòi "giữ xuống dòng hợp lý".
+
+### 8.4 Header mã hóa: RFC 2047
+- Header email chỉ được chứa ASCII. Tên tiếng Việt vì vậy được mã hóa thành "encoded word": `=?UTF-8?B?Tmd1eeG7hW4gVsSDbiBBbg==?=` là "Nguyễn Văn An".
+  - `B` là base64.
+  - `Q` gần giống quoted-printable: `=C3=A1` là hai byte, `_` là dấu cách.
+- **Hai chi tiết dễ sai:**
+  - Khoảng trắng giữa hai encoded word liền nhau không thuộc về chữ.
+  - Một ký tự nhiều byte có thể bị chia đôi qua hai word: "ạ" là `E1 BA A1`, word đầu kết thúc bằng `E1`. Phải gộp byte của các word liền nhau rồi mới đổi ra chữ, nếu không sẽ ra ký tự lỗi.
+- **Vì sao tự viết (`MailHeaders`):** D-61 chỉ duyệt jsoup là thư viện mới. Phần cần dùng nhỏ (khoảng 100 dòng) và có test cho từng trường hợp.
+
+### 8.5 Đọc danh sách địa chỉ
+- `To: Owner@Gmail.test, "Trần, Bình" <binh@example.com>`: tách bằng `split(",")` sẽ cắt đôi "Trần, Bình".
+- `entriesOf` đi từng ký tự và nhớ đang ở trong ngoặc kép, ngoặc nhọn hay chú thích `( )`. Nó chỉ tách ở dấu phẩy nằm ngoài các thứ đó, và bỏ tên nhóm (`Team: a@x, b@y;`).
+- Mỗi địa chỉ được viết thường và dùng làm ID của người tham gia. Người tham gia có email trùng email của account (không phân biệt hoa thường) được đánh dấu `self`.
+
+### 8.6 Từ thư thành cuộc trò chuyện
+- Mỗi `threadId` thành một conversation loại `THREAD`:
+  - tiêu đề là Subject của thư mới nhất, bỏ tiền tố `Re:`, `Fwd:`, `FW:`, `TL:`, lặp bao nhiêu lần cũng được;
+  - người tham gia là hợp của các thư, mỗi người một lần, giữ tên nếu có thư nào cho tên;
+  - `lastActivityAt` là thời điểm của thư mới nhất.
+- **Vì sao thời điểm là `internalDate` mà không là header `Date`:** `Date` do máy người gửi tự ghi, nên có thể sai giờ, sai múi giờ hoặc bị giả. `internalDate` do Gmail ghi lúc nhận hay gửi, nên mọi thư trong hộp được xếp theo cùng một đồng hồ.
+
+### 8.7 Tệp đính kèm: ID nào?
+- Tệp là phần có tên tệp và `attachmentId`. **Không** tính ảnh nhúng (có `Content-ID`, không đánh dấu `attachment`): đó là ảnh của HTML, tính vào thì thư quảng cáo nào cũng có kẹp giấy.
+- **ID của tệp là `partId`** (ví dụ `"1"`, `"0.1"`), không phải `attachmentId`. Gmail được báo là đổi `attachmentId` mỗi lần gọi `messages.get`; nếu dùng nó, mỗi lần nhập lại thì một tệp thành hai. Điều này **chưa kiểm** với Gmail thật; BE-39 kiểm.
+
+### 8.8 Test với thư tự dựng
+- Sáu file JSON trong `src/test/resources/gmail/` có đúng dạng Gmail API, sinh bằng một script tính sẵn base64url, **không phải thư thật**. Thư thật chứa dữ liệu cá nhân, không được vào repo.
+- **Java và Jackson:** `GmailMessage` là record. Jackson đọc JSON vào record qua constructor chính. `@JsonIgnoreProperties(ignoreUnknown = true)` để các trường Gmail có mà Sino không dùng (`snippet`, `historyId`, `sizeEstimate`) không làm hỏng việc đọc.
+- **Test viết thêm sau khi xanh:** rà nhánh nào chưa có test thì thấy thiếu 7 trường hợp, như charset có hậu tố ngôn ngữ `UTF-8*vi`, `&nbsp;`, hay tệp có dữ liệu inline. Viết thêm test, rồi kiểm tra ngược để chắc các test đó thật sự bắt lỗi.
+
+### 8.9 Kiểm tra ngược (BE-37)
+Làm hỏng code mỗi lần một chỗ (43 lần), cuối cùng lần nào cũng có test đỏ. Một số lỗi tiêu biểu:
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Không gộp byte của hai encoded word liền nhau | ký tự bị chia đôi qua hai word |
+| Giữ khoảng trắng giữa hai encoded word khác charset | hai word khác charset (test viết thêm, xem dưới) |
+| `\"` trong tên làm đóng ngoặc kép | tên có dấu nháy đã thoát và dấu phẩy (test viết thêm) |
+| Không bỏ tên nhóm, ngoặc nhọn không bao giờ đóng | đọc thành viên của một nhóm |
+| Không viết thường email, chấp nhận địa chỉ có khoảng trắng hay hai `@` | đọc tên và địa chỉ; bỏ mục không có địa chỉ |
+| Giữ `head`, bỏ qua `<br>`, không xuống dòng sau thẻ khối, không gộp khoảng trắng | các test của `HtmlTextTests` |
+| Lấy HTML trước chữ thuần, lấy tệp làm thân thư, đọc phần không có `data` | thư có cả hai bản; tệp có dữ liệu inline; thân thư Gmail để ở chỗ khác |
+| Giữ `\r\n`, không cắt, cắt chẻ đôi emoji | thư có cả hai bản; chữ dài; cắt không chẻ ký tự |
+| Charset lạ hay thiếu charset đọc bằng ISO-8859-1, bỏ qua charset | ba test charset |
+| Thư gửi đi thành thư đến, luôn "đã đọc", không bao giờ `MIXED` | thư gửi đi có tệp; thư có cả hai bản |
+| Tính ảnh nhúng là tệp; ảnh gửi dạng `attachment` có `Content-ID` không là tệp; không giải mã tên tệp | hai test tệp đính kèm |
+| Không đánh dấu `self`, bỏ Cc, tên sau đè tên trước | các test người tham gia |
+| Thread lấy thư cũ nhất, mất tên người tham gia | các test thread |
+
+Lần chạy đầu có **2 lỗi cố ý sống sót**, nghĩa là test còn hở:
+- **Hai encoded word khác charset:** test cũ chỉ có hai word cùng charset (đi nhánh gộp byte), nên nhánh "bỏ khoảng trắng giữa hai word" chưa từng bị kiểm.
+- **Dấu nháy đã thoát:** test cũ `"Anh \"Ba\""` không có dấu phẩy phía sau dấu nháy đã thoát. Hiểu sai chỗ đóng ngoặc kép vẫn ra cùng kết quả, nên test không phân biệt được đúng với sai.
+
+Viết thêm hai test cho đúng hai chỗ đó, chạy lại hai lỗi cố ý ấy thì cả hai bị bắt. Kiểm tra ngược không chỉ chứng minh test tốt; nó còn chỉ ra chính xác test nào còn thiếu.
+
+### 8.10 Sau review: thư lạ không được làm kẹt cả hộp thư
+Agent review tìm ra ba lỗi MEDIUM, đều cùng một ý: **một thư lạ không được làm hỏng nhiều hơn chính nó.**
+- **Thư chỉ gồm một tệp** (máy scan gửi PDF): phần gốc của Gmail có `partId` rỗng. Dùng nó làm ID tệp thì kiểm tra "ID không rỗng" ném lỗi, nên cả thư bị bỏ qua. Sửa: ID `root`.
+- **Header không có giá trị, phần tử `null` trong danh sách:** Java ném `NullPointerException`, không phải `ProviderException`. BE-38 sẽ chỉ bắt `ProviderException` để bỏ qua *một thư*; lỗi khác làm hỏng *cả trang*, và đọc lại cùng cursor lại hỏng, nên đồng bộ kẹt mãi. Sửa: record `GmailMessage` bỏ các "lỗ" đó ngay khi đọc JSON.
+- **Ký tự NUL (`\u0000`):** PostgreSQL không cho lưu ký tự này trong cột chữ. Một thư có NUL (encoder hỏng, `=00` trong header) sẽ làm F05 không lưu được trang đó, cũng kẹt mãi. Sửa: bỏ NUL khỏi chữ, tiêu đề, tên người, tên tệp.
+
+Bài học: với dữ liệu từ bên ngoài (thư do người lạ gửi), hãy hỏi "nếu dữ liệu này dị dạng thì cái gì hỏng theo?". Câu trả lời đúng là "chỉ thư đó".
+
+Các sửa nhỏ khác:
+- `<pre>` giữ xuống dòng.
+- Bỏ ký tự vô hình mà thư quảng cáo đệm đầu thư để đoạn xem trước trống. Riêng U+200D thì giữ: nó nối các phần của emoji gia đình.
+- Dấu `(` không đóng trong tên (`Bob :-( <bob@x>`) không còn nuốt cả header.
+- Header gập dòng được nối lại.
+- Người gửi của thư `SENT` luôn là chính account, kể cả khi gửi từ alias.
+
 ---
 
 ## Tự kiểm tra
@@ -608,3 +720,10 @@ Một lỗi cố ý viết sai lúc đầu (Java không cho guard của `case` l
 31. Token endpoint trả `401 invalid_client`: vì sao Sino không chuyển account sang `AUTH_EXPIRED`?
 32. Vì sao so `version` khi lưu token thôi là chưa đủ, mà còn phải so trước khi đánh dấu account hết quyền?
 33. Xóa account rồi kết nối lại: vì sao chỉ so `version` của credential có thể nhầm?
+34. Vì sao dùng `internalDate` của Gmail chứ không dùng header `Date` của thư?
+35. Thư có cả `text/plain` và `text/html`: Sino lấy phần nào, và khi nào lấy phần kia?
+36. Cùng một dãy byte, đọc bằng UTF-8 và ISO-8859-1 khác nhau thế nào? Charset của một phần thư nằm ở đâu?
+37. Vì sao không tách danh sách địa chỉ bằng `split(",")`?
+38. Hai encoded word liền nhau: vì sao phải gộp byte của chúng rồi mới đổi ra chữ?
+39. Vì sao ảnh nhúng không được tính là tệp đính kèm, và vì sao ID của tệp là `partId`?
+40. Một thư có header không có giá trị ném `NullPointerException` thay vì `ProviderException`: vì sao điều đó làm kẹt cả lần đồng bộ chứ không chỉ một thư?

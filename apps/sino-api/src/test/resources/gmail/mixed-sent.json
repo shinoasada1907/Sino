@@ -1,0 +1,175 @@
+{
+  "id": "18f0a1b2c3d4e5f8",
+  "threadId": "thread-contract",
+  "labelIds": [
+    "SENT",
+    "IMPORTANT"
+  ],
+  "snippet": "Gmail adds a snippet; Sino does not read it",
+  "historyId": "987654",
+  "internalDate": "1760004000000",
+  "sizeEstimate": 4096,
+  "payload": {
+    "headers": [
+      {
+        "name": "From",
+        "value": "Owner <owner@gmail.test>"
+      },
+      {
+        "name": "To",
+        "value": "Lê Minh <minh@example.com>"
+      },
+      {
+        "name": "Subject",
+        "value": "Hợp đồng"
+      },
+      {
+        "name": "Message-ID",
+        "value": "<sent-contract@gmail.test>"
+      }
+    ],
+    "mimeType": "multipart/mixed",
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "multipart/related",
+        "filename": "",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "multipart/related; boundary=\"000000000000b0undary\""
+          }
+        ],
+        "body": {
+          "size": 0
+        },
+        "parts": [
+          {
+            "partId": "0.0",
+            "mimeType": "multipart/alternative",
+            "filename": "",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "multipart/alternative; boundary=\"000000000000b0undary\""
+              }
+            ],
+            "body": {
+              "size": 0
+            },
+            "parts": [
+              {
+                "partId": "0.0.0",
+                "mimeType": "text/plain",
+                "filename": "",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "text/plain; charset=\"UTF-8\""
+                  },
+                  {
+                    "name": "Content-Transfer-Encoding",
+                    "value": "quoted-printable"
+                  }
+                ],
+                "body": {
+                  "size": 37,
+                  "data": "R-G7rWkgYW5oIGjhu6NwIMSR4buTbmcgdsOgIGdoaSBjaMO6Lg=="
+                }
+              },
+              {
+                "partId": "0.0.1",
+                "mimeType": "text/html",
+                "filename": "",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "text/html; charset=\"UTF-8\""
+                  },
+                  {
+                    "name": "Content-Transfer-Encoding",
+                    "value": "quoted-printable"
+                  }
+                ],
+                "body": {
+                  "size": 56,
+                  "data": "PHA-R-G7rWkgYW5oIGjhu6NwIMSR4buTbmcgPGltZyBzcmM9ImNpZDpsb2dvQHNpbm8iPjwvcD4="
+                }
+              }
+            ]
+          },
+          {
+            "partId": "0.1",
+            "mimeType": "image/png",
+            "filename": "logo.png",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "image/png; name=\"logo.png\""
+              },
+              {
+                "name": "Content-ID",
+                "value": "<logo@sino>"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "inline; filename=\"logo.png\""
+              }
+            ],
+            "body": {
+              "attachmentId": "ANGjdJ-embedded-logo",
+              "size": 2048
+            }
+          }
+        ]
+      },
+      {
+        "partId": "1",
+        "mimeType": "application/pdf",
+        "filename": "Hợp đồng.pdf",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/pdf; name=\"Hợp đồng.pdf\""
+          },
+          {
+            "name": "Content-Disposition",
+            "value": "attachment; filename=\"Hợp đồng.pdf\""
+          }
+        ],
+        "body": {
+          "attachmentId": "ANGjdJ-contract-pdf",
+          "size": 52431
+        }
+      },
+      {
+        "partId": "2",
+        "mimeType": "text/plain",
+        "filename": "notes.txt",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/plain; charset=\"UTF-8\""
+          },
+          {
+            "name": "Content-Transfer-Encoding",
+            "value": "quoted-printable"
+          },
+          {
+            "name": "Content-Disposition",
+            "value": "attachment; filename=\"notes.txt\""
+          }
+        ],
+        "body": {
+          "attachmentId": "ANGjdJ-notes-txt",
+          "size": 44
+        }
+      }
+    ],
+    "partId": "",
+    "filename": ""
+  }
+}

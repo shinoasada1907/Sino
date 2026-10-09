@@ -128,11 +128,20 @@ Theo dõi thay đổi  cursor v1|history|<historyId>
 | `NormalizedConversation` | `threadId`; `THREAD`; tiêu đề = Subject của thư mới nhất trong batch đã bỏ tiền tố trả lời/chuyển tiếp; người tham gia = các địa chỉ From/To/Cc (email viết thường làm ID, tên hiển thị từ header, `self` khi trùng `emailAddress`); `lastActivityAt` = `internalDate` lớn nhất trong batch |
 | `NormalizedMessage` | `id`; `threadId`; người gửi = địa chỉ From; chiều = `SENT` → đi, còn lại → đến; trạng thái = `SENT` với thư đi, `UNKNOWN` với thư đến; đã đọc = không có `UNREAD`; `sentAt` = `internalDate`; loại = `TEXT`, có tệp → `MIXED` |
 | Nội dung chữ | duyệt cây MIME (cả `multipart/*` lồng nhau); phần `text/plain` đầu tiên không phải tệp đính kèm; không có thì `text/html` đầu tiên qua jsoup; giải mã base64url rồi theo `charset` (không rõ → UTF-8); cắt 100 000 ký tự |
-| `NormalizedAttachment` | phần có tên tệp và `body.attachmentId`: `attachmentId`, tên, `mimeType`, `size` |
+| `NormalizedAttachment` | phần có tên tệp và `body.attachmentId`, trừ ảnh nhúng: ID = `partId` (BE-37), tên, `mimeType`, `size` |
 | Metadata | `subject` (Subject gốc), `rfcMessageId` (header `Message-ID`, cho F10 trả lời đúng chuỗi) |
 
 - Header mã hóa RFC 2047 (`=?UTF-8?B?…?=`): nếu Gmail trả dạng chưa giải mã thì connector giải mã; test Gmail thật (D-58) kiểm điều này.
 - Thư thiếu From hoặc thiếu `internalDate` → vào danh sách bỏ qua (`SkippedItem`, external ID + lý do), các thư khác đi tiếp.
+- **Chốt kỹ thuật BE-37 (agent):**
+  - JSON `format=full` đọc vào record `GmailMessage` (Jackson; chỉ những trường Sino dùng). Lớp chuẩn hóa (`GmailMessageNormalizer`) không gọi Google; BE-38 lấy thư rồi gọi nó.
+  - ID tệp = `partId` (ổn định trong một thư), không phải `attachmentId`: Gmail được báo là đổi `attachmentId` mỗi lần gọi `messages.get`, nên cùng một tệp sẽ thành hai bản ghi khi F05 nhập lại. F06 tải tệp bằng cách gọi `messages.get` rồi tìm phần theo `partId` để lấy `attachmentId` lúc đó. BE-39 kiểm với Gmail thật.
+  - Ảnh nhúng (phần có `Content-ID` mà `Content-Disposition` không phải `attachment`) không tính là tệp: đó là ảnh HTML hiện bằng `cid:`; tính vào thì mọi thư quảng cáo đều có kẹp giấy. Phần có tên tệp không bao giờ được lấy làm thân thư, kể cả khi Gmail để nội dung ngay trong `data`.
+  - Giải mã RFC 2047 (gộp các encoded word liền nhau cùng charset để ký tự bị chia đôi không vỡ; bỏ hậu tố ngôn ngữ RFC 2231 `UTF-8*vi`) và đọc danh sách địa chỉ (tên trong ngoặc kép có dấu phẩy, ngoặc nhọn, chú thích, nhóm) viết trong `MailHeaders`, không thêm thư viện mail: giữ D-61 (jsoup là dependency mới duy nhất). Tên tệp cũng được giải mã RFC 2047 nếu Gmail để dạng mã hóa.
+  - HTML → chữ (`HtmlText`, jsoup): bỏ `head`, `script`, `style`, `template`; một dòng mỗi thẻ khối và mỗi `<br>`; gộp khoảng trắng (kể cả `&nbsp;`); tối đa một dòng trống. Chữ thuần: CRLF → LF, bỏ khoảng trắng cuối.
+  - Người tham gia của một thư: From, To, Cc theo thứ tự, mỗi địa chỉ một lần, tên đầu tiên thắng; của một thread: hợp các thư, giữ tên nếu có thư nào cho tên. Người gửi của thư có nhãn `SENT` luôn là `self` (gửi từ alias vẫn là chính account); thư đến gửi cho alias thì chưa nhận ra (cần danh sách send-as, để sau).
+  - Sau review BE-37: thư chỉ gồm một tệp (phần gốc có `partId` rỗng) → ID tệp `root`; header không có giá trị và phần tử `null` trong danh sách bị bỏ khi đọc JSON; header gập dòng được nối lại (RFC 5322); ký tự NUL bị bỏ khỏi chữ, tiêu đề, tên người, tên tệp (PostgreSQL không lưu được); `<pre>` giữ xuống dòng; ký tự vô hình đệm đầu thư quảng cáo (U+00AD, U+034F, U+200B, U+200C, U+FEFF) bị bỏ, U+200D giữ (emoji ghép); dấu `(` không đóng trong tên không nuốt phần còn lại của header.
+  - **Cho F05:** một batch theo dõi thay đổi chỉ có các thư vừa đổi (ví dụ một thư cũ vừa được đánh dấu đã đọc), nên conversation trong batch đó có tiêu đề, người tham gia, `lastActivityAt` của riêng các thư ấy. F05 phải gộp với cái đã lưu (lấy `lastActivityAt` lớn nhất, hợp người tham gia, chỉ đổi tiêu đề khi thư mới hơn), không ghi đè.
 
 ### 4. Lỗi
 
@@ -178,6 +187,9 @@ Theo dõi thay đổi  cursor v1|history|<historyId>
 
 - Dùng `snippet` do Gmail tạo sẵn hay tự cắt từ `textContent` cho Hộp thư: F05 chốt (F04b có đủ `textContent`).
 - Cách F05 kích hoạt lần nhập đầu và lưu lựa chọn khoảng nhập (`startInitialSync`): F05.
+- `attachmentId` của Gmail có đổi giữa hai lần `messages.get` của cùng một thư không (lý do dùng `partId`): BE-39 kiểm với Gmail thật.
+- Ảnh dán thẳng vào thư (ảnh chụp màn hình, ảnh từ iPhone) cũng là phần `inline` có `Content-ID`, nên đang không được tính là tệp; tới F06 (hiện HTML) người dùng mới thấy. BE-39 đếm trong hộp thư thật bao nhiêu thư có ảnh nhúng loại này để người dùng chọn lại nếu cần.
+- Thư chuyển tiếp dạng tệp (`message/rfc822`): Gmail có trả các phần bên trong không; nếu có thì `text/plain` của thư được chuyển tiếp có thể đứng trước bản HTML của thư ngoài. BE-39 kiểm.
 
 ## Definition of Done — F04b
 

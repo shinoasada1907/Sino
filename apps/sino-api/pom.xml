@@ -77,6 +77,12 @@
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-jpa</artifactId>
         </dependency>
+        <!-- D-61: the text of a mail that only has HTML. -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.23.2</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

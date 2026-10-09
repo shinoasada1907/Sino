@@ -1,0 +1,91 @@
+{
+  "id": "18f0a1b2c3d4e5f6",
+  "threadId": "thread-report",
+  "labelIds": [
+    "INBOX",
+    "UNREAD",
+    "CATEGORY_PERSONAL"
+  ],
+  "snippet": "Gmail adds a snippet; Sino does not read it",
+  "historyId": "987654",
+  "internalDate": "1759996800000",
+  "sizeEstimate": 4096,
+  "payload": {
+    "headers": [
+      {
+        "name": "Delivered-To",
+        "value": "owner@gmail.test"
+      },
+      {
+        "name": "From",
+        "value": "=?UTF-8?B?Tmd1eeG7hW4gVsSDbiBBbg==?= <An.Nguyen@Example.com>"
+      },
+      {
+        "name": "To",
+        "value": "Owner@Gmail.test, \"Trần, Bình\" <binh@example.com>"
+      },
+      {
+        "name": "Cc",
+        "value": "chi@example.com"
+      },
+      {
+        "name": "Subject",
+        "value": "Re: FW: =?UTF-8?Q?B=C3=A1o_c=C3=A1o_th=C3=A1ng_9?="
+      },
+      {
+        "name": "Message-ID",
+        "value": "<CAB+report-1@mail.gmail.com>"
+      },
+      {
+        "name": "Content-Type",
+        "value": "multipart/alternative; boundary=\"000000000000b0undary\""
+      }
+    ],
+    "mimeType": "multipart/alternative",
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "text/plain",
+        "filename": "",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/plain; charset=\"UTF-8\""
+          },
+          {
+            "name": "Content-Transfer-Encoding",
+            "value": "quoted-printable"
+          }
+        ],
+        "body": {
+          "size": 43,
+          "data": "WGluIGNow6BvLA0KxJDDonkgbMOgIGLDoW8gY8OhbyB0aMOhbmcgOS4NCg=="
+        }
+      },
+      {
+        "partId": "1",
+        "mimeType": "text/html",
+        "filename": "",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/html; charset=\"UTF-8\""
+          },
+          {
+            "name": "Content-Transfer-Encoding",
+            "value": "quoted-printable"
+          }
+        ],
+        "body": {
+          "size": 23,
+          "data": "PGRpdj5IVE1MIHZlcnNpb248L2Rpdj4="
+        }
+      }
+    ],
+    "partId": "",
+    "filename": ""
+  }
+}
