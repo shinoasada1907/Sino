@@ -1,23 +1,25 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
+import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
-import { startInitialSync } from './accounts.api'
 import { createAccountsSample } from './accounts.sample'
 
-// The return on the full contract of fe-ui-connect: the first sync is assumed ready (F04b), with sample providers.
+// The return on the full contract of fe-ui-connect, with sample providers; the first import itself is tested in
+// InitialSyncOnApi.test.tsx.
 vi.mock('./accounts.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./accounts.api')>()
   const { createConnectProvidersSample } = await import('./connect.sample')
   return {
     ...api,
-    INITIAL_SYNC_READY: true,
     fetchConnectProviders: vi.fn(async () => createConnectProvidersSample()),
-    startInitialSync: vi.fn(api.startInitialSync),
     leaveTo: vi.fn(),
   }
 })
+
+const RUNNING = { status: 'RUNNING', range: 'DAYS_90', imported: 0, estimated: null, remainingMinutes: null, storedMessages: 0, errorCode: null }
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
@@ -32,6 +34,11 @@ describe('coming back from the provider', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
+    server.use(
+      http.get('/api/accounts/:id/initial-sync/estimate', () => HttpResponse.json({ messages: null, minMinutes: null, maxMinutes: null })),
+      http.post('/api/accounts/:id/initial-sync', () => HttpResponse.json(RUNNING, { status: 202 })),
+      http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(RUNNING)),
+    )
   })
 
   afterEach(() => {
@@ -50,40 +57,19 @@ describe('coming back from the provider', () => {
     expect(router.state.location.search).toBe('')
   })
 
-  it('estimates the first sync for the picked range', async () => {
-    open('/accounts?connected=acc-gmail')
-    const user = userEvent.setup()
-    const range = await screen.findByRole('combobox', { name: 'Đồng bộ thư từ' })
-
-    expect(range).toHaveValue('DAYS_90')
-    expect(await wizard().findByText('khoảng 1.180 thư')).toBeInTheDocument()
-    expect(wizard().getByText('3–5 phút')).toBeInTheDocument()
-
-    await user.selectOptions(range, '30 ngày gần nhất')
-    expect(await wizard().findByText('khoảng 420 thư')).toBeInTheDocument()
-    expect(wizard().getByText('1–2 phút')).toBeInTheDocument()
-  })
-
-  it('starts the first sync with the chosen options and shows its progress', async () => {
+  it('shows the switches of the canvas and, once started, the account in step 5', async () => {
     open('/accounts?connected=acc-gmail')
     const user = userEvent.setup()
     await screen.findByRole('dialog', { name: 'Tùy chọn đồng bộ' })
 
     expect(wizard().getByRole('switch', { name: 'Chỉ tải tệp đính kèm khi bạn mở' })).toBeChecked()
-    await user.click(wizard().getByRole('switch', { name: 'Dùng nhãn Gmail làm bộ lọc trong Sino' }))
+    expect(wizard().getByRole('switch', { name: 'Dùng nhãn Gmail làm bộ lọc trong Sino' })).toBeChecked()
     await user.click(wizard().getByRole('button', { name: 'Bắt đầu đồng bộ' }))
 
-    expect(startInitialSync).toHaveBeenCalledWith('acc-gmail', { range: 'DAYS_90', labelsAsFilters: false, attachmentsOnOpen: true })
     expect(await screen.findByRole('dialog', { name: 'Hoàn tất' })).toBeInTheDocument()
     expect(wizard().getByText('Kết nối tài khoản · 5/5')).toBeInTheDocument()
     expect(wizard().getByRole('heading', { name: 'Đã kết nối an.nguyen@gmail.com' })).toBeInTheDocument()
-    expect(wizard().getByText('412 / 1.180 thư · còn khoảng 3 phút')).toBeInTheDocument()
-    expect(wizard().getByRole('img', { name: 'Đã đồng bộ 35%' })).toBeInTheDocument()
-    expect(wizard().getByRole('link', { name: 'Mở hộp thư' })).toHaveAttribute('href', '/inbox')
-
-    await user.keyboard('{Escape}')
-    const gmailRow = screen.getByRole('row', { name: /an\.nguyen@gmail\.com/ })
-    expect(within(gmailRow).getByText('Đang đồng bộ · 35%')).toBeInTheDocument()
+    expect(wizard().getByText('Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.')).toBeInTheDocument()
   })
 
   it('goes back to the provider step to connect one more account', async () => {

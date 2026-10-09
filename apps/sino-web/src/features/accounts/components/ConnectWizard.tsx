@@ -17,15 +17,17 @@ import type { AccountItem } from '../accounts.types'
 import {
   estimateParts,
   identityName,
+  initialSyncFailure,
   initialSyncView,
   notAskedNote,
   providerTags,
   scopePurpose,
+  startSyncFailure,
   wizardStep,
 } from '../connect.format'
 import { DEFAULT_SYNC_OPTIONS, type ConnectableProvider, type InitialSyncStatus, type SyncEstimate, type SyncOptions, type SyncRange } from '../connect.types'
 import { isMail, scopeLabel } from '../format'
-import { useConnectProviders, useStartConnect, useStartInitialSync, useSyncEstimate } from '../useConnect'
+import { useConnectProviders, useInitialSync, useStartConnect, useStartInitialSync, useSyncEstimate } from '../useConnect'
 
 /**
  * Where the wizard is. Steps 1-3 happen before leaving for the provider (`accountId` is set when an expired account
@@ -34,8 +36,8 @@ import { useConnectProviders, useStartConnect, useStartInitialSync, useSyncEstim
 export type WizardState =
   | { step: 1 | 2 | 3; provider: string | null; accountId: string | null }
   | { step: 4; accountId: string; options: SyncOptions }
-  /** `status` is null while the first sync has no API (F04b): the account is connected, nothing syncs yet. */
-  | { step: 5; accountId: string; status: InitialSyncStatus | null }
+  /** The account's first import has started: the wizard follows its status. */
+  | { step: 5; accountId: string }
 
 
 const STEPS = [1, 2, 3, 4, 5] as const
@@ -61,6 +63,8 @@ export function ConnectWizard({
   const startSync = useStartInitialSync()
   const sync = state?.step === 4 ? state : null
   const { estimate } = useSyncEstimate(sync?.accountId ?? null, sync?.options.range ?? DEFAULT_SYNC_OPTIONS.range)
+  const { status } = useInitialSync(state?.step === 5 ? state.accountId : null)
+  const startFailure = startSync.isError ? startSyncFailure(startSync.error) : null
 
   const go = (next: WizardState | null) => {
     startConnect.reset()
@@ -92,7 +96,7 @@ export function ConnectWizard({
         case 4:
           return startSync.mutate(
             { accountId: state.accountId, options: state.options },
-            { onSuccess: (status) => go({ step: 5, accountId: state.accountId, status }) },
+            { onSuccess: () => go({ step: 5, accountId: state.accountId }) },
           )
       }
     }
@@ -135,12 +139,23 @@ export function ConnectWizard({
               account={account}
               options={state.options}
               estimate={estimate ?? null}
-              failed={startSync.isError}
+              failure={startFailure}
               onOptions={(options) => go({ ...state, options })}
             />
           )}
           {state.step === 5 && account && (
-            <Done account={account} status={state.status} onMore={() => go({ step: 1, provider: null, accountId: null })} />
+            <Done
+              account={account}
+              status={status}
+              providerName={nameOf(account.provider)}
+              startFailure={startFailure}
+              busy={startSync.isPending}
+              onRetry={() =>
+                startSync.mutate({ accountId: account.id, options: { ...DEFAULT_SYNC_OPTIONS, range: status?.range ?? DEFAULT_SYNC_OPTIONS.range } })
+              }
+              onSignIn={() => go({ step: 2, provider: account.provider, accountId: account.id })}
+              onMore={() => go({ step: 1, provider: null, accountId: null })}
+            />
           )}
         </DialogBody>
         <DialogFooter className="flex-wrap justify-between gap-y-3">
@@ -334,13 +349,13 @@ function SyncChoice({
   account,
   options,
   estimate,
-  failed,
+  failure,
   onOptions,
 }: {
   account: AccountItem
   options: SyncOptions
   estimate: SyncEstimate | null
-  failed: boolean
+  failure: string | null
   onOptions: (options: SyncOptions) => void
 }) {
   const rangeId = useId()
@@ -398,15 +413,36 @@ function SyncChoice({
           </span>
         </div>
       )}
-      {failed && <FailedNotice>Chưa bắt đầu đồng bộ được. Hãy thử lại.</FailedNotice>}
+      {failure && <FailedNotice>{failure}</FailedNotice>}
     </div>
   )
 }
 
-// Step 5 of the canvas: the account is connected and its first sync is running, or not yet possible (F04b).
-function Done({ account, status, onMore }: { account: AccountItem; status: InitialSyncStatus | null; onMore: () => void }) {
-  const progress = status && initialSyncView(status)
+// Step 5 of the canvas: the account is connected and its first import runs, is done, or stopped.
+function Done({
+  account,
+  status,
+  providerName,
+  startFailure,
+  busy,
+  onRetry,
+  onSignIn,
+  onMore,
+}: {
+  account: AccountItem
+  status: InitialSyncStatus | undefined
+  providerName: string
+  /** Why trying again could not start. */
+  startFailure: string | null
+  busy: boolean
+  onRetry: () => void
+  onSignIn: () => void
+  onMore: () => void
+}) {
   const noun = isMail(account.provider) ? 'thư' : 'tin nhắn'
+  const stopped = status?.state === 'FAILED' ? initialSyncFailure(status.errorCode, providerName) : null
+  const progress = status && !stopped ? initialSyncView(status) : null
+  const done = status?.state === 'DONE'
   return (
     <div className="flex flex-col items-start gap-5 pt-2">
       <span
@@ -418,20 +454,31 @@ function Done({ account, status, onMore }: { account: AccountItem; status: Initi
       <div className="flex flex-col gap-1.5">
         <h3 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">Đã kết nối {account.externalAccountId}</h3>
         <p className="text-sm text-muted-foreground">
-          {progress
-            ? 'Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.'
-            : `Sino chưa đồng bộ ${noun} của tài khoản này; đồng bộ lần đầu sẽ có ở bản sau.`}
+          {done
+            ? `Sino đã nhập xong ${noun} của tài khoản này. Mở hộp thư để đọc.`
+            : stopped
+              ? `Lần nhập ${noun} đầu tiên đã dừng.`
+              : 'Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.'}
         </p>
       </div>
       {progress && (
         <div className="flex w-full flex-col gap-2">
           <div className="flex items-center justify-between gap-3">
-            <Status tone="warn">Đang đồng bộ</Status>
+            <Status tone={done ? 'ok' : 'warn'}>{done ? 'Đã đồng bộ' : 'Đang đồng bộ'}</Status>
             <Spec>{progress.text}</Spec>
           </div>
           {progress.percent !== null && <Progress value={progress.percent} />}
         </div>
       )}
+      {stopped && (
+        <div className="flex w-full flex-col items-start gap-3">
+          <FailedNotice>{stopped.text}</FailedNotice>
+          <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={stopped.fix === 'SIGN_IN' ? onSignIn : onRetry}>
+            {stopped.fix === 'SIGN_IN' ? 'Đăng nhập lại' : 'Thử lại'}
+          </Button>
+        </div>
+      )}
+      {startFailure && <FailedNotice>{startFailure}</FailedNotice>}
       <Button type="button" variant="ghost" size="sm" className="-ml-3" onClick={onMore}>
         <Plus strokeWidth={1.6} />
         Kết nối thêm tài khoản

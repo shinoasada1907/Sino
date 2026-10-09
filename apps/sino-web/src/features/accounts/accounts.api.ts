@@ -1,16 +1,9 @@
 import { api } from '@/shared/api/client'
 import type { AccountStatus, Instant, ProviderInfo } from '@/shared/domain'
 import type { AccountExtras, AccountItem, AccountsData, ChannelKind } from './accounts.types'
-import { createInitialSyncSample, createSyncEstimateSample } from './connect.sample'
-import type { ConnectableProvider, InitialSyncStatus, SyncEstimate, SyncOptions, SyncRange } from './connect.types'
+import type { ConnectableProvider, InitialSyncState, InitialSyncStatus, SyncEstimate, SyncOptions, SyncRange } from './connect.types'
 
-/*
- * The requests of the Tài khoản screens, on the backend API (D-56): what the API does not give yet is null. Only the
- * first sync after connecting (estimate, start) has no API yet (F04b); `INITIAL_SYNC_READY` keeps the wizard off it.
- */
-
-/** False until F04b: after connecting, the wizard skips the sync options and says the first sync comes later. */
-export const INITIAL_SYNC_READY: boolean = false
+// The requests of the Tài khoản screens, on the backend API (D-56): what the API does not give yet is null.
 
 /** One account of `GET /api/accounts` (F02). */
 interface AccountResponse {
@@ -106,12 +99,43 @@ export function leaveTo(url: string): void {
   window.location.assign(url)
 }
 
-/** Later an estimate from F04b (Gmail `resultSizeEstimate`); sample data, reached only once `INITIAL_SYNC_READY`. */
-export async function fetchSyncEstimate(_accountId: string, range: SyncRange): Promise<SyncEstimate | null> {
-  return createSyncEstimateSample(range)
+/** `GET /api/accounts/{id}/initial-sync/estimate`: all three null when the provider cannot tell. */
+interface EstimateResponse {
+  messages: number | null
+  minMinutes: number | null
+  maxMinutes: number | null
 }
 
-/** Later the start of the first sync of F04b, with the options of step 4 (D-49); sample data, as above. */
-export async function startInitialSync(_accountId: string, options: SyncOptions): Promise<InitialSyncStatus> {
-  return createInitialSyncSample(options.range)
+/** `GET /api/accounts/{id}/initial-sync`, also the answer of its `POST` (BE-45). */
+interface InitialSyncResponse {
+  status: InitialSyncState
+  range: SyncRange | null
+  imported: number
+  estimated: number | null
+  remainingMinutes: number | null
+  storedMessages: number
+  errorCode: string | null
+}
+
+function toInitialSync({ status, range, imported, estimated, remainingMinutes, storedMessages, errorCode }: InitialSyncResponse): InitialSyncStatus {
+  return { state: status, range, fetched: imported, total: estimated, remainingMinutes, storedMessages, errorCode }
+}
+
+/** How many messages the first import of `range` would take, and how long; null when the provider cannot tell. */
+export async function fetchSyncEstimate(accountId: string, range: SyncRange): Promise<SyncEstimate | null> {
+  const { messages, minMinutes, maxMinutes } = await api.get<EstimateResponse>(`/api/accounts/${accountId}/initial-sync/estimate?range=${range}`)
+  return messages === null || minMinutes === null || maxMinutes === null ? null : { messages, minMinutes, maxMinutes }
+}
+
+/**
+ * `POST /api/accounts/{id}/initial-sync`: starts the first import, or goes on with one that failed on the same range; while
+ * one runs, the backend only answers its status. The two switches of step 4 have no API yet (F05 Open Questions).
+ */
+export async function startInitialSync(accountId: string, options: SyncOptions): Promise<InitialSyncStatus> {
+  return toInitialSync(await api.post<InitialSyncResponse>(`/api/accounts/${accountId}/initial-sync`, { range: options.range }))
+}
+
+/** `GET /api/accounts/{id}/initial-sync`. */
+export async function fetchInitialSync(accountId: string): Promise<InitialSyncStatus> {
+  return toInitialSync(await api.get<InitialSyncResponse>(`/api/accounts/${accountId}/initial-sync`))
 }

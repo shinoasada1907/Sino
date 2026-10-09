@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
 import { server } from '@/test/msw/server'
-import { deleteAccount, fetchAccountExtras, fetchAccounts, fetchConnectProviders, INITIAL_SYNC_READY, saveChannel, startConnect } from './accounts.api'
+import { deleteAccount, fetchAccountExtras, fetchAccounts, fetchConnectProviders, fetchInitialSync, fetchSyncEstimate, saveChannel, startConnect, startInitialSync } from './accounts.api'
 
 describe('the Tài khoản requests on the backend API (D-56)', () => {
   it('turns the accounts and providers of the API into the screen contract, with null for what the API lacks', async () => {
@@ -102,7 +102,46 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
     ])
   })
 
-  it('says the first sync is not on the API yet (F04b)', () => {
-    expect(INITIAL_SYNC_READY).toBe(false)
+  it('asks the estimate of a first import, and has none when the provider cannot tell (FE-51)', async () => {
+    const asked: string[] = []
+    server.use(
+      http.get('/api/accounts/:id/initial-sync/estimate', ({ params, request }) => {
+        const range = new URL(request.url).searchParams.get('range')
+        asked.push(`${params.id} ${range}`)
+        return HttpResponse.json(range === 'ALL' ? { messages: null, minMinutes: null, maxMinutes: null } : { messages: 1180, minMinutes: 3, maxMinutes: 5 })
+      }),
+    )
+
+    expect(await fetchSyncEstimate('acc-1', 'DAYS_90')).toEqual({ messages: 1180, minMinutes: 3, maxMinutes: 5 })
+    expect(await fetchSyncEstimate('acc-1', 'ALL')).toBeNull()
+    expect(asked).toEqual(['acc-1 DAYS_90', 'acc-1 ALL'])
+  })
+
+  it('starts a first import with its range only, and reads its status in the words of the web (FE-51)', async () => {
+    const status = {
+      status: 'RUNNING',
+      range: 'DAYS_30',
+      imported: 147,
+      skipped: 2,
+      estimated: 420,
+      remainingMinutes: 1,
+      storedMessages: 150,
+      startedAt: '2026-10-02T07:05:00Z',
+      finishedAt: null,
+      errorCode: null,
+    }
+    const sent: unknown[] = []
+    server.use(
+      http.post('/api/accounts/:id/initial-sync', async ({ params, request }) => {
+        sent.push([params.id, await request.json()])
+        return HttpResponse.json(status, { status: 202 })
+      }),
+      http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json({ ...status, status: 'FAILED', remainingMinutes: null, errorCode: 'RATE_LIMITED' })),
+    )
+    const web = { state: 'RUNNING', range: 'DAYS_30', fetched: 147, total: 420, remainingMinutes: 1, storedMessages: 150, errorCode: null }
+
+    expect(await startInitialSync('acc-1', { range: 'DAYS_30', labelsAsFilters: true, attachmentsOnOpen: false })).toEqual(web)
+    expect(sent).toEqual([['acc-1', { range: 'DAYS_30' }]])
+    expect(await fetchInitialSync('acc-1')).toEqual({ ...web, state: 'FAILED', remainingMinutes: null, errorCode: 'RATE_LIMITED' })
   })
 })

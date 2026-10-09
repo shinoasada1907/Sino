@@ -960,6 +960,21 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Sửa:** `scrollbar-gutter: stable` bảo trình duyệt chừa chỗ cho thanh cuộn dù chưa cần cuộn. Thuộc tính này chỉ có tác dụng với khối có `overflow` khác `visible`, nên hai hàng trên được thêm `overflow-hidden`. Ở máy có thanh cuộn nổi, cả hai bên đều không chừa gì, vẫn khớp.
 - **Bài học kiểm tra:** ảnh chụp lúc CA-02 có lỗi này nhưng mắt không thấy được 2–13 px. Với bảng nhiều cột, đo mép trái của từng cột ở mỗi hàng (`getBoundingClientRect().left`) rồi so sánh thì chắc hơn nhìn ảnh.
 
+## 13. Nhập thư lần đầu trên API (FE-51 của F05)
+
+### 13.0 Bức tranh
+- **Ở đâu:** `src/features/accounts/` (`accounts.api.ts`, `useConnect.ts`, `components/ConnectWizard.tsx`).
+- **Là gì:** kết nối Gmail xong, bước 4 hỏi nhập thư từ bao lâu (30 ngày, 90 ngày, toàn bộ) kèm ước tính; bước 5 theo dõi lần nhập do backend chạy nền (BE-45) tới khi xong hoặc dừng. Trước đây hai bước này chạy bằng dữ liệu mẫu sau cờ `INITIAL_SYNC_READY`; giờ cờ và dữ liệu mẫu đã bỏ.
+
+### 13.1 Hỏi lại định kỳ (polling) bằng TanStack Query
+- **`refetchInterval` nhận một hàm:** `(query) => query.state.data?.state === 'RUNNING' ? 2000 : false`. Đang chạy thì hỏi lại mỗi 2 s; `DONE` hay `FAILED` thì thôi hỏi. Không cần tự viết `setInterval` rồi nhớ dọn.
+- **Có dữ liệu ngay, rồi hỏi ngay:** `POST` bắt đầu nhập trả về trạng thái; `setQueryData` đặt nó vào cache để bước 5 hiện ngay. Query có `staleTime: 0`, nên khi bước 5 vừa hiện, dữ liệu đó bị coi là cũ và TanStack hỏi `GET` một lần luôn.
+- **Xong thì báo cho màn khác:** khi trạng thái thành `DONE`, `invalidateQueries({ queryKey: ['inbox'] })` đánh dấu mọi query của Hộp thư (khóa bắt đầu bằng `'inbox'`) là cũ, nên mở Hộp thư là thấy thư vừa nhập.
+
+### 13.2 Đừng tin con số ước tính
+- `imported` đếm cả thư mới lẫn thư được cập nhật, còn `estimated` chỉ gần đúng. Nhập lại một hộp thư không đổi thì `imported` gần bằng 0 dù đã xong. Vì vậy phần trăm dừng ở 99 % tới khi máy chủ báo `DONE`, và `DONE` luôn hiện là xong ("Đã nhập xong · N thư đã lưu").
+- **Từ mã lỗi tới việc người dùng làm được:** `errorCode` (`RATE_LIMITED`, `AUTH_EXPIRED`…) được dịch thành câu và một nút: "Thử lại" (backend nhập tiếp từ chỗ dừng nếu cùng khoảng) hoặc "Đăng nhập lại" (mất quyền thì thử lại cũng vô ích).
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1062,3 +1077,5 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 98. Trang con trên điện thoại từng chỉ cao bằng nội dung. Vì sao ẩn thanh trên làm `main` thấp đi, và vì sao test không phát hiện?
 99. Muốn cột chi tiết chỉ mở khi chọn, phải đổi hai chỗ nào? Chỉ đổi một chỗ thì màn trông ra sao?
 100. Vì sao cột của lưới tuần lệch trên Windows mà không lệch trên macOS, và `scrollbar-gutter: stable` sửa thế nào?
+101. Bước 5 hỏi trạng thái lần nhập mỗi 2 s. Điều gì làm nó thôi hỏi, và vì sao vừa mở bước 5 đã có một `GET` ngay?
+102. Vì sao phần trăm nhập thư dừng ở 99 % thay vì tính thẳng `imported / estimated`?

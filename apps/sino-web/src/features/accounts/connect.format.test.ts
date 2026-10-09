@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import { ApiError } from '@/shared/api/problem'
 import { providerDescription } from '@/shared/format'
 import type { ConnectableProvider } from './connect.types'
 import {
   connectErrorMessage,
   estimateParts,
   identityName,
+  initialSyncFailure,
   initialSyncView,
   notAskedNote,
   providerTags,
   scopePurpose,
+  startSyncFailure,
   wizardStep,
 } from './connect.format'
 
@@ -90,12 +93,37 @@ describe('results', () => {
     expect(estimateParts({ messages: 40, minMinutes: 1, maxMinutes: 1 })).toEqual({ messages: 'khoảng 40 thư', time: '1 phút' })
   })
 
-  it('writes the progress of the first sync', () => {
-    expect(initialSyncView({ fetched: 412, total: 1180, remainingMinutes: 3 })).toEqual({
-      text: '412 / 1.180 thư · còn khoảng 3 phút',
-      percent: 35,
+  it('writes the progress of the first import, below 100 % until it is done', () => {
+    const running = { state: 'RUNNING', range: 'DAYS_90', fetched: 412, total: 1180, remainingMinutes: 3, storedMessages: 412, errorCode: null } as const
+    expect(initialSyncView(running)).toEqual({ text: '412 / 1.180 thư · còn khoảng 3 phút', percent: 35 })
+    expect(initialSyncView({ ...running, total: null, remainingMinutes: null })).toEqual({ text: '412 thư', percent: null })
+    expect(initialSyncView({ ...running, fetched: 0, total: 0, remainingMinutes: 0 })).toEqual({ text: '0 / 0 thư', percent: null })
+    expect(initialSyncView({ ...running, fetched: 1300 }).percent).toBe(99)
+    // Imported again, an unchanged mailbox brings back about nothing: done is done, whatever the estimate.
+    expect(initialSyncView({ ...running, state: 'DONE', fetched: 0, remainingMinutes: null, storedMessages: 1180 })).toEqual({
+      text: 'Đã nhập xong · 1.180 thư đã lưu',
+      percent: null,
     })
-    expect(initialSyncView({ fetched: 412, total: null, remainingMinutes: null })).toEqual({ text: '412 thư', percent: null })
-    expect(initialSyncView({ fetched: 0, total: 0, remainingMinutes: 0 })).toEqual({ text: '0 / 0 thư', percent: 100 })
+  })
+
+  it('says why a first import stopped and what gets it going again', () => {
+    expect(initialSyncFailure('RATE_LIMITED', 'Gmail')).toEqual({ text: 'Gmail đang giới hạn số lần đọc. Đợi vài phút rồi thử lại.', fix: 'RETRY' })
+    expect(initialSyncFailure('PROVIDER_UNAVAILABLE', 'Gmail')).toEqual({ text: 'Gmail chưa trả lời. Hãy thử lại sau.', fix: 'RETRY' })
+    expect(initialSyncFailure('AUTH_EXPIRED', 'Gmail')).toEqual({
+      text: 'Sino không còn quyền đọc Gmail của tài khoản này. Hãy đăng nhập lại.',
+      fix: 'SIGN_IN',
+    })
+    expect(initialSyncFailure('ACCOUNT_DISABLED', 'Gmail')).toEqual({
+      text: 'Tài khoản này đang tắt nhận thư. Bật lại trong chi tiết tài khoản rồi thử lại.',
+      fix: 'RETRY',
+    })
+    for (const code of ['CURSOR_EXPIRED', 'INTERNAL', 'SOMETHING_NEW', null]) {
+      expect(initialSyncFailure(code, 'Gmail')).toEqual({ text: 'Sino chưa nhập xong thư. Hãy thử lại.', fix: 'RETRY' })
+    }
+  })
+
+  it('says why a first import could not start', () => {
+    expect(startSyncFailure(new ApiError(409, 'ACCOUNT_DISABLED', null))).toBe('Tài khoản này đang tắt nhận thư. Bật lại trong chi tiết tài khoản rồi thử lại.')
+    expect(startSyncFailure(new ApiError(0, 'NETWORK_ERROR', null))).toBe('Chưa bắt đầu đồng bộ được. Hãy thử lại.')
   })
 })

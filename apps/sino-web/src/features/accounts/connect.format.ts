@@ -1,4 +1,5 @@
 // The Vietnamese text of the connect wizard, from provider types, capability and scope codes, and error codes.
+import { ApiError } from '@/shared/api/problem'
 import { formatCount, methodLabel } from '@/shared/format'
 import type { ConnectableProvider, InitialSyncStatus, SyncEstimate } from './connect.types'
 
@@ -82,11 +83,41 @@ export function estimateParts(estimate: SyncEstimate): { messages: string; time:
   }
 }
 
-/** "412 / 1.180 thư · còn khoảng 3 phút" and the share done, when the total is known. */
+/**
+ * While the first import runs: "412 / 1.180 thư · còn khoảng 3 phút" and the share done, when the estimate is known. Once
+ * DONE: "Đã nhập xong · 1.180 thư đã lưu", whatever the estimate said.
+ */
 export function initialSyncView(status: InitialSyncStatus): { text: string; percent: number | null } {
-  const { fetched, total, remainingMinutes } = status
+  const { state, fetched, total, remainingMinutes, storedMessages } = status
+  if (state === 'DONE') {
+    return { text: `Đã nhập xong · ${formatCount(storedMessages)} thư đã lưu`, percent: null }
+  }
   const count = total === null ? `${formatCount(fetched)} thư` : `${formatCount(fetched)} / ${formatCount(total)} thư`
   const remaining = remainingMinutes ? ` · còn khoảng ${remainingMinutes} phút` : ''
-  const percent = total === null ? null : total === 0 ? 100 : Math.round((fetched / total) * 100)
+  // The estimate is rough and updated messages count too, so the share stays below 100 until the backend says DONE.
+  const percent = total === null || total === 0 ? null : Math.min(99, Math.round((fetched / total) * 100))
   return { text: `${count}${remaining}`, percent }
+}
+
+const DISABLED = 'Tài khoản này đang tắt nhận thư. Bật lại trong chi tiết tài khoản rồi thử lại.'
+
+/** Why the first import stopped (its `errorCode`), and what gets it going again: trying again, or signing in again. */
+export function initialSyncFailure(code: string | null, providerName: string): { text: string; fix: 'RETRY' | 'SIGN_IN' } {
+  switch (code) {
+    case 'RATE_LIMITED':
+      return { text: `${providerName} đang giới hạn số lần đọc. Đợi vài phút rồi thử lại.`, fix: 'RETRY' }
+    case 'PROVIDER_UNAVAILABLE':
+      return { text: `${providerName} chưa trả lời. Hãy thử lại sau.`, fix: 'RETRY' }
+    case 'AUTH_EXPIRED':
+      return { text: `Sino không còn quyền đọc ${providerName} của tài khoản này. Hãy đăng nhập lại.`, fix: 'SIGN_IN' }
+    case 'ACCOUNT_DISABLED':
+      return { text: DISABLED, fix: 'RETRY' }
+    default:
+      return { text: 'Sino chưa nhập xong thư. Hãy thử lại.', fix: 'RETRY' }
+  }
+}
+
+/** Why the first import could not start. */
+export function startSyncFailure(error: unknown): string {
+  return error instanceof ApiError && error.code === 'ACCOUNT_DISABLED' ? DISABLED : 'Chưa bắt đầu đồng bộ được. Hãy thử lại.'
 }

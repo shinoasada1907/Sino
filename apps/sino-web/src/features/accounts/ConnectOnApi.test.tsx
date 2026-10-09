@@ -83,15 +83,4 @@ describe('connecting an account on the backend API (FE-30)', () => {
     expect(await (await opened()).findByText('Máy chủ Sino chưa bật nhà cung cấp nào để kết nối.')).toBeInTheDocument()
     expect(wizard().getByRole('button', { name: 'Tiếp tục' })).toBeDisabled()
   })
-
-  it('back from the provider, says the account is connected and that its first sync comes later', async () => {
-    backend()
-    const { router } = renderApp('/accounts?connected=acc-1', { accounts: null })
-
-    expect((await opened()).getByRole('heading', { name: 'Đã kết nối an.nguyen@gmail.com' })).toBeInTheDocument()
-    expect(wizard().getByText('Sino chưa đồng bộ thư của tài khoản này; đồng bộ lần đầu sẽ có ở bản sau.')).toBeInTheDocument()
-    expect(wizard().queryByRole('img', { name: /Đã đồng bộ/ })).toBeNull()
-    expect(wizard().queryByRole('combobox')).toBeNull()
-    expect(router.state.location.search).toBe('')
-  })
 })

@@ -32,8 +32,18 @@ export interface SyncEstimate {
   maxMinutes: number
 }
 
+/** Where the first import of an account is (BE-45). */
+export type InitialSyncState = 'NOT_STARTED' | 'RUNNING' | 'DONE' | 'FAILED'
+
 export interface InitialSyncStatus {
+  state: InitialSyncState
+  range: SyncRange | null
+  /** Messages imported so far, new or updated: about 0 when an unchanged mailbox is imported again. */
   fetched: number
+  /** The estimate taken when the import started; null when the provider gave none. */
   total: number | null
   remainingMinutes: number | null
+  storedMessages: number
+  /** Why a FAILED import stopped: RATE_LIMITED, PROVIDER_UNAVAILABLE, AUTH_EXPIRED, ACCOUNT_DISABLED, INTERNAL… */
+  errorCode: string | null
 }
