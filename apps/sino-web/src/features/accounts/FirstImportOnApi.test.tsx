@@ -12,8 +12,8 @@ const failed = (errorCode: string, range = 'DAYS_90') => apiInitialSync({ status
 
 const ACCOUNTS = [
   ...API_ACCOUNTS,
-  { ...API_ACCOUNTS[0], id: 'acc-3', externalAccountId: 'ban.hang@gmail.com', displayName: 'Bán hàng' },
-  { ...API_ACCOUNTS[0], id: 'acc-4', externalAccountId: 'chua.nhap@gmail.com', displayName: 'Chưa nhập' },
+  { ...API_ACCOUNTS[0], id: 'acc-3', externalAccountId: '100000000000000000003', address: 'ban.hang@gmail.com', displayName: 'Bán hàng' },
+  { ...API_ACCOUNTS[0], id: 'acc-4', externalAccountId: '100000000000000000004', address: 'chua.nhap@gmail.com', displayName: 'Chưa nhập' },
 ]
 
 /** The accounts of the backend, with the statuses each one's first import gives one read after another. */

@@ -37,7 +37,7 @@ export function MobileAccountDetail({
     <div className={cn('flex flex-col gap-5 px-4 pt-4.5 pb-5', className)}>
       <div className="flex flex-col items-start gap-3 py-1">
         <AccountAvatar provider={account.provider} size="lg" />
-        <h2 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">{account.externalAccountId}</h2>
+        <h2 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">{account.address}</h2>
         {'detail' in view ? <Status tone="err">{view.detail}</Status> : <Status tone={sync.tone}>{sync.label}</Status>}
       </div>
 

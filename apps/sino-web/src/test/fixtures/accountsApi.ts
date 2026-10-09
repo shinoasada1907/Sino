@@ -1,10 +1,11 @@
-/** `GET /api/accounts` and `GET /api/providers` as the backend answers today (F02, F03). */
+/** `GET /api/accounts` and `GET /api/providers` as the backend answers today (F02, F03; `address` since BE-47). */
 export const API_ACCOUNTS = [
   {
     id: 'acc-1',
     provider: 'gmail',
-    externalAccountId: 'an.nguyen@gmail.com',
+    externalAccountId: '115758365451560723981',
     displayName: 'An Nguyễn',
+    address: 'an.nguyen@gmail.com' as string | null,
     avatarUrl: null,
     status: 'CONNECTED',
     syncEnabled: true,
@@ -16,8 +17,9 @@ export const API_ACCOUNTS = [
   {
     id: 'acc-2',
     provider: 'gmail',
-    externalAccountId: 'cong.viec@gmail.com',
+    externalAccountId: '104422190876543210987',
     displayName: 'Công việc',
+    address: 'cong.viec@gmail.com' as string | null,
     avatarUrl: null,
     status: 'AUTH_EXPIRED',
     syncEnabled: false,

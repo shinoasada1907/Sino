@@ -104,8 +104,8 @@ export function EmailThread({
           kind="EMAIL"
           label={`Trả lời ${item.title}`}
           placeholder={`Trả lời ${item.title}…`}
-          account={account.externalAccountId}
-          via={`${nameOf(item.provider)} · ${account.externalAccountId}`}
+          account={account.address}
+          via={`${nameOf(item.provider)} · ${account.address}`}
           onSend={(text) => sendMessage.mutate(text)}
         />
       ) : null}

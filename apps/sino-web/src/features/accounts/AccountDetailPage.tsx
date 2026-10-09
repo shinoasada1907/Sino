@@ -67,7 +67,7 @@ export function AccountDetailPage() {
 
   return (
     <>
-      <MobilePageHeader back={back} title={name} subtitle={account.externalAccountId} />
+      <MobilePageHeader back={back} title={name} subtitle={account.address} />
       {/* One alert above both layouts, so its button is not drawn twice. */}
       <ImportAlert account={account} providerName={name} className="mx-4 mt-4 md:mx-6 md:mt-6 xl:mx-8 xl:mt-8" />
       <MobileAccountDetail account={account} now={now} nameOf={nameOf} className="md:hidden" />
@@ -84,7 +84,7 @@ export function AccountDetailPage() {
           <AccountAvatar provider={account.provider} size="lg" />
           <div className="flex min-w-0 flex-col gap-1.5">
             <h1 className="truncate text-[28px] leading-9 font-semibold tracking-[-0.018em] xl:text-[40px] xl:leading-12 xl:font-bold xl:tracking-[-0.028em]">
-              {account.externalAccountId}
+              {account.address}
             </h1>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <span className="text-sm text-muted-foreground">
@@ -131,7 +131,7 @@ export function AccountDetailPage() {
               nameOf={nameOf}
               trigger={
                 <Button type="button" variant="danger" size="sm" className="self-start">
-                  Ngắt kết nối {account.externalAccountId}
+                  Ngắt kết nối {account.address}
                 </Button>
               }
             />

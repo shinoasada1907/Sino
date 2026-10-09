@@ -161,12 +161,13 @@ export function createInboxSample(now: Date): InboxSample {
       { type: 'messenger', displayName: 'Messenger' },
     ],
     accounts: [
-      { id: 'acc-gmail', provider: 'gmail', externalAccountId: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null },
-      { id: 'acc-zalo', provider: 'zalo', externalAccountId: '+84 9•• ••• 218', status: 'CONNECTED', syncProgress: 64, statusChangedAt: null },
+      { id: 'acc-gmail', provider: 'gmail', externalAccountId: 'an.nguyen@gmail.com', address: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null },
+      { id: 'acc-zalo', provider: 'zalo', externalAccountId: '+84 9•• ••• 218', address: '+84 9•• ••• 218', status: 'CONNECTED', syncProgress: 64, statusChangedAt: null },
       {
         id: 'acc-messenger',
         provider: 'messenger',
         externalAccountId: 'an.nguyen.92',
+        address: 'an.nguyen.92',
         status: 'AUTH_EXPIRED',
         syncProgress: null,
         statusChangedAt: at('2026-10-01T21:04:00+07:00'),

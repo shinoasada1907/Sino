@@ -20,9 +20,9 @@ export function ThreadNotice({
   block: SendBlock
   kind: ConversationKind
   providerName: string
-  account: { id: string; externalAccountId: string }
+  account: { id: string; address: string }
 }) {
-  const { title, text } = sendBlockText(block, kind, providerName, account.externalAccountId)
+  const { title, text } = sendBlockText(block, kind, providerName, account.address)
   const reconnect = block === 'RECONNECT'
   const notReady = block === 'NOT_READY'
   const Icon = reconnect ? TriangleAlert : notReady ? Info : Lock

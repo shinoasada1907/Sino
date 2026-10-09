@@ -981,6 +981,11 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Đánh đổi:** khi đang nhập, mỗi 2 s hỏi lại cả danh sách tài khoản, danh sách provider và trạng thái từng tài khoản. Với vài tài khoản thì không đáng kể; nhiều tài khoản thì nên để backend trả trạng thái nhập ngay trong `GET /api/accounts`.
 - **Một lỗi đọc không làm hỏng cả danh sách:** `fetchInitialSync(id).catch(() => null)`: không đọc được trạng thái của một tài khoản thì tài khoản đó hiện như cũ.
 
+### 13.4 Mã và tên là hai thứ khác nhau (AC-08)
+- **Lỗi:** các màn hiện `externalAccountId` làm tên tài khoản. Trong dữ liệu mẫu trường này là email nên trông đúng; với Gmail thật nó là mã số Google ("115758365451560723981"). Bài học: dữ liệu mẫu nên giống dữ liệu thật cả ở những trường người ta tưởng là hiển nhiên.
+- **Sửa:** web có trường `address` để hiện, lấy `address ?? displayName` ngay ở lớp đọc API (`??` chỉ thay khi giá trị là `null` hoặc `undefined`, khác `||` thay cả chuỗi rỗng). `externalAccountId` giữ đúng nghĩa là mã, không còn được hiện.
+- **Cách test bắt lỗi kiểu này:** fixture API dùng mã số thật cho `externalAccountId`; màn nào còn hiện mã thì test tìm email sẽ đỏ.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1086,3 +1091,4 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 101. Bước 5 hỏi trạng thái lần nhập mỗi 2 s. Điều gì làm nó thôi hỏi, và vì sao vừa mở bước 5 đã có một `GET` ngay?
 102. Vì sao phần trăm nhập thư dừng ở 99 % thay vì tính thẳng `imported / estimated`?
 103. Vì sao trạng thái lần nhập được ghép vào query danh sách tài khoản thay vì mỗi tài khoản một query? Cái giá là gì?
+104. `address ?? displayName` và `address || displayName` khác nhau khi nào?

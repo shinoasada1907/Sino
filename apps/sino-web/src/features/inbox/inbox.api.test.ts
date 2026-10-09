@@ -9,6 +9,16 @@ const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOU
 const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })
 
 describe('the Hộp thư requests on the F05 API (D-56)', () => {
+  it('names an account by its display name when the backend has no address for it yet (BE-47)', async () => {
+    server.use(
+      http.get('/api/accounts', () => HttpResponse.json([{ ...API_ACCOUNTS[0], address: null, displayName: 'an.nguyen@gmail.com' }])),
+      http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+      http.get('/api/conversations/counts', () => HttpResponse.json(API_COUNTS)),
+    )
+
+    expect((await fetchInbox()).accounts[0].address).toBe('an.nguyen@gmail.com')
+  })
+
   it('builds the frame of the screen from the accounts, the providers and the counts', async () => {
     server.use(
       http.get('/api/accounts', () => HttpResponse.json(API_ACCOUNTS)),
@@ -21,8 +31,24 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
     expect(Date.parse(inbox.generatedAt)).not.toBeNaN()
     expect(inbox.providers).toEqual([{ type: 'gmail', displayName: 'Gmail' }])
     expect(inbox.accounts).toEqual([
-      { id: 'acc-1', provider: 'gmail', externalAccountId: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null },
-      { id: 'acc-2', provider: 'gmail', externalAccountId: 'cong.viec@gmail.com', status: 'AUTH_EXPIRED', syncProgress: null, statusChangedAt: null },
+      {
+        id: 'acc-1',
+        provider: 'gmail',
+        externalAccountId: '115758365451560723981',
+        address: 'an.nguyen@gmail.com',
+        status: 'CONNECTED',
+        syncProgress: null,
+        statusChangedAt: null,
+      },
+      {
+        id: 'acc-2',
+        provider: 'gmail',
+        externalAccountId: '104422190876543210987',
+        address: 'cong.viec@gmail.com',
+        status: 'AUTH_EXPIRED',
+        syncProgress: null,
+        statusChangedAt: null,
+      },
     ])
     expect(inbox.counts).toEqual({
       unread: 1,

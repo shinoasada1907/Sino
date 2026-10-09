@@ -73,7 +73,7 @@ function AccountRow({ account, now, name }: { account: AccountItem; now: Date; n
         <AccountAvatar provider={account.provider} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-sm font-semibold">{account.displayName}</span>
-          <Spec className="truncate">{account.externalAccountId}</Spec>
+          <Spec className="truncate">{account.address}</Spec>
         </div>
       </div>
       <span role="cell" className="text-sm">
@@ -98,7 +98,7 @@ function AccountRow({ account, now, name }: { account: AccountItem; now: Date; n
         <Button asChild variant="ghost" size="icon-sm">
           <Link
             to={`/accounts/${account.id}`}
-            aria-label={`Mở chi tiết tài khoản ${name} ${account.externalAccountId}`}
+            aria-label={`Mở chi tiết tài khoản ${name} ${account.address}`}
             className="after:absolute after:inset-0"
           >
             <ChevronRight strokeWidth={1.6} />

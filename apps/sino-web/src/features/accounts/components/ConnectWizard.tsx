@@ -257,7 +257,7 @@ function AccountRow({ account, tone, label }: { account: AccountItem; tone: Stat
         <AccountAvatar provider={account.provider} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-sm font-semibold">{account.displayName}</span>
-          <Spec className="truncate">{account.externalAccountId}</Spec>
+          <Spec className="truncate">{account.address}</Spec>
         </div>
         <Status tone={tone}>{label}</Status>
       </div>
@@ -451,7 +451,7 @@ function Done({
         <Check className="size-7" strokeWidth={2} />
       </span>
       <div className="flex flex-col gap-1.5">
-        <h3 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">Đã kết nối {account.externalAccountId}</h3>
+        <h3 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">Đã kết nối {account.address}</h3>
         <p className="text-sm text-muted-foreground">
           {done
             ? `Sino đã nhập xong ${noun} của tài khoản này. Mở hộp thư để đọc.`

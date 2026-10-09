@@ -24,6 +24,12 @@ export interface AccountItem {
   provider: ProviderType
   externalAccountId: string
   displayName: string
+  /**
+   * How the account is shown: its address (email, phone, user name). On the API, `address ?? displayName`: an account
+   * connected before the backend kept addresses (BE-47) has none until it signs in again, and for Gmail its display
+   * name is the email then.
+   */
+  address: string
   avatarUrl: string | null
   status: AccountStatus
   syncEnabled: boolean

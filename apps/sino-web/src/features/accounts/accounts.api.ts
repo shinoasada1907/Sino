@@ -12,6 +12,8 @@ interface AccountResponse {
   provider: string
   externalAccountId: string
   displayName: string
+  /** Since BE-47; null for an account connected before, until it signs in again. */
+  address: string | null
   avatarUrl: string | null
   status: AccountStatus
   syncEnabled: boolean
@@ -34,6 +36,7 @@ function toAccountItem(account: AccountResponse): AccountItem {
     provider: account.provider,
     externalAccountId: account.externalAccountId,
     displayName: account.displayName,
+    address: account.address ?? account.displayName,
     avatarUrl: account.avatarUrl,
     status: account.status,
     syncEnabled: account.syncEnabled,

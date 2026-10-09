@@ -25,8 +25,9 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
       {
         id: 'acc-1',
         provider: 'gmail',
-        externalAccountId: 'an.nguyen@gmail.com',
+        externalAccountId: '115758365451560723981',
         displayName: 'An Nguyễn',
+        address: 'an.nguyen@gmail.com',
         avatarUrl: null,
         status: 'CONNECTED',
         syncEnabled: true,
@@ -50,6 +51,19 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
         firstImport: null,
       }),
     ])
+  })
+
+  it('names an account by its address, or by its display name when the backend has none yet (BE-47)', async () => {
+    server.use(
+      http.get('/api/accounts', () => HttpResponse.json([{ ...API_ACCOUNTS[0], address: null, displayName: 'an.nguyen@gmail.com' }])),
+      http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+      http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
+    )
+
+    const [account] = (await fetchAccounts()).accounts
+
+    expect(account.address).toBe('an.nguyen@gmail.com')
+    expect(account.externalAccountId).toBe('115758365451560723981')
   })
 
   it('has no detail sections yet, and does not ask for them', async () => {

@@ -93,7 +93,7 @@ export function SourcePane({
           {inbox.accounts.map((account) => (
             <Link key={account.id} to={`/accounts/${account.id}`} className={ITEM}>
               <StatusDot tone={accountTone(account)} className="justify-self-center" />
-              <span className="truncate font-mono text-[11px] leading-4 text-foreground">{account.externalAccountId}</span>
+              <span className="truncate font-mono text-[11px] leading-4 text-foreground">{account.address}</span>
               <span className="font-mono text-[11px] leading-4">{account.syncProgress !== null ? `${account.syncProgress}%` : ''}</span>
             </Link>
           ))}

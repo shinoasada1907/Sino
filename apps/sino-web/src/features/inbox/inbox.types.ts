@@ -33,6 +33,8 @@ export interface InboxAccount {
   id: string
   provider: ProviderType
   externalAccountId: string
+  /** How the account is shown: `address ?? displayName` of the API (BE-47), as on the Tài khoản screens. */
+  address: string
   status: AccountStatus
   syncProgress: number | null
   /** When the status last changed: for an expired account, since when nothing arrives (D-55). */

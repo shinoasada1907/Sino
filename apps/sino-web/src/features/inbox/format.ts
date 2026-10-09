@@ -200,10 +200,10 @@ export function threadMeta(messages: Message[]): string {
 }
 
 /** "Gmail · an.nguyen@gmail.com", "Zalo · nhóm 6 người · qua +84 9•• ••• 218" */
-export function threadSubtitle(item: ConversationItem, account: { externalAccountId: string }, nameOf: ProviderNameOf): string {
+export function threadSubtitle(item: ConversationItem, account: { address: string }, nameOf: ProviderNameOf): string {
   return item.kind === 'EMAIL'
-    ? `${nameOf(item.provider)} · ${account.externalAccountId}`
-    : `${sourceLabel(item, nameOf)} · qua ${account.externalAccountId}`
+    ? `${nameOf(item.provider)} · ${account.address}`
+    : `${sourceLabel(item, nameOf)} · qua ${account.address}`
 }
 
 /** The line under "Không tải được hộp thư": the code and request of the error when it carries them, then the time. */

@@ -20,7 +20,9 @@ const [first, second] = API_CONVERSATIONS.map((item) => ({ ...item, snippet: ite
 const FRAME: InboxData = {
   generatedAt: now.toISOString(),
   providers: [{ type: 'gmail', displayName: 'Gmail' }],
-  accounts: [{ id: 'acc-1', provider: 'gmail', externalAccountId: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null }],
+  accounts: [
+    { id: 'acc-1', provider: 'gmail', externalAccountId: '115758365451560723981', address: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null },
+  ],
   counts: { unread: 1, byProvider: [{ provider: 'gmail', unread: 1 }], needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0 },
 }
 const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOUND' }

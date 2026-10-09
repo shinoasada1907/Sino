@@ -139,8 +139,8 @@ export function ChatThread({
           kind="CHAT"
           label={`Nhắn tin tới ${item.title}`}
           placeholder={`Nhắn tin tới ${item.title}…`}
-          account={account.externalAccountId}
-          via={`${name} · ${account.externalAccountId}`}
+          account={account.address}
+          via={`${name} · ${account.address}`}
           onSend={(text) => sendMessage.mutate(text)}
         />
       ) : null}

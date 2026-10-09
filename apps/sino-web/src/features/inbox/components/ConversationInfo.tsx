@@ -144,7 +144,7 @@ export function ConversationInfo({
             <AccountAvatar provider={account.provider} />
             <span className="flex min-w-0 flex-col gap-0.5">
               <span className="text-sm font-semibold">{nameOf(item.provider)}</span>
-              <Spec className="truncate">{account.externalAccountId}</Spec>
+              <Spec className="truncate">{account.address}</Spec>
             </span>
             {account.syncProgress !== null ? (
               <Status tone="warn">{account.syncProgress}%</Status>

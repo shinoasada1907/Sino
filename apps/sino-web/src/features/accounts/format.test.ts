@@ -44,6 +44,7 @@ function account(extra: Partial<AccountItem>): AccountItem {
     provider: 'gmail',
     externalAccountId: 'an.nguyen@gmail.com',
     displayName: 'An Nguyễn',
+    address: 'an.nguyen@gmail.com',
     avatarUrl: null,
     status: 'CONNECTED',
     syncEnabled: true,
@@ -70,6 +71,7 @@ const zalo = account({
   id: 'acc-zalo',
   provider: 'zalo',
   externalAccountId: '+84 9•• ••• 218',
+  address: '+84 9•• ••• 218',
   syncProgress: 64,
   access: { expiresAt: '2026-10-07T07:05:00Z', autoRenew: false, lastRenewedAt: null },
 })
@@ -77,6 +79,7 @@ const messenger = account({
   id: 'acc-messenger',
   provider: 'messenger',
   externalAccountId: 'an.nguyen.92',
+  address: 'an.nguyen.92',
   status: 'AUTH_EXPIRED',
   lastSyncedAt: '2026-10-01T14:04:00Z',
   statusChangedAt: '2026-10-01T14:04:00Z',

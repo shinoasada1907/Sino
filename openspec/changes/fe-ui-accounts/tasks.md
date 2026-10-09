@@ -81,6 +81,10 @@
   - **Kiểm chứng (2026-10-10):** test FE-52 trên MSW viết trước, RED 5/5, GREEN; test danh sách điện thoại đỏ khi chưa sửa, xanh sau khi sửa; các test dựng trên API thêm trả lời cho trạng thái nhập. Chrome qua CDP (API giả): 1440 tối — bảng có đủ bốn nhãn, chi tiết chưa nhập / dừng (thông báo đầu trang, "Đồng bộ ngay" là link `/accounts?sync=…`) / đang nhập ("Đồng bộ ngay" bị khóa); 390 sáng — danh sách "35%", "Lỗi đồng bộ", "Chưa đồng bộ", chi tiết có thông báo; không cuộn ngang. `pnpm lint` 0, `tsc -b` 0, `vitest` 459/459, `pnpm build` 0. Ô FE-52 ở `tasks.md` của F05 để phiên backend tick.
   - **Chưa kiểm chứng:** với Gmail thật (IN-09).
 
+- [x] 4.4 **AC-08 — Tên tài khoản theo `address` của BE-47** (người dùng thấy "115758365451560723981" ở thanh bên Hộp thư, 2026-10-09; người dùng chốt tên trường `address` với phiên backend; `e217314`)
+  - **Thực hiện (2026-10-10, AUTO):** `AccountItem.address` và `InboxAccount.address` = `address ?? displayName` của `GET /api/accounts` (tài khoản kết nối trước BE-47 có `address = null` tới lần kết nối lại; với Gmail `displayName` lúc kết nối là email). Mọi chỗ trước đây hiện `externalAccountId` giờ hiện `address`: bảng và danh sách điện thoại, chi tiết (tiêu đề, đầu trang con, nút ngắt kết nối), hộp kết nối, thông báo đăng nhập lại, ô tìm kiếm, thanh bên và thông tin cuộc trò chuyện của Hộp thư, dòng "qua …" của thư. `externalAccountId` giữ đúng nghĩa: mã của nhà cung cấp. Dữ liệu mẫu: `address` là giá trị các màn vẫn hiện (email, số điện thoại, tên người dùng). Tổng quan còn chạy dữ liệu mẫu nên chưa đổi.
+  - **Kiểm chứng (2026-10-10):** fixture API đổi sang dạng thật (mã số Google + `address`), RED 8 (các màn còn hiện mã số, lớp đọc API chưa có `address`), GREEN; thêm test `address = null` → `displayName`. Chrome 1440 tối, tài khoản như máy người dùng (`address` null, `displayName` là email): Hộp thư, danh sách, chi tiết đều hiện email, không còn mã số. `pnpm lint` 0, `tsc -b` 0, `vitest` 461/461, `pnpm build` 0.
+
 ## 5. Nghiệm thu (để sau, theo ý người dùng)
 
 - [ ] 5.1 **AC-05 — Nghiệm thu, hợp đồng dữ liệu cuối, tài liệu, archive** (sau khi archive `fe-ui-overview`)

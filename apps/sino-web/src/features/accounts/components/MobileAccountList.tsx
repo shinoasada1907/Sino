@@ -69,7 +69,7 @@ function MobileAccountItem({ account, now, name }: { account: AccountItem; now: 
         {'detail' in view ? (
           <span className="truncate text-sm text-danger-ink">{view.detail}</span>
         ) : (
-          <Spec className="break-words">{account.externalAccountId}</Spec>
+          <Spec className="break-words">{account.address}</Spec>
         )}
         {'progress' in view && view.progress !== undefined && <Progress value={view.progress} className="mt-1" />}
       </div>

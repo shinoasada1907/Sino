@@ -13,6 +13,8 @@ interface AccountResponse {
   id: string
   provider: string
   externalAccountId: string
+  displayName: string
+  address: string | null
   status: AccountStatus
 }
 
@@ -66,8 +68,8 @@ function toItem({ snippet, linked, ...rest }: ConversationResponse): Conversatio
   return { ...rest, snippet: snippet ?? '', linked: linked ?? [] }
 }
 
-function toAccount({ id, provider, externalAccountId, status }: AccountResponse): InboxAccount {
-  return { id, provider, externalAccountId, status, syncProgress: null, statusChangedAt: null }
+function toAccount({ id, provider, externalAccountId, displayName, address, status }: AccountResponse): InboxAccount {
+  return { id, provider, externalAccountId, address: address ?? displayName, status, syncProgress: null, statusChangedAt: null }
 }
 
 // The API does not say who runs a group or who joined lately.

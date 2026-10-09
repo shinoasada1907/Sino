@@ -225,13 +225,13 @@ describe('the open conversation', () => {
   })
 
   it('says where a conversation comes from', () => {
-    const gmail = { externalAccountId: 'an.nguyen@gmail.com' }
-    const zalo = { externalAccountId: '+84 9•• ••• 218' }
+    const gmail = { address: 'an.nguyen@gmail.com' }
+    const zalo = { address: '+84 9•• ••• 218' }
     expect(threadSubtitle(item({}), gmail, nameOf)).toBe('Gmail · an.nguyen@gmail.com')
     expect(threadSubtitle(item({ provider: 'zalo', kind: 'CHAT', memberCount: 6 }), zalo, nameOf)).toBe(
       'Zalo · nhóm 6 người · qua +84 9•• ••• 218',
     )
-    expect(threadSubtitle(item({ provider: 'messenger', kind: 'CHAT' }), { externalAccountId: 'an.nguyen.92' }, nameOf)).toBe(
+    expect(threadSubtitle(item({ provider: 'messenger', kind: 'CHAT' }), { address: 'an.nguyen.92' }, nameOf)).toBe(
       'Messenger · qua an.nguyen.92',
     )
   })

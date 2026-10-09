@@ -126,7 +126,7 @@ export function reauthNotice(account: AccountItem, nameOf: ProviderNameOf, now: 
     : 'Quyền truy cập đã hết hạn.'
   const [item, short] = isMail(account.provider) ? ['Thư', 'thư'] : ['Tin nhắn', 'tin']
   return {
-    title: `${nameOf(account.provider)} ${account.externalAccountId} cần đăng nhập lại`,
+    title: `${nameOf(account.provider)} ${account.address} cần đăng nhập lại`,
     detail: `${when} ${item} mới tạm dừng; ${stored(account.storedMessages, short)} đã lưu vẫn còn.`,
   }
 }
@@ -142,7 +142,7 @@ export function filterAccounts(
     if (filter === 'attention' && !needsAttention(account)) {
       return false
     }
-    const haystack = foldText(`${account.externalAccountId} ${account.displayName} ${nameOf(account.provider)}`)
+    const haystack = foldText(`${account.address} ${account.displayName} ${nameOf(account.provider)}`)
     return haystack.includes(needle)
   })
 }
