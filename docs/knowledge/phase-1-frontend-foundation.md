@@ -807,6 +807,68 @@ router /login?returnTo=%2Finbox    <- chốt chặn, vẫn ở /inbox, thấy me
 
 ---
 
+## 10. Hộp thư trên API (FE-50, IN-08)
+
+### 10.0 Bức tranh: ba truy vấn thay cho một khối dữ liệu
+- **Ở đâu:** `src/features/inbox/inbox.api.ts`, `useInbox.ts`, `conversationChange.ts`, `InboxPage.tsx`, `components/ConversationList.tsx` (`ListEnd`), `components/LatestPreview.tsx`, `components/ThreadNotice.tsx`.
+- **Là gì:** bản dữ liệu mẫu tải cả hộp thư một lần rồi lọc ở trình duyệt. API của F05 lọc và chia trang ở máy chủ, nên màn giờ hỏi ba thứ riêng:
+
+```text
+khung       ['inbox']
+            GET /api/accounts, /api/providers, /api/conversations/counts
+danh sách   ['inbox','list', view, source]
+            GET /api/conversations?view=&provider=&cursor=   (từng trang)
+mở một cái  ['inbox','conversation', id]
+            GET /api/conversations/{id}   (dòng + người tham gia)
+thay đổi    PATCH /api/conversations/{id} { read?, archived? }
+            -> dòng sau khi đổi
+```
+
+- **Làm theo spec trước khi backend xong:** BE-44 (API Hộp thư) chưa làm, nên test dùng MSW đóng vai API đúng như design F05 mục 4. Khi BE-44 xong chỉ còn chạy thử với backend thật (IN-09). Rủi ro: backend đổi hình dạng trong lúc làm thì web sửa theo; phiên backend đã hứa nhắn lại khi đổi.
+
+### 10.1 Bốn quyết định (D-70…D-73, agent chốt, người dùng xem lại)
+- **D-70, "12 chưa đọc" đếm cuộc trò chuyện:** dùng đúng số API trả. Đọc một cuộc trò chuyện có 3 tin chưa đọc thì số giảm 1, không phải 3.
+- **D-71, mở một cuộc trò chuyện trước F06:** API chưa trả tin, nên khung đọc hiện thẻ "Thư mới nhất" với đoạn đầu thật (`snippet`) và câu nói phần còn lại có ở bản sau. `messages = null` nghĩa là "API chưa có", khác `[]` ("không có tin nào").
+- **D-72, ô trả lời trước F10:** `canSend = null` thì thay ô soạn bằng câu báo nhẹ, không nút. Ô soạn gõ được mà không gửi được là nói dối.
+- **D-73, Lưu trữ / Đánh dấu chưa đọc rồi về danh sách:** nếu ở lại, "chưa đọc" bị đọc lại ngay vì mở là đọc.
+
+### 10.2 Danh sách từng trang: `useInfiniteQuery`
+- **Là gì:** một truy vấn giữ nhiều trang (`data.pages`); `getNextPageParam` lấy `nextCursor` của trang cuối, `undefined` là hết; `fetchNextPage()` tải trang sau.
+- **Phân trang keyset:** `nextCursor` là một chuỗi mờ máy chủ tạo từ "thư mới nhất + id" của dòng cuối. Trang sau bắt đầu ngay sau dòng đó, nên thư mới đến giữa chừng không làm lặp hay sót dòng như `page=2` (đếm theo vị trí). Phía web không cần hiểu chuỗi đó.
+- **Dòng trùng:** nếu danh sách đổi giữa hai trang, một dòng có thể về hai lần; web chỉ hiện một lần (lọc theo `id`).
+- **Cuối danh sách:** nút "Tải thêm", và `IntersectionObserver` bấm thay khi nút tới gần màn hình. Chỉ có cuộn vô tận thì người dùng bàn phím, trình đọc màn hình không tới được trang sau; chỉ có nút thì người dùng chuột phải bấm. Trang sau lỗi: giữ các dòng đã có, cuối danh sách báo "Không tải thêm được." và "Thử lại".
+- **Đổi bộ lọc không nháy:** `placeholderData: keepPreviousData` giữ dữ liệu của bộ lọc trước trong lúc bộ lọc mới đang về; web lọc lại các dòng đó theo bộ lọc mới, nên dòng còn khớp hiện ngay. Không còn dòng nào thì hiện khung xương "Đang tải danh sách", không hiện "Không có cuộc trò chuyện nào" (câu đó sai cho tới khi máy chủ trả lời).
+- **Bẫy, đồng bộ lần đầu:** trước đây "danh sách rỗng" nghĩa là "cả hộp thư rỗng". Giờ danh sách chỉ là một bộ lọc, nên "Zalo · Đã hẹn giờ" rỗng từng bị hiểu là "Zalo đang đồng bộ lần đầu". Thẻ đồng bộ chỉ hiện khi bộ lọc là "Tất cả" của mọi nguồn.
+
+### 10.3 Thay đổi hiện ngay, sai thì trả lại (optimistic update)
+
+```text
+bấm      onMutate : chụp lại mọi cache ['inbox', ...]
+                    dòng đoán = applyChange(dòng, thay đổi)
+                    sửa dòng ở mọi danh sách đã tải + cuộc trò chuyện đang mở
+                    số đếm = countsAfter(số đếm, dòng cũ, dòng đoán)
+máy chủ  onSuccess: số đếm = countsAfter(số đếm, dòng đoán, dòng máy chủ)
+                    dòng = dòng máy chủ
+         onError  : trả mọi cache về bản chụp
+xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh dấu cũ,
+                    tải lại khi được hiện
+```
+
+- **`countsAfter` đếm theo "trọng lượng":** mỗi cuộc trò chuyện chưa lưu trữ góp 1 vào "chưa đọc" nếu còn tin chưa đọc, 1 vào "cần trả lời", 1 vào "có tệp"; đã lưu trữ thì góp 0. Số mới = số cũ + (trọng lượng sau − trọng lượng trước). Một hàm lo cả đọc, chưa đọc, lưu trữ, bỏ lưu trữ, và lấy dòng máy chủ sửa lại phần đoán sai.
+- **Vì sao không tải lại danh sách đang hiện:** dòng đã được sửa đúng (dòng máy chủ trả về); tải lại là thêm request và dòng có thể nhảy chỗ dưới tay người dùng. Danh sách khác (ví dụ "Đã lưu trữ") thì thiếu dòng vừa chuyển sang, nên `invalidateQueries(..., { refetchType: 'none' })` đánh dấu cũ: lần sau được hiện thì tự tải.
+- **Bẫy, đọc lặp vô tận:** mở là đọc (effect thấy `unreadCount > 0`). Máy chủ từ chối thì cache trả lại `unreadCount > 0`, effect lại chạy, lại gửi, lại bị từ chối... `readOnce` (một `useRef`) nhớ "lần mở này đã đọc rồi" và chỉ quên khi rời cuộc trò chuyện.
+
+### 10.4 Hai lớp test, một mẫu dữ liệu
+- **Hợp đồng đầy đủ (dữ liệu mẫu):** tin, ô soạn, thành viên, tệp chưa có trong API nhưng giao diện đã dựng. Test cũ giữ được nhờ `src/test/inboxSampleApi.ts`: `vi.mock('./inbox.api', ...)` trả lời mọi request từ mẫu, và `renderApp` đổ sẵn khung cùng một trang của mọi bộ lọc vào cache.
+- **Bẫy, mock tự import chính nó:** file mẫu được nạp bên trong `vi.mock('./inbox.api')`; nếu nó import `useInbox` (mà `useInbox` import `inbox.api`) thì module đang được mock lại cần chính nó. Phần đổ cache nằm ở `renderApp`, phần trả lời request nằm ở `inboxSampleApi.ts`, file này không import `inbox.api`.
+- **Đường đi qua API:** `inbox.api.test.ts` (đổi dữ liệu), `useInbox.test.tsx` (trang, mở, thay đổi), `InboxOnApi.test.tsx` (cả màn với một backend giả nhỏ trong MSW giữ trạng thái: lọc, trang, lưu trữ, chưa đọc). Bẫy MSW: `/api/conversations/:id` khớp cả `/api/conversations/counts`; handler ghi đè phải bỏ qua `counts`.
+- **Giữ request lại để thấy trạng thái giữa chừng:** handler `await` một promise (`held()`) rồi trả `undefined` để request đi tiếp tới handler sau. Nhờ vậy test thấy "đổi bộ lọc vẫn giữ dòng", "ô soạn chờ chi tiết".
+
+### 10.5 Kiểm chứng
+- **Test trước, kiểm tra ngược:** adapter RED 7/7, `conversationChange` RED 6/8 (hai test giữ hành vi không được đổi, đúng khi code rỗng). 46 lỗi gài: 44 bị bắt ngay; hai sống dạy hai điều. Một là điều kiện thừa: TanStack đã không báo "có trang sau" khi đang hiện dữ liệu của bộ lọc trước, nên bỏ điều kiện. Hai là test quá nhanh: MSW từ chối gần như tức thì, React chưa kịp vẽ trạng thái đoán thì đã trả lại, nên "đọc lại vô tận" không bao giờ xảy ra trong test dù xảy ra với mạng thật. Cho máy chủ giả trả lời sau 50 ms, test thấy "Đã đọc hết" rồi "1 chưa đọc", và lỗi gài bị bắt. **Bài học:** muốn kiểm "khi máy chủ từ chối", hãy để nó từ chối chậm như mạng thật.
+- **Chrome thật, không cần backend:** `vite` dev và DevTools Protocol đóng backend F05 (7 thư Gmail, 4 thư một trang). Trang 2 tự tải vì nút "Tải thêm" nằm trong khoảng 240 px của màn hình 1440; đọc đúng một lần; lưu trữ, bỏ lưu trữ, chưa đọc mỗi việc một `PATCH` rồi về danh sách; 404 nói "Không tìm thấy"; không cuộn ngang ở 1440, 1024, 390.
+- **Chưa kiểm chứng:** chạy với backend thật (IN-09) cần BE-44 (API) và BE-45 (nhập thư).
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -885,3 +947,9 @@ router /login?returnTo=%2Finbox    <- chốt chặn, vẫn ở /inbox, thấy me
 74. D-56 nói "trường API chưa có là null". Màn Tài khoản xử lý câu "1.284 thư đã lưu vẫn còn" thế nào khi chưa biết số?
 75. Vì sao bỏ công tắc "Xóa luôn tin nhắn đã lưu" thay vì để nó hiện mà không làm gì?
 76. Lỗi "tham số `?connected` mất trước khi đọc" có từ CN-03. Vì sao dữ liệu mẫu che được nó, và test thế nào thì bắt được?
+77. D-70: vì sao đọc một cuộc trò chuyện có 3 tin chưa đọc chỉ làm "12 chưa đọc" giảm 1?
+78. `nextCursor` là phân trang keyset. Nó khác `?page=2` thế nào khi có thư mới đến giữa hai lần tải trang?
+79. Vì sao cuối danh sách vừa có nút "Tải thêm" vừa có `IntersectionObserver`, không chọn một?
+80. `countsAfter(số đếm, trước, sau)` tính số mới thế nào, và vì sao một hàm lo được cả đọc, chưa đọc, lưu trữ, bỏ lưu trữ?
+81. Sau khi lưu trữ, danh sách đang hiện không tải lại nhưng "Đã lưu trữ" thì có. `refetchType: 'none'` làm gì?
+82. Vì sao test "máy chủ từ chối đọc" phải cho máy chủ giả trả lời chậm 50 ms mới bắt được lỗi "đọc lại vô tận"?

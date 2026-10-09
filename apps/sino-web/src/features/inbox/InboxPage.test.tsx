@@ -2,8 +2,11 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
-import { renderApp, shellPart } from '@/test/renderApp'
+import { renderApp } from '@/test/renderApp'
 import { createInboxSample } from './inbox.sample'
+
+// The screen on the full contract (sample data with messages and sending); the API path is tested in InboxOnApi.test.tsx.
+vi.mock('./inbox.api', async (importOriginal) => (await import('@/test/inboxSampleApi')).sampleInboxApi(await importOriginal()))
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
@@ -147,7 +150,7 @@ describe('Hộp thư on desktop', () => {
     expect(thread().getByText('28/09 · 16:20')).toBeInTheDocument()
   })
 
-  it('marks an email as read when it opens, everywhere unread messages are counted', async () => {
+  it('marks an email as read when it opens, in its row and the counts of the screen', async () => {
     open('/inbox')
     const user = userEvent.setup()
     expect(within(await list().findByRole('link', { name: /Phòng khám/ })).getByLabelText('Chưa đọc')).toBeInTheDocument()
@@ -157,7 +160,6 @@ describe('Hộp thư on desktop', () => {
     expect(await list().findByText('11 chưa đọc')).toBeInTheDocument()
     expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('6')
     expect(within(row(/Phòng khám/)).queryByLabelText('Chưa đọc')).toBeNull()
-    expect(within(shellPart('sidebar')).getByRole('link', { name: /Hộp thư/ })).toHaveTextContent('11')
   })
 
   it('says so for a conversation that does not exist', async () => {
@@ -174,8 +176,6 @@ describe('Hộp thư on desktop', () => {
 
     for (const name of [
       'Tìm trong cuộc trò chuyện',
-      'Đánh dấu chưa đọc',
-      'Lưu trữ',
       'Tạm ẩn',
       'Mở trong Gmail',
       'Tạo task',

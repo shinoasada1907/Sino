@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router'
 import type { InboxFilter, InboxView } from './format'
 
-const VIEWS: InboxView[] = ['all', 'unread', 'reply', 'attachments', 'scheduled', 'snoozed', 'archived']
+export const VIEWS: InboxView[] = ['all', 'unread', 'reply', 'attachments', 'scheduled', 'snoozed', 'archived']
 
 /** "?source=zalo&view=unread"; the defaults (every source, the whole inbox) leave the address clean. */
 export function filterSearch({ source, view }: InboxFilter): string {
@@ -19,9 +19,10 @@ export function filterSearch({ source, view }: InboxFilter): string {
 /**
  * The inbox filter lives in the address (`source`, `view`), so it survives a reload, works with Back, and is shared by
  * the source column, the buttons above the list and the chips of tablet and mobile. Unknown values fall back to the
- * defaults.
+ * defaults. `sources` is null while the providers are not known yet: the source of the address is kept, so the first
+ * page is asked for the right source at once.
  */
-export function useInboxFilter(sources: string[]): {
+export function useInboxFilter(sources: string[] | null): {
   filter: InboxFilter
   search: string
   searchFor: (change: Partial<InboxFilter>) => string
@@ -30,7 +31,7 @@ export function useInboxFilter(sources: string[]): {
   const source = params.get('source')
   const view = params.get('view') as InboxView | null
   const filter: InboxFilter = {
-    source: source && sources.includes(source) ? source : null,
+    source: source && (sources === null || sources.includes(source)) ? source : null,
     view: view && VIEWS.includes(view) ? view : 'all',
   }
   return { filter, search: filterSearch(filter), searchFor: (change) => filterSearch({ ...filter, ...change }) }

@@ -1,4 +1,4 @@
-import { AlarmClock, Archive, Calendar, CalendarPlus, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
+import { AlarmClock, Archive, ArchiveRestore, Calendar, CalendarPlus, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
@@ -9,8 +9,9 @@ import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
 import { firstLine, formatFileSize, linkedMeta, mailTime, paragraphs, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
 import type { ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
-import { useSendMessage } from '../useInbox'
+import { useConversationActions, useSendMessage } from '../useInbox'
 import { Composer } from './Composer'
+import { LatestPreview } from './LatestPreview'
 import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
 
@@ -25,7 +26,9 @@ const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string }> = {
 /**
  * An email thread in the right column of the canvas `Inbox`: header and tools, linked items, the older emails folded
  * (a click opens one), the newest in full with its attachments, and the reply box, or a notice in its place when the
- * account cannot send (`ThreadState`, D-55). The tools have no flow yet (D-52).
+ * account cannot send (`ThreadState`, D-55). "Đánh dấu chưa đọc" and "Lưu trữ" change the conversation and go back to
+ * the list (D-73); the other tools have no flow yet (D-52). Until the API returns messages (F06) the newest one shows
+ * as its preview (D-71); the reply box waits for the detail, which says whether Sino can send.
  * From 768 to 1279px it keeps "Lưu trữ" and "Thêm thao tác" and drops the tools of each email (canvas `TabletInbox`);
  * below 768px it fills the screen under the page header, without the tools (no canvas for an email on a phone).
  */
@@ -33,12 +36,15 @@ export function EmailThread({
   item,
   detail,
   account,
+  backSearch,
   now,
   nameOf,
 }: {
   item: ConversationItem
   detail: ConversationDetail | undefined
   account: InboxAccount
+  /** The filter of the list to go back to after a change. */
+  backSearch: string
   now: Date
   nameOf: ProviderNameOf
 }) {
@@ -48,6 +54,7 @@ export function EmailThread({
   const toggle = (id: string) => setOpened((ids) => (ids.includes(id) ? ids.filter((open) => open !== id) : [...ids, id]))
   const sendMessage = useSendMessage(item.id)
   const block = sendBlock(account, detail?.canSend)
+  const { markUnread, toggleArchive } = useConversationActions(item, backSearch)
 
   return (
     <>
@@ -59,13 +66,13 @@ export function EmailThread({
               <ProviderIcon provider={item.provider} className="size-3.5" />
             </span>
             <span className="text-sm text-muted-foreground">{threadSubtitle(item, account, nameOf)}</span>
-            {detail && <Spec>{threadMeta(detail.messages)}</Spec>}
+            {detail?.messages && <Spec>{threadMeta(detail.messages)}</Spec>}
           </div>
         </div>
         <div className="hidden shrink-0 items-center gap-1 md:flex">
           <Tool label="Tìm trong cuộc trò chuyện" icon={Search} className="max-xl:hidden" />
-          <Tool label="Đánh dấu chưa đọc" icon={MailDot} className="max-xl:hidden" />
-          <Tool label="Lưu trữ" icon={Archive} />
+          <Tool label="Đánh dấu chưa đọc" icon={MailDot} className="max-xl:hidden" onClick={markUnread} />
+          <Tool label={item.archived ? 'Bỏ lưu trữ' : 'Lưu trữ'} icon={item.archived ? ArchiveRestore : Archive} onClick={toggleArchive} />
           <Tool label="Tạm ẩn" icon={Clock} className="max-xl:hidden" />
           <Tool label="Thêm thao tác" icon={Ellipsis} className="xl:hidden" />
           <span aria-hidden="true" className="mx-2 h-6 w-px bg-border max-xl:hidden" />
@@ -78,6 +85,7 @@ export function EmailThread({
 
       <div className="flex min-h-0 flex-col gap-3 overflow-auto p-4 md:p-5 xl:p-6">
         {detail?.linked && detail.linked.length > 0 && <LinkedChips items={detail.linked} now={now} />}
+        {detail?.messages === null && <LatestPreview item={item} now={now} />}
         {mails.map((mail) =>
           mail === newest ? (
             <MailCard key={mail.id} mail={mail} now={now} tools />
@@ -91,7 +99,7 @@ export function EmailThread({
 
       {block ? (
         <ThreadNotice block={block} kind={item.kind} providerName={nameOf(item.provider)} account={account} />
-      ) : (
+      ) : detail ? (
         <Composer
           kind="EMAIL"
           label={`Trả lời ${item.title}`}
@@ -100,14 +108,14 @@ export function EmailThread({
           via={`${nameOf(item.provider)} · ${account.externalAccountId}`}
           onSend={(text) => sendMessage.mutate(text)}
         />
-      )}
+      ) : null}
     </>
   )
 }
 
-function Tool({ label, icon: Icon, className }: { label: string; icon: LucideIcon | typeof MailDot; className?: string }) {
+function Tool({ label, icon: Icon, className, onClick }: { label: string; icon: LucideIcon | typeof MailDot; className?: string; onClick?: () => void }) {
   return (
-    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className={className}>
+    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className={className} onClick={onClick}>
       <Icon strokeWidth={1.6} />
     </Button>
   )

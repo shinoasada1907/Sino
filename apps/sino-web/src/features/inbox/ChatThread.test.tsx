@@ -5,6 +5,9 @@ import { createShellSample } from '@/app/shell/shell.sample'
 import { renderApp } from '@/test/renderApp'
 import { createInboxSample } from './inbox.sample'
 
+// The screen on the full contract (sample data with messages and sending); the API path is tested in InboxOnApi.test.tsx.
+vi.mock('./inbox.api', async (importOriginal) => (await import('@/test/inboxSampleApi')).sampleInboxApi(await importOriginal()))
+
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
 
@@ -91,7 +94,7 @@ describe('a chat conversation', () => {
     expect(info().getByText('Tài khoản dùng')).toBeInTheDocument()
   })
 
-  it('reads the conversation, so the inbox counts three unread messages less', async () => {
+  it('reads the conversation, so the inbox counts one unread conversation less (D-70)', async () => {
     open('/inbox')
     const user = userEvent.setup()
 
@@ -99,8 +102,8 @@ describe('a chat conversation', () => {
     expect(await chat('Gia đình').findByText('3 tin chưa đọc')).toBeInTheDocument()
     await user.click(chat('Gia đình').getByRole('link', { name: 'Hộp thư' }))
 
-    expect(await list().findByText('9 chưa đọc')).toBeInTheDocument()
-    expect(within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' })).getByRole('link', { name: /Zalo/ })).toHaveTextContent('1')
+    expect(await list().findByText('11 chưa đọc')).toBeInTheDocument()
+    expect(within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' })).getByRole('link', { name: /Zalo/ })).toHaveTextContent('3')
     expect(within(list().getByRole('link', { name: /Gia đình/ })).queryByText('tin chưa đọc', { exact: false })).toBeNull()
   })
 })

@@ -1,4 +1,4 @@
-import { Lock, TriangleAlert } from 'lucide-react'
+import { Info, Lock, TriangleAlert } from 'lucide-react'
 import { Link } from 'react-router'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
@@ -8,7 +8,8 @@ import type { ConversationKind } from '../inbox.types'
 /**
  * Canvas `ThreadState` `.blocked`, in place of the reply box: an account that must sign in again (red, "Kết nối lại"),
  * or one that can still read but no longer send (amber, "Cấp lại quyền gửi"). Both open the connect wizard at the
- * sign-in step; "Trả lời trong …" has no flow yet (D-52).
+ * sign-in step; "Trả lời trong …" has no flow yet (D-52). Until Sino can send (F10, D-72), a plain note with nothing to
+ * press says where to reply instead.
  */
 export function ThreadNotice({
   block,
@@ -23,7 +24,8 @@ export function ThreadNotice({
 }) {
   const { title, text } = sendBlockText(block, kind, providerName, account.externalAccountId)
   const reconnect = block === 'RECONNECT'
-  const Icon = reconnect ? TriangleAlert : Lock
+  const notReady = block === 'NOT_READY'
+  const Icon = reconnect ? TriangleAlert : notReady ? Info : Lock
   const to = `/accounts?reconnect=${account.id}`
 
   return (
@@ -32,15 +34,16 @@ export function ThreadNotice({
         role={reconnect ? 'alert' : 'status'}
         className={cn(
           'flex flex-wrap items-center gap-x-3.5 gap-y-3 rounded-md border bg-surface px-4.5 py-4',
-          reconnect ? 'border-[color-mix(in_srgb,var(--danger)_35%,var(--border))]' : 'border-[color-mix(in_srgb,var(--warning)_40%,var(--border))]',
+          reconnect && 'border-[color-mix(in_srgb,var(--danger)_35%,var(--border))]',
+          block === 'PERMISSION' && 'border-[color-mix(in_srgb,var(--warning)_40%,var(--border))]',
         )}
       >
-        <Icon className={cn('size-4.5 shrink-0', reconnect ? 'text-danger' : 'text-warning')} strokeWidth={1.6} />
+        <Icon className={cn('size-4.5 shrink-0', reconnect ? 'text-danger' : notReady ? 'text-muted-foreground' : 'text-warning')} strokeWidth={1.6} />
         <div className="flex min-w-0 grow basis-56 flex-col gap-0.5">
           <span className="text-sm font-semibold">{title}</span>
           <span className="text-sm text-muted-foreground">{text}</span>
         </div>
-        {reconnect ? (
+        {notReady ? null : reconnect ? (
           <Button asChild variant="primary" size="sm">
             <Link to={to}>Kết nối lại</Link>
           </Button>

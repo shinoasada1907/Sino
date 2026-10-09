@@ -1,5 +1,5 @@
 import { Clock, Info } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { providerNameOf } from '@/shared/format'
@@ -14,8 +14,8 @@ import { ConversationList } from './components/ConversationList'
 import { EmailThread } from './components/EmailThread'
 import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
 import { SourcePane } from './components/SourcePane'
-import { failureDetail, filterConversations, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
-import { useConversation, useMarkRead } from './useInbox'
+import { failureDetail, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
+import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
 
 /**
@@ -24,26 +24,37 @@ import { useInboxFilter } from './useInboxFilter'
  * column on tablet. `/inbox/:conversationId` opens a conversation and marks it as read. Below 768px the list and an
  * open conversation are two screens (canvas `MobileInbox`, `MobileConversation`), each with its own header. The states
  * of `InboxState` (D-55): loading, first sync, cannot load, offline (above everything), no source yet (instead of it).
+ * On the F05 API the server filters and pages the list; the frame (accounts, providers, counts) loads beside it.
  */
 export function InboxPage() {
   const { conversationId } = useParams()
-  const { inbox, item, detail, notFound, receivedAt, error, failedAt, retry } = useConversation(conversationId ?? '')
+  const { inbox, receivedAt, error: frameError, failedAt: frameFailedAt, retry: retryFrame } = useInbox()
   const clock = useNow()
   // Data that arrives between two clock ticks is measured from its arrival, as in the top bar.
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const navigate = useNavigate()
-  const { filter, search, searchFor } = useInboxFilter(inbox?.providers.map((provider) => provider.type) ?? [])
-  const markRead = useMarkRead()
-  const { mutate: read } = markRead
+  const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null)
+  const list = useConversationList(filter, now)
+  const opened = useConversation(
+    conversationId,
+    list.loaded.find((conversation) => conversation.id === conversationId),
+  )
+  const { item, detail, notFound } = opened
+  const { mutate: update } = useUpdateConversation()
   const unreadOpen = item !== undefined && item.unreadCount > 0
   const online = useOnline()
+  const readOnce = useRef<string | null>(null)
 
-  // Opening a conversation reads it: the mutation updates the cache of every screen that counts unread messages.
+  // Opening a conversation reads it, once per opening: marking it unread, or a refused read that puts the count back,
+  // must not read it again while it stays open.
   useEffect(() => {
-    if (unreadOpen && conversationId) {
-      read(conversationId)
+    if (!conversationId) {
+      readOnce.current = null
+    } else if (unreadOpen && readOnce.current !== conversationId) {
+      readOnce.current = conversationId
+      update({ id: conversationId, change: { read: true } })
     }
-  }, [unreadOpen, conversationId, read])
+  }, [unreadOpen, conversationId, update])
 
   if (inbox && inbox.accounts.length === 0) {
     return <NoSources providers={inbox.providers} />
@@ -51,9 +62,23 @@ export function InboxPage() {
 
   const nameOf = providerNameOf(inbox?.providers ?? [])
   const selected = conversationId !== undefined
-  const loading = !inbox && !error
-  // The first sync of a new account: nothing has arrived yet, so the list shows its progress instead of being empty.
-  const syncing = inbox?.conversations.length === 0 ? inbox.accounts.filter((entry) => entry.syncProgress !== null) : []
+  const { conversations } = list
+  const error = frameError ?? list.error
+  const failedAt = frameError ? frameFailedAt : list.failedAt
+  const loading = (!inbox || !conversations) && !error
+  const retry = () => {
+    if (frameError) {
+      retryFrame()
+    }
+    if (list.error) {
+      list.retry()
+    }
+  }
+  // The first sync of a new account: nothing has arrived yet, so the list shows its progress instead of being empty. Only
+  // the whole inbox tells that; an empty view or source is just empty.
+  const wholeInbox = filter.view === 'all' && filter.source === null
+  const syncing =
+    inbox && wholeInbox && conversations?.length === 0 && !list.switching ? inbox.accounts.filter((entry) => entry.syncProgress !== null) : []
   const unread = filter.source
     ? (inbox?.counts.byProvider.find((entry) => entry.provider === filter.source)?.unread ?? 0)
     : (inbox?.counts.unread ?? 0)
@@ -85,7 +110,7 @@ export function InboxPage() {
   if (loading) {
     listMeta = 'đang tải'
     listBody = <ListSkeleton label="Đang tải hộp thư" />
-  } else if (!inbox) {
+  } else if (!inbox || !conversations) {
     listMeta = 'không tải được'
     listBody = <LoadFailed detail={failureDetail(error, new Date(failedAt))} onRetry={retry} />
   } else if (syncing.length > 0) {
@@ -117,7 +142,7 @@ export function InboxPage() {
           <SourcesSkeleton loading={loading} className="hidden xl:block" />
         )}
         <ConversationList
-          conversations={inbox ? filterConversations(inbox.conversations, filter, now) : []}
+          conversations={conversations ?? []}
           unread={listMeta}
           total={inbox?.counts.unread ?? null}
           sources={inbox ? sourceCounts(inbox, nameOf) : []}
@@ -128,6 +153,8 @@ export function InboxPage() {
           now={now}
           nameOf={nameOf}
           body={listBody}
+          switching={list.switching}
+          more={list.more}
           className={chat ? 'hidden md:flex xl:hidden' : selected ? 'hidden md:flex' : 'flex'}
         />
         {chat && item && account ? (
@@ -146,8 +173,16 @@ export function InboxPage() {
               className={cn('grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)]', item && account ? 'grid-rows-[auto_minmax(0,1fr)_auto]' : 'place-items-center')}
             >
               {!inbox && !loading && <p className="p-10 text-sm text-muted-foreground">Nội dung sẽ hiện ở đây khi hộp thư tải xong.</p>}
-              {(loading || syncing.length > 0) && <ThreadSkeleton />}
+              {(loading || syncing.length > 0 || (inbox && selected && !item && !notFound && !opened.failed)) && <ThreadSkeleton />}
               {inbox && syncing.length === 0 && !selected && <p className="text-sm text-muted-foreground">Chọn một cuộc trò chuyện để đọc.</p>}
+              {inbox && selected && !item && opened.failed && (
+                <div role="alert" className="flex flex-col items-center gap-3">
+                  <p className="text-base">Không mở được cuộc trò chuyện này.</p>
+                  <Button type="button" variant="secondary" size="sm" onClick={opened.retry}>
+                    Thử lại
+                  </Button>
+                </div>
+              )}
               {selected && notFound && syncing.length === 0 && (
                 <div className="flex flex-col items-center gap-3">
                   <p className="text-base">Không tìm thấy cuộc trò chuyện này.</p>
@@ -156,7 +191,7 @@ export function InboxPage() {
                   </Button>
                 </div>
               )}
-              {item && account && <EmailThread key={item.id} item={item} detail={detail} account={account} now={now} nameOf={nameOf} />}
+              {item && account && <EmailThread key={item.id} item={item} detail={detail} account={account} backSearch={search} now={now} nameOf={nameOf} />}
             </section>
           </div>
         )}

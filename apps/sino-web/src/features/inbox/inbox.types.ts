@@ -7,17 +7,26 @@ import type { AccountStatus, Instant, ProviderInfo, ProviderType } from '@/share
 export type ConversationKind = 'EMAIL' | 'CHAT'
 export type LinkedKind = 'TASK' | 'EVENT' | 'NOTE'
 
-/** List screen: `GET /api/conversations`, extended. */
+/** The frame of the list screen: `GET /api/accounts`, `GET /api/providers`, `GET /api/conversations/counts`. */
 export interface InboxData {
   generatedAt: Instant
   providers: ProviderInfo[]
   accounts: InboxAccount[]
-  /** Over every conversation, not only the loaded page. */
+  /** Over every conversation, not only the loaded pages. */
   counts: InboxCounts
-  /** Newest first. */
-  conversations: ConversationItem[]
-  /** The next page (infinite scroll comes later). */
+}
+
+/** One page of `GET /api/conversations` for a view and a source, newest first. */
+export interface ConversationPage {
+  items: ConversationItem[]
+  /** The next page; null on the last one. */
   nextCursor: string | null
+}
+
+/** An open conversation: `GET /api/conversations/{id}` (its row and its people), later with its messages (F06). */
+export interface OpenConversation {
+  item: ConversationItem
+  detail: ConversationDetail
 }
 
 export interface InboxAccount {
@@ -30,8 +39,9 @@ export interface InboxAccount {
   statusChangedAt: Instant | null
 }
 
+/** Counts of conversations that are not archived (D-70). */
 export interface InboxCounts {
-  /** Unread messages ("12 chưa đọc"). */
+  /** Conversations with an unread message ("12 chưa đọc"). */
   unread: number
   byProvider: { provider: ProviderType; unread: number }[]
   needsReply: number
@@ -69,15 +79,15 @@ export interface ConversationItem {
 /** Detail: `GET /api/conversations/{id}` + `GET /api/conversations/{id}/messages` (F06). */
 export interface ConversationDetail {
   id: string
-  /** Oldest first. */
-  messages: Message[]
+  /** Oldest first; null until the API returns messages (F06, D-71). */
+  messages: Message[] | null
   /** Where the "N tin chưa đọc" line goes. */
   firstUnreadId: string | null
   linked: LinkedItem[] | null
   members: Member[] | null
   files: { total: number; items: SharedFile[] } | null
-  /** False when sending is not possible, for example the access expired. */
-  canSend: boolean
+  /** False when sending is not possible, for example the access expired; null until Sino can send at all (F10, D-72). */
+  canSend: boolean | null
   previousCursor: string | null
 }
 

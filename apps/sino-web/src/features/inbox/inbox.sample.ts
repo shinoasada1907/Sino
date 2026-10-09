@@ -1,6 +1,9 @@
 import { clockFrom } from '@/shared/time/canvasClock'
 import type { ConversationDetail, ConversationItem, InboxData, Message } from './inbox.types'
 
+/** The whole inbox at once: the frame and every conversation, as the server holds them before any paging or filter. */
+export type InboxSample = InboxData & { conversations: ConversationItem[] }
+
 const base = {
   memberCount: null,
   snippetFrom: null,
@@ -14,10 +17,11 @@ const base = {
 } satisfies Partial<ConversationItem>
 
 /**
- * Sample data shaped like the "Sino UI" canvas (`Inbox`). The ids of the first four are those of the overview sample, so
- * reading a conversation updates both screens. Every time moves with `now`; at 14:05 it shows the canvas times.
+ * Sample data shaped like the "Sino UI" canvas (`Inbox`); the ids and titles of the first four are those of the overview
+ * sample. Every time moves with `now`; at 14:05 it shows the canvas times. The screens use it in tests of the full
+ * contract (messages, sending) the API does not have yet.
  */
-export function createInboxSample(now: Date): InboxData {
+export function createInboxSample(now: Date): InboxSample {
   const at = clockFrom(now)
   const conversations: ConversationItem[] = [
     {
@@ -181,7 +185,6 @@ export function createInboxSample(now: Date): InboxData {
       snoozed: 1,
     },
     conversations,
-    nextCursor: null,
   }
 }
 

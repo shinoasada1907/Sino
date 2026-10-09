@@ -1,5 +1,5 @@
 import { Calendar, CalendarClock, ChevronDown, Clock, ListFilter, Paperclip, Search, SquareCheck, StickyNote, TriangleAlert, type LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -10,6 +10,8 @@ import { Segmented } from '@/shared/ui/segmented'
 import { Spec } from '@/shared/ui/spec'
 import { groupConversations, previewText, rowFlag, rowTime, sourceLabel, type InboxFilter, type InboxView, type RowFlag, type SourceCount } from '../format'
 import type { ConversationItem } from '../inbox.types'
+import type { LoadMore } from '../useInbox'
+import { ListSkeleton } from './InboxStates'
 
 const TABS: { value: InboxView; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
@@ -33,7 +35,8 @@ const CHIP =
  * The conversation list in its three shapes: desktop (title, count, view buttons; canvas `Inbox`), tablet (source and
  * view chips; `TabletInbox`) and mobile (own header and source chips above full-width rows; `MobileInbox`). `body`
  * takes the place of the rows while the inbox loads, syncs for the first time or cannot load; there is nothing to
- * filter then, so the filters are left out, as in `InboxState`.
+ * filter then, so the filters are left out, as in `InboxState`. Another view keeps the filters and shows the shape of
+ * the rows while its first page loads (`switching`); the end of the list loads the next page (`more`).
  */
 export function ConversationList({
   conversations,
@@ -47,6 +50,8 @@ export function ConversationList({
   now,
   nameOf,
   body,
+  switching = false,
+  more,
   className,
 }: {
   conversations: ConversationItem[]
@@ -62,6 +67,8 @@ export function ConversationList({
   now: Date
   nameOf: ProviderNameOf
   body?: ReactNode
+  switching?: boolean
+  more?: LoadMore
   className?: string
 }) {
   const groups = groupConversations(conversations, now)
@@ -134,7 +141,8 @@ export function ConversationList({
         </div>
         {body ?? (
           <>
-            {groups.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground md:px-5.5">Không có cuộc trò chuyện nào</p>}
+            {groups.length === 0 &&
+              (switching ? <ListSkeleton label="Đang tải danh sách" /> : <p className="px-4 py-6 text-sm text-muted-foreground md:px-5.5">Không có cuộc trò chuyện nào</p>)}
             {groups.map((group) => (
               <div key={group.label}>
                 <div className="px-4 pt-4 pb-1.5 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] text-muted-foreground md:px-5.5">{group.label}</div>
@@ -145,6 +153,7 @@ export function ConversationList({
                 </div>
               </div>
             ))}
+            {more && <ListEnd more={more} />}
           </>
         )}
       </section>
@@ -218,6 +227,50 @@ function ConversationRow({
       </span>
     </Link>
   )
+}
+
+/**
+ * The end of the list: "Tải thêm" loads the next page, and does it by itself when it comes near the screen (infinite
+ * scroll), so keyboard and screen reader users have the same way as everyone else. A failed page says so and retries.
+ */
+function ListEnd({ more: { hasMore, loading, failed, load } }: { more: LoadMore }) {
+  const button = useRef<HTMLButtonElement>(null)
+  const waiting = hasMore && !loading && !failed
+
+  useEffect(() => {
+    const target = button.current
+    if (!waiting || !target || typeof IntersectionObserver === 'undefined') {
+      return
+    }
+    const observer = new IntersectionObserver((entries) => entries.some((entry) => entry.isIntersecting) && load(), { rootMargin: '240px' })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [waiting, load])
+
+  if (failed) {
+    return (
+      <div role="alert" className="flex flex-col items-center gap-2 px-4 py-5">
+        <span className="text-sm text-muted-foreground">Không tải thêm được.</span>
+        <Button type="button" variant="secondary" size="sm" onClick={load}>
+          Thử lại
+        </Button>
+      </div>
+    )
+  }
+  if (loading) {
+    return (
+      <p role="status" className="px-4 py-5 text-center text-sm text-muted-foreground">
+        Đang tải thêm…
+      </p>
+    )
+  }
+  return hasMore ? (
+    <div className="flex justify-center px-4 py-4">
+      <Button ref={button} type="button" variant="ghost" size="sm" onClick={load}>
+        Tải thêm
+      </Button>
+    </div>
+  ) : null
 }
 
 function FlagGlyph({ kind }: { kind: RowFlag['kind'] }) {

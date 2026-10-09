@@ -10,7 +10,7 @@ const inbox = createInboxSample(now)
 const HOUR = 3_600_000
 
 describe('inbox sample data', () => {
-  it('counts the same unread messages as the overview and the navigation', () => {
+  it('shows the same unread numbers as the overview and the navigation', () => {
     const overview = createOverviewSample(now).inbox!
     expect(inbox.counts.unread).toBe(overview.unreadCount)
     expect(inbox.counts.byProvider.map(({ provider, unread }) => [provider, unread])).toEqual(
@@ -20,9 +20,9 @@ describe('inbox sample data', () => {
     expect(inbox.counts.needsReply).toBe(overview.awaitingReplyCount)
   })
 
-  it('never loads more unread messages of a source than the source counts', () => {
+  it('never loads more unread conversations of a source than the source counts (D-70)', () => {
     for (const { provider, unread } of inbox.counts.byProvider) {
-      const loaded = inbox.conversations.filter((item) => item.provider === provider).reduce((sum, item) => sum + item.unreadCount, 0)
+      const loaded = inbox.conversations.filter((item) => item.provider === provider && item.unreadCount > 0).length
       expect(loaded).toBeLessThanOrEqual(unread)
     }
   })
@@ -49,8 +49,9 @@ describe('inbox sample data', () => {
     for (const item of inbox.conversations) {
       const detail = createConversationSample(item.id, now)
       expect(detail.id).toBe(item.id)
-      const delivered = detail.messages.filter((message) => message.kind === 'MESSAGE' && message.status !== 'SENDING')
-      const times = detail.messages.map((message) => Date.parse(message.at))
+      const messages = detail.messages!
+      const delivered = messages.filter((message) => message.kind === 'MESSAGE' && message.status !== 'SENDING')
+      const times = messages.map((message) => Date.parse(message.at))
       expect([...times].sort((a, b) => a - b)).toEqual(times)
       expect(delivered.at(-1)?.at).toBe(item.lastMessageAt)
     }
@@ -59,9 +60,9 @@ describe('inbox sample data', () => {
   it('details the contract email and the family chat as the canvas does', () => {
     const contract = createConversationSample('conv-1', now)
     expect(contract.messages).toHaveLength(3)
-    expect(contract.messages.flatMap((message) => (message.kind === 'MESSAGE' ? message.attachments : []))).toHaveLength(2)
+    expect(contract.messages!.flatMap((message) => (message.kind === 'MESSAGE' ? message.attachments : []))).toHaveLength(2)
     const family = createConversationSample('conv-2', now)
-    expect(family.messages.some((message) => message.id === family.firstUnreadId)).toBe(true)
+    expect(family.messages!.some((message) => message.id === family.firstUnreadId)).toBe(true)
     expect(family.members).toHaveLength(inbox.conversations.find((item) => item.id === 'conv-2')!.memberCount!)
     expect(createConversationSample('conv-4', now).canSend).toBe(false)
   })

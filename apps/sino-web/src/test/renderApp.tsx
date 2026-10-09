@@ -12,19 +12,22 @@ import type { AccountsData } from '@/features/accounts/accounts.types'
 import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
 import type { Me } from '@/features/auth/auth.api'
 import { ME_QUERY_KEY } from '@/features/auth/useAuth'
-import { createInboxSample } from '@/features/inbox/inbox.sample'
-import type { InboxData } from '@/features/inbox/inbox.types'
-import { INBOX_QUERY_KEY } from '@/features/inbox/useInbox'
+import { filterConversations } from '@/features/inbox/format'
+import { createInboxSample, type InboxSample } from '@/features/inbox/inbox.sample'
+import { conversationsKey, INBOX_QUERY_KEY } from '@/features/inbox/useInbox'
+import { VIEWS } from '@/features/inbox/useInboxFilter'
 import { createOverviewSample } from '@/features/overview/overview.sample'
 import type { OverviewData } from '@/features/overview/overview.types'
 import { OVERVIEW_QUERY_KEY } from '@/features/overview/useOverview'
+import { serveInboxSample } from './inboxSampleApi'
 
 const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' }
 
 /**
  * Renders the whole app at `path` with the given shell, overview, accounts and inbox data already in the query cache;
  * `inbox: null` and `accounts: null` leave those screens to their requests (answered by MSW, or to see them loading or
- * failing). The owner is signed in unless `me`
+ * failing). The inbox sample fills the frame and one page of every view and source; a test file that mocks inbox.api
+ * with `sampleInboxApi` gets its later requests answered from the same sample. The owner is signed in unless `me`
  * says otherwise: `null` is signed out, `'request'` leaves the sign-in check to its request (answered by MSW).
  */
 export function renderApp(
@@ -35,7 +38,7 @@ export function renderApp(
     accounts = createAccountsSample(new Date()),
     inbox = createInboxSample(new Date()),
     me = SIGNED_IN,
-  }: { shell?: ShellData; overview?: OverviewData; accounts?: AccountsData | null; inbox?: InboxData | null; me?: Me | null | 'request' } = {},
+  }: { shell?: ShellData; overview?: OverviewData; accounts?: AccountsData | null; inbox?: InboxSample | null; me?: Me | null | 'request' } = {},
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData(SHELL_QUERY_KEY, shell)
@@ -44,8 +47,9 @@ export function renderApp(
     queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accounts)
   }
   if (inbox) {
-    queryClient.setQueryData(INBOX_QUERY_KEY, inbox)
+    seedInbox(queryClient, inbox)
   }
+  serveInboxSample(inbox ?? createInboxSample(new Date()))
   if (me !== 'request') {
     queryClient.setQueryData(ME_QUERY_KEY, me)
   }
@@ -56,6 +60,16 @@ export function renderApp(
     </AppProviders>,
   )
   return { ...view, router, queryClient }
+}
+
+function seedInbox(queryClient: QueryClient, { conversations, ...frame }: InboxSample) {
+  queryClient.setQueryData(INBOX_QUERY_KEY, frame)
+  for (const source of [null, ...frame.providers.map((provider) => provider.type)]) {
+    for (const view of VIEWS) {
+      const items = filterConversations(conversations, { view, source }, new Date())
+      queryClient.setQueryData(conversationsKey({ view, source }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
+    }
+  }
 }
 
 /** The element of one shell part (`sidebar`, `rail`, `tabbar`, `topbar`); all are in the DOM because jsdom ignores CSS. */

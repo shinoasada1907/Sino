@@ -1,17 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { createShellSample } from '@/app/shell/shell.sample'
-import type { ShellData } from '@/app/shell/shell.types'
-import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
-import { createOverviewSample } from '@/features/overview/overview.sample'
-import type { OverviewData } from '@/features/overview/overview.types'
-import { OVERVIEW_QUERY_KEY } from '@/features/overview/useOverview'
+import { API_CONVERSATIONS, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
+import { server } from '@/test/msw/server'
 import { sendMessage } from './inbox.api'
-import { createConversationSample, createInboxSample } from './inbox.sample'
-import type { ConversationDetail, InboxData } from './inbox.types'
-import { conversationKey, INBOX_QUERY_KEY, useConversation, useMarkRead, useSendMessage } from './useInbox'
+import type { ConversationItem, ConversationPage, InboxData, OpenConversation } from './inbox.types'
+import { conversationKey, conversationsKey, INBOX_QUERY_KEY, useConversation, useConversationList, useSendMessage, useUpdateConversation } from './useInbox'
 
 vi.mock('./inbox.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./inbox.api')>()
@@ -19,102 +15,227 @@ vi.mock('./inbox.api', async (importOriginal) => {
 })
 
 const now = new Date('2026-10-02T07:05:00Z')
+const ALL = { view: 'all', source: null } as const
+const [first, second] = API_CONVERSATIONS.map((item) => ({ ...item, snippet: item.snippet ?? '', linked: [] })) as ConversationItem[]
+const FRAME: InboxData = {
+  generatedAt: now.toISOString(),
+  providers: [{ type: 'gmail', displayName: 'Gmail' }],
+  accounts: [{ id: 'acc-1', provider: 'gmail', externalAccountId: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null }],
+  counts: { unread: 1, byProvider: [{ provider: 'gmail', unread: 1 }], needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0 },
+}
+const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOUND' }
+const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })
 
-function setup({ detail }: { detail?: string } = {}) {
+function setup({ list = [first, second] }: { list?: ConversationItem[] | null } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  queryClient.setQueryData(INBOX_QUERY_KEY, createInboxSample(now))
-  queryClient.setQueryData(SHELL_QUERY_KEY, createShellSample(now))
-  queryClient.setQueryData(OVERVIEW_QUERY_KEY, createOverviewSample(now))
-  if (detail) {
-    queryClient.setQueryData(conversationKey(detail), createConversationSample(detail, now))
+  queryClient.setQueryData(INBOX_QUERY_KEY, FRAME)
+  if (list) {
+    queryClient.setQueryData(conversationsKey(ALL), { pages: [{ items: list, nextCursor: null }], pageParams: [null] })
   }
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   return { queryClient, wrapper }
 }
 
-const listItem = (data: InboxData, id: string) => data.conversations.find((item) => item.id === id)!
+const rowsOf = (queryClient: QueryClient) =>
+  queryClient.getQueryData<{ pages: ConversationPage[] }>(conversationsKey(ALL))!.pages.flatMap((page) => page.items)
 
-describe('useConversation', () => {
-  it('takes the conversation from the list and loads its messages', async () => {
-    const { wrapper } = setup()
-    const { result } = renderHook(() => useConversation('conv-1'), { wrapper })
-    expect(result.current.item?.title).toBe('Trần Minh Anh')
-    expect(result.current.notFound).toBe(false)
-    await waitFor(() => expect(result.current.detail?.messages).toHaveLength(3))
+describe('useConversationList', () => {
+  it('loads the first page of a view, then the next one with its cursor, until there is none', async () => {
+    const asked: string[] = []
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const search = new URL(request.url).search
+        asked.push(search)
+        return search.includes('cursor=')
+          ? HttpResponse.json({ items: [API_CONVERSATIONS[1]], nextCursor: null })
+          : HttpResponse.json({ items: [API_CONVERSATIONS[0]], nextCursor: 'p2' })
+      }),
+    )
+    const { wrapper } = setup({ list: null })
+    const { result } = renderHook(() => useConversationList(ALL, now), { wrapper })
+
+    expect(result.current.conversations).toBeUndefined()
+    await waitFor(() => expect(result.current.conversations?.map((item) => item.id)).toEqual(['c-1']))
+    expect(result.current.more.hasMore).toBe(true)
+
+    act(() => result.current.more.load())
+
+    await waitFor(() => expect(result.current.conversations?.map((item) => item.id)).toEqual(['c-1', 'c-2']))
+    expect(result.current.more.hasMore).toBe(false)
+    expect(asked).toEqual(['?view=all', '?view=all&cursor=p2'])
   })
 
-  it('reports an unknown conversation as not found', () => {
-    const { wrapper } = setup()
-    const { result } = renderHook(() => useConversation('conv-nope'), { wrapper })
-    expect(result.current.notFound).toBe(true)
+  it('says when the next page cannot load, and loads it on retry', async () => {
+    let fail = true
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        if (!new URL(request.url).searchParams.has('cursor')) {
+          return HttpResponse.json({ items: [API_CONVERSATIONS[0]], nextCursor: 'p2' })
+        }
+        return fail ? problem({ title: 'Down', status: 503, code: 'HTTP_503' }, 503) : HttpResponse.json({ items: [API_CONVERSATIONS[1]], nextCursor: null })
+      }),
+    )
+    const { wrapper } = setup({ list: null })
+    const { result } = renderHook(() => useConversationList(ALL, now), { wrapper })
+    await waitFor(() => expect(result.current.more.hasMore).toBe(true))
+
+    act(() => result.current.more.load())
+    await waitFor(() => expect(result.current.more.failed).toBe(true))
+    expect(result.current.conversations).toHaveLength(1)
+    // The loaded rows stay: only the end of the list says it failed.
+    expect(result.current.error).toBeNull()
+
+    fail = false
+    act(() => result.current.more.load())
+    await waitFor(() => expect(result.current.conversations).toHaveLength(2))
+    expect(result.current.more.failed).toBe(false)
   })
 })
 
-describe('useMarkRead', () => {
-  it('clears the unread messages of a conversation everywhere they are counted', async () => {
-    const { queryClient, wrapper } = setup()
-    const { result } = renderHook(() => useMarkRead(), { wrapper })
+describe('useConversationList, when the list changed between two pages', () => {
+  it('shows a row that comes on two pages once', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) =>
+        new URL(request.url).searchParams.has('cursor')
+          ? HttpResponse.json({ items: [API_CONVERSATIONS[0], API_CONVERSATIONS[1]], nextCursor: null })
+          : HttpResponse.json({ items: [API_CONVERSATIONS[0]], nextCursor: 'p2' }),
+      ),
+    )
+    const { wrapper } = setup({ list: null })
+    const { result } = renderHook(() => useConversationList(ALL, now), { wrapper })
+    await waitFor(() => expect(result.current.more.hasMore).toBe(true))
 
-    await act(() => result.current.mutateAsync('conv-2'))
+    act(() => result.current.more.load())
 
-    const inbox = queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)!
-    expect(listItem(inbox, 'conv-2').unreadCount).toBe(0)
-    expect(listItem(inbox, 'conv-1').unreadCount).toBe(1)
-    expect(inbox.counts.unread).toBe(9)
-    expect(inbox.counts.byProvider.find((entry) => entry.provider === 'zalo')?.unread).toBe(1)
-    expect(inbox.counts.byProvider.find((entry) => entry.provider === 'gmail')?.unread).toBe(7)
-    expect(queryClient.getQueryData<ShellData>(SHELL_QUERY_KEY)!.navCounts.inboxUnread).toBe(9)
-    const overview = queryClient.getQueryData<OverviewData>(OVERVIEW_QUERY_KEY)!.inbox!
-    expect(overview.unreadCount).toBe(9)
-    expect(overview.bySource.find((entry) => entry.provider === 'zalo')?.unreadCount).toBe(1)
-    expect(overview.conversations.find((entry) => entry.id === 'conv-2')?.unreadCount).toBe(0)
+    await waitFor(() => expect(result.current.conversations?.map((item) => item.id)).toEqual(['c-1', 'c-2']))
+  })
+})
+
+describe('useConversation', () => {
+  it('shows the row of the list at once, then the row and the people the server gives', async () => {
+    server.use(http.get('/api/conversations/:id', () => HttpResponse.json({ ...API_CONVERSATIONS[0], title: 'Minh Anh', participants: API_PARTICIPANTS })))
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useConversation('c-1', first), { wrapper })
+
+    expect(result.current.item?.title).toBe('Trần Minh Anh')
+    expect(result.current.detail).toBeUndefined()
+    await waitFor(() => expect(result.current.item?.title).toBe('Minh Anh'))
+    expect(result.current.detail?.members).toHaveLength(2)
+    expect(result.current.notFound).toBe(false)
   })
 
-  it('changes nothing for a conversation already read', async () => {
+  it('reports a conversation the server does not know as not found', async () => {
+    server.use(http.get('/api/conversations/:id', () => problem(NOT_FOUND, 404)))
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useConversation('c-9', undefined), { wrapper })
+
+    await waitFor(() => expect(result.current.notFound).toBe(true))
+    expect(result.current.failed).toBe(false)
+  })
+
+  it('tells a failure apart from a missing conversation', async () => {
+    server.use(http.get('/api/conversations/:id', () => problem({ title: 'Down', status: 503, code: 'HTTP_503' }, 503)))
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useConversation('c-1', undefined), { wrapper })
+
+    await waitFor(() => expect(result.current.failed).toBe(true))
+    expect(result.current.notFound).toBe(false)
+  })
+
+  it('asks for nothing while no conversation is open', () => {
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useConversation(undefined, undefined), { wrapper })
+    expect(result.current).toMatchObject({ item: undefined, detail: undefined, notFound: false, failed: false })
+  })
+})
+
+describe('useUpdateConversation', () => {
+  it('reads a conversation at once in the list, the open conversation and the counts, then keeps what the server stored', async () => {
+    let answer: (() => void) | undefined
+    const sent: unknown[] = []
+    server.use(
+      http.patch('/api/conversations/:id', async ({ params, request }) => {
+        sent.push([params.id, await request.json()])
+        await new Promise<void>((resolve) => (answer = resolve))
+        return HttpResponse.json({ ...API_CONVERSATIONS[0], unreadCount: 0, needsReply: false })
+      }),
+    )
     const { queryClient, wrapper } = setup()
-    const { result } = renderHook(() => useMarkRead(), { wrapper })
+    queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail: { id: 'c-1', messages: null, firstUnreadId: null, linked: null, members: [], files: null, canSend: null, previousCursor: null } })
+    const { result } = renderHook(() => useUpdateConversation(), { wrapper })
 
-    await act(() => result.current.mutateAsync('conv-4'))
+    act(() => result.current.mutate({ id: 'c-1', change: { read: true } }))
 
-    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)!.counts.unread).toBe(12)
-    expect(queryClient.getQueryData<ShellData>(SHELL_QUERY_KEY)!.navCounts.inboxUnread).toBe(12)
+    await waitFor(() => expect(rowsOf(queryClient)[0].unreadCount).toBe(0))
+    expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.item.unreadCount).toBe(0)
+    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)?.counts).toMatchObject({ unread: 0, byProvider: [{ provider: 'gmail', unread: 0 }], needsReply: 1 })
+
+    await waitFor(() => expect(answer).toBeDefined())
+    answer!()
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(sent).toEqual([['c-1', { read: true }]])
+    // The server knows better (here it also cleared "needs reply"): its row and the counts follow it.
+    expect(rowsOf(queryClient)[0].needsReply).toBe(false)
+    expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.item.needsReply).toBe(false)
+    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)?.counts.needsReply).toBe(0)
+    // Reading moves no conversation to another view, so no list has to load again.
+    expect(queryClient.getQueryState(conversationsKey(ALL))?.isInvalidated).toBe(false)
+  })
+
+  it('archives: the row leaves the inbox at once, the counts drop, and every list loads again when it is next shown', async () => {
+    server.use(http.patch('/api/conversations/:id', () => HttpResponse.json({ ...API_CONVERSATIONS[0], archived: true })))
+    const { queryClient, wrapper } = setup()
+    const { result } = renderHook(() => ({ list: useConversationList(ALL, now), update: useUpdateConversation() }), { wrapper })
+
+    act(() => result.current.update.mutate({ id: 'c-1', change: { archived: true } }))
+
+    await waitFor(() => expect(result.current.list.conversations?.map((item) => item.id)).toEqual(['c-2']))
+    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)?.counts).toMatchObject({ unread: 0, needsReply: 0, withAttachments: 0 })
+    await waitFor(() => expect(result.current.update.isSuccess).toBe(true))
+    expect(queryClient.getQueryState(conversationsKey(ALL))?.isInvalidated).toBe(true)
+  })
+
+  it('puts the row and the counts back when the server refuses', async () => {
+    server.use(http.patch('/api/conversations/:id', () => problem(NOT_FOUND, 404)))
+    const { queryClient, wrapper } = setup()
+    const { result } = renderHook(() => useUpdateConversation(), { wrapper })
+
+    act(() => result.current.mutate({ id: 'c-1', change: { archived: true } }))
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(rowsOf(queryClient)[0]).toEqual(first)
+    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)?.counts).toEqual(FRAME.counts)
   })
 })
 
 describe('useSendMessage', () => {
-  it('shows the message at once as sending, then as sent, and moves it into the list', async () => {
-    const { queryClient, wrapper } = setup({ detail: 'conv-2' })
-    const { result } = renderHook(() => useSendMessage('conv-2'), { wrapper })
-    const messages = () => queryClient.getQueryData<ConversationDetail>(conversationKey('conv-2'))!.messages
+  const detail = { id: 'c-1', messages: [], firstUnreadId: null, linked: null, members: null, files: null, canSend: true, previousCursor: null }
 
-    act(() => result.current.mutate('Con về lúc 6 giờ'))
+  it('adds the message as "Đang gửi", then shows it as sent in the conversation and the row', async () => {
+    vi.mocked(sendMessage).mockResolvedValueOnce({ id: 'm-9', kind: 'MESSAGE', direction: 'OUT', sender: 'Bạn', to: null, at: now.toISOString(), text: 'Ok nhé', attachments: [], status: 'SENT', linked: [] })
+    const { queryClient, wrapper } = setup()
+    queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail })
+    const { result } = renderHook(() => useSendMessage('c-1'), { wrapper })
 
-    await waitFor(() => expect(messages().at(-1)).toMatchObject({ text: 'Con về lúc 6 giờ', status: 'SENDING', direction: 'OUT' }))
-    await waitFor(() => expect(messages().at(-1)).toMatchObject({ text: 'Con về lúc 6 giờ', status: 'SENT' }))
-    expect(messages().filter((message) => message.kind === 'MESSAGE' && message.text === 'Con về lúc 6 giờ')).toHaveLength(1)
-    const item = listItem(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)!, 'conv-2')
-    expect(item).toMatchObject({ snippet: 'Con về lúc 6 giờ', snippetFrom: 'Bạn' })
-    expect(item.lastMessageAt).toBe(messages().at(-1)!.at)
+    act(() => result.current.mutate('Ok nhé'))
+    await waitFor(() => expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.detail.messages).toHaveLength(1))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const open = queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))!
+    expect(open.detail.messages).toEqual([expect.objectContaining({ id: 'm-9', status: 'SENT' })])
+    expect(open.item).toMatchObject({ snippet: 'Ok nhé', lastMessageAt: now.toISOString() })
+    expect(rowsOf(queryClient)[0]).toMatchObject({ snippet: 'Ok nhé', snippetFrom: null, lastMessageAt: now.toISOString() })
   })
 
-  it('a one-to-one message has no sender in the list preview', async () => {
-    const { queryClient, wrapper } = setup({ detail: 'conv-1' })
-    const { result } = renderHook(() => useSendMessage('conv-1'), { wrapper })
-
-    await act(() => result.current.mutateAsync('Anh đồng ý.'))
-
-    expect(listItem(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)!, 'conv-1')).toMatchObject({ snippet: 'Anh đồng ý.', snippetFrom: null })
-  })
-
-  it('marks the message as not sent when sending fails, and leaves the list as it was', async () => {
+  it('marks the message as not sent when sending fails', async () => {
     vi.mocked(sendMessage).mockRejectedValueOnce(new Error('offline'))
-    const { queryClient, wrapper } = setup({ detail: 'conv-2' })
-    const { result } = renderHook(() => useSendMessage('conv-2'), { wrapper })
+    const { queryClient, wrapper } = setup()
+    queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail })
+    const { result } = renderHook(() => useSendMessage('c-1'), { wrapper })
 
-    await act(() => result.current.mutateAsync('Alo').catch(() => undefined))
+    act(() => result.current.mutate('Ok nhé'))
+    await waitFor(() => expect(result.current.isError).toBe(true))
 
-    const last = queryClient.getQueryData<ConversationDetail>(conversationKey('conv-2'))!.messages.at(-1)
-    expect(last).toMatchObject({ text: 'Alo', status: 'FAILED' })
-    expect(listItem(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)!, 'conv-2').snippetFrom).toBe('Hà')
+    expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.detail.messages).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'FAILED' })])
   })
 })

@@ -6,10 +6,8 @@ import { renderApp } from '@/test/renderApp'
 import { sendMessage } from './inbox.api'
 import { createInboxSample } from './inbox.sample'
 
-vi.mock('./inbox.api', async (importOriginal) => {
-  const api = await importOriginal<typeof import('./inbox.api')>()
-  return { ...api, sendMessage: vi.fn(api.sendMessage) }
-})
+// The screen on the full contract (sample data with messages and sending); the API path is tested in InboxOnApi.test.tsx.
+vi.mock('./inbox.api', async (importOriginal) => (await import('@/test/inboxSampleApi')).sampleInboxApi(await importOriginal()))
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')

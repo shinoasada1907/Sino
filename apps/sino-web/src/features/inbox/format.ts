@@ -228,12 +228,18 @@ export function notArrivedSince(at: string, now: Date, timeZone?: string): strin
   return `Tin nhắn sau ${when} chưa về Sino`
 }
 
-export type SendBlock = 'RECONNECT' | 'PERMISSION'
+export type SendBlock = 'RECONNECT' | 'PERMISSION' | 'NOT_READY'
 
-/** Why the reply box is replaced: the account must sign in again, or only the permission to send expired (D-55). */
-export function sendBlock(account: { status: AccountStatus }, canSend: boolean | undefined): SendBlock | null {
+/**
+ * Why the reply box is replaced: the account must sign in again, or only the permission to send expired (D-55), or Sino
+ * cannot send yet (`canSend` null, F10, D-72). Undefined `canSend` (the detail is loading) blocks nothing.
+ */
+export function sendBlock(account: { status: AccountStatus }, canSend: boolean | null | undefined): SendBlock | null {
   if (account.status === 'AUTH_EXPIRED') {
     return 'RECONNECT'
+  }
+  if (canSend === null) {
+    return 'NOT_READY'
   }
   return canSend === false ? 'PERMISSION' : null
 }
@@ -243,6 +249,9 @@ export function sendBlockText(block: SendBlock, kind: ConversationItem['kind'], 
     return { title: `Cần đăng nhập lại ${providerName} để nhận và gửi tin`, text: 'Quyền truy cập đã hết hạn. Tin cũ vẫn đọc được ở đây.' }
   }
   const what = kind === 'EMAIL' ? 'thư' : 'tin'
+  if (block === 'NOT_READY') {
+    return { title: `Sino chưa gửi được ${what}`, text: `Trả lời từ Sino sẽ có ở bản sau. Bây giờ bạn trả lời trong ${providerName}.` }
+  }
   return {
     title: `Quyền gửi ${what} của ${accountId} đã hết hạn`,
     text: `Bạn vẫn đọc ${what} bình thường. Cấp lại riêng quyền gửi để trả lời từ Sino.`,

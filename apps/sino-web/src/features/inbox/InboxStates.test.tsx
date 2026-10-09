@@ -5,24 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { renderApp } from '@/test/renderApp'
 import { fetchConversation, fetchInbox, sendMessage } from './inbox.api'
-import { createConversationSample, createInboxSample } from './inbox.sample'
+import { createConversationSample, createInboxSample, type InboxSample } from './inbox.sample'
 import type { InboxData } from './inbox.types'
 
-vi.mock('./inbox.api', async (importOriginal) => {
-  const api = await importOriginal<typeof import('./inbox.api')>()
-  return {
-    ...api,
-    fetchInbox: vi.fn(api.fetchInbox),
-    fetchConversation: vi.fn(api.fetchConversation),
-    sendMessage: vi.fn(api.sendMessage),
-  }
-})
+// The screen on the full contract (sample data with messages and sending); the API path is tested in InboxOnApi.test.tsx.
+vi.mock('./inbox.api', async (importOriginal) => (await import('@/test/inboxSampleApi')).sampleInboxApi(await importOriginal()))
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
 const NO_COUNTS: InboxData['counts'] = { unread: 0, byProvider: [], needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0 }
 
-function open(path: string, inbox: InboxData | null = createInboxSample(NOW)) {
+function open(path: string, inbox: InboxSample | null = createInboxSample(NOW)) {
   return renderApp(path, { shell: createShellSample(NOW), inbox })
 }
 
@@ -105,7 +98,7 @@ describe('states of the inbox', () => {
     const banner = screen.getByText('Bạn đang ngoại tuyến.').closest('[role="status"]')!
     expect(banner).toHaveTextContent('Đang hiện dữ liệu đã lưu lúc 14:05. Thư bạn soạn sẽ gửi khi có mạng.')
     expect(within(banner as HTMLElement).getByRole('button', { name: 'Thử kết nối lại' })).toBeInTheDocument()
-    expect(list().getByText('9 chưa đọc · đã lưu')).toBeInTheDocument()
+    expect(list().getByText('11 chưa đọc · đã lưu')).toBeInTheDocument()
     expect(chat('Gia đình').getByText('Sẽ gửi khi có mạng')).toBeInTheDocument()
 
     await user.type(box, 'Con về lúc 6 giờ')
@@ -136,7 +129,10 @@ describe('states of the inbox', () => {
   })
 
   it('says when only the permission to send has expired', async () => {
-    vi.mocked(fetchConversation).mockImplementation(async (id) => ({ ...createConversationSample(id, NOW), canSend: false }))
+    vi.mocked(fetchConversation).mockImplementation(async (id) => ({
+      item: createInboxSample(NOW).conversations.find((item) => item.id === id)!,
+      detail: { ...createConversationSample(id, NOW), canSend: false },
+    }))
     open('/inbox/conv-1')
 
     const notice = await thread().findByText('Quyền gửi thư của an.nguyen@gmail.com đã hết hạn')

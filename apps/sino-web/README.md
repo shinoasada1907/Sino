@@ -62,7 +62,7 @@ src/
   features/auth/    sign-in: auth.api.ts, useAuth (useMe, useLogin, useLogout, forgetSession), RequireAuth, LoginPage
   features/overview/ Tổng quan: OverviewData (overview.types.ts), sample, useOverview, format.ts, OverviewPage, cards/
   features/accounts/ Tài khoản and the connect wizard: accounts.api.ts (backend API), hooks, pages, components/
-  features/inbox/   Hộp thư: inbox.api.ts (sample data), hooks, InboxPage, components/
+  features/inbox/   Hộp thư: inbox.api.ts (F05 API), hooks, InboxPage, components/
   shared/api/       client.ts (the one place that calls the API), problem.ts (ApiError)
   shared/lib/       utils.ts: cn, the class-name merger every component uses
   shared/theme/     theme.ts (read, save, apply), ThemeProvider, useTheme, ThemeToggle
@@ -85,8 +85,9 @@ give yet is `null`, and the screen leaves it out instead of inventing it.
 | Screen | Data |
 |---|---|
 | Sign-in, owner menu | backend API |
-| Tài khoản (list, detail, sync switch, disconnect), connect wizard | backend API; the first sync after connecting waits for F04b |
-| Tổng quan, Hộp thư, the counts of the shell (sidebar, rail, "Thêm") | sample data until the backend has them |
+| Tài khoản (list, detail, sync switch, disconnect), connect wizard | backend API; the first sync after connecting waits for F05 (BE-45) |
+| Hộp thư (list by view and source, pages, read, unread, archive) | F05 API (`/api/conversations`), built against the spec before BE-44; messages wait for F06 (a preview of the newest one), sending for F10 (a notice) |
+| Tổng quan, the counts of the shell (sidebar, rail, "Thêm") | sample data until the backend has them |
 
 Every navigation path exists: a screen that is not built yet shows "Màn … đang được dựng" inside the shell, an unknown
 path shows the 404 page. The contracts and the tables of what the backend already has are in each change's `design.md`.

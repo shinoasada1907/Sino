@@ -1,4 +1,4 @@
-import { Archive, Calendar, ChevronLeft, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
+import { Archive, ArchiveRestore, Calendar, ChevronLeft, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
@@ -9,9 +9,10 @@ import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
 import { bubbleMeta, disconnectedSince, formatFileSize, memberPlaceholder, notArrivedSince, sendBlock, threadSubtitle, withDayLines } from '../format'
 import type { ConversationDetail, ConversationItem, InboxAccount, LinkedKind, Member, Message } from '../inbox.types'
-import { useSendMessage } from '../useInbox'
+import { useConversationActions, useSendMessage } from '../useInbox'
 import { Composer } from './Composer'
 import { ConversationAvatars } from './ConversationAvatars'
+import { LatestPreview } from './LatestPreview'
 import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
 
@@ -26,7 +27,9 @@ const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string; name: string }>
 /**
  * The chat column of the canvas `Conversation`: header with the way back to the inbox (a page of its own from 1280px),
  * the messages by day with the system lines and the unread line, and the message box, or a notice in its place when
- * the account cannot send (`ThreadState`, D-55). The tools have no flow yet.
+ * the account cannot send (`ThreadState`, D-55). "Đánh dấu chưa đọc" and "Lưu trữ" change the conversation and go back
+ * to the list (D-73); the other tools have no flow yet. Until the API returns messages (F06) the newest one shows as its
+ * preview (D-71); the message box waits for the detail.
  * From 768 to 1279px the header keeps "Lưu trữ" and "Thêm thao tác", as the tablet thread of the canvas. Below 768px
  * the page header (canvas `MobileConversation`) replaces this header, and the messages use more width.
  */
@@ -53,8 +56,9 @@ export function ChatThread({
   const bodyRef = useRef<HTMLDivElement>(null)
   const sendMessage = useSendMessage(item.id)
   const placed = useRef(false)
-  const messageCount = detail?.messages.length ?? 0
+  const messageCount = detail?.messages?.length ?? 0
   const block = sendBlock(account, detail?.canSend)
+  const { markUnread, toggleArchive } = useConversationActions(item, backSearch)
   const expiredAt = account.status === 'AUTH_EXPIRED' ? account.statusChangedAt : null
 
   // Opening shows the unread line (or the newest message); every message added afterwards scrolls to the bottom.
@@ -93,8 +97,8 @@ export function ChatThread({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Tool label="Tìm trong cuộc trò chuyện" icon={Search} className="max-xl:hidden" />
-          <Tool label="Đánh dấu chưa đọc" icon={MailDot} className="max-xl:hidden" />
-          <Tool label="Lưu trữ" icon={Archive} />
+          <Tool label="Đánh dấu chưa đọc" icon={MailDot} className="max-xl:hidden" onClick={markUnread} />
+          <Tool label={item.archived ? 'Bỏ lưu trữ' : 'Lưu trữ'} icon={item.archived ? ArchiveRestore : Archive} onClick={toggleArchive} />
           <Tool label="Thêm thao tác" icon={Ellipsis} className="xl:hidden" />
           <span aria-hidden="true" className="mx-2 h-6 w-px bg-border max-xl:hidden" />
           <Button type="button" variant="secondary" size="sm" className="max-xl:hidden">
@@ -105,6 +109,7 @@ export function ChatThread({
       </header>
 
       <div ref={bodyRef} className="flex min-h-0 flex-col gap-2.5 overflow-auto p-4 md:gap-3 md:p-5 xl:px-8 xl:py-6">
+        {detail?.messages === null && <LatestPreview item={item} now={now} />}
         {withDayLines(detail?.messages ?? [], now).map(({ message, dayLine }) => {
           return (
             <Fragment key={message.id}>
@@ -129,7 +134,7 @@ export function ChatThread({
 
       {block ? (
         <ThreadNotice block={block} kind={item.kind} providerName={name} account={account} />
-      ) : (
+      ) : detail ? (
         <Composer
           kind="CHAT"
           label={`Nhắn tin tới ${item.title}`}
@@ -138,14 +143,14 @@ export function ChatThread({
           via={`${name} · ${account.externalAccountId}`}
           onSend={(text) => sendMessage.mutate(text)}
         />
-      )}
+      ) : null}
     </section>
   )
 }
 
-function Tool({ label, icon: Icon, className }: { label: string; icon: LucideIcon | typeof MailDot; className?: string }) {
+function Tool({ label, icon: Icon, className, onClick }: { label: string; icon: LucideIcon | typeof MailDot; className?: string; onClick?: () => void }) {
   return (
-    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className={className}>
+    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className={className} onClick={onClick}>
       <Icon strokeWidth={1.6} />
     </Button>
   )

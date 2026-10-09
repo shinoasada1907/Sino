@@ -29,14 +29,18 @@ Mở một hội thoại chat MUST hiện tin theo ngày, tin hệ thống, vạ
 - **THEN** trang có tiêu đề "Gia đình", "Zalo · nhóm 6 người · qua +84 9•• ••• 218", vạch "3 tin chưa đọc", tin "Để con mang thêm trái cây nữa nhé." với "Đang gửi", và cột thông tin có "Thành viên · 6"
 
 ### Requirement: Đánh dấu đã đọc
-Mở một cuộc trò chuyện có tin chưa đọc MUST đánh dấu nó đã đọc: dòng của nó thôi đậm và mất số / chấm chưa đọc, số "N chưa đọc" của hộp thư, của nguồn và của mục "Hộp thư" trên điều hướng MUST giảm đúng số tin đó.
+Mở một cuộc trò chuyện có tin chưa đọc MUST đánh dấu nó đã đọc (`PATCH /api/conversations/{id}` `{ "read": true }`), một lần cho mỗi lần mở: dòng của nó thôi đậm và mất số / chấm chưa đọc ngay, số "N chưa đọc" của hộp thư và của nguồn MUST giảm một (số đếm cuộc trò chuyện, D-70). Máy chủ từ chối thì dòng và số đếm MUST trở lại như cũ và MUST NOT tự gửi lại trong lần mở đó.
 
 #### Scenario: Đọc Gia đình
 - **WHEN** người dùng mở "Gia đình" (3 tin chưa đọc) rồi quay lại danh sách
-- **THEN** đầu danh sách ghi "9 chưa đọc", Zalo ghi 1, và dòng "Gia đình" không còn số 3
+- **THEN** đầu danh sách ghi "11 chưa đọc", Zalo ghi 3, và dòng "Gia đình" không còn số 3
+
+#### Scenario: Máy chủ từ chối
+- **WHEN** người dùng mở một thư chưa đọc và máy chủ trả lỗi cho lệnh đánh dấu đã đọc
+- **THEN** thư lại hiện chưa đọc, số đếm như trước, và chỉ có một lệnh được gửi
 
 ### Requirement: Soạn và gửi
-Ô soạn MUST gửi khi bấm "Gửi" hoặc phím tắt (Ctrl Enter với email, Enter với chat), MUST không gửi nội dung rỗng, và tin vừa gửi MUST hiện ngay cuối hội thoại với trạng thái "Đang gửi" rồi đổi khi xong; xem trước của dòng trong danh sách MUST đổi theo. Khi cuộc trò chuyện không gửi được (`canSend = false`), ô soạn MUST được thay bằng thông báo theo `ThreadState`.
+Ô soạn MUST gửi khi bấm "Gửi" hoặc phím tắt (Ctrl Enter với email, Enter với chat), MUST không gửi nội dung rỗng, và tin vừa gửi MUST hiện ngay cuối hội thoại với trạng thái "Đang gửi" rồi đổi khi xong; xem trước của dòng trong danh sách MUST đổi theo. Khi cuộc trò chuyện không gửi được (`canSend = false`), ô soạn MUST được thay bằng thông báo theo `ThreadState`. Ô soạn MUST chờ chi tiết của cuộc trò chuyện (chi tiết cho biết có gửi được không). Khi Sino chưa gửi được (`canSend = null`, trước F10, D-72), ô soạn MUST được thay bằng một thông báo không có nút: "Sino chưa gửi được thư" (chat: "tin"), "Trả lời từ Sino sẽ có ở bản sau. Bây giờ bạn trả lời trong {nhà cung cấp}."
 
 #### Scenario: Nhắn Gia đình
 - **WHEN** người dùng gõ "Con về lúc 6 giờ" vào ô nhắn tin của "Gia đình" rồi nhấn Enter
@@ -50,8 +54,37 @@ Trang MUST hiện theo `InboxState`: đang tải, chưa có nguồn nào ("Hộp
 - **THEN** trang hiện "Hộp thư đang trống." và nút "Kết nối" cho từng nhà cung cấp
 
 ### Requirement: Nút chưa có chức năng trên màn Hộp thư
-Tìm trong cuộc trò chuyện, đánh dấu chưa đọc, lưu trữ, tạm ẩn, "Mở trong …", các nút thao tác trên một thư (tạo task, nhắc tôi, lịch hẹn, ghi chú), đính kèm tệp, "Gửi lúc…", "Tắt thông báo…", "Hiện trong Tổng quan", "Thêm thao tác" (tablet), "Tìm kiếm", "Bộ lọc" và "Thông tin cuộc trò chuyện" (mobile), "Trạng thái hệ thống" (khi không tải được) và "Trả lời trong …" (khi hết quyền gửi) MUST hiện như canvas và MUST NOT đổi dữ liệu.
+Tìm trong cuộc trò chuyện, tạm ẩn, "Mở trong …", các nút thao tác trên một thư (tạo task, nhắc tôi, lịch hẹn, ghi chú), đính kèm tệp, "Gửi lúc…", "Tắt thông báo…", "Hiện trong Tổng quan", "Thêm thao tác" (tablet), "Tìm kiếm", "Bộ lọc" và "Thông tin cuộc trò chuyện" (mobile), "Trạng thái hệ thống" (khi không tải được) và "Trả lời trong …" (khi hết quyền gửi) MUST hiện như canvas và MUST NOT đổi dữ liệu.
 
-#### Scenario: Bấm Lưu trữ
-- **WHEN** người dùng bấm "Lưu trữ" ở một cuộc trò chuyện
+#### Scenario: Bấm Tạm ẩn
+- **WHEN** người dùng bấm "Tạm ẩn" ở một cuộc trò chuyện
 - **THEN** cuộc trò chuyện vẫn nằm trong danh sách
+
+### Requirement: Danh sách trên API Hộp thư (F05)
+Danh sách MUST lấy từ `GET /api/conversations` với `view` và `provider` theo bộ lọc của địa chỉ, từng trang (`nextCursor`); số đếm, tài khoản và nhà cung cấp lấy từ `GET /api/conversations/counts`, `GET /api/accounts`, `GET /api/providers`. Cuối danh sách MUST có "Tải thêm" khi còn trang sau; nút tự tải khi gần tới màn hình (cuộn vô tận) và vẫn bấm được bằng bàn phím. Trang sau không tải được MUST giữ các dòng đã có và hiện "Không tải thêm được." với "Thử lại". Đổi bộ lọc MUST giữ các nút lọc và các dòng đã tải còn khớp trong lúc trang đầu của bộ lọc mới đang về; không còn dòng nào khớp thì hiện khung xương "Đang tải danh sách", không hiện "Không có cuộc trò chuyện nào". "Đồng bộ lần đầu" chỉ hiện khi cả hộp thư (mọi nguồn, "Tất cả") trống.
+
+#### Scenario: Lật trang
+- **WHEN** máy chủ trả trang đầu kèm `nextCursor` và người dùng tới cuối danh sách
+- **THEN** web hỏi trang sau với `cursor` đó, các dòng mới nối vào cuối, và "Tải thêm" mất khi hết trang
+
+#### Scenario: Đổi bộ lọc
+- **WHEN** người dùng chọn "Chưa đọc" của nguồn Gmail
+- **THEN** web hỏi `GET /api/conversations?view=unread&provider=gmail` và địa chỉ thành `?source=gmail&view=unread`
+
+### Requirement: Lưu trữ và đánh dấu chưa đọc
+"Lưu trữ" ("Bỏ lưu trữ" khi đã lưu trữ) và "Đánh dấu chưa đọc" của cuộc trò chuyện đang mở MUST gửi `PATCH /api/conversations/{id}` (`archived`, `read: false`), đổi dòng và số đếm ngay, rồi MUST đưa người dùng về danh sách với bộ lọc đang dùng (D-73). Danh sách đang hiện MUST NOT tải lại; các danh sách khác tải lại khi được hiện. Mở lại cuộc trò chuyện vừa đánh dấu chưa đọc MUST đọc nó lại.
+
+#### Scenario: Lưu trữ một thư
+- **WHEN** người dùng mở "Ngân hàng ACB" rồi bấm "Lưu trữ"
+- **THEN** web về `/inbox`, "Ngân hàng ACB" không còn trong danh sách, và có trong "Đã lưu trữ" với nút "Bỏ lưu trữ"
+
+#### Scenario: Đánh dấu chưa đọc
+- **WHEN** người dùng mở một thư rồi bấm "Đánh dấu chưa đọc"
+- **THEN** web về danh sách, thư hiện chấm chưa đọc, số "N chưa đọc" tăng một, và thư không bị đọc lại cho tới khi được mở lần nữa
+
+### Requirement: Cuộc trò chuyện trước khi có lịch sử tin (F06)
+Khi API chưa trả tin (`messages = null`, D-71), cuộc trò chuyện đang mở MUST hiện đầu trang như thường (tiêu đề, nguồn, tài khoản; không có số thư) và thay cho các tin một thẻ "Thư mới nhất" ("Tin mới nhất" với chat) gồm người gửi trong nhóm (nếu có), giờ, đoạn đầu của tin mới nhất (không có chữ thì "Thư mới nhất không có chữ."), và câu "Sino mới hiện đoạn đầu của thư mới nhất. Đọc cả cuộc trò chuyện ngay trong Sino sẽ có ở bản sau." Một cuộc trò chuyện không có trong trang đã tải (đường dẫn, tải lại) MUST mở được qua `GET /api/conversations/{id}`; `404` thì "Không tìm thấy cuộc trò chuyện này."; lỗi khác thì "Không mở được cuộc trò chuyện này." với "Thử lại".
+
+#### Scenario: Mở thư của Trần Minh Anh
+- **WHEN** người dùng mở thư "Hợp đồng quý 4" mà API chưa trả tin
+- **THEN** cột phải có tiêu đề "Hợp đồng quý 4", thẻ "Thư mới nhất · 13:41 hôm nay" với đoạn đầu thư, và thông báo "Sino chưa gửi được thư" thay cho ô trả lời
