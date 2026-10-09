@@ -47,7 +47,7 @@ Mở một cuộc trò chuyện có tin chưa đọc MUST đánh dấu nó đã 
 - **THEN** cuối hội thoại có bong bóng "Con về lúc 6 giờ" của mình, ô soạn trống lại, và dòng "Gia đình" trong danh sách xem trước "Con về lúc 6 giờ"
 
 ### Requirement: Trạng thái hộp thư
-Trang MUST hiện theo `InboxState`: đang tải, chưa có nguồn nào ("Hộp thư đang trống." kèm nút kết nối), tài khoản đang đồng bộ lần đầu, không tải được (kèm "Thử lại"), ngoại tuyến (dữ liệu đã lưu). Hội thoại của tài khoản hết quyền MUST hiện thông báo của `ThreadState` thay cho ô soạn, kèm "Kết nối lại".
+Trang MUST hiện theo `InboxState`: đang tải, chưa có nguồn nào ("Hộp thư đang trống." kèm nút kết nối), tài khoản đang đồng bộ lần đầu, không tải được (kèm "Thử lại"; câu dưới tiêu đề MUST nói "Máy chủ Sino trả lỗi khi lấy hộp thư." khi máy chủ trả mã lỗi HTTP và "Máy chủ Sino không phản hồi." khi không ai trả lời), ngoại tuyến (dữ liệu đã lưu). Hội thoại của tài khoản hết quyền MUST hiện thông báo của `ThreadState` thay cho ô soạn, kèm "Kết nối lại".
 
 #### Scenario: Chưa có nguồn
 - **WHEN** không có tài khoản nào

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ApiError } from '@/shared/api/problem'
 import { providerNameOf } from '@/shared/format'
 import type { ConversationItem, LinkedItem, Message } from './inbox.types'
 import {
@@ -7,6 +8,7 @@ import {
   dayGroupLabel,
   disconnectedSince,
   failureDetail,
+  failureReason,
   filterConversations,
   firstLine,
   formatFileSize,
@@ -304,6 +306,16 @@ describe('the open conversation', () => {
     expect(failureDetail(Object.assign(new Error('timeout'), { code: 'ERR_TIMEOUT', requestId: '7f3a-91c2' }), at, TZ)).toBe('ERR_TIMEOUT · yêu cầu 7f3a-91c2 · 14:02')
     expect(failureDetail(new Error('network'), at, TZ)).toBe('14:02')
     expect(failureDetail({ code: 42, requestId: null }, at, TZ)).toBe('14:02')
+  })
+
+  it('tells a server that answered with an error from one that did not answer', () => {
+    const answered = 'Máy chủ Sino trả lỗi khi lấy hộp thư. Thư và tin nhắn của bạn vẫn an toàn ở nhà cung cấp.'
+    const silent = 'Máy chủ Sino không phản hồi. Thư và tin nhắn của bạn vẫn an toàn ở nhà cung cấp.'
+    expect(failureReason(new ApiError(404, 'RESOURCE_NOT_FOUND', null))).toBe(answered)
+    expect(failureReason(new ApiError(503, 'HTTP_503', null))).toBe(answered)
+    expect(failureReason(new ApiError(0, 'NETWORK_ERROR', null))).toBe(silent)
+    expect(failureReason(new Error('timeout'))).toBe(silent)
+    expect(failureReason(null)).toBe(silent)
   })
 
   it('says since when an expired account receives nothing', () => {

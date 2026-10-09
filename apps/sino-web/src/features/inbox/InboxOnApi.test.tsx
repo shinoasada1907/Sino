@@ -317,9 +317,21 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     const user = userEvent.setup()
 
     expect(await screen.findByText('Không tải được hộp thư')).toBeInTheDocument()
+    // The server answered, so the page does not say it did not answer.
+    expect(screen.getByText('Máy chủ Sino trả lỗi khi lấy hộp thư. Thư và tin nhắn của bạn vẫn an toàn ở nhà cung cấp.')).toBeInTheDocument()
+    expect(screen.getByText(/HTTP_503/)).toBeInTheDocument()
     fail = false
     await user.click(screen.getByRole('button', { name: 'Thử lại' }))
 
     expect(await list().findByRole('link', { name: /Trần Minh Anh/ })).toBeInTheDocument()
+  })
+
+  it('says the server does not answer when nothing answers', async () => {
+    backend()
+    server.use(http.get('/api/conversations', () => HttpResponse.error()))
+    open('/inbox')
+
+    expect(await screen.findByText('Máy chủ Sino không phản hồi. Thư và tin nhắn của bạn vẫn an toàn ở nhà cung cấp.')).toBeInTheDocument()
+    expect(screen.getByText(/NETWORK_ERROR/)).toBeInTheDocument()
   })
 })

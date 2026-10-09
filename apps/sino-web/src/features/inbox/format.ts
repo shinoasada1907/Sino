@@ -216,6 +216,16 @@ export function failureDetail(error: unknown, at: Date, timeZone?: string): stri
   return [field('code'), requestId && `yêu cầu ${requestId}`, formatClock(at, timeZone)].filter(Boolean).join(' · ')
 }
 
+/**
+ * The sentence under "Không tải được hộp thư": a server that answered with an error (an HTTP status) is not a server that
+ * did not answer (no network, server down: status 0 or no status).
+ */
+export function failureReason(error: unknown): string {
+  const status = typeof error === 'object' && error !== null ? (error as Record<string, unknown>).status : undefined
+  const answered = typeof status === 'number' && status > 0
+  return `${answered ? 'Máy chủ Sino trả lỗi khi lấy hộp thư.' : 'Máy chủ Sino không phản hồi.'} Thư và tin nhắn của bạn vẫn an toàn ở nhà cung cấp.`
+}
+
 /** "Ngắt kết nối từ 21:04 hôm qua" */
 export function disconnectedSince(at: string, now: Date, timeZone?: string): string {
   return `Ngắt kết nối từ ${mailTime(at, now, timeZone, true)}`

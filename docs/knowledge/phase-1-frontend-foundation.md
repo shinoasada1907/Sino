@@ -867,6 +867,7 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 ### 10.5 Kiểm chứng
 - **Test trước, kiểm tra ngược:** adapter RED 7/7, `conversationChange` RED 6/8 (hai test giữ hành vi không được đổi, đúng khi code rỗng). 46 lỗi gài: 44 bị bắt ngay; hai sống dạy hai điều. Một là điều kiện thừa: TanStack đã không báo "có trang sau" khi đang hiện dữ liệu của bộ lọc trước, nên bỏ điều kiện. Hai là test quá nhanh: MSW từ chối gần như tức thì, React chưa kịp vẽ trạng thái đoán thì đã trả lại, nên "đọc lại vô tận" không bao giờ xảy ra trong test dù xảy ra với mạng thật. Cho máy chủ giả trả lời sau 50 ms, test thấy "Đã đọc hết" rồi "1 chưa đọc", và lỗi gài bị bắt. **Bài học:** muốn kiểm "khi máy chủ từ chối", hãy để nó từ chối chậm như mạng thật.
 - **Chrome thật, không cần backend:** `vite` dev và DevTools Protocol đóng backend F05 (7 thư Gmail, 4 thư một trang). Trang 2 tự tải vì nút "Tải thêm" nằm trong khoảng 240 px của màn hình 1440; đọc đúng một lần; lưu trữ, bỏ lưu trữ, chưa đọc mỗi việc một `PATCH` rồi về danh sách; 404 nói "Không tìm thấy"; không cuộn ngang ở 1440, 1024, 390.
+- **Lần chạy đầu với backend thật dạy thêm một điều:** backend chưa có BE-44 nên trả `404 RESOURCE_NOT_FOUND`, còn màn ghi "Máy chủ Sino không phản hồi", câu viết từ lúc dữ liệu mẫu chưa bao giờ lỗi thật. Máy chủ trả lỗi (có mã HTTP) và máy chủ không trả lời (`status` 0) là hai chuyện khác nhau, người dùng xử lý khác nhau; `failureReason` chọn câu theo `status`.
 - **Chưa kiểm chứng:** chạy với backend thật (IN-09) cần BE-44 (API) và BE-45 (nhập thư).
 
 ## Tự kiểm tra

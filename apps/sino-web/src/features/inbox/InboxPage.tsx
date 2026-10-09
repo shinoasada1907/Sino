@@ -14,7 +14,7 @@ import { ConversationList } from './components/ConversationList'
 import { EmailThread } from './components/EmailThread'
 import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
 import { SourcePane } from './components/SourcePane'
-import { failureDetail, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
+import { failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
 
@@ -112,7 +112,7 @@ export function InboxPage() {
     listBody = <ListSkeleton label="Đang tải hộp thư" />
   } else if (!inbox || !conversations) {
     listMeta = 'không tải được'
-    listBody = <LoadFailed detail={failureDetail(error, new Date(failedAt))} onRetry={retry} />
+    listBody = <LoadFailed reason={failureReason(error)} detail={failureDetail(error, new Date(failedAt))} onRetry={retry} />
   } else if (syncing.length > 0) {
     listMeta = 'đang đồng bộ'
     listBody = (

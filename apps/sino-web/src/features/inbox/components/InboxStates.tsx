@@ -94,7 +94,7 @@ export function FirstSyncCard({ name, progress }: { name: string; progress: numb
 }
 
 /** Canvas `.center-state` "Không tải được hộp thư", with what failed and a way to try again. */
-export function LoadFailed({ detail, onRetry }: { detail: string; onRetry: () => void }) {
+export function LoadFailed({ reason, detail, onRetry }: { reason: string; detail: string; onRetry: () => void }) {
   return (
     <div role="alert" className="flex max-w-105 flex-col items-start gap-4.5 px-7 py-10">
       <span
@@ -105,7 +105,7 @@ export function LoadFailed({ detail, onRetry }: { detail: string; onRetry: () =>
       </span>
       <div className="flex flex-col gap-2">
         <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Không tải được hộp thư</h2>
-        <p className="text-sm text-muted-foreground">Máy chủ Sino không phản hồi. Thư và tin nhắn của bạn vẫn an toàn ở nhà cung cấp.</p>
+        <p className="text-sm text-muted-foreground">{reason}</p>
         <Spec>{detail}</Spec>
       </div>
       <div className="flex flex-wrap gap-2.5">
