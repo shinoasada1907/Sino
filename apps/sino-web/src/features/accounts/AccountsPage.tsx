@@ -27,7 +27,7 @@ import {
 import { useAccounts } from './useAccounts'
 
 // Parameters that ask this page to open the connect wizard or show its result; each is read once, then dropped.
-const WIZARD_PARAMS = ['connect', 'reconnect', 'connected', 'connectError']
+const WIZARD_PARAMS = ['connect', 'reconnect', 'connected', 'sync', 'connectError']
 
 const FILTERS: { value: AccountFilter; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
@@ -59,11 +59,12 @@ export function AccountsPage() {
     setHandledVisit(location.key)
     const find = (name: string) => list.accounts.find((item) => item.id === searchParams.get(name))
     const reconnect = find('reconnect')
-    const connected = find('connected')
+    // ?sync=id comes from "Đồng bộ ngay" and "Nhập thư" of the detail: the same sync step as after connecting.
+    const toSync = find('connected') ?? find('sync')
     if (reconnect) {
       setWizard({ step: 2, provider: reconnect.provider, accountId: reconnect.id })
-    } else if (connected) {
-      setWizard({ step: 4, accountId: connected.id, options: DEFAULT_SYNC_OPTIONS })
+    } else if (toSync) {
+      setWizard({ step: 4, accountId: toSync.id, options: DEFAULT_SYNC_OPTIONS })
     } else if (searchParams.get('connect') === 'new') {
       setWizard({ step: 1, provider: null, accountId: null })
     }

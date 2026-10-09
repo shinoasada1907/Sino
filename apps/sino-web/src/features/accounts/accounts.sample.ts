@@ -34,6 +34,7 @@ export function createAccountsSample(now: Date): AccountsData {
         access: { expiresAt: null, autoRenew: true, lastRenewedAt: at('2026-10-02T13:50:00+07:00') },
         storedMessages: 1284,
         syncIntervalMinutes: 15,
+        firstImport: null,
         channels: [
           { kind: 'INBOUND', available: true, enabled: true },
           { kind: 'SEND', available: true, enabled: true },
@@ -56,6 +57,7 @@ export function createAccountsSample(now: Date): AccountsData {
         access: { expiresAt: at('2026-10-07T14:05:00+07:00'), autoRenew: false, lastRenewedAt: null },
         storedMessages: 1424,
         syncIntervalMinutes: null,
+        firstImport: null,
         channels: [
           { kind: 'INBOUND', available: true, enabled: true },
           { kind: 'SEND', available: true, enabled: false },
@@ -77,6 +79,7 @@ export function createAccountsSample(now: Date): AccountsData {
         access: { expiresAt: authExpiredAt, autoRenew: false, lastRenewedAt: null },
         storedMessages: 1204,
         syncIntervalMinutes: null,
+        firstImport: null,
         channels: [
           { kind: 'INBOUND', available: true, enabled: true },
           { kind: 'SEND', available: true, enabled: false },

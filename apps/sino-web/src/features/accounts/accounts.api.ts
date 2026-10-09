@@ -1,6 +1,7 @@
 import { api } from '@/shared/api/client'
 import type { AccountStatus, Instant, ProviderInfo } from '@/shared/domain'
 import type { AccountExtras, AccountItem, AccountsData, ChannelKind } from './accounts.types'
+import { initialSyncView } from './connect.format'
 import type { ConnectableProvider, InitialSyncState, InitialSyncStatus, SyncEstimate, SyncOptions, SyncRange } from './connect.types'
 
 // The requests of the Tài khoản screens, on the backend API (D-56): what the API does not give yet is null.
@@ -44,16 +45,28 @@ function toAccountItem(account: AccountResponse): AccountItem {
     storedMessages: null,
     syncIntervalMinutes: null,
     channels: [{ kind: 'INBOUND', available: account.capabilities.includes('READ_MESSAGES'), enabled: account.syncEnabled }],
+    firstImport: null,
   }
 }
 
-/** `GET /api/accounts` and `GET /api/providers`. */
+/** The account with its first import: the share while it runs, and the messages stored so far. */
+export function withFirstImport(account: AccountItem, status: InitialSyncStatus | null): AccountItem {
+  if (status === null) {
+    return account
+  }
+  const syncProgress = status.state === 'RUNNING' ? initialSyncView(status).percent : null
+  return { ...account, firstImport: status, syncProgress, storedMessages: status.storedMessages }
+}
+
+/** `GET /api/accounts`, `GET /api/providers`, and the first import of each account (BE-45). */
 export async function fetchAccounts(): Promise<AccountsData> {
   const [accounts, providers] = await Promise.all([api.get<AccountResponse[]>('/api/accounts'), api.get<ProviderResponse[]>('/api/providers')])
+  // An import status that cannot be read leaves its account as the list gives it, rather than failing the list.
+  const imports = await Promise.all(accounts.map((account) => fetchInitialSync(account.id).catch(() => null)))
   return {
     generatedAt: new Date().toISOString(),
     providers: providers.map(({ type, displayName }): ProviderInfo => ({ type, displayName })),
-    accounts: accounts.map(toAccountItem),
+    accounts: accounts.map((account, index) => withFirstImport(toAccountItem(account), imports[index])),
     storedMessages: null,
   }
 }

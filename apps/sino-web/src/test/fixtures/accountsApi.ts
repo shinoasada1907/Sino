@@ -28,3 +28,20 @@ export const API_ACCOUNTS = [
   },
 ]
 export const API_PROVIDERS = [{ type: 'gmail', displayName: 'Gmail', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'] }]
+
+/** `GET /api/accounts/{id}/initial-sync` (BE-45): a finished 90-day import unless told otherwise. */
+export function apiInitialSync(overrides: Record<string, unknown> = {}) {
+  return {
+    status: 'DONE',
+    range: 'DAYS_90',
+    imported: 1180,
+    skipped: 0,
+    estimated: 1180,
+    remainingMinutes: null,
+    storedMessages: 1180,
+    startedAt: '2026-10-02T07:05:00Z',
+    finishedAt: '2026-10-02T07:09:00Z',
+    errorCode: null,
+    ...overrides,
+  }
+}

@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
+import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
 import { server } from '@/test/msw/server'
 import { deleteAccount, fetchAccountExtras, fetchAccounts, fetchConnectProviders, fetchInitialSync, fetchSyncEstimate, saveChannel, startConnect, startInitialSync } from './accounts.api'
 
@@ -9,6 +9,11 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
     server.use(
       http.get('/api/accounts', () => HttpResponse.json(API_ACCOUNTS)),
       http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+      http.get('/api/accounts/:id/initial-sync', ({ params }) =>
+        params.id === 'acc-1'
+          ? HttpResponse.json(apiInitialSync({ status: 'RUNNING', imported: 412, remainingMinutes: 3, storedMessages: 412, finishedAt: null }))
+          : HttpResponse.json({ title: 'Server error', status: 500, code: 'INTERNAL' }, { status: 500, headers: { 'Content-Type': 'application/problem+json' } }),
+      ),
     )
 
     const data = await fetchAccounts()
@@ -27,17 +32,22 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
         syncEnabled: true,
         lastSyncedAt: '2026-10-02T07:03:00Z',
         createdAt: '2026-09-29T13:05:00Z',
-        syncProgress: null,
+        syncProgress: 35,
         statusChangedAt: null,
         access: null,
-        storedMessages: null,
+        storedMessages: 412,
         syncIntervalMinutes: null,
         channels: [{ kind: 'INBOUND', available: true, enabled: true }],
+        firstImport: { state: 'RUNNING', range: 'DAYS_90', fetched: 412, total: 1180, remainingMinutes: 3, storedMessages: 412, errorCode: null },
       },
+      // An import status that cannot be read does not fail the list.
       expect.objectContaining({
         id: 'acc-2',
         status: 'AUTH_EXPIRED',
         channels: [{ kind: 'INBOUND', available: false, enabled: false }],
+        syncProgress: null,
+        storedMessages: null,
+        firstImport: null,
       }),
     ])
   })

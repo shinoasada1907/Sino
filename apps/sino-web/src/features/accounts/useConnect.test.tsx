@@ -8,7 +8,7 @@ import { leaveTo, startConnect } from './accounts.api'
 import { createAccountsSample } from './accounts.sample'
 import type { AccountsData } from './accounts.types'
 import { createConnectProvidersSample } from './connect.sample'
-import { useConnectProviders, useInitialSync, useStartConnect, useStartInitialSync, useSyncEstimate } from './useConnect'
+import { useConnectProviders, useStartConnect, useStartInitialSync, useSyncEstimate } from './useConnect'
 import { ACCOUNTS_QUERY_KEY } from './useAccounts'
 
 // The wizard on the full contract of fe-ui-connect (sample providers with scopes, the sample round trip); the API path
@@ -121,20 +121,15 @@ describe('connect hooks', () => {
     expect(accounts.find((account) => account.id === 'acc-zalo')?.syncProgress).toBe(64)
   })
 
-  it('follows the import until it is done, then clears its share and reads the inbox again', async () => {
-    server.use(http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json({ ...RUNNING, status: 'DONE', imported: 1180, remainingMinutes: null })))
+  it('gives the account the status of the import it started', async () => {
+    server.use(http.post('/api/accounts/:id/initial-sync', () => HttpResponse.json(RUNNING, { status: 202 })))
     const { queryClient, wrapper } = setup()
-    queryClient.setQueryData<AccountsData>(ACCOUNTS_QUERY_KEY, (list) =>
-      list && { ...list, accounts: list.accounts.map((account) => (account.id === 'acc-gmail' ? { ...account, syncProgress: 35 } : account)) },
-    )
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => useStartInitialSync(), { wrapper })
 
-    const { result } = renderHook(() => useInitialSync('acc-gmail'), { wrapper })
+    await act(() => result.current.mutateAsync({ accountId: 'acc-gmail', options: { range: 'DAYS_90', labelsAsFilters: true, attachmentsOnOpen: true } }))
 
-    await waitFor(() => expect(result.current.status?.state).toBe('DONE'))
-    const accounts = queryClient.getQueryData<AccountsData>(ACCOUNTS_QUERY_KEY)!.accounts
-    expect(accounts.find((account) => account.id === 'acc-gmail')?.syncProgress).toBeNull()
-    expect(accounts.find((account) => account.id === 'acc-zalo')?.syncProgress).toBe(64)
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['inbox'] })
+    const gmail = queryClient.getQueryData<AccountsData>(ACCOUNTS_QUERY_KEY)!.accounts.find((account) => account.id === 'acc-gmail')!
+    expect(gmail.firstImport?.state).toBe('RUNNING')
+    expect(gmail.storedMessages).toBe(412)
   })
 })

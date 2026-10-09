@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
-import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
+import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
 import { leaveTo } from './accounts.api'
@@ -23,6 +23,7 @@ function backend({ providers = API_PROVIDERS, connect = true }: { providers?: ty
   server.use(
     http.get('/api/accounts', () => HttpResponse.json(API_ACCOUNTS)),
     http.get('/api/providers', () => HttpResponse.json(providers)),
+    http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
     http.post('/api/accounts/connect/:provider', async ({ params, request }) => {
       const text = await request.text()
       sent.push([params.provider, text === '' ? null : JSON.parse(text)])

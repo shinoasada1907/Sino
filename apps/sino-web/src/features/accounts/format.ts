@@ -26,6 +26,14 @@ export const needsAttention = (account: AccountItem) => account.status === 'AUTH
 export function syncStatusView(account: AccountItem): ToneLabel {
   switch (account.status) {
     case 'CONNECTED':
+      switch (account.firstImport?.state) {
+        case 'RUNNING':
+          return { tone: 'warn', label: account.syncProgress === null ? 'Đang đồng bộ' : `Đang đồng bộ · ${account.syncProgress}%` }
+        case 'FAILED':
+          return { tone: 'err', label: 'Lỗi đồng bộ' }
+        case 'NOT_STARTED':
+          return { tone: 'off', label: 'Chưa đồng bộ' }
+      }
       return account.syncProgress === null
         ? { tone: 'ok', label: 'Đang hoạt động' }
         : { tone: 'warn', label: `Đang đồng bộ · ${account.syncProgress}%` }

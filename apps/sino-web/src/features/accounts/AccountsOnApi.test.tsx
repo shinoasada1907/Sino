@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
+import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
 
@@ -14,6 +14,7 @@ function backend() {
   server.use(
     http.get('/api/accounts', () => HttpResponse.json(accounts)),
     http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+    http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync({ storedMessages: 1284 }))),
     http.patch('/api/accounts/:id', async ({ params, request }) => {
       calls.push(`PATCH ${params.id} ${JSON.stringify(await request.json())}`)
       return HttpResponse.json(accounts.find((account) => account.id === params.id))
@@ -28,15 +29,14 @@ function backend() {
 }
 
 describe('Tài khoản on the backend API (D-56)', () => {
-  it('lists the accounts of the backend, without the numbers it does not give yet', async () => {
+  it('lists the accounts of the backend, with the mail their first import stored', async () => {
     backend()
     renderApp('/accounts', { accounts: null })
 
     expect(await screen.findByText('TÀI KHOẢN · 2 ĐÃ KẾT NỐI')).toBeInTheDocument()
     expect(screen.getByRole('row', { name: /an\.nguyen@gmail\.com/ })).toBeInTheDocument()
     expect(screen.getByText('Gmail cong.viec@gmail.com cần đăng nhập lại')).toBeInTheDocument()
-    expect(screen.getByText('Quyền truy cập đã hết hạn. Thư mới tạm dừng; thư đã lưu vẫn còn.')).toBeInTheDocument()
-    expect(screen.queryByText(/Đã lưu/)).toBeNull()
+    expect(screen.getByText('Quyền truy cập đã hết hạn. Thư mới tạm dừng; 1.284 thư đã lưu vẫn còn.')).toBeInTheDocument()
   })
 
   it('pauses automatic sync with the inbound switch, has no detail sections yet, and removes an account', async () => {
@@ -46,6 +46,7 @@ describe('Tài khoản on the backend API (D-56)', () => {
 
     const channels = within(await screen.findByRole('region', { name: 'Kênh đã kết nối' }))
     expect(channels.getByText('1 bật · 0 tắt')).toBeInTheDocument()
+    expect(channels.getByText('1.284 thư đã lưu')).toBeInTheDocument()
     expect(channels.getAllByRole('switch')).toHaveLength(1)
     await user.click(channels.getByRole('switch', { name: 'Thư đến' }))
     expect(channels.getByRole('switch', { name: 'Thư đến' })).not.toBeChecked()
@@ -54,7 +55,6 @@ describe('Tài khoản on the backend API (D-56)', () => {
     for (const name of ['Quyền đã cấp', 'Website dùng danh tính này', 'Lịch sử đồng bộ', 'Hoạt động']) {
       expect(card(name).getByText('Chưa có dữ liệu')).toBeInTheDocument()
     }
-    expect(screen.queryByText('Đã lưu')).toBeNull()
 
     await user.click(card('Ngắt kết nối tài khoản').getByRole('button', { name: 'Ngắt kết nối an.nguyen@gmail.com' }))
     const dialog = within(screen.getByRole('dialog', { name: 'Ngắt kết nối Gmail?' }))
@@ -76,6 +76,7 @@ describe('Tài khoản on the backend API (D-56)', () => {
           : HttpResponse.json(API_ACCOUNTS)
       }),
       http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+      http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
     )
     renderApp('/accounts', { accounts: null })
     const user = userEvent.setup()

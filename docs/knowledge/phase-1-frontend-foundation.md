@@ -975,6 +975,12 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - `imported` đếm cả thư mới lẫn thư được cập nhật, còn `estimated` chỉ gần đúng. Nhập lại một hộp thư không đổi thì `imported` gần bằng 0 dù đã xong. Vì vậy phần trăm dừng ở 99 % tới khi máy chủ báo `DONE`, và `DONE` luôn hiện là xong ("Đã nhập xong · N thư đã lưu").
 - **Từ mã lỗi tới việc người dùng làm được:** `errorCode` (`RATE_LIMITED`, `AUTH_EXPIRED`…) được dịch thành câu và một nút: "Thử lại" (backend nhập tiếp từ chỗ dừng nếu cùng khoảng) hoặc "Đăng nhập lại" (mất quyền thì thử lại cũng vô ích).
 
+### 13.3 Một nguồn cho mọi nơi (FE-52)
+- **Đổi hướng sau một task:** FE-51 hỏi trạng thái bằng query riêng của từng tài khoản. Tới FE-52, danh sách, trang chi tiết và hộp kết nối đều cần trạng thái đó, nên nó chuyển vào query danh sách: `fetchAccounts` hỏi `GET …/initial-sync` cho từng tài khoản và ghép vào (`withFirstImport`). Ba nơi đọc cùng một dữ liệu nên không thể lệch nhau.
+- **Hỏi lại có điều kiện cho cả danh sách:** `refetchInterval` của query danh sách là 2 s khi có tài khoản đang nhập, `false` khi không. Query này có `staleTime: Infinity` (không tự tải lại), nên các test dựng sẵn dữ liệu mẫu không gửi request nào; nếu mỗi tài khoản có query riêng `staleTime: 0`, mọi test như vậy sẽ phải trả lời thêm request.
+- **Đánh đổi:** khi đang nhập, mỗi 2 s hỏi lại cả danh sách tài khoản, danh sách provider và trạng thái từng tài khoản. Với vài tài khoản thì không đáng kể; nhiều tài khoản thì nên để backend trả trạng thái nhập ngay trong `GET /api/accounts`.
+- **Một lỗi đọc không làm hỏng cả danh sách:** `fetchInitialSync(id).catch(() => null)`: không đọc được trạng thái của một tài khoản thì tài khoản đó hiện như cũ.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1079,3 +1085,4 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 100. Vì sao cột của lưới tuần lệch trên Windows mà không lệch trên macOS, và `scrollbar-gutter: stable` sửa thế nào?
 101. Bước 5 hỏi trạng thái lần nhập mỗi 2 s. Điều gì làm nó thôi hỏi, và vì sao vừa mở bước 5 đã có một `GET` ngay?
 102. Vì sao phần trăm nhập thư dừng ở 99 % thay vì tính thẳng `imported / estimated`?
+103. Vì sao trạng thái lần nhập được ghép vào query danh sách tài khoản thay vì mỗi tài khoản một query? Cái giá là gì?

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import type { ShellData } from '@/app/shell/shell.types'
 import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
+import { INBOX_QUERY_KEY } from '@/features/inbox/useInbox'
 import type { OverviewData } from '@/features/overview/overview.types'
 import { OVERVIEW_QUERY_KEY } from '@/features/overview/useOverview'
 import { deleteAccount, fetchAccountExtras, fetchAccounts, saveChannel } from './accounts.api'
@@ -8,6 +10,8 @@ import type { AccountExtras, AccountItem, AccountsData, ChannelKind } from './ac
 import { needsAttention } from './format'
 
 export const ACCOUNTS_QUERY_KEY = ['accounts'] as const
+/** How often the list is asked again while a first import runs. */
+export const SYNC_POLL_MS = 2000
 const extrasKey = (accountId: string) => ['accounts', accountId, 'extras'] as const
 
 export interface AccountsQuery {
@@ -19,13 +23,24 @@ export interface AccountsQuery {
   retry: () => void
 }
 
-/** The account list, from `fetchAccounts` (the backend API, D-56). */
+/**
+ * The account list, from `fetchAccounts` (the backend API, D-56), asked again every 2 s while a first import runs. When an
+ * import is done the inbox is read again, since it now has the imported conversations.
+ */
 export function useAccounts(): AccountsQuery {
+  const queryClient = useQueryClient()
   const { data, dataUpdatedAt, error, refetch } = useQuery({
     queryKey: ACCOUNTS_QUERY_KEY,
     queryFn: fetchAccounts,
     staleTime: Infinity,
+    refetchInterval: (query) => (query.state.data?.accounts.some((account) => account.firstImport?.state === 'RUNNING') ? SYNC_POLL_MS : false),
   })
+  const imported = data?.accounts.filter((account) => account.firstImport?.state === 'DONE').map((account) => account.id).join(' ') ?? ''
+  useEffect(() => {
+    if (imported !== '') {
+      void queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY })
+    }
+  }, [imported, queryClient])
   return { list: data, receivedAt: dataUpdatedAt, error, retry: () => void refetch() }
 }
 

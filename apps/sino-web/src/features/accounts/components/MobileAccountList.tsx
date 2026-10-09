@@ -1,7 +1,7 @@
 import { ChevronRight, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import { accountStatusView } from '@/features/overview/format'
+import { accountStatusView, type AccountStatusView } from '@/features/overview/format'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { AccountAvatar } from '@/shared/ui/account-avatar'
@@ -10,6 +10,7 @@ import { Progress } from '@/shared/ui/progress'
 import { Spec } from '@/shared/ui/spec'
 import { Status, StatusDot } from '@/shared/ui/status'
 import type { AccountItem } from '../accounts.types'
+import { syncStatusView } from '../format'
 
 /** The list of the canvas `MobileAccounts`: one link per account, then the connect button. */
 export function MobileAccountList({
@@ -51,9 +52,11 @@ export function MobileAccountList({
   )
 }
 
-// The same states as the overview card: "Ổn định", the first-sync percentage, or since when the access expired.
+// The same states as the overview card: "Ổn định", the first-sync percentage, or since when the access expired; a first
+// import that has not run or has stopped says so instead of "Ổn định" (FE-52).
 function MobileAccountItem({ account, now, name }: { account: AccountItem; now: Date; name: string }) {
-  const view = accountStatusView(account, now)
+  const stalled = account.status === 'CONNECTED' && (account.firstImport?.state === 'NOT_STARTED' || account.firstImport?.state === 'FAILED')
+  const view: AccountStatusView = stalled ? syncStatusView(account) : accountStatusView(account, now)
 
   return (
     <Link

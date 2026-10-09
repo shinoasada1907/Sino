@@ -27,7 +27,7 @@ import {
 } from '../connect.format'
 import { DEFAULT_SYNC_OPTIONS, type ConnectableProvider, type InitialSyncStatus, type SyncEstimate, type SyncOptions, type SyncRange } from '../connect.types'
 import { isMail, scopeLabel } from '../format'
-import { useConnectProviders, useInitialSync, useStartConnect, useStartInitialSync, useSyncEstimate } from '../useConnect'
+import { useConnectProviders, useStartConnect, useStartInitialSync, useSyncEstimate } from '../useConnect'
 
 /**
  * Where the wizard is. Steps 1-3 happen before leaving for the provider (`accountId` is set when an expired account
@@ -36,7 +36,7 @@ import { useConnectProviders, useInitialSync, useStartConnect, useStartInitialSy
 export type WizardState =
   | { step: 1 | 2 | 3; provider: string | null; accountId: string | null }
   | { step: 4; accountId: string; options: SyncOptions }
-  /** The account's first import has started: the wizard follows its status. */
+  /** The account's first import has started: the wizard shows its status, which the account list follows. */
   | { step: 5; accountId: string }
 
 
@@ -63,7 +63,6 @@ export function ConnectWizard({
   const startSync = useStartInitialSync()
   const sync = state?.step === 4 ? state : null
   const { estimate } = useSyncEstimate(sync?.accountId ?? null, sync?.options.range ?? DEFAULT_SYNC_OPTIONS.range)
-  const { status } = useInitialSync(state?.step === 5 ? state.accountId : null)
   const startFailure = startSync.isError ? startSyncFailure(startSync.error) : null
 
   const go = (next: WizardState | null) => {
@@ -146,12 +145,12 @@ export function ConnectWizard({
           {state.step === 5 && account && (
             <Done
               account={account}
-              status={status}
+              status={account.firstImport ?? undefined}
               providerName={nameOf(account.provider)}
               startFailure={startFailure}
               busy={startSync.isPending}
               onRetry={() =>
-                startSync.mutate({ accountId: account.id, options: { ...DEFAULT_SYNC_OPTIONS, range: status?.range ?? DEFAULT_SYNC_OPTIONS.range } })
+                startSync.mutate({ accountId: account.id, options: { ...DEFAULT_SYNC_OPTIONS, range: account.firstImport?.range ?? DEFAULT_SYNC_OPTIONS.range } })
               }
               onSignIn={() => go({ step: 2, provider: account.provider, accountId: account.id })}
               onMore={() => go({ step: 1, provider: null, accountId: null })}

@@ -60,6 +60,7 @@ function account(extra: Partial<AccountItem>): AccountItem {
       { kind: 'ATTACHMENTS', available: true, enabled: true },
       { kind: 'CONTACTS', available: false, enabled: false },
     ],
+    firstImport: null,
     ...extra,
   }
 }
@@ -91,6 +92,17 @@ describe('sync status and last sync', () => {
     expect(syncStatusView(messenger)).toEqual({ tone: 'off', label: 'Tạm dừng' })
     expect(syncStatusView(account({ status: 'DISABLED' }))).toEqual({ tone: 'off', label: 'Đã tắt' })
     expect(syncStatusView(account({ status: 'ERROR' }))).toEqual({ tone: 'err', label: 'Lỗi đồng bộ' })
+  })
+
+  it('tells the first import in the "Đồng bộ" column of a connected account (FE-52)', () => {
+    const running = { state: 'RUNNING', range: 'DAYS_90', fetched: 412, total: 1180, remainingMinutes: 3, storedMessages: 412, errorCode: null } as const
+    expect(syncStatusView(account({ firstImport: running, syncProgress: 35 }))).toEqual({ tone: 'warn', label: 'Đang đồng bộ · 35%' })
+    expect(syncStatusView(account({ firstImport: { ...running, total: null }, syncProgress: null }))).toEqual({ tone: 'warn', label: 'Đang đồng bộ' })
+    expect(syncStatusView(account({ firstImport: { ...running, state: 'FAILED', errorCode: 'RATE_LIMITED' } }))).toEqual({ tone: 'err', label: 'Lỗi đồng bộ' })
+    expect(syncStatusView(account({ firstImport: { ...running, state: 'NOT_STARTED' } }))).toEqual({ tone: 'off', label: 'Chưa đồng bộ' })
+    expect(syncStatusView(account({ firstImport: { ...running, state: 'DONE' } }))).toEqual({ tone: 'ok', label: 'Đang hoạt động' })
+    // The state of the account comes first: an expired one is paused, whatever its import.
+    expect(syncStatusView(account({ status: 'AUTH_EXPIRED', firstImport: running }))).toEqual({ tone: 'off', label: 'Tạm dừng' })
   })
 
   it('says when the last sync was: minutes today, then yesterday or the date with the time', () => {

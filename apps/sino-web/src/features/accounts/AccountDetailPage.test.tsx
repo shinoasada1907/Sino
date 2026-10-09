@@ -45,7 +45,7 @@ describe('Chi tiết tài khoản', () => {
     expect(main().getAllByText('Đang hoạt động')).not.toHaveLength(0)
     expect(main().getByRole('link', { name: 'Tài khoản' })).toHaveAttribute('href', '/accounts')
     expect(screen.getByRole('button', { name: 'Mở Gmail' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Đồng bộ ngay' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Đồng bộ ngay' })).toHaveAttribute('href', '/accounts?sync=acc-gmail')
   })
 
   it('shows the channels with a switch each; one needing more scopes cannot be switched', async () => {

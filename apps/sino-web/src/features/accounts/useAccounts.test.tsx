@@ -8,12 +8,14 @@ import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
 import { createOverviewSample } from '@/features/overview/overview.sample'
 import type { OverviewData } from '@/features/overview/overview.types'
 import { OVERVIEW_QUERY_KEY } from '@/features/overview/useOverview'
-import { saveChannel } from './accounts.api'
+import { fetchAccounts, saveChannel } from './accounts.api'
 import { createAccountExtrasSample, createAccountsSample } from './accounts.sample'
 import type { AccountsData } from './accounts.types'
+import type { InitialSyncState } from './connect.types'
 import {
   ACCOUNTS_QUERY_KEY,
   useAccount,
+  useAccounts,
   useDisconnectAccount,
   useSetChannel,
   withChannel,
@@ -47,6 +49,27 @@ function setup({ overview = true, list = true }: { overview?: boolean; list?: bo
 }
 
 const channelsOf = (data: AccountsData, id: string) => data.accounts.find((account) => account.id === id)!.channels
+
+describe('first imports in the list (FE-52)', () => {
+  it('asks the list again while a first import runs, and reads the inbox again once it is done', async () => {
+    const withImport = (state: InitialSyncState): AccountsData => {
+      const data = createAccountsSample(now)
+      const firstImport = { state, range: 'DAYS_90', fetched: 412, total: 1180, remainingMinutes: 3, storedMessages: 412, errorCode: null } as const
+      return { ...data, accounts: data.accounts.map((account) => (account.id === 'acc-gmail' ? { ...account, firstImport } : account)) }
+    }
+    vi.mocked(fetchAccounts).mockResolvedValueOnce(withImport('RUNNING')).mockResolvedValueOnce(withImport('DONE'))
+    const { queryClient, wrapper } = setup({ list: false })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => useAccounts(), { wrapper })
+    const gmailImport = () => result.current.list?.accounts.find((account) => account.id === 'acc-gmail')?.firstImport?.state
+
+    await waitFor(() => expect(gmailImport()).toBe('RUNNING'))
+    expect(invalidate).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(gmailImport()).toBe('DONE'), { timeout: 4000 })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['inbox'] })
+  })
+})
 
 describe('cache updates', () => {
   it('turns one channel of one account on or off, leaving the input untouched', () => {

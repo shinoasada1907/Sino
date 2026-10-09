@@ -1,4 +1,5 @@
 import type { AccountStatus, Instant, ProviderInfo, ProviderType } from '@/shared/domain'
+import type { InitialSyncStatus } from './connect.types'
 
 /**
  * Data contract of the Tài khoản screens (D-42), handed to the backend. The fields marked "already" come from
@@ -37,6 +38,8 @@ export interface AccountItem {
   syncIntervalMinutes: number | null
   /** What Sino does with this account; `available` is false when the provider or the granted scopes do not allow it. */
   channels: { kind: ChannelKind; available: boolean; enabled: boolean }[]
+  /** Its first import (BE-45); null when it could not be read, and in the sample data. */
+  firstImport: InitialSyncStatus | null
 }
 
 /** Detail screen: `GET /api/accounts/{id}`, extended. Sections the backend does not have yet are null. */

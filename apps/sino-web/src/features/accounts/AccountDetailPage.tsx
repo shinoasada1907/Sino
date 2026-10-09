@@ -12,6 +12,7 @@ import { ChannelRows } from './components/Channels'
 import { ListUnavailable } from './components/ListUnavailable'
 import { ActivityCard, ScopesCard, SitesCard, SyncHistoryCard } from './components/DetailCards'
 import { DisconnectDialog } from './components/DisconnectDialog'
+import { ImportAlert } from './components/ImportAlert'
 import { MobileAccountDetail } from './components/MobileAccountDetail'
 import { ReauthAlert } from './components/ReauthAlert'
 import { SectionCard } from './components/SectionCard'
@@ -20,8 +21,8 @@ import { useAccount } from './useAccounts'
 
 /**
  * The detail of one account (canvas `AccountDetail`, `MobileAccountDetail`): six cards on a 12-column grid from 768 px,
- * the short mobile layout below. Open-provider and sync buttons have no flow yet; signing in again goes through the
- * connect wizard of the list (`/accounts?reconnect=…`).
+ * the short mobile layout below. Signing in again and "Đồng bộ ngay" go through the connect wizard of the list
+ * (`/accounts?reconnect=…`, `/accounts?sync=…`); the open-provider button has no flow yet.
  */
 export function AccountDetailPage() {
   const { accountId = '' } = useParams()
@@ -67,6 +68,8 @@ export function AccountDetailPage() {
   return (
     <>
       <MobilePageHeader back={back} title={name} subtitle={account.externalAccountId} />
+      {/* One alert above both layouts, so its button is not drawn twice. */}
+      <ImportAlert account={account} providerName={name} className="mx-4 mt-4 md:mx-6 md:mt-6 xl:mx-8 xl:mt-8" />
       <MobileAccountDetail account={account} now={now} nameOf={nameOf} className="md:hidden" />
 
       <div className="hidden flex-col gap-5 p-6 md:flex xl:gap-6 xl:p-8">
@@ -95,10 +98,19 @@ export function AccountDetailPage() {
               <ExternalLink strokeWidth={1.6} />
               Mở {name}
             </Button>
-            <Button type="button" variant="secondary" size="sm">
-              <RefreshCw strokeWidth={1.6} />
-              Đồng bộ ngay
-            </Button>
+            {account.firstImport?.state === 'RUNNING' ? (
+              <Button type="button" variant="secondary" size="sm" disabled>
+                <RefreshCw strokeWidth={1.6} />
+                Đồng bộ ngay
+              </Button>
+            ) : (
+              <Button asChild variant="secondary" size="sm">
+                <Link to={`/accounts?sync=${account.id}`}>
+                  <RefreshCw strokeWidth={1.6} />
+                  Đồng bộ ngay
+                </Link>
+              </Button>
+            )}
           </div>
         </header>
 

@@ -21,6 +21,7 @@ const RUNNING = {
 }
 const DONE = { ...RUNNING, status: 'DONE', imported: 1180, remainingMinutes: null, storedMessages: 1180, finishedAt: '2026-10-02T07:09:00Z' }
 const failed = (errorCode: string) => ({ ...RUNNING, status: 'FAILED', remainingMinutes: null, finishedAt: '2026-10-02T07:06:00Z', errorCode })
+const NOT_STARTED = { ...RUNNING, status: 'NOT_STARTED', range: null, imported: 0, estimated: null, remainingMinutes: null, storedMessages: 0, startedAt: null }
 const problem = (status: number, code: string) =>
   HttpResponse.json({ title: code, status, code }, { status, headers: { 'Content-Type': 'application/problem+json' } })
 
@@ -30,8 +31,11 @@ const ESTIMATES: Record<string, object> = {
   ALL: { messages: 9800, minMinutes: 20, maxMinutes: 35 },
 }
 
-/** The backend of FE-51: the estimate per range, the start, and the statuses the page reads one after another. */
-function backend({ start = () => HttpResponse.json(RUNNING, { status: 202 }), statuses = [RUNNING, DONE] as object[] } = {}) {
+/**
+ * The backend of FE-51: the estimate per range, the start, and the statuses the list reads after it, one after another
+ * (before any start, nothing has been imported).
+ */
+function backend({ start = () => HttpResponse.json(RUNNING, { status: 202 }), statuses = [DONE] as object[] } = {}) {
   const asked = { estimates: [] as (string | null)[], starts: [] as unknown[] }
   let read = 0
   server.use(
@@ -46,7 +50,9 @@ function backend({ start = () => HttpResponse.json(RUNNING, { status: 202 }), st
       asked.starts.push([params.id, await request.json()])
       return start()
     }),
-    http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(statuses[Math.min(read++, statuses.length - 1)])),
+    http.get('/api/accounts/:id/initial-sync', ({ params }) =>
+      HttpResponse.json(params.id !== 'acc-1' || asked.starts.length === 0 ? NOT_STARTED : statuses[Math.min(read++, statuses.length - 1)]),
+    ),
   )
   return asked
 }
@@ -82,7 +88,7 @@ describe('the first import after connecting, on the backend API (FE-51)', () => 
     expect(asked.starts).toEqual([['acc-1', { range: 'DAYS_90' }]])
     expect(await wizard().findByText('412 / 1.180 thư · còn khoảng 3 phút')).toBeInTheDocument()
     expect(wizard().getByRole('img', { name: 'Đã đồng bộ 35%' })).toBeInTheDocument()
-    // The page asks again every 2 s while the import runs.
+    // The list is asked again every 2 s while the import runs.
     expect(await wizard().findByText('Đã nhập xong · 1.180 thư đã lưu', {}, { timeout: 4000 })).toBeInTheDocument()
     expect(wizard().getByText('Sino đã nhập xong thư của tài khoản này. Mở hộp thư để đọc.')).toBeInTheDocument()
     expect(wizard().queryByRole('img', { name: /Đã đồng bộ/ })).toBeNull()
@@ -95,7 +101,7 @@ describe('the first import after connecting, on the backend API (FE-51)', () => 
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: 'Bắt đầu đồng bộ' }))
 
-    expect(await wizard().findByText('Gmail đang giới hạn số lần đọc. Đợi vài phút rồi thử lại.')).toBeInTheDocument()
+    expect(await wizard().findByText('Gmail đang giới hạn số lần đọc. Đợi vài phút rồi thử lại.', {}, { timeout: 4000 })).toBeInTheDocument()
     await user.click(wizard().getByRole('button', { name: 'Thử lại' }))
 
     expect(await wizard().findByText('412 / 1.180 thư · còn khoảng 3 phút')).toBeInTheDocument()
@@ -111,7 +117,7 @@ describe('the first import after connecting, on the backend API (FE-51)', () => 
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: 'Bắt đầu đồng bộ' }))
 
-    expect(await wizard().findByText('Sino không còn quyền đọc Gmail của tài khoản này. Hãy đăng nhập lại.')).toBeInTheDocument()
+    expect(await wizard().findByText('Sino không còn quyền đọc Gmail của tài khoản này. Hãy đăng nhập lại.', {}, { timeout: 4000 })).toBeInTheDocument()
     await user.click(wizard().getByRole('button', { name: 'Đăng nhập lại' }))
 
     expect(wizard().getByRole('button', { name: 'Đồng ý và tiếp tục' })).toBeInTheDocument()
