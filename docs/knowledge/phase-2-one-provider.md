@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40, BE-41, BE-42.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40, BE-41, BE-42, BE-43.
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -876,7 +876,7 @@ estimateMessages(context, since)
   Nhãn `CATEGORY_PERSONAL` (tab Chính), `IMPORTANT` hay nhãn do người dùng tạo thì không.
 - **Bẫy:**
   - Tên header không phân biệt hoa thường: `list-unsubscribe` vẫn là nó. `GmailMessage.Part.header` đã so như vậy từ BE-37, và có test riêng cho chữ thường.
-  - Thư đi qua một nhóm (Google Groups, kể cả địa chỉ chung kiểu `support@` dựng bằng nhóm) thường mang `List-Unsubscribe`, nên theo quy tắc này bị coi là hàng loạt dù người viết là người thật: conversation vẫn ở Hộp thư nhưng không vào "Cần trả lời". D-68 không bàn tới trường hợp này. Nó được ghi thành câu hỏi mở trong design F05 để người dùng chốt, và chưa kiểm với hộp thư thật.
+  - Thư đi qua một nhóm (Google Groups, kể cả địa chỉ chung kiểu `support@` dựng bằng nhóm) thường mang `List-Unsubscribe`, nên theo quy tắc này bị coi là hàng loạt dù người viết là người thật: conversation vẫn ở Hộp thư nhưng không vào "Cần trả lời". D-68 không bàn tới trường hợp này. Review BE-40 nêu ra, và bạn chốt **D-74 = A**: giữ quy tắc, thư qua nhóm vẫn là hàng loạt. Điều này chưa kiểm với hộp thư thật.
   - Sửa thư mẫu cũ phải sửa cả assertion cũ: `html-only.json` có nhãn `CATEGORY_PROMOTIONS`, nên test trước đây kiểm "metadata chỉ có `subject`" giờ phải là `subject` và `bulk`.
 
 ### 11.4 Connector giả có ước lượng
@@ -998,7 +998,7 @@ Câu hỏi: `ON CONFLICT DO UPDATE` khác gì cách JPA "tìm theo khóa, không
   - Lượt đầu lưu rồi giữ transaction mở.
   - Lượt thứ hai của **cùng** account, vào một conversation khác (không đụng dòng nào của lượt đầu), phải chờ.
   - Lượt của account **khác** chạy xong ngay.
-- **Chưa xong ở đây:** `PATCH` của BE-44 sửa conversation và thư. Nó phải lấy cùng khóa này (hoặc khóa theo cùng thứ tự) để không deadlock với `store`. Đã ghi vào task BE-44.
+- **Chưa xong ở đây:** `PATCH` của BE-44 sửa conversation và thư. Nó phải lấy cùng khóa này, không chỉ để khỏi deadlock: mục 14.9 cho thấy thiếu khóa thì số liệu có thể sai. Đã ghi vào task BE-44.
 
 ### 13.2c Ký tự NUL: chặn ngay ở cửa (sau review)
 - PostgreSQL không lưu được ký tự NUL (`\u0000`) trong `text` lẫn `jsonb`.
@@ -1060,6 +1060,113 @@ Làm hỏng code mỗi lần một chỗ (31 lần, sau review thêm 6); lần c
 | Sau review: bỏ khóa theo account; một khóa chung cho mọi account | các lượt của một account lần lượt, account khác không chờ |
 | Sau review: không bỏ NUL (cả trang, hoặc riêng metadata) | ký tự NUL bị bỏ |
 | Sau review: loại `UNKNOWN` đè loại đã biết; loại không bao giờ đổi | conversation không rõ loại giữ loại cũ |
+
+---
+
+## 14. Hộp thư hiện gì: tổng hợp, đã đọc, lưu trữ, cần trả lời (BE-43)
+
+Mỗi dòng của Hộp thư là một conversation với vài con số: thư mới nhất lúc nào, đoạn xem trước, ai gửi, bao nhiêu thư chưa đọc, có tệp không, có cần trả lời không. BE-43 tính chúng ở bước 5 của `store`, và thêm quy tắc đã đọc (D-67), bỏ lưu trữ (D-67), cần trả lời (D-68, D-74).
+
+```text
+store(accountId, trang)
+  1-4. conversation, người tham gia, thư, tệp          (BE-42)
+       + thư: quy tắc đã đọc                           (D-67)
+       + conversation: tiêu đề chỉ đổi khi có thư mới hơn
+  5.   tổng hợp lại mọi conversation trang chạm tới, TỪ BẢNG message
+  6.   bỏ lưu trữ nếu có thư đến mới chèn, mới hơn thư mới nhất trước đó
+```
+
+### 14.1 Tính lại từ bảng `message`, không cộng trừ (câu gợi ý của task)
+Câu hỏi: vì sao tính lại từ bảng `message` mà không cộng trừ `unread_count` theo từng thư?
+- **Cộng trừ** nghĩa là: thư mới chưa đọc thì `+1`, thư vừa được đọc thì `-1`. Muốn đúng, mọi đường sửa thư đều phải cộng trừ đúng: lưu trang, `PATCH` của BE-44, sau này là xóa thư. Chỉ cần một đường quên, hoặc một trang được lưu lại hai lần, là con số lệch, và lệch **mãi mãi**, vì không có gì kéo nó về đúng.
+- **Tính lại** nghĩa là: `unread_count = số thư của conversation có is_read = false`, đếm trực tiếp. Cùng dữ liệu thì luôn ra cùng kết quả, nên lưu lại một trang bao nhiêu lần cũng đúng. Nếu một lần nào đó con số sai, lần tính sau tự sửa, miễn là conversation đó được chạm lại.
+- **Đúng cả với trang chỉ có một thư cũ:** trang theo dõi thay đổi có khi chỉ chứa thư cũ nhất vừa được đọc. Tính lại từ toàn bộ thư đã lưu, nên số chưa đọc giảm đúng 1, còn thư mới nhất, đoạn xem trước và tiêu đề giữ nguyên (test `aPageWithOnlyAnOldMessageNowReadLeavesTheRestAsItWas`, đúng scenario trong spec).
+- **Cái giá:** mỗi trang thêm một câu SQL đọc lại **mọi** thư của các conversation nó chạm tới, không chỉ thư của trang. Index `message(conversation_id, sent_at DESC)` giúp tìm thư mới nhất nhanh, nhưng đếm chưa đọc vẫn đi qua mọi thư của conversation. Với Gmail, một thread hiếm khi quá vài trăm thư, nên ổn. Một nhóm chat hàng chục nghìn thư (connector sau này) sẽ cần xem lại, ví dụ một index chỉ gồm thư chưa đọc.
+
+### 14.2 Một câu `UPDATE` cho cả trang
+- **`WITH summary AS (...)`** (CTE): một bảng tạm có tên, tính tổng hợp cho từng conversation, rồi `UPDATE conversation ... FROM summary` ghi vào.
+- **`LEFT JOIN LATERAL (... ORDER BY m.sent_at DESC, m.id DESC LIMIT 1)`:** với **từng** conversation, lấy thư mới nhất của nó. `LATERAL` cho phép câu con nhìn thấy dòng `c` đang xét; `LEFT` giữ cả conversation chưa có thư. Hai thư cùng giờ thì `id` (UUIDv7, tăng dần) quyết thư nào mới hơn.
+- **Conversation chưa có thư:** `COALESCE(latest.sent_at, c.last_message_at)` giữ giờ đang lưu. Không có `COALESCE` thì giá trị là `NULL`, cột `NOT NULL` từ chối, và cả trang bị rollback (review BE-42 đã nhắc trước).
+- **Không ghi khi không đổi:** `WHERE (c.last_message_at, ...) IS DISTINCT FROM (s.last_message_at, ...)`, giống mục 13.3. Lưu lại cùng một trang thì không dòng conversation nào bị ghi lại.
+
+### 14.3 Đoạn xem trước, người gửi, người bên kia
+- **Đoạn xem trước:** chữ của thư mới nhất.
+  - Gộp mọi khoảng trắng (cả xuống dòng, tab, và khoảng trắng không ngắt NBSP mà thư HTML hay có) thành một dấu cách.
+  - Bỏ khoảng trắng hai đầu, lấy 200 ký tự đầu, bỏ dấu cách nếu chỗ cắt rơi đúng vào nó.
+  - Còn lại chuỗi rỗng thì là `NULL`.
+- **Bẫy NBSP:** lớp ký tự `[[:space:]]` của PostgreSQL không chắc gồm NBSP (U+00A0), nên câu SQL thêm hẳn `chr(160)` vào lớp ký tự.
+- **`last_message_from`:** người gửi thư mới nhất, tên nếu có, không thì ID (với Gmail là email). Thư không có người gửi (thông báo hệ thống) thì `NULL`.
+- **`counterpart` (người bên kia, làm tiêu đề dòng của email):** người gửi của thư **đến** mới nhất **có người gửi** (thư hệ thống không có người gửi thì bỏ qua). Chưa có thư đến nào như vậy thì lấy người tham gia đầu tiên không phải chính account.
+- **Giới hạn chưa kiểm:** các khoảng trắng Unicode khác (khoảng trắng rộng U+3000...) có được `[[:space:]]` gộp không còn tùy locale của database. Database của Sino dùng locale UTF-8 của image `postgres:18`, nhưng chưa có test cho các ký tự đó.
+
+### 14.4 Đã đọc: thay đổi mới nhất thắng (D-67)
+Mỗi thư có hai cột:
+- `is_read`: cái Sino hiện;
+- `provider_read`: cái provider nói lần trước.
+
+```text
+lần lưu sau, provider nói R:
+  R khác provider_read   -> provider vừa đổi ý  -> is_read = R, provider_read = R
+  R giống provider_read  -> provider không đổi  -> giữ is_read (lựa chọn trong Sino)
+```
+
+- **Vì sao cần cột thứ hai:** chỉ có `is_read` thì Sino không phân biệt được hai trường hợp:
+  - "provider vừa đổi sang đã đọc": phải theo;
+  - "provider vẫn nói chưa đọc như mọi lần, còn người dùng đã bấm đọc trong Sino": phải giữ.
+
+  `provider_read` nhớ provider nói gì lần trước, nên Sino biết ai đổi sau cùng.
+- **Ví dụ trong spec:** bạn đọc một thư trong Sino, rồi Gmail gửi lại thư đó vì một nhãn mới (vẫn chưa đọc). Gmail không đổi ý về trạng thái đọc, nên thư vẫn là đã đọc.
+- **Bẫy khi test:** lần lưu lại mà không đổi gì thì dòng không bị ghi (mục 13.3), nên lựa chọn trong Sino tự nhiên còn đó. Test như vậy không phân biệt được "giữ `is_read`" với "luôn ghi đè". Test của BE-43 lưu lại **kèm một thay đổi khác** để dòng thật sự được ghi. Lỗi này tôi tự thấy khi soạn danh sách lỗi cố ý.
+- Thao tác "đánh dấu đọc trong Sino" là `PATCH` của BE-44. Test hiện giả lập nó bằng một câu `UPDATE` trực tiếp.
+
+### 14.5 Bỏ lưu trữ khi có thư đến mới; tiêu đề chỉ theo thư mới hơn
+- **Bỏ lưu trữ:** một conversation đã lưu trữ quay lại Hộp thư khi trang có một thư **đến** **mới chèn** và **mới hơn** thư mới nhất trước đó.
+  - Thư đi (chính bạn trả lời) không kéo nó về.
+  - Thư cũ được nhập bù không kéo nó về.
+  - Thư đã có được lưu lại cũng không kéo nó về.
+
+  "Thư mới nhất trước đó" là `last_message_at` đọc ở bước 1, trước khi bước 5 tính lại. "Mới hơn" là mới hơn hẳn: thư đến có cùng đúng thời điểm với thư mới nhất không kéo conversation về. Với Gmail (tính tới mili giây) gần như không xảy ra; với provider chỉ tính tới giây thì có thể.
+- **Tiêu đề:** trang theo dõi thay đổi chỉ chứa thư cũ thì mang tiêu đề cũ. Vì vậy tiêu đề chỉ theo trang khi trang có thư mới hơn thư mới nhất đã lưu, hoặc khi conversation chưa có tiêu đề. Trang mới hơn mà không có tiêu đề thì giữ tiêu đề cũ.
+- **Bẫy tham số `NULL`:** `:newest` có thể là `NULL` (trang không có thư của conversation đó). Viết `cast(:newest AS timestamptz)` để PostgreSQL biết kiểu của tham số kể cả khi nó rỗng.
+
+### 14.6 Cần trả lời (D-68, D-74)
+- `needs_reply` khi thư mới nhất là thư **đến** và metadata `bulk` khác `"true"`. Thư cũ hơn là bản tin không ảnh hưởng.
+- D-74 (bạn chốt): thư qua nhóm, có `List-Unsubscribe`, vẫn là hàng loạt.
+- Conversation đã lưu trữ vẫn giữ `needs_reply` của nó. Việc ẩn chúng khỏi danh sách "Cần trả lời" là việc của truy vấn ở BE-44.
+
+### 14.7 Test đỏ trước, lần này làm ngược
+- Lần này tôi viết code trước rồi mới viết test, sai thứ tự TDD.
+- Để vẫn có bằng chứng đỏ thật, tôi chạy test mới trên code BE-42 đã commit (lấy lại bằng `git show HEAD:...`): 14/21 test đỏ.
+- 7 test còn xanh trên code cũ là các quy tắc kiểu "không làm gì": thư đi không bỏ lưu trữ, thư không có chữ thì không có đoạn xem trước. Code cũ không làm gì nên tình cờ đúng. Các quy tắc này được kiểm bằng kiểm tra ngược (mục 14.8).
+- Bài học: một test chỉ có giá trị khi đã thấy nó đỏ với một code sai.
+
+### 14.8 Sau review: test phải có hai conversation trong một trang
+- Mỗi test trước đó chỉ có một conversation, nên câu đếm chưa đọc **quên lọc theo conversation** (đếm cả trang) vẫn cho đúng số. Reviewer chỉ ra lỗ này. Test `eachConversationOfAPageHasItsOwnSummary` có hai thread với số chưa đọc, tệp, người bên kia khác nhau.
+- Thêm hai test: thư mất tệp cuối cùng thì conversation không còn "có tệp"; Gmail chuyển một thư từ đã đọc sang chưa đọc thì Sino theo.
+- Khóa `bulk` trong SQL giờ được truyền bằng hằng số `NormalizedMessage.BULK` (mục 11.3), không gõ lại chuỗi.
+
+### 14.9 `PATCH` của BE-44 phải lấy cùng khóa
+- Bước 5 là một câu `UPDATE` tính tổng hợp từ **ảnh chụp dữ liệu lúc nó bắt đầu**.
+- Giả sử giữa chừng, `PATCH` "đánh dấu đã đọc" commit với `unread_count = 0`. Câu `UPDATE` vẫn ghi con số tính từ ảnh chụp cũ (3) đè lên: Hộp thư báo 3 thư chưa đọc, sai cho tới khi thread được chạm lại.
+- Vì vậy `PATCH` bắt buộc lấy cùng khóa theo account với `store` (mục 13.2b) rồi tính lại tổng hợp bằng cùng một đoạn SQL. Hai thao tác khi đó chạy lần lượt, không chen nhau.
+
+### 14.10 Kiểm tra ngược (BE-43)
+Làm hỏng code mỗi lần một chỗ (28 lần, sau review thêm 6); lần chạy mốc khi chưa sửa gì thì xanh; lần nào cũng có test đỏ. Lỗi "luôn theo provider" chỉ bị bắt sau khi test "đã đọc trong Sino" được siết lại (mục 14.4).
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| `is_read` luôn theo provider; không bao giờ theo; không nhớ `provider_read`; không nhận ra provider đổi ý | các test đã đọc; trang chỉ có thư cũ vừa đọc |
+| Tiêu đề không bao giờ theo trang mới; trang mới không có tiêu đề xóa tiêu đề; tiêu đề theo thư cũ | tiêu đề theo thư mới hơn; trang chỉ có thư cũ |
+| Lấy thư cũ nhất làm thư mới nhất | trang chỉ có thư cũ; bản tin cũ hơn; thư không có người gửi |
+| Đoạn xem trước: không gộp khoảng trắng, quên NBSP, không bỏ khoảng trắng đầu, giữ dấu cách cuối, cắt 201, chuỗi rỗng không thành `NULL` | các test đoạn xem trước |
+| Người gửi: ID trước tên | trang chỉ có thư cũ (người gửi có tên) |
+| Người bên kia: thư của mọi chiều, có thể là chính account, thư đến cũ nhất | các test người bên kia |
+| Đếm thư đã đọc thay vì chưa đọc; không thấy tệp | tổng hợp từ thư đã lưu; các test đã đọc |
+| Bản tin hay thư đi vẫn "cần trả lời" | cần trả lời |
+| Conversation không có thư mất giờ (`NULL`); tổng hợp luôn ghi lại; không chạy bước tổng hợp | conversation không có thư; lưu hai lần không ghi lại |
+| Thư của account, thư cũ, hoặc không thư nào bỏ lưu trữ | các test lưu trữ |
+| Sau review: đếm chưa đọc, tìm tệp, tìm người bên kia trên cả trang thay vì từng conversation | mỗi conversation có tổng hợp riêng |
+| Sau review: luôn "có tệp"; chỉ theo provider khi nó chuyển sang đã đọc; gõ sai tên khóa `bulk` | thư mất tệp cuối; Gmail chuyển sang chưa đọc; cần trả lời |
 
 ---
 
@@ -1131,3 +1238,11 @@ Làm hỏng code mỗi lần một chỗ (31 lần, sau review thêm 6); lần c
 64. Thư nhắc tới một conversation mà trang thư không mô tả: Sino làm gì, và vì sao bản tối thiểu không được đè lên bản đã có?
 65. Hai lượt lưu nhận cùng hai conversation theo thứ tự ngược nhau: vì sao có thể deadlock, và khóa theo account tránh điều đó thế nào?
 66. Vì sao việc bỏ ký tự NUL đặt ở `store` chứ không chỉ ở connector Gmail?
+67. Vì sao `unread_count` được tính lại từ bảng `message` thay vì cộng trừ theo từng thư? Cái giá là gì?
+68. `LEFT JOIN LATERAL` làm được gì mà một `JOIN` thường không làm được?
+69. Vì sao mỗi thư cần cả `is_read` lẫn `provider_read`? Chỉ có một cột thì sai ở trường hợp nào?
+70. Bạn trả lời một conversation đã lưu trữ: nó có quay lại Hộp thư không? Còn khi người kia trả lời?
+71. Một trang theo dõi thay đổi chỉ có thư cũ nhất của một thread: tiêu đề, đoạn xem trước và số chưa đọc thay đổi thế nào?
+72. Vì sao một test chỉ có giá trị khi đã thấy nó đỏ? Với BE-43, làm sao có lần đỏ đó khi code đã viết xong?
+73. Vì sao mọi test chỉ có một conversation thì không bắt được lỗi "đếm chưa đọc trên cả trang"?
+74. `PATCH` đánh dấu đã đọc commit đúng lúc `store` đang tổng hợp: nếu `PATCH` không lấy khóa theo account thì số chưa đọc sai thế nào?

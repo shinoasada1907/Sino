@@ -147,18 +147,6 @@ class JdbcConversationStoreTests {
     }
 
     @Test
-    void aChangedReadStateIsLeftForTheReadRuleOfBe43() {
-        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question()));
-        String rowVersion = rowVersion("m-1");
-
-        StoreResult result = store.store(account, batch(List.of(), changed(question(), "read")));
-
-        assertThat(result).isEqualTo(new StoreResult(0, 0));
-        assertThat(rowVersion("m-1")).isEqualTo(rowVersion);
-        assertThat(readState("m-1")).containsExactly(false, false);
-    }
-
-    @Test
     void aMessageWithoutItsConversationGetsAMinimalOne() {
         StoreResult result = store.store(account, batch(List.of(), question()));
 

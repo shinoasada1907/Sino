@@ -44,6 +44,9 @@ Một conversation cần trả lời khi thư mới nhất là thư đến và k
 ### D-69 — Hai module `conversation` và `sync`, chạy nền trên executor · **Accepted: A** (người dùng, 2026-10-09)
 `conversation` giữ dữ liệu Hộp thư và API Hộp thư; `sync` lo khi nào và làm sao lấy thư (gọi `ProviderAccess`, giữ cursor và tiến độ trong `sync_checkpoint` của 02B, đưa từng trang sang `conversation`). Chạy nền trên executor virtual thread; mỗi account một lượt nhờ `UPDATE` có điều kiện; khởi động lại thì chạy tiếp. F07 mở rộng `sync`. **Phương án bị loại:** B. một module `conversation` làm cả việc nhập (F07 phải tách ra); C. như A nhưng chạy bằng listener event bất đồng bộ của Spring Modulith (listener chạy hàng phút, vẫn cần bảng tiến độ: hai cơ chế cho một việc).
 
+### D-74 — Thư qua nhóm vẫn là thư hàng loạt · **Accepted: A** (người dùng, 2026-10-09: "chọn A")
+Thư có header `List-Unsubscribe` vẫn được đánh dấu `bulk`, kể cả thư đi qua Google Groups hay một địa chỉ chung kiểu `support@` dựng bằng nhóm: các conversation đó vẫn ở Hộp thư nhưng không vào "Cần trả lời". Giữ nguyên D-68 như BE-40 đã cài. Số D-70…D-73 do phiên web giữ cho FE-50 (`openspec/changes/fe-ui-inbox/design.md`). **Phương án bị loại:** B. thư có `List-Id` mà không có nhãn `CATEGORY_*` thì không coi là hàng loạt; C. để người dùng đánh dấu tay sau này.
+
 ### Chốt kỹ thuật (agent, trong phạm vi trên)
 - `conversation` đọc/ghi bằng SQL qua `JdbcClient` (`INSERT … ON CONFLICT … DO UPDATE`, truy vấn danh sách keyset), không có entity JPA: upsert hàng loạt và projection là SQL thuần.
 - Không khóa ngoại sang `connected_account` (bảng của module khác; quy ước giữa module chỉ giữ ID). Khóa ngoại trong cùng module: `conversation_participant`/`message` → `conversation`, `attachment` → `message`, `message.sender_participant_id` → `conversation_participant`.
@@ -111,7 +114,7 @@ store(accountId, batch)                          một transaction (bên gọi m
 
 - Thư mà connector không nêu conversation: tạo conversation tối thiểu (`type` = `UNKNOWN`, tiêu đề null). Người gửi không có trong người tham gia: thêm vào (chỉ ID).
 - Không lưu nội dung thô của provider, không lưu item bị bỏ qua (chỉ `sync` đếm và ghi log ID).
-- `PATCH` của API và `store` không làm mất thay đổi của nhau: mỗi thao tác là `UPDATE` trên cột riêng; bước 5 đọc dữ liệu đã commit (READ COMMITTED).
+- ~~`PATCH` của API và `store` không làm mất thay đổi của nhau: mỗi thao tác là `UPDATE` trên cột riêng; bước 5 đọc dữ liệu đã commit (READ COMMITTED).~~ **Sửa sau review BE-43:** cả hai cùng ghi `is_read` và các cột tổng hợp. Một câu `UPDATE` ở bước 5 tính tổng hợp từ ảnh chụp lúc nó bắt đầu, nên nếu `PATCH` commit giữa chừng thì bước 5 có thể ghi đè số cũ lên kết quả của `PATCH`. Vì vậy `PATCH` **bắt buộc** lấy cùng khóa theo account với `store` (`pg_advisory_xact_lock(hashtextextended('conversation:' || account, 0))`) rồi tính lại tổng hợp bằng cùng một đoạn SQL (BE-44 tách `summarize` ra để dùng chung).
 - Module `conversation` mở gói gốc: `ConversationStore`, `StoreResult`, và `ConversationStats.storedMessages(accountId)` cho `sync`.
 
 ### 3. Lần nhập đầu (module `sync`)
@@ -197,7 +200,7 @@ PATCH /api/conversations/{id}     { read?: boolean, archived?: boolean }  -> Con
 
 - "Dùng nhãn Gmail làm bộ lọc" và "Chỉ tải tệp đính kèm khi bạn mở" trên bước "Đồng bộ" của canvas: F05 không lưu nhãn Gmail và không tải nội dung tệp (F06), nên hai lựa chọn chưa có tác dụng. F04b từng ghi lọc theo nhãn cho F05; buổi brainstorm F05 chưa chốt — đề xuất hoãn tới khi có yêu cầu lọc theo nhãn cụ thể; web giữ hai công tắc ở dữ liệu mẫu hoặc ẩn.
 - Cách hiện thư "Bạn" khi người gửi là chính account trong `snippetFrom`/`title`: web quyết hiển thị (API trả tên/email; `participants[].self` cho biết).
-- **Decision Needed — thư qua nhóm có phải thư hàng loạt?** (review BE-40, 2026-10-09). D-68 đánh dấu `bulk` khi có header `List-Unsubscribe`. Thư đi qua Google Groups, kể cả địa chỉ chung kiểu `support@` dựng bằng nhóm, thường cũng có header này (chưa kiểm với hộp thư thật), nên thư khách hỏi tới đó sẽ không vào "Cần trả lời". Phương án: (A) giữ quy tắc như đã duyệt; (B) thư có `List-Id` mà không có nhãn `CATEGORY_*` thì không coi là hàng loạt; (C) để người dùng đánh dấu tay sau này. BE-40 cài đúng D-68 (A); đổi sang B chỉ sửa `GmailMessageNormalizer` và thư mẫu. Cần chốt trước BE-43.
+- ~~**Decision Needed — thư qua nhóm có phải thư hàng loạt?**~~ → **chốt D-74 = A** (người dùng, 2026-10-09). (review BE-40, 2026-10-09). D-68 đánh dấu `bulk` khi có header `List-Unsubscribe`. Thư đi qua Google Groups, kể cả địa chỉ chung kiểu `support@` dựng bằng nhóm, thường cũng có header này (chưa kiểm với hộp thư thật), nên thư khách hỏi tới đó sẽ không vào "Cần trả lời". Phương án: (A) giữ quy tắc như đã duyệt; (B) thư có `List-Id` mà không có nhãn `CATEGORY_*` thì không coi là hàng loạt; (C) để người dùng đánh dấu tay sau này. BE-40 cài đúng D-68 (A); đổi sang B chỉ sửa `GmailMessageNormalizer` và thư mẫu. Cần chốt trước BE-43.
 
 ## Definition of Done — F05
 

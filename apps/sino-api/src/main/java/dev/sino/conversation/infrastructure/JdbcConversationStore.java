@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.sino.conversation.ConversationStore;
 import dev.sino.conversation.StoreResult;
 import dev.sino.provider.spi.ConversationType;
+import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
@@ -28,7 +29,7 @@ import dev.sino.provider.spi.SyncBatch;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * {@link ConversationStore} in plain SQL (F05 design, section 2, steps 1 to 4). Every write is an
+ * {@link ConversationStore} in plain SQL (F05 design, section 2). Every write is an
  * {@code INSERT ... ON CONFLICT} on the external ID, so two syncs storing the same mail at once cannot make a copy,
  * and its {@code DO UPDATE ... WHERE} leaves a row that would not change untouched (02B section 11).
  */
@@ -51,50 +52,66 @@ public class JdbcConversationStore implements ConversationStore {
         jdbc.sql("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))")
                 .param("key", "conversation:" + accountId).query().singleRow();
         SyncBatch batch = WithoutNul.of(page);
-        Map<String, UUID> conversations = storeConversations(accountId, batch);
+        Map<String, StoredConversation> conversations = storeConversations(accountId, batch);
         Map<Participant, UUID> participants = storeParticipants(batch, conversations);
         int created = 0;
         int updated = 0;
+        Set<UUID> unarchived = new LinkedHashSet<>();
         for (NormalizedMessage message : batch.messages()) {
-            UUID conversationId = conversations.get(message.externalConversationId());
+            StoredConversation conversation = conversations.get(message.externalConversationId());
             UUID senderId = message.senderExternalParticipantId() == null ? null
-                    : participants.get(new Participant(conversationId, message.senderExternalParticipantId()));
-            StoredMessage stored = storeMessage(conversationId, senderId, message);
+                    : participants.get(new Participant(conversation.id(), message.senderExternalParticipantId()));
+            StoredMessage stored = storeMessage(conversation.id(), senderId, message);
             boolean filesChanged = storeFiles(stored.id(), message.attachments());
             if (stored.change() == Change.INSERTED) {
                 created++;
+                // New mail from someone else brings an archived conversation back; an answer of the account does not.
+                if (message.direction() == MessageDirection.INBOUND
+                        && message.sentAt().isAfter(conversation.lastMessageAt())) {
+                    unarchived.add(conversation.id());
+                }
             } else if (stored.change() == Change.UPDATED || filesChanged) {
                 updated++;
             }
         }
+        summarize(conversations.values().stream().map(StoredConversation::id).toList());
+        unarchive(unarchived);
         return new StoreResult(created, updated);
     }
 
     // Step 1. A conversation the batch names but does not describe gets a minimal row that never overwrites one.
-    private Map<String, UUID> storeConversations(UUID accountId, SyncBatch batch) {
+    private Map<String, StoredConversation> storeConversations(UUID accountId, SyncBatch batch) {
         Map<String, Instant> newest = newestMessageTimes(batch.messages());
         Set<String> externalIds = new LinkedHashSet<>();
         for (NormalizedConversation conversation : batch.conversations()) {
             externalIds.add(conversation.externalConversationId());
             Instant lastMessageAt = Optional.ofNullable(newest.get(conversation.externalConversationId()))
                     .or(() -> Optional.ofNullable(conversation.lastActivityAt())).orElse(Instant.EPOCH);
-            // A known type is never lowered to UNKNOWN. Until BE-43 the title is only filled in when there is none.
+            // A known type is never lowered to UNKNOWN. The title follows the page only when the page has mail newer
+            // than any stored (or there is no title yet): a page of changes to old mail carries an old title.
             jdbc.sql("""
                     INSERT INTO conversation AS c (account_id, external_conversation_id, type, title, avatar_url,
                                                    last_message_at, created_at, updated_at)
                     VALUES (:account, :externalId, :type, :title, :avatarUrl, :lastMessageAt, now(), now())
                     ON CONFLICT (account_id, external_conversation_id) DO UPDATE
                     SET type = COALESCE(NULLIF(EXCLUDED.type, 'UNKNOWN'), c.type),
-                        title = COALESCE(c.title, EXCLUDED.title),
+                        title = CASE WHEN cast(:newest AS timestamptz) > c.last_message_at
+                                     THEN COALESCE(EXCLUDED.title, c.title)
+                                     ELSE COALESCE(c.title, EXCLUDED.title) END,
                         avatar_url = COALESCE(EXCLUDED.avatar_url, c.avatar_url),
                         updated_at = now()
                     WHERE (c.type, c.title, c.avatar_url) IS DISTINCT FROM
-                          (COALESCE(NULLIF(EXCLUDED.type, 'UNKNOWN'), c.type), COALESCE(c.title, EXCLUDED.title),
+                          (COALESCE(NULLIF(EXCLUDED.type, 'UNKNOWN'), c.type),
+                           CASE WHEN cast(:newest AS timestamptz) > c.last_message_at
+                                THEN COALESCE(EXCLUDED.title, c.title)
+                                ELSE COALESCE(c.title, EXCLUDED.title) END,
                            COALESCE(EXCLUDED.avatar_url, c.avatar_url))
                     """)
                     .param("account", accountId).param("externalId", conversation.externalConversationId())
                     .param("type", conversation.type().name()).param("title", conversation.title())
                     .param("avatarUrl", conversation.avatarUrl()).param("lastMessageAt", at(lastMessageAt))
+                    .param("newest", Optional.ofNullable(newest.get(conversation.externalConversationId()))
+                            .map(JdbcConversationStore::at).orElse(null))
                     .update();
         }
         for (Map.Entry<String, Instant> conversation : newest.entrySet()) {
@@ -113,19 +130,21 @@ public class JdbcConversationStore implements ConversationStore {
         if (externalIds.isEmpty()) {
             return Map.of();
         }
+        // last_message_at is still the one from before this page: step 5 works it out again.
         return jdbc.sql("""
-                SELECT external_conversation_id, id FROM conversation
+                SELECT external_conversation_id, id, last_message_at FROM conversation
                 WHERE account_id = :account AND external_conversation_id IN (:externalIds)
                 """)
                 .param("account", accountId).param("externalIds", externalIds)
-                .query((row, n) -> Map.entry(row.getString(1), row.getObject(2, UUID.class))).stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                .query((row, n) -> Map.entry(row.getString(1), new StoredConversation(row.getObject(2, UUID.class),
+                        row.getObject(3, OffsetDateTime.class).toInstant())))
+                .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     // Step 2. A name or picture is kept when a later page leaves it out; once self, always self.
-    private Map<Participant, UUID> storeParticipants(SyncBatch batch, Map<String, UUID> conversations) {
+    private Map<Participant, UUID> storeParticipants(SyncBatch batch, Map<String, StoredConversation> conversations) {
         for (NormalizedConversation conversation : batch.conversations()) {
-            UUID conversationId = conversations.get(conversation.externalConversationId());
+            UUID conversationId = conversations.get(conversation.externalConversationId()).id();
             for (NormalizedParticipant participant : conversation.participants()) {
                 jdbc.sql("""
                         INSERT INTO conversation_participant AS p (conversation_id, external_participant_id,
@@ -153,7 +172,7 @@ public class JdbcConversationStore implements ConversationStore {
                         VALUES (:conversation, :externalId)
                         ON CONFLICT (conversation_id, external_participant_id) DO NOTHING
                         """)
-                        .param("conversation", conversations.get(message.externalConversationId()))
+                        .param("conversation", conversations.get(message.externalConversationId()).id())
                         .param("externalId", message.senderExternalParticipantId()).update();
             }
         }
@@ -164,13 +183,14 @@ public class JdbcConversationStore implements ConversationStore {
                 SELECT conversation_id, external_participant_id, id FROM conversation_participant
                 WHERE conversation_id IN (:conversations)
                 """)
-                .param("conversations", conversations.values())
+                .param("conversations", conversations.values().stream().map(StoredConversation::id).toList())
                 .query((row, n) -> Map.entry(new Participant(row.getObject(1, UUID.class), row.getString(2)),
                         row.getObject(3, UUID.class)))
                 .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    // Step 3. The read state of a stored message is left as it is: the rule that changes it comes with BE-43 (D-67).
+    // Step 3. Read state (D-67): is_read is what Sino shows, provider_read what the provider said last. When the provider
+    // changes its mind, Sino follows; when it says the same again, a choice made in Sino stays.
     private StoredMessage storeMessage(UUID conversationId, UUID senderId, NormalizedMessage message) {
         Optional<StoredMessage> written = jdbc.sql("""
                 INSERT INTO message AS m (conversation_id, sender_participant_id, external_message_id, direction, type,
@@ -187,12 +207,16 @@ public class JdbcConversationStore implements ConversationStore {
                     sent_at = EXCLUDED.sent_at,
                     reply_to_external_message_id = EXCLUDED.reply_to_external_message_id,
                     metadata = EXCLUDED.metadata,
+                    is_read = CASE WHEN m.provider_read IS DISTINCT FROM EXCLUDED.provider_read
+                                   THEN EXCLUDED.provider_read ELSE m.is_read END,
+                    provider_read = EXCLUDED.provider_read,
                     updated_at = now()
                 WHERE (m.sender_participant_id, m.direction, m.type, m.text_content, m.status, m.sent_at,
-                       m.reply_to_external_message_id, m.metadata)
+                       m.reply_to_external_message_id, m.metadata, m.provider_read)
                       IS DISTINCT FROM
                       (EXCLUDED.sender_participant_id, EXCLUDED.direction, EXCLUDED.type, EXCLUDED.text_content,
-                       EXCLUDED.status, EXCLUDED.sent_at, EXCLUDED.reply_to_external_message_id, EXCLUDED.metadata)
+                       EXCLUDED.status, EXCLUDED.sent_at, EXCLUDED.reply_to_external_message_id, EXCLUDED.metadata,
+                       EXCLUDED.provider_read)
                 RETURNING id, xmax = 0
                 """)
                 .param("conversation", conversationId).param("sender", senderId)
@@ -242,6 +266,73 @@ public class JdbcConversationStore implements ConversationStore {
         return changed > 0;
     }
 
+    /**
+     * Step 5. The summary of each conversation the page touched, worked out again from all its stored messages, so a
+     * page that holds a single old message cannot make it wrong. Written only where a value changed.
+     */
+    private void summarize(List<UUID> conversations) {
+        if (conversations.isEmpty()) {
+            return;
+        }
+        jdbc.sql("""
+                WITH summary AS (
+                    SELECT c.id,
+                           COALESCE(latest.sent_at, c.last_message_at) AS last_message_at,
+                           latest.preview,
+                           latest.sender AS last_message_from,
+                           COALESCE(
+                               (SELECT COALESCE(p.display_name, p.external_participant_id)
+                                FROM message m JOIN conversation_participant p ON p.id = m.sender_participant_id
+                                WHERE m.conversation_id = c.id AND m.direction = 'INBOUND'
+                                ORDER BY m.sent_at DESC, m.id DESC LIMIT 1),
+                               (SELECT COALESCE(p.display_name, p.external_participant_id)
+                                FROM conversation_participant p
+                                WHERE p.conversation_id = c.id AND NOT p.is_self
+                                ORDER BY p.id LIMIT 1)) AS counterpart,
+                           (SELECT count(*) FROM message m
+                            WHERE m.conversation_id = c.id AND NOT m.is_read)::integer AS unread_count,
+                           EXISTS (SELECT 1 FROM attachment a JOIN message m ON m.id = a.message_id
+                                   WHERE m.conversation_id = c.id) AS has_attachments,
+                           COALESCE(latest.needs_reply, false) AS needs_reply
+                    FROM conversation c
+                    LEFT JOIN LATERAL (
+                        SELECT m.sent_at,
+                               NULLIF(rtrim(left(btrim(regexp_replace(m.text_content,
+                                   '[[:space:]' || chr(160) || ']+', ' ', 'g')), 200)), '') AS preview,
+                               COALESCE(p.display_name, p.external_participant_id) AS sender,
+                               m.direction = 'INBOUND' AND COALESCE(m.metadata ->> :bulk, '') <> 'true' AS needs_reply
+                        FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
+                        WHERE m.conversation_id = c.id
+                        ORDER BY m.sent_at DESC, m.id DESC
+                        LIMIT 1) latest ON true
+                    WHERE c.id IN (:conversations)
+                )
+                UPDATE conversation c
+                SET last_message_at = s.last_message_at,
+                    last_message_preview = s.preview,
+                    last_message_from = s.last_message_from,
+                    counterpart = s.counterpart,
+                    unread_count = s.unread_count,
+                    has_attachments = s.has_attachments,
+                    needs_reply = s.needs_reply,
+                    updated_at = now()
+                FROM summary s
+                WHERE c.id = s.id
+                  AND (c.last_message_at, c.last_message_preview, c.last_message_from, c.counterpart, c.unread_count,
+                       c.has_attachments, c.needs_reply)
+                      IS DISTINCT FROM
+                      (s.last_message_at, s.preview, s.last_message_from, s.counterpart, s.unread_count,
+                       s.has_attachments, s.needs_reply)
+                """).param("conversations", conversations).param("bulk", NormalizedMessage.BULK).update();
+    }
+
+    private void unarchive(Set<UUID> conversations) {
+        if (!conversations.isEmpty()) {
+            jdbc.sql("UPDATE conversation SET archived = false, updated_at = now() WHERE id IN (:ids) AND archived")
+                    .param("ids", conversations).update();
+        }
+    }
+
     private static Map<String, Instant> newestMessageTimes(List<NormalizedMessage> messages) {
         Map<String, Instant> newest = new LinkedHashMap<>();
         for (NormalizedMessage message : messages) {
@@ -253,6 +344,9 @@ public class JdbcConversationStore implements ConversationStore {
 
     private static OffsetDateTime at(Instant instant) {
         return instant.atOffset(ZoneOffset.UTC);
+    }
+
+    private record StoredConversation(UUID id, Instant lastMessageAt) {
     }
 
     private record Participant(UUID conversationId, String externalId) {
