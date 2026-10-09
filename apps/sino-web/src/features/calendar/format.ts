@@ -288,6 +288,8 @@ export interface AgendaItem {
   provider: string | null
   /** "16:00 – 17:00", "07:45", "Hạn 30/09", "cả ngày". */
   time: string
+  /** The same in the 48 px column of a phone: "16:00", "07:45", "30/09", "cả ngày". */
+  shortTime: string
   title: string
   source: TaskSource | null
   /** On the right: late, done, fired, "sau 2 giờ", the place, the repeat rule, "nhắc 07:30". */
@@ -303,11 +305,16 @@ export interface AgendaDay {
   label: string
   /** "THỨ SÁU 02/10" */
   spec: string
+  /** On the label's line on a phone, without saying the weekday twice: "THỨ SÁU 02/10" for today, "04/10" for Chủ nhật. */
+  shortSpec: string
   items: AgendaItem[]
 }
 
-/** The agenda from the first day of the range: by day, empty days left out; the tasks late from before open today. */
-export function agendaDays(data: CalendarData, now: Date, timeZone?: string): AgendaDay[] {
+/**
+ * The agenda from `from` (the first day of the range unless given; a phone loads the whole week for its day strip):
+ * by day, empty days left out; the tasks late from before `from` open today.
+ */
+export function agendaDays(data: CalendarData, now: Date, timeZone?: string, from: LocalDate = data.from): AgendaDay[] {
   const today = localDateOf(now, timeZone)
   const clock = (at: string) => formatClock(new Date(at), timeZone)
   const dueDay = (task: CalendarTask) => task.dueDate ?? localDateOf(new Date(task.dueAt!), timeZone)
@@ -316,11 +323,14 @@ export function agendaDays(data: CalendarData, now: Date, timeZone?: string): Ag
     const over = isLate(task, now, timeZone)
     const daysLate = over ? daysBetweenDates(dueDay(task), today) : 0
     const rule = recurrenceLabel(task.recurrence)
+    const at = task.dueAt ? clock(task.dueAt) : 'cả ngày'
+    const dueBefore = over && daysLate >= 1 ? dayMonthOfDate(dueDay(task)) : null
     return {
       kind: 'task',
       id: task.id,
       ...iconOf({ kind: 'task', done: task.status === 'DONE', source: task.source, recurrence: task.recurrence }),
-      time: over && daysLate >= 1 ? `Hạn ${dayMonthOfDate(dueDay(task))}` : task.dueAt ? clock(task.dueAt) : 'cả ngày',
+      time: dueBefore ? `Hạn ${dueBefore}` : at,
+      shortTime: dueBefore ?? at,
       title: task.title,
       source: task.source,
       note: over
@@ -348,6 +358,7 @@ export function agendaDays(data: CalendarData, now: Date, timeZone?: string): Ag
       id: event.id,
       ...iconOf({ kind: 'event', done: false, source: event.source, recurrence: event.recurrence }),
       time: timed ? `${clock(event.startsAt!)} – ${clock(event.endsAt!)}` : 'cả ngày',
+      shortTime: timed ? clock(event.startsAt!) : 'cả ngày',
       title: event.title,
       source: event.source,
       note: note ? { text: note, tone: null } : null,
@@ -362,6 +373,7 @@ export function agendaDays(data: CalendarData, now: Date, timeZone?: string): Ag
     id: reminder.id,
     ...iconOf({ kind: 'reminder', done: false, source: reminder.source, recurrence: null }),
     time: clock(reminder.at),
+    shortTime: clock(reminder.at),
     title: reminderTitle(reminder.taskTitle),
     source: reminder.source,
     note: reminder.state === 'FIRED' ? { text: 'Đã báo', tone: null } : null,
@@ -370,10 +382,10 @@ export function agendaDays(data: CalendarData, now: Date, timeZone?: string): Ag
     to: taskLink(reminder.taskId),
   })
 
-  return daysOf(data)
+  return daysOf({ from, to: data.to })
     .map((date) => {
       const lateFromBefore =
-        date === today ? data.tasks.filter((task) => isLate(task, now, timeZone) && dueDay(task) < data.from).sort((a, b) => (dueDay(a) < dueDay(b) ? -1 : 1)) : []
+        date === today ? data.tasks.filter((task) => isLate(task, now, timeZone) && dueDay(task) < from).sort((a, b) => (dueDay(a) < dueDay(b) ? -1 : 1)) : []
       const whole = [...data.events.filter((event) => isWholeDayOn(event, date)).map(eventItem), ...data.tasks.filter((task) => task.dueDate === date).map(taskItem)]
       const timed = [
         ...data.events.filter((event) => event.startsAt && localDateOf(new Date(event.startsAt), timeZone) === date).map((event) => ({ at: event.startsAt!, item: eventItem(event) })),
@@ -381,10 +393,13 @@ export function agendaDays(data: CalendarData, now: Date, timeZone?: string): Ag
         ...data.reminders.filter((reminder) => localDateOf(new Date(reminder.at), timeZone) === date).map((reminder) => ({ at: reminder.at, item: reminderItem(reminder) })),
       ].sort(byTime)
       const weekday = WEEKDAY_NAMES[weekdayOfDate(date)]
+      const label = date === today ? 'Hôm nay' : date === addDays(today, 1) ? 'Ngày mai' : weekday
+      const spec = `${weekday.toUpperCase()} ${dayMonthOfDate(date)}`
       return {
         date,
-        label: date === today ? 'Hôm nay' : date === addDays(today, 1) ? 'Ngày mai' : weekday,
-        spec: `${weekday.toUpperCase()} ${dayMonthOfDate(date)}`,
+        label,
+        spec,
+        shortSpec: label === weekday ? dayMonthOfDate(date) : spec,
         items: [...lateFromBefore.map(taskItem), ...whole, ...timed.map((entry) => entry.item)],
       }
     })

@@ -930,6 +930,25 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Bẫy lần thứ hai, cột flex co dòng `overflow: hidden`:** khối một giờ (46 px) không đủ chỗ cho tiêu đề, giờ và nguồn; dòng tiêu đề có `overflow: hidden` nên chiều cao tối thiểu là 0 và bị co mất trước tiên, trong khi canvas muốn giữ tiêu đề và cắt phần thừa ở dưới. `*:shrink-0` cho các dòng giữ chiều cao của mình; khối `overflow: hidden` cắt phần không vừa.
 - **Chip của lần lặp sắp tới:** "Báo cáo tuần" ngày 12/10 chưa có trong database (chỉ có lần 05/10 đang mở); chip mở `task-weekly`, task đang mở của chuỗi (`taskId`), không phải id của lần đó.
 
+### 12.4 Điện thoại, trạng thái, và một lỗi của khung app (CA-04)
+- **Lần này chọn cả bố cục bằng JavaScript:** màn Việc cần làm chỉ dùng `useMediaQuery` cho một câu chữ (11). Màn Lịch dưới 768 px không chỉ vẽ khác mà còn cần **dữ liệu khác**: dải bảy ngày đếm mục của cả tuần, lịch trình chạy 14 ngày từ ngày chọn. Nếu vẽ cả hai rồi ẩn một bằng `md:hidden`, trang sẽ có hai lịch trình, hai nút "Hôm nay", và phải tải dữ liệu cho cả hai. `CalendarPage` đọc `useMediaQuery('(min-width: 768px)')` một lần rồi chọn một nhánh.
+- **Test phải nói bề ngang:** jsdom không có `matchMedia` và không tính CSS. `stubViewport(390)` trong `test/matchMedia.ts` làm `(min-width: Npx)` khớp khi 390 >= N; test desktop đặt `stubViewport(1440)`.
+- **Khoảng dữ liệu của điện thoại:** từ thứ Hai của tuần tới 14 ngày sau ngày chọn. Chọn Chủ nhật 04/10 thì hỏi `[28/09, 18/10)`; `agendaDays(..., from)` bỏ các ngày trước 04/10, còn dải ngày vẫn đếm được thứ Hai 28/09.
+- **Cùng dữ liệu, chữ ngắn hơn:** cột giờ của điện thoại chỉ rộng 48 px, nên "16:00 – 17:00" thành "16:00", "Hạn 30/09" thành "30/09"; ngày "Chủ nhật" đi với "04/10" chứ không lặp "CHỦ NHẬT 04/10". Hai chữ ngắn (`shortTime`, `shortSpec`) tính trong `format.ts` cạnh chữ dài: luật nằm trong hàm thuần, test không cần vẽ màn.
+- **Trạng thái tải:** chưa có dữ liệu thì cả màn là khung xương; lỗi mà chưa có dữ liệu thì hiện "Không tải được lịch", "Thử lại" gọi `refetch`. Sang tuần khác thì `keepPreviousData` giữ tuần cũ trên màn tới khi tuần mới về, nên không nháy khung xương.
+- **Bẫy, ô lưới bị ẩn nhường hàng của nó:** khung app là lưới hai hàng, thanh trên ở hàng `auto`, `main` ở hàng `1fr`. Trên điện thoại, trang con ẩn thanh trên bằng `max-md:hidden`, tức `display: none`. Ô `display: none` không chiếm ô lưới nào, nên `main` được xếp vào ô trống đầu tiên: hàng `auto`, cao bằng nội dung.
+
+```text
+  màn lớn                          điện thoại, thanh trên display:none
+  +----------------------+         +----------------------+
+  | thanh trên           | auto    | main (rơi lên đây)   | auto: cao bằng nội dung
+  +----------------------+         +----------------------+
+  | main                 | 1fr     | (trống)              | 1fr
+  +----------------------+         +----------------------+
+```
+
+  `row-start-2` ghim `main` vào hàng 2 dù hàng 1 có gì. Trước khi sửa, trên màn 844 px: chi tiết lịch hẹn 675 px, chi tiết việc 515 px, hội thoại 172 px, hàng nút nổi giữa màn. Test không thấy vì jsdom không tính bố cục; chỉ đo trên trình duyệt thật mới ra.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1027,3 +1046,6 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 93. Tuần chứa 01/01/2026 là tuần mấy của năm nào, theo ISO 8601? Vì sao?
 94. Vì sao lưới tuần đặt `scrollTop` trong `useLayoutEffect` chứ không phải `useEffect`?
 95. Khối một giờ từng mất dòng tiêu đề. Vì sao, và `*:shrink-0` sửa thế nào?
+96. Vì sao màn Lịch chọn bố cục điện thoại bằng `useMediaQuery`, trong khi màn Việc cần làm đổi bố cục bằng lớp `md:`?
+97. Trên điện thoại chọn Chủ nhật 04/10 thì web hỏi khoảng ngày nào, và lịch trình bắt đầu từ đâu? Vì sao không hỏi từ 04/10?
+98. Trang con trên điện thoại từng chỉ cao bằng nội dung. Vì sao ẩn thanh trên làm `main` thấp đi, và vì sao test không phát hiện?

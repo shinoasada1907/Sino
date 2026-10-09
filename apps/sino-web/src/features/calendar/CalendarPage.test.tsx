@@ -2,6 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
+import { stubViewport } from '@/test/matchMedia'
 import { renderApp } from '@/test/renderApp'
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
@@ -16,11 +17,16 @@ const week = () => within(screen.getByRole('region', { name: /^Tuần / }))
 // The calendar loads on its own: wait for the week before looking inside it.
 const findWeek = async () => within(await screen.findByRole('region', { name: /^Tuần / }))
 const detail = () => within(screen.getByRole('complementary', { name: 'Chi tiết lịch hẹn' }))
+// The whole screen waits for its data (CalendarSkeleton), so the first look at it is a find.
+const findCalendar = async () => within(await screen.findByRole('region', { name: 'Lịch' }))
+const findDetail = async () => within(await screen.findByRole('complementary', { name: 'Chi tiết lịch hẹn' }))
 
 describe('Lịch on desktop', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
+    // The calendar picks its layout in JavaScript (D-89 note in tasks.md): these are the desktop layouts.
+    stubViewport(1440)
   })
 
   afterEach(() => {
@@ -30,7 +36,7 @@ describe('Lịch on desktop', () => {
   it('heads the week with its number and days, the views and the legend', async () => {
     open('/calendar')
 
-    expect(await calendar().findByRole('heading', { level: 1, name: '28/09 – 04/10' })).toBeInTheDocument()
+    expect(await (await findCalendar()).findByRole('heading', { level: 1, name: '28/09 – 04/10' })).toBeInTheDocument()
     expect(calendar().getByText('TUẦN 40 · 2026')).toBeInTheDocument()
     expect(within(calendar().getByRole('group', { name: 'Chế độ xem' })).getByRole('button', { name: 'Tuần' })).toHaveAttribute('aria-pressed', 'true')
     for (const item of ['Lịch hẹn', 'Task có hạn', 'Nhắc nhở', 'Lặp lại', 'Tạo từ tin nhắn', 'Giờ Việt Nam · GMT+7']) {
@@ -62,11 +68,11 @@ describe('Lịch on desktop', () => {
   it('moves to the next week and back to today, keeping it in the address', async () => {
     const { router } = open('/calendar')
     const user = userEvent.setup()
-    await calendar().findByRole('heading', { level: 1, name: '28/09 – 04/10' })
+    await (await findCalendar()).findByRole('heading', { level: 1, name: '28/09 – 04/10' })
 
     await user.click(calendar().getByRole('button', { name: 'Khoảng sau' }))
     expect(router.state.location.search).toBe('?date=2026-10-09')
-    expect(await calendar().findByRole('heading', { level: 1, name: '05/10 – 11/10' })).toBeInTheDocument()
+    expect(await (await findCalendar()).findByRole('heading', { level: 1, name: '05/10 – 11/10' })).toBeInTheDocument()
     expect(calendar().getByText('TUẦN 41 · 2026')).toBeInTheDocument()
 
     await user.click(calendar().getByRole('button', { name: 'Khoảng trước' }))
@@ -109,7 +115,7 @@ describe('Lịch on desktop', () => {
   it('names an email source by its subject', async () => {
     open('/calendar/event-call')
 
-    const source = await detail().findByRole('link', { name: /Trần Minh Anh · Gmail/ })
+    const source = await (await findDetail()).findByRole('link', { name: /Trần Minh Anh · Gmail/ })
     expect(source).toHaveTextContent('Hợp đồng thuê văn phòng — bản sửa lần 2')
     expect(source).not.toHaveTextContent('Chào anh An')
   })
@@ -123,17 +129,17 @@ describe('Lịch on desktop', () => {
   it('calls an occurrence of a repeating appointment so', async () => {
     open('/calendar/event-run@2026-10-04')
 
-    expect(await detail().findByText('Lịch hẹn lặp lại')).toBeInTheDocument()
+    expect(await (await findDetail()).findByText('Lịch hẹn lặp lại')).toBeInTheDocument()
     expect(detail().getByText('Lặp lại').nextElementSibling).toHaveTextContent('Mỗi Chủ nhật')
   })
 
   it('asks to pick an appointment while none is open, and says so for one it does not know', async () => {
     const view = open('/calendar')
-    expect(await detail().findByText('Chọn một lịch hẹn để xem chi tiết.')).toBeInTheDocument()
+    expect(await (await findDetail()).findByText('Chọn một lịch hẹn để xem chi tiết.')).toBeInTheDocument()
     view.unmount()
 
     open('/calendar/event-nope')
-    expect(await detail().findByText('Không tìm thấy lịch hẹn này.')).toBeInTheDocument()
+    expect(await (await findDetail()).findByText('Không tìm thấy lịch hẹn này.')).toBeInTheDocument()
     expect(detail().getByRole('link', { name: 'Về lịch' })).toHaveAttribute('href', '/calendar')
   })
 
@@ -149,7 +155,7 @@ describe('Lịch on desktop', () => {
   it('leaves everything as it is when a button without a flow yet is pressed', async () => {
     const { router } = open('/calendar/event-home?date=2026-10-03')
     const user = userEvent.setup()
-    await detail().findByRole('heading', { level: 2, name: 'Về nhà ăn cơm' })
+    await (await findDetail()).findByRole('heading', { level: 2, name: 'Về nhà ăn cơm' })
 
     await user.click(calendar().getByRole('button', { name: 'Lịch hẹn' }))
     for (const button of [...detail().getAllByRole('button', { name: 'Sửa' }), detail().getByRole('button', { name: 'Thêm thao tác' }), detail().getByRole('button', { name: 'Xóa lịch hẹn' })]) {

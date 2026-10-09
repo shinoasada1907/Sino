@@ -28,7 +28,8 @@ export function AppShell() {
       <Rail shell={shell} className="hidden md:flex xl:hidden" />
       <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
         <Topbar shell={shell} receivedAt={receivedAt} title={title} className={handle.mobilePageHeader ? 'max-md:hidden' : undefined} />
-        <main className="min-h-0 overflow-y-auto bg-dots">
+        {/* Row 2 even when a page hides the top bar: a hidden item gives up its row, and main would fall into the auto one. */}
+        <main className="row-start-2 min-h-0 overflow-y-auto bg-dots">
           <Outlet />
         </main>
       </div>

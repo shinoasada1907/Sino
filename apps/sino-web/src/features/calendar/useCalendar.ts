@@ -42,6 +42,8 @@ export function useCalendarView(): {
   /** The query of the address, for links that keep the view and the day. */
   search: string
   setView: (view: CalendarView) => void
+  /** The agenda from a day (the day strip of the phone). */
+  pickDay: (day: LocalDate) => void
   shift: (step: -1 | 1) => void
   goToday: () => void
 } {
@@ -79,6 +81,7 @@ export function useCalendarView(): {
     today,
     search,
     setView: (next) => write({ view: next, date }),
+    pickDay: (day) => write({ view: 'agenda', date: day }),
     shift: (step) => write({ view, date: shiftAnchor(view, anchor, step) }),
     goToday: () => write({ view, date: null }),
   }

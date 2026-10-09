@@ -2,6 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
+import { stubViewport } from '@/test/matchMedia'
 import { renderApp } from '@/test/renderApp'
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
@@ -19,6 +20,8 @@ describe('Lịch by month', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
+    // The calendar picks its layout in JavaScript (D-89 note in tasks.md): these are the desktop layouts.
+    stubViewport(1440)
   })
 
   afterEach(() => {
@@ -68,6 +71,8 @@ describe('Lịch as an agenda', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
+    // The calendar picks its layout in JavaScript (D-89 note in tasks.md): these are the desktop layouts.
+    stubViewport(1440)
   })
 
   afterEach(() => {

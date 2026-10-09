@@ -277,6 +277,8 @@ describe('the agenda', () => {
       ['Thứ Hai', 'THỨ HAI 05/10', ['checkup', 'weekly', 'r-contract']],
       ['Thứ Ba', 'THỨ BA 06/10', ['birthday']],
     ])
+    // A phone writes the day on the label's line (canvas `.mob .ag-date`), so a weekday is not said twice.
+    expect(days.map((day) => day.shortSpec)).toEqual(['THỨ SÁU 02/10', 'THỨ BẢY 03/10', '04/10', '05/10', '06/10'])
   })
 
   it('writes each item: its time, its title, and the note on the right', () => {
@@ -294,11 +296,21 @@ describe('the agenda', () => {
       ['09:00', 'Nhắc: Trả lời “Hợp đồng thuê văn phòng”', null, null],
       ['cả ngày', 'Sinh nhật Hà', null, null],
     ])
+    // The 48 px time column of a phone: the start, or the day a late task was due.
+    expect(items.map((item) => item.shortTime)).toEqual(['30/09', '07:45', '09:00', '16:00', '17:00', '18:30', '06:00', '08:30', '09:00', '09:00', 'cả ngày'])
     expect(items[0]).toMatchObject({ kind: 'task', over: true, done: false, to: '/tasks/bill', icon: 'task' })
     expect(items[1]).toMatchObject({ icon: 'done' })
     expect(items[2]).toMatchObject({ icon: 'reminder' })
     expect(items[3]).toMatchObject({ kind: 'event', to: '/calendar/call', source: { title: 'Gia đình' }, icon: 'source', provider: 'zalo' })
     expect(items[4]).toMatchObject({ icon: 'repeat' })
+  })
+
+  it('starts from a later day when asked, with the late tasks still opening today when today is that day', () => {
+    expect(agendaDays(agenda, now, TZ, '2026-10-04').map((day) => day.date)).toEqual(['2026-10-04', '2026-10-05', '2026-10-06'])
+    const week = { ...agenda, from: '2026-09-28' }
+    const [today] = agendaDays(week, now, TZ, TODAY)
+    expect(today.date).toBe(TODAY)
+    expect(today.items[0].id).toBe('bill')
   })
 
   it('names a reminder by its task', () => {
