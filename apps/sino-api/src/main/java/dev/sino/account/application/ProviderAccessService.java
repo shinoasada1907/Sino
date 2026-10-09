@@ -73,6 +73,9 @@ public class ProviderAccessService implements ProviderAccess {
         }
         ConnectedAccount account = accounts.findByIdAndRemovedAtIsNull(accountId)
                 .orElseThrow(AccountErrorCode::accountNotFound);
+        if (account.status() == AccountStatus.DISABLED) {
+            throw AccountErrorCode.accountDisabled();
+        }
         if (account.status() == AccountStatus.AUTH_EXPIRED) {
             throw mustReconnect();
         }

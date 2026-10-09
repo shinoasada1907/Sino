@@ -144,7 +144,7 @@ loop
 - Lỗi (mã lưu ở `last_error_code`, không kèm nội dung): `RATE_LIMITED` chờ rồi thử lại cùng trang; `PROVIDER_UNAVAILABLE` thử lại 3 lần rồi `FAILED`; `CURSOR_EXPIRED` → tự đọc lại từ `initial(since)` một lần (D-60), lần hai thì `FAILED`; `AUTH_EXPIRED` → `FAILED` (account đã `AUTH_EXPIRED` nhờ `ProviderAccess`; kết nối lại rồi bấm nhập tiếp); account bị xóa/không thấy → `FAILED` (`ACCOUNT_NOT_FOUND`); lỗi khác (kể cả lỗi lập trình) → `FAILED` (`INTERNAL`), log ERROR có account id, không thử lại.
 - Khởi động lại: khi ứng dụng sẵn sàng (`ApplicationReadyEvent`), mỗi dòng `RUNNING` được giao lại cho executor. Tắt ứng dụng: executor ngắt các lượt đang chạy; dòng vẫn `RUNNING` để lần sau chạy tiếp.
 - `remainingMinutes` = (estimated − imported) chia tốc độ đo được của lượt này (null khi chưa có ước lượng hoặc chưa đủ dữ liệu).
-- Quyền: account phải thuộc owner và chưa xóa (`AccountDirectory`), không thì `404 ACCOUNT_NOT_FOUND` như API account. `range` lạ → `400`.
+- Quyền: account phải thuộc owner và chưa xóa (`AccountDirectory`), không thì `404 ACCOUNT_NOT_FOUND` như API account. `range` lạ → `400`. **Thêm ở BE-45 (review):** account `DISABLED` (D-12: không đồng bộ) → ước lượng và bắt đầu trả `409 ACCOUNT_DISABLED`; `ProviderAccess` không gọi provider cho account `DISABLED`, nên lượt đang chạy `FAILED` với `ACCOUNT_DISABLED`.
 - Log: INFO bắt đầu/xong (account id, provider, số thư), WARN khi thử lại (mã lỗi), không bao giờ có nội dung thư hay token.
 
 ### 4. API Hộp thư (module `conversation`)
@@ -165,7 +165,7 @@ PATCH /api/conversations/{id}     { read?: boolean, archived?: boolean }  -> Con
 - `ConversationItem`: `id`, `accountId`, `provider`, `kind` (`THREAD` → `EMAIL`, còn lại → `CHAT`), `title` (email: `counterpart`; chat: tiêu đề), `subject` (email: tiêu đề thread; chat: null), `memberCount` (chat nhóm), `snippetFrom` (chat nhóm: người gửi thư mới nhất), `snippet`, `lastMessageAt`, `unreadCount`, `needsReply`, `hasAttachments`, `archived`; `snooze`, `scheduledSend`, `linked` = `null`/`false`.
 - `PATCH`: `read: true` → mọi thư `is_read = true`; `read: false` → thư mới nhất `is_read = false`; `archived` bật/tắt; tính lại tổng hợp; không ghi sang provider (D-67). Không thuộc owner, account đã xóa/`DISABLED`, hoặc không có → `404 CONVERSATION_NOT_FOUND`.
 - `AccountDirectory` (gói gốc `account`): `accountsOf(ownerId)` → `List<AccountSummary(id, provider, status, externalAccountId)>` của account chưa xóa; `find(ownerId, accountId)` → `Optional<AccountSummary>`.
-- Phụ thuộc module: `sync` → `account`, `conversation`, `provider` (gốc: `ProviderType`), `provider::spi`; `conversation` → `account`, `provider` (gốc: `ProviderType`, qua `AccountSummary.provider()`), `provider::spi`, `identity` (`CurrentUser`, BE-44); `account` không phụ thuộc hai module mới. (Sửa sau review BE-41: trước ghi thiếu gói gốc của `provider`.)
+- Phụ thuộc module: `sync` → `account`, `conversation`, `provider` (gốc: `ProviderType`), `provider::spi`, `identity` (`CurrentUser`, BE-45); `conversation` → `account`, `provider` (gốc: `ProviderType`, qua `AccountSummary.provider()`), `provider::spi`, `identity` (`CurrentUser`, BE-44); `account` không phụ thuộc hai module mới. (Sửa sau review BE-41: trước ghi thiếu gói gốc của `provider`.)
 
 ### 5. Contract và Gmail
 - `MessageProvider.estimateMessages(ProviderContext context, Instant since)` → `OptionalLong`, mặc định rỗng; connector không có `READ_MESSAGES` trả rỗng; lỗi provider ném `ProviderException` như các thao tác khác (bên gọi coi là không có ước lượng).

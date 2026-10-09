@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-44.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-45.
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1274,6 +1274,128 @@ Hai thay đổi chỉ ảnh hưởng tốc độ (bỏ `LIMIT` trong từng acco
 
 ---
 
+## 16. Lần nhập đầu chạy nền: module `sync` (BE-45)
+
+Sau khi kết nối Gmail, bước "Đồng bộ" của canvas cho chọn khoảng (30 ngày, 90 ngày, toàn bộ), cho thấy ước lượng, rồi nhập thư **ở nền**: người dùng làm việc khác trong lúc chờ, và tắt máy chủ giữa chừng cũng không mất tiến độ (D-64, D-69).
+
+```text
+GET  /api/accounts/{id}/initial-sync/estimate?range=DAYS_90   -> { messages, minMinutes, maxMinutes }
+POST /api/accounts/{id}/initial-sync  { "range": "DAYS_90" }  -> 202 + trạng thái
+GET  /api/accounts/{id}/initial-sync                          -> { status, imported, skipped, estimated,
+                                                                   remainingMinutes, storedMessages, ... }
+
+NOT_STARTED --POST--> RUNNING --trang cuối--> DONE
+                         |                      |
+                         +--lỗi--> FAILED       +--POST--> RUNNING (nhập lại từ đầu)
+                                     |
+                                     +--POST cùng khoảng--> RUNNING (nhập TIẾP từ cursor)
+                                     +--POST khoảng khác--> RUNNING (nhập lại từ đầu)
+```
+
+### 16.1 Cursor cùng transaction với thư, gọi provider ngoài transaction (câu gợi ý của task)
+Câu hỏi: vì sao ghi cursor cùng transaction với việc lưu thư, còn gọi provider thì ngoài transaction?
+
+```text
+vòng nhập:
+  batch = ProviderAccess.call(fetchUpdates(cursor))      <- ngoài transaction: gọi mạng, có thể chờ vài phút
+  transaction {
+    ConversationStore.store(batch)                        <- thư của trang
+    sync_checkpoint: cursor = batch.nextCursor, đếm       <- tiến độ
+  }                                                       <- commit cả hai, hoặc không cái nào
+```
+
+- **Cursor và thư phải cùng còn hoặc cùng mất.** Nếu chúng ở hai transaction riêng, máy chủ có thể tắt **giữa** hai bước:
+  - thư đã lưu mà cursor chưa tiến: lần sau đọc lại trang đó. Vô hại, vì lưu là upsert (mục 13.2);
+  - cursor đã tiến mà thư chưa lưu: trang đó **mất vĩnh viễn**, vì lần sau đi tiếp từ trang sau.
+
+  Một transaction loại trường hợp thứ hai. Test `aFailedStoreLeavesTheCursorBeforeThatPage` cho lưu thất bại ở trang 2: cursor vẫn đứng sau trang 1.
+- **Gọi provider thì không được nằm trong transaction:** một transaction giữ một kết nối database, và ở đây còn giữ khóa theo account (mục 13.2b), suốt thời gian chờ mạng: vài giây, có khi vài phút khi Google bắt chờ. Trong lúc đó, một `PATCH` "đánh dấu đã đọc" của chính account đó phải đứng chờ khóa, và vài lượt nhập cùng lúc có thể giữ hết kết nối của pool. `ProviderAccess` tự từ chối khi được gọi trong transaction (mục 7.3).
+
+### 16.2 Mỗi account một lượt nhập
+- **Bắt đầu** là **một** câu SQL: `INSERT ... ON CONFLICT (account_id) DO UPDATE SET import_status = 'RUNNING', ... WHERE s.import_status <> 'RUNNING' RETURNING account_id`.
+  - Có dòng trả về: lượt này vừa được bắt đầu, giao việc cho luồng nền.
+  - Không có dòng nào: một lượt đang chạy; trả trạng thái của nó, không bắt đầu lượt thứ hai.
+
+  Hai yêu cầu đến cùng lúc thì PostgreSQL xếp hàng chúng trên cùng một dòng, nên chỉ một cái thắng.
+- **Việc chỉ được giao sau khi commit:** `TransactionTemplate.execute(...)` trả về thì dòng `RUNNING` đã commit; lúc đó mới giao cho luồng nền, nên luồng nền luôn đọc thấy dòng đó.
+- **Chặn thêm trong bộ nhớ:** `ImportRunner` nhớ các account đang có vòng nhập trong tiến trình này. `ImportResumer` (mục 16.3) mà được gọi đúng lúc một lượt đang chạy cũng không mở vòng thứ hai (test `startingTwiceRunsOnce`).
+
+### 16.3 Luồng nền: virtual thread, tắt máy, chạy tiếp
+- **Virtual thread** (Java 21+): luồng rất nhẹ do JVM quản lý. Một lượt nhập phần lớn thời gian chỉ chờ Gmail trả lời; khi chờ, virtual thread nhả luồng hệ điều hành cho việc khác. Executor `Executors.newThreadPerTaskExecutor(Thread.ofVirtual()...)`: mỗi lượt nhập một virtual thread.
+- **Tắt ứng dụng:** Spring gọi `shutdownNow()` trên executor, tức là ngắt (interrupt) các luồng đang chạy. Vòng nhập gặp `InterruptedException` thì dừng và **giữ** dòng ở `RUNNING`.
+- **Khởi động lại:** `ImportResumer` nghe `ApplicationReadyEvent` (ứng dụng đã sẵn sàng phục vụ), tìm các dòng `RUNNING`, rồi giao lại cho executor. Mỗi vòng đi tiếp từ cursor đã lưu.
+- **Vì sao không dùng event bất đồng bộ của Spring Modulith:** D-69 đã loại phương án đó. Một lượt nhập chạy hàng phút, và vẫn cần bảng tiến độ; dùng hai cơ chế cho một việc là thừa.
+- Giả định một tiến trình backend (MVP). Nhiều tiến trình thì cần "thuê" từng account (lease), để F07.
+
+### 16.4 Bảng xử lý lỗi
+```text
+lỗi từ connector       làm gì                                                   rồi
+RATE_LIMITED           chờ Retry-After (không có: 30 s; tối đa 5 phút), thử lại  quá 5 lần liền -> FAILED
+PROVIDER_UNAVAILABLE   chờ 10 s, 30 s, 60 s, thử lại                             lần thứ 4 -> FAILED
+CURSOR_EXPIRED         đọc lại từ đầu khoảng đã chọn, một lần (D-60)             lần thứ 2 -> FAILED
+AUTH_EXPIRED, khác     FAILED ngay, lưu mã lỗi
+account bị xóa         FAILED, ACCOUNT_NOT_FOUND
+lỗi khác (lập trình)   FAILED, INTERNAL, log ERROR có account id
+```
+
+- Một trang đi qua được thì bộ đếm thử lại về 0: "5 lần liền" nghĩa là liền thật (test `theRetriesCountAgainAfterAPageGoesThrough`).
+- Thời gian chờ là cấu hình `sino.sync.*`. Test đặt chúng còn vài mili giây, nên chạy nhanh mà vẫn đi qua đúng đường code thật.
+- Log chỉ có account id, mã lỗi, số thư; không bao giờ có chữ của thư hay token (test `theLogsNameTheAccountButNeverTheMailOrTheToken` đọc toàn bộ log của lượt nhập).
+
+### 16.5 Nhập tiếp hay nhập lại
+- **Cùng khoảng sau `FAILED`:** nhập **tiếp** từ cursor đã lưu, giữ số đã nhập và ước lượng (test: lần hai chỉ hỏi Gmail hai trang còn lại).
+- **Khoảng khác, hoặc sau `DONE`:** nhập **lại** từ đầu khoảng mới. Thư đã có không bị trùng (upsert). `imported` đếm thư mới cộng thư đã cập nhật, nên nhập lại một hộp thư không đổi gì cho `imported = 0`.
+- Cả hai đường nằm trong cùng câu `INSERT ... ON CONFLICT` ở mục 16.2: mỗi cột chọn giá trị cũ hay mới bằng một `CASE`.
+
+### 16.6 Ước lượng và số phút còn lại
+- **Ước lượng** (`GET .../estimate`): hỏi connector (mục 11.2). Số phút tính theo tốc độ giả định 200–400 thư/phút (cấu hình, BE-46 đo lại). Connector không biết hoặc lỗi thì `messages` và số phút đều `null`, không lỗi API.
+- **Trong lúc nhập:** ước lượng được hỏi **ở đầu lượt nền**, không trong `POST`, nên `POST` trả về ngay.
+- **Số phút còn lại** = (ước lượng - đã nhập) chia tốc độ **của vòng nhập đang chạy**: `run_imported_count` và `run_started_at` được đặt lại mỗi khi một vòng bắt đầu, kể cả khi chạy tiếp sau khởi động lại, vì vòng đó mang theo số của vòng trước, còn thời gian máy tắt thì không được tính. Chưa chạy đủ 5 giây, chưa nhập được thư nào, hay đã xong thì `null`. Nhập vượt ước lượng thì là 0.
+- **Giới hạn:** `imported` đếm thư mới và thư đã cập nhật, nên nhập lại một hộp thư không đổi thì `imported` đứng gần 0 trong khi ước lượng là cả khoảng. Web không nên dựa vào `imported/estimated` cho lần nhập lại.
+
+### 16.7 Test một việc chạy nền
+- **Chờ thay vì ngủ cố định:** test hỏi trạng thái mỗi 25 ms cho tới khi hết `RUNNING` (tối đa 15 s). Đọc thẳng database, vì với account vừa bị xóa thì API trả `404`.
+- **Connector theo kịch bản:** `ScriptedProvider` là một bean mà mỗi test tự đặt câu trả lời, ghi lại các cursor được hỏi, và có thể **giữ** lời gọi thứ N tới khi test cho đi. Nhờ vậy test dựng được "xóa account đúng lúc đang nhập" hay "bấm bắt đầu lần hai đúng lúc lần một đang chạy".
+- **Bẫy spy trong proxy:** `@MockitoSpyBean ConversationStore` cho ra một spy nằm **bên trong** proxy transaction (`MANDATORY`). Gọi `when(store).store(...)` để dựng kịch bản cũng đi qua proxy, nên nổ "không có transaction". Phải dựng kịch bản trên chính spy, lấy bằng `AopTestUtils.getUltimateTargetObject(store)`.
+- **Transaction manager thật:** đây là `@SpringBootTest`, nên `store` chạy dưới `JpaTransactionManager` của ứng dụng (ghi chú review BE-42).
+
+### 16.8 Sau review: account đã tắt, dòng kẹt, tắt máy, lỗi database
+Review tìm ra một lỗi HIGH và ba MEDIUM; tất cả đã sửa, có test.
+
+- **Account `DISABLED` vẫn bị nhập (HIGH).** D-12 nói account người dùng tắt thì "không đồng bộ", nhưng code chưa đọc trạng thái này ở đâu cả.
+  - Chặn ở **`ProviderAccess`**, cửa duy nhất để gọi provider: account đã tắt thì ném `ACCOUNT_DISABLED`, không gọi connector. Mọi tính năng sau này (F07 đồng bộ, F10 gửi thư) được che luôn.
+  - API ước lượng và bắt đầu trả **`409 ACCOUNT_DISABLED`** (chọn của agent: account vẫn hiện ở màn Tài khoản, nên `404` sẽ khó hiểu). Xem trạng thái vẫn được.
+  - Account bị tắt giữa lúc nhập thì lượt nhập `FAILED` với `ACCOUNT_DISABLED`.
+- **Dòng `RUNNING` không còn ai chạy.** Hai đường dẫn tới đó: ghi `FAILED` lỗi khi database chập chờn; hoặc một `POST` đến đúng lúc lượt cũ vừa xong nhưng chưa rời danh sách "đang chạy", nên yêu cầu mới bị bỏ.
+  - `ImportRunner` đếm **số yêu cầu** theo account thay vì chỉ nhớ "đang chạy". Yêu cầu đầu tiên mở một luồng; yêu cầu đến trong lúc luồng đó chạy làm nó **xem lại** dòng khi xong. Không yêu cầu nào bị mất, và một account không bao giờ có hai vòng.
+  - `POST` lên một dòng đang `RUNNING` cũng giao việc lại: vô hại nếu đang có luồng, và cứu một dòng không còn ai chạy (test `aRunningImportWithoutWorkerIsTakenUpAgainByStart`).
+  - Ghi `FAILED` mà lỗi thì chỉ ghi log ERROR; lần bắt đầu sau sẽ nhận lại dòng đó.
+- **Tắt máy đúng lúc lần thử lại cuối cùng thất bại** từng bị ghi thành `FAILED`, trong khi design nói dòng phải vẫn `RUNNING`. Giờ `fail()` kiểm luồng có đang bị ngắt không. Hai test ngắt luồng thật (giả lập `shutdownNow()`) rồi cho chạy tiếp tới `DONE`.
+- **Lỗi database chép nội dung thư vào log.** Khi PostgreSQL từ chối một dòng, nó kèm "Failing row contains (...)", tức toàn bộ giá trị của dòng, có thể gồm chữ của thư. Cấu hình `logServerErrorDetail=false` của driver PgJDBC (trong `spring.datasource.hikari.data-source-properties`) bỏ phần đó. Test `DatabaseErrorsTests` chứng minh cả hai chiều: có cấu hình thì sạch, bỏ đi thì lộ.
+- **Executor không còn là bean:** một bean kiểu `ExecutorService` làm Spring Boot không tạo executor mặc định của nó (`applicationTaskExecutor`). Executor giờ nằm trong `ImportRunner`, đóng lại khi ứng dụng tắt.
+- **Thêm:** connector trả lại đúng cursor cũ mà vẫn nói "còn nữa" thì `FAILED` với `CURSOR_STUCK`, thay vì hỏi mãi và đốt hạn mức. ID của item bị bỏ qua (không phải nội dung) được ghi log WARN.
+
+### 16.9 Kiểm tra ngược (BE-45)
+Làm hỏng code mỗi lần một chỗ (28 lần); lần chạy mốc khi chưa sửa gì thì xanh. Lần đầu có **một lỗi sống sót**: bỏ điều kiện `WHERE import_status <> 'RUNNING'` khỏi câu bắt đầu. Trong test, lần bấm thứ hai đến lúc lượt đầu còn ở trang đầu tiên, nên "đặt lại dòng" không khác gì trạng thái đang có. Test giờ giữ lượt đầu ở trang **thứ hai** và bấm lần hai với một khoảng **khác**: lượt đang chạy phải giữ nguyên khoảng và số đếm. Lỗi đó giờ bị bắt.
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Bị giới hạn tần suất thì `FAILED` ngay; provider không tới được thì thử ít hơn một lần, hoặc `FAILED` ngay | thử lại khi bị giới hạn; provider không tới được |
+| Cursor hết hạn thì `FAILED` ngay; đọc lại từ đầu mãi; không đặt lại cursor | cursor hết hạn một lần; hết hạn lần hai |
+| Bộ đếm thử lại không về 0 sau một trang thành công | thử lại được đếm lại |
+| Không đếm thư đã cập nhật; không đếm item bỏ qua; không hỏi ước lượng | nhập lại sau `DONE`; nhập hết các trang |
+| Account bị xóa ghi là `INTERNAL`; lỗi lưu không ghi là `INTERNAL` | account bị xóa giữa chừng; lưu thất bại |
+| Hai vòng nhập cho một account; bắt đầu lại khi đang chạy (sống sót lần đầu) | bấm bắt đầu hai lần |
+| Nhập tiếp cả sau `DONE`; không bao giờ nhập tiếp; nhập tiếp cả với khoảng khác | các test nhập tiếp, nhập lại |
+| Không tìm thấy dòng `RUNNING` khi ứng dụng sẵn sàng | chạy tiếp khi ứng dụng sẵn sàng |
+| Đảo số phút ít và nhiều; ước lượng lỗi làm hỏng API; không giao việc cho luồng nền | ước lượng; các test nhập |
+| `FAILED` không có thời điểm kết thúc; bỏ kiểm tra account | provider không tới được; account ngoài tầm với |
+| Số phút không làm tròn lên; có số phút cả khi đã xong; có số phút khi mới chạy | `InitialSyncServiceTests` |
+| `POST` trả 200 thay vì 202; không bắt buộc `range` | nhập hết các trang; thiếu `range` |
+| Sau review: `ProviderAccess` gọi account đã tắt; bắt đầu nhập account đã tắt; `POST` không nhận lại dòng kẹt; không đặt lại tốc độ của vòng; hỏi mãi cursor không tiến; ghi `FAILED` khi đang tắt máy; không log ID item bỏ qua; bật lại chi tiết lỗi của PostgreSQL | các test account đã tắt; dòng không còn ai chạy; tốc độ của vòng; cursor không tiến; tắt máy ở lần thử cuối; log; `DatabaseErrorsTests` |
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -1357,3 +1479,13 @@ Hai thay đổi chỉ ảnh hưởng tốc độ (bỏ `LIMIT` trong từng acco
 79. Vì sao conversation của owner khác trả `404` chứ không phải `403`?
 80. "Đánh dấu chưa đọc" trong Sino rồi Gmail gửi lại thư đó (vẫn đã đọc trên Gmail): thư hiện thế nào, vì sao?
 81. Vì sao lần đo đầu (6 account) không thấy trường hợp chậm mà lần đo với 2 account lại thấy? `LATERAL` làm planner ước lượng thế nào?
+82. Cursor và thư ghi ở hai transaction riêng thì trường hợp tắt máy nào làm mất thư vĩnh viễn?
+83. Vì sao gọi Gmail bên trong transaction làm một `PATCH` của cùng account phải chờ?
+84. Hai lần bấm "Bắt đầu" cùng lúc: điều gì trong câu SQL bảo đảm chỉ một lượt chạy?
+85. Tắt máy chủ giữa lúc nhập: dòng `sync_checkpoint` ở trạng thái nào, và ai cho nó chạy tiếp?
+86. Vì sao virtual thread hợp với việc nhập thư hơn một luồng hệ điều hành cho mỗi account?
+87. Nhập tiếp và nhập lại khác nhau ở những cột nào? Vì sao nhập lại không tạo thư trùng?
+88. Vì sao số phút còn lại tính theo tốc độ của lượt này chứ không theo tổng số đã nhập?
+89. Vì sao chặn account đã tắt ở `ProviderAccess` chứ không chỉ ở API nhập thư?
+90. "Đếm số yêu cầu" khác "nhớ account nào đang chạy" ở điểm nào, và trường hợp nào thì cách thứ hai làm mất một lần bấm "Bắt đầu"?
+91. Vì sao một lỗi `CHECK` của PostgreSQL có thể đưa nội dung thư vào log, và `logServerErrorDetail=false` chặn nó thế nào?

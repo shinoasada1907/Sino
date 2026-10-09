@@ -206,6 +206,31 @@ class FakeMessageProviderContractTest {
     }
 
     @Test
+    void failsTheCallsItWasToldToFailAndAnswersTheOthers() {
+        ProviderException throttled = ProviderException.rateLimited("slow down", null);
+        FakeMessageProvider provider = FakeMessageProvider.builder("fake").page(message("m-1")).page(message("m-2"))
+                .failOnCall(2, throttled).build();
+
+        SyncBatch first = provider.fetchUpdates(CONTEXT, SyncCursor.initial());
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> provider.fetchUpdates(CONTEXT, first.nextCursor())).isSameAs(throttled);
+        SyncBatch second = provider.fetchUpdates(CONTEXT, first.nextCursor());
+
+        assertThat(second.messages()).extracting(NormalizedMessage::externalMessageId).containsExactly("m-2");
+        assertThat(provider.fetchCalls()).isEqualTo(3);
+    }
+
+    @Test
+    void anEstimateCanFail() {
+        ProviderException unreachable = new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE, "down");
+        FakeMessageProvider provider = FakeMessageProvider.builder("fake").estimate(5).estimateFailure(unreachable)
+                .build();
+
+        assertThatExceptionOfType(ProviderException.class).isThrownBy(() -> provider.estimateMessages(CONTEXT, null))
+                .isSameAs(unreachable);
+    }
+
+    @Test
     void rejectsACursorItDidNotIssue() {
         FakeMessageProvider provider = FakeMessageProvider.builder("fake").page(message("m-1")).build();
 

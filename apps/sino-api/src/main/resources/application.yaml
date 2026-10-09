@@ -6,6 +6,11 @@ spring:
     url: ${SINO_DB_URL}
     username: ${SINO_DB_USERNAME}
     password: ${SINO_DB_PASSWORD}
+    hikari:
+      data-source-properties:
+        # An error of PostgreSQL must not repeat the row it refused ("Failing row contains ..."): that row can hold
+        # the text of a message, which never goes into exceptions or logs (F05, review BE-45).
+        logServerErrorDetail: false
   jpa:
     # Transactions and the persistence context end in the application service, not in the web layer.
     open-in-view: false

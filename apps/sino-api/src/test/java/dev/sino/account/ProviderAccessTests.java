@@ -292,6 +292,17 @@ class ProviderAccessTests {
     }
 
     @Test
+    void aDisabledAccountIsNeverCalled() {
+        UUID chat = registration.register(new RegisterAccountCommand(owner, ProviderType.of("fake-chat"),
+                new AccountProfile("chat-1", "Chat", null), new TokenCredentials("chat-bot-token-1"), null));
+        jdbc.update("update connected_account set status = 'DISABLED' where id = ?", chat);
+
+        assertThatExceptionOfType(SinoException.class).isThrownBy(() -> access.call(chat, this::answer))
+                .satisfies(failure -> assertThat(failure.errorCode().code()).isEqualTo("ACCOUNT_DISABLED"));
+        assertThat(seen).isEmpty();
+    }
+
+    @Test
     void aRefusedPlainTokenEndsTheAuthorization() {
         UUID chat = registration.register(new RegisterAccountCommand(owner, ProviderType.of("fake-chat"),
                 new AccountProfile("chat-1", "Chat", null), new TokenCredentials("chat-bot-token-1"), null));

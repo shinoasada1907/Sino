@@ -16,7 +16,8 @@ public interface ProviderAccess {
      *
      * @return what {@code call} returned
      * @throws dev.sino.common.error.SinoException with {@code ACCOUNT_NOT_FOUND} when there is no such account or it
-     *         was removed, or with {@code UNKNOWN_PROVIDER} when its connector is gone
+     *         was removed, with {@code ACCOUNT_DISABLED} when the user turned it off (D-12: not synced), or with
+     *         {@code UNKNOWN_PROVIDER} when its connector is gone
      * @throws dev.sino.provider.spi.ProviderException with {@code AUTH_EXPIRED} when the account has to be
      *         reconnected (its status is then {@link AccountStatus#AUTH_EXPIRED}, unless the user turned it off:
      *         a DISABLED account stays DISABLED); with {@code PROVIDER_UNAVAILABLE} when the account changed during

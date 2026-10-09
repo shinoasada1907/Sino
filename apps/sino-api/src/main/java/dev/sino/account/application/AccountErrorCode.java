@@ -13,7 +13,10 @@ public enum AccountErrorCode implements ErrorCode {
     ACCOUNT_NOT_FOUND(ErrorCategory.NOT_FOUND),
 
     /** The provider exists but is not connected over OAuth2, so the connect flow cannot start (F04a). */
-    CONNECT_NOT_SUPPORTED(ErrorCategory.INVALID);
+    CONNECT_NOT_SUPPORTED(ErrorCategory.INVALID),
+
+    /** The user turned the account off (D-12): Sino does not talk to its provider until it is turned on again. */
+    ACCOUNT_DISABLED(ErrorCategory.CONFLICT);
 
     private final ErrorCategory category;
 
@@ -24,6 +27,10 @@ public enum AccountErrorCode implements ErrorCode {
     @Override
     public ErrorCategory category() {
         return category;
+    }
+
+    static SinoException accountDisabled() {
+        return new SinoException(ACCOUNT_DISABLED, "The account is turned off.");
     }
 
     /** The one way to report a missing account, so every endpoint answers the same body. */

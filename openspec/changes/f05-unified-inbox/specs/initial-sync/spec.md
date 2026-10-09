@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Ước lượng lần nhập đầu
-`GET /api/accounts/{id}/initial-sync/estimate?range=` với `range` là `DAYS_30`, `DAYS_90` hoặc `ALL` MUST trả số thư ước lượng (hoặc rỗng khi connector không ước lượng được, D-65) và khoảng số phút tối thiểu–tối đa suy từ tốc độ nhập. Lỗi của provider khi ước lượng MUST cho kết quả rỗng, không làm API lỗi. Account không thuộc owner hoặc đã xóa MUST trả `404` mã `ACCOUNT_NOT_FOUND`; `range` lạ MUST trả `400`.
+`GET /api/accounts/{id}/initial-sync/estimate?range=` với `range` là `DAYS_30`, `DAYS_90` hoặc `ALL` MUST trả số thư ước lượng (hoặc rỗng khi connector không ước lượng được, D-65) và khoảng số phút tối thiểu–tối đa suy từ tốc độ nhập. Lỗi của provider khi ước lượng MUST cho kết quả rỗng, không làm API lỗi. Account không thuộc owner hoặc đã xóa MUST trả `404` mã `ACCOUNT_NOT_FOUND`; account `DISABLED` MUST trả `409` mã `ACCOUNT_DISABLED` và MUST NOT gọi provider; `range` lạ MUST trả `400`.
 
 #### Scenario: Gmail ước lượng 90 ngày
 - **WHEN** owner hỏi ước lượng `DAYS_90` cho account Gmail
@@ -12,7 +12,7 @@
 - **THEN** API trả `messages` rỗng
 
 ### Requirement: Bắt đầu lần nhập đầu
-`POST /api/accounts/{id}/initial-sync` với `range` MUST bắt đầu nhập thư của account từ mốc tương ứng (`DAYS_30`/`DAYS_90` = bây giờ trừ 30/90 ngày, `ALL` = toàn bộ) và trả `202` kèm trạng thái (D-64). Mỗi account MUST có nhiều nhất một lượt nhập đang chạy: gọi lại khi đang chạy MUST trả trạng thái hiện tại mà không bắt đầu lượt thứ hai. Lượt trước `FAILED` với cùng khoảng MUST nhập tiếp từ cursor đã lưu; khoảng khác hoặc lượt trước `DONE` MUST nhập lại từ cursor khởi tạo với mốc mới. Account không thuộc owner hoặc đã xóa MUST trả `404`; `range` lạ MUST trả `400`.
+`POST /api/accounts/{id}/initial-sync` với `range` MUST bắt đầu nhập thư của account từ mốc tương ứng (`DAYS_30`/`DAYS_90` = bây giờ trừ 30/90 ngày, `ALL` = toàn bộ) và trả `202` kèm trạng thái (D-64). Mỗi account MUST có nhiều nhất một lượt nhập đang chạy: gọi lại khi đang chạy MUST trả trạng thái hiện tại mà không bắt đầu lượt thứ hai. Lượt trước `FAILED` với cùng khoảng MUST nhập tiếp từ cursor đã lưu; khoảng khác hoặc lượt trước `DONE` MUST nhập lại từ cursor khởi tạo với mốc mới. Account không thuộc owner hoặc đã xóa MUST trả `404`; account `DISABLED` (D-12: không đồng bộ) MUST trả `409` mã `ACCOUNT_DISABLED` và MUST NOT bắt đầu lượt nhập; `range` lạ MUST trả `400`.
 
 #### Scenario: Bấm bắt đầu hai lần
 - **WHEN** owner gửi `POST …/initial-sync` hai lần liên tiếp
@@ -34,11 +34,15 @@ Việc nhập MUST chạy nền, ngoài request: lặp gọi `fetchUpdates` qua 
 - **THEN** cursor vẫn là cursor trước trang đó
 
 ### Requirement: Lỗi khi nhập
-Khi connector báo `RATE_LIMITED`, việc nhập MUST chờ theo thời gian provider đề xuất (không có thì một khoảng mặc định, có giới hạn trên) rồi thử lại cùng trang, tối đa một số lần. `PROVIDER_UNAVAILABLE` MUST được thử lại vài lần với khoảng chờ tăng dần rồi `FAILED`. `CURSOR_EXPIRED` MUST làm việc nhập đọc lại từ cursor khởi tạo cùng mốc một lần; lần thứ hai MUST `FAILED`. `AUTH_EXPIRED`, account bị xóa giữa chừng và mọi lỗi khác MUST làm lượt nhập `FAILED` ngay. Mã lỗi MUST được lưu; thông báo lỗi, log và trạng thái MUST NOT chứa nội dung thư, token hay body của provider.
+Khi connector báo `RATE_LIMITED`, việc nhập MUST chờ theo thời gian provider đề xuất (không có thì một khoảng mặc định, có giới hạn trên) rồi thử lại cùng trang, tối đa một số lần. `PROVIDER_UNAVAILABLE` MUST được thử lại vài lần với khoảng chờ tăng dần rồi `FAILED`. `CURSOR_EXPIRED` MUST làm việc nhập đọc lại từ cursor khởi tạo cùng mốc một lần; lần thứ hai MUST `FAILED`. `AUTH_EXPIRED`, account bị xóa hoặc bị tắt giữa chừng và mọi lỗi khác MUST làm lượt nhập `FAILED` ngay. Mã lỗi MUST được lưu; thông báo lỗi, log và trạng thái MUST NOT chứa nội dung thư, token hay body của provider.
 
 #### Scenario: Bị giới hạn tần suất rồi qua
 - **WHEN** connector báo `RATE_LIMITED` một lần rồi trả trang bình thường
 - **THEN** việc nhập chờ, thử lại và đi tiếp tới `DONE`
+
+#### Scenario: Account đã tắt
+- **WHEN** owner bắt đầu nhập cho một account `DISABLED`
+- **THEN** API trả `409` mã `ACCOUNT_DISABLED` và không có lời gọi nào tới provider
 
 #### Scenario: Token hết quyền
 - **WHEN** `ProviderAccess` báo `AUTH_EXPIRED` giữa lúc nhập

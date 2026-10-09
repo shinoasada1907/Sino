@@ -3,10 +3,12 @@ package dev.sino.provider;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -43,6 +45,9 @@ public final class FakeMessageProvider implements MessageProvider {
     private final List<List<RawMessage>> pages;
     private final OAuth2Connection oauth2;
     private final Long estimate;
+    private final ProviderException estimateFailure;
+    private final Map<Integer, ProviderException> failures;
+    private final AtomicInteger calls = new AtomicInteger();
     private final List<SendMessageCommand> sent = new ArrayList<>();
 
     private FakeMessageProvider(Builder builder) {
@@ -52,6 +57,8 @@ public final class FakeMessageProvider implements MessageProvider {
         this.pages = List.copyOf(builder.pages);
         this.oauth2 = builder.oauth2;
         this.estimate = builder.estimate;
+        this.estimateFailure = builder.estimateFailure;
+        this.failures = Map.copyOf(builder.failures);
     }
 
     public static Builder builder(String type) {
@@ -102,6 +109,10 @@ public final class FakeMessageProvider implements MessageProvider {
             throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
                     type + " does not support " + ProviderCapability.READ_MESSAGES);
         }
+        ProviderException failure = failures.get(calls.incrementAndGet());
+        if (failure != null) {
+            throw failure;
+        }
         Position position = position(cursor);
         int page = position.page();
         if (page >= pages.size()) {
@@ -129,7 +140,13 @@ public final class FakeMessageProvider implements MessageProvider {
 
     @Override
     public OptionalLong estimateMessages(ProviderContext context, Instant since) {
-        if (estimate == null || !capabilities.supports(ProviderCapability.READ_MESSAGES)) {
+        if (!capabilities.supports(ProviderCapability.READ_MESSAGES)) {
+            return OptionalLong.empty();
+        }
+        if (estimateFailure != null) {
+            throw estimateFailure;
+        }
+        if (estimate == null) {
             return OptionalLong.empty();
         }
         return OptionalLong.of(estimate);
@@ -142,6 +159,11 @@ public final class FakeMessageProvider implements MessageProvider {
         }
         sent.add(command);
         return new SendMessageResult("sent-" + sent.size(), MessageStatus.SENT, null);
+    }
+
+    /** How many times {@link #fetchUpdates} was called, failed calls included. */
+    public int fetchCalls() {
+        return calls.get();
     }
 
     /** The commands that reached the fake provider, in order. */
@@ -197,6 +219,8 @@ public final class FakeMessageProvider implements MessageProvider {
         private final List<List<RawMessage>> pages = new ArrayList<>();
         private OAuth2Connection oauth2;
         private Long estimate;
+        private ProviderException estimateFailure;
+        private final Map<Integer, ProviderException> failures = new HashMap<>();
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -221,6 +245,21 @@ public final class FakeMessageProvider implements MessageProvider {
         /** What the fake estimates, whatever the moment; without it the fake estimates nothing. */
         public Builder estimate(long messages) {
             this.estimate = messages;
+            return this;
+        }
+
+        /** Makes the estimate fail, as a provider that cannot be reached does. */
+        public Builder estimateFailure(ProviderException failure) {
+            this.estimateFailure = failure;
+            return this;
+        }
+
+        /**
+         * Makes call number {@code call} (from 1) of {@link #fetchUpdates} throw {@code failure} instead of answering;
+         * the next call answers the same cursor as usual.
+         */
+        public Builder failOnCall(int call, ProviderException failure) {
+            failures.put(call, failure);
             return this;
         }
 
