@@ -32,7 +32,12 @@
   - **Acceptance criteria:** delta `connected-accounts` (*Module khác đọc danh sách account*).
   - **Hints:** Level 1 — "vì sao module khác không được tự `JOIN` bảng `connected_account`?".
 
-- [ ] 1.3 **BE-42 — Module `conversation`: bảng và `ConversationStore.store`**
+- [x] 1.3 **BE-42 — Module `conversation`: bảng và `ConversationStore.store`**
+  - **Thực hiện (2026-10-09, AUTO):** V6–V9 (`conversation`, `conversation_participant`, `message`, `attachment`) theo design mục 1: đủ cột tổng hợp ngay ở V6 (BE-43 không cần migration), index theo design, ràng buộc đặt tên và `CHECK` theo kiểu V3/V4, thêm index `message(sender_participant_id)` cho khóa ngoại. Gói gốc `conversation`: `ConversationStore`, `StoreResult(newMessages, updatedMessages)`; cài đặt `conversation/infrastructure/JdbcConversationStore` (`JdbcClient`, `@Transactional(propagation = MANDATORY)`) làm bước 1–4: upsert conversation (loại theo connector trừ `UNKNOWN`, ảnh giữ khi trang sau bỏ trống, tiêu đề chỉ điền khi chưa có), conversation tối thiểu `UNKNOWN` bằng `DO NOTHING`, người tham gia gộp (`COALESCE`, `is_self` cộng dồn), người gửi ngoài danh sách thêm chỉ ID, thư `ON CONFLICT … DO UPDATE … WHERE … IS DISTINCT FROM … RETURNING id, xmax = 0`, tệp upsert + xóa tệp không còn. Thư "đã cập nhật" = dòng đổi hoặc tệp đổi. Đầu `store`: khóa theo account (`pg_advisory_xact_lock`) và bỏ ký tự NUL (`WithoutNul`).
+  - **Chốt kỹ thuật (agent):** ID `DEFAULT uuidv7()` của PostgreSQL 18 (UUIDv7 như D-08, không có Hibernate); ID bên ngoài kiểu `text`, không giới hạn độ dài; `last_message_at` lúc tạo = thư mới nhất của trang, không có thì `lastActivityAt`, không có nữa thì 1970 (nằm cuối).
+  - **Làm khác kế hoạch:** (1) BE-42 chưa đổi `is_read`/`provider_read` của thư đã lưu; thư mới lấy trạng thái đọc của provider. **LÝ DO:** quy tắc D-67 thuộc BE-43 theo kế hoạch; test `aChangedReadStateIsLeftForTheReadRuleOfBe43` ghi lại ranh giới này. (2) Thêm `WithoutNul` và khóa theo account (ngoài danh sách bước của design). **LÝ DO:** review: ký tự NUL làm cả trang bị từ chối mãi; hai trang của một account khóa dòng theo thứ tự khác nhau có thể deadlock.
+  - **Kiểm chứng (2026-10-09):** RED 27/28 trên cài đặt tạm (test "chỉ trong transaction của bên gọi" xanh từ đầu nhờ `MANDATORY`). GREEN 28/28; thêm test hai thứ tự thư (Gmail liệt kê thư mới trước). Kiểm tra ngược 31 lỗi cố ý: 1 sống sót (ảnh cũ của người tham gia thắng ảnh mới) → sửa test → bị bắt. `./mvnw -B -ntp verify`: 717 test, 0 lỗi, 3 bỏ qua, BUILD SUCCESS.
+  - **Sau review (2026-10-09):** agent `senior-reviewer` không thấy CRITICAL/HIGH. MEDIUM đã sửa: deadlock khi hai lượt cùng account nhận conversation theo thứ tự khác nhau (file kiến thức còn viết "không lỗi") → khóa theo account ở đầu `store`, test hai luồng thật (cùng account chờ, account khác không chờ). LOW đã sửa: ký tự NUL (Message-ID, địa chỉ) làm trang bị từ chối mãi → `WithoutNul`; conversation `UNKNOWN` hạ loại đã biết → giữ loại cũ; index khóa ngoại `sender_participant_id`; test thư không có người gửi; file kiến thức ghi "không ghi nhưng vẫn khóa". Ghi cho task sau (BE-43, BE-44, BE-45 bên dưới). Kiểm tra ngược phần sửa 6/6.
   - **Goal / Why:** lưu thư idempotent theo external ID (D-63, 02B §4, §11).
   - **Depends on:** BE-41 (không bắt buộc).
   - **Files:** migration V6 `conversation_create_conversation`, V7 `conversation_create_conversation_participant`, V8 `conversation_create_message`, V9 `conversation_create_attachment`; `conversation/ConversationStore`, `conversation/StoreResult` (gói gốc), cài đặt (`JdbcClient`), test.
@@ -49,6 +54,7 @@
   - **Test:** batch chỉ có một thư cũ vừa đọc → tổng hợp đúng; đã đọc trong Sino + Gmail thêm nhãn → vẫn đọc; Gmail đổi sang đã đọc → theo; thư đến mới bỏ lưu trữ, thư đi mới không; cần trả lời với thư đến/đi/`bulk`; đoạn xem trước gộp khoảng trắng, cắt 200; `counterpart`.
   - **Acceptance criteria:** spec `conversation-store` (*Tổng hợp…*, *Trạng thái đã đọc…*, *Thư đến mới…*, *Cần trả lời*).
   - **Hints:** Level 1 — "vì sao tính lại từ bảng `message` mà không cộng trừ `unread_count` theo từng thư?".
+  - **Ghi chú từ review BE-42:** conversation không có thư nào có `last_message_at` = 1970 và cột `NOT NULL` → tính lại bằng `max(sent_at)` phải `COALESCE` với giá trị đang lưu; bước tổng hợp chạy dưới khóa theo account mà `store` đã lấy.
 
 - [ ] 1.5 **BE-44 — API Hộp thư**
   - **Goal / Why:** web thay dữ liệu mẫu của Hộp thư bằng dữ liệu thật (FR-02).
@@ -58,6 +64,7 @@
   - **Test:** MockMvc + DB thật: các view; lọc; lật trang khi nhiều conversation cùng giờ; account đã xóa và `DISABLED` bị ẩn; `400` (view, limit, cursor, accountId); `404`; `PATCH`; số đếm; CSRF cho `PATCH`; `EXPLAIN ANALYZE` câu danh sách (ghi vào file kiến thức).
   - **Acceptance criteria:** spec `inbox-api`.
   - **Hints:** Level 1 — "vì sao phân trang keyset phải sắp theo cả `id` chứ không chỉ `last_message_at`?".
+  - **Ghi chú từ review BE-42:** `PATCH` sửa conversation và thư → lấy cùng khóa theo account như `store` (`pg_advisory_xact_lock(hashtextextended('conversation:' || account, 0))`) để không deadlock; index Hộp thư `(last_message_at DESC, id DESC)` không có `account_id` → `EXPLAIN ANALYZE` với nhiều owner, owner được hỏi chỉ có thư cũ, rồi quyết có cần index có `account_id`.
   - **Hẹn với phiên web (sino-web-33, 2026-10-09; web làm FE-50 trên MSW theo design mục 4):** `lastMessageAt` là ISO-8601 UTC đuôi `Z`, có thể có mili giây (giờ Gmail); `participants[]` đề xuất `{ externalId, name, avatarUrl, self }` (`name`, `avatarUrl` có thể `null`). Hình dạng khác đề xuất này thì nhắn "sino-web-33" trước khi commit.
 
 - [ ] 1.6 **BE-45 — Module `sync`: lần nhập đầu chạy nền**
@@ -68,6 +75,7 @@
   - **Test:** DB thật + connector giả: nhập 3 trang → `DONE`, cursor theo dõi thay đổi lưu; bắt đầu hai lần → một lượt; `RATE_LIMITED` rồi qua; `PROVIDER_UNAVAILABLE` quá số lần → `FAILED`; `CURSOR_EXPIRED` → đọc lại một lần; `AUTH_EXPIRED` → `FAILED`; nhập tiếp/nhập lại; dòng `RUNNING` khi sẵn sàng → chạy tiếp; lưu lỗi → cursor không tiến; `404`/`400`; log không nội dung; `ModularityTests`.
   - **Acceptance criteria:** spec `initial-sync`.
   - **Hints:** Level 1 — "vì sao ghi cursor cùng transaction với việc lưu thư, còn gọi provider thì ngoài transaction?".
+  - **Ghi chú từ review BE-42:** test tích hợp phải chạy `store` dưới `JpaTransactionManager` thật của ứng dụng (test của BE-42 dùng `@JdbcTest`, tức `DataSourceTransactionManager`).
   - **Ghi chú từ review BE-40:** `estimateMessages` trả `OptionalLong` mà cột `estimated_count` là `int` → chặn khi đổi kiểu (hoặc dùng `bigint`); ước lượng toàn bộ hộp thư của Gmail (`messagesTotal`) thường dư, nên khi `DONE` thì `remainingMinutes` rỗng và web hiện xong, không dựa vào `imported`/`estimated`.
 
 - [ ] 1.7 **BE-46 — Nhập thật với Gmail, README, nghiệm thu F05**

@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40, BE-41.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40, BE-41, BE-42.
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -951,6 +951,118 @@ Làm hỏng code mỗi lần một chỗ (12 lần, sau review thêm 2), lần n
 
 ---
 
+## 13. Lưu thư vào database: module `conversation` (BE-42)
+
+Từ F05, Sino giữ thư trong database của mình (D-63). BE-42 dựng bốn bảng và hàm `ConversationStore.store(accountId, batch)`, nhận một trang thư mà connector trả về.
+
+```text
+conversation               một cuộc trò chuyện của một account     UNIQUE (account_id, external_conversation_id)
+  conversation_participant   người tham gia                       UNIQUE (conversation_id, external_participant_id)
+  message                    thư                                  UNIQUE (conversation_id, external_message_id)
+    attachment               thông tin tệp (chưa có nội dung)     UNIQUE (message_id, external_attachment_id)
+
+store(accountId, batch)          trong transaction của bên gọi
+  1. conversation        upsert; thư nhắc tới conversation lạ -> tạo bản tối thiểu (UNKNOWN)
+  2. người tham gia      upsert; người gửi không có trong danh sách -> thêm, chỉ có ID
+  3. thư                 upsert; không đổi gì thì không ghi
+  4. tệp                 upsert; tệp không còn trong thư -> xóa
+  -> StoreResult(newMessages, updatedMessages)
+```
+
+### 13.1 SQL thuần qua `JdbcClient`, không entity JPA
+- **Ở đâu:** `conversation/infrastructure/JdbcConversationStore.java`; interface `ConversationStore` và record `StoreResult` ở gói gốc `conversation`, nên module `sync` (BE-45) dùng được.
+- **Là gì:** `JdbcClient` (Spring 6.1+) gửi câu SQL với tham số có tên (`:account`), rồi đổi từng dòng kết quả thành đối tượng Java.
+- **Vì sao không dùng JPA như module `account`:** việc chính ở đây là upsert hàng loạt theo khóa bên ngoài, và sau này là truy vấn danh sách Hộp thư (BE-44). JPA không có `ON CONFLICT`, và một entity cho mỗi thư chỉ làm thêm việc. Đây là một chốt kỹ thuật trong design F05.
+- **ID:** `DEFAULT uuidv7()`. PostgreSQL 18 có sẵn hàm này, nên ID vẫn là UUIDv7 như mọi bảng khác (D-08) dù không có Hibernate sinh ID.
+- **Không có khóa ngoại sang `connected_account`:** bảng đó thuộc module `account` (mục 12.2). Giữa hai module chỉ giữ ID. Account bị xóa thì thư vẫn còn (D-66).
+
+### 13.2 Upsert: `INSERT ... ON CONFLICT ... DO UPDATE` (câu gợi ý của task)
+Câu hỏi: `ON CONFLICT DO UPDATE` khác gì cách JPA "tìm theo khóa, không thấy thì `save`" khi hai lượt cùng lưu một thư?
+- **Cách "tìm rồi lưu"** gồm hai câu lệnh. Lượt A tìm, không thấy. Lượt B tìm, cũng không thấy, vì A chưa commit. Cả hai cùng `INSERT`:
+  - có ràng buộc `UNIQUE`: một lượt nổ lỗi trùng khóa, và cả transaction của nó (cả trang thư) bị rollback;
+  - không có ràng buộc: hai bản của cùng một thư.
+- **`ON CONFLICT`** là một câu lệnh. PostgreSQL tự kiểm tra trùng khóa ngay lúc chèn. Lượt đến sau chờ lượt kia commit, rồi chuyển sang nhánh `DO UPDATE`. Không lỗi trùng khóa, không bản trùng. (Đúng với mức cô lập mặc định `READ COMMITTED` mà Sino dùng; ở mức cao hơn, lượt sau nhận lỗi serialization.)
+- **Điều kiện cần:** phải có ràng buộc `UNIQUE` đúng trên cột nêu trong `ON CONFLICT (...)`. Vì vậy mỗi bảng có một khóa `UNIQUE` theo ID bên ngoài.
+- Lần nhập đầu (BE-45) và đồng bộ định kỳ (F07) có thể cùng lưu một thư: đây là lý do chính để chọn upsert.
+
+### 13.2b Hai lượt cùng account: khóa theo account (sau review)
+- **Vấn đề reviewer chỉ ra:** upsert khóa dòng, kể cả dòng không đổi, và giữ khóa tới khi commit.
+  - Lượt A lưu conversation theo thứ tự [X, Y], lượt B theo thứ tự [Y, X].
+  - A khóa X, B khóa Y, rồi mỗi lượt chờ lượt kia: **deadlock**.
+  - PostgreSQL phát hiện và hủy một transaction, nên một trang thư bị rollback.
+- **Cách sửa:** câu đầu tiên của `store` là `SELECT pg_advisory_xact_lock(hashtextextended('conversation:' || account, 0))`.
+  - **Advisory lock** là khóa theo một con số do ứng dụng chọn, không gắn với dòng nào. Bản `_xact` tự nhả khi transaction kết thúc.
+  - Các lượt lưu của cùng một account vì vậy chạy lần lượt. Account khác có số khác nên không phải chờ.
+  - Hai account hiếm khi trùng số. Nếu trùng, chúng chỉ phải chờ nhau, không hỏng gì.
+- **Test:** hai luồng thật, mỗi luồng một transaction.
+  - Lượt đầu lưu rồi giữ transaction mở.
+  - Lượt thứ hai của **cùng** account, vào một conversation khác (không đụng dòng nào của lượt đầu), phải chờ.
+  - Lượt của account **khác** chạy xong ngay.
+- **Chưa xong ở đây:** `PATCH` của BE-44 sửa conversation và thư. Nó phải lấy cùng khóa này (hoặc khóa theo cùng thứ tự) để không deadlock với `store`. Đã ghi vào task BE-44.
+
+### 13.2c Ký tự NUL: chặn ngay ở cửa (sau review)
+- PostgreSQL không lưu được ký tự NUL (`\u0000`) trong `text` lẫn `jsonb`.
+- Chỉ một ký tự như vậy, chẳng hạn trong Message-ID của một thư lạ, là cả trang thư bị từ chối. Lần thử lại nào cũng vấp đúng trang đó, nên cursor không bao giờ tiến.
+- Connector Gmail đã bỏ NUL khỏi chữ và tiêu đề (BE-37), nhưng chưa bỏ khỏi Message-ID hay địa chỉ.
+- `store` vì vậy bỏ NUL khỏi mọi chuỗi của trang (`WithoutNul`) trước khi ghi. Đây là giới hạn của nơi lưu, nên nơi lưu tự lo, và connector nào cũng được bảo vệ.
+
+### 13.3 Không đổi gì thì không ghi: `DO UPDATE ... WHERE ... IS DISTINCT FROM`
+- 02B mục 11: thư không đổi gì không được cập nhật. Không có `WHERE`, mỗi lần đồng bộ lại sẽ ghi lại mọi thư. Mỗi lần ghi PostgreSQL tạo một bản mới của dòng, làm bảng phình và tốn thời gian dọn.
+- `WHERE (m.text_content, m.status, ...) IS DISTINCT FROM (EXCLUDED.text_content, EXCLUDED.status, ...)` so cả bộ cột một lần. `EXCLUDED` là dòng định chèn.
+- **"Không ghi" chưa phải "không khóa":** dòng không đổi thì không có bản mới, nhưng vẫn bị khóa tới khi transaction commit (mục 13.2b).
+- **Vì sao `IS DISTINCT FROM` chứ không phải `<>`:** với `NULL`, `<>` cho ra `NULL` (không biết), nên thư đổi từ "không có chữ" sang "có chữ" sẽ không được ghi. `IS DISTINCT FROM` coi `NULL` là một giá trị bình thường.
+- **`RETURNING id, xmax = 0`:** câu lệnh trả về dòng nó vừa chèn hoặc vừa sửa; dòng không đổi thì không trả gì.
+  - `xmax` là một cột ẩn của PostgreSQL. Với dòng vừa chèn thì nó bằng 0; với dòng vừa sửa qua `ON CONFLICT` thì khác 0. Nhờ vậy một câu lệnh biết thư là mới hay đã cập nhật.
+  - Không có dòng trả về thì thư không đổi. Lúc đó `store` đọc ID của thư bằng một câu `SELECT` riêng, vì bước tệp cần ID đó.
+  - Đây là chi tiết bên trong của PostgreSQL, ai cũng dùng nhưng tài liệu chính thức không hứa. Test "lưu lần đầu được 2 thư mới" sẽ báo nếu nó đổi.
+- **Thư "đã cập nhật"** là thư có dòng đổi, hoặc có tệp được thêm, sửa hay xóa.
+
+### 13.4 Gộp chứ không đè
+- **Người tham gia:** `display_name = COALESCE(EXCLUDED.display_name, p.display_name)`. Lần này không có tên thì giữ tên cũ; có tên mới thì lấy tên mới. Ảnh cũng vậy. `is_self = p.is_self OR EXCLUDED.is_self`: đã từng là chính account thì luôn là chính account.
+- **Conversation:** loại lấy theo connector, trừ `UNKNOWN`: một trang không biết loại không được hạ `THREAD` đã biết xuống `UNKNOWN` (`COALESCE(NULLIF(EXCLUDED.type, 'UNKNOWN'), c.type)`). Ảnh giữ như người tham gia. Tiêu đề chỉ được điền khi chưa có. BE-43 sẽ thêm "hoặc khi trang có thư mới hơn".
+- **Conversation tối thiểu:** thư nhắc tới một conversation mà batch không mô tả thì được tạo một dòng loại `UNKNOWN`, không tiêu đề, bằng `ON CONFLICT DO NOTHING`. Dòng tối thiểu không bao giờ đè lên dòng đầy đủ. Ngược lại, khi bản đầy đủ đến sau, nó thay bản tối thiểu.
+- **Tệp:** upsert từng tệp, rồi `DELETE` những tệp của thư không còn trong danh sách. Bẫy: `NOT IN ()` với danh sách rỗng là SQL sai, nên khi thư không còn tệp nào thì xóa hết bằng một câu riêng.
+
+### 13.5 Chạy trong transaction của bên gọi: `Propagation.MANDATORY`
+- `@Transactional(propagation = MANDATORY)` bắt buộc đã có transaction từ trước: gọi `store` khi chưa có thì ném `IllegalTransactionStateException`, chưa ghi gì.
+- **Vì sao:** BE-45 lưu một trang thư và ghi cursor tiếp theo **trong cùng một commit** (spec `initial-sync`). Nếu `store` tự mở và tự commit transaction riêng, thư có thể đã lưu mà cursor chưa tiến (hay ngược lại) khi lỗi xảy ra giữa hai bước.
+- **Test:** đánh dấu riêng một test `@Transactional(propagation = NOT_SUPPORTED)` để nó chạy ngoài transaction của test.
+
+### 13.6 Ranh giới với BE-43
+BE-42 chỉ làm bước 1–4 của design. Phần còn lại để BE-43, có test riêng:
+- **Đã đọc:** thư mới lấy trạng thái đọc của provider (`is_read = provider_read`). Thư đã lưu thì chưa động tới hai cột này (test `aChangedReadStateIsLeftForTheReadRuleOfBe43`). Quy tắc "thay đổi mới nhất thắng" của D-67 là việc của BE-43.
+- **Tổng hợp:** các cột như số chưa đọc, đoạn xem trước, cần trả lời đã có trong bảng (V6), nhưng BE-43 mới tính. `last_message_at` bắt buộc có giá trị ngay lúc tạo conversation, nên BE-42 đặt nó bằng thời điểm của thư mới nhất trong trang, không có thư thì lấy `lastActivityAt` của connector. Không có cả hai thì để 1970: conversation không có thư nào nằm cuối danh sách, không lên đầu.
+
+### 13.7 Test với database thật
+- **`@JdbcTest`:** chỉ dựng phần JDBC, transaction và Flyway, không dựng web hay JPA. Mỗi test chạy trong một transaction và bị rollback lúc kết thúc, nên các test không thấy dữ liệu của nhau.
+- **"Không ghi lại dòng nào" kiểm thế nào:** trong một transaction, `now()` luôn trả cùng một giờ, nên `updated_at` không cho biết dòng có bị ghi lại hay không. Test dùng `ctid`, vị trí vật lý của dòng: PostgreSQL ghi bản mới cho mọi câu `UPDATE`, nên `ctid` đổi khi dòng bị ghi, kể cả ghi đúng giá trị cũ.
+- **Mỗi cột một ca:** test tham số hóa đổi từng trường của thư (người gửi, chiều, loại, chữ, trạng thái, giờ, thư được trả lời, metadata). Mỗi ca kiểm ba điều: kết quả là "1 thư cập nhật", `ctid` đổi, và giá trị trong database đúng giá trị mới. Thiếu một cột ở `WHERE` thì thay đổi không được ghi. Thiếu một cột ở `SET` thì dòng có ghi, nhưng giá trị không đổi.
+- **Bẫy thứ tự thư:** Gmail liệt kê thư mới trước. Test "thời điểm thư mới nhất" chạy cả hai thứ tự. Nếu chỉ có một thứ tự, code chọn nhầm "thư đến sau trong batch" vẫn xanh.
+- **Giờ khi truyền vào JDBC:** truyền `OffsetDateTime` theo UTC. JDBC 4.2 quy định kiểu này cho `timestamptz`; `Instant` không có trong bảng quy định đó.
+
+### 13.8 Kiểm tra ngược (BE-42)
+Làm hỏng code mỗi lần một chỗ (31 lần, sau review thêm 6); lần chạy mốc khi chưa sửa gì thì xanh. Lần chạy đầu có **một lỗi sống sót**: đổi `COALESCE` để ảnh **cũ** của người tham gia thắng ảnh mới mà không test nào đỏ. Test "đổi tên" bắt đầu với một người chưa có ảnh, nên "ảnh mới thắng" và "ảnh cũ thắng" cho cùng kết quả. Đã sửa test để người đó có ảnh từ trước; lỗi đó giờ bị bắt.
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Tiêu đề luôn bị thay, hoặc tiêu đề mới thắng tiêu đề đã lưu | tiêu đề đã lưu được giữ |
+| Ảnh conversation luôn bị thay, hoặc ảnh cũ thắng | conversation giữ ảnh tới khi có ảnh mới |
+| Giữ loại cũ; bản tối thiểu đè lên bản đầy đủ | bản đầy đủ thay bản tối thiểu; bản tối thiểu không đè |
+| Lấy `lastActivityAt` trước thư; thiếu giờ thì lấy giờ hiện tại; thư đầu hoặc thư cuối của batch thắng | thời điểm thư mới nhất (cả hai thứ tự); conversation không có thư |
+| Tên luôn bị thay, tên cũ thắng; ảnh cũ thắng (sống sót lần đầu); quên "đã từng là mình" | người tham gia giữ những gì trang sau bỏ trống; đổi tên và ảnh |
+| Không thêm người gửi ngoài danh sách | người gửi được thêm vào |
+| Thay đổi ở chữ, metadata, người gửi hay giờ gửi không được nhận ra (bỏ khỏi `WHERE`) | thư đổi từng trường |
+| Trạng thái, thư được trả lời, loại, chiều không được ghi (bỏ khỏi `SET`) | thư đổi từng trường |
+| Đảo "mới" và "đã cập nhật"; thư không đổi bị đếm là cập nhật; đổi tệp không được đếm | lưu một trang; lưu hai lần; tệp |
+| Xóa nhầm tệp còn giữ; thư hết tệp vẫn giữ tệp cũ; tên tệp mới không được ghi | các test tệp |
+| Không lưu trạng thái đọc của thư mới | lưu một trang |
+| Tự mở transaction thay vì bắt buộc có sẵn | chỉ lưu trong transaction của bên gọi |
+| Sau review: bỏ khóa theo account; một khóa chung cho mọi account | các lượt của một account lần lượt, account khác không chờ |
+| Sau review: không bỏ NUL (cả trang, hoặc riêng metadata) | ký tự NUL bị bỏ |
+| Sau review: loại `UNKNOWN` đè loại đã biết; loại không bao giờ đổi | conversation không rõ loại giữ loại cũ |
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -1011,3 +1123,11 @@ Làm hỏng code mỗi lần một chỗ (12 lần, sau review thêm 2), lần n
 56. Vì sao `AccountDirectory` trả `AccountSummary` chứ không trả entity `ConnectedAccount`?
 57. Vì sao `accountsOf` trả cả account `DISABLED` và `AUTH_EXPIRED`, để bên gọi tự lọc?
 58. Hai account tạo liền nhau có thể cùng `created_at`: test thứ tự "cũ trước mới" phải làm gì để không xanh nhờ may mắn?
+59. Hai lượt đồng bộ cùng lưu một thư: chuyện gì xảy ra với cách "tìm rồi lưu" của JPA, và `ON CONFLICT` tránh được điều đó thế nào?
+60. Vì sao điều kiện "có đổi gì không" dùng `IS DISTINCT FROM` chứ không dùng `<>`?
+61. `RETURNING id, xmax = 0` cho biết điều gì, và khi nào câu lệnh không trả dòng nào?
+62. Vì sao `store` dùng `Propagation.MANDATORY` thay vì tự mở transaction?
+63. Trong một test, `updated_at` không đổi sau lần lưu thứ hai: điều đó có chứng minh dòng không bị ghi lại không? Vì sao test dùng `ctid`?
+64. Thư nhắc tới một conversation mà trang thư không mô tả: Sino làm gì, và vì sao bản tối thiểu không được đè lên bản đã có?
+65. Hai lượt lưu nhận cùng hai conversation theo thứ tự ngược nhau: vì sao có thể deadlock, và khóa theo account tránh điều đó thế nào?
+66. Vì sao việc bỏ ký tự NUL đặt ở `store` chứ không chỉ ở connector Gmail?
