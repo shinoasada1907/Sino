@@ -3,6 +3,7 @@ package dev.sino.provider.spi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,6 +42,14 @@ class MessageProviderTests {
     @Test
     void aConnectorDeclaresNoOAuth2ConnectionByDefault() {
         assertThat(readOnly.oauth2()).isEmpty();
+    }
+
+    @Test
+    void aConnectorEstimatesNothingByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThat(readOnly.estimateMessages(context, null)).isEmpty();
+        assertThat(readOnly.estimateMessages(context, Instant.parse("2026-07-01T00:00:00Z"))).isEmpty();
     }
 
     @Test

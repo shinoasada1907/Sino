@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a).
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40.
 > **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -818,6 +818,88 @@ WireMock chỉ giỏi bằng hiểu biết của người viết nó về Google
 
 ---
 
+## 11. F05 mở đầu: ước lượng số thư và thư hàng loạt (BE-40)
+
+F05 (`openspec/changes/f05-unified-inbox`) lưu thư vào database và cho người dùng nhập thư lần đầu. Trước khi có bảng nào, BE-40 thêm vào contract hai thứ mà các task sau cần:
+- **số thư ước lượng**, cho bước "Đồng bộ" của canvas: số thư và số phút dự kiến (D-65);
+- **dấu "thư hàng loạt"**, cho tab "Cần trả lời" (D-68).
+
+### 11.1 Method mặc định trong interface: `estimateMessages`
+- **Ở đâu:** `provider/spi/MessageProvider.java`.
+- **Là gì:** `default OptionalLong estimateMessages(ProviderContext context, Instant since)`, mặc định trả `OptionalLong.empty()`. `since = null` nghĩa là toàn bộ hộp thư.
+- **Để làm gì:** hỏi connector "nhập từ mốc này thì khoảng bao nhiêu thư?".
+- **Vì sao có cài đặt mặc định** (câu gợi ý của task):
+  - Ước lượng là thứ *có thì tốt*. Connector không biết đếm vẫn đúng hợp đồng khi trả "không biết", và bên gọi xử lý được câu trả lời đó: API ước lượng của BE-45 trả `messages` rỗng (spec `initial-sync`).
+  - Thêm method có `default` không làm hỏng class nào đang implement interface (câu 2 của phần Tự kiểm tra). Connector giả, Gmail, các connector của F09 sau này chỉ cài khi muốn.
+  - `fetchUpdates` thì không có câu trả lời mặc định nào đúng. Trả một batch rỗng nghĩa là "không có thư": một lời nói dối im lặng, connector quên cài thì Sino tưởng hộp thư trống. Để nó `abstract` thì trình biên dịch bắt mỗi connector phải tự quyết.
+  - `sendMessage` có `default` vì với connector không gửi được, câu trả lời đúng là ném `CAPABILITY_NOT_SUPPORTED`.
+- **Vì sao `OptionalLong`** chứ không phải `Long` có thể `null` hay số `-1`: kiểu trả về nói luôn "có thể không có", nên bên gọi khó quên kiểm. `OptionalLong` giữ `long` nguyên thủy, không bọc thành `Long`.
+- **Luật của contract:**
+  - số trả về không âm;
+  - chỉ là ước lượng: vòng nhập dừng khi `hasMore = false`, không bao giờ dừng vì "đã đủ số ước lượng";
+  - connector không có `READ_MESSAGES` trả rỗng và không gọi provider.
+- **Kit F03** có thêm hai kiểm tra: connector đọc được thì ước lượng rỗng hoặc ≥ 0; connector không đọc được thì rỗng. Mẫu "chỉ gửi" của connector giả được cấu hình sẵn một ước lượng (5) mà vẫn phải trả rỗng. Nhờ vậy kiểm tra thứ hai thật sự kiểm một điều gì đó (bài học ở mục 10.4).
+
+### 11.2 Gmail ước lượng thế nào
+```text
+estimateMessages(context, since)
+  since có      -> GET .../messages?q=after:<giây>&maxResults=1 -> resultSizeEstimate
+  since = null  -> GET .../profile                              -> messagesTotal
+  thiếu số, số âm         -> rỗng
+  401                     -> ProviderException AUTH_EXPIRED
+  5xx, mất kết nối        -> ProviderException PROVIDER_UNAVAILABLE
+  JSON đọc không được     -> ProviderException PAYLOAD_NORMALIZATION_FAILED
+```
+- **Vì sao `maxResults=1`:** Sino chỉ cần con số Gmail gửi kèm danh sách, không cần chính danh sách. Một lời gọi, trả nhanh.
+- **Một đường gọi cho cả hai việc:** `GmailApi.list(...)` dùng chung cho đọc một trang thư (`maxResults=50`) và cho ước lượng (`maxResults=1`). Vì thế lỗi của cả hai được dịch giống nhau qua `call()` (mục 9.5).
+- **Bẫy:**
+  - `resultSizeEstimate` đúng như tên của nó: một ước lượng, có thể lệch nhiều với hộp thư lớn.
+  - `messagesTotal` đếm cả nháp, spam, thùng rác, những thư Sino bỏ ra (mục 9.4).
+
+  Vì thế web luôn ghi "khoảng", và khi số đã nhập vượt ước lượng thì mẫu số tăng theo (design F05). Với toàn bộ hộp thư thì ngược lại: số đã nhập thường thấp hơn ước lượng, nên lúc `DONE` web phải hiện "xong" bất kể con số ước lượng (ghi cho BE-45).
+- **Vì sao toàn bộ hộp thư dùng `messagesTotal`** mà không dùng `resultSizeEstimate` của một danh sách không có `q`: D-65 chọn như vậy. `messagesTotal` là số đếm chính xác (chỉ dư phần nháp, spam, thùng rác), còn `resultSizeEstimate` vốn thô với hộp thư lớn. Cách nào sát hơn là câu hỏi đo đạc: BE-46 so cả hai với số thư nhập thật.
+- **Phương án bị loại:** liệt kê hết ID để đếm cho đúng. Cách đó cần hàng trăm lời gọi trước khi nhập được thư nào.
+- **Lỗi khi ước lượng:** connector ném `ProviderException` như mọi thao tác khác; bên gọi (BE-45) coi đó là không có ước lượng. Một ước lượng hỏng không được chặn việc nhập thư.
+
+### 11.3 Khóa metadata dùng chung `bulk`
+- **Ở đâu:** hằng số `NormalizedMessage.BULK` trong `spi`; Gmail đặt khóa này trong `GmailMessageNormalizer`.
+- **Là gì:** `metadata["bulk"] = "true"` khi thư được gửi hàng loạt: bản tin, quảng cáo, thông báo tự động. Connector không biết thì bỏ trống, và thiếu khóa nghĩa là không hàng loạt.
+- **Để làm gì:** "Cần trả lời" là conversation có thư mới nhất là thư đến **và** không hàng loạt (D-68). Không có dấu này thì mọi bản tin, mọi quảng cáo đều thành "cần trả lời".
+- **Vì sao là một khóa metadata, không phải trường mới của record:**
+  - Thêm một thành phần vào record `NormalizedMessage` làm đổi constructor, nên mọi chỗ đang tạo record đều phải sửa. Record không có tham số mặc định.
+  - Đây là một gợi ý mà nhiều connector không biết. `metadata` vốn là chỗ cho "giá trị nhỏ không có trường chuẩn hóa".
+- **Vì sao hằng số nằm trong `spi`:** tên khóa là một phần của hợp đồng. Connector và module `conversation` (BE-43) dùng cùng một hằng số, không ai gõ lại chuỗi `"bulk"`.
+- **Gmail đánh dấu khi:**
+  - thư có nhãn `CATEGORY_PROMOTIONS`, `CATEGORY_SOCIAL`, `CATEGORY_UPDATES` hoặc `CATEGORY_FORUMS`: các tab mà Gmail tự xếp thư hàng loạt vào;
+  - hoặc thư có header `List-Unsubscribe` (RFC 2369): phần mềm gửi thư hàng loạt thêm link hủy đăng ký vào đây. Một bản tin Gmail để ở tab Chính vẫn được nhận ra (thư mẫu `newsletter.json`).
+
+  Nhãn `CATEGORY_PERSONAL` (tab Chính), `IMPORTANT` hay nhãn do người dùng tạo thì không.
+- **Bẫy:**
+  - Tên header không phân biệt hoa thường: `list-unsubscribe` vẫn là nó. `GmailMessage.Part.header` đã so như vậy từ BE-37, và có test riêng cho chữ thường.
+  - Thư đi qua một nhóm (Google Groups, kể cả địa chỉ chung kiểu `support@` dựng bằng nhóm) thường mang `List-Unsubscribe`, nên theo quy tắc này bị coi là hàng loạt dù người viết là người thật: conversation vẫn ở Hộp thư nhưng không vào "Cần trả lời". D-68 không bàn tới trường hợp này. Nó được ghi thành câu hỏi mở trong design F05 để người dùng chốt, và chưa kiểm với hộp thư thật.
+  - Sửa thư mẫu cũ phải sửa cả assertion cũ: `html-only.json` có nhãn `CATEGORY_PROMOTIONS`, nên test trước đây kiểm "metadata chỉ có `subject`" giờ phải là `subject` và `bulk`.
+
+### 11.4 Connector giả có ước lượng
+- `FakeMessageProvider.builder(...).estimate(1180)` trả số đó với mọi mốc.
+- Không cấu hình thì trả rỗng. Không có `READ_MESSAGES` thì trả rỗng, kể cả khi đã cấu hình.
+- BE-45 dùng nó để test API ước lượng và vòng nhập mà không cần Gmail.
+
+### 11.5 Kiểm tra ngược (BE-40)
+Làm hỏng code mỗi lần một chỗ (16 lần), lần nào cũng có test đỏ; lần chạy mốc khi chưa sửa gì thì xanh.
+
+| Lỗi cố ý | Test bắt được |
+|---|---|
+| Đảo hai nhánh có mốc / toàn bộ hộp thư | ước lượng từ một mốc; toàn bộ hộp thư |
+| Giữ số âm; bỏ số 0; bỏ kiểm `null` (lỗi khi mở hộp `Long`) | không có số dùng được; hộp thư trống |
+| Ước lượng xin cả trang 50 thư, hoặc quên `q=after:` | ước lượng từ một mốc (kiểm request) |
+| Bỏ từng nhãn trong bốn nhãn hàng loạt; đòi mọi nhãn đều là nhãn hàng loạt; bỏ hẳn phần nhãn | thư ở tab hàng loạt; thư quảng cáo |
+| Bỏ phần `List-Unsubscribe` | bản tin ở tab Chính; header chữ thường |
+| Thư nào cũng là hàng loạt | thư cá nhân; thư trả lời có cả text và HTML |
+| Hàm mặc định trả `0` thay vì rỗng | hàm mặc định không ước lượng |
+| Connector giả ước lượng dù không có `READ_MESSAGES` | kiểm tra "không đọc được thì không ước lượng" của bộ test chung |
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -869,3 +951,8 @@ WireMock chỉ giỏi bằng hiểu biết của người viết nó về Google
 47. Vì sao test với Gmail thật không được chạy trong `./mvnw verify` của CI?
 48. Chưa kết nối Gmail thì test bị "bỏ qua" chứ không "đỏ": khác nhau thế nào, và vì sao chọn bỏ qua?
 49. Vì sao `-Dgroups=real-gmail` một mình không chạy được test có tag đó trong dự án này?
+50. Vì sao `estimateMessages` có cài đặt mặc định trong interface, còn `fetchUpdates` thì không?
+51. Vì sao `OptionalLong` tốt hơn việc trả `-1` khi connector không ước lượng được?
+52. Vì sao "thư hàng loạt" là một khóa metadata chứ không phải một trường mới của `NormalizedMessage`?
+53. Số thư đã nhập vượt số ước lượng: vì sao đó không phải lỗi, và vì sao vòng nhập không được dừng khi đạt số ước lượng?
+54. Một thư của nhóm thảo luận có `List-Unsubscribe`: Sino xếp nó thế nào, và cái giá của quy tắc đó là gì?

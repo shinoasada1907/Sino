@@ -75,16 +75,15 @@ class GmailApi {
      * @throws ProviderException with {@code CURSOR_EXPIRED} when Gmail no longer accepts {@code pageToken} (400)
      */
     MessageList messages(String accessToken, Instant since, String pageToken) {
-        return call(() -> {
-            try {
-                return answer(google.get().uri(uri -> withPageToken(uri.path(USER + "/messages")
-                        .queryParam("maxResults", PAGE_SIZE)
-                        .queryParamIfPresent("q", Optional.ofNullable(since).map(at -> "after:" + at.getEpochSecond())),
-                        pageToken)).headers(bearer(accessToken)).retrieve().body(MessageList.class));
-            } catch (RestClientResponseException failure) {
-                throw pageTokenRefused(failure, pageToken);
-            }
-        });
+        return list(accessToken, since, pageToken, PAGE_SIZE);
+    }
+
+    /**
+     * Gmail's estimate of how many messages there are since {@code since}, from a list of one message; null when
+     * Gmail leaves it out.
+     */
+    Long estimate(String accessToken, Instant since) {
+        return list(accessToken, since, null, 1).resultSizeEstimate();
     }
 
     /**
@@ -123,6 +122,19 @@ class GmailApi {
                     return Optional.empty();
                 }
                 throw failure;
+            }
+        });
+    }
+
+    private MessageList list(String accessToken, Instant since, String pageToken, int maxResults) {
+        return call(() -> {
+            try {
+                return answer(google.get().uri(uri -> withPageToken(uri.path(USER + "/messages")
+                        .queryParam("maxResults", maxResults)
+                        .queryParamIfPresent("q", Optional.ofNullable(since).map(at -> "after:" + at.getEpochSecond())),
+                        pageToken)).headers(bearer(accessToken)).retrieve().body(MessageList.class));
+            } catch (RestClientResponseException failure) {
+                throw pageTokenRefused(failure, pageToken);
             }
         });
     }
@@ -211,12 +223,14 @@ class GmailApi {
         return list == null ? List.of() : list.stream().filter(Objects::nonNull).toList();
     }
 
+    /** {@code messagesTotal} counts every message of the mailbox, drafts, spam and trash too. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Profile(String emailAddress, String historyId) {
+    record Profile(String emailAddress, String historyId, Long messagesTotal) {
     }
 
+    /** {@code resultSizeEstimate} is Gmail's rough count of every message the query matches, on all pages. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record MessageList(List<MessageRef> messages, String nextPageToken) {
+    record MessageList(List<MessageRef> messages, String nextPageToken, Long resultSizeEstimate) {
 
         MessageList {
             messages = withoutNulls(messages);

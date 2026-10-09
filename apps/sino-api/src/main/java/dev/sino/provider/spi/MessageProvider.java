@@ -1,6 +1,8 @@
 package dev.sino.provider.spi;
 
+import java.time.Instant;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
@@ -27,6 +29,16 @@ public interface MessageProvider {
 
     /** Changes after {@code cursor}; {@link SyncCursor#initial()} asks for the first sync. */
     SyncBatch fetchUpdates(ProviderContext context, SyncCursor cursor);
+
+    /**
+     * Roughly how many messages a first sync from {@code since} would bring ({@code null}: the whole account), or
+     * empty when the connector cannot tell (D-65). Never negative, and only an estimate: a caller never uses it to
+     * decide when a sync is done. Empty by default, and always for a connector without
+     * {@link ProviderCapability#READ_MESSAGES}, which never calls its provider for it.
+     */
+    default OptionalLong estimateMessages(ProviderContext context, Instant since) {
+        return OptionalLong.empty();
+    }
 
     /**
      * How the connector is connected over OAuth2, or empty when it is not (D-38). A connector never exchanges a

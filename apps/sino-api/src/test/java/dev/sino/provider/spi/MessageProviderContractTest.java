@@ -121,6 +121,23 @@ public abstract class MessageProviderContractTest {
     }
 
     @Test
+    void anEstimateIsEmptyOrNotNegative() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
+
+        assertThat(List.of(provider().estimateMessages(context(), null),
+                provider().estimateMessages(context(), since())))
+                .allSatisfy(estimate -> assertThat(estimate.orElse(0)).isNotNegative());
+    }
+
+    @Test
+    void aConnectorThatCannotReadEstimatesNothing() {
+        assumeFalse(provider().capabilities().supports(READ_MESSAGES), "the connector can read messages");
+
+        assertThat(provider().estimateMessages(context(), null)).isEmpty();
+        assertThat(provider().estimateMessages(context(), Instant.parse("2026-07-01T00:00:00Z"))).isEmpty();
+    }
+
+    @Test
     void aBrokenMessageIsSkippedAndTheOthersAreKept() {
         assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
         SyncBatch batch = providerWithOneBrokenMessage().fetchUpdates(context(), SyncCursor.initial());

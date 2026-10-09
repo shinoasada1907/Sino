@@ -17,6 +17,7 @@ import org.assertj.core.api.ThrowableAssertAlternative;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Body;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Header;
@@ -72,7 +73,52 @@ class GmailMessageNormalizerTests {
 
         assertThat(message.textContent()).isEqualTo("Chào bạn & cả nhóm\nDòng hai\nDòng ba\nÔ một\nÔ hai");
         assertThat(message.read()).isTrue();
-        assertThat(message.metadata()).containsOnlyKeys("subject");
+        assertThat(message.metadata()).containsOnlyKeys("subject", "bulk");
+    }
+
+    @Test
+    void aPromotionIsBulk() {
+        assertThat(normalize("html-only.json").message().metadata()).containsEntry(NormalizedMessage.BULK, "true");
+    }
+
+    @Test
+    void aNewsletterWithAnUnsubscribeLinkIsBulkEvenInThePrimaryTab() {
+        NormalizedMessage message = normalize("newsletter.json").message();
+
+        assertThat(message.textContent()).isEqualTo("Tuần này ở Sino: ba bài viết mới.");
+        assertThat(message.metadata()).containsOnly(
+                Map.entry("subject", "Bản tin tuần"),
+                Map.entry("rfcMessageId", "<digest-42@lists.example.com>"),
+                Map.entry("bulk", "true"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_UPDATES", "CATEGORY_FORUMS" })
+    void mailInATabOfBulkMailIsBulk(String label) {
+        GmailMessage message = withLabels(plain("m-1", "t-1", "1760000000000", "a@example.com", "Hi", "Hello"),
+                "INBOX", label);
+
+        assertThat(GmailMessageNormalizer.normalize(message, SELF).message().metadata())
+                .containsEntry(NormalizedMessage.BULK, "true");
+    }
+
+    @Test
+    void anUnsubscribeHeaderInAnyCaseMakesMailBulk() {
+        GmailMessage message = withHeader(plain("m-1", "t-1", "1760000000000", "a@example.com", "Hi", "Hello"),
+                "list-unsubscribe", "<https://lists.example.com/unsubscribe/42>");
+
+        assertThat(GmailMessageNormalizer.normalize(message, SELF).message().metadata())
+                .containsEntry(NormalizedMessage.BULK, "true");
+    }
+
+    @Test
+    void personalMailIsNotBulk() {
+        GmailMessage message = withLabels(plain("m-1", "t-1", "1760000000000", "a@example.com", "Hi", "Hello"),
+                "INBOX", "CATEGORY_PERSONAL", "IMPORTANT", "Label_42");
+
+        assertThat(GmailMessageNormalizer.normalize(message, SELF).message().metadata())
+                .doesNotContainKey(NormalizedMessage.BULK);
+        assertThat(normalize("alternative.json").message().metadata()).doesNotContainKey(NormalizedMessage.BULK);
     }
 
     @Test
@@ -422,6 +468,11 @@ class GmailMessageNormalizerTests {
         headers.add(new Header(name, value));
         return new GmailMessage(message.id(), message.threadId(), message.labelIds(), message.internalDate(),
                 new Part(part.partId(), part.mimeType(), part.filename(), headers, part.body(), part.parts()));
+    }
+
+    private static GmailMessage withLabels(GmailMessage message, String... labels) {
+        return new GmailMessage(message.id(), message.threadId(), List.of(labels), message.internalDate(),
+                message.payload());
     }
 
     private static GmailMessage multipart(Part... parts) {

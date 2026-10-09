@@ -39,6 +39,7 @@ class FakeMessageProviderContractTest {
 
         private final FakeMessageProvider provider = FakeMessageProvider.builder("fake")
                 .page(message("m-1", SEPTEMBER), message("m-2", OCTOBER))
+                .estimate(2)
                 .build();
 
         @Override
@@ -77,13 +78,15 @@ class FakeMessageProviderContractTest {
 
     }
 
-    // A connector that only sends: the kit's check that reading is refused without READ_MESSAGES runs on it.
+    // A connector that only sends: the kit's checks that reading and estimating are refused without READ_MESSAGES
+    // run on it, even with an estimate configured.
     @Nested
     class SendOnly extends MessageProviderContractTest {
 
         private final FakeMessageProvider provider = FakeMessageProvider.builder("fake-sender")
                 .capabilities(SEND_MESSAGES)
                 .page(message("m-1"))
+                .estimate(5)
                 .build();
 
         @Override
@@ -185,6 +188,21 @@ class FakeMessageProviderContractTest {
         assertThat(second.messages()).extracting(NormalizedMessage::externalMessageId).containsExactly("m-4");
         assertThat(second.skipped()).extracting(SkippedItem::externalId).containsExactly("m-5");
         assertThat(afterTheEnd.nextCursor()).isEqualTo(second.nextCursor());
+    }
+
+    @Test
+    void estimatesWhatItWasGivenWhateverTheMoment() {
+        FakeMessageProvider provider = FakeMessageProvider.builder("fake").page(message("m-1")).estimate(1180).build();
+
+        assertThat(provider.estimateMessages(CONTEXT, null)).hasValue(1180);
+        assertThat(provider.estimateMessages(CONTEXT, BETWEEN)).hasValue(1180);
+    }
+
+    @Test
+    void estimatesNothingWhenNotGivenAnEstimate() {
+        FakeMessageProvider provider = FakeMessageProvider.builder("fake").page(message("m-1")).build();
+
+        assertThat(provider.estimateMessages(CONTEXT, null)).isEmpty();
     }
 
     @Test

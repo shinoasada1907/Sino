@@ -6,7 +6,8 @@ import java.util.Map;
 
 /**
  * A message as a connector reports it. {@code metadata} holds a few small values that have no normalized
- * field; never raw payloads or secrets, and the connector documents its keys.
+ * field; never raw payloads or secrets, and the connector documents its keys. {@link #BULK} is the one key every
+ * connector shares.
  */
 public record NormalizedMessage(
         String externalMessageId,
@@ -21,6 +22,12 @@ public record NormalizedMessage(
         Instant sentAt,
         List<NormalizedAttachment> attachments,
         Map<String, String> metadata) {
+
+    /**
+     * Metadata key, {@code "true"} when the message was sent in bulk: a newsletter, an advertisement, an automatic
+     * notice (D-68). A connector that cannot tell leaves it out, and a missing key means not bulk.
+     */
+    public static final String BULK = "bulk";
 
     public NormalizedMessage {
         PayloadChecks.requireText(externalMessageId, "externalMessageId");

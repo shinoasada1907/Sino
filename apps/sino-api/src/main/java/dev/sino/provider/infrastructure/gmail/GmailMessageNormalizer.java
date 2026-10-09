@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -43,6 +44,9 @@ final class GmailMessageNormalizer {
 
     private static final String SENT = "SENT";
     private static final String UNREAD = "UNREAD";
+    // The tabs Gmail sorts bulk mail into; a list mail it keeps in Primary still has List-Unsubscribe (RFC 2369).
+    private static final Set<String> BULK_LABELS = Set.of("CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL",
+            "CATEGORY_UPDATES", "CATEGORY_FORUMS");
     // "Re:", "RE:", "Fwd:", "FW:", "TL:" (Vietnamese "trả lời"), with a count such as "Re[2]:", repeated.
     private static final Pattern REPLY_PREFIXES = Pattern.compile("^(?:\\s*(?:re|fwd?|tl)(?:\\[\\d+])?\\s*:)+\\s*",
             Pattern.CASE_INSENSITIVE);
@@ -75,6 +79,10 @@ final class GmailMessageNormalizer {
             metadata.put(SUBJECT, subject);
         }
         payload.header("Message-ID").ifPresent(id -> metadata.put(RFC_MESSAGE_ID, id.strip()));
+        if (message.labelIds().stream().anyMatch(BULK_LABELS::contains)
+                || payload.header("List-Unsubscribe").isPresent()) {
+            metadata.put(NormalizedMessage.BULK, "true");
+        }
 
         NormalizedMessage normalized = new NormalizedMessage(message.id(), message.threadId(), sender.email(),
                 sent ? MessageDirection.OUTBOUND : MessageDirection.INBOUND,

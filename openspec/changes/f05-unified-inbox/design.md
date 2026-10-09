@@ -197,6 +197,7 @@ PATCH /api/conversations/{id}     { read?: boolean, archived?: boolean }  -> Con
 
 - "Dùng nhãn Gmail làm bộ lọc" và "Chỉ tải tệp đính kèm khi bạn mở" trên bước "Đồng bộ" của canvas: F05 không lưu nhãn Gmail và không tải nội dung tệp (F06), nên hai lựa chọn chưa có tác dụng. F04b từng ghi lọc theo nhãn cho F05; buổi brainstorm F05 chưa chốt — đề xuất hoãn tới khi có yêu cầu lọc theo nhãn cụ thể; web giữ hai công tắc ở dữ liệu mẫu hoặc ẩn.
 - Cách hiện thư "Bạn" khi người gửi là chính account trong `snippetFrom`/`title`: web quyết hiển thị (API trả tên/email; `participants[].self` cho biết).
+- **Decision Needed — thư qua nhóm có phải thư hàng loạt?** (review BE-40, 2026-10-09). D-68 đánh dấu `bulk` khi có header `List-Unsubscribe`. Thư đi qua Google Groups, kể cả địa chỉ chung kiểu `support@` dựng bằng nhóm, thường cũng có header này (chưa kiểm với hộp thư thật), nên thư khách hỏi tới đó sẽ không vào "Cần trả lời". Phương án: (A) giữ quy tắc như đã duyệt; (B) thư có `List-Id` mà không có nhãn `CATEGORY_*` thì không coi là hàng loạt; (C) để người dùng đánh dấu tay sau này. BE-40 cài đúng D-68 (A); đổi sang B chỉ sửa `GmailMessageNormalizer` và thư mẫu. Cần chốt trước BE-43.
 
 ## Definition of Done — F05
 

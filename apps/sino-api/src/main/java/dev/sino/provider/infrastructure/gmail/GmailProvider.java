@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 
 import dev.sino.provider.ProviderCapabilities;
@@ -117,6 +118,18 @@ class GmailProvider implements MessageProvider {
         GmailCursor next = more ? position.onPage(null, page.nextPageToken())
                 : GmailCursor.changesSince(position.historyId(), position.since());
         return batchOf(accessToken, selfEmail, page.ids(), position.since(), next, more);
+    }
+
+    /**
+     * Gmail's own count, rough either way: since {@code since}, the {@code resultSizeEstimate} of a list of one
+     * message; for the whole mailbox, the {@code messagesTotal} of the profile, which also counts drafts, spam and
+     * trash. Empty when Gmail leaves the number out.
+     */
+    @Override
+    public OptionalLong estimateMessages(ProviderContext context, Instant since) {
+        String accessToken = accessTokenOf(context);
+        Long estimate = since == null ? api.profile(accessToken).messagesTotal() : api.estimate(accessToken, since);
+        return estimate == null || estimate < 0 ? OptionalLong.empty() : OptionalLong.of(estimate);
     }
 
     // A run of history pages ends at the mailbox's history id read before its first page: whatever changes while

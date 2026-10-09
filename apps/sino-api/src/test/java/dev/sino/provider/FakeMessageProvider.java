@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,6 +42,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private final ProviderCapabilities capabilities;
     private final List<List<RawMessage>> pages;
     private final OAuth2Connection oauth2;
+    private final Long estimate;
     private final List<SendMessageCommand> sent = new ArrayList<>();
 
     private FakeMessageProvider(Builder builder) {
@@ -49,6 +51,7 @@ public final class FakeMessageProvider implements MessageProvider {
         this.capabilities = builder.capabilities;
         this.pages = List.copyOf(builder.pages);
         this.oauth2 = builder.oauth2;
+        this.estimate = builder.estimate;
     }
 
     public static Builder builder(String type) {
@@ -125,6 +128,14 @@ public final class FakeMessageProvider implements MessageProvider {
     }
 
     @Override
+    public OptionalLong estimateMessages(ProviderContext context, Instant since) {
+        if (estimate == null || !capabilities.supports(ProviderCapability.READ_MESSAGES)) {
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(estimate);
+    }
+
+    @Override
     public synchronized SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
         if (!capabilities.supports(ProviderCapability.SEND_MESSAGES)) {
             return MessageProvider.super.sendMessage(context, command);
@@ -185,6 +196,7 @@ public final class FakeMessageProvider implements MessageProvider {
         private ProviderCapabilities capabilities = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES);
         private final List<List<RawMessage>> pages = new ArrayList<>();
         private OAuth2Connection oauth2;
+        private Long estimate;
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -203,6 +215,12 @@ public final class FakeMessageProvider implements MessageProvider {
         /** Makes the fake connect over OAuth2, like Gmail. */
         public Builder oauth2(OAuth2Connection oauth2) {
             this.oauth2 = oauth2;
+            return this;
+        }
+
+        /** What the fake estimates, whatever the moment; without it the fake estimates nothing. */
+        public Builder estimate(long messages) {
+            this.estimate = messages;
             return this;
         }
 
