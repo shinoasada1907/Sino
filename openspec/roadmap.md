@@ -136,10 +136,11 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 - **FE:** danh sách conversation, infinite scroll, badge provider/account, unread (canvas `Inbox`, `TabletInbox`, `MobileInbox`, `InboxState`).
 - **Cần chốt:** quyết định sản phẩm khi xóa account thì giữ hay xóa lịch sử (02B §12, D-13); cách dọn dữ liệu phụ thuộc (listener hay FK cascade).
 - **Bạn sẽ học:** keyset/cursor pagination, index (02B §5), upsert `ON CONFLICT` so với JPA, projection, `EXPLAIN ANALYZE`.
+- **Đã mở 2026-10-09:** `openspec/changes/f05-unified-inbox`. Quyết định (người dùng): D-63 F05 lưu cả thư (bảng `message`/`attachment` chuyển từ F06 sang F05), D-64 lần nhập đầu do người dùng bắt đầu, chạy nền, D-65 ước lượng qua hàm tùy chọn của contract, D-66 xóa account thì giữ thư nhưng ẩn, D-67 đã đọc/lưu trữ chỉ trong Sino, D-68 "Cần trả lời" = thư cuối đến từ người, không hàng loạt, D-69 hai module `conversation` + `sync`.
 
 #### F06 — Message History · ~M
 
-- **BE:** module `messaging`; bảng `message`, `attachment`; luồng upsert message và cập nhật preview/unread (02B §11); `GET /api/conversations/{id}/messages?before=&limit=` (mới nhất trước).
+- **BE:** ~~module `messaging`; bảng `message`, `attachment`; luồng upsert message và cập nhật preview/unread (02B §11)~~ → làm ở F05 (D-63); còn `GET /api/conversations/{id}/messages?before=&limit=` (mới nhất trước) trong module `conversation`.
 - **FE:** cột phải: timeline, bubble inbound/outbound, metadata attachment, cuộn lên để tải tin cũ hơn.
 - **Cần chốt:** lưu và hiển thị nội dung email HTML thế nào (plain text hay HTML đã sanitize) — liên quan trực tiếp tới **XSS**.
 - **Bạn sẽ học:** phân trang ngược, sanitize nội dung không tin cậy, quan hệ aggregate giữa conversation và message.
