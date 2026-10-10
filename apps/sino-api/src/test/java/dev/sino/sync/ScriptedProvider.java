@@ -2,6 +2,7 @@ package dev.sino.sync;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -10,13 +11,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import dev.sino.provider.FakeMessageProvider;
 import dev.sino.provider.ProviderCapabilities;
-import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
+import dev.sino.provider.spi.PushRegistration;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 
@@ -33,7 +34,9 @@ final class ScriptedProvider implements MessageProvider {
     private volatile Thread heldThread;
     private final List<SyncCursor> asked = new CopyOnWriteArrayList<>();
     private final AtomicInteger calls = new AtomicInteger();
+    private final AtomicInteger pushCalls = new AtomicInteger();
     private volatile int heldCall;
+    private volatile boolean pushHeld;
     private volatile CountDownLatch release = new CountDownLatch(0);
     private volatile CountDownLatch reached = new CountDownLatch(0);
 
@@ -41,7 +44,9 @@ final class ScriptedProvider implements MessageProvider {
         delegate = provider;
         asked.clear();
         calls.set(0);
+        pushCalls.set(0);
         heldCall = 0;
+        pushHeld = false;
         release = new CountDownLatch(0);
         reached = new CountDownLatch(0);
     }
@@ -49,6 +54,13 @@ final class ScriptedProvider implements MessageProvider {
     /** Call number {@code call} (from 1) waits for {@link #letGo()}; {@link #awaitHeld()} waits until it is there. */
     void hold(int call) {
         heldCall = call;
+        release = new CountDownLatch(1);
+        reached = new CountDownLatch(1);
+    }
+
+    /** Like {@link #hold}, for the first registration for push. */
+    void holdPush() {
+        pushHeld = true;
         release = new CountDownLatch(1);
         reached = new CountDownLatch(1);
     }
@@ -77,9 +89,23 @@ final class ScriptedProvider implements MessageProvider {
         return TYPE;
     }
 
+    // What the provider in use declares, so a test can give it push.
     @Override
     public ProviderCapabilities capabilities() {
-        return ProviderCapabilities.of(ProviderCapability.READ_MESSAGES);
+        return delegate.capabilities();
+    }
+
+    @Override
+    public Optional<PushRegistration> registerPush(ProviderContext context) {
+        if (pushCalls.incrementAndGet() == 1 && pushHeld) {
+            waitUntilLetGo();
+        }
+        return delegate.registerPush(context);
+    }
+
+    /** How many times Sino asked this connector to register for push since {@link #use}. */
+    int pushCalls() {
+        return pushCalls.get();
     }
 
     @Override
@@ -91,16 +117,20 @@ final class ScriptedProvider implements MessageProvider {
     public SyncBatch fetchUpdates(ProviderContext context, SyncCursor cursor) {
         asked.add(cursor);
         if (calls.incrementAndGet() == heldCall) {
-            heldThread = Thread.currentThread();
-            reached.countDown();
-            try {
-                release.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE, "The call was interrupted");
-            }
+            waitUntilLetGo();
         }
         return delegate.fetchUpdates(context, cursor);
+    }
+
+    private void waitUntilLetGo() {
+        heldThread = Thread.currentThread();
+        reached.countDown();
+        try {
+            release.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE, "The call was interrupted");
+        }
     }
 
     @Override

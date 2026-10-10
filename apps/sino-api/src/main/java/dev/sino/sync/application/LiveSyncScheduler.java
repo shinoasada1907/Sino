@@ -6,15 +6,14 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 import dev.sino.account.AccountDirectory;
-import dev.sino.account.AccountStatus;
-import dev.sino.account.AccountSummary;
 import dev.sino.sync.infrastructure.SyncCheckpoints;
 
 /**
  * Automatic sync (F07, BE-49): each imported account whose last sync was tried longer ago than
  * {@code sino.sync.live.poll-interval} (60 s) is synced again, unless the user paused automatic sync or turned the
- * account off, or it must be connected again. Timing from the last try, not the last success, keeps a failing account
- * from being asked at every tick of {@link LiveSyncSchedule}.
+ * account off, or it must be connected again. While the provider tells Sino of the account's changes (an active
+ * watch, BE-51), the interval is {@code fallback-interval} (5 min), in case a notice is lost. Timing from the last
+ * try, not the last success, keeps a failing account from being asked at every tick of {@link LiveSyncSchedule}.
  */
 @Component
 public class LiveSyncScheduler {
@@ -41,15 +40,10 @@ public class LiveSyncScheduler {
      * pass under way is timed again when it ends.
      */
     public List<UUID> dueAccounts() {
-        return checkpoints.dueForSync(properties.pollInterval()).stream()
+        return checkpoints.dueForSync(properties.pollInterval(), properties.fallbackInterval()).stream()
                 .filter(accountId -> !runner.isReading(accountId))
-                .filter(accountId -> directory.byId(accountId).filter(LiveSyncScheduler::syncsOnItsOwn).isPresent())
+                .filter(accountId -> directory.byId(accountId).filter(AccountChecks::syncsOnItsOwn).isPresent())
                 .toList();
-    }
-
-    private static boolean syncsOnItsOwn(AccountSummary account) {
-        return account.syncEnabled() && account.status() != AccountStatus.DISABLED
-                && account.status() != AccountStatus.AUTH_EXPIRED;
     }
 
 }

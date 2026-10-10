@@ -75,3 +75,7 @@ sino:
     # Gmail is off and the app still starts; with only one the app stops. The secret only comes from the environment.
     client-id: ${SINO_GOOGLE_CLIENT_ID:}
     client-secret: ${SINO_GOOGLE_CLIENT_SECRET:}
+    pubsub:
+      # D-76: the Cloud Pub/Sub topic Gmail publishes the changes of the watched mailboxes to,
+      # projects/<project id>/topics/<topic name>. Empty: Gmail is only polled for new mail.
+      topic: ${SINO_GOOGLE_PUBSUB_TOPIC:}

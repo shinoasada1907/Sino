@@ -1,5 +1,6 @@
 package dev.sino.provider.spi;
 
+import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
 import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -147,6 +148,23 @@ public abstract class MessageProviderContractTest {
             assertThat(item.kind()).isEqualTo(SkippedItem.Kind.MESSAGE);
             assertThat(item.reason()).isEqualTo(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED);
         });
+    }
+
+    @Test
+    void aConnectorWithoutPushRegistersNothing() {
+        assumeFalse(provider().capabilities().supports(PUSH_WEBHOOK), "the connector can register for push");
+
+        assertThat(provider().registerPush(context())).isEmpty();
+    }
+
+    @Test
+    void aConnectorWithPushSaysWhatItsNoticesCarryAndUntilWhen() {
+        assumeTrue(provider().capabilities().supports(PUSH_WEBHOOK), "the connector cannot register for push");
+
+        PushRegistration registration = provider().registerPush(context()).orElseThrow();
+
+        assertThat(registration.address()).isNotBlank();
+        assertThat(registration.expiresAt()).isAfter(Instant.now());
     }
 
     @Test

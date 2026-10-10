@@ -6,7 +6,10 @@ import dev.sino.account.AccountDirectory;
 import dev.sino.account.AccountStatus;
 import dev.sino.account.AccountSummary;
 
-/** The checks every request of the sync API starts with, the same way as the account API answers. */
+/**
+ * The checks every request of the sync API starts with, the same way as the account API answers, and which accounts
+ * are kept up to date on their own.
+ */
 final class AccountChecks {
 
     private AccountChecks() {
@@ -22,6 +25,15 @@ final class AccountChecks {
         if (account.status() == AccountStatus.DISABLED) {
             throw SyncErrorCode.accountDisabled();
         }
+    }
+
+    /**
+     * Automatic sync and watches are for an account the user did not pause or turn off, and that needs no new
+     * connection.
+     */
+    static boolean syncsOnItsOwn(AccountSummary account) {
+        return account.syncEnabled() && account.status() != AccountStatus.DISABLED
+                && account.status() != AccountStatus.AUTH_EXPIRED;
     }
 
 }

@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -108,6 +109,16 @@ class GmailApi {
                 throw pageTokenRefused(failure, pageToken);
             }
         });
+    }
+
+    /**
+     * Asks Gmail to publish every change of the mailbox to the Pub/Sub {@code topic}, with no label filter, or renews
+     * that (D-76). Gmail refuses a topic it cannot publish to (400 or 403).
+     */
+    Watch watch(String accessToken, String topic) {
+        return call(() -> answer(google.post().uri(USER + "/watch").headers(bearer(accessToken))
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("topicName", topic)).retrieve()
+                .body(Watch.class)));
     }
 
     /** The whole message ({@code format=full}); empty when it was deleted meanwhile (404). */
@@ -226,6 +237,14 @@ class GmailApi {
     /** {@code messagesTotal} counts every message of the mailbox, drafts, spam and trash too. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Profile(String emailAddress, String historyId, Long messagesTotal) {
+    }
+
+    /**
+     * When the watch stops unless renewed: {@code expiration} is milliseconds since the epoch, written as a string
+     * like every 64-bit number of Google's APIs.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Watch(String historyId, String expiration) {
     }
 
     /** {@code resultSizeEstimate} is Gmail's rough count of every message the query matches, on all pages. */

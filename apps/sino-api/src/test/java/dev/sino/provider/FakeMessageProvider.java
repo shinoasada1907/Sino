@@ -3,11 +3,13 @@ package dev.sino.provider;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,6 +24,7 @@ import dev.sino.provider.spi.OAuth2Connection;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
+import dev.sino.provider.spi.PushRegistration;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.provider.spi.SkippedItem;
@@ -33,6 +36,7 @@ import dev.sino.provider.spi.SyncCursor;
  * returns. Like a real connector it normalizes each raw message and skips the ones missing required data, and
  * a first sync from a moment leaves out the messages sent before it. Cursors are {@code page-<n>}, where
  * {@code n} is the next page to return, followed by {@code @<since>} when the first sync started from a moment.
+ * Given a push registration or failure, it also declares {@code PUSH_WEBHOOK}.
  */
 public final class FakeMessageProvider implements MessageProvider {
 
@@ -47,13 +51,19 @@ public final class FakeMessageProvider implements MessageProvider {
     private final Long estimate;
     private final ProviderException estimateFailure;
     private final Map<Integer, ProviderException> failures;
+    private final PushRegistration push;
+    private final ProviderException pushFailure;
     private final AtomicInteger calls = new AtomicInteger();
+    private final AtomicInteger pushCalls = new AtomicInteger();
     private final List<SendMessageCommand> sent = new ArrayList<>();
 
     private FakeMessageProvider(Builder builder) {
         this.type = builder.type;
         this.displayName = builder.displayName;
-        this.capabilities = builder.capabilities;
+        this.push = builder.push;
+        this.pushFailure = builder.pushFailure;
+        this.capabilities = push == null && pushFailure == null ? builder.capabilities
+                : withPush(builder.capabilities);
         this.pages = List.copyOf(builder.pages);
         this.oauth2 = builder.oauth2;
         this.estimate = builder.estimate;
@@ -161,9 +171,32 @@ public final class FakeMessageProvider implements MessageProvider {
         return new SendMessageResult("sent-" + sent.size(), MessageStatus.SENT, null);
     }
 
+    @Override
+    public Optional<PushRegistration> registerPush(ProviderContext context) {
+        if (!capabilities.supports(ProviderCapability.PUSH_WEBHOOK)) {
+            return MessageProvider.super.registerPush(context);
+        }
+        pushCalls.incrementAndGet();
+        if (pushFailure != null) {
+            throw pushFailure;
+        }
+        return Optional.ofNullable(push);
+    }
+
     /** How many times {@link #fetchUpdates} was called, failed calls included. */
     public int fetchCalls() {
         return calls.get();
+    }
+
+    /** How many times {@link #registerPush} reached the fake provider, failed calls included. */
+    public int pushCalls() {
+        return pushCalls.get();
+    }
+
+    private static ProviderCapabilities withPush(ProviderCapabilities capabilities) {
+        Set<ProviderCapability> values = EnumSet.of(ProviderCapability.PUSH_WEBHOOK);
+        values.addAll(capabilities.values());
+        return new ProviderCapabilities(values);
     }
 
     /** The commands that reached the fake provider, in order. */
@@ -221,6 +254,8 @@ public final class FakeMessageProvider implements MessageProvider {
         private Long estimate;
         private ProviderException estimateFailure;
         private final Map<Integer, ProviderException> failures = new HashMap<>();
+        private PushRegistration push;
+        private ProviderException pushFailure;
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -260,6 +295,18 @@ public final class FakeMessageProvider implements MessageProvider {
          */
         public Builder failOnCall(int call, ProviderException failure) {
             failures.put(call, failure);
+            return this;
+        }
+
+        /** Makes the fake declare {@code PUSH_WEBHOOK} and answer every registration for push with this one. */
+        public Builder push(String address, Instant expiresAt) {
+            this.push = new PushRegistration(address, expiresAt);
+            return this;
+        }
+
+        /** Makes the fake declare {@code PUSH_WEBHOOK} and fail every registration for push, as a refused topic does. */
+        public Builder pushFailure(ProviderException failure) {
+            this.pushFailure = failure;
             return this;
         }
 

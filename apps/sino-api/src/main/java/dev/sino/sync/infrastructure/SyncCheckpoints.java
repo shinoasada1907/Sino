@@ -14,9 +14,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * Table {@code sync_checkpoint} (BE-45, BE-48): one row per account, written by the import and by the syncs that keep
- * the account up to date afterwards. Every write is a single statement, so two requests to start an import cannot
- * both win, and a sync never writes over an import that started meanwhile.
+ * Table {@code sync_checkpoint} (BE-45, BE-48, BE-51): one row per account, written by the import, by the syncs that
+ * keep the account up to date afterwards, and by the registration of its watch. Every write is a single statement, so
+ * two requests to start an import cannot both win, and a sync never writes over an import that started meanwhile.
  */
 @Repository
 public class SyncCheckpoints {
@@ -30,8 +30,11 @@ public class SyncCheckpoints {
     }
 
     public Optional<Checkpoint> find(UUID accountId) {
-        return jdbc.sql("SELECT * FROM sync_checkpoint WHERE account_id = :account").param("account", accountId)
-                .query((row, n) -> checkpoint(row)).optional();
+        // Whether the watch is on, by the clock dueForSync uses for the same question.
+        return jdbc.sql("""
+                SELECT *, coalesce(watch_expires_at > now(), false) AS watch_on
+                FROM sync_checkpoint WHERE account_id = :account
+                """).param("account", accountId).query((row, n) -> checkpoint(row)).optional();
     }
 
     /**
@@ -151,17 +154,58 @@ public class SyncCheckpoints {
     }
 
     /**
-     * The imported accounts whose last sync was tried longer ago than the interval, or that were never synced and
-     * whose import ended longer ago: the ones automatic sync asks for again, the longest waiting first.
+     * The imported accounts whose last sync was tried longer ago than their interval, or that were never synced and
+     * whose import ended longer ago: the ones automatic sync asks for again, the longest waiting first. The interval
+     * is {@code fallback} while the account has a watch that is on and did not fail, since the provider's notices
+     * bring its changes; {@code interval} otherwise.
      */
-    public List<UUID> dueForSync(Duration interval) {
+    public List<UUID> dueForSync(Duration interval, Duration fallback) {
         // The database's clock, which wrote both times: the clock of the JVM may differ from it.
         return jdbc.sql("""
                 SELECT account_id FROM sync_checkpoint
                 WHERE import_status = 'DONE'
-                  AND coalesce(last_sync_attempt_at, last_success_at) < now() - make_interval(secs => :seconds)
+                  AND coalesce(last_sync_attempt_at, last_success_at) < now() - make_interval(secs =>
+                      CASE WHEN watch_expires_at > now() AND watch_error IS NULL THEN :fallback ELSE :seconds END)
                 ORDER BY coalesce(last_sync_attempt_at, last_success_at)
-                """).param("seconds", interval.toMillis() / 1000.0).query(UUID.class).list();
+                """).param("seconds", seconds(interval)).param("fallback", seconds(fallback)).query(UUID.class)
+                .list();
+    }
+
+    /**
+     * The imported accounts whose watch is missing, failed the last time, or ends within {@code renewBefore}: the
+     * ones whose watch is registered again.
+     */
+    public List<UUID> dueForWatch(Duration renewBefore) {
+        return jdbc.sql("""
+                SELECT account_id FROM sync_checkpoint
+                WHERE import_status = 'DONE'
+                  AND (watch_expires_at IS NULL OR watch_error IS NOT NULL
+                       OR watch_expires_at < now() + make_interval(secs => :seconds))
+                ORDER BY watch_expires_at NULLS FIRST, account_id
+                """).param("seconds", seconds(renewBefore)).query(UUID.class).list();
+    }
+
+    /** The watch of the account was registered: what its notices carry and until when; its last error is gone. */
+    public void watched(UUID accountId, String address, Instant expiresAt) {
+        jdbc.sql("""
+                UPDATE sync_checkpoint
+                SET watch_address = :address, watch_expires_at = :expires, watch_error = NULL, updated_at = now()
+                WHERE account_id = :account
+                """).param("address", address).param("expires", at(expiresAt)).param("account", accountId)
+                .update();
+    }
+
+    /**
+     * The registration of the watch failed; a watch still on keeps its end, the next check tries again. Whether the
+     * error is new (not the one the last registration failed with), or empty when the account has no row.
+     */
+    public Optional<Boolean> watchFailed(UUID accountId, String errorCode) {
+        // old: the row as this statement found it (PostgreSQL 18).
+        return jdbc.sql("""
+                UPDATE sync_checkpoint SET watch_error = :code, updated_at = now()
+                WHERE account_id = :account
+                RETURNING old.watch_error IS DISTINCT FROM :code
+                """).param("code", errorCode).param("account", accountId).query(Boolean.class).optional();
     }
 
     public List<UUID> running() {
@@ -171,6 +215,10 @@ public class SyncCheckpoints {
 
     private static OffsetDateTime at(Instant instant) {
         return instant == null ? null : instant.atOffset(ZoneOffset.UTC);
+    }
+
+    private static double seconds(Duration duration) {
+        return duration.toMillis() / 1000.0;
     }
 
     private static Instant instant(ResultSet row, String column) throws SQLException {
@@ -184,16 +232,19 @@ public class SyncCheckpoints {
                 row.getInt("imported_count"), row.getInt("skipped_count"), row.getInt("run_imported_count"),
                 instant(row, "run_started_at"), row.getObject("estimated_count", Long.class),
                 instant(row, "last_started_at"), instant(row, "last_success_at"), row.getString("last_error_code"),
-                instant(row, "updated_at"), instant(row, "last_sync_at"), row.getString("last_sync_error"));
+                instant(row, "updated_at"), instant(row, "last_sync_at"), row.getString("last_sync_error"),
+                instant(row, "watch_expires_at"), row.getString("watch_error"), row.getBoolean("watch_on"));
     }
 
     /**
      * One row of {@code sync_checkpoint}; {@code estimated} is null until the connector answered, {@code lastSyncAt}
-     * and {@code lastSyncError} until a sync after the import ended.
+     * and {@code lastSyncError} until a sync after the import ended, {@code watchExpiresAt} and {@code watchError}
+     * until a watch was registered or failed to be. {@code watchOn}: the watch has not ended yet.
      */
     public record Checkpoint(UUID accountId, String cursor, String status, String range, Instant since, int imported,
             int skipped, int runImported, Instant runStartedAt, Long estimated, Instant lastStartedAt,
-            Instant lastSuccessAt, String lastErrorCode, Instant updatedAt, Instant lastSyncAt, String lastSyncError) {
+            Instant lastSuccessAt, String lastErrorCode, Instant updatedAt, Instant lastSyncAt, String lastSyncError,
+            Instant watchExpiresAt, String watchError, boolean watchOn) {
     }
 
 }

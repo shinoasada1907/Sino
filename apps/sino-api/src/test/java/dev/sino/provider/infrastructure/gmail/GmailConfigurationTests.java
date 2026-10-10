@@ -1,5 +1,6 @@
 package dev.sino.provider.infrastructure.gmail;
 
+import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.PrintWriter;
@@ -8,6 +9,8 @@ import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -29,6 +32,7 @@ class GmailConfigurationTests {
 
     private static final String CLIENT_ID = "1234567890-test.apps.googleusercontent.test";
     private static final String CLIENT_SECRET = "GOCSPX-test-client-secret-value";
+    private static final String TOPIC = "projects/sino-test/topics/gmail";
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(GmailConfiguration.class);
@@ -129,8 +133,40 @@ class GmailConfigurationTests {
     }
 
     @Test
+    void gmailTellsSinoOfChangesWithAPubSubTopic(CapturedOutput output) {
+        contextRunner.withPropertyValues("sino.google.client-id=" + CLIENT_ID,
+                "sino.google.client-secret=" + CLIENT_SECRET, "sino.google.pubsub.topic=" + TOPIC).run(context -> {
+                    assertThat(context.getBean(GmailProvider.class).capabilities().supports(PUSH_WEBHOOK)).isTrue();
+                    assertThat(context.getBean(GmailProperties.class).pubsub().topic()).isEqualTo(TOPIC);
+                });
+        assertThat(output).doesNotContain("only polled");
+    }
+
+    @Test
+    void withoutATopicGmailIsOnlyPolledAndSaysSo(CapturedOutput output) {
+        contextRunner.withPropertyValues("sino.google.client-id=" + CLIENT_ID,
+                "sino.google.client-secret=" + CLIENT_SECRET, "sino.google.pubsub.topic= ").run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(GmailProvider.class).capabilities().supports(PUSH_WEBHOOK)).isFalse();
+                    assertThat(context.getBean(GmailProperties.class).pubsub().topic()).isNull();
+                });
+        assertThat(output).contains("only polled").contains("SINO_GOOGLE_PUBSUB_TOPIC");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "gmail", "projects/sino-test/gmail", "projects/sino-test/topics/",
+        "projects//topics/gmail", "projects/sino test/topics/gmail", "projects/a/topics/b/c" })
+    void doesNotStartWithATopicThatIsNotAFullName(String topic) {
+        contextRunner.withPropertyValues("sino.google.client-id=" + CLIENT_ID,
+                "sino.google.client-secret=" + CLIENT_SECRET, "sino.google.pubsub.topic=" + topic)
+                .run(context -> assertThat(context).getFailure()
+                        .hasStackTraceContaining("SINO_GOOGLE_PUBSUB_TOPIC"));
+    }
+
+    @Test
     void neverPrintsTheClientSecret() {
-        GmailProperties properties = new GmailProperties(CLIENT_ID, CLIENT_SECRET, null, null, null, null, null);
+        GmailProperties properties = new GmailProperties(CLIENT_ID, CLIENT_SECRET, null, null, null, null, null,
+                null);
 
         assertThat(properties.toString()).contains(CLIENT_ID).doesNotContain(CLIENT_SECRET);
     }

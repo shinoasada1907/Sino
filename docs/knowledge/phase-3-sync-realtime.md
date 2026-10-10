@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49, BE-50.
+> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49, BE-50, BE-51.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -228,3 +228,112 @@ Sự kiện chỉ có loại, ID account, ID conversation, số thư đến mớ
 MockMvc không có mạng thật và không giữ được một response đang chảy dài. `RealtimeApiTests` chạy server trên cổng ngẫu nhiên, đăng nhập bằng `Browser`, rồi mở luồng bằng `java.net.http.HttpClient` với `BodyHandlers.ofLines()`: một virtual thread đọc từng dòng vào hàng đợi, test lấy dòng hay sự kiện ra với thời hạn chờ.
 
 Hai bẫy gặp khi viết test, đều do **code đúng**: kết nối account phát `AccountConnected`, nên luồng mở trước khi kết nối thấy `account.changed` trước tiên; và sau khi bấm PATCH, sự kiện của các trang nhập sau vẫn còn tới trước sự kiện của PATCH. Test giờ kết nối account trước khi mở luồng, và đọc qua các sự kiện tới khi gặp đúng sự kiện có `source: user`.
+
+## 4. Gmail báo cho Sino: đăng ký watch (BE-51)
+
+**Ở đâu:** `provider/spi/MessageProvider.registerPush`, `PushRegistration`; `provider/infrastructure/gmail/GmailApi.watch`, `GmailProvider.registerPush`, `GmailProperties.PubSub` (`sino.google.pubsub.topic`), `GmailConfiguration` (kiểm tên topic); `sync/application/PushWatches` (đăng ký, gia hạn), `LiveSyncSchedule.checkWatches` (mỗi giờ), `LiveSyncScheduler` (khoảng 5 phút khi có watch), `LiveSyncService` (`push`, `pushExpiresAt`); migration `V13__sync_add_push_watch.sql`.
+
+Gmail không gọi thẳng Sino. Sino nhờ Gmail "theo dõi" (watch) hộp thư và đẩy mỗi thay đổi vào một **topic** của Cloud Pub/Sub trong dự án Google của mình; Pub/Sub chuyển tiếp tới webhook của Sino (BE-52).
+
+```text
+              (1) users.watch {topicName}
+   Sino  ─────────────────────────────────>  Gmail
+     ^                                         |
+     |  (3) push subscription: POST            |  (2) hộp thư đổi: publish
+     |      /api/webhooks/gmail (BE-52)        v      {emailAddress, historyId}
+     └────────────────────────────  topic Pub/Sub của dự án
+```
+
+```text
+khi lần nhập đầu xong (ImportRunner, lượt IMPORT, trang cuối đã lưu)
+   -> PushWatches.watch(account)
+mỗi giờ (sino.sync.live.push-check), lần đầu 1 phút sau khi khởi động, trên một virtual thread riêng:
+   dueForWatch(2 ngày)   dòng DONE chưa có watch, lần đăng ký trước lỗi, hoặc watch hết hạn trong 2 ngày
+   -> PushWatches.watch(account)
+
+PushWatches.watch(account):
+   đang có một lần đăng ký của account này -> thôi
+   AccountDirectory.byId          bỏ: tạm dừng, DISABLED, AUTH_EXPIRED, đã xóa
+   ProviderRegistry.find          bỏ connector không khai báo PUSH_WEBHOOK (không gọi gì cả)
+   ProviderAccess.call(registerPush)
+        Gmail: users.getProfile (lấy emailAddress) rồi users.watch {topicName}
+   thành công -> watched(address, expiresAt), xóa lỗi; phát SyncStateChanged
+   rỗng       -> watchFailed(PUSH_NOT_REGISTERED)
+   lỗi        -> watchFailed(code); lỗi mới thì WARN và phát SyncStateChanged
+                 (thread bị ngắt vì ứng dụng đang tắt: không ghi gì)
+```
+
+### 4.1 `registerPush` trong contract: mặc định rỗng
+Cùng kiểu với `estimateMessages`: một **default method** của interface `MessageProvider`, trả `Optional.empty()` và không gọi provider. Chỉ connector khai báo `PUSH_WEBHOOK` mới cài đè. Khác `sendMessage` (gọi khi không có capability thì ném `CAPABILITY_NOT_SUPPORTED`, vì đó là lỗi của bên gọi): "không có push" là trạng thái bình thường, ví dụ Gmail khi chưa cấu hình topic, nên trả rỗng chứ không ném. Bộ kiểm contract có hai test: connector không có `PUSH_WEBHOOK` trả rỗng; connector có thì trả địa chỉ không rỗng và hạn ở tương lai. `FakeMessageProvider` được thêm `push(...)` và `pushFailure(...)` để các test của `sync` dựng được connector có push.
+
+`PushRegistration` tự viết `toString()` để che địa chỉ: địa chỉ hộp thư là dữ liệu của một người, không được lọt vào log hay thông báo lỗi.
+
+### 4.2 Vì sao địa chỉ của watch lấy từ profile Gmail (câu gợi ý của task)
+Thông báo Gmail gửi qua Pub/Sub chỉ có `{"emailAddress", "historyId"}`. Webhook (BE-52) phải từ `emailAddress` tìm ra account. Account đã có `address` (BE-47), nhưng nó lấy từ `email` của OpenID lúc kết nối, là một nguồn khác, ở một thời điểm khác. Thông báo thì mang đúng giá trị `emailAddress` của `users.getProfile`. Nên lúc đăng ký watch, Sino đọc chính `getProfile` và lưu giá trị đó vào `watch_address`: thứ được so và thứ đem ra so đến từ **cùng một nguồn**, giống quy tắc "cùng một đồng hồ" ở mục 2.3. Webhook so không phân biệt hoa thường (index trên `lower(watch_address)`).
+
+### 4.3 Topic là cấu hình, không phải bí mật
+`SINO_GOOGLE_PUBSUB_TOPIC` có dạng `projects/<project id>/topics/<tên>`. Nó không phải khóa, ai biết tên cũng không làm được gì nếu không có quyền trong dự án. Gmail chỉ nhận tên đầy đủ; tên thiếu sẽ chỉ hỏng ở lần watch đầu tiên, sâu trong log. Vì vậy `GmailConfiguration` kiểm dạng tên lúc khởi động và **dừng ứng dụng** với thông báo nêu tên biến (không nêu giá trị), giống cách nó xử lý thiếu client id/secret. Để trống thì Gmail chỉ được hỏi định kỳ, và ứng dụng nói một dòng INFO lúc khởi động.
+
+`GmailProvider` chỉ khai báo `PUSH_WEBHOOK` khi có topic. Nhờ vậy module `sync` không cần biết gì về Google: nó chỉ hỏi capability.
+
+### 4.4 `expiration`: số 64 bit viết thành chuỗi
+`users.watch` trả `{"historyId": "1234", "expiration": "1760688000123"}`: hạn tính bằng mili giây từ 1970, viết thành **chuỗi**. JSON của Google viết mọi số 64 bit thành chuỗi vì số của JavaScript mất chính xác sau 2^53. Record `Watch` khai báo `expiration` là `String`, code kiểm toàn chữ số rồi mới `Instant.ofEpochMilli(Long.parseLong(...))`. Giá trị hỏng thành `PAYLOAD_NORMALIZATION_FAILED`, không để `NumberFormatException` thoát ra. Test có cả dạng chuỗi lẫn dạng số.
+
+### 4.5 Gia hạn: mỗi giờ kiểm, gia hạn khi còn dưới 2 ngày
+Watch của Gmail hết sau khoảng 7 ngày nếu không gọi lại; gọi `watch` lần nữa khi watch còn hạn là an toàn, nó chỉ thay hạn mới. Sino kiểm mỗi giờ và gia hạn watch còn dưới 2 ngày, nên một watch được gia hạn khoảng 5 ngày sau khi đăng ký. Nếu lần gia hạn hỏng, còn khoảng 48 lần kiểm nữa trước khi watch thật sự hết. Lần đăng ký lỗi cũng được thử lại ở lần kiểm sau (`watch_error IS NOT NULL` trong `dueForWatch`).
+
+Phương án bị loại: gia hạn trong mỗi lượt đồng bộ (mỗi phút một lần gọi `watch` cho mỗi account, tốn hạn mức vô ích); chỉ đăng ký lúc nhập xong (watch hết sau 7 ngày, thư mới lại chậm mà không ai biết).
+
+Log theo cùng cách với lỗi đồng bộ (mục 2.5): `watchFailed` trả lỗi có mới không; lỗi mới thì WARN (lỗi không lường trước kèm stack trace), lặp lại thì DEBUG. Câu SQL dùng một tính năng mới của PostgreSQL 18:
+```sql
+UPDATE sync_checkpoint SET watch_error = :code, updated_at = now()
+WHERE account_id = :account
+RETURNING old.watch_error IS DISTINCT FROM :code
+```
+Từ PostgreSQL 18, `RETURNING` đọc được cả `old` (dòng như câu lệnh tìm thấy) lẫn `new` (dòng sau khi sửa). Bản đầu, và `syncFailed` của BE-49, dùng một subquery `previous` đọc lại chính dòng đó trước câu `UPDATE`: dài hơn, và hai câu chạy cùng lúc có thể cùng thấy giá trị cũ. `old` là đúng phiên bản dòng mà câu `UPDATE` này đã khóa và sửa.
+
+### 4.6 Khi có watch, hỏi định kỳ 5 phút một lần
+Webhook làm thư tới trong vài giây, nhưng Sino vẫn hỏi định kỳ, chỉ thưa hơn:
+```sql
+coalesce(last_sync_attempt_at, last_success_at) < now() - make_interval(secs =>
+    CASE WHEN watch_expires_at > now() AND watch_error IS NULL THEN :fallback ELSE :seconds END)
+```
+- Có watch còn hạn và lần đăng ký gần nhất không lỗi: 5 phút (`fallback-interval`). Pub/Sub có thể trễ hay mất tin, webhook có thể không tới được (đường hầm trên máy local đã đóng): 5 phút là giới hạn trên của độ trễ khi đó.
+- Lần đăng ký gần nhất lỗi: 60 giây, **kể cả khi watch cũ còn hạn**. Lỗi có thể là chính quyền publish của Gmail vào topic đã bị gỡ; Sino không biết thông báo có còn tới không, nên quay về hỏi mỗi phút cho chắc.
+- Không có watch, hoặc watch đã hết: 60 giây như trước.
+
+Cả hai mốc đều tính trong SQL bằng `now()` của PostgreSQL (mục 2.3).
+
+### 4.7 Trạng thái `push`
+`GET /api/accounts/{id}/sync` trả `push`:
+
+| `push` | Khi nào | `pushExpiresAt` |
+|---|---|---|
+| `FAILED` | lần đăng ký gần nhất lỗi (đứng trước mọi trường hợp khác) | `null` |
+| `ACTIVE` | watch còn hạn | hạn của watch |
+| `OFF` | không có watch, hoặc đã hết hạn | `null` |
+
+"Watch còn hạn không" được hỏi ở hai chỗ: lịch (5 phút hay 60 giây) và trạng thái (`ACTIVE` hay `OFF`). Bản đầu, lịch hỏi bằng `now()` của PostgreSQL, trạng thái hỏi bằng `Instant.now()` của Java: ở đúng lúc watch hết, hai chỗ có thể trả lời khác nhau. Review chỉ ra đây là lần thứ hai gặp lỗi hai đồng hồ (lần đầu ở BE-49, mục 2.3). Giờ `find` tính luôn trong SQL: `coalesce(watch_expires_at > now(), false) AS watch_on`, và trạng thái đọc cột đó. Hạn do đồng hồ của Google viết, nhưng câu hỏi "còn hạn **lúc này** không" thì cả hệ thống phải dùng một đồng hồ.
+
+### 4.8 Đăng ký ngay khi nhập xong
+`readPages` giờ trả `boolean`: `true` khi đọc và lưu hết các trang, `false` khi lượt hỏng (và đã ghi lỗi). `run()` gọi `PushWatches.watch` chỉ khi lượt **nhập lần đầu** đọc hết. Gọi ngay trên virtual thread đang đọc account đó, nên account vẫn được tính là "đang đọc" và lịch không chen vào. Lần nhập hỏng không đăng ký; lượt đồng bộ không đăng ký lại (việc của lần kiểm mỗi giờ). `watch` không bao giờ ném lỗi: mọi lỗi được ghi vào `watch_error`.
+
+Account đã nhập xong từ trước BE-51 (như account Gmail đang dùng thử) chưa có watch: lần kiểm đầu tiên, 1 phút sau khi khởi động, đăng ký cho nó.
+
+### 4.9 Review: luồng lịch chỉ có một thread
+Review (agent `senior-reviewer`) không thấy lỗi nặng; một lỗi mức trung bình đáng nhớ:
+
+- **Lịch của Spring chỉ có một thread.** Mặc định Spring Boot chạy mọi `@Scheduled` trên **một** thread (`spring.task.scheduling.pool.size = 1`). Bản đầu, lần kiểm watch gọi Google ngay trên thread đó. Google chậm thì mỗi account tốn tới 20-30 giây (giới hạn kết nối 5 giây, đọc 10 giây, mỗi lần đăng ký hai request, có thể thêm một lần làm mới token). Trong lúc đó `tick()` không chạy, nên **không account nào được đồng bộ theo lịch**, đúng lúc Google trục trặc, khi đường dự phòng cần nhất. Sửa: `checkWatches()` chỉ trao việc cho một virtual thread riêng (`Executors.newSingleThreadExecutor`) rồi trả về ngay; một cờ `AtomicBoolean` giữ cho hai lần kiểm không chồng nhau; tắt ứng dụng thì `shutdownNow()` ngắt lần kiểm đang chạy. Bài học: thứ gì chạy trên thread lịch phải nhanh và không chờ mạng; việc chậm thì giao đi.
+- **Một account, hai lần đăng ký cùng lúc.** Worker vừa nhập xong đăng ký account, đúng lúc lần kiểm mỗi giờ thấy dòng đó chưa có watch: hai lần gọi Google, và nếu một thành công một lỗi thì lần ghi sau có thể là lần lỗi, account hiện `FAILED` dù watch đang chạy. Sửa: `PushWatches` giữ tập các account đang đăng ký (`ConcurrentHashMap.newKeySet()`); `add` trả `false` thì đã có người làm, bỏ qua. `add` của một tập đồng thời là một thao tác nguyên tử, nên không có khe hở giữa "kiểm" và "đánh dấu". Phương án bị loại: cho việc đăng ký vào hàng đợi theo account của `ImportRunner`. Bộ đếm ở đó nghĩa là "nhìn lại dòng thêm một lần" và mỗi lần nhìn là một lượt đọc thư, nên mỗi lần gia hạn sẽ kéo theo một lượt đồng bộ không ai cần.
+- **Ứng dụng đang tắt.** Thread bị ngắt giữa lúc gọi Google thì lời gọi hỏng thành `PROVIDER_UNAVAILABLE`. Bản đầu ghi lỗi đó vào `watch_error`, nên sau khi khởi động lại account hiện `FAILED` một lúc. Giờ `failed` kiểm `Thread.currentThread().isInterrupted()` trước, như `ImportRunner.fail` vẫn làm: đang tắt thì không ghi gì.
+- **Connector có push mà không đăng ký.** Khai báo `PUSH_WEBHOOK` mà trả rỗng là trái contract. Bản đầu lặng lẽ bỏ qua, account mãi `OFF`. Giờ ghi lỗi `PUSH_NOT_REGISTERED` và thử lại ở lần kiểm sau.
+- **Javadoc nói quá.** Bản đầu ghi "Never throws" trong khi lời tìm account nằm ngoài khối `try`. Giờ mọi bước nằm trong `try`, và Javadoc nói đúng điều code làm.
+- **Đặt topic trước BE-52.** Có topic thì Gmail chỉ được hỏi 5 phút một lần; chưa có webhook thì không ai nhận thông báo, thư mới chậm tới 5 phút. `.env.example` giờ ghi: chỉ đặt topic cùng với phần webhook.
+
+### 4.10 Kiểm chứng (BE-51)
+- **Build trong worktree riêng.** Từ BE-51, mọi lần build, test và kiểm tra ngược chạy trong một git worktree (`git worktree add --detach <thư mục> dev`): một bản sao làm việc thứ hai của cùng repo, có `target/` riêng. Lý do: IntelliJ của người dùng chạy ứng dụng từ `apps/sino-api/target/classes` có DevTools; build ở đó làm ứng dụng của người dùng khởi động lại, có lúc với code đang gài lỗi (sự cố ở BE-50). Hai worktree cho phép chạy kiểm tra ngược song song, nhanh gấp đôi.
+- **RED:** thay sáu chỗ logic bằng bản rỗng (Gmail không khai báo và không đăng ký, không kiểm topic, lịch bỏ khoảng 5 phút, `PushWatches.watch` rỗng, trạng thái luôn `OFF`, lịch không kiểm watch): 28 test đỏ. Các test kiểu "không được làm gì" (connector không có push, account tạm dừng) xanh từ đầu, đúng như mong đợi.
+- **Kiểm tra ngược hai vòng:** 21 lỗi cố ý trước review, 25 sau review (7 cái nhắm vào chính các sửa của review). Tất cả bị bắt trừ một cái giữ có chủ đích: lỗi "account bị xóa giữa hai câu lệnh" ghi thành `INTERNAL` thay vì mã đúng, không dựng được trong test.
+- **Một lỗi cố ý sống sót vì test chờ sai.** Test "lần nhập lỗi không đăng ký watch" chờ tới khi **có** watch rồi mới đếm số lần đăng ký. Với code gài lỗi (đăng ký cả sau lần nhập lỗi), watch có ngay sau lần nhập lỗi, nên test đếm lúc mới có một lần và vẫn xanh. Sửa: chờ lần nhập thứ hai **xong và worker rảnh** rồi mới đếm. Bài học: khi test "không có chuyện X", phải chờ tới lúc chắc chắn mọi việc có thể gây ra X đã chạy xong; chờ "một điều kiện đúng" là chưa đủ.
+- `./mvnw -B -ntp verify` → 948 test, 0 lỗi, 4 bỏ qua (giả định theo capability trong bộ kiểm contract), BUILD SUCCESS, `ModularityTests` 2/2.
+- **Chưa xác minh:** Gmail thật (gọi lại `watch` khi còn hạn trả hạn mới; mã lỗi khi topic ở dự án khác hay thiếu quyền). Làm ở BE-53 cùng webhook.

@@ -17,6 +17,7 @@ import dev.sino.provider.ProviderType;
 import dev.sino.provider.infrastructure.gmail.GmailApi.HistoryPage;
 import dev.sino.provider.infrastructure.gmail.GmailApi.MessageList;
 import dev.sino.provider.infrastructure.gmail.GmailApi.Profile;
+import dev.sino.provider.infrastructure.gmail.GmailApi.Watch;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.OAuth2Connection;
@@ -24,13 +25,14 @@ import dev.sino.provider.spi.OAuth2Credentials;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
+import dev.sino.provider.spi.PushRegistration;
 import dev.sino.provider.spi.SkippedItem;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 
 /**
- * The Gmail connector: who the account is, how it connects, and its mail (F04b). Reads only; every call to Google
- * goes through {@link GmailApi}, with a time limit.
+ * The Gmail connector: who the account is, how it connects, and its mail (F04b); with a Pub/Sub topic, Gmail also
+ * tells Sino of changes (D-76). Reads only; every call to Google goes through {@link GmailApi}, with a time limit.
  */
 class GmailProvider implements MessageProvider {
 
@@ -46,22 +48,32 @@ class GmailProvider implements MessageProvider {
             "prompt", "consent");
     private static final ProviderCapabilities CAPABILITIES = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
             ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS);
+    private static final ProviderCapabilities WITH_PUSH = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
+            ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS, ProviderCapability.PUSH_WEBHOOK);
     // Not mail of the inbox: Sino leaves these out without counting them as skipped.
     private static final Set<String> HIDDEN_LABELS = Set.of("DRAFT", "SPAM", "TRASH");
 
     private final OAuth2Connection connection;
     private final GmailApi api;
+    // Null: Gmail does not tell Sino of changes, it is only polled.
+    private final String pubsubTopic;
 
     GmailProvider(GmailProperties properties) {
         this(properties.userInfoUri(), properties.gmailApiUri(), properties.revocationUri(), CONNECT_TIMEOUT,
-                READ_TIMEOUT);
+                READ_TIMEOUT, properties.pubsub().topic());
     }
 
     GmailProvider(URI userInfoUri, URI gmailApiUri, URI revocationUri, Duration connectTimeout,
             Duration readTimeout) {
+        this(userInfoUri, gmailApiUri, revocationUri, connectTimeout, readTimeout, null);
+    }
+
+    GmailProvider(URI userInfoUri, URI gmailApiUri, URI revocationUri, Duration connectTimeout,
+            Duration readTimeout, String pubsubTopic) {
         this.connection = new OAuth2Connection(REGISTRATION_ID, SCOPES, Set.of(GMAIL_READONLY), CONSENT_PARAMETERS,
                 revocationUri);
         this.api = new GmailApi(userInfoUri, gmailApiUri, connectTimeout, readTimeout);
+        this.pubsubTopic = pubsubTopic;
     }
 
     @Override
@@ -76,7 +88,7 @@ class GmailProvider implements MessageProvider {
 
     @Override
     public ProviderCapabilities capabilities() {
-        return CAPABILITIES;
+        return pubsubTopic == null ? CAPABILITIES : WITH_PUSH;
     }
 
     @Override
@@ -136,6 +148,27 @@ class GmailProvider implements MessageProvider {
         return estimate == null || estimate < 0 ? OptionalLong.empty() : OptionalLong.of(estimate);
     }
 
+    /**
+     * Asks Gmail to publish every change of the mailbox to the configured topic ({@code users.watch}, the whole
+     * mailbox like the import), or renews that. Gmail's notices carry the {@code emailAddress} of the profile, so that
+     * is the address, rather than the email of the sign-in. Gmail stops after about a week unless asked again; without
+     * a topic, empty and Google never hears of it.
+     */
+    @Override
+    public Optional<PushRegistration> registerPush(ProviderContext context) {
+        if (pubsubTopic == null) {
+            return Optional.empty();
+        }
+        String accessToken = accessTokenOf(context);
+        String address = api.profile(accessToken).emailAddress();
+        if (address == null || address.isBlank()) {
+            throw new ProviderException(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED,
+                    "Gmail sent no address for the mailbox");
+        }
+        Watch watch = api.watch(accessToken, pubsubTopic);
+        return Optional.of(new PushRegistration(address, expirationOf(watch.expiration())));
+    }
+
     // A run of history pages ends at the mailbox's history id read before its first page: whatever changes while
     // it pages on is read again next time (harmless, items have external ids), never lost.
     private SyncBatch changesPage(String accessToken, Profile profile, GmailCursor position) {
@@ -181,6 +214,14 @@ class GmailProvider implements MessageProvider {
                     "Gmail sent no usable history id for the mailbox");
         }
         return historyId;
+    }
+
+    private static Instant expirationOf(String expiration) {
+        if (expiration == null || !expiration.matches("\\d{1,18}")) {
+            throw new ProviderException(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED,
+                    "Gmail sent no usable expiration for the watch");
+        }
+        return Instant.ofEpochMilli(Long.parseLong(expiration));
     }
 
     private static String accessTokenOf(ProviderContext context) {

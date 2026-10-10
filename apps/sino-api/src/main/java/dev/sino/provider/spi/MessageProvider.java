@@ -54,4 +54,13 @@ public interface MessageProvider {
                 type() + " does not support " + ProviderCapability.SEND_MESSAGES);
     }
 
+    /**
+     * Asks the provider to notify Sino of changes to the account (D-76), or renews that while it is on; where the
+     * notices go is the connector's own setup. Empty by default, and always for a connector without
+     * {@link ProviderCapability#PUSH_WEBHOOK}, which never calls its provider for it.
+     */
+    default Optional<PushRegistration> registerPush(ProviderContext context) {
+        return Optional.empty();
+    }
+
 }

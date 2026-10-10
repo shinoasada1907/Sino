@@ -34,7 +34,8 @@ import dev.sino.sync.infrastructure.SyncCheckpoints.Checkpoint;
 
 /**
  * Reads the mail of one account in the background, page after page: its first import (F05 design, section 3), then
- * the syncs that keep it up to date from the saved cursor (F07, D-79). The connector is called outside any
+ * the syncs that keep it up to date from the saved cursor (F07, D-79); the account is watched once its import is done
+ * (D-76). The connector is called outside any
  * transaction; storing a page and moving the cursor on are one transaction, so a failure never moves the cursor past
  * mail that was not stored. Logs name the account, item IDs and error codes, never mail or tokens.
  */
@@ -51,6 +52,7 @@ class ImportRunner implements DisposableBean {
     private final TransactionTemplate transactions;
     private final InitialSyncProperties properties;
     private final ApplicationEventPublisher events;
+    private final PushWatches watches;
     // One virtual thread per account being read (D-69): reading mostly waits for the provider. Kept here rather than
     // as a bean, so Spring Boot keeps its own task executor.
     private final ExecutorService executor = Executors.newThreadPerTaskExecutor(
@@ -60,13 +62,15 @@ class ImportRunner implements DisposableBean {
     private final Map<UUID, AtomicInteger> requests = new ConcurrentHashMap<>();
 
     ImportRunner(ProviderAccess access, ConversationStore store, SyncCheckpoints checkpoints,
-            TransactionTemplate transactions, InitialSyncProperties properties, ApplicationEventPublisher events) {
+            TransactionTemplate transactions, InitialSyncProperties properties, ApplicationEventPublisher events,
+            PushWatches watches) {
         this.access = access;
         this.store = store;
         this.checkpoints = checkpoints;
         this.transactions = transactions;
         this.properties = properties;
         this.events = events;
+        this.watches = watches;
     }
 
     /**
@@ -144,7 +148,10 @@ class ImportRunner implements DisposableBean {
             } else {
                 return;
             }
-            readPages(accountId, pass);
+            if (readPages(accountId, pass) && pass == Pass.IMPORT) {
+                // From now on the provider can tell Sino of new mail (D-76).
+                watches.watch(accountId);
+            }
         } catch (InterruptedException stopped) {
             Thread.currentThread().interrupt();
             log.info("{} of account {} stopped", pass.label, accountId);
@@ -172,7 +179,8 @@ class ImportRunner implements DisposableBean {
         }
     }
 
-    private void readPages(UUID accountId, Pass pass) throws InterruptedException {
+    // Whether every page was read and stored; false when the pass failed and recorded it.
+    private boolean readPages(UUID accountId, Pass pass) throws InterruptedException {
         int throttled = 0;
         int unreachable = 0;
         boolean startedOver = false;
@@ -194,7 +202,7 @@ class ImportRunner implements DisposableBean {
                     case RATE_LIMITED -> {
                         if (++throttled > properties.rateLimitAttempts()) {
                             fail(accountId, pass, failure.errorCode().name());
-                            return;
+                            return false;
                         }
                         Duration wait = failure.retryAfter().orElse(properties.rateLimitWait());
                         pause(accountId, pass, failure, wait.compareTo(properties.rateLimitMaxWait()) > 0
@@ -203,7 +211,7 @@ class ImportRunner implements DisposableBean {
                     case PROVIDER_UNAVAILABLE -> {
                         if (unreachable >= properties.unavailableWaits().size()) {
                             fail(accountId, pass, failure.errorCode().name());
-                            return;
+                            return false;
                         }
                         pause(accountId, pass, failure, properties.unavailableWaits().get(unreachable++));
                     }
@@ -212,7 +220,7 @@ class ImportRunner implements DisposableBean {
                     case CURSOR_EXPIRED -> {
                         if (startedOver) {
                             fail(accountId, pass, failure.errorCode().name());
-                            return;
+                            return false;
                         }
                         startedOver = true;
                         log.atLevel(pass.level).log("{} of account {} starts over: {}", pass.label, accountId,
@@ -225,7 +233,7 @@ class ImportRunner implements DisposableBean {
                     }
                     default -> {
                         fail(accountId, pass, failure.errorCode().name());
-                        return;
+                        return false;
                     }
                 }
                 continue;
@@ -234,7 +242,7 @@ class ImportRunner implements DisposableBean {
             // A connector that says there is more but gives back the same cursor would be asked forever.
             if (!done && batch.nextCursor().value().equals(cursor.value())) {
                 fail(accountId, pass, "CURSOR_STUCK");
-                return;
+                return false;
             }
             // Events published here reach the web only once the page is committed (F08).
             transactions.executeWithoutResult(status -> {
@@ -266,7 +274,7 @@ class ImportRunner implements DisposableBean {
                 } else {
                     log.debug("Sync of account {} is done", accountId);
                 }
-                return;
+                return true;
             }
         }
         throw new InterruptedException();

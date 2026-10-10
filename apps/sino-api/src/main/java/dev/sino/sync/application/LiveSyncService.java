@@ -52,14 +52,16 @@ public class LiveSyncService {
         if (checkpoint == null) {
             return new LiveSyncStatus(false, null, null, "OFF", null);
         }
+        String push = checkpoint.watchError() != null ? "FAILED" : checkpoint.watchOn() ? "ACTIVE" : "OFF";
         return new LiveSyncStatus("DONE".equals(checkpoint.status()), checkpoint.lastSyncAt(),
-                checkpoint.lastSyncError(), "OFF", null);
+                checkpoint.lastSyncError(), push, "ACTIVE".equals(push) ? checkpoint.watchExpiresAt() : null);
     }
 
     /**
      * Where the syncs of an account stand: {@code lastSyncAt} of the last successful one, {@code lastError} of the
-     * last one when it failed. {@code push} tells whether the provider notifies Sino of changes: {@code ACTIVE},
-     * {@code FAILED} or {@code OFF} (always {@code OFF} until Gmail watch, BE-51).
+     * last one when it failed. {@code push} tells whether the provider notifies Sino of changes (BE-51):
+     * {@code ACTIVE} while its watch is on, until {@code pushExpiresAt}; {@code FAILED} when the last registration
+     * failed; {@code OFF} without a watch.
      */
     public record LiveSyncStatus(boolean importDone, Instant lastSyncAt, String lastError, String push,
             Instant pushExpiresAt) {
