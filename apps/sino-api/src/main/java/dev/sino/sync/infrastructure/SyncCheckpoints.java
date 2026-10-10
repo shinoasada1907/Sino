@@ -2,6 +2,7 @@ package dev.sino.sync.infrastructure;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -128,18 +129,39 @@ public class SyncCheckpoints {
                 UPDATE sync_checkpoint
                 SET cursor = :cursor,
                     last_sync_at = CASE WHEN :done THEN now() ELSE last_sync_at END,
+                    last_sync_attempt_at = CASE WHEN :done THEN now() ELSE last_sync_attempt_at END,
                     last_sync_error = CASE WHEN :done THEN NULL ELSE last_sync_error END,
                     updated_at = now()
                 WHERE account_id = :account AND import_status = 'DONE'
                 """).param("cursor", cursor).param("done", done).param("account", accountId).update() == 1;
     }
 
-    /** The sync failed; the import stays DONE and the next sync goes on from the cursor. */
-    public void syncFailed(UUID accountId, String errorCode) {
-        jdbc.sql("""
-                UPDATE sync_checkpoint SET last_sync_error = :code, updated_at = now()
-                WHERE account_id = :account AND import_status = 'DONE'
-                """).param("code", errorCode).param("account", accountId).update();
+    /**
+     * The sync failed; the import stays DONE, the next sync goes on from the cursor and is timed from now. Whether the
+     * error is new (not the one the last sync failed with), or empty when the import started again meanwhile.
+     */
+    public Optional<Boolean> syncFailed(UUID accountId, String errorCode) {
+        return jdbc.sql("""
+                UPDATE sync_checkpoint s
+                SET last_sync_error = :code, last_sync_attempt_at = now(), updated_at = now()
+                FROM (SELECT last_sync_error FROM sync_checkpoint WHERE account_id = :account) AS previous
+                WHERE s.account_id = :account AND s.import_status = 'DONE'
+                RETURNING previous.last_sync_error IS DISTINCT FROM :code
+                """).param("code", errorCode).param("account", accountId).query(Boolean.class).optional();
+    }
+
+    /**
+     * The imported accounts whose last sync was tried longer ago than the interval, or that were never synced and
+     * whose import ended longer ago: the ones automatic sync asks for again, the longest waiting first.
+     */
+    public List<UUID> dueForSync(Duration interval) {
+        // The database's clock, which wrote both times: the clock of the JVM may differ from it.
+        return jdbc.sql("""
+                SELECT account_id FROM sync_checkpoint
+                WHERE import_status = 'DONE'
+                  AND coalesce(last_sync_attempt_at, last_success_at) < now() - make_interval(secs => :seconds)
+                ORDER BY coalesce(last_sync_attempt_at, last_success_at)
+                """).param("seconds", interval.toMillis() / 1000.0).query(UUID.class).list();
     }
 
     public List<UUID> running() {

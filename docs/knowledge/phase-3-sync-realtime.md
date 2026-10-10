@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48.
+> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -123,3 +123,46 @@ cách mới: đọc lại từ T - 1 ngày          ----------------------------
 - **Kiểm tra ngược:** vòng 1: 14 lỗi cố ý, 2 sống sót tới khi test được siết (giữ hai trang cho lượt đồng bộ, kiểm `last_sync_attempt_at`). Vòng 2 sau review: 23 lỗi cố ý, 21 bị bắt. Hai cái sống sót là chốt cho tranh chấp trong khe giữa hai câu SQL liền nhau (`beginSync`, `startOver`): không dựng được trong test, giữ vì rẻ và vô hại. Đây là bài học về kiểm tra ngược: một lỗi cố ý sống sót không phải lúc nào cũng là test thiếu; đôi khi đoạn code đó chỉ có tác dụng trong tình huống test không tạo ra được, và khi đó phải nói rõ lý do giữ nó.
 - **Toàn bộ:** `./mvnw -B -ntp verify` → 856 test, 0 lỗi, 3 bỏ qua.
 - **Hai lớp test một context:** `LiveSyncApiTests` khai báo cùng `@MockitoSpyBean` với `InitialSyncApiTests`. Bean bị thay là một phần của khóa cache context; khác nhau thì Spring dựng context mới, kèm một container PostgreSQL mới.
+
+## 2. Đồng bộ tự động theo lịch (BE-49)
+
+**Ở đâu:** `sync/application/LiveSyncScheduler` (chọn account đến hạn), `LiveSyncSchedule` (nhịp `@Scheduled`, có công tắc), `LiveSyncProperties` (`sino.sync.live.*`), `SyncConfiguration` (`@EnableScheduling`), `SyncCheckpoints.dueForSync`, `account/AccountDirectory.byId`.
+
+```text
+mỗi 15 giây (sino.sync.live.tick), lần đầu 15 giây sau khi khởi động:
+  dueForSync(60 giây)                 các dòng DONE có lần thử gần nhất (chưa thử: lúc nhập xong) cũ hơn
+                                       now() - 60 giây, theo đồng hồ của PostgreSQL
+    -> bỏ account đang được đọc        (ImportRunner.isReading)
+    -> AccountDirectory.byId(id)       còn đó, của ai, trạng thái, có bật đồng bộ tự động không
+    -> bỏ: tạm dừng, DISABLED, AUTH_EXPIRED, đã xóa
+    -> ImportRunner.submit(id)         như mọi cò khác (mục 1.3)
+```
+
+### 2.1 Vì sao hẹn theo lần **thử** chứ không theo lần thành công (câu gợi ý của task)
+Nếu hẹn theo `last_sync_at` (lần thành công), một account đang lỗi (Gmail từ chối, mạng hỏng) sẽ không bao giờ có lần thành công mới, nên lần nào lịch quét (mỗi 15 giây) nó cũng "đến hạn": Sino gọi Gmail 4 lần một phút cho một việc chắc chắn hỏng, đốt hạn mức và làm đầy log. Hẹn theo `last_sync_attempt_at` thì account lỗi chỉ được hỏi lại sau mỗi khoảng.
+
+Review chỉ ra bản đầu vẫn hỏng ở đúng những lượt lỗi: thời điểm thử chỉ ghi lúc lượt **bắt đầu**, và lịch vẫn xếp thêm yêu cầu cho account đang được đọc. Một lượt bị giới hạn tần suất chờ tới 5 lần × 30 giây, dài hơn 60 giây; vừa hỏng xong là lượt xếp hàng chạy ngay, gọi Gmail liền sau một lỗi 429. Sửa hai chỗ:
+- Thời điểm thử được ghi **lại khi lượt kết thúc** (cùng câu ghi thành công hoặc ghi lỗi), nên khoảng 60 giây tính từ lúc lượt xong.
+- Lịch **bỏ qua account đang được đọc** (`ImportRunner.isReading`): lượt đang chạy tự hẹn lần sau khi nó xong.
+
+Account chưa đồng bộ lần nào thì chưa có lần thử: lấy lúc lần nhập xong (`last_success_at`) làm mốc, bằng `coalesce(last_sync_attempt_at, last_success_at)` ngay trong câu SQL.
+
+### 2.2 `@Scheduled` và cái công tắc cho test
+- `@Scheduled(fixedDelayString = "${sino.sync.live.tick:PT15S}")`: chạy lại 15 giây **sau khi lần trước xong** (`fixedDelay`), không chồng lên nhau như `fixedRate` khi một lần quét chậm. Chuỗi `PT15S` là thời lượng ISO-8601 Spring hiểu được.
+- `@Scheduled` chỉ chạy khi trong ứng dụng có `@EnableScheduling` ở **đâu đó**. Profile test cần tắt lịch: nếu không, lịch thật chen vào giữa các test của lần nhập và đồng bộ, và các test đếm số lần gọi connector sẽ đỏ lúc có lúc không.
+- **Bẫy đã gặp:** bản đầu đặt công tắc lên chính `@EnableScheduling` (một cấu hình con chỉ bật khi `sino.sync.live.scheduled` khác `false`). Kiểm tra ngược bỏ hẳn `@EnableScheduling` mà lịch vẫn chạy: `spring-modulith-moments` (`MomentsAutoConfiguration`) đã bật scheduling cho cả ứng dụng. Nghĩa là công tắc không tắt được gì, và lịch thật vẫn chạy trong mọi test. Sửa: `@Scheduled` nằm trên một bean nhỏ riêng, `LiveSyncSchedule`, và **chính bean đó** có `@ConditionalOnProperty`; tắt công tắc thì bean không tồn tại, không có gì để lịch gọi. `@EnableScheduling` vẫn để trên `SyncConfiguration` cho rõ module này cần nó, không dựa ngầm vào thư viện khác.
+- Test của lịch gọi thẳng `dueAccounts()` và `syncDueAccounts()`; `theScheduleIsOffInTheseTests` kiểm bean `liveSyncSchedule` không có trong context test; riêng `ScheduledSyncTests` bật lịch thật (nhịp 0,2 giây) để chứng minh nó chạy.
+- `dueAccounts()` tách khỏi `syncDueAccounts()` để test được **chính xác**: "account này không đến hạn" kiểm bằng danh sách trả về, không phải chờ một khoảng rồi đoán là không có gì xảy ra.
+
+### 2.3 Hai đồng hồ: dùng đồng hồ của database
+`last_sync_attempt_at` và `last_success_at` do PostgreSQL ghi bằng `now()`. Bản đầu so chúng với mốc tính bằng đồng hồ của Java (`clock.instant() - 60 giây`). Hai đồng hồ có thể lệch nhau: ở máy này JVM chạy trên Windows còn PostgreSQL chạy trong máy ảo của Docker, đồng hồ máy ảo hay lệch sau khi máy ngủ. Java nhanh hơn 60 giây thì account nào cũng "đến hạn" mỗi lần quét. Sửa: tính cả mốc trong SQL, `now() - make_interval(secs => :seconds)`, một nguồn giờ duy nhất. Quy tắc chung: **so hai thời điểm thì cả hai phải do cùng một đồng hồ ghi.**
+
+### 2.4 `AccountDirectory.byId`: tìm account không theo owner
+Các API cho người dùng luôn tìm account **theo owner** (account của người khác trông y như không tồn tại). Lịch thì không chạy cho người dùng nào: nó cần biết account còn đó không, có đang tạm dừng không. `byId` trả account chưa xóa của bất kỳ owner nào, kèm `ownerId` và `syncEnabled`; Javadoc ghi rõ chỉ dùng cho việc nền. `AccountSummary` thêm hai thành phần đó (record đổi constructor chuẩn, các chỗ gọi trong test được sửa theo).
+
+### 2.5 Log khi một account lỗi mãi
+Lịch hỏi account lỗi mỗi phút. Log WARN mỗi phút cho cùng một lỗi sẽ chôn các lỗi khác. `syncFailed` ghi lỗi và trả về lỗi đó có **mới** không: so lỗi cũ với lỗi mới bằng `previous.last_sync_error IS DISTINCT FROM :code` trong `RETURNING`, với `previous` là chính dòng đó đọc trước câu `UPDATE`. Mới thì WARN (lỗi không lường trước thì ERROR kèm stack trace), giống lần trước thì DEBUG. Các dòng "chờ …" và "đọc lại từ đầu" của lượt đồng bộ cũng là DEBUG; của lần nhập đầu vẫn là WARN vì nó chỉ chạy một lần. Lượt thành công xóa lỗi, nên lần hỏng đầu tiên sau đó vẫn được nói ra.
+
+`IS DISTINCT FROM` khác `<>` ở chỗ so được với `NULL`: `NULL <> 'X'` cho `NULL` (không phải đúng), còn `NULL IS DISTINCT FROM 'X'` cho đúng.
+
+Lần quét của lịch cũng có thể hỏng (database sập): `LiveSyncSchedule.tick` bắt lỗi, nói một lần lúc bắt đầu hỏng và một lần lúc chạy lại được, lịch không dừng.

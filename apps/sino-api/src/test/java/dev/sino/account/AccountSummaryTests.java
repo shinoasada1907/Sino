@@ -13,27 +13,31 @@ import dev.sino.provider.ProviderType;
 class AccountSummaryTests {
 
     private static final UUID ID = UUID.fromString("0199c7a0-0000-7000-8000-000000000001");
+    private static final UUID OWNER = UUID.fromString("0199c7a0-0000-7000-8000-000000000002");
     private static final ProviderType GMAIL = ProviderType.of("gmail");
 
     @Test
     void carriesNoCredentialAndNoProfileData() {
         assertThat(AccountSummary.class.getRecordComponents()).extracting(RecordComponent::getName)
-                .containsExactly("id", "provider", "status", "externalAccountId");
+                .containsExactly("id", "ownerId", "provider", "status", "externalAccountId", "syncEnabled");
     }
 
     @Test
     void everyFieldIsRequired() {
         assertThatNullPointerException()
-                .isThrownBy(() -> new AccountSummary(null, GMAIL, AccountStatus.CONNECTED, "a@gmail.test"))
+                .isThrownBy(() -> new AccountSummary(null, OWNER, GMAIL, AccountStatus.CONNECTED, "a@gmail.test", true))
                 .withMessageContaining("id");
         assertThatNullPointerException()
-                .isThrownBy(() -> new AccountSummary(ID, null, AccountStatus.CONNECTED, "a@gmail.test"))
+                .isThrownBy(() -> new AccountSummary(ID, null, GMAIL, AccountStatus.CONNECTED, "a@gmail.test", true))
+                .withMessageContaining("ownerId");
+        assertThatNullPointerException()
+                .isThrownBy(() -> new AccountSummary(ID, OWNER, null, AccountStatus.CONNECTED, "a@gmail.test", true))
                 .withMessageContaining("provider");
         assertThatNullPointerException()
-                .isThrownBy(() -> new AccountSummary(ID, GMAIL, null, "a@gmail.test"))
+                .isThrownBy(() -> new AccountSummary(ID, OWNER, GMAIL, null, "a@gmail.test", true))
                 .withMessageContaining("status");
         assertThatNullPointerException()
-                .isThrownBy(() -> new AccountSummary(ID, GMAIL, AccountStatus.CONNECTED, null))
+                .isThrownBy(() -> new AccountSummary(ID, OWNER, GMAIL, AccountStatus.CONNECTED, null, true))
                 .withMessageContaining("externalAccountId");
     }
 

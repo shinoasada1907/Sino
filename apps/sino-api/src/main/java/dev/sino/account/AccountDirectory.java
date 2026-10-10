@@ -17,4 +17,10 @@ public interface AccountDirectory {
     /** The account when it belongs to the owner and is not removed, whatever its status. */
     Optional<AccountSummary> find(UUID ownerId, UUID accountId);
 
+    /**
+     * The account when it is not removed, whoever owns it, whatever its status: for work no request of a user started,
+     * such as automatic sync. Requests of a user look accounts up with {@link #find}.
+     */
+    Optional<AccountSummary> byId(UUID accountId);
+
 }

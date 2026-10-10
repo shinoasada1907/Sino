@@ -78,17 +78,38 @@ class AccountDirectoryServiceTests {
         connectedAt(chat, "2026-01-01T00:00:00Z");
 
         assertThat(directory.accountsOf(alice)).containsExactly(
-                new AccountSummary(chat.id(), TELEGRAM, AccountStatus.DISABLED, "4242"),
-                new AccountSummary(work.id(), GMAIL, AccountStatus.CONNECTED, "alice@work.test"),
-                new AccountSummary(expired.id(), GMAIL, AccountStatus.AUTH_EXPIRED, "alice@home.test"));
+                new AccountSummary(chat.id(), alice, TELEGRAM, AccountStatus.DISABLED, "4242", true),
+                new AccountSummary(work.id(), alice, GMAIL, AccountStatus.CONNECTED, "alice@work.test", true),
+                new AccountSummary(expired.id(), alice, GMAIL, AccountStatus.AUTH_EXPIRED, "alice@home.test", true));
     }
 
     @Test
     void findsAnAccountOfTheOwner() {
         ConnectedAccount work = accounts.saveAndFlush(register(alice, GMAIL, "alice@work.test"));
 
-        assertThat(directory.find(alice, work.id()))
-                .contains(new AccountSummary(work.id(), GMAIL, AccountStatus.CONNECTED, "alice@work.test"));
+        assertThat(directory.find(alice, work.id())).contains(
+                new AccountSummary(work.id(), alice, GMAIL, AccountStatus.CONNECTED, "alice@work.test", true));
+    }
+
+    @Test
+    void findsAnAccountByIdWhoeverOwnsIt() {
+        ConnectedAccount bobs = register(bob, GMAIL, "bob@gmail.test");
+        bobs.pauseSync();
+        accounts.saveAndFlush(bobs);
+
+        assertThat(directory.byId(bobs.id()))
+                .contains(new AccountSummary(bobs.id(), bob, GMAIL, AccountStatus.CONNECTED, "bob@gmail.test", false));
+    }
+
+    @Test
+    void byIdLeavesOutARemovedOrUnknownAccount() {
+        ConnectedAccount removed = register(alice, GMAIL, "removed@gmail.test");
+        removed.remove(Instant.parse("2026-10-07T09:00:00Z"));
+        accounts.saveAndFlush(removed);
+        entityManager.clear();
+
+        assertThat(directory.byId(removed.id())).isEmpty();
+        assertThat(directory.byId(UUID.randomUUID())).isEmpty();
     }
 
     @Test

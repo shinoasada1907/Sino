@@ -12,7 +12,10 @@ import dev.sino.account.AccountSummary;
 import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.account.infrastructure.ConnectedAccountRepository;
 
-/** {@link AccountDirectory} over the same owner-scoped queries as the account API. */
+/**
+ * {@link AccountDirectory} over the same owner-scoped queries as the account API, and, for work in the background,
+ * one lookup by ID across owners.
+ */
 @Service
 @Transactional(readOnly = true)
 public class AccountDirectoryService implements AccountDirectory {
@@ -35,8 +38,14 @@ public class AccountDirectoryService implements AccountDirectory {
                 .map(AccountDirectoryService::summaryOf);
     }
 
+    @Override
+    public Optional<AccountSummary> byId(UUID accountId) {
+        return accounts.findByIdAndRemovedAtIsNull(accountId).map(AccountDirectoryService::summaryOf);
+    }
+
     private static AccountSummary summaryOf(ConnectedAccount account) {
-        return new AccountSummary(account.id(), account.provider(), account.status(), account.externalAccountId());
+        return new AccountSummary(account.id(), account.ownerId(), account.provider(), account.status(),
+                account.externalAccountId(), account.syncEnabled());
     }
 
 }

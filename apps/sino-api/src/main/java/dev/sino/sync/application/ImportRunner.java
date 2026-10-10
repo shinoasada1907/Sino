@@ -3,6 +3,7 @@ package dev.sino.sync.application;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -13,6 +14,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -75,6 +77,12 @@ class ImportRunner implements DisposableBean {
                 pending.set(0);
             }
         }
+    }
+
+    /** Whether a worker reads the account right now, or is about to. */
+    boolean isReading(UUID accountId) {
+        AtomicInteger pending = requests.get(accountId);
+        return pending != null && pending.get() > 0;
     }
 
     /**
@@ -145,8 +153,7 @@ class ImportRunner implements DisposableBean {
                 log.info("{} of account {} stopped", pass.label, accountId);
                 return;
             }
-            log.error("{} of account {} failed", pass.label, accountId, failure);
-            fail(accountId, pass, "INTERNAL");
+            fail(accountId, pass, "INTERNAL", failure);
         }
     }
 
@@ -203,7 +210,8 @@ class ImportRunner implements DisposableBean {
                             return;
                         }
                         startedOver = true;
-                        log.warn("{} of account {} starts over: {}", pass.label, accountId, failure.errorCode());
+                        log.atLevel(pass.level).log("{} of account {} starts over: {}", pass.label, accountId,
+                                failure.errorCode());
                         if (pass == Pass.IMPORT) {
                             checkpoints.startOver(accountId);
                         } else {
@@ -258,38 +266,65 @@ class ImportRunner implements DisposableBean {
 
     private static void pause(UUID accountId, Pass pass, ProviderException failure, Duration wait)
             throws InterruptedException {
-        log.warn("{} of account {} waits {} ms: {}", pass.label, accountId, wait.toMillis(), failure.errorCode());
+        log.atLevel(pass.level).log("{} of account {} waits {} ms: {}", pass.label, accountId, wait.toMillis(),
+                failure.errorCode());
         Thread.sleep(wait);
     }
 
     // A stopping thread records nothing: an import stays RUNNING (design, section 3) and a sync runs again later. A
     // failure to record the failure is only logged; the next start or sync takes the row up again.
     private void fail(UUID accountId, Pass pass, String errorCode) {
+        fail(accountId, pass, errorCode, null);
+    }
+
+    // Automatic sync tries a failing account every minute: a sync logs its error, with the stack of an unexpected
+    // one, only when it differs from the last one.
+    private void fail(UUID accountId, Pass pass, String errorCode, RuntimeException cause) {
         if (Thread.currentThread().isInterrupted()) {
             log.info("{} of account {} stopped", pass.label, accountId);
             return;
         }
-        log.warn("{} of account {} failed: {}", pass.label, accountId, errorCode);
         try {
             if (pass == Pass.IMPORT) {
+                logFailure(Level.WARN, pass, accountId, errorCode, cause);
                 checkpoints.fail(accountId, errorCode);
+                return;
+            }
+            Optional<Boolean> newError = checkpoints.syncFailed(accountId, errorCode);
+            if (newError.isEmpty()) {
+                log.info("Sync of account {} stopped: its import started again", accountId);
             } else {
-                checkpoints.syncFailed(accountId, errorCode);
+                logFailure(newError.get() ? Level.WARN : Level.DEBUG, pass, accountId, errorCode, cause);
             }
         } catch (RuntimeException failure) {
+            logFailure(Level.WARN, pass, accountId, errorCode, cause);
             log.error("{} of account {}: the failure could not be recorded", pass.label, accountId, failure);
         }
     }
 
-    /** The first import of an account, or a sync after it is DONE. */
+    private static void logFailure(Level level, Pass pass, UUID accountId, String errorCode, RuntimeException cause) {
+        if (cause == null) {
+            log.atLevel(level).log("{} of account {} failed: {}", pass.label, accountId, errorCode);
+        } else {
+            log.atLevel(level == Level.DEBUG ? Level.DEBUG : Level.ERROR).setCause(cause)
+                    .log("{} of account {} failed: {}", pass.label, accountId, errorCode);
+        }
+    }
+
+    /**
+     * The first import of an account, or a sync after it is DONE. Waits and starting over are worth a WARN in an
+     * import, which runs once; a sync runs every minute, so there they are DEBUG.
+     */
     private enum Pass {
 
-        IMPORT("Initial sync"), SYNC("Sync");
+        IMPORT("Initial sync", Level.WARN), SYNC("Sync", Level.DEBUG);
 
         private final String label;
+        private final Level level;
 
-        Pass(String label) {
+        Pass(String label, Level level) {
             this.label = label;
+            this.level = level;
         }
 
     }
