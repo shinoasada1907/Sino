@@ -181,7 +181,12 @@ export function filterConversations(items: ConversationItem[], { source, view }:
 }
 
 /** "1,4 MB", "86 KB" */
-export function formatFileSize(bytes: number): string {
+export function formatFileSize(bytes: number): string
+export function formatFileSize(bytes: number | null): string | null
+export function formatFileSize(bytes: number | null): string | null {
+  if (bytes === null) {
+    return null
+  }
   if (bytes < 1024) {
     return `${bytes} B`
   }
@@ -293,6 +298,33 @@ export function bubbleMeta(message: Message & { kind: 'MESSAGE' }, timeZone?: st
 }
 
 /** A plain text body as paragraphs of lines (D-53). */
+const WEB_ADDRESS = /https?:\/\/[^\s<>"']+/g
+const SENTENCE_END = /[.,;:!?)]+$/
+
+/**
+ * A line of an email cut into text and web addresses (`http`, `https` only, so a `javascript:` address never becomes a
+ * link); the punctuation that ends a sentence after an address stays text.
+ */
+export function linkParts(line: string): { text: string; href: string | null }[] {
+  const parts: { text: string; href: string | null }[] = []
+  let done = 0
+  for (const match of line.matchAll(WEB_ADDRESS)) {
+    const address = match[0].replace(SENTENCE_END, '')
+    if (!/^https?:\/\/./.test(address)) {
+      continue
+    }
+    if (match.index > done) {
+      parts.push({ text: line.slice(done, match.index), href: null })
+    }
+    parts.push({ text: address, href: address })
+    done = match.index + address.length
+  }
+  if (done < line.length) {
+    parts.push({ text: line.slice(done), href: null })
+  }
+  return parts
+}
+
 export function paragraphs(text: string): string[][] {
   return text
     .trim()

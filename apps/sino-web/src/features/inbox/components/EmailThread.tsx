@@ -1,5 +1,19 @@
-import { AlarmClock, Archive, ArchiveRestore, Calendar, CalendarPlus, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
-import { useState } from 'react'
+import {
+  AlarmClock,
+  Archive,
+  ArchiveRestore,
+  Calendar,
+  CalendarPlus,
+  Clock,
+  Ellipsis,
+  ExternalLink,
+  Search,
+  SquareCheck,
+  StickyNote,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react'
+import { Fragment, useState } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -7,10 +21,11 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { firstLine, formatFileSize, linkedMeta, mailTime, paragraphs, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
+import { firstLine, formatFileSize, linkedMeta, linkParts, mailTime, paragraphs, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
 import type { ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
-import { useConversationActions, useSendMessage } from '../useInbox'
+import { useConversationActions, useSendMessage, type LoadMore, type MessageHistory } from '../useInbox'
 import { Composer } from './Composer'
+import { MailsSkeleton } from './InboxStates'
 import { LatestPreview } from './LatestPreview'
 import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
@@ -27,14 +42,17 @@ const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string }> = {
  * An email thread in the right column of the canvas `Inbox`: header and tools, linked items, the older emails folded
  * (a click opens one), the newest in full with its attachments, and the reply box, or a notice in its place when the
  * account cannot send (`ThreadState`, D-55). "Đánh dấu chưa đọc" and "Lưu trữ" change the conversation and go back to
- * the list (D-73); the other tools have no flow yet (D-52). Until the API returns messages (F06) the newest one shows
- * as its preview (D-71); the reply box waits for the detail, which says whether Sino can send.
+ * the list (D-73); the other tools have no flow yet (D-52). The emails come from the messages API (F06), newer pages
+ * first: "Xem thư cũ hơn" loads the next one (D-124). A backend without that API leaves the preview of the newest email
+ * (D-71), and so does a failure, with a line to try again; the reply box waits for the detail, which says whether Sino
+ * can send.
  * From 768 to 1279px it keeps "Lưu trữ" and "Thêm thao tác" and drops the tools of each email (canvas `TabletInbox`);
  * below 768px it fills the screen under the page header, without the tools (no canvas for an email on a phone).
  */
 export function EmailThread({
   item,
   detail,
+  history,
   account,
   backSearch,
   now,
@@ -42,6 +60,7 @@ export function EmailThread({
 }: {
   item: ConversationItem
   detail: ConversationDetail | undefined
+  history: MessageHistory
   account: InboxAccount
   /** The filter of the list to go back to after a change. */
   backSearch: string
@@ -85,15 +104,28 @@ export function EmailThread({
 
       <div className="flex min-h-0 flex-col gap-3 overflow-auto p-4 md:p-5 xl:p-6">
         {detail?.linked && detail.linked.length > 0 && <LinkedChips items={detail.linked} now={now} />}
-        {detail?.messages === null && <LatestPreview item={item} now={now} />}
-        {mails.map((mail) =>
-          mail === newest ? (
-            <MailCard key={mail.id} mail={mail} now={now} tools />
-          ) : opened.includes(mail.id) ? (
-            <MailCard key={mail.id} mail={mail} now={now} onFold={() => toggle(mail.id)} />
-          ) : (
-            <FoldedMail key={mail.id} mail={mail} now={now} onOpen={() => toggle(mail.id)} />
-          ),
+        {history.loading || !detail ? (
+          <MailsSkeleton />
+        ) : history.failed ? (
+          <>
+            <MailsFailed onRetry={history.retry} />
+            <LatestPreview item={item} now={now} later={false} />
+          </>
+        ) : detail.messages === null ? (
+          <LatestPreview item={item} now={now} />
+        ) : (
+          <>
+            {history.older.hasMore && <OlderMails older={history.older} />}
+            {mails.map((mail) =>
+              mail === newest ? (
+                <MailCard key={mail.id} mail={mail} now={now} tools />
+              ) : opened.includes(mail.id) ? (
+                <MailCard key={mail.id} mail={mail} now={now} onFold={() => toggle(mail.id)} />
+              ) : (
+                <FoldedMail key={mail.id} mail={mail} now={now} onOpen={() => toggle(mail.id)} />
+              ),
+            )}
+          </>
         )}
       </div>
 
@@ -117,6 +149,38 @@ function Tool({ label, icon: Icon, className, onClick }: { label: string; icon: 
   return (
     <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className={className} onClick={onClick}>
       <Icon strokeWidth={1.6} />
+    </Button>
+  )
+}
+
+// No canvas: the emails could not load. The preview of the newest one follows.
+function MailsFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-[color-mix(in_srgb,var(--danger)_35%,var(--border))] bg-surface px-4 py-3">
+      <TriangleAlert className="size-4 shrink-0 text-danger" strokeWidth={1.6} />
+      <span className="min-w-0 grow text-sm">Không tải được các thư của cuộc trò chuyện này.</span>
+      <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+        Thử lại
+      </Button>
+    </div>
+  )
+}
+
+// No canvas: the button above the emails that loads the older ones (D-124).
+function OlderMails({ older }: { older: LoadMore }) {
+  if (older.failed) {
+    return (
+      <div role="status" className="flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
+        Không tải được thư cũ hơn.
+        <Button type="button" variant="secondary" size="sm" onClick={older.load}>
+          Thử lại
+        </Button>
+      </div>
+    )
+  }
+  return (
+    <Button type="button" variant="ghost" size="sm" className="self-center" disabled={older.loading} onClick={older.load}>
+      {older.loading ? 'Đang tải thư cũ hơn…' : 'Xem thư cũ hơn'}
     </Button>
   )
 }
@@ -210,16 +274,20 @@ function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date;
         </div>
       )}
       <div className="flex max-w-155 flex-col gap-3 text-base">
-        {paragraphs(mail.text).map((lines, index) => (
-          <p key={index}>
-            {lines.map((line, lineIndex) => (
-              <span key={lineIndex}>
-                {lineIndex > 0 && <br />}
-                {line}
-              </span>
-            ))}
-          </p>
-        ))}
+        {mail.text.trim() === '' ? (
+          <p className="text-sm text-muted-foreground">Thư không có chữ.</p>
+        ) : (
+          paragraphs(mail.text).map((lines, index) => (
+            <p key={index}>
+              {lines.map((line, lineIndex) => (
+                <span key={lineIndex}>
+                  {lineIndex > 0 && <br />}
+                  <TextWithLinks line={line} />
+                </span>
+              ))}
+            </p>
+          ))
+        )}
       </div>
       {mail.attachments.length > 0 && (
         <div className="flex flex-wrap gap-2.5">
@@ -234,13 +302,26 @@ function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date;
               </span>
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-sm font-semibold">{file.name}</span>
-                <Spec>{formatFileSize(file.sizeBytes)}</Spec>
+                {file.sizeBytes !== null && <Spec>{formatFileSize(file.sizeBytes)}</Spec>}
               </span>
             </button>
           ))}
         </div>
       )}
     </article>
+  )
+}
+
+// A line of an email; its web addresses open in a new tab, without telling the site where the reader came from.
+function TextWithLinks({ line }: { line: string }) {
+  return linkParts(line).map((part, index) =>
+    part.href ? (
+      <a key={index} href={part.href} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-2">
+        {part.text}
+      </a>
+    ) : (
+      <Fragment key={index}>{part.text}</Fragment>
+    ),
   )
 }
 

@@ -1016,6 +1016,35 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Dự phòng khi không có luồng (FE-55b, D-96):** backend vẫn lưu thư mới mỗi phút dù web không nghe được sự kiện, nên khi luồng không mở web đọc lại Hộp thư mỗi 60 s (`setInterval` trong effect phụ thuộc trạng thái luồng; luồng mở thì effect dọn timer). Trạng thái đồng bộ của trang chi tiết dùng `refetchInterval: 60_000` vì server không báo mỗi lần đồng bộ thành công.
 - **Test chập chờn, kiểm trước khi đổ lỗi:** khi một test lúc đỏ lúc xanh sau một thay đổi, chạy lại cả bộ trên code đã commit (`git stash -u` để cất cả file mới) để biết lỗi có từ trước hay không, rồi mới sửa.
 
+## 15. Đọc cả cuộc trò chuyện (F06, `f06-message-history`)
+
+### 15.0 Bức tranh
+Trước F06, mở một cuộc trò chuyện chỉ thấy đoạn đầu thư mới nhất (D-71). F06 thêm `GET /api/conversations/{id}/messages`: mỗi trang 20 thư, mới nhất trước, có con trỏ. Web làm trước theo hợp đồng trong design (MSW), backend làm song song (BE-54…).
+
+```text
+mở /inbox/c-1
+   |-- GET /api/conversations/c-1            -> dòng + người  (query ['inbox','conversation','c-1'])
+   '-- GET /api/conversations/c-1/messages   -> trang 1       (query [..., 'messages'], cùng lúc)
+            |
+            v  các trang ghép lại, đảo thành cũ trước
+       detail.messages -> EmailThread: thư cũ gập, thư mới nhất mở
+            |
+   "Xem thư cũ hơn" -> GET ...?cursor=<nextCursor> -> trang 2 lên trên
+```
+
+### 15.1 Danh sách thư bằng `useInfiniteQuery` (FE-57, D-126)
+- **Hai request song song:** chi tiết và trang thư đầu đi cùng lúc, không chờ nhau. `useConversation` ghép các trang (mới trước) rồi đảo lại thành cũ trước vào `detail.messages`, nên `EmailThread` vẫn đọc đúng chỗ cũ mà dữ liệu mẫu đã dùng.
+- **Khóa có thứ bậc, realtime miễn phí:** khóa danh sách thư là `['inbox', 'conversation', id, 'messages']`. Sự kiện `conversations.changed` vốn đọc lại mọi thứ dưới `['inbox']` (D-90), nên thư mới đến trong lúc đang đọc tự hiện ở cuối mà không thêm dòng code nào.
+- **Đọc lại nhiều trang không hụt thư:** khi đọc lại, TanStack Query v5 tải lại trang 1 rồi **tính lại** con trỏ trang 2 từ trang 1 vừa tải (gọi lại `getNextPageParam`), không dùng con trỏ cũ. Có một thư mới đẩy thư cuối trang 1 sang trang 2 thì thư đó vẫn có mặt. Một thư có thể xuất hiện hai lần ở chỗ nối trang, nên vẫn bỏ trùng theo `id`.
+- **Backend cũ, lỗi thật:** API thư trả `404` (backend chưa có F06) thì giữ khung "Thư mới nhất" như trước, không báo lỗi; lỗi khác thì hiện dòng "Không tải được các thư…" có "Thử lại", và vẫn để đoạn đầu thư mới nhất bên dưới.
+- **Thư đang gửi nằm ở đâu:** `useSendMessage` giờ chèn thư "Đang gửi" vào trang đầu của cache danh sách thư (mới trước), và hủy lần đọc đang chạy trước khi chèn (`cancelQueries`): một lần đọc về sau sẽ ghi đè danh sách và làm mất thư vừa chèn.
+
+### 15.2 Liên kết trong chữ của thư (FE-57)
+- **Không dùng `innerHTML`:** `linkParts` cắt một dòng thành chữ và địa chỉ web; React vẽ địa chỉ thành `<a>`, chữ thành text node. Chỉ `http://` và `https://` thành liên kết, nên chữ `javascript:...` trong thư không bao giờ bấm được.
+- **Dấu câu cuối câu:** `.`, `,`, `;`, `:`, `!`, `?`, `)` đứng cuối địa chỉ thuộc về câu, không thuộc liên kết.
+- **`target="_blank"` đi cùng `rel="noopener noreferrer"`:** trang được mở không điều khiển được tab Sino (`window.opener`) và không biết người đọc đến từ đâu.
+- **Địa chỉ dài trên điện thoại:** `break-all` cho phép xuống dòng giữa địa chỉ; Chrome ở 390 px đo `scrollWidth - innerWidth = 0`.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1127,3 +1156,7 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 107. Vì sao một trang tải thêm ở cuối danh sách không bị coi là thư mới? Lần tải đầu thì sao?
 108. Vì sao số "Hộp thư" của thanh điều hướng có query riêng thay vì đọc từ khung Hộp thư?
 109. Vì sao dòng "Thư mới có thể về chậm" đợi 30 giây mới hiện? `connecting` và `closed` khác nhau thế nào với người dùng?
+110. Vì sao thư mới đến trong lúc đang đọc tự hiện mà `useEventStream` không cần biết khóa của danh sách thư?
+111. Đang mở hai trang thư thì có một thư mới đến. Khi đọc lại, vì sao không có thư nào bị hụt ở chỗ nối hai trang?
+112. Vì sao API thư trả `404` thì web không báo lỗi, còn `503` thì có?
+113. Vì sao `linkParts` chỉ nhận `http` và `https`? Nếu web đặt chữ của thư bằng `innerHTML` thì điều gì có thể xảy ra?

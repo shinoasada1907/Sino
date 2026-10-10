@@ -197,7 +197,9 @@ export function InboxPage() {
                   </Button>
                 </div>
               )}
-              {item && account && <EmailThread key={item.id} item={item} detail={detail} account={account} backSearch={search} now={now} nameOf={nameOf} />}
+              {item && account && (
+                <EmailThread key={item.id} item={item} detail={detail} history={opened.history} account={account} backSearch={search} now={now} nameOf={nameOf} />
+              )}
             </section>
           </div>
         )}

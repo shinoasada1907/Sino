@@ -186,7 +186,7 @@ function Bubble({ message, showName, members }: { message: ChatMessage; showName
             </div>
           ) : (
             <Spec key={file.name} className="text-foreground">
-              {file.name} · {formatFileSize(file.sizeBytes)}
+              {[file.name, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}
             </Spec>
           ),
         )}

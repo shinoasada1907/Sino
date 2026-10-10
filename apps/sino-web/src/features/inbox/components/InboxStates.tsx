@@ -78,6 +78,16 @@ export function ThreadSkeleton() {
   )
 }
 
+/** In place of the emails of an open conversation while they load (F06). */
+export function MailsSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex flex-col gap-3">
+      <Skel className="h-16 rounded-[14px]" />
+      <Skel className="h-55 rounded-[14px]" />
+    </div>
+  )
+}
+
 /** Canvas `.card-quiet` "Đồng bộ lần đầu · Gmail": the first sync of an account, before anything has arrived. */
 export function FirstSyncCard({ name, progress }: { name: string; progress: number }) {
   const title = `Đồng bộ lần đầu · ${name}`

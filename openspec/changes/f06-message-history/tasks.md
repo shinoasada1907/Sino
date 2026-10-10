@@ -43,7 +43,17 @@
 
 > Mode HYBRID, frontend AUTO. Mỗi task: test đỏ trước rồi xanh, `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build`, Chrome một lượt ở cỡ màn task đụng tới (quy ước kiểm chứng frontend trong `CLAUDE.md`), file kiến thức Phase 1 + `.docx`, commit riêng trên `dev`. Làm theo Contract API trong design, chạy với backend thật ở FE-60.
 
-- [ ] 2.1 **FE-57 — Đọc cả cuộc trò chuyện trên API**
+- [x] 2.1 **FE-57 — Đọc cả cuộc trò chuyện trên API**
+  - **Thực hiện (2026-10-10, AUTO):**
+    - `inbox.api.ts`: `fetchMessages`, ánh xạ thư theo Contract API (`self` → "Bạn", `to` nối tên/địa chỉ, `null` khi không biết; thư đi `PENDING` → "Đang gửi", `FAILED` → "Không gửi được", `UNKNOWN` không nói gì tới F10; kiểu tệp từ đuôi tệp hoặc `mimeType`, không tên → "Tệp không tên").
+    - `useInbox.ts`: `messagesKey`; `useConversation` thêm `useInfiniteQuery` chạy song song với chi tiết, ghép trang vào `detail.messages` (cũ trước, bỏ trùng) và trả `history` (`loading`, `failed`, `retry`, `older`). `useSendMessage` chèn thư "Đang gửi" vào cache danh sách thư.
+    - `EmailThread`: khung chờ khi đang tải, "Xem thư cũ hơn", lỗi có "Thử lại" kèm đoạn đầu thư mới nhất, "Thư không có chữ.", liên kết trong chữ (`linkParts` trong `format.ts`). `LatestPreview` có `later` (bỏ câu "sẽ có ở bản sau" khi là lỗi). `Attachment.sizeBytes` có thể `null`.
+    - Bộ API giả dùng dữ liệu mẫu có `fetchMessages`; test FE-50 trả `404` ở API thư như backend F05.
+  - **Làm khác kế hoạch:**
+    - ~~`useConversation` trả `loadOlder`, `messagesFailed`, `retryMessages`~~ → gom vào một `history`. **LÝ DO:** `EmailThread` nhận một prop thay vì bốn.
+    - Thêm: API thư trả `404` thì giữ khung "Thư mới nhất" cũ, không báo lỗi. **LÝ DO:** backend người dùng đang chạy từ `dev` chưa có BE-54; báo lỗi ở mọi cuộc trò chuyện cho tới lúc đó là sai (design, Migration Plan).
+    - Hai test `useSendMessage` đổi chỗ kiểm (cache danh sách thư thay cho `detail.messages`), và test "Đang gửi" giữ request lại để thấy được bước giữa: bản cũ kiểm `toHaveLength(1)`, đúng cả khi thư đã thành "Đã gửi".
+  - **Kiểm chứng (2026-10-10):** RED: `ThreadOnApi.test.tsx` 6/7 đỏ (cái thứ 7, backend chưa có API thư, giữ hành vi cũ nên xanh từ đầu và ở lại làm test chống hồi quy), `linkParts` 3/3 đỏ, `useSendMessage` 2/2 đỏ; GREEN. `pnpm lint` 0, `tsc -b` 0 (một lỗi kiểu `readonly` trong test, đã sửa), `vitest` 494/494, `pnpm build` 0 (cảnh báo chunk lớn cũ). Chrome (API do CDP trả, 3 thư, mỗi trang 2): 1440 tối và 390 sáng: thư cũ gập, thư mới nhất mở với "tới an.nguyen@gmail.com", 2 liên kết `rel="noopener noreferrer"`, tệp "PDF hop-dong-q4.pdf 242 KB" và "PNG Tệp không tên", "Xem thư cũ hơn" gọi `?cursor=2` rồi biến mất, "2 thư · 2 tệp" → "3 thư · 2 tệp", không tràn ngang (URL 120 ký tự xuống dòng ở 390).
   - **Goal / Why:** mở cuộc trò chuyện là thấy mọi thư (phần chữ), thư mới tự hiện, có thư cũ hơn (D-123, D-124, D-126).
   - **Depends on:** Contract API (`GET …/messages`); không cần backend chạy (MSW).
   - **Files:** `src/features/inbox/inbox.api.ts` (`fetchMessages`, ánh xạ), `useInbox.ts` (`messagesKey`, `useInfiniteQuery` trong `useConversation`, `loadOlder`), `components/EmailThread.tsx` ("Xem thư cũ hơn", lỗi), `format.ts` (chữ có liên kết, nếu cần), `src/test/inboxSampleApi.ts`, test.

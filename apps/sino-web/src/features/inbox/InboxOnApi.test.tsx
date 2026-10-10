@@ -53,6 +53,8 @@ function backend({ items = API_CONVERSATIONS, pageSize = 30, refuse = false }: {
       const item = state.find((entry) => entry.id === params.id)
       return item ? HttpResponse.json({ ...item, participants: API_PARTICIPANTS }) : problem(NOT_FOUND, 404)
     }),
+    // The F05 backend these tests were written for has no messages API (F06): the thread shows the newest preview.
+    http.get('/api/conversations/:id/messages', () => problem({ title: 'Not found', status: 404, code: 'RESOURCE_NOT_FOUND' }, 404)),
     http.patch('/api/conversations/:id', async ({ params, request }) => {
       const change = (await request.json()) as Change
       changes.push([String(params.id), change])

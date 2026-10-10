@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router'
 import { ApiError } from '@/shared/api/problem'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, type InboxFilter } from './format'
-import { fetchConversation, fetchConversations, fetchInbox, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
-import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, OpenConversation } from './inbox.types'
+import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
+import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessagePage, OpenConversation } from './inbox.types'
 
 /** Accounts, providers and counts of the inbox. */
 export const INBOX_QUERY_KEY = ['inbox'] as const
@@ -15,8 +15,11 @@ const LISTS_KEY = ['inbox', 'list'] as const
 /** The pages of one view and source. */
 export const conversationsKey = ({ view, source }: InboxFilter) => [...LISTS_KEY, view, source] as const
 export const conversationKey = (conversationId: string) => ['inbox', 'conversation', conversationId] as const
+/** Under the conversation, so that a change the stream reports reads them again too (D-126). */
+export const messagesKey = (conversationId: string) => [...conversationKey(conversationId), 'messages'] as const
 
 type Lists = InfiniteData<ConversationPage, string | null>
+type MessagePages = InfiniteData<MessagePage, string | null>
 
 export interface InboxQuery {
   inbox: InboxData | undefined
@@ -101,9 +104,22 @@ export function useConversationList(filter: InboxFilter, now: Date): Conversatio
 
 const isMissing = (error: Error | null) => error instanceof ApiError && (error.status === 404 || error.status === 400)
 
+/** The messages of the open conversation, apart from its detail (F06). */
+export interface MessageHistory {
+  /** Until the first page has arrived or failed. */
+  loading: boolean
+  /** The messages could not load; the start of the newest one shows instead. */
+  failed: boolean
+  retry: () => void
+  /** The older messages, a page at a time ("Xem thư cũ hơn", D-124). */
+  older: LoadMore
+}
+
 /**
  * One conversation: `listed` (its row in the loaded list) shows at once; the request then brings the row as the server
- * has it and the detail. A conversation of another view or an older page opens too (a link, a reload).
+ * has it and the detail. A conversation of another view or an older page opens too (a link, a reload). Its messages
+ * load at the same time, newest page first, and `detail.messages` holds them oldest first (D-126). A backend without
+ * the messages API (404) leaves `detail.messages` null, as before F06.
  */
 export function useConversation(
   conversationId: string | undefined,
@@ -111,6 +127,7 @@ export function useConversation(
 ): {
   item: ConversationItem | undefined
   detail: ConversationDetail | undefined
+  history: MessageHistory
   notFound: boolean
   failed: boolean
   retry: () => void
@@ -121,10 +138,33 @@ export function useConversation(
     enabled: conversationId !== undefined,
     staleTime: Infinity,
   })
+  const messages = useInfiniteQuery({
+    queryKey: messagesKey(conversationId ?? ''),
+    queryFn: ({ pageParam }) => fetchMessages(conversationId!, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: conversationId !== undefined,
+    staleTime: Infinity,
+  })
+  const { fetchNextPage } = messages
+  const loadOlder = useCallback(() => void fetchNextPage({ cancelRefetch: false }), [fetchNextPage])
   const open = conversationId === undefined ? undefined : data
+  // A message can come twice when one arrived between two pages.
+  const seen = new Set<string>()
+  const loaded = messages.data?.pages
+    .flatMap((page) => page.items)
+    .filter((message) => !seen.has(message.id) && seen.add(message.id))
+    .reverse()
+  const failedMessages = messages.error !== null && !messages.isFetchNextPageError && !isMissing(messages.error)
   return {
     item: open?.item ?? listed,
-    detail: open?.detail,
+    detail: open && { ...open.detail, messages: loaded ?? open.detail.messages },
+    history: {
+      loading: conversationId !== undefined && messages.status === 'pending',
+      failed: conversationId !== undefined && failedMessages,
+      retry: () => void messages.refetch(),
+      older: { hasMore: messages.hasNextPage, loading: messages.isFetchingNextPage, failed: messages.isFetchNextPageError, load: loadOlder },
+    },
     notFound: conversationId !== undefined && isMissing(error),
     failed: conversationId !== undefined && error !== null && !isMissing(error),
     retry: () => void refetch(),
@@ -218,15 +258,17 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
  */
 export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient()
-  const setMessages = (change: (messages: Message[]) => Message[]) =>
-    queryClient.setQueryData<OpenConversation>(
-      conversationKey(conversationId),
-      (open) => open && { ...open, detail: { ...open.detail, messages: open.detail.messages && change(open.detail.messages) } },
-    )
+  // The pages of messages, newest first (D-126); the newest page takes what is sent.
+  const editPages = (change: (page: MessagePage, index: number) => MessagePage) =>
+    queryClient.setQueryData<MessagePages>(messagesKey(conversationId), (data) => data && { ...data, pages: data.pages.map(change) })
+  const editMessage = (id: string | undefined, change: (message: Message) => Message) =>
+    editPages((page) => ({ ...page, items: page.items.map((message) => (message.id === id ? change(message) : message)) }))
 
   return useMutation({
     mutationFn: (text: string) => sendMessage(conversationId, text),
-    onMutate: (text: string) => {
+    onMutate: async (text: string) => {
+      // A reading in flight would bring the list back without the message.
+      await queryClient.cancelQueries({ queryKey: messagesKey(conversationId) })
       const pending: Message = {
         id: crypto.randomUUID(),
         kind: 'MESSAGE',
@@ -239,11 +281,11 @@ export function useSendMessage(conversationId: string) {
         status: 'SENDING',
         linked: [],
       }
-      setMessages((messages) => [...messages, pending])
+      editPages((page, index) => (index === 0 ? { ...page, items: [pending, ...page.items] } : page))
       return { pendingId: pending.id }
     },
     onSuccess: (sent, _text, context) => {
-      setMessages((messages) => messages.map((message) => (message.id === context.pendingId ? sent : message)))
+      editMessage(context.pendingId, () => sent)
       updateItem(queryClient, conversationId, (item) => ({
         ...item,
         snippet: sent.kind === 'MESSAGE' ? sent.text : item.snippet,
@@ -252,9 +294,7 @@ export function useSendMessage(conversationId: string) {
       }))
     },
     onError: (_error, _text, context) => {
-      setMessages((messages) =>
-        messages.map((message) => (message.id === context?.pendingId && message.kind === 'MESSAGE' ? { ...message, status: 'FAILED' } : message)),
-      )
+      editMessage(context?.pendingId, (message) => (message.kind === 'MESSAGE' ? { ...message, status: 'FAILED' } : message))
     },
   })
 }

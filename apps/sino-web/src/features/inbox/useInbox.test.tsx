@@ -1,13 +1,22 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, type InfiniteData } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_CONVERSATIONS, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
 import { server } from '@/test/msw/server'
 import { sendMessage } from './inbox.api'
-import type { ConversationItem, ConversationPage, InboxData, OpenConversation } from './inbox.types'
-import { conversationKey, conversationsKey, INBOX_QUERY_KEY, useConversation, useConversationList, useSendMessage, useUpdateConversation } from './useInbox'
+import type { ConversationItem, ConversationPage, InboxData, Message, MessagePage, OpenConversation } from './inbox.types'
+import {
+  conversationKey,
+  conversationsKey,
+  INBOX_QUERY_KEY,
+  messagesKey,
+  useConversation,
+  useConversationList,
+  useSendMessage,
+  useUpdateConversation,
+} from './useInbox'
 
 vi.mock('./inbox.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./inbox.api')>()
@@ -114,6 +123,10 @@ describe('useConversationList, when the list changed between two pages', () => {
 })
 
 describe('useConversation', () => {
+  beforeEach(() => {
+    server.use(http.get('/api/conversations/:id/messages', () => HttpResponse.json({ items: [], nextCursor: null })))
+  })
+
   it('shows the row of the list at once, then the row and the people the server gives', async () => {
     server.use(http.get('/api/conversations/:id', () => HttpResponse.json({ ...API_CONVERSATIONS[0], title: 'Minh Anh', participants: API_PARTICIPANTS })))
     const { wrapper } = setup()
@@ -211,33 +224,45 @@ describe('useUpdateConversation', () => {
 })
 
 describe('useSendMessage', () => {
-  const detail = { id: 'c-1', messages: [], firstUnreadId: null, linked: null, members: null, files: null, canSend: true, previousCursor: null }
+  const detail = { id: 'c-1', messages: null, firstUnreadId: null, linked: null, members: null, files: null, canSend: true, previousCursor: null }
+  const older: Message = { id: 'm-1', kind: 'MESSAGE', direction: 'IN', sender: 'Trần Minh Anh', to: null, at: '2026-10-01T02:00:00Z', text: 'Chào An', attachments: [], status: null, linked: [] }
+  // The messages of F06 live in their own cache, newest first (D-126).
+  const seed = (queryClient: QueryClient) => {
+    queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail })
+    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(messagesKey('c-1'), { pages: [{ items: [older], nextCursor: null }], pageParams: [null] })
+  }
+  const messagesOf = (queryClient: QueryClient) => queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(messagesKey('c-1'))?.pages[0].items
 
   it('adds the message as "Đang gửi", then shows it as sent in the conversation and the row', async () => {
-    vi.mocked(sendMessage).mockResolvedValueOnce({ id: 'm-9', kind: 'MESSAGE', direction: 'OUT', sender: 'Bạn', to: null, at: now.toISOString(), text: 'Ok nhé', attachments: [], status: 'SENT', linked: [] })
+    let answer = () => {}
+    const answered = new Promise<void>((resolve) => (answer = resolve))
+    vi.mocked(sendMessage).mockImplementationOnce(async () => {
+      await answered
+      return { id: 'm-9', kind: 'MESSAGE', direction: 'OUT', sender: 'Bạn', to: null, at: now.toISOString(), text: 'Ok nhé', attachments: [], status: 'SENT', linked: [] }
+    })
     const { queryClient, wrapper } = setup()
-    queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail })
+    seed(queryClient)
     const { result } = renderHook(() => useSendMessage('c-1'), { wrapper })
 
     act(() => result.current.mutate('Ok nhé'))
-    await waitFor(() => expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.detail.messages).toHaveLength(1))
+    await waitFor(() => expect(messagesOf(queryClient)).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'SENDING' }), older]))
+    answer()
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    const open = queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))!
-    expect(open.detail.messages).toEqual([expect.objectContaining({ id: 'm-9', status: 'SENT' })])
-    expect(open.item).toMatchObject({ snippet: 'Ok nhé', lastMessageAt: now.toISOString() })
+    expect(messagesOf(queryClient)).toEqual([expect.objectContaining({ id: 'm-9', status: 'SENT' }), older])
+    expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.item).toMatchObject({ snippet: 'Ok nhé', lastMessageAt: now.toISOString() })
     expect(rowsOf(queryClient)[0]).toMatchObject({ snippet: 'Ok nhé', snippetFrom: null, lastMessageAt: now.toISOString() })
   })
 
   it('marks the message as not sent when sending fails', async () => {
     vi.mocked(sendMessage).mockRejectedValueOnce(new Error('offline'))
     const { queryClient, wrapper } = setup()
-    queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail })
+    seed(queryClient)
     const { result } = renderHook(() => useSendMessage('c-1'), { wrapper })
 
     act(() => result.current.mutate('Ok nhé'))
     await waitFor(() => expect(result.current.isError).toBe(true))
 
-    expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.detail.messages).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'FAILED' })])
+    expect(messagesOf(queryClient)).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'FAILED' }), older])
   })
 })

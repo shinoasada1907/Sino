@@ -23,7 +23,14 @@ export interface ConversationPage {
   nextCursor: string | null
 }
 
-/** An open conversation: `GET /api/conversations/{id}` (its row and its people), later with its messages (F06). */
+/** One page of `GET /api/conversations/{id}/messages` (F06), newest first. */
+export interface MessagePage {
+  items: Message[]
+  /** The older messages; null on the last page. */
+  nextCursor: string | null
+}
+
+/** An open conversation: `GET /api/conversations/{id}` (its row and its people); its messages have their own request (F06). */
 export interface OpenConversation {
   item: ConversationItem
   detail: ConversationDetail
@@ -107,7 +114,8 @@ export interface Attachment {
   name: string
   /** "PDF", "XLSX", "JPG" */
   type: string
-  sizeBytes: number
+  /** Null when the provider did not say (F06). */
+  sizeBytes: number | null
   image: boolean
   caption: string | null
 }

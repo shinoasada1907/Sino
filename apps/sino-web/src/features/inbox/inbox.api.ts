@@ -1,11 +1,22 @@
 import { api } from '@/shared/api/client'
 import type { AccountStatus, Instant, ProviderInfo } from '@/shared/domain'
 import type { InboxFilter } from './format'
-import type { ConversationItem, ConversationKind, ConversationPage, InboxAccount, InboxData, Member, Message, OpenConversation } from './inbox.types'
+import type {
+  Attachment,
+  ConversationItem,
+  ConversationKind,
+  ConversationPage,
+  InboxAccount,
+  InboxData,
+  Member,
+  Message,
+  MessagePage,
+  OpenConversation,
+} from './inbox.types'
 
 /*
- * The requests of the Hộp thư screens, on the F05 API (D-56): what the API does not give yet is null. Messages come with
- * F06 (D-71) and sending with F10 (D-72); `sendMessage` still answers with sample data.
+ * The requests of the Hộp thư screens, on the F05 and F06 APIs (D-56): what the API does not give yet is null. Sending
+ * comes with F10 (D-72); `sendMessage` still answers with sample data.
  */
 
 /** The fields of `GET /api/accounts` the inbox uses (F02). */
@@ -64,6 +75,37 @@ interface ParticipantResponse {
   self: boolean
 }
 
+/** Someone a message is from or to (F06): the address is the email for Gmail, the provider's ID otherwise. */
+interface PersonResponse {
+  name: string | null
+  address: string
+}
+
+/** A file of a message; the provider may not give its name, type or size. */
+interface AttachmentResponse {
+  id: string
+  fileName: string | null
+  mimeType: string | null
+  sizeBytes: number | null
+}
+
+/** One message of `GET /api/conversations/{id}/messages` (F06, D-123). */
+interface MessageResponse {
+  id: string
+  direction: 'INBOUND' | 'OUTBOUND'
+  status: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'UNKNOWN'
+  sentAt: Instant
+  sender: PersonResponse & { self: boolean }
+  /** Null when Sino does not know, for mail imported before F06. */
+  to: PersonResponse[] | null
+  cc: PersonResponse[] | null
+  subject: string | null
+  text: string | null
+  bodyFormat: 'TEXT' | 'HTML' | 'UNCHECKED'
+  read: boolean
+  attachments: AttachmentResponse[]
+}
+
 function toItem({ snippet, linked, ...rest }: ConversationResponse): ConversationItem {
   return { ...rest, snippet: snippet ?? '', linked: linked ?? [] }
 }
@@ -75,6 +117,51 @@ function toAccount({ id, provider, externalAccountId, displayName, address, stat
 // The API does not say who runs a group or who joined lately.
 function toMember({ externalId, name, self }: ParticipantResponse): Member {
   return { name: self ? 'Bạn' : (name ?? externalId), owner: false, joinedRecently: false }
+}
+
+// "PDF" from "hop-dong.pdf", otherwise from the type ("image/png" gives "PNG"), otherwise "TỆP".
+function fileType(fileName: string | null, mimeType: string | null): string {
+  const extension = fileName?.match(/\.([a-z0-9]{1,5})$/i)?.[1]
+  if (extension) {
+    return extension.toUpperCase()
+  }
+  const subtype = mimeType?.split('/')[1]?.split(/[;+.-]/)[0]
+  return subtype && subtype.length <= 5 ? subtype.toUpperCase() : 'TỆP'
+}
+
+function toAttachment({ fileName, mimeType, sizeBytes }: AttachmentResponse): Attachment {
+  return { name: fileName ?? 'Tệp không tên', type: fileType(fileName, mimeType), sizeBytes, image: mimeType?.startsWith('image/') ?? false, caption: null }
+}
+
+// A message whose fate Sino does not know yet says nothing until F10.
+function ownStatus(status: MessageResponse['status']): Extract<Message, { kind: 'MESSAGE' }>['status'] {
+  switch (status) {
+    case 'PENDING':
+      return 'SENDING'
+    case 'FAILED':
+      return 'FAILED'
+    case 'UNKNOWN':
+      return null
+    default:
+      return 'SENT'
+  }
+}
+
+function toMessage({ id, direction, status, sentAt, sender, to, text, attachments }: MessageResponse): Message {
+  const outbound = direction === 'OUTBOUND'
+  const recipients = to?.map((person) => person.name ?? person.address).join(', ')
+  return {
+    id,
+    kind: 'MESSAGE',
+    direction: outbound ? 'OUT' : 'IN',
+    sender: sender.self ? 'Bạn' : (sender.name ?? sender.address),
+    to: recipients || null,
+    at: sentAt,
+    text: text ?? '',
+    attachments: attachments.map(toAttachment),
+    status: outbound ? ownStatus(status) : null,
+    linked: [],
+  }
 }
 
 /** `GET /api/conversations/counts`, the unread conversations only: the count of the navigation (D-93). */
@@ -110,7 +197,7 @@ export async function fetchConversations({ view, source }: InboxFilter, cursor: 
   return { items: page.items.map(toItem), nextCursor: page.nextCursor }
 }
 
-/** `GET /api/conversations/{id}`: the row and the people; no messages before F06, no sending before F10. */
+/** `GET /api/conversations/{id}`: the row and the people; the messages come from `fetchMessages`, no sending before F10. */
 export async function fetchConversation(conversationId: string): Promise<OpenConversation> {
   const { participants, ...item } = await api.get<ConversationResponse & { participants: ParticipantResponse[] }>(
     `/api/conversations/${encodeURIComponent(conversationId)}`,
@@ -128,6 +215,15 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       previousCursor: null,
     },
   }
+}
+
+/** `GET /api/conversations/{id}/messages` (F06): one page, newest first; `cursor` is the `nextCursor` of the page before. */
+export async function fetchMessages(conversationId: string, cursor: string | null): Promise<MessagePage> {
+  const query = cursor ? `?${new URLSearchParams({ cursor })}` : ''
+  const page = await api.get<{ items: MessageResponse[]; nextCursor: string | null }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/messages${query}`,
+  )
+  return { items: page.items.map(toMessage), nextCursor: page.nextCursor }
 }
 
 /** `PATCH /api/conversations/{id}`: read or archived, in Sino only (D-67); returns the row as the server stored it. */

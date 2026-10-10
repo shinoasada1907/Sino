@@ -40,6 +40,13 @@ export function sampleInboxApi(api: typeof InboxApi): typeof InboxApi {
       }
       return { item, detail: createConversationSample(conversationId, new Date()) }
     }),
+    // The messages of the sample conversation, newest first, on one page.
+    fetchMessages: vi.fn(async (conversationId: string, _cursor: string | null) => {
+      if (!served().conversations.some((conversation) => conversation.id === conversationId)) {
+        throw notFound()
+      }
+      return { items: [...(createConversationSample(conversationId, new Date()).messages ?? [])].reverse(), nextCursor: null }
+    }),
     updateConversation: vi.fn(async (conversationId: string, change: ConversationChange) => {
       const sample = served()
       const item = sample.conversations.find((conversation) => conversation.id === conversationId)

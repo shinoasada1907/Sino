@@ -10,6 +10,7 @@ import {
   disconnectedSince,
   failureDetail,
   failureReason,
+  linkParts,
   filterConversations,
   firstLine,
   formatFileSize,
@@ -378,5 +379,34 @@ describe('conversations that arrive while the list is open (FE-54, MotionSpec C)
   it('says how many new emails came', () => {
     expect(newMailText(1)).toBe('1 thư mới')
     expect(newMailText(1200)).toBe('1.200 thư mới')
+  })
+})
+
+describe('web addresses in the text of an email (FE-57)', () => {
+  it('makes each http and https address a link, and leaves the rest as text', () => {
+    expect(linkParts('Xem https://acme.vn/a?b=1 và http://x.vn nhé')).toEqual([
+      { text: 'Xem ', href: null },
+      { text: 'https://acme.vn/a?b=1', href: 'https://acme.vn/a?b=1' },
+      { text: ' và ', href: null },
+      { text: 'http://x.vn', href: 'http://x.vn' },
+      { text: ' nhé', href: null },
+    ])
+  })
+
+  it('leaves the punctuation that ends a sentence out of the link', () => {
+    expect(linkParts('(https://acme.vn/hop-dong).')).toEqual([
+      { text: '(', href: null },
+      { text: 'https://acme.vn/hop-dong', href: 'https://acme.vn/hop-dong' },
+      { text: ').', href: null },
+    ])
+    expect(linkParts('https://a.vn/x?!,;:')).toEqual([
+      { text: 'https://a.vn/x', href: 'https://a.vn/x' },
+      { text: '?!,;:', href: null },
+    ])
+  })
+
+  it('makes no link of other schemes or of a bare domain', () => {
+    expect(linkParts('javascript:alert(1) www.acme.vn mailto:a@b.vn')).toEqual([{ text: 'javascript:alert(1) www.acme.vn mailto:a@b.vn', href: null }])
+    expect(linkParts('')).toEqual([])
   })
 })
