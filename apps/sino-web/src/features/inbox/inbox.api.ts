@@ -10,6 +10,7 @@ import type {
   InboxData,
   Member,
   Message,
+  MessageBody,
   MessagePage,
   OpenConversation,
 } from './inbox.types'
@@ -147,7 +148,7 @@ function ownStatus(status: MessageResponse['status']): Extract<Message, { kind: 
   }
 }
 
-function toMessage({ id, direction, status, sentAt, sender, to, text, attachments }: MessageResponse): Message {
+function toMessage({ id, direction, status, sentAt, sender, to, text, bodyFormat, attachments }: MessageResponse): Message {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -158,6 +159,7 @@ function toMessage({ id, direction, status, sentAt, sender, to, text, attachment
     to: recipients || null,
     at: sentAt,
     text: text ?? '',
+    bodyFormat,
     attachments: attachments.map(toAttachment),
     status: outbound ? ownStatus(status) : null,
     linked: [],
@@ -224,6 +226,11 @@ export async function fetchMessages(conversationId: string, cursor: string | nul
     `/api/conversations/${encodeURIComponent(conversationId)}/messages${query}`,
   )
   return { items: page.items.map(toMessage), nextCursor: page.nextCursor }
+}
+
+/** `GET /api/conversations/{id}/messages/{messageId}/body` (F06): the cleaned HTML of one email (D-120, D-122). */
+export async function fetchMessageBody(conversationId: string, messageId: string): Promise<MessageBody> {
+  return api.get<MessageBody>(`/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/body`)
 }
 
 /** `PATCH /api/conversations/{id}`: read or archived, in Sino only (D-67); returns the row as the server stored it. */

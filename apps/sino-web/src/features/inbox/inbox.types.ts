@@ -30,6 +30,14 @@ export interface MessagePage {
   nextCursor: string | null
 }
 
+/** `GET /api/conversations/{id}/messages/{messageId}/body` (F06): the HTML the backend cleaned, or null for text. */
+export interface MessageBody {
+  format: 'TEXT' | 'HTML'
+  html: string | null
+  /** The HTML has pictures from the web, held back until the reader asks (D-121). */
+  remoteImages: boolean
+}
+
 /** An open conversation: `GET /api/conversations/{id}` (its row and its people); its messages have their own request (F06). */
 export interface OpenConversation {
   item: ConversationItem
@@ -130,6 +138,11 @@ export type Message =
       at: Instant
       /** Plain text; paragraphs are separated by an empty line (D-53). */
       text: string
+      /**
+       * `HTML` or `UNCHECKED` (imported before F06): the full content is asked for when the email is open (D-123).
+       * Absent for a message that is only text, as in the sample data or one just sent.
+       */
+      bodyFormat?: 'TEXT' | 'HTML' | 'UNCHECKED'
       attachments: Attachment[]
       /** For own messages. */
       status: 'SENDING' | 'SENT' | 'SEEN' | 'FAILED' | null

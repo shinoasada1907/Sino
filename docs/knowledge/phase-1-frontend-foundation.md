@@ -1045,6 +1045,28 @@ mở /inbox/c-1
 - **`target="_blank"` đi cùng `rel="noopener noreferrer"`:** trang được mở không điều khiển được tab Sino (`window.opener`) và không biết người đọc đến từ đâu.
 - **Địa chỉ dài trên điện thoại:** `break-all` cho phép xuống dòng giữa địa chỉ; Chrome ở 390 px đo `scrollWidth - innerWidth = 0`.
 
+### 15.3 Thư HTML trong iframe sandbox (FE-58, D-120, D-121)
+HTML của thư là nội dung do người lạ viết. Đặt nó vào trang Sino (`innerHTML`, `dangerouslySetInnerHTML`) thì một `<img onerror=...>` lọt qua bộ lọc là chạy được code với phiên đăng nhập của người dùng (XSS). Sino dùng hai lớp độc lập:
+
+```text
+HTML gốc (lưu khi nhập)
+   |  lớp 1: backend làm sạch bằng jsoup mỗi lần trả (bỏ script, on*, form, javascript:)
+   v
+HTML đã sạch --> <iframe sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc=...>
+                    lớp 2: không có allow-scripts -> không script nào chạy, kể cả khi lớp 1 sót
+                           không có allow-forms   -> form không gửi được
+                           CSP trong srcdoc       -> không tải gì từ ngoài, trừ khi bấm "Hiện ảnh"
+```
+
+- **`sandbox` là danh sách cho phép:** iframe có thuộc tính `sandbox` thì mặc định bị cấm mọi thứ; chỉ thêm đúng quyền cần. `allow-same-origin` cho Sino đo chiều cao nội dung (đọc `contentDocument`). Quyền này **chỉ an toàn khi không có `allow-scripts`**: có cả hai thì script trong thư xóa được chính `sandbox` của nó.
+- **`srcdoc` thay cho `src`:** nội dung nằm ngay trong thuộc tính, không cần URL riêng; React đặt nó như một thuộc tính bình thường (đã thoát ký tự).
+- **CSP trong thẻ meta:** `default-src 'none'` cấm mọi tải; `style-src 'unsafe-inline'` giữ CSS của thư; `img-src data: <origin của Sino>` cho ảnh trong thư và ảnh nhúng `cid:` đi qua Sino. "Hiện ảnh" dựng lại `srcdoc` với `https: http:` thêm vào `img-src`. CSP chặn cả ảnh nền CSS (`url(...)`), là đường pixel theo dõi hay dùng.
+- **`<meta name="referrer" content="no-referrer">` và `referrerPolicy`:** trang mở từ liên kết hay máy chủ ảnh không biết người đọc đến từ đâu (URL của Sino có ID cuộc trò chuyện).
+- **Chiều cao bằng nội dung:** sau sự kiện `load`, `ResizeObserver` theo dõi `body` của thư (ảnh tải xong thì cao thêm). Đo `body` chứ không đo `html`: trang trong khung không bao giờ ngắn hơn khung, nên đo `html` thì khung chỉ cao lên mà không thấp xuống. Khung tắt cuộn dọc bên trong (`overflow-y: hidden`) để cả cuộc trò chuyện cuộn như một.
+- **Nền trắng ở theme tối:** thư HTML luôn viết cho nền sáng (chữ đen, ô màu); đảo màu sẽ làm hỏng chúng, nên khung luôn trắng (`color-scheme: light`).
+- **Nội dung thư nằm ngoài `['inbox']`:** khóa `['message-body', conversationId, messageId]`. Nội dung không đổi; nếu nằm dưới `['inbox']` thì mỗi sự kiện realtime sẽ tải lại mọi thư HTML đang mở.
+- **Chứng minh lớp 2 trên Chrome thật:** trả HTML **chưa làm sạch** có `<script>`, `onerror` và form: tiêu đề trang không đổi, gọi `form.submit()` từ ngoài không tạo request nào. jsdom không dựng `srcdoc`, nên test tự động chỉ kiểm thuộc tính của iframe; phần "không chạy" phải kiểm ở trình duyệt thật.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1160,3 +1182,7 @@ mở /inbox/c-1
 111. Đang mở hai trang thư thì có một thư mới đến. Khi đọc lại, vì sao không có thư nào bị hụt ở chỗ nối hai trang?
 112. Vì sao API thư trả `404` thì web không báo lỗi, còn `503` thì có?
 113. Vì sao `linkParts` chỉ nhận `http` và `https`? Nếu web đặt chữ của thư bằng `innerHTML` thì điều gì có thể xảy ra?
+114. Backend đã làm sạch HTML rồi, vì sao web vẫn cần iframe không có `allow-scripts`? Vì sao không được thêm `allow-scripts` khi đã có `allow-same-origin`?
+115. Pixel theo dõi báo cho người gửi điều gì? CSP nào chặn nó, và vì sao chặn cả `url(...)` trong CSS?
+116. Vì sao đo chiều cao bằng `body` mà không bằng `html` của tài liệu trong khung?
+117. Vì sao nội dung thư dùng khóa `['message-body', ...]` mà không nằm dưới `['inbox']` như danh sách thư?

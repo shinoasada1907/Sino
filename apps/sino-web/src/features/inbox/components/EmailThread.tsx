@@ -13,7 +13,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -21,11 +21,12 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { firstLine, formatFileSize, linkedMeta, linkParts, mailTime, paragraphs, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
+import { firstLine, formatFileSize, linkedMeta, mailTime, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
 import type { ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
 import { useConversationActions, useSendMessage, type LoadMore, type MessageHistory } from '../useInbox'
 import { Composer } from './Composer'
 import { MailsSkeleton } from './InboxStates'
+import { MailBody } from './MailBody'
 import { LatestPreview } from './LatestPreview'
 import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
@@ -118,9 +119,9 @@ export function EmailThread({
             {history.older.hasMore && <OlderMails older={history.older} />}
             {mails.map((mail) =>
               mail === newest ? (
-                <MailCard key={mail.id} mail={mail} now={now} tools />
+                <MailCard key={mail.id} conversationId={item.id} mail={mail} now={now} tools />
               ) : opened.includes(mail.id) ? (
-                <MailCard key={mail.id} mail={mail} now={now} onFold={() => toggle(mail.id)} />
+                <MailCard key={mail.id} conversationId={item.id} mail={mail} now={now} onFold={() => toggle(mail.id)} />
               ) : (
                 <FoldedMail key={mail.id} mail={mail} now={now} onOpen={() => toggle(mail.id)} />
               ),
@@ -230,7 +231,7 @@ function FoldedMail({ mail, now, onOpen }: { mail: Mail; now: Date; onOpen: () =
 }
 
 // Canvas `.mail`: an open email; the newest carries the tools of the canvas, an older one folds back on its header.
-function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date; tools?: boolean; onFold?: () => void }) {
+function MailCard({ conversationId, mail, now, tools = false, onFold }: { conversationId: string; mail: Mail; now: Date; tools?: boolean; onFold?: () => void }) {
   const head = (
     <>
       <Avatar placeholder={placeholderOf(mail)} className="size-8" />
@@ -273,22 +274,7 @@ function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date;
           {time}
         </div>
       )}
-      <div className="flex max-w-155 flex-col gap-3 text-base">
-        {mail.text.trim() === '' ? (
-          <p className="text-sm text-muted-foreground">Thư không có chữ.</p>
-        ) : (
-          paragraphs(mail.text).map((lines, index) => (
-            <p key={index}>
-              {lines.map((line, lineIndex) => (
-                <span key={lineIndex}>
-                  {lineIndex > 0 && <br />}
-                  <TextWithLinks line={line} />
-                </span>
-              ))}
-            </p>
-          ))
-        )}
-      </div>
+      <MailBody conversationId={conversationId} mail={mail} />
       {mail.attachments.length > 0 && (
         <div className="flex flex-wrap gap-2.5">
           {mail.attachments.map((file) => (
@@ -309,19 +295,6 @@ function MailCard({ mail, now, tools = false, onFold }: { mail: Mail; now: Date;
         </div>
       )}
     </article>
-  )
-}
-
-// A line of an email; its web addresses open in a new tab, without telling the site where the reader came from.
-function TextWithLinks({ line }: { line: string }) {
-  return linkParts(line).map((part, index) =>
-    part.href ? (
-      <a key={index} href={part.href} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-2">
-        {part.text}
-      </a>
-    ) : (
-      <Fragment key={index}>{part.text}</Fragment>
-    ),
   )
 }
 

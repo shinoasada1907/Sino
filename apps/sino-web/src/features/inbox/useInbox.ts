@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router'
 import { ApiError } from '@/shared/api/problem'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, type InboxFilter } from './format'
-import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
-import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessagePage, OpenConversation } from './inbox.types'
+import { fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
+import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation } from './inbox.types'
 
 /** Accounts, providers and counts of the inbox. */
 export const INBOX_QUERY_KEY = ['inbox'] as const
@@ -103,6 +103,24 @@ export function useConversationList(filter: InboxFilter, now: Date): Conversatio
 }
 
 const isMissing = (error: Error | null) => error instanceof ApiError && (error.status === 404 || error.status === 400)
+
+/**
+ * The full content of one email (F06). It never changes, so it is kept for good and lives outside `['inbox']`: a
+ * change the stream reports reads the conversation again, not every email already shown.
+ */
+export function useMessageBody(conversationId: string, messageId: string, enabled: boolean): {
+  body: MessageBody | undefined
+  failed: boolean
+  retry: () => void
+} {
+  const { data, isError, refetch } = useQuery({
+    queryKey: ['message-body', conversationId, messageId],
+    queryFn: () => fetchMessageBody(conversationId, messageId),
+    enabled,
+    staleTime: Infinity,
+  })
+  return { body: data, failed: isError, retry: () => void refetch() }
+}
 
 /** The messages of the open conversation, apart from its detail (F06). */
 export interface MessageHistory {
