@@ -120,7 +120,7 @@ class ConversationSummaryTests {
 
         StoreResult result = store.store(account, batch(List.of(thread("Tiêu đề cũ")), oldOneRead));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 1));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(summary()).containsEntry("unread_count", 2)
                 .containsEntry("last_message_at", Timestamp.from(WEDNESDAY))
                 .containsEntry("last_message_preview", "Thư m-3")
@@ -232,13 +232,13 @@ class ConversationSummaryTests {
         jdbc.sql("UPDATE message SET is_read = true").update();
 
         StoreResult unchanged = store.store(account, batch(List.of(), inbound("m-1", MONDAY)));
-        assertThat(unchanged).isEqualTo(new StoreResult(0, 0));
+        assertThat(unchanged).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 0);
         assertThat(readState("m-1")).containsExactly(true, false);
 
         // Gmail sends the message again for another change (a label), still unread: the row is written this time.
         StoreResult relabelled = store.store(account, batch(List.of(), mail("m-1", MessageDirection.INBOUND,
                 "alice@example.test", MONDAY, "Thư m-1", false, Map.of("bulk", "true"))));
-        assertThat(relabelled).isEqualTo(new StoreResult(0, 1));
+        assertThat(relabelled).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(readState("m-1")).containsExactly(true, false);
         assertThat(summary()).containsEntry("unread_count", 0);
     }
@@ -250,7 +250,7 @@ class ConversationSummaryTests {
         StoreResult result = store.store(account, batch(List.of(), mail("m-1", MessageDirection.INBOUND,
                 "alice@example.test", MONDAY, "Thư m-1", true, Map.of())));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 1));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(readState("m-1")).containsExactly(true, true);
         assertThat(summary()).containsEntry("unread_count", 0);
     }
@@ -263,7 +263,7 @@ class ConversationSummaryTests {
 
         StoreResult result = store.store(account, batch(List.of(), inbound("m-1", MONDAY)));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 1));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(readState("m-1")).containsExactly(false, false);
         assertThat(summary()).containsEntry("unread_count", 1);
     }

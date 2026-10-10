@@ -2,6 +2,7 @@ package dev.sino.conversation.application;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -13,6 +14,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.sino.account.AccountDirectory;
 import dev.sino.account.AccountStatus;
 import dev.sino.account.AccountSummary;
+import dev.sino.conversation.ConversationChanged;
 import dev.sino.conversation.infrastructure.ConversationSummaries;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.ConversationType;
@@ -44,11 +47,14 @@ public class InboxService {
     private final JdbcClient jdbc;
     private final AccountDirectory directory;
     private final ConversationSummaries summaries;
+    private final ApplicationEventPublisher events;
 
-    InboxService(JdbcClient jdbc, AccountDirectory directory, ConversationSummaries summaries) {
+    InboxService(JdbcClient jdbc, AccountDirectory directory, ConversationSummaries summaries,
+            ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.directory = directory;
         this.summaries = summaries;
+        this.events = events;
     }
 
     /**
@@ -166,6 +172,7 @@ public class InboxService {
                     """).param("archived", archived).param("conversation", conversationId).update();
         }
         summaries.summarize(List.of(conversationId));
+        events.publishEvent(new ConversationChanged(conversation.accountId(), conversationId, Instant.now()));
         return find(accounts, conversationId).orElseThrow(ConversationErrorCode::conversationNotFound);
     }
 

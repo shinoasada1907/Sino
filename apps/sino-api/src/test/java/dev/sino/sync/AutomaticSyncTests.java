@@ -219,10 +219,18 @@ class AutomaticSyncTests {
                 .doesNotContain(account);
     }
 
-    // Makes the account due again and asks for the due accounts.
-    private void tryAgain(UUID account) {
+    // Makes the account due again and asks for the due accounts, once the worker that read it last let go of it:
+    // right after a commit it may still be running listeners, and an account being read is not due.
+    private void tryAgain(UUID account) throws InterruptedException {
         jdbc.update("update sync_checkpoint set last_sync_attempt_at = now() - interval '1 hour',"
                 + " last_success_at = now() - interval '1 hour' where account_id = ?", account);
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        while (!scheduler.dueAccounts().contains(account)) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("The account " + account + " never became due");
+            }
+            Thread.sleep(25);
+        }
         scheduler.syncDueAccounts();
     }
 

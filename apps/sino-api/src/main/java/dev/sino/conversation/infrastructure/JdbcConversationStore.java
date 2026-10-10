@@ -55,6 +55,7 @@ public class JdbcConversationStore implements ConversationStore {
         Map<Participant, UUID> participants = storeParticipants(batch, conversations);
         int created = 0;
         int updated = 0;
+        int createdInbound = 0;
         Set<UUID> unarchived = new LinkedHashSet<>();
         for (NormalizedMessage message : batch.messages()) {
             StoredConversation conversation = conversations.get(message.externalConversationId());
@@ -64,6 +65,9 @@ public class JdbcConversationStore implements ConversationStore {
             boolean filesChanged = storeFiles(stored.id(), message.attachments());
             if (stored.change() == Change.INSERTED) {
                 created++;
+                if (message.direction() == MessageDirection.INBOUND) {
+                    createdInbound++;
+                }
                 // New mail from someone else brings an archived conversation back; an answer of the account does not.
                 if (message.direction() == MessageDirection.INBOUND
                         && message.sentAt().isAfter(conversation.lastMessageAt())) {
@@ -73,9 +77,10 @@ public class JdbcConversationStore implements ConversationStore {
                 updated++;
             }
         }
-        summaries.summarize(conversations.values().stream().map(StoredConversation::id).toList());
+        List<UUID> touched = conversations.values().stream().map(StoredConversation::id).toList();
+        summaries.summarize(touched);
         unarchive(unarchived);
-        return new StoreResult(created, updated);
+        return new StoreResult(created, updated, Set.copyOf(touched), createdInbound);
     }
 
     // Step 1. A conversation the batch names but does not describe gets a minimal row that never overwrites one.

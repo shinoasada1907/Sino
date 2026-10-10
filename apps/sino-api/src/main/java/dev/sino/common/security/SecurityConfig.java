@@ -29,8 +29,9 @@ class SecurityConfig {
         SecurityProblemHandler problemHandler = new SecurityProblemHandler(handlerExceptionResolver);
         return http
                 .authorizeHttpRequests(requests -> requests
-                        // Let error responses through instead of turning them into 401/403.
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        // Let error responses through instead of turning them into 401/403, and the dispatch that ends
+                        // an event stream (F08), checked when the stream began, even if the session ended meanwhile.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()

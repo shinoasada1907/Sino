@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49.
+> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49, BE-50.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -166,3 +166,65 @@ Lịch hỏi account lỗi mỗi phút. Log WARN mỗi phút cho cùng một l�
 `IS DISTINCT FROM` khác `<>` ở chỗ so được với `NULL`: `NULL <> 'X'` cho `NULL` (không phải đúng), còn `NULL IS DISTINCT FROM 'X'` cho đúng.
 
 Lần quét của lịch cũng có thể hỏng (database sập): `LiveSyncSchedule.tick` bắt lỗi, nói một lần lúc bắt đầu hỏng và một lần lúc chạy lại được, lịch không dừng.
+
+## 3. Sự kiện và SSE: module `realtime` (BE-50)
+
+**Ở đâu:** `realtime/api/EventStreamController` (`GET /api/events/stream`), `realtime/application/EventHub` (các luồng đang mở), `RealtimeEvents` (từ sự kiện của module khác sang sự kiện cho trình duyệt), `RealtimeProperties` (`sino.realtime.*`); sự kiện `sync/MailStored`, `sync/SyncStateChanged`, `conversation/ConversationChanged`; `StoreResult` thêm `conversationIds`, `newInbound`.
+
+```text
+ImportRunner: transaction { lưu trang; tiến con trỏ; publish MailStored, SyncStateChanged }
+InboxService.change (PATCH): transaction { đổi đã đọc/lưu trữ; publish ConversationChanged }
+account: AccountConnected, AccountStatusChanged, AccountRemoved
+            |
+            |  @EventListener: tìm owner (AccountDirectory.byId) ngay trong transaction đó,
+            |  đăng ký gửi sau commit (TransactionSynchronization.afterCommit)
+            v
+RealtimeEvents -> (sau commit) EventHub.publish(owner, type, data)
+            v
+mỗi luồng của owner: hàng đợi -> luồng ghi riêng -> trình duyệt
+  event:conversations.changed
+  data:{"type":"conversations.changed","accountId":...,"conversationIds":[...],"newInbound":2,"source":"sync","at":...}
+```
+
+### 3.1 Vì sao gửi sự kiện **sau commit** (câu gợi ý của task)
+Trình duyệt nhận sự kiện thì gọi lại API để đọc dữ liệu mới. Nếu sự kiện đi trước commit:
+- trình duyệt có thể đọc **trước** khi dữ liệu được ghi, thấy dữ liệu cũ và tưởng đã cập nhật xong;
+- transaction có thể **rollback** (lưu trang lỗi, người dùng nhập lại giữa chừng), và trình duyệt được báo về một thay đổi không bao giờ tồn tại.
+
+`RealtimeEvents` nghe bằng `@EventListener` thường, nên được gọi ngay lúc `publishEvent`, **bên trong** transaction đang lưu. Nó làm hai việc:
+- tìm owner ngay lúc đó (đọc trong cùng transaction, nên thấy cả account vừa tạo trong transaction ấy);
+- **đăng ký** việc gửi với transaction: `TransactionSynchronizationManager.registerSynchronization(...)` với `afterCommit()`. Spring chỉ gọi `afterCommit` khi transaction commit; rollback thì bỏ. Sự kiện phát **ngoài** transaction (ví dụ ghi lỗi nhập trong `fail()`) thì gửi ngay.
+
+Test `aRolledBackChangeSendsNothing` phát một sự kiện rồi rollback, phát sự kiện thứ hai và commit: trình duyệt chỉ thấy sự kiện thứ hai. `aFailedImportTellsTheBrowser` đi qua nhánh ngoài transaction.
+
+**Vì sao không dùng `@TransactionalEventListener`.** Bản đầu dùng nó. Review chỉ ra: trong ứng dụng có Spring Modulith, mỗi sự kiện tới một listener kiểu transaction được ghi vào bảng `event_publication` (registry), để chạy lại nếu listener hỏng. Cơ chế đó dành cho việc **phải** xảy ra (gửi mail, cập nhật module khác). Với SSE, chạy lại vô nghĩa: trình duyệt đọc lại dữ liệu mỗi lần nối lại. Vậy mà mỗi trang thư tốn thêm hai `INSERT` và hai `DELETE`, có thể cần thêm một connection lúc đánh dấu hoàn tất, và để lại dòng mồ côi khi listener lỗi. Tự đăng ký `afterCommit` cho cùng bảo đảm "chỉ sau commit" mà không cần bảng nào; test kiểm `event_publication` vẫn rỗng.
+
+### 3.2 `SseEmitter`: một request không bao giờ trả lời xong
+Controller trả `SseEmitter` thay vì dữ liệu. Spring MVC bật chế độ **async** của Servlet: luồng xử lý request được trả về pool ngay, kết nối vẫn mở, và code ghi sự kiện vào `SseEmitter` lúc nào cũng được. Khi luồng kết thúc (hết 20 phút, bị đóng), Servlet làm một lần **dispatch ASYNC** để đóng request; Spring Security cũng kiểm lần dispatch đó, nên `SecurityConfig` cho phép `DispatcherType.ASYNC` như đã cho `ERROR`.
+
+### 3.3 Một trình duyệt chậm không được làm chậm việc lưu thư
+`emitter.send` ghi ra mạng. Nếu `ImportRunner` gọi thẳng nó, một trình duyệt mạng yếu làm luồng lưu thư phải chờ. `EventHub` cho **mỗi luồng một hàng đợi (100 sự kiện) và một virtual thread** chỉ để ghi: `publish` đặt sự kiện vào hàng đợi rồi đi tiếp. Hàng đợi đầy (trình duyệt không theo kịp) thì luồng bị đóng ngay trên thread đang publish (một lần `complete()`, không ghi mạng): trình duyệt tự nối lại và đọc lại dữ liệu, nên không mất gì. Thứ tự sự kiện trong một luồng được giữ vì chỉ một thread ghi. Thread ghi dừng theo một **cờ** `closed`, kiểm ít nhất hai lần mỗi giây (`poll` có thời hạn), không dựa vào interrupt, vì code mạng có thể nuốt cờ interrupt.
+
+**Race giữa mở và đóng (review).** Bản đầu thêm luồng bằng hai bước (`computeIfAbsent` rồi `addLast`) và gỡ bằng hai bước (`remove` rồi xóa deque rỗng khỏi map). Một luồng đóng chen vào giữa hai bước của luồng đang mở thì luồng mới bị thêm vào một deque đã bị gỡ khỏi map: không nhận sự kiện nào suốt 20 phút, trong khi web tưởng đang kết nối. Giờ mọi thay đổi danh sách luồng của một owner nằm trong **một** lần `ConcurrentHashMap.compute`/`computeIfPresent` trên khóa đó, kể cả việc gỡ các luồng vượt giới hạn; việc đóng chúng (gọi `complete()`) làm sau, ngoài `compute`, vì `compute` không được gọi lại chính map đó.
+
+**Tắt ứng dụng.** Spring Boot tắt web server "graceful": chờ các request đang chạy, tới 30 giây. Một luồng SSE không bao giờ tự xong, nên nếu đợi tới `destroy()` mới đóng thì lần tắt nào cũng chờ đủ 30 giây khi còn tab mở. `EventHub` đóng mọi luồng ngay khi nhận `ContextClosedEvent`, sự kiện đầu tiên của quá trình tắt.
+
+### 3.4 Các chi tiết của giao thức
+| Dòng / header | Để làm gì |
+|---|---|
+| `retry:3000` | lần đầu: trình duyệt nối lại sau 3 giây khi rớt |
+| `:` mỗi 25 giây | comment: giữ proxy không cắt luồng im lặng, và lộ ra trình duyệt đã đóng (ghi lỗi) |
+| `event:` = `type` | web gắn `addEventListener(type)` |
+| không có `id:` | không phát lại sự kiện lỡ; nối lại thì web đọc lại dữ liệu |
+| `X-Accel-Buffering: no` | proxy như nginx không giữ sự kiện lại chờ đầy bộ đệm |
+| `Cache-Control: no-store` | không cache một luồng |
+| đóng sau 20 phút | trình duyệt nối lại, nên đăng nhập được kiểm lại; phiên hết thì `401` |
+| tối đa 5 luồng mỗi người | luồng thứ 6 đóng luồng cũ nhất, giới hạn tài nguyên mỗi người dùng |
+
+### 3.5 Sự kiện không mang nội dung thư
+Sự kiện chỉ có loại, ID account, ID conversation, số thư đến mới, nguồn (`import`, `sync`, `user`) và thời điểm. Web dùng `source = sync` để hiện "N thư mới" (lần nhập đầu không hiện), rồi gọi API như mọi lần: mọi kiểm tra quyền vẫn ở API, và nội dung thư không đi qua kênh nào khác. Test kiểm dữ liệu của luồng không chứa chữ của thư mẫu.
+
+### 3.6 Test SSE bằng HTTP thật
+MockMvc không có mạng thật và không giữ được một response đang chảy dài. `RealtimeApiTests` chạy server trên cổng ngẫu nhiên, đăng nhập bằng `Browser`, rồi mở luồng bằng `java.net.http.HttpClient` với `BodyHandlers.ofLines()`: một virtual thread đọc từng dòng vào hàng đợi, test lấy dòng hay sự kiện ra với thời hạn chờ.
+
+Hai bẫy gặp khi viết test, đều do **code đúng**: kết nối account phát `AccountConnected`, nên luồng mở trước khi kết nối thấy `account.changed` trước tiên; và sau khi bấm PATCH, sự kiện của các trang nhập sau vẫn còn tới trước sự kiện của PATCH. Test giờ kết nối account trước khi mở luồng, và đọc qua các sự kiện tới khi gặp đúng sự kiện có `source: user`.

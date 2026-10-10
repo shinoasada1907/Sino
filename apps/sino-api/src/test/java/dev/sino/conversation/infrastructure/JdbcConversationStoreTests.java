@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -84,8 +85,9 @@ class JdbcConversationStoreTests {
         StoreResult result = store.store(account, batch(List.of(thread("Báo cáo tháng 9", ALICE, OWNER)), question,
                 answer));
 
-        assertThat(result).isEqualTo(new StoreResult(2, 0));
         Map<String, Object> conversation = conversation("thread-1");
+        assertThat(result).as("the question came in, the answer went out")
+                .isEqualTo(new StoreResult(2, 0, Set.of((UUID) conversation.get("id")), 1));
         assertThat(((UUID) conversation.get("id")).version()).as("UUIDv7 (D-08)").isEqualTo(7);
         assertThat(conversation).containsEntry("type", "THREAD").containsEntry("title", "Báo cáo tháng 9")
                 .containsEntry("avatar_url", null).containsEntry("archived", false);
@@ -111,7 +113,7 @@ class JdbcConversationStoreTests {
 
         StoreResult again = store.store(account, page);
 
-        assertThat(again).isEqualTo(new StoreResult(0, 0));
+        assertThat(again).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 0);
         assertThat(rowVersions()).as("no row rewritten (02B section 11)").isEqualTo(rowVersions);
         assertThat(count("conversation")).isEqualTo(1);
         assertThat(count("conversation_participant")).isEqualTo(2);
@@ -127,7 +129,8 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(account, batch(List.of(), edited));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 1));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
+        assertThat(result.newInbound()).as("an inbound message that changed is not new mail").isZero();
         assertThat(messageId("m-1")).isEqualTo(id);
         assertStoredAs(edited);
     }
@@ -141,7 +144,7 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(account, batch(List.of(), edited));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 1));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(rowVersion("m-1")).isNotEqualTo(rowVersion);
         assertStoredAs(edited);
     }
@@ -150,7 +153,7 @@ class JdbcConversationStoreTests {
     void aMessageWithoutItsConversationGetsAMinimalOne() {
         StoreResult result = store.store(account, batch(List.of(), question()));
 
-        assertThat(result).isEqualTo(new StoreResult(1, 0));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(1, 0);
         assertThat(conversation("thread-1")).containsEntry("type", "UNKNOWN").containsEntry("title", null)
                 .containsEntry("last_message_at", Timestamp.from(MONDAY));
         assertStoredAs(question());
@@ -227,7 +230,7 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(account, batch(List.of(active, silent)));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 0));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 0);
         assertThat(conversation("chat-1")).containsEntry("last_message_at", Timestamp.from(MONDAY));
         assertThat(conversation("chat-2")).containsEntry("last_message_at", Timestamp.from(Instant.EPOCH));
     }
@@ -278,7 +281,7 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(account, batch(List.of(), question(REPORT)));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 1));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(attachments("m-1")).extracting(List::getFirst).containsExactly("1");
         assertThat(attachmentId("m-1", "1")).isEqualTo(reportId);
     }
@@ -289,7 +292,7 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(account, batch(List.of(), question()));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 1));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(attachments("m-1")).isEmpty();
     }
 
@@ -302,7 +305,7 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(account, batch(List.of(), question(renamed)));
 
-        assertThat(result).isEqualTo(new StoreResult(0, 1));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(attachmentId("m-1", "1")).isEqualTo(reportId);
         assertThat(attachments("m-1")).containsExactly(List.of("1", "report-final.pdf", "application/pdf", 4096L,
                 "https://files.example.test/1", "https://files.example.test/1/small"));
@@ -316,7 +319,7 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(other, page);
 
-        assertThat(result).isEqualTo(new StoreResult(2, 0));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(2, 0);
         assertThat(count("conversation")).isEqualTo(2);
         assertThat(count("message")).isEqualTo(4);
     }
@@ -341,7 +344,7 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), notice));
 
-        assertThat(result).isEqualTo(new StoreResult(1, 0));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(1, 0);
         assertStoredAs(notice);
         assertThat(participants("thread-1")).hasSize(2);
     }
@@ -358,7 +361,7 @@ class JdbcConversationStoreTests {
 
         StoreResult result = store.store(account, batch(List.of(thread), message));
 
-        assertThat(result).isEqualTo(new StoreResult(1, 0));
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(1, 0);
         assertThat(conversation("thread-1")).containsEntry("title", "Báo cáo");
         assertThat(participants("thread-1")).extracting(List::getFirst, participant -> participant.get(1))
                 .containsExactly(tuple("alice@example.test", "Alice"), tuple("bob@example.test", "-"));
@@ -391,12 +394,14 @@ class JdbcConversationStoreTests {
             CompletableFuture<StoreResult> otherAccount = CompletableFuture.supplyAsync(
                     () -> inTransaction.execute(t -> store.store(other, batch(List.of(), elsewhere))));
 
-            assertThat(otherAccount.get(10, TimeUnit.SECONDS)).isEqualTo(new StoreResult(1, 0));
+            assertThat(otherAccount.get(10, TimeUnit.SECONDS)).extracting(StoreResult::newMessages,
+                    StoreResult::updatedMessages).containsExactly(1, 0);
             assertThatExceptionOfType(TimeoutException.class)
                     .as("the same account waits for the first store to commit")
                     .isThrownBy(() -> sameAccount.get(1, TimeUnit.SECONDS));
             commitFirst.countDown();
-            assertThat(sameAccount.get(10, TimeUnit.SECONDS)).isEqualTo(new StoreResult(1, 0));
+            assertThat(sameAccount.get(10, TimeUnit.SECONDS)).extracting(StoreResult::newMessages,
+                    StoreResult::updatedMessages).containsExactly(1, 0);
             first.get(10, TimeUnit.SECONDS);
         } finally {
             commitFirst.countDown();

@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -26,6 +27,8 @@ import dev.sino.conversation.StoreResult;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
+import dev.sino.sync.MailStored;
+import dev.sino.sync.SyncStateChanged;
 import dev.sino.sync.infrastructure.SyncCheckpoints;
 import dev.sino.sync.infrastructure.SyncCheckpoints.Checkpoint;
 
@@ -47,6 +50,7 @@ class ImportRunner implements DisposableBean {
     private final SyncCheckpoints checkpoints;
     private final TransactionTemplate transactions;
     private final InitialSyncProperties properties;
+    private final ApplicationEventPublisher events;
     // One virtual thread per account being read (D-69): reading mostly waits for the provider. Kept here rather than
     // as a bean, so Spring Boot keeps its own task executor.
     private final ExecutorService executor = Executors.newThreadPerTaskExecutor(
@@ -56,12 +60,13 @@ class ImportRunner implements DisposableBean {
     private final Map<UUID, AtomicInteger> requests = new ConcurrentHashMap<>();
 
     ImportRunner(ProviderAccess access, ConversationStore store, SyncCheckpoints checkpoints,
-            TransactionTemplate transactions, InitialSyncProperties properties) {
+            TransactionTemplate transactions, InitialSyncProperties properties, ApplicationEventPublisher events) {
         this.access = access;
         this.store = store;
         this.checkpoints = checkpoints;
         this.transactions = transactions;
         this.properties = properties;
+        this.events = events;
     }
 
     /**
@@ -231,6 +236,7 @@ class ImportRunner implements DisposableBean {
                 fail(accountId, pass, "CURSOR_STUCK");
                 return;
             }
+            // Events published here reach the web only once the page is committed (F08).
             transactions.executeWithoutResult(status -> {
                 StoreResult stored = store.store(accountId, batch);
                 if (pass == Pass.IMPORT) {
@@ -238,6 +244,14 @@ class ImportRunner implements DisposableBean {
                             + stored.updatedMessages(), batch.skipped().size(), done);
                 } else if (!checkpoints.advanceSync(accountId, batch.nextCursor().value(), done)) {
                     throw new ImportStartedAgain();
+                }
+                if (stored.newMessages() + stored.updatedMessages() > 0) {
+                    events.publishEvent(new MailStored(accountId, stored.conversationIds(), stored.newInbound(),
+                            pass == Pass.SYNC, Instant.now()));
+                }
+                // The progress of an import; a sync only when the error it clears was shown.
+                if (pass == Pass.IMPORT || done && checkpoint.lastSyncError() != null) {
+                    events.publishEvent(new SyncStateChanged(accountId, Instant.now()));
                 }
             });
             if (!batch.skipped().isEmpty()) {
@@ -288,6 +302,7 @@ class ImportRunner implements DisposableBean {
             if (pass == Pass.IMPORT) {
                 logFailure(Level.WARN, pass, accountId, errorCode, cause);
                 checkpoints.fail(accountId, errorCode);
+                events.publishEvent(new SyncStateChanged(accountId, Instant.now()));
                 return;
             }
             Optional<Boolean> newError = checkpoints.syncFailed(accountId, errorCode);
@@ -295,6 +310,9 @@ class ImportRunner implements DisposableBean {
                 log.info("Sync of account {} stopped: its import started again", accountId);
             } else {
                 logFailure(newError.get() ? Level.WARN : Level.DEBUG, pass, accountId, errorCode, cause);
+                if (newError.get()) {
+                    events.publishEvent(new SyncStateChanged(accountId, Instant.now()));
+                }
             }
         } catch (RuntimeException failure) {
             logFailure(Level.WARN, pass, accountId, errorCode, cause);

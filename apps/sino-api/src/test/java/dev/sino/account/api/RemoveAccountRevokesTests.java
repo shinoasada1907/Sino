@@ -172,7 +172,8 @@ class RemoveAccountRevokesTests {
         google.verify(0, anyRequestedFor(anyUrl()));
     }
 
-    // No module listens to AccountRemoved yet, so Spring Modulith stores nothing; this keeps it so once one does.
+    // The event stream (F08) hears AccountRemoved outside the registry, so Spring Modulith stores nothing; this
+    // keeps it so once a listener of the registry comes.
     @Test
     void theEventLogHoldsNoToken() throws Exception {
         remove(gmailAccount()).andExpect(status().isNoContent());
