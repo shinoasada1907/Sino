@@ -34,7 +34,10 @@
 
 > Mode HYBRID, frontend AUTO. Mỗi task: test đỏ trước rồi xanh, `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build`, Chrome một lượt ở cỡ màn task đụng tới, file kiến thức Phase 1 + `.docx`, commit riêng trên `dev`. Làm theo Contract API trong design (contract-first), sau FE-57 của F06.
 
-- [ ] 2.1 **FE-61 — Trạng thái trả lời và người nhận trên web**
+- [x] 2.1 **FE-61 — Trạng thái trả lời và người nhận trên web**
+  - **Thực hiện (2026-10-10, AUTO):** `fetchConversation` đọc `reply` (vắng ở backend trước F10): `canSend` (`READY` → `true`, `NEEDS_PERMISSION`/`ACCOUNT_UNAVAILABLE` → `false`, `NOT_SUPPORTED`/vắng → `null`), `replyTo`; `ConversationDetail.replyTo`, kiểu `Recipient`. `format.ts`: `recipientsText`, câu chữ mới của `sendBlockText` (D-134). `ThreadNotice`: nút "Cấp quyền gửi". `Composer`: prop `to`, dòng "Tới …" phía trên ô soạn ở mọi cỡ màn (điện thoại: hàng `flex-wrap`, dòng `w-full order-first`).
+  - **Làm khác kế hoạch:** dòng "Tới" xuống dòng thay vì cắt. **LÝ DO:** Chrome ở 1440 và 390 cho thấy hai người nhận bị cắt mất người thứ hai. Giới hạn đã biết: `ACCOUNT_UNAVAILABLE` mà danh sách tài khoản trên web còn ghi `CONNECTED` (chưa kịp đọc lại) thì hiện dòng báo quyền gửi thay cho "Kết nối lại"; cả hai nút đều mở cùng luồng kết nối lại.
+  - **Kiểm chứng (2026-10-10):** RED 11 (câu chữ cũ ở 4 test được đổi theo D-134; `recipientsText`; ánh xạ `reply`; 4/5 test màn), GREEN; test "Kết nối lại" xanh từ đầu (hành vi có sẵn). Test dòng "Tới" sửa một lần vì chữ nằm ở hai phần tử. `pnpm lint` 0, `tsc -b` 0, `vitest` 514/514, `pnpm build` 0. Chrome (API do CDP trả, hai người nhận): dòng "Tới" nằm trên ô soạn ở 1440 tối, 1024 sáng, 390 sáng (ở 390 nằm riêng một dòng), không cắt, không tràn ngang; `NEEDS_PERMISSION` ở 1440: dòng báo với "Trả lời trong Gmail" và "Cấp quyền gửi".
   - **Goal / Why:** ô trả lời chỉ hiện khi gửi được, hiện rõ thư tới ai; dòng báo đúng loại khi chưa gửi được (D-134).
   - **Depends on:** FE-57; Contract API (`reply` trong `GET /api/conversations/{id}`).
   - **Files:** `src/features/inbox/inbox.api.ts` (ánh xạ `reply`), `inbox.types.ts` (`replyTo`), `format.ts` (`sendBlockText`), `components/ThreadNotice.tsx` ("Cấp quyền gửi"), `components/Composer.tsx` (dòng "Tới"), `components/EmailThread.tsx`, test.

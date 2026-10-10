@@ -21,7 +21,7 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { firstLine, formatFileSize, linkedMeta, mailTime, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
+import { firstLine, formatFileSize, linkedMeta, mailTime, recipientsText, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
 import type { Attachment, ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
 import { useConversationActions, useSendMessage, type LoadMore, type MessageHistory } from '../useInbox'
 import { Composer } from './Composer'
@@ -139,6 +139,7 @@ export function EmailThread({
           placeholder={`Trả lời ${item.title}…`}
           account={account.address}
           via={`${nameOf(item.provider)} · ${account.address}`}
+          to={detail.replyTo && detail.replyTo.length > 0 ? recipientsText(detail.replyTo) : undefined}
           onSend={(text) => sendMessage.mutate(text)}
         />
       ) : null}

@@ -68,6 +68,14 @@ interface ConversationResponse {
   linked: ConversationItem['linked'] | null
 }
 
+/** Whether Sino can reply in a conversation, and to whom (F10, D-133). */
+interface ReplyResponse {
+  state: 'READY' | 'NEEDS_PERMISSION' | 'ACCOUNT_UNAVAILABLE' | 'NOT_SUPPORTED'
+  to: PersonResponse[]
+}
+
+const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = { READY: true, NEEDS_PERMISSION: false, ACCOUNT_UNAVAILABLE: false, NOT_SUPPORTED: null }
+
 /** A person of `GET /api/conversations/{id}`; `self` is the connected account. */
 interface ParticipantResponse {
   externalId: string
@@ -204,9 +212,10 @@ export async function fetchConversations({ view, source }: InboxFilter, cursor: 
   return { items: page.items.map(toItem), nextCursor: page.nextCursor }
 }
 
-/** `GET /api/conversations/{id}`: the row and the people; the messages come from `fetchMessages`, no sending before F10. */
+/** `GET /api/conversations/{id}`: the row, the people, and whether Sino can reply (F10); the messages come from `fetchMessages`. */
 export async function fetchConversation(conversationId: string): Promise<OpenConversation> {
-  const { participants, ...item } = await api.get<ConversationResponse & { participants: ParticipantResponse[] }>(
+  // `reply` is absent on a backend before F10.
+  const { participants, reply, ...item } = await api.get<ConversationResponse & { participants: ParticipantResponse[]; reply?: ReplyResponse }>(
     `/api/conversations/${encodeURIComponent(conversationId)}`,
   )
   return {
@@ -218,7 +227,8 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       linked: null,
       members: participants.map(toMember),
       files: null,
-      canSend: null,
+      canSend: reply ? CAN_SEND[reply.state] : null,
+      replyTo: reply ? reply.to.map(({ name, address }) => ({ name, address })) : null,
       previousCursor: null,
     },
   }

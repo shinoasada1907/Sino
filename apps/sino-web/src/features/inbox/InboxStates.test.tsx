@@ -128,18 +128,18 @@ describe('states of the inbox', () => {
     expect(await chat('Lê Hoàng').findByText('Tin nhắn sau 21:04 chưa về Sino')).toBeInTheDocument()
   })
 
-  it('says when only the permission to send has expired', async () => {
+  it('says when Sino has no permission to send', async () => {
     vi.mocked(fetchConversation).mockImplementation(async (id) => ({
       item: createInboxSample(NOW).conversations.find((item) => item.id === id)!,
       detail: { ...createConversationSample(id, NOW), canSend: false },
     }))
     open('/inbox/conv-1')
 
-    const notice = await thread().findByText('Quyền gửi thư của an.nguyen@gmail.com đã hết hạn')
+    const notice = await thread().findByText('Sino chưa có quyền gửi thư từ an.nguyen@gmail.com')
     const box = notice.closest('[role="status"]') as HTMLElement
-    expect(box).toHaveTextContent('Bạn vẫn đọc thư bình thường. Cấp lại riêng quyền gửi để trả lời từ Sino.')
+    expect(box).toHaveTextContent('Bạn vẫn đọc thư bình thường. Cấp thêm quyền gửi để trả lời từ Sino.')
     expect(within(box).getByRole('button', { name: 'Trả lời trong Gmail' })).toBeInTheDocument()
-    expect(within(box).getByRole('link', { name: 'Cấp lại quyền gửi' })).toHaveAttribute('href', '/accounts?reconnect=acc-gmail')
+    expect(within(box).getByRole('link', { name: 'Cấp quyền gửi' })).toHaveAttribute('href', '/accounts?reconnect=acc-gmail')
     expect(thread().queryByRole('textbox', { name: 'Trả lời Trần Minh Anh' })).toBeNull()
   })
 })

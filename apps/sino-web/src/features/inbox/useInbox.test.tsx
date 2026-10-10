@@ -176,7 +176,7 @@ describe('useUpdateConversation', () => {
       }),
     )
     const { queryClient, wrapper } = setup()
-    queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail: { id: 'c-1', messages: null, firstUnreadId: null, linked: null, members: [], files: null, canSend: null, previousCursor: null } })
+    queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail: { id: 'c-1', messages: null, firstUnreadId: null, linked: null, members: [], files: null, canSend: null, replyTo: null, previousCursor: null } })
     const { result } = renderHook(() => useUpdateConversation(), { wrapper })
 
     act(() => result.current.mutate({ id: 'c-1', change: { read: true } }))
@@ -224,7 +224,7 @@ describe('useUpdateConversation', () => {
 })
 
 describe('useSendMessage', () => {
-  const detail = { id: 'c-1', messages: null, firstUnreadId: null, linked: null, members: null, files: null, canSend: true, previousCursor: null }
+  const detail = { id: 'c-1', messages: null, firstUnreadId: null, linked: null, members: null, files: null, canSend: true, replyTo: null, previousCursor: null }
   const older: Message = { id: 'm-1', kind: 'MESSAGE', direction: 'IN', sender: 'Trần Minh Anh', to: null, at: '2026-10-01T02:00:00Z', text: 'Chào An', attachments: [], status: null, linked: [] }
   // The messages of F06 live in their own cache, newest first (D-126).
   const seed = (queryClient: QueryClient) => {

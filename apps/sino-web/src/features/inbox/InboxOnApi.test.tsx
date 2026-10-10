@@ -207,14 +207,14 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     // The row of the list opens the conversation at once; the reply area waits for the detail.
     expect(await thread().findByRole('heading', { level: 2, name: 'Hợp đồng quý 4' })).toBeInTheDocument()
     expect(thread().queryByRole('textbox')).toBeNull()
-    expect(thread().queryByText('Sino chưa gửi được thư')).toBeNull()
+    expect(thread().queryByText('Gmail chưa cho Sino gửi thư')).toBeNull()
     detail.release()
     const latest = await thread().findByRole('article', { name: 'Thư mới nhất' })
     expect(latest).toHaveTextContent('Thư mới nhất · 13:41 hôm nay')
     expect(latest).toHaveTextContent('Chào An, mình gửi bản hợp đồng đã sửa theo góp ý hôm qua.')
     expect(latest).toHaveTextContent('Sino mới hiện đoạn đầu của thư mới nhất. Đọc cả cuộc trò chuyện ngay trong Sino sẽ có ở bản sau.')
-    const notice = thread().getByText('Sino chưa gửi được thư').closest('[role="status"]') as HTMLElement
-    expect(notice).toHaveTextContent('Trả lời từ Sino sẽ có ở bản sau. Bây giờ bạn trả lời trong Gmail.')
+    const notice = thread().getByText('Gmail chưa cho Sino gửi thư').closest('[role="status"]') as HTMLElement
+    expect(notice).toHaveTextContent('Bạn trả lời trong Gmail.')
     expect(within(notice).queryByRole('button')).toBeNull()
     expect(thread().queryByRole('textbox')).toBeNull()
 

@@ -1069,6 +1069,27 @@ HTML đã sạch --> <iframe sandbox="allow-same-origin allow-popups allow-popup
 - **Lỗi gài tìm ra test thiếu:** 23 lỗi cố ý cho `linkParts`, `mailDocument`, khung và `MailBody`; 3 cái sống sót lần đầu. Hai cái là test thiếu (địa chỉ trong dấu nháy, `https://.`), đã thêm test. Cái thứ ba là **lỗi tương đương**: cho regex nhận mọi scheme nhưng phép kiểm `^https?://.` ngay sau đó vẫn loại chúng, nên kết quả không đổi; hai lớp giữ cho nhau, không test nào phân biệt được.
 - **Chứng minh lớp 2 trên Chrome thật:** trả HTML **chưa làm sạch** có `<script>`, `onerror` và form: tiêu đề trang không đổi, gọi `form.submit()` từ ngoài không tạo request nào. jsdom không dựng `srcdoc`, nên test tự động chỉ kiểm thuộc tính của iframe; phần "không chạy" phải kiểm ở trình duyệt thật.
 
+## 16. Trả lời từ Sino: phía web (F10, `f10-reply`)
+
+### 16.0 Bức tranh
+Gmail chỉ cho Sino gửi thư khi tài khoản đã cấp quyền `gmail.send`. Tài khoản kết nối trước F10 chỉ có quyền đọc, nên phải "Kết nối lại" để cấp thêm. Server nói cho web biết điều đó qua `reply` trong `GET /api/conversations/{id}`:
+
+```text
+reply.state            ô trả lời / dòng báo
+READY               -> ô trả lời + dòng "Tới ..."
+NEEDS_PERMISSION    -> "Sino chưa có quyền gửi thư từ ..." + nút "Cấp quyền gửi" (mở kết nối lại)
+ACCOUNT_UNAVAILABLE -> tài khoản hết quyền: "Kết nối lại" (như trước)
+NOT_SUPPORTED       -> "Gmail chưa cho Sino gửi thư" / "Bạn trả lời trong Gmail."
+(không có reply)    -> như NOT_SUPPORTED: backend chưa có F10
+```
+
+### 16.1 Trạng thái trả lời và người nhận (FE-61, D-133, D-134)
+- **Server quyết, web hiện:** người nhận được tính ở server (`Reply-To`, không có thì người gửi của thư đến mới nhất) và trả trong `reply.to`; khi gửi, server tính lại theo cùng quy tắc, không nhận người nhận từ trình duyệt. Web chỉ hiện đúng danh sách đó trên dòng "Tới".
+- **Ánh xạ thành dữ liệu đã có:** `reply.state` thành `canSend` (`true`, `false`, `null`) mà `sendBlock` đã dùng từ trước, nên `ThreadNotice` không phải đổi cách chọn loại dòng báo; chỉ đổi câu chữ.
+- **Câu chữ theo sự thật:** canvas viết "Cấp lại quyền gửi", nhưng tài khoản kết nối trước F10 chưa bao giờ cấp quyền gửi, nên chữ là "Cấp quyền gửi"; câu "Trả lời từ Sino sẽ có ở bản sau" không còn đúng khi Sino đã gửi được.
+- **Không cắt người nhận:** dòng "Tới" xuống dòng thay vì cắt (`truncate`): Chrome cho thấy hai người nhận ở 390 px bị cắt mất người thứ hai, đúng điều dòng này phải tránh.
+- **Một hàng flex có xuống dòng trên điện thoại:** ô soạn ở điện thoại là một hàng (kẹp giấy, ô chữ, nút gửi). Dòng "Tới" thêm `w-full` và `order-first`, hàng thêm `flex-wrap`, nên dòng "Tới" nằm riêng ở trên mà không phải dựng lại bố cục.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1189,3 +1210,5 @@ HTML đã sạch --> <iframe sandbox="allow-same-origin allow-popups allow-popup
 116. Vì sao đo chiều cao bằng `body` mà không bằng `html` của tài liệu trong khung?
 117. Vì sao nội dung thư dùng khóa `['message-body', ...]` mà không nằm dưới `['inbox']` như danh sách thư?
 118. "Lỗi tương đương" trong kiểm tra bằng lỗi gài là gì? Vì sao không cần (và không thể) viết test để bắt nó?
+119. Vì sao server không nhận danh sách người nhận từ web khi gửi thư trả lời, dù web đã hiện danh sách đó?
+120. Tài khoản Gmail kết nối trước F10 thấy dòng báo nào thay cho ô trả lời, và bấm nút đó thì chuyện gì xảy ra?

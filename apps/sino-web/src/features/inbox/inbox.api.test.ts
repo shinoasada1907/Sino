@@ -114,8 +114,24 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       ],
       files: null,
       canSend: null,
+      replyTo: null,
       previousCursor: null,
     })
+  })
+
+  it('says whether Sino can reply, and to whom, once the API tells (F10, D-133)', async () => {
+    const to = [{ name: 'Trần Minh Anh', address: 'minhanh@acme.vn' }]
+    const answer = (state: string) =>
+      server.use(http.get('/api/conversations/:id', () => HttpResponse.json({ ...API_CONVERSATIONS[0], participants: API_PARTICIPANTS, reply: { state, to } })))
+
+    answer('READY')
+    expect((await fetchConversation('c-1')).detail).toMatchObject({ canSend: true, replyTo: to })
+    answer('NEEDS_PERMISSION')
+    expect((await fetchConversation('c-1')).detail).toMatchObject({ canSend: false, replyTo: to })
+    answer('ACCOUNT_UNAVAILABLE')
+    expect((await fetchConversation('c-1')).detail).toMatchObject({ canSend: false })
+    answer('NOT_SUPPORTED')
+    expect((await fetchConversation('c-1')).detail).toMatchObject({ canSend: null })
   })
 
   it('names a person without a name by their address', async () => {

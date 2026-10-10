@@ -7,9 +7,9 @@ import type { ConversationKind } from '../inbox.types'
 
 /**
  * Canvas `ThreadState` `.blocked`, in place of the reply box: an account that must sign in again (red, "Kết nối lại"),
- * or one that can still read but no longer send (amber, "Cấp lại quyền gửi"). Both open the connect wizard at the
- * sign-in step; "Trả lời trong …" has no flow yet (D-52). Until Sino can send (F10, D-72), a plain note with nothing to
- * press says where to reply instead.
+ * or one that can read but has not granted sending (amber, "Cấp quyền gửi", D-134). Both open the connect wizard at the
+ * sign-in step; "Trả lời trong …" has no flow yet (D-52). When the provider cannot send from Sino, a plain note with
+ * nothing to press says where to reply instead.
  */
 export function ThreadNotice({
   block,
@@ -53,7 +53,7 @@ export function ThreadNotice({
               Trả lời trong {providerName}
             </Button>
             <Button asChild variant="secondary" size="sm">
-              <Link to={to}>Cấp lại quyền gửi</Link>
+              <Link to={to}>Cấp quyền gửi</Link>
             </Button>
           </div>
         )}

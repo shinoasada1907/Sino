@@ -193,7 +193,7 @@ function message(extra: Partial<Message & { kind: 'MESSAGE' }> & { id: string; a
   return { kind: 'MESSAGE', direction: 'IN', sender: '', to: null, attachments: [], status: null, linked: [], ...extra }
 }
 
-const emptyDetail = { firstUnreadId: null, linked: null, members: null, files: null, canSend: true, previousCursor: null }
+const emptyDetail = { firstUnreadId: null, linked: null, members: null, files: null, canSend: true, replyTo: null, previousCursor: null }
 
 /** The messages of one conversation; the contract email and the family chat follow the canvas in full. */
 export function createConversationSample(conversationId: string, now: Date): ConversationDetail {

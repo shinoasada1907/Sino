@@ -13,7 +13,8 @@ import { Status } from '@/shared/ui/status'
  * canvas `.mob-composer`: one row of attach, a round box and the send buttons; the box and the bar below it then use
  * `display: contents`, so the same text box and buttons are laid out again instead of being drawn twice. From 768 to
  * 1279px the bar drops the account and the shortcut, as the tablet reply box of the canvas. Offline, the bar says the
- * message waits for the network and the button queues it (`InboxState` offline, D-55).
+ * message waits for the network and the button queues it (`InboxState` offline, D-55). When the server says who the
+ * reply goes to, a "Tới" line names them above the box at every width (no canvas; D-134: a wrong recipient is worse).
  */
 export function Composer({
   kind,
@@ -21,6 +22,7 @@ export function Composer({
   placeholder,
   account,
   via,
+  to,
   onSend,
 }: {
   kind: 'EMAIL' | 'CHAT'
@@ -29,6 +31,8 @@ export function Composer({
   account: string
   /** "Zalo · +84 9•• ••• 218" for a chat. */
   via: string
+  /** "Trần Minh Anh <minhanh@acme.vn>": who the reply goes to. */
+  to?: string
   onSend: (text: string) => void
 }) {
   const id = useId()
@@ -55,7 +59,14 @@ export function Composer({
     }
   }
   return (
-    <div className="relative flex items-end gap-2 border-t bg-background px-3 pt-2.5 pb-6 md:flex-col md:items-stretch md:px-5 md:pt-3 md:pb-4 xl:px-6 xl:pt-4 xl:pb-5">
+    <div className="relative flex flex-wrap items-end gap-2 border-t bg-background px-3 pt-2.5 pb-6 md:flex-col md:flex-nowrap md:items-stretch md:px-5 md:pt-3 md:pb-4 xl:px-6 xl:pt-4 xl:pb-5">
+      {to && (
+        // First in the row of the phone, where the attach button is also first, and alone on its line; it wraps rather
+        // than cut a recipient off.
+        <p className="order-first w-full text-sm [overflow-wrap:anywhere] text-muted-foreground md:order-none">
+          Tới <span className="text-foreground">{to}</span>
+        </p>
+      )}
       <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-surface py-2.5 pr-3 pl-3.5 transition-[border-color,box-shadow] duration-(--dur-hover) ease-out focus-within:border-foreground focus-within:ring-3 focus-within:ring-foreground/14 max-md:contents">
         <label htmlFor={id} className="sr-only">
           {label}

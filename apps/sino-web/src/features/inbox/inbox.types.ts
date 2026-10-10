@@ -103,9 +103,20 @@ export interface ConversationDetail {
   linked: LinkedItem[] | null
   members: Member[] | null
   files: { total: number; items: SharedFile[] } | null
-  /** False when sending is not possible, for example the access expired; null until Sino can send at all (F10, D-72). */
+  /**
+   * False when sending is not possible: no permission to send yet, or the access expired; null when the provider cannot
+   * send from Sino, or the backend does not tell yet (F10, D-134).
+   */
   canSend: boolean | null
+  /** Who a reply goes to (D-133); null when the backend does not tell, or in the sample data. */
+  replyTo: Recipient[] | null
   previousCursor: string | null
+}
+
+/** Someone a reply goes to; a person without a name shows by the address. */
+export interface Recipient {
+  name: string | null
+  address: string
 }
 
 export interface LinkedItem {

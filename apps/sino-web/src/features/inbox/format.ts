@@ -10,7 +10,7 @@ import {
   weekdayNumbered,
   weekdayShort,
 } from '@/shared/time/local'
-import type { ConversationItem, InboxData, LinkedItem, LinkedKind, Member, Message } from './inbox.types'
+import type { ConversationItem, InboxData, LinkedItem, LinkedKind, Member, Message, Recipient } from './inbox.types'
 
 export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
 export interface InboxFilter {
@@ -265,12 +265,18 @@ export function sendBlockText(block: SendBlock, kind: ConversationItem['kind'], 
   }
   const what = kind === 'EMAIL' ? 'thư' : 'tin'
   if (block === 'NOT_READY') {
-    return { title: `Sino chưa gửi được ${what}`, text: `Trả lời từ Sino sẽ có ở bản sau. Bây giờ bạn trả lời trong ${providerName}.` }
+    return { title: `${providerName} chưa cho Sino gửi ${what}`, text: `Bạn trả lời trong ${providerName}.` }
   }
+  // An account connected before Sino could send never granted it, so "again" would be wrong (D-134).
   return {
-    title: `Quyền gửi ${what} của ${accountId} đã hết hạn`,
-    text: `Bạn vẫn đọc ${what} bình thường. Cấp lại riêng quyền gửi để trả lời từ Sino.`,
+    title: `Sino chưa có quyền gửi ${what} từ ${accountId}`,
+    text: `Bạn vẫn đọc ${what} bình thường. Cấp thêm quyền gửi để trả lời từ Sino.`,
   }
+}
+
+/** Who a reply goes to (D-133): "Trần Minh Anh <minhanh@acme.vn>, binh@example.com". */
+export function recipientsText(people: Recipient[]): string {
+  return people.map(({ name, address }) => (name ? `${name} <${address}>` : address)).join(', ')
 }
 
 /** The date of an email: in full when it is open ("09:41 hôm nay"), short when folded ("28/09"). */

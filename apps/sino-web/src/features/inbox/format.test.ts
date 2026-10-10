@@ -11,6 +11,7 @@ import {
   failureDetail,
   failureReason,
   linkParts,
+  recipientsText,
   filterConversations,
   firstLine,
   formatFileSize,
@@ -339,20 +340,20 @@ describe('the open conversation', () => {
       text: 'Quyền truy cập đã hết hạn. Tin cũ vẫn đọc được ở đây.',
     })
     expect(sendBlockText('PERMISSION', 'EMAIL', 'Gmail', 'an.nguyen@gmail.com')).toEqual({
-      title: 'Quyền gửi thư của an.nguyen@gmail.com đã hết hạn',
-      text: 'Bạn vẫn đọc thư bình thường. Cấp lại riêng quyền gửi để trả lời từ Sino.',
+      title: 'Sino chưa có quyền gửi thư từ an.nguyen@gmail.com',
+      text: 'Bạn vẫn đọc thư bình thường. Cấp thêm quyền gửi để trả lời từ Sino.',
     })
-    expect(sendBlockText('PERMISSION', 'CHAT', 'Zalo', '+84 9•• ••• 218').title).toBe('Quyền gửi tin của +84 9•• ••• 218 đã hết hạn')
+    expect(sendBlockText('PERMISSION', 'CHAT', 'Zalo', '+84 9•• ••• 218').title).toBe('Sino chưa có quyền gửi tin từ +84 9•• ••• 218')
   })
 
-  it('says Sino cannot send yet when the API does not tell (F10, D-72), after signing in again', () => {
+  it('sends to the provider when it cannot send from Sino, or the API does not tell (D-134), after signing in again', () => {
     expect(sendBlock({ status: 'CONNECTED' }, null)).toBe('NOT_READY')
     expect(sendBlock({ status: 'AUTH_EXPIRED' }, null)).toBe('RECONNECT')
     expect(sendBlockText('NOT_READY', 'EMAIL', 'Gmail', 'an.nguyen@gmail.com')).toEqual({
-      title: 'Sino chưa gửi được thư',
-      text: 'Trả lời từ Sino sẽ có ở bản sau. Bây giờ bạn trả lời trong Gmail.',
+      title: 'Gmail chưa cho Sino gửi thư',
+      text: 'Bạn trả lời trong Gmail.',
     })
-    expect(sendBlockText('NOT_READY', 'CHAT', 'Zalo', '+84 9•• ••• 218').title).toBe('Sino chưa gửi được tin')
+    expect(sendBlockText('NOT_READY', 'CHAT', 'Zalo', '+84 9•• ••• 218').title).toBe('Zalo chưa cho Sino gửi tin')
   })
 })
 
@@ -379,6 +380,15 @@ describe('conversations that arrive while the list is open (FE-54, MotionSpec C)
   it('says how many new emails came', () => {
     expect(newMailText(1)).toBe('1 thư mới')
     expect(newMailText(1200)).toBe('1.200 thư mới')
+  })
+})
+
+describe('who a reply goes to (FE-61, D-133)', () => {
+  it('names each person with their address, and a person without a name by the address alone', () => {
+    expect(recipientsText([{ name: 'Trần Minh Anh', address: 'minhanh@acme.vn' }, { name: null, address: 'binh@example.com' }])).toBe(
+      'Trần Minh Anh <minhanh@acme.vn>, binh@example.com',
+    )
+    expect(recipientsText([])).toBe('')
   })
 })
 
