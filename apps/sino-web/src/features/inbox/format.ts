@@ -290,11 +290,26 @@ export function mailTime(at: string, now: Date, timeZone: string | undefined, ex
   return days <= 0 ? time : days === 1 ? 'Hôm qua' : formatDayMonth(date, timeZone)
 }
 
-const STATUS_LABELS = { SENDING: 'Đang gửi', SENT: 'Đã gửi', SEEN: 'Đã xem', FAILED: 'Không gửi được' } as const
+const STATUS_LABELS = { SENDING: 'Đang gửi', SENT: 'Đã gửi', SEEN: 'Đã xem', FAILED: 'Không gửi được', UNKNOWN: 'Chưa rõ đã gửi chưa' } as const
 
-/** What an own email still has to say about sending: "Đang gửi" or "Không gửi được"; nothing once it went out. */
+/** What an own email still has to say about sending: "Đang gửi", "Không gửi được", "Chưa rõ…"; nothing once it went out. */
 export function sendState(message: Message & { kind: 'MESSAGE' }): string | null {
-  return message.status === 'SENDING' || message.status === 'FAILED' ? STATUS_LABELS[message.status] : null
+  return message.status === 'SENDING' || message.status === 'FAILED' || message.status === 'UNKNOWN' ? STATUS_LABELS[message.status] : null
+}
+
+type Mail = Message & { kind: 'MESSAGE' }
+
+/**
+ * The messages of a conversation with those sent from this browser (F10, D-134): a message being sent again stands in
+ * for the server's copy (by `clientMessageId`); any other shows only until the server has its own copy.
+ */
+export function withOutbox(server: Message[], outbox: Mail[]): Message[] {
+  const sending = new Map(outbox.filter((mail) => mail.status === 'SENDING' && mail.clientMessageId).map((mail) => [mail.clientMessageId, mail]))
+  const stored = new Set(server.flatMap((message) => (message.kind === 'MESSAGE' && message.clientMessageId ? [message.clientMessageId] : [])))
+  return [
+    ...server.map((message) => (message.kind === 'MESSAGE' && message.clientMessageId && sending.get(message.clientMessageId)) || message),
+    ...outbox.filter((mail) => !mail.clientMessageId || !stored.has(mail.clientMessageId)),
+  ]
 }
 
 /** "08:24 · Đang gửi" under an own bubble (only own messages have a status), the time alone under the others. */

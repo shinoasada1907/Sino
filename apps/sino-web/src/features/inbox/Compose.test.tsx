@@ -79,7 +79,7 @@ describe('writing and sending', () => {
     expect(sendMessage).not.toHaveBeenCalled()
     await user.type(box, 'Phụ lục góp ý sau.{Control>}{Enter}{/Control}')
 
-    expect(sendMessage).toHaveBeenCalledWith('conv-1', 'Anh đồng ý điều khoản 4.\nPhụ lục góp ý sau.')
+    expect(sendMessage).toHaveBeenCalledWith('conv-1', 'Anh đồng ý điều khoản 4.\nPhụ lục góp ý sau.', expect.any(String))
     expect(box).toHaveValue('')
     expect(await thread().findByText('Phụ lục góp ý sau.')).toBeInTheDocument()
     expect(thread().getByText('14:05 hôm nay · Đang gửi')).toBeInTheDocument()
@@ -87,7 +87,7 @@ describe('writing and sending', () => {
 
     await user.type(box, '  Cảm ơn em.  ')
     await user.click(thread().getByRole('button', { name: 'Gửi' }))
-    expect(sendMessage).toHaveBeenLastCalledWith('conv-1', 'Cảm ơn em.')
+    expect(sendMessage).toHaveBeenLastCalledWith('conv-1', 'Cảm ơn em.', expect.any(String))
   })
 
   it('does not send an empty message', async () => {

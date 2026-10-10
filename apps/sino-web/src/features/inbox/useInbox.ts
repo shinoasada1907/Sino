@@ -3,8 +3,8 @@ import { useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError } from '@/shared/api/problem'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
-import { filterConversations, type InboxFilter } from './format'
-import { fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
+import { filterConversations, withOutbox, type InboxFilter } from './format'
+import { discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
 import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation } from './inbox.types'
 
 /** Accounts, providers and counts of the inbox. */
@@ -17,6 +17,10 @@ export const conversationsKey = ({ view, source }: InboxFilter) => [...LISTS_KEY
 export const conversationKey = (conversationId: string) => ['inbox', 'conversation', conversationId] as const
 /** Under the conversation, so that a change the stream reports reads them again too (D-126). */
 export const messagesKey = (conversationId: string) => [...conversationKey(conversationId), 'messages'] as const
+/** What this browser sent in a conversation (D-134): outside `['inbox']`, so reading the conversation again keeps it. */
+export const outboxKey = (conversationId: string) => ['outbox', conversationId] as const
+
+type Mail = Message & { kind: 'MESSAGE' }
 
 type Lists = InfiniteData<ConversationPage, string | null>
 type MessagePages = InfiniteData<MessagePage, string | null>
@@ -164,6 +168,8 @@ export function useConversation(
     enabled: conversationId !== undefined,
     staleTime: Infinity,
   })
+  // Filled by `useSendMessage` only; kept for the session.
+  const { data: outbox } = useQuery<Mail[]>({ queryKey: outboxKey(conversationId ?? ''), queryFn: () => [], enabled: false, gcTime: Infinity })
   const { fetchNextPage } = messages
   const loadOlder = useCallback(() => void fetchNextPage({ cancelRefetch: false }), [fetchNextPage])
   const open = conversationId === undefined ? undefined : data
@@ -176,7 +182,7 @@ export function useConversation(
   const failedMessages = messages.error !== null && !messages.isFetchNextPageError && !isMissing(messages.error)
   return {
     item: open?.item ?? listed,
-    detail: open && { ...open.detail, messages: loaded ?? open.detail.messages },
+    detail: open && { ...open.detail, messages: loaded ? withOutbox(loaded, outbox ?? []) : open.detail.messages },
     history: {
       loading: conversationId !== undefined && messages.status === 'pending',
       failed: conversationId !== undefined && failedMessages,
@@ -274,21 +280,31 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
  * Sends a message. It shows at once at the end of the conversation as "Đang gửi", becomes the stored message when the
  * server answers (and the row's preview), or is marked "Không gửi được" when sending fails.
  */
+// What a reply on its way needs: a resend carries the ID of the first try.
+interface Outgoing {
+  text: string
+  clientMessageId: string
+}
+
+const storedId = (error: unknown) => (error instanceof ApiError && typeof error.extra.messageId === 'string' ? error.extra.messageId : null)
+
+/**
+ * Sends replies (F10, D-131, D-134). Each message gets a `clientMessageId`; it waits in the outbox of this browser as
+ * "Đang gửi", then shows as the server stored it. A refused send stays with "Gửi lại" (same ID) and "Bỏ"; one whose
+ * fate is unknown says so until the server finds out; "not allowed" reads the conversation again so its notice shows.
+ * Offline, TanStack Query holds the send until the network is back.
+ */
 export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient()
-  // The pages of messages, newest first (D-126); the newest page takes what is sent.
-  const editPages = (change: (page: MessagePage, index: number) => MessagePage) =>
-    queryClient.setQueryData<MessagePages>(messagesKey(conversationId), (data) => data && { ...data, pages: data.pages.map(change) })
-  const editMessage = (id: string | undefined, change: (message: Message) => Message) =>
-    editPages((page) => ({ ...page, items: page.items.map((message) => (message.id === id ? change(message) : message)) }))
+  const editOutbox = (change: (mails: Mail[]) => Mail[]) => queryClient.setQueryData<Mail[]>(outboxKey(conversationId), (mails = []) => change(mails))
+  const editMail = (clientMessageId: string, change: (mail: Mail) => Mail) =>
+    editOutbox((mails) => mails.map((mail) => (mail.clientMessageId === clientMessageId ? change(mail) : mail)))
 
-  return useMutation({
-    mutationFn: (text: string) => sendMessage(conversationId, text),
-    onMutate: async (text: string) => {
-      // A reading in flight would bring the list back without the message.
-      await queryClient.cancelQueries({ queryKey: messagesKey(conversationId) })
-      const pending: Message = {
-        id: crypto.randomUUID(),
+  const mutation = useMutation({
+    mutationFn: ({ text, clientMessageId }: Outgoing) => sendMessage(conversationId, text, clientMessageId),
+    onMutate: ({ text, clientMessageId }: Outgoing) => {
+      const pending: Mail = {
+        id: `local-${clientMessageId}`,
         kind: 'MESSAGE',
         direction: 'OUT',
         sender: 'Bạn',
@@ -298,12 +314,18 @@ export function useSendMessage(conversationId: string) {
         attachments: [],
         status: 'SENDING',
         linked: [],
+        clientMessageId,
+        local: true,
       }
-      editPages((page, index) => (index === 0 ? { ...page, items: [pending, ...page.items] } : page))
-      return { pendingId: pending.id }
+      editOutbox((mails) =>
+        mails.some((mail) => mail.clientMessageId === clientMessageId)
+          ? mails.map((mail) => (mail.clientMessageId === clientMessageId ? { ...mail, status: 'SENDING' } : mail))
+          : [...mails, pending],
+      )
     },
-    onSuccess: (sent, _text, context) => {
-      editMessage(context.pendingId, () => sent)
+    onSuccess: (sent, { clientMessageId }) => {
+      editMail(clientMessageId, () => ({ ...sent, clientMessageId }))
+      void queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) })
       updateItem(queryClient, conversationId, (item) => ({
         ...item,
         snippet: sent.kind === 'MESSAGE' ? sent.text : item.snippet,
@@ -311,8 +333,43 @@ export function useSendMessage(conversationId: string) {
         lastMessageAt: sent.at,
       }))
     },
-    onError: (_error, _text, context) => {
-      editMessage(context?.pendingId, (message) => (message.kind === 'MESSAGE' ? { ...message, status: 'FAILED' } : message))
+    onError: (error, { clientMessageId }) => {
+      const code = error instanceof ApiError ? error.code : null
+      if (code === 'SEND_IN_PROGRESS') {
+        // Another try with this ID is still running; the server's list will tell how it ends.
+        void queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) })
+        return
+      }
+      const id = storedId(error)
+      editMail(clientMessageId, (mail) => ({
+        ...mail,
+        status: code === 'SEND_OUTCOME_UNKNOWN' ? 'UNKNOWN' : 'FAILED',
+        ...(id ? { id, local: false } : {}),
+      }))
+      if (code === 'REPLY_NOT_ALLOWED') {
+        // Only the detail: reading the messages again is not needed and the notice comes with the detail.
+        void queryClient.invalidateQueries({ queryKey: conversationKey(conversationId), exact: true })
+      }
     },
   })
+
+  return {
+    send: (text: string) => mutation.mutate({ text, clientMessageId: crypto.randomUUID() }),
+    resend: (mail: Mail) => {
+      if (mail.clientMessageId) {
+        mutation.mutate({ text: mail.text, clientMessageId: mail.clientMessageId })
+      }
+    },
+    /** Throws away a failed reply: in this browser only, or on the server too when it kept it. */
+    discard: (mail: Mail) => {
+      editOutbox((mails) => mails.filter((entry) => entry.clientMessageId !== mail.clientMessageId))
+      if (!mail.local) {
+        queryClient.setQueryData<MessagePages>(
+          messagesKey(conversationId),
+          (data) => data && { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.filter((message) => message.id !== mail.id) })) },
+        )
+        void discardMessage(conversationId, mail.id).finally(() => void queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) }))
+      }
+    },
+  }
 }

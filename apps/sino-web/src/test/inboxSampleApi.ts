@@ -57,6 +57,22 @@ export function sampleInboxApi(api: typeof InboxApi): typeof InboxApi {
       sample.conversations = sample.conversations.map((conversation) => (conversation.id === conversationId ? stored : conversation))
       return stored
     }),
-    sendMessage: vi.fn(api.sendMessage),
+    // Long enough to see "Đang gửi"; the sample has no server to keep it.
+    sendMessage: vi.fn(async (_conversationId: string, text: string, clientMessageId: string) => {
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      return {
+        id: crypto.randomUUID(),
+        kind: 'MESSAGE' as const,
+        direction: 'OUT' as const,
+        sender: 'Bạn',
+        to: null,
+        at: new Date().toISOString(),
+        text,
+        attachments: [],
+        status: 'SENT' as const,
+        linked: [],
+        clientMessageId,
+      }
+    }),
   }
 }

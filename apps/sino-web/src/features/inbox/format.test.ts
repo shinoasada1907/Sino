@@ -12,6 +12,7 @@ import {
   failureReason,
   linkParts,
   recipientsText,
+  withOutbox,
   filterConversations,
   firstLine,
   formatFileSize,
@@ -279,9 +280,10 @@ describe('the open conversation', () => {
   })
 
   it('says an email is still sending or failed, and nothing once it went out', () => {
-    const mail = (status: 'SENDING' | 'SENT' | 'SEEN' | 'FAILED' | null) => ({ id: 'm', kind: 'MESSAGE' as const, direction: 'OUT' as const, sender: 'Bạn', to: null, at: vn('2026-10-02T14:05'), text: 'x', attachments: [], status, linked: [] })
+    const mail = (status: 'SENDING' | 'SENT' | 'SEEN' | 'FAILED' | 'UNKNOWN' | null) => ({ id: 'm', kind: 'MESSAGE' as const, direction: 'OUT' as const, sender: 'Bạn', to: null, at: vn('2026-10-02T14:05'), text: 'x', attachments: [], status, linked: [] })
     expect(sendState(mail('SENDING'))).toBe('Đang gửi')
     expect(sendState(mail('FAILED'))).toBe('Không gửi được')
+    expect(sendState(mail('UNKNOWN'))).toBe('Chưa rõ đã gửi chưa')
     expect(sendState(mail('SENT'))).toBeNull()
     expect(sendState(mail('SEEN'))).toBeNull()
   })
@@ -380,6 +382,42 @@ describe('conversations that arrive while the list is open (FE-54, MotionSpec C)
   it('says how many new emails came', () => {
     expect(newMailText(1)).toBe('1 thư mới')
     expect(newMailText(1200)).toBe('1.200 thư mới')
+  })
+})
+
+describe('the messages sent from this browser (FE-62, D-134)', () => {
+  const at = '2026-10-02T07:05:00Z'
+  const mail = (id: string, status: 'SENDING' | 'SENT' | 'FAILED' | 'UNKNOWN' | null, clientMessageId?: string): Message & { kind: 'MESSAGE' } => ({
+    id,
+    kind: 'MESSAGE',
+    direction: status ? 'OUT' : 'IN',
+    sender: status ? 'Bạn' : 'An',
+    to: null,
+    at,
+    text: id,
+    attachments: [],
+    status,
+    linked: [],
+    clientMessageId,
+  })
+  const inbound = mail('m-1', null)
+
+  it('adds what the server does not have yet after its messages', () => {
+    const sending = mail('local-a', 'SENDING', 'a')
+    const failed = mail('local-b', 'FAILED', 'b')
+    expect(withOutbox([inbound], [sending, failed])).toEqual([inbound, sending, failed])
+  })
+
+  it('shows the server copy once the server has it', () => {
+    const stored = mail('m-2', 'SENT', 'a')
+    expect(withOutbox([inbound, stored], [mail('local-a', 'SENT', 'a')])).toEqual([inbound, stored])
+    const storedFailed = mail('m-3', 'FAILED', 'b')
+    expect(withOutbox([inbound, storedFailed], [mail('m-3', 'FAILED', 'b')])).toEqual([inbound, storedFailed])
+  })
+
+  it('shows a message being sent again in place of the failed copy of the server', () => {
+    const again = mail('m-3', 'SENDING', 'b')
+    expect(withOutbox([inbound, mail('m-3', 'FAILED', 'b')], [again])).toEqual([inbound, again])
   })
 })
 

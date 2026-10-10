@@ -1,9 +1,9 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
-import { API_CONVERSATIONS, API_COUNTS, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
+import { API_CONVERSATIONS, API_COUNTS, API_MESSAGES, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
 import { server } from '@/test/msw/server'
-import { fetchConversation, fetchConversations, fetchInbox, updateConversation } from './inbox.api'
+import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, updateConversation } from './inbox.api'
 
 const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOUND' }
 const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })
@@ -162,5 +162,26 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
 
     expect(sent).toEqual([['c-1', { read: true }]])
     expect(item).toEqual({ ...API_CONVERSATIONS[0], unreadCount: 0, linked: [] })
+  })
+})
+
+describe('the messages of a conversation on the F06 and F10 APIs', () => {
+  it('says what an own message still has to say, and keeps the ID Sino sent it with', async () => {
+    const own = API_MESSAGES[1]
+    const statuses = ['PENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'UNKNOWN']
+    server.use(
+      http.get('/api/conversations/:id/messages', () =>
+        HttpResponse.json({
+          items: [...statuses.map((status, index) => ({ ...own, id: `o-${index}`, status, clientMessageId: `cm-${index}` })), { ...API_MESSAGES[0], clientMessageId: null }],
+          nextCursor: null,
+        }),
+      ),
+    )
+
+    const { items } = await fetchMessages('c-1', null)
+
+    expect(items.map((message) => (message.kind === 'MESSAGE' ? message.status : null))).toEqual(['SENDING', 'SENT', 'SENT', 'SENT', 'FAILED', 'UNKNOWN', null])
+    expect(items[0]).toMatchObject({ clientMessageId: 'cm-0' })
+    expect(items[6]).not.toHaveProperty('clientMessageId')
   })
 })

@@ -112,7 +112,7 @@ describe('states of the inbox', () => {
     await user.click(within(banner as HTMLElement).getByRole('button', { name: 'Thử kết nối lại' }))
 
     expect(await chat('Gia đình').findByText('14:05 · Đã gửi')).toBeInTheDocument()
-    expect(sendMessage).toHaveBeenCalledWith('conv-2', 'Con về lúc 6 giờ')
+    expect(sendMessage).toHaveBeenCalledWith('conv-2', 'Con về lúc 6 giờ', expect.any(String))
     expect(screen.queryByText('Bạn đang ngoại tuyến.')).toBeNull()
   })
 

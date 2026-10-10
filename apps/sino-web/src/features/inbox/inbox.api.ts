@@ -113,6 +113,8 @@ interface MessageResponse {
   bodyFormat: 'TEXT' | 'HTML' | 'UNCHECKED'
   read: boolean
   attachments: AttachmentResponse[]
+  /** For a message sent from Sino (F10); absent on a backend before F10. */
+  clientMessageId?: string | null
 }
 
 function toItem({ snippet, linked, ...rest }: ConversationResponse): ConversationItem {
@@ -147,21 +149,21 @@ function toAttachment({ fileName, mimeType, sizeBytes }: AttachmentResponse, url
   return { name: fileName ?? 'Tệp không tên', type: fileType(fileName, mimeType), sizeBytes, image: mimeType?.startsWith('image/') ?? false, caption: null, url }
 }
 
-// A message whose fate Sino does not know yet says nothing until F10.
-function ownStatus(status: MessageResponse['status']): Extract<Message, { kind: 'MESSAGE' }>['status'] {
+type Mail = Extract<Message, { kind: 'MESSAGE' }>
+
+function ownStatus(status: MessageResponse['status']): Mail['status'] {
   switch (status) {
     case 'PENDING':
       return 'SENDING'
     case 'FAILED':
-      return 'FAILED'
     case 'UNKNOWN':
-      return null
+      return status
     default:
       return 'SENT'
   }
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments }: MessageResponse): Message {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -176,6 +178,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     attachments: attachments.map((file) => toAttachment(file, attachmentUrl(conversationId, id, file.id))),
     status: outbound ? ownStatus(status) : null,
     linked: [],
+    ...(clientMessageId ? { clientMessageId } : {}),
   }
 }
 
@@ -253,22 +256,16 @@ export async function updateConversation(conversationId: string, change: { read?
   return toItem(await api.patch<ConversationResponse>(`/api/conversations/${encodeURIComponent(conversationId)}`, change))
 }
 
-// Long enough to see "Đang gửi" with sample data.
-const SAMPLE_SEND_DELAY_MS = 800
+/**
+ * `POST /api/conversations/{id}/messages` (F10, D-131): sends a reply and returns it as the server stored it. Sending
+ * again with the same `clientMessageId` never sends twice.
+ */
+export async function sendMessage(conversationId: string, text: string, clientMessageId: string): Promise<Mail> {
+  const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, { text, clientMessageId })
+  return toMessage(conversationId, sent)
+}
 
-/** Later `POST /api/conversations/{id}/messages` (F10); returns the message as the server stored it. */
-export async function sendMessage(_conversationId: string, text: string): Promise<Message> {
-  await new Promise((resolve) => setTimeout(resolve, SAMPLE_SEND_DELAY_MS))
-  return {
-    id: crypto.randomUUID(),
-    kind: 'MESSAGE',
-    direction: 'OUT',
-    sender: 'Bạn',
-    to: null,
-    at: new Date().toISOString(),
-    text,
-    attachments: [],
-    status: 'SENT',
-    linked: [],
-  }
+/** `DELETE /api/conversations/{id}/messages/{messageId}` (F10): throws away a reply the provider refused. */
+export async function discardMessage(conversationId: string, messageId: string): Promise<void> {
+  await api.delete<void>(`/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`)
 }

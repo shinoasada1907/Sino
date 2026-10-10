@@ -141,7 +141,7 @@ export function ChatThread({
           placeholder={`Nhắn tin tới ${item.title}…`}
           account={account.address}
           via={`${name} · ${account.address}`}
-          onSend={(text) => sendMessage.mutate(text)}
+          onSend={sendMessage.send}
         />
       ) : null}
     </section>

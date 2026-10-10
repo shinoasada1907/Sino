@@ -1090,6 +1090,28 @@ NOT_SUPPORTED       -> "Gmail chưa cho Sino gửi thư" / "Bạn trả lời tr
 - **Không cắt người nhận:** dòng "Tới" xuống dòng thay vì cắt (`truncate`): Chrome cho thấy hai người nhận ở 390 px bị cắt mất người thứ hai, đúng điều dòng này phải tránh.
 - **Một hàng flex có xuống dòng trên điện thoại:** ô soạn ở điện thoại là một hàng (kẹp giấy, ô chữ, nút gửi). Dòng "Tới" thêm `w-full` và `order-first`, hàng thêm `flex-wrap`, nên dòng "Tới" nằm riêng ở trên mà không phải dựng lại bố cục.
 
+### 16.2 Gửi thư trả lời không bao giờ trùng (FE-62, D-131, D-132, D-134)
+Gửi thư là lệnh **không idempotent**: gọi hai lần là hai thư. Mạng chập chờn khiến trình duyệt không biết lần gửi trước đã tới server chưa, nên "Gửi lại" phải an toàn.
+
+```text
+bấm Gửi
+  |  web tạo clientMessageId = UUID, thêm thư "Đang gửi" vào hộp thư đi ['outbox', id]
+  v
+POST /api/conversations/c-1/messages { text, clientMessageId }
+  |-- 201  -> thư như server lưu; đọc lại danh sách thư
+  |-- 502 SEND_FAILED          -> "Không gửi được" + "Gửi lại" (cùng ID) + "Bỏ" (server đã lưu: DELETE)
+  |-- 504 SEND_OUTCOME_UNKNOWN -> "Chưa rõ đã gửi chưa": không có nút, server tự đối chiếu với Gmail
+  |-- 409 REPLY_NOT_ALLOWED    -> đọc lại chi tiết: dòng báo thay ô soạn
+  |-- 409 SEND_IN_PROGRESS     -> vẫn "Đang gửi": một lần thử trước cùng ID còn đang chạy
+  '-- mất mạng                 -> "Không gửi được" (chỉ ở trình duyệt này) + "Gửi lại" / "Bỏ"
+```
+
+- **Khóa idempotency do client tạo:** cùng một thư thì mọi lần gửi dùng cùng `clientMessageId`; server thấy ID đã `SENT` thì trả lại thư đó chứ không gửi nữa. ID nằm trong body JSON vì `api` client chỉ có body cho mỗi request.
+- **Hộp thư đi tách khỏi danh sách của server:** thư đang gửi hoặc gửi lỗi nằm ở `['outbox', id]`, ngoài `['inbox']`. Nếu chèn thẳng vào danh sách thư, mỗi lần realtime đọc lại danh sách (thư mới ở cuộc trò chuyện khác cũng gây ra) sẽ xóa mất thư chưa tới được server, cùng chữ người dùng đã gõ. `withOutbox` ghép hai nguồn theo `clientMessageId`: thư đang gửi lại đứng thay bản của server, thư khác chỉ hiện khi server chưa có bản của nó.
+- **`local`:** thư chỉ có ở trình duyệt này (server chưa bao giờ lưu) thì "Bỏ" chỉ xóa ở web; thư server đã lưu (`502` kèm `messageId`) thì "Bỏ" gọi `DELETE`.
+- **Mất mạng:** `useMutation` mặc định `networkMode: 'online'`, nên khi trình duyệt báo mất mạng thì lần gửi chờ, có mạng lại thì tự gửi. Hàng chờ này chỉ nằm trong bộ nhớ của trang.
+- **Bố cục do Chrome tìm ra:** nhãn "14:05 hôm nay · Chưa rõ đã gửi chưa" cạnh thanh công cụ của thư mới nhất ép tên "Bạn" còn một ký tự, nên trạng thái này xuống dòng dưới nội dung. Thư lỗi bị thư mới hơn gập lại thì dòng gập vẫn ghi "Không gửi được".
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1212,3 +1234,6 @@ NOT_SUPPORTED       -> "Gmail chưa cho Sino gửi thư" / "Bạn trả lời tr
 118. "Lỗi tương đương" trong kiểm tra bằng lỗi gài là gì? Vì sao không cần (và không thể) viết test để bắt nó?
 119. Vì sao server không nhận danh sách người nhận từ web khi gửi thư trả lời, dù web đã hiện danh sách đó?
 120. Tài khoản Gmail kết nối trước F10 thấy dòng báo nào thay cho ô trả lời, và bấm nút đó thì chuyện gì xảy ra?
+121. Vì sao "Gửi lại" dùng lại `clientMessageId` cũ mà không tạo ID mới? Nếu tạo ID mới thì trường hợp nào gửi trùng?
+122. Vì sao thư đang gửi nằm trong `['outbox', id]` mà không chèn vào danh sách thư của server? Sự kiện realtime liên quan gì ở đây?
+123. `502 SEND_FAILED` và `504 SEND_OUTCOME_UNKNOWN` khác nhau thế nào với người dùng? Vì sao thư "Chưa rõ" không có nút "Gửi lại"?

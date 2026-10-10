@@ -12,6 +12,7 @@ import {
   conversationsKey,
   INBOX_QUERY_KEY,
   messagesKey,
+  outboxKey,
   useConversation,
   useConversationList,
   useSendMessage,
@@ -231,25 +232,27 @@ describe('useSendMessage', () => {
     queryClient.setQueryData<OpenConversation>(conversationKey('c-1'), { item: first, detail })
     queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(messagesKey('c-1'), { pages: [{ items: [older], nextCursor: null }], pageParams: [null] })
   }
-  const messagesOf = (queryClient: QueryClient) => queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(messagesKey('c-1'))?.pages[0].items
+  const outboxOf = (queryClient: QueryClient) => queryClient.getQueryData<(Message & { kind: 'MESSAGE' })[]>(outboxKey('c-1'))
 
-  it('adds the message as "Đang gửi", then shows it as sent in the conversation and the row', async () => {
+  it('keeps the message as "Đang gửi" in the outbox, then as the server stored it, and updates the row', async () => {
     let answer = () => {}
     const answered = new Promise<void>((resolve) => (answer = resolve))
     vi.mocked(sendMessage).mockImplementationOnce(async () => {
       await answered
       return { id: 'm-9', kind: 'MESSAGE', direction: 'OUT', sender: 'Bạn', to: null, at: now.toISOString(), text: 'Ok nhé', attachments: [], status: 'SENT', linked: [] }
     })
+    server.use(http.get('/api/conversations/:id/messages', () => HttpResponse.json({ items: [], nextCursor: null })))
     const { queryClient, wrapper } = setup()
     seed(queryClient)
     const { result } = renderHook(() => useSendMessage('c-1'), { wrapper })
 
-    act(() => result.current.mutate('Ok nhé'))
-    await waitFor(() => expect(messagesOf(queryClient)).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'SENDING' }), older]))
+    act(() => result.current.send('Ok nhé'))
+    await waitFor(() => expect(outboxOf(queryClient)).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'SENDING', local: true })]))
+    const clientMessageId = outboxOf(queryClient)?.[0].clientMessageId
+    expect(sendMessage).toHaveBeenLastCalledWith('c-1', 'Ok nhé', clientMessageId)
     answer()
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    expect(messagesOf(queryClient)).toEqual([expect.objectContaining({ id: 'm-9', status: 'SENT' }), older])
+    await waitFor(() => expect(outboxOf(queryClient)).toEqual([expect.objectContaining({ id: 'm-9', status: 'SENT', clientMessageId })]))
     expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.item).toMatchObject({ snippet: 'Ok nhé', lastMessageAt: now.toISOString() })
     expect(rowsOf(queryClient)[0]).toMatchObject({ snippet: 'Ok nhé', snippetFrom: null, lastMessageAt: now.toISOString() })
   })
@@ -260,9 +263,10 @@ describe('useSendMessage', () => {
     seed(queryClient)
     const { result } = renderHook(() => useSendMessage('c-1'), { wrapper })
 
-    act(() => result.current.mutate('Ok nhé'))
-    await waitFor(() => expect(result.current.isError).toBe(true))
+    act(() => result.current.send('Ok nhé'))
 
-    expect(messagesOf(queryClient)).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'FAILED' }), older])
+    await waitFor(() => expect(outboxOf(queryClient)).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'FAILED', local: true })]))
+    // The server's list is left as it was.
+    expect(queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(messagesKey('c-1'))?.pages[0].items).toEqual([older])
   })
 })

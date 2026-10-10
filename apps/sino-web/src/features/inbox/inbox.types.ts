@@ -157,9 +157,13 @@ export type Message =
        */
       bodyFormat?: 'TEXT' | 'HTML' | 'UNCHECKED'
       attachments: Attachment[]
-      /** For own messages. */
-      status: 'SENDING' | 'SENT' | 'SEEN' | 'FAILED' | null
+      /** For own messages; `UNKNOWN`: Sino does not know yet whether it went (F10, D-132). */
+      status: 'SENDING' | 'SENT' | 'SEEN' | 'FAILED' | 'UNKNOWN' | null
       linked: { kind: LinkedKind; title: string }[]
+      /** Made by the web for a message sent from Sino; sending again reuses it, so it never goes twice (D-131). */
+      clientMessageId?: string
+      /** Only in this browser: the server never stored it (a send that did not reach it, or not allowed). */
+      local?: boolean
     }
   | { id: string; kind: 'SYSTEM'; at: Instant; text: string }
 

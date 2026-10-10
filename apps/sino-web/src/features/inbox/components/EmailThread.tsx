@@ -73,6 +73,7 @@ export function EmailThread({
   const [opened, setOpened] = useState<string[]>([])
   const toggle = (id: string) => setOpened((ids) => (ids.includes(id) ? ids.filter((open) => open !== id) : [...ids, id]))
   const sendMessage = useSendMessage(item.id)
+  const sending: Sending = { ...sendMessage, providerName: nameOf(item.provider) }
   const block = sendBlock(account, detail?.canSend)
   const { markUnread, toggleArchive } = useConversationActions(item, backSearch)
 
@@ -119,9 +120,9 @@ export function EmailThread({
             {history.older.hasMore && <OlderMails older={history.older} />}
             {mails.map((mail) =>
               mail === newest ? (
-                <MailCard key={mail.id} conversationId={item.id} mail={mail} now={now} tools />
+                <MailCard key={mail.clientMessageId ?? mail.id} conversationId={item.id} mail={mail} now={now} sending={sending} tools />
               ) : opened.includes(mail.id) ? (
-                <MailCard key={mail.id} conversationId={item.id} mail={mail} now={now} onFold={() => toggle(mail.id)} />
+                <MailCard key={mail.clientMessageId ?? mail.id} conversationId={item.id} mail={mail} now={now} sending={sending} onFold={() => toggle(mail.id)} />
               ) : (
                 <FoldedMail key={mail.id} mail={mail} now={now} onOpen={() => toggle(mail.id)} />
               ),
@@ -140,7 +141,7 @@ export function EmailThread({
           account={account.address}
           via={`${nameOf(item.provider)} · ${account.address}`}
           to={detail.replyTo && detail.replyTo.length > 0 ? recipientsText(detail.replyTo) : undefined}
-          onSend={(text) => sendMessage.mutate(text)}
+          onSend={sendMessage.send}
         />
       ) : null}
     </>
@@ -226,13 +227,33 @@ function FoldedMail({ mail, now, onOpen }: { mail: Mail; now: Date; onOpen: () =
         <span className="text-sm font-semibold">{mail.sender}</span>
         <span className="truncate text-sm text-muted-foreground">{firstLine(mail.text)}</span>
       </span>
-      <Spec>{mailTime(mail.at, now, undefined, false)}</Spec>
+      {/* An own email that did not go keeps saying so once a newer one folds it. */}
+      <Spec className={mail.status === 'FAILED' ? 'text-danger-ink' : undefined}>
+        {[mailTime(mail.at, now, undefined, false), mail.status === 'FAILED' ? sendState(mail) : null].filter(Boolean).join(' · ')}
+      </Spec>
     </button>
   )
 }
 
+// What an own email needs when it did not go: send it again, throw it away, and whom Sino asks when it does not know.
+type Sending = Pick<ReturnType<typeof useSendMessage>, 'resend' | 'discard'> & { providerName: string }
+
 // Canvas `.mail`: an open email; the newest carries the tools of the canvas, an older one folds back on its header.
-function MailCard({ conversationId, mail, now, tools = false, onFold }: { conversationId: string; mail: Mail; now: Date; tools?: boolean; onFold?: () => void }) {
+function MailCard({
+  conversationId,
+  mail,
+  now,
+  sending,
+  tools = false,
+  onFold,
+}: {
+  conversationId: string
+  mail: Mail
+  now: Date
+  sending: Sending
+  tools?: boolean
+  onFold?: () => void
+}) {
   const head = (
     <>
       <Avatar placeholder={placeholderOf(mail)} className="size-8" />
@@ -242,7 +263,8 @@ function MailCard({ conversationId, mail, now, tools = false, onFold }: { conver
       </span>
     </>
   )
-  const state = sendState(mail)
+  // "Chưa rõ đã gửi chưa" is too long beside the tools of the newest email; it goes under the text instead.
+  const state = mail.status === 'UNKNOWN' ? null : sendState(mail)
   const time = (
     <Spec className={state === 'Không gửi được' ? 'text-danger-ink' : 'text-foreground'}>
       {[mailTime(mail.at, now, undefined, true), state].filter(Boolean).join(' · ')}
@@ -276,6 +298,21 @@ function MailCard({ conversationId, mail, now, tools = false, onFold }: { conver
         </div>
       )}
       <MailBody conversationId={conversationId} mail={mail} />
+      {mail.status === 'FAILED' && mail.clientMessageId && (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(mail)}>
+            Gửi lại
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => sending.discard(mail)}>
+            Bỏ
+          </Button>
+        </div>
+      )}
+      {mail.status === 'UNKNOWN' && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {sendState(mail)} · Sino đang kiểm tra với {sending.providerName}.
+        </p>
+      )}
       {mail.attachments.length > 0 && (
         <div className="flex flex-wrap gap-2.5">
           {mail.attachments.map((file, index) => (
