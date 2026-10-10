@@ -132,6 +132,8 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
     expect((await fetchConversation('c-1')).detail).toMatchObject({ canSend: false })
     answer('NOT_SUPPORTED')
     expect((await fetchConversation('c-1')).detail).toMatchObject({ canSend: null })
+    answer('SOMETHING_NEW')
+    expect((await fetchConversation('c-1')).detail).toMatchObject({ canSend: null })
   })
 
   it('names a person without a name by their address', async () => {

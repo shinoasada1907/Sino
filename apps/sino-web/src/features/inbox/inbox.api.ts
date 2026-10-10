@@ -230,7 +230,8 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       linked: null,
       members: participants.map(toMember),
       files: null,
-      canSend: reply ? CAN_SEND[reply.state] : null,
+      // A state this web does not know yet does not open the reply box.
+      canSend: reply ? (CAN_SEND[reply.state] ?? null) : null,
       replyTo: reply ? reply.to.map(({ name, address }) => ({ name, address })) : null,
       previousCursor: null,
     },

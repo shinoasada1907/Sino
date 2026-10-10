@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { API_CONVERSATIONS, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
+import { API_CONVERSATIONS, API_MESSAGES, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
 import { server } from '@/test/msw/server'
 import { sendMessage } from './inbox.api'
 import type { ConversationItem, ConversationPage, InboxData, Message, MessagePage, OpenConversation } from './inbox.types'
@@ -255,6 +255,30 @@ describe('useSendMessage', () => {
     await waitFor(() => expect(outboxOf(queryClient)).toEqual([expect.objectContaining({ id: 'm-9', status: 'SENT', clientMessageId })]))
     expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.item).toMatchObject({ snippet: 'Ok nhé', lastMessageAt: now.toISOString() })
     expect(rowsOf(queryClient)[0]).toMatchObject({ snippet: 'Ok nhé', snippetFrom: null, lastMessageAt: now.toISOString() })
+  })
+
+  it('lets go of a sent message once the list of the server has it', async () => {
+    const stored = { ...API_MESSAGES[1], id: 'm-9', text: 'Ok nhé', clientMessageId: 'from-the-test' }
+    let sentId = ''
+    vi.mocked(sendMessage).mockImplementationOnce(async (_id, text, clientMessageId) => {
+      sentId = clientMessageId
+      return { id: 'm-9', kind: 'MESSAGE', direction: 'OUT', sender: 'Bạn', to: null, at: now.toISOString(), text, attachments: [], status: 'SENT', linked: [], clientMessageId }
+    })
+    server.use(http.get('/api/conversations/:id/messages', () => HttpResponse.json({ items: [{ ...stored, clientMessageId: sentId }], nextCursor: null })))
+    const { queryClient, wrapper } = setup()
+    seed(queryClient)
+    // As on the screen: the open conversation watches its messages, so reading them again reaches the server.
+    const { result } = renderHook(
+      () => {
+        useConversation('c-1', first)
+        return useSendMessage('c-1')
+      },
+      { wrapper },
+    )
+
+    act(() => result.current.send('Ok nhé'))
+
+    await waitFor(() => expect(outboxOf(queryClient)).toEqual([]))
   })
 
   it('marks the message as not sent when sending fails', async () => {

@@ -1112,6 +1112,13 @@ POST /api/conversations/c-1/messages { text, clientMessageId }
 - **Mất mạng:** `useMutation` mặc định `networkMode: 'online'`, nên khi trình duyệt báo mất mạng thì lần gửi chờ, có mạng lại thì tự gửi. Hàng chờ này chỉ nằm trong bộ nhớ của trang.
 - **Bố cục do Chrome tìm ra:** nhãn "14:05 hôm nay · Chưa rõ đã gửi chưa" cạnh thanh công cụ của thư mới nhất ép tên "Bạn" còn một ký tự, nên trạng thái này xuống dòng dưới nội dung. Thư lỗi bị thư mới hơn gập lại thì dòng gập vẫn ghi "Không gửi được".
 
+### 16.3 Điều review tìm ra (FE-57…FE-62)
+- **`vh` trong iframe là chiều cao của iframe:** thư có `height:100vh` luôn cao hơn khung đúng phần padding, khung cao theo, thư cao theo, không bao giờ dừng. Đo lại sau mỗi lần đổi chiều cao: thư bình thường cho khoảng thiếu 0, thư `100vh` cho cùng một khoảng thiếu lặp lại. Ba lần liền thì dừng (640 px, cuộn bên trong). Logic nằm trong hàm thuần `fitFrame` để test được mà không cần trình duyệt.
+- **`ResizeObserver` không thấy mọi thứ:** nó báo khi phần tử được theo dõi đổi kích thước; khung cao lên mà `body` của thư không đổi thì không có lần báo nào, nên phải tự đo thêm một lần (`requestAnimationFrame`).
+- **Hai nguồn dữ liệu phải có luật thắng rõ ràng:** hộp thư đi và danh sách của server cùng nói về một thư. Luật cũ "bản đang gửi ở trình duyệt luôn thắng" làm thư kẹt "Đang gửi" khi server tự gửi xong. Luật mới: server thắng, trừ bản `FAILED` đang được gửi lại; xong mỗi lần gửi thì đọc lại danh sách và dọn hộp thư đi.
+- **Không có câu trả lời không có nghĩa là không gửi được:** lỗi mạng có thể xảy ra sau khi server đã nhận. Nói "Không gửi được" thì người dùng có thể gửi lại bằng đường khác và thành hai thư; nói "Chưa rõ" và cho "Gửi lại" (an toàn nhờ `clientMessageId`).
+- **Phòng thủ nhiều lớp ở web dù backend sẽ lọc:** gỡ `meta`/`base`/`link` và ép `rel` cho liên kết bằng `DOMParser` (tạo tài liệu trơ, không chạy và không tải gì); CSP chỉ cho ảnh từ đường dẫn API của Sino, không phải cả origin.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1237,3 +1244,5 @@ POST /api/conversations/c-1/messages { text, clientMessageId }
 121. Vì sao "Gửi lại" dùng lại `clientMessageId` cũ mà không tạo ID mới? Nếu tạo ID mới thì trường hợp nào gửi trùng?
 122. Vì sao thư đang gửi nằm trong `['outbox', id]` mà không chèn vào danh sách thư của server? Sự kiện realtime liên quan gì ở đây?
 123. `502 SEND_FAILED` và `504 SEND_OUTCOME_UNKNOWN` khác nhau thế nào với người dùng? Vì sao thư "Chưa rõ" không có nút "Gửi lại"?
+124. Vì sao một thư có `height:100vh` làm khung iframe cao lên mãi, và `fitFrame` nhận ra điều đó thế nào mà không nhầm với ảnh đang tải?
+125. Mất mạng giữa lúc gửi thì vì sao thư hiện "Chưa rõ đã gửi chưa" mà vẫn có "Gửi lại", trong khi `504` thì không có?

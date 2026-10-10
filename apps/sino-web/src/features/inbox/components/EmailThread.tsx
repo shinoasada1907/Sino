@@ -133,7 +133,8 @@ export function EmailThread({
 
       {block ? (
         <ThreadNotice block={block} kind={item.kind} providerName={nameOf(item.provider)} account={account} />
-      ) : detail ? (
+      ) : detail && !history.failed ? (
+        // No box while the emails cannot load: a reply sent then would show nowhere.
         <Composer
           kind="EMAIL"
           label={`Trả lời ${item.title}`}
@@ -229,14 +230,16 @@ function FoldedMail({ mail, now, onOpen }: { mail: Mail; now: Date; onOpen: () =
       </span>
       {/* An own email that did not go keeps saying so once a newer one folds it. */}
       <Spec className={mail.status === 'FAILED' ? 'text-danger-ink' : undefined}>
-        {[mailTime(mail.at, now, undefined, false), mail.status === 'FAILED' ? sendState(mail) : null].filter(Boolean).join(' · ')}
+        {[mailTime(mail.at, now, undefined, false), mail.status === 'FAILED' || mail.status === 'UNKNOWN' ? sendState(mail) : null]
+          .filter(Boolean)
+          .join(' · ')}
       </Spec>
     </button>
   )
 }
 
 // What an own email needs when it did not go: send it again, throw it away, and whom Sino asks when it does not know.
-type Sending = Pick<ReturnType<typeof useSendMessage>, 'resend' | 'discard'> & { providerName: string }
+type Sending = Pick<ReturnType<typeof useSendMessage>, 'resend' | 'discard' | 'discardFailed'> & { providerName: string }
 
 // Canvas `.mail`: an open email; the newest carries the tools of the canvas, an older one folds back on its header.
 function MailCard({
@@ -298,7 +301,13 @@ function MailCard({
         </div>
       )}
       <MailBody conversationId={conversationId} mail={mail} />
-      {mail.status === 'FAILED' && mail.clientMessageId && (
+      {mail.status === 'UNKNOWN' && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {sendState(mail)} ·{' '}
+          {mail.local ? 'Mất kết nối khi gửi. Gửi lại không làm thư bị gửi hai lần.' : `Sino đang kiểm tra với ${sending.providerName}.`}
+        </p>
+      )}
+      {(mail.status === 'FAILED' || (mail.status === 'UNKNOWN' && mail.local)) && mail.clientMessageId && (
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(mail)}>
             Gửi lại
@@ -308,9 +317,9 @@ function MailCard({
           </Button>
         </div>
       )}
-      {mail.status === 'UNKNOWN' && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {sendState(mail)} · Sino đang kiểm tra với {sending.providerName}.
+      {sending.discardFailed !== undefined && sending.discardFailed === mail.clientMessageId && (
+        <p role="alert" className="text-sm text-danger-ink">
+          Không bỏ được thư này. Hãy thử lại.
         </p>
       )}
       {mail.attachments.length > 0 && (

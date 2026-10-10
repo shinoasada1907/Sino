@@ -1,7 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient, type QueryKey } from '@tanstack/react-query'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { ApiError } from '@/shared/api/problem'
+import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, withOutbox, type InboxFilter } from './format'
 import { discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
@@ -109,8 +109,8 @@ export function useConversationList(filter: InboxFilter, now: Date): Conversatio
 const isMissing = (error: Error | null) => error instanceof ApiError && (error.status === 404 || error.status === 400)
 
 /**
- * The full content of one email (F06). It never changes, so it is kept for good and lives outside `['inbox']`: a
- * change the stream reports reads the conversation again, not every email already shown.
+ * The full content of one email (F06). It never changes, so it is never asked again while it is cached, and it lives
+ * outside `['inbox']`: a change the stream reports reads the conversation again, not every email already shown.
  */
 export function useMessageBody(conversationId: string, messageId: string, enabled: boolean): {
   body: MessageBody | undefined
@@ -280,25 +280,29 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
  * Sends a message. It shows at once at the end of the conversation as "Đang gửi", becomes the stored message when the
  * server answers (and the row's preview), or is marked "Không gửi được" when sending fails.
  */
-// What a reply on its way needs: a resend carries the ID of the first try.
+// What a reply on its way needs: a resend carries the ID of the first try; `attempt` tells this try from a later one.
 interface Outgoing {
   text: string
   clientMessageId: string
+  attempt: number
 }
 
 const storedId = (error: unknown) => (error instanceof ApiError && typeof error.extra.messageId === 'string' ? error.extra.messageId : null)
 
 /**
  * Sends replies (F10, D-131, D-134). Each message gets a `clientMessageId`; it waits in the outbox of this browser as
- * "Đang gửi", then shows as the server stored it. A refused send stays with "Gửi lại" (same ID) and "Bỏ"; one whose
- * fate is unknown says so until the server finds out; "not allowed" reads the conversation again so its notice shows.
- * Offline, TanStack Query holds the send until the network is back.
+ * "Đang gửi". Whatever the answer, the list of the server is read again, and once it has the message the outbox lets
+ * go of it. A refused send stays with "Gửi lại" (same ID) and "Bỏ"; one whose fate is unknown says so, and when the
+ * answer never came (the network) it may be sent again safely; "not allowed" reads the conversation again so its
+ * notice shows. Offline, TanStack Query holds the send until the network is back.
  */
 export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient()
   const editOutbox = (change: (mails: Mail[]) => Mail[]) => queryClient.setQueryData<Mail[]>(outboxKey(conversationId), (mails = []) => change(mails))
   const editMail = (clientMessageId: string, change: (mail: Mail) => Mail) =>
     editOutbox((mails) => mails.map((mail) => (mail.clientMessageId === clientMessageId ? change(mail) : mail)))
+  // The latest try of each message: an older try that ends late must not let go of a newer one.
+  const attempts = useRef(new Map<string, number>())
 
   const mutation = useMutation({
     mutationFn: ({ text, clientMessageId }: Outgoing) => sendMessage(conversationId, text, clientMessageId),
@@ -325,7 +329,6 @@ export function useSendMessage(conversationId: string) {
     },
     onSuccess: (sent, { clientMessageId }) => {
       editMail(clientMessageId, () => ({ ...sent, clientMessageId }))
-      void queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) })
       updateItem(queryClient, conversationId, (item) => ({
         ...item,
         snippet: sent.kind === 'MESSAGE' ? sent.text : item.snippet,
@@ -336,40 +339,60 @@ export function useSendMessage(conversationId: string) {
     onError: (error, { clientMessageId }) => {
       const code = error instanceof ApiError ? error.code : null
       if (code === 'SEND_IN_PROGRESS') {
-        // Another try with this ID is still running; the server's list will tell how it ends.
-        void queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) })
+        // Another try with this ID is still running; the server's copy tells how it ends (see onSettled).
         return
       }
       const id = storedId(error)
-      editMail(clientMessageId, (mail) => ({
-        ...mail,
-        status: code === 'SEND_OUTCOME_UNKNOWN' ? 'UNKNOWN' : 'FAILED',
-        ...(id ? { id, local: false } : {}),
-      }))
+      // No answer at all: the request may have reached the server, so it is not "Không gửi được" (D-132).
+      const unknown = code === 'SEND_OUTCOME_UNKNOWN' || code === NETWORK_ERROR
+      editMail(clientMessageId, (mail) => ({ ...mail, status: unknown ? 'UNKNOWN' : 'FAILED', ...(id ? { id, local: false } : {}) }))
       if (code === 'REPLY_NOT_ALLOWED') {
-        // Only the detail: reading the messages again is not needed and the notice comes with the detail.
         void queryClient.invalidateQueries({ queryKey: conversationKey(conversationId), exact: true })
+      }
+    },
+    onSettled: async (_sent, _error, { clientMessageId, attempt }) => {
+      await queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) })
+      const pages = queryClient.getQueryData<MessagePages>(messagesKey(conversationId))
+      const stored = pages?.pages.some((page) => page.items.some((message) => message.kind === 'MESSAGE' && message.clientMessageId === clientMessageId))
+      if (stored && attempts.current.get(clientMessageId) === attempt) {
+        editOutbox((mails) => mails.filter((mail) => mail.clientMessageId !== clientMessageId))
       }
     },
   })
 
+  const discarding = useMutation({
+    mutationFn: (mail: Mail) => discardMessage(conversationId, mail.id),
+    onMutate: async (mail: Mail) => {
+      // A reading in flight would bring the message back.
+      await queryClient.cancelQueries({ queryKey: messagesKey(conversationId) })
+      queryClient.setQueryData<MessagePages>(
+        messagesKey(conversationId),
+        (data) => data && { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.filter((message) => message.id !== mail.id) })) },
+      )
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) }),
+  })
+  const sendTry = (text: string, clientMessageId: string) => {
+    const attempt = (attempts.current.get(clientMessageId) ?? 0) + 1
+    attempts.current.set(clientMessageId, attempt)
+    mutation.mutate({ text, clientMessageId, attempt })
+  }
+
   return {
-    send: (text: string) => mutation.mutate({ text, clientMessageId: crypto.randomUUID() }),
+    send: (text: string) => sendTry(text, crypto.randomUUID()),
     resend: (mail: Mail) => {
       if (mail.clientMessageId) {
-        mutation.mutate({ text: mail.text, clientMessageId: mail.clientMessageId })
+        sendTry(mail.text, mail.clientMessageId)
       }
     },
     /** Throws away a failed reply: in this browser only, or on the server too when it kept it. */
     discard: (mail: Mail) => {
       editOutbox((mails) => mails.filter((entry) => entry.clientMessageId !== mail.clientMessageId))
       if (!mail.local) {
-        queryClient.setQueryData<MessagePages>(
-          messagesKey(conversationId),
-          (data) => data && { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.filter((message) => message.id !== mail.id) })) },
-        )
-        void discardMessage(conversationId, mail.id).finally(() => void queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) }))
+        discarding.mutate(mail)
       }
     },
+    /** The `clientMessageId` of the reply the server refused to throw away, if the last try failed. */
+    discardFailed: discarding.isError ? discarding.variables?.clientMessageId : undefined,
   }
 }

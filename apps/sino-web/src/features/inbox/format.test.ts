@@ -419,6 +419,14 @@ describe('the messages sent from this browser (FE-62, D-134)', () => {
     const again = mail('m-3', 'SENDING', 'b')
     expect(withOutbox([inbound, mail('m-3', 'FAILED', 'b')], [again])).toEqual([inbound, again])
   })
+
+  it('lets the server copy win while the server is sending it, or once it went, whatever this browser still shows', () => {
+    const waiting = mail('local-b', 'SENDING', 'b')
+    const running = mail('m-3', 'SENDING', 'b')
+    const sent = mail('m-3', 'SENT', 'b')
+    expect(withOutbox([inbound, running], [waiting])).toEqual([inbound, running])
+    expect(withOutbox([inbound, sent], [waiting])).toEqual([inbound, sent])
+  })
 })
 
 describe('who a reply goes to (FE-61, D-133)', () => {

@@ -57,6 +57,8 @@
   - **Test:** design mục Test (web) của F10; kiểm tra lỗi gài một lần cho hàm thuần mới của màn (`sendState`, ánh xạ trạng thái) trước FE-63.
   - **Acceptance criteria:** spec `inbox-reply` (Thư gửi đi và các trạng thái).
 
+  - **Sau review (2026-10-10, agent `senior-reviewer`):** HIGH đã sửa: `409 SEND_IN_PROGRESS` làm thư kẹt "Đang gửi" vì bản ở hộp thư đi luôn đứng thay bản của server → bản ở hộp thư đi chỉ đứng thay khi bản server là `FAILED` (đang gửi lại), và sau mỗi lần gửi (mọi kết quả) web đọc lại danh sách rồi bỏ thư khỏi hộp thư đi khi server đã có (chỉ với lần thử mới nhất của thư đó). MEDIUM đã sửa: (1) không đọc lại danh sách sau khi gửi lỗi → `onSettled` luôn đọc lại; (2) lỗi mạng giữa chừng bị coi là "Không gửi được", có thể làm người dùng gửi lại từ Gmail thành hai thư → "Chưa rõ đã gửi chưa · Mất kết nối khi gửi. Gửi lại không làm thư bị gửi hai lần." kèm "Gửi lại" (cùng ID) và "Bỏ"; (3) danh sách thư lỗi mà ô soạn vẫn hiện thì thư gửi đi không hiện ở đâu → ẩn ô soạn khi danh sách lỗi; (4) "Bỏ" bị server từ chối thì im lặng → `useMutation` riêng, hủy lần đọc đang chạy trước, báo "Không bỏ được thư này. Hãy thử lại." trên thư đó. LOW đã sửa: trạng thái `reply` lạ → `canSend` `null`; dòng gập ghi cả "Chưa rõ đã gửi chưa". LOW ghi nhận, chưa sửa: mỗi sự kiện đọc lại tuần tự mọi trang thư đã tải, trong lúc đó "Xem thư cũ hơn" bị bỏ qua (`cancelRefetch: false`). Test: 7 mới, 3 đổi (lỗi mạng giờ là "Chưa rõ"). `pnpm lint` 0, `tsc -b` 0, `vitest` 538/538, `pnpm build` 0.
+
 - [ ] 2.3 **FE-63 — Chạy với backend thật (sau BE-60)**
   - **Goal / Why:** bằng chứng trả lời từ web vào đúng thread; dòng báo quyền gửi với account cũ; "Cấp quyền gửi" → kết nối lại → ô trả lời hiện.
   - **Depends on:** FE-61, FE-62, BE-58…BE-60.

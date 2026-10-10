@@ -300,14 +300,14 @@ export function sendState(message: Message & { kind: 'MESSAGE' }): string | null
 type Mail = Message & { kind: 'MESSAGE' }
 
 /**
- * The messages of a conversation with those sent from this browser (F10, D-134): a message being sent again stands in
- * for the server's copy (by `clientMessageId`); any other shows only until the server has its own copy.
+ * The messages of a conversation with those sent from this browser (F10, D-134), by `clientMessageId`: the server's copy
+ * wins, except a failed one this browser is sending again; a message the server does not have shows after its list.
  */
 export function withOutbox(server: Message[], outbox: Mail[]): Message[] {
   const sending = new Map(outbox.filter((mail) => mail.status === 'SENDING' && mail.clientMessageId).map((mail) => [mail.clientMessageId, mail]))
   const stored = new Set(server.flatMap((message) => (message.kind === 'MESSAGE' && message.clientMessageId ? [message.clientMessageId] : [])))
   return [
-    ...server.map((message) => (message.kind === 'MESSAGE' && message.clientMessageId && sending.get(message.clientMessageId)) || message),
+    ...server.map((message) => (message.kind === 'MESSAGE' && message.status === 'FAILED' && message.clientMessageId && sending.get(message.clientMessageId)) || message),
     ...outbox.filter((mail) => !mail.clientMessageId || !stored.has(mail.clientMessageId)),
   ]
 }

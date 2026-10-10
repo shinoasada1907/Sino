@@ -25,6 +25,8 @@ function backend(outcomes: Outcome[] = []) {
   const posts: { text: string; clientMessageId: string }[] = []
   const deletes: string[] = []
   let reads = 0
+  let failList = false
+  let failDelete = false
   let replyState = 'READY'
   let next = 0
   const store = (body: { text: string; clientMessageId: string }, status: string, id: string) => {
@@ -55,7 +57,7 @@ function backend(outcomes: Outcome[] = []) {
     http.patch('/api/conversations/:id', ({ params }) => HttpResponse.json({ ...API_CONVERSATIONS.find((entry) => entry.id === params.id), unreadCount: 0 })),
     http.get('/api/conversations/:id/messages', () => {
       reads += 1
-      return HttpResponse.json({ items: messages, nextCursor: null })
+      return failList ? problem({ title: 'Down', status: 503, code: 'HTTP_503' }, 503) : HttpResponse.json({ items: messages, nextCursor: null })
     }),
     http.post('/api/conversations/:id/messages', async ({ request }) => {
       const body = (await request.json()) as { text: string; clientMessageId: string }
@@ -85,13 +87,32 @@ function backend(outcomes: Outcome[] = []) {
     }),
     http.delete('/api/conversations/:id/messages/:messageId', ({ params }) => {
       deletes.push(String(params.messageId))
+      if (failDelete) {
+        return problem({ title: 'Conflict', status: 409, code: 'MESSAGE_NOT_DELETABLE' }, 409)
+      }
       const at = messages.findIndex((entry) => entry.id === params.messageId)
       messages.splice(at, 1)
       return new HttpResponse(null, { status: 204 })
     }),
   )
-  return { posts, deletes, reads: () => reads }
+  return {
+    posts,
+    deletes,
+    reads: () => reads,
+    failList: (fail: boolean) => (failList = fail),
+    failDelete: (fail: boolean) => (failDelete = fail),
+    /** The server finishes a send on its own (the first try that was still running). */
+    settle: (clientMessageId: string, status: string) => {
+      const message = messages.find((entry) => entry.clientMessageId === clientMessageId)
+      if (message) {
+        message.status = status
+      }
+    },
+  }
 }
+
+const changed = () =>
+  lastStream().emit('conversations.changed', { type: 'conversations.changed', accountId: 'acc-1', conversationIds: ['c-1'], newInbound: 0, source: 'sync', at: NOW.toISOString() })
 
 const open = () => renderApp('/inbox/c-1', { inbox: null })
 const thread = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện đang mở' }))
@@ -132,18 +153,19 @@ describe('replying on the F10 API (FE-62)', () => {
     await vi.waitFor(() => expect(reads()).toBe(readsBefore + 1))
   })
 
-  it('sends again a reply that never reached the server as the same one message', async () => {
+  it('sends again a reply whose answer never came as the same one message', async () => {
     const { posts } = backend(['NETWORK', 'SENT'])
     open()
     const user = await reply('Em nhận được rồi.')
-    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Không gửi được'))
+    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Chưa rõ đã gửi chưa'))
+    expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Mất kết nối khi gửi. Gửi lại không làm thư bị gửi hai lần.')
 
     await user.click(within(mailWith('Em nhận được rồi.')).getByRole('button', { name: 'Gửi lại' }))
 
     // While it is on its way, and once it went.
     expect(thread().getAllByText('Em nhận được rồi.')).toHaveLength(1)
     expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Đang gửi')
-    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).not.toHaveTextContent(/Không gửi được|Đang gửi/))
+    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).not.toHaveTextContent(/Chưa rõ|Đang gửi/))
     expect(thread().getAllByText('Em nhận được rồi.')).toHaveLength(1)
     expect(posts.map((post) => post.clientMessageId)).toEqual([posts[0].clientMessageId, posts[0].clientMessageId])
   })
@@ -156,6 +178,53 @@ describe('replying on the F10 API (FE-62)', () => {
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Đang gửi')
     expect(mailWith('Em nhận được rồi.')).not.toHaveTextContent('Không gửi được')
+  })
+
+  it('shows the reply sent once the server finishes the first try on its own', async () => {
+    const api = backend(['IN_PROGRESS'])
+    open()
+    await reply('Em nhận được rồi.')
+    await vi.waitFor(() => expect(api.posts).toHaveLength(1))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    api.settle(api.posts[0].clientMessageId, 'SENT')
+    lastStream().open()
+    changed()
+
+    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).not.toHaveTextContent('Đang gửi'))
+  })
+
+  it('reads the list again after a failed send, so a copy read meanwhile does not hide the way to send again', async () => {
+    const api = backend(['SEND_FAILED'])
+    open()
+    await thread().findByRole('textbox', { name: 'Trả lời Trần Minh Anh' })
+    const readsBefore = api.reads()
+    await reply('Em nhận được rồi.')
+
+    await vi.waitFor(() => expect(within(mailWith('Em nhận được rồi.')).getByRole('button', { name: 'Gửi lại' })).toBeInTheDocument())
+    await vi.waitFor(() => expect(api.reads()).toBe(readsBefore + 1))
+  })
+
+  it('offers no reply box while the emails cannot load, so a reply cannot vanish', async () => {
+    const api = backend()
+    api.failList(true)
+    open()
+
+    expect(await thread().findByRole('alert')).toHaveTextContent('Không tải được các thư của cuộc trò chuyện này.')
+    expect(thread().queryByRole('textbox')).toBeNull()
+  })
+
+  it('says when the server refuses to throw a failed reply away, and keeps it', async () => {
+    const api = backend(['SEND_FAILED'])
+    api.failDelete(true)
+    open()
+    const user = await reply('Em nhận được rồi.')
+    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Không gửi được'))
+
+    await user.click(within(mailWith('Em nhận được rồi.')).getByRole('button', { name: 'Bỏ' }))
+
+    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Không bỏ được thư này. Hãy thử lại.'))
+    expect(api.deletes).toEqual(['m-10'])
   })
 
   it('keeps a reply the provider refused, and sends it again with the same clientMessageId', async () => {
@@ -196,17 +265,17 @@ describe('replying on the F10 API (FE-62)', () => {
     expect(deletes).toEqual(['m-10'])
   })
 
-  it('throws away a reply that never reached the server without asking it, and keeps it until then through a refresh', async () => {
+  it('throws away a reply whose answer never came without asking the server, and keeps it until then through a refresh', async () => {
     const { deletes } = backend(['NETWORK'])
     open()
     const user = await reply('Em nhận được rồi.')
-    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Không gửi được'))
+    await vi.waitFor(() => expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Chưa rõ đã gửi chưa'))
 
     // New mail elsewhere reads the conversation again; the text typed must not be lost.
     lastStream().open()
-    lastStream().emit('conversations.changed', { type: 'conversations.changed', accountId: 'acc-1', conversationIds: ['c-1'], newInbound: 0, source: 'sync', at: NOW.toISOString() })
+    changed()
     await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Không gửi được')
+    expect(mailWith('Em nhận được rồi.')).toHaveTextContent('Chưa rõ đã gửi chưa')
 
     await user.click(within(mailWith('Em nhận được rồi.')).getByRole('button', { name: 'Bỏ' }))
 

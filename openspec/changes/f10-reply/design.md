@@ -76,6 +76,8 @@ Thân thư là `text/plain; charset=UTF-8`, không trích thư cũ. `From` là �
 - Thư hiện ngay ở cuối cuộc trò chuyện với "Đang gửi". Server trả về thì thay bằng thư của server (cùng `clientMessageId`).
 - `502 SEND_FAILED` → thư ở lại với "Không gửi được", kèm "Gửi lại" (cùng ID) và "Bỏ" (`DELETE` thư `FAILED` trên server, hoặc chỉ xóa ở web nếu server chưa ghi). Chữ không mất.
 - `504 SEND_OUTCOME_UNKNOWN` → "Chưa rõ đã gửi chưa · Sino đang kiểm tra với Gmail", không có nút.
+- Không có câu trả lời (lỗi mạng giữa chừng; thêm sau review FE-62) → "Chưa rõ đã gửi chưa · Mất kết nối khi gửi. Gửi lại không làm thư bị gửi hai lần.", kèm "Gửi lại" (cùng ID, an toàn nhờ D-131) và "Bỏ" (chỉ ở web). **LÝ DO:** request có thể đã tới server; ghi "Không gửi được" dễ làm người dùng gửi lại từ Gmail thành hai thư.
+- Thư đang gửi và thư chưa tới server nằm ở hộp thư đi riêng của trình duyệt (`['outbox', id]`), ghép với danh sách của server theo `clientMessageId`: bản của server thắng, trừ bản `FAILED` đang được gửi lại (thay cho "thêm vào cache danh sách thư" của bản đầu; xem `tasks.md` FE-62).
 - `409 REPLY_NOT_ALLOWED` → đọc lại cuộc trò chuyện để dòng báo thay ô trả lời, và thư thành "Không gửi được".
 - Mất mạng: TanStack Query tạm dừng lần gửi và gửi tiếp khi có mạng (`networkMode: 'online'`). Ô trả lời hiện "Sẽ gửi khi có mạng" như canvas. Hàng đợi chỉ nằm trong bộ nhớ.
 - Ô trả lời có một dòng "Tới …" (tên và địa chỉ của `reply.to`) phía trên ô chữ, ở mọi cỡ màn. Canvas không có dòng này; gửi nhầm người tệ hơn lệch canvas một dòng.
