@@ -9,8 +9,11 @@ public enum SyncErrorCode implements ErrorCode {
     /** The same code and body as the account API: no such account of the caller, or it was removed. */
     ACCOUNT_NOT_FOUND(ErrorCategory.NOT_FOUND),
 
-    /** The user turned the account off (D-12): it is not synced, so it is neither estimated nor imported. */
-    ACCOUNT_DISABLED(ErrorCategory.CONFLICT);
+    /** The user turned the account off (D-12): it is not synced, so it is neither estimated, imported nor synced. */
+    ACCOUNT_DISABLED(ErrorCategory.CONFLICT),
+
+    /** "Đồng bộ ngay" before the first import is DONE: there is no cursor to go on from yet. */
+    IMPORT_NOT_DONE(ErrorCategory.CONFLICT);
 
     private final ErrorCategory category;
 
@@ -24,7 +27,11 @@ public enum SyncErrorCode implements ErrorCode {
     }
 
     static SinoException accountDisabled() {
-        return new SinoException(ACCOUNT_DISABLED, "The account is turned off. Turn it on to import its mail.");
+        return new SinoException(ACCOUNT_DISABLED, "The account is turned off. Turn it on to read its mail.");
+    }
+
+    static SinoException importNotDone() {
+        return new SinoException(IMPORT_NOT_DONE, "The first import of the account is not done yet.");
     }
 
     static SinoException accountNotFound() {

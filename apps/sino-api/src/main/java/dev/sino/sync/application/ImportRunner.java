@@ -1,6 +1,7 @@
 package dev.sino.sync.application;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,27 +28,29 @@ import dev.sino.sync.infrastructure.SyncCheckpoints;
 import dev.sino.sync.infrastructure.SyncCheckpoints.Checkpoint;
 
 /**
- * The first import of one account, page after page, in the background (F05 design, section 3). The connector is
- * called outside any transaction; storing a page and moving the cursor on are one transaction, so a failure never
- * moves the cursor past mail that was not stored. Logs name the account, item IDs and error codes, never mail or
- * tokens.
+ * Reads the mail of one account in the background, page after page: its first import (F05 design, section 3), then
+ * the syncs that keep it up to date from the saved cursor (F07, D-79). The connector is called outside any
+ * transaction; storing a page and moving the cursor on are one transaction, so a failure never moves the cursor past
+ * mail that was not stored. Logs name the account, item IDs and error codes, never mail or tokens.
  */
 @Component
 class ImportRunner implements DisposableBean {
 
     private static final Logger log = LoggerFactory.getLogger(ImportRunner.class);
+    // When a sync's cursor expired, mail is listed again from this long before the last successful read.
+    private static final Duration RECOVERY_OVERLAP = Duration.ofDays(1);
 
     private final ProviderAccess access;
     private final ConversationStore store;
     private final SyncCheckpoints checkpoints;
     private final TransactionTemplate transactions;
     private final InitialSyncProperties properties;
-    // One virtual thread per running import (D-69): an import mostly waits for the provider. Kept here rather than
+    // One virtual thread per account being read (D-69): reading mostly waits for the provider. Kept here rather than
     // as a bean, so Spring Boot keeps its own task executor.
     private final ExecutorService executor = Executors.newThreadPerTaskExecutor(
-            Thread.ofVirtual().name("initial-sync-", 0).factory());
-    // Requests per account not handled yet: the first starts a worker, later ones make that worker look at the row
-    // again when it is done, so none is lost and two workers never run one account.
+            Thread.ofVirtual().name("mail-sync-", 0).factory());
+    // Per account: 1 while a worker reads it, more when requests came meanwhile. Those ask for one more look at the
+    // row, however many they are, and two workers never read one account.
     private final Map<UUID, AtomicInteger> requests = new ConcurrentHashMap<>();
 
     ImportRunner(ProviderAccess access, ConversationStore store, SyncCheckpoints checkpoints,
@@ -59,7 +62,10 @@ class ImportRunner implements DisposableBean {
         this.properties = properties;
     }
 
-    /** Has the import of the account go on in the background if its row is RUNNING; harmless if it already does. */
+    /**
+     * Reads the account in the background: goes on with its import if the row is RUNNING, syncs it if the import is
+     * DONE, does nothing otherwise. Harmless while a worker already reads it: that one looks at the row once more.
+     */
     void submit(UUID accountId) {
         AtomicInteger pending = requests.computeIfAbsent(accountId, id -> new AtomicInteger());
         if (pending.getAndIncrement() == 0) {
@@ -72,8 +78,8 @@ class ImportRunner implements DisposableBean {
     }
 
     /**
-     * Interrupts the running imports when the application closes. Their rows stay RUNNING, and {@link ImportResumer}
-     * goes on with them at the next start.
+     * Interrupts the running reads when the application closes. An import keeps its row RUNNING, and
+     * {@link ImportResumer} goes on with it at the next start; a sync records nothing and runs at the next request.
      */
     @Override
     public void destroy() {
@@ -81,47 +87,66 @@ class ImportRunner implements DisposableBean {
     }
 
     private void work(UUID accountId, AtomicInteger pending) {
-        while (true) {
-            run(accountId);
-            if (Thread.currentThread().isInterrupted()) {
-                // This thread is being stopped; what was asked meanwhile goes to a fresh one, unless closing.
-                if (pending.getAndSet(0) > 1) {
-                    submit(accountId);
+        try {
+            while (true) {
+                run(accountId);
+                if (Thread.currentThread().isInterrupted()) {
+                    // This thread is being stopped; what was asked meanwhile goes to a fresh one, unless closing.
+                    if (pending.getAndSet(0) > 1) {
+                        submit(accountId);
+                    }
+                    return;
                 }
-                return;
+                if (pending.updateAndGet(count -> count > 1 ? 1 : 0) == 0) {
+                    return;
+                }
             }
-            if (pending.decrementAndGet() == 0) {
-                return;
-            }
+        } catch (Error fatal) {
+            // Left at 1 or more, the count would keep every later request from starting a worker.
+            pending.set(0);
+            log.error("Reading account {} stopped on an error", accountId, fatal);
+            throw fatal;
         }
     }
 
     private void run(UUID accountId) {
+        Pass pass = Pass.IMPORT;
         try {
             Checkpoint checkpoint = checkpoints.find(accountId).orElse(null);
-            if (checkpoint == null || !"RUNNING".equals(checkpoint.status())) {
+            if (checkpoint == null) {
                 return;
             }
-            checkpoints.beginRun(accountId);
-            log.info("Initial sync of account {} runs ({}, {} messages imported so far)", accountId,
-                    checkpoint.range(), checkpoint.imported());
-            if (checkpoint.estimated() == null) {
-                estimate(checkpoint);
+            if ("RUNNING".equals(checkpoint.status())) {
+                checkpoints.beginRun(accountId);
+                log.info("Initial sync of account {} runs ({}, {} messages imported so far)", accountId,
+                        checkpoint.range(), checkpoint.imported());
+                if (checkpoint.estimated() == null) {
+                    estimate(checkpoint);
+                }
+            } else if ("DONE".equals(checkpoint.status())) {
+                pass = Pass.SYNC;
+                if (!checkpoints.beginSync(accountId)) {
+                    return;
+                }
+            } else {
+                return;
             }
-            importPages(accountId);
+            readPages(accountId, pass);
         } catch (InterruptedException stopped) {
             Thread.currentThread().interrupt();
-            log.info("Initial sync of account {} stopped; it goes on at the next start", accountId);
+            log.info("{} of account {} stopped", pass.label, accountId);
+        } catch (ImportStartedAgain again) {
+            log.info("Sync of account {} stopped: its import started again", accountId);
         } catch (SinoException failure) {
             // ProviderAccess: the account was removed or turned off, or its connector is gone.
-            fail(accountId, failure.errorCode().code());
+            fail(accountId, pass, failure.errorCode().code());
         } catch (RuntimeException failure) {
             if (Thread.currentThread().isInterrupted()) {
-                log.info("Initial sync of account {} stopped; it goes on at the next start", accountId);
+                log.info("{} of account {} stopped", pass.label, accountId);
                 return;
             }
-            log.error("Initial sync of account {} failed", accountId, failure);
-            fail(accountId, "INTERNAL");
+            log.error("{} of account {} failed", pass.label, accountId, failure);
+            fail(accountId, pass, "INTERNAL");
         }
     }
 
@@ -135,14 +160,20 @@ class ImportRunner implements DisposableBean {
         }
     }
 
-    private void importPages(UUID accountId) throws InterruptedException {
+    private void readPages(UUID accountId, Pass pass) throws InterruptedException {
         int throttled = 0;
         int unreachable = 0;
         boolean startedOver = false;
+        SyncCursor recovery = null;
         while (!Thread.currentThread().isInterrupted()) {
             Checkpoint checkpoint = checkpoints.find(accountId).orElseThrow();
-            SyncCursor cursor = checkpoint.cursor() == null ? SyncCursor.initial(checkpoint.since())
-                    : new SyncCursor(checkpoint.cursor());
+            if (pass == Pass.SYNC && !"DONE".equals(checkpoint.status())) {
+                throw new ImportStartedAgain();
+            }
+            SyncCursor cursor = recovery != null ? recovery
+                    : checkpoint.cursor() == null ? SyncCursor.initial(checkpoint.since())
+                            : new SyncCursor(checkpoint.cursor());
+            recovery = null;
             SyncBatch batch;
             try {
                 batch = access.call(accountId, (connector, context) -> connector.fetchUpdates(context, cursor));
@@ -150,33 +181,37 @@ class ImportRunner implements DisposableBean {
                 switch (failure.errorCode()) {
                     case RATE_LIMITED -> {
                         if (++throttled > properties.rateLimitAttempts()) {
-                            fail(accountId, failure.errorCode().name());
+                            fail(accountId, pass, failure.errorCode().name());
                             return;
                         }
                         Duration wait = failure.retryAfter().orElse(properties.rateLimitWait());
-                        pause(accountId, failure, wait.compareTo(properties.rateLimitMaxWait()) > 0
+                        pause(accountId, pass, failure, wait.compareTo(properties.rateLimitMaxWait()) > 0
                                 ? properties.rateLimitMaxWait() : wait);
                     }
                     case PROVIDER_UNAVAILABLE -> {
                         if (unreachable >= properties.unavailableWaits().size()) {
-                            fail(accountId, failure.errorCode().name());
+                            fail(accountId, pass, failure.errorCode().name());
                             return;
                         }
-                        pause(accountId, failure, properties.unavailableWaits().get(unreachable++));
+                        pause(accountId, pass, failure, properties.unavailableWaits().get(unreachable++));
                     }
-                    // D-60: the provider no longer knows the cursor; reading again from the start is safe once,
-                    // since storing is idempotent.
+                    // D-60: the provider no longer knows the cursor. Listing again is safe once, since storing is
+                    // idempotent: an import from its start, a sync from a day before what it last read in full.
                     case CURSOR_EXPIRED -> {
                         if (startedOver) {
-                            fail(accountId, failure.errorCode().name());
+                            fail(accountId, pass, failure.errorCode().name());
                             return;
                         }
                         startedOver = true;
-                        log.warn("Initial sync of account {} starts over: {}", accountId, failure.errorCode());
-                        checkpoints.startOver(accountId);
+                        log.warn("{} of account {} starts over: {}", pass.label, accountId, failure.errorCode());
+                        if (pass == Pass.IMPORT) {
+                            checkpoints.startOver(accountId);
+                        } else {
+                            recovery = SyncCursor.initial(recoverySince(checkpoint));
+                        }
                     }
                     default -> {
-                        fail(accountId, failure.errorCode().name());
+                        fail(accountId, pass, failure.errorCode().name());
                         return;
                     }
                 }
@@ -185,46 +220,87 @@ class ImportRunner implements DisposableBean {
             boolean done = !batch.hasMore();
             // A connector that says there is more but gives back the same cursor would be asked forever.
             if (!done && batch.nextCursor().value().equals(cursor.value())) {
-                fail(accountId, "CURSOR_STUCK");
+                fail(accountId, pass, "CURSOR_STUCK");
                 return;
             }
             transactions.executeWithoutResult(status -> {
                 StoreResult stored = store.store(accountId, batch);
-                checkpoints.advance(accountId, batch.nextCursor().value(), stored.newMessages()
-                        + stored.updatedMessages(), batch.skipped().size(), done);
+                if (pass == Pass.IMPORT) {
+                    checkpoints.advance(accountId, batch.nextCursor().value(), stored.newMessages()
+                            + stored.updatedMessages(), batch.skipped().size(), done);
+                } else if (!checkpoints.advanceSync(accountId, batch.nextCursor().value(), done)) {
+                    throw new ImportStartedAgain();
+                }
             });
             if (!batch.skipped().isEmpty()) {
-                log.warn("Initial sync of account {} skipped {}", accountId, batch.skipped().stream()
+                log.warn("{} of account {} skipped {}", pass.label, accountId, batch.skipped().stream()
                         .map(item -> item.externalId() + " (" + item.reason() + ")").collect(Collectors.joining(", ")));
             }
             throttled = 0;
             unreachable = 0;
             if (done) {
-                log.info("Initial sync of account {} is done", accountId);
+                if (pass == Pass.IMPORT) {
+                    log.info("Initial sync of account {} is done", accountId);
+                } else {
+                    log.debug("Sync of account {} is done", accountId);
+                }
                 return;
             }
         }
         throw new InterruptedException();
     }
 
-    private static void pause(UUID accountId, ProviderException failure, Duration wait) throws InterruptedException {
-        log.warn("Initial sync of account {} waits {} ms: {}", accountId, wait.toMillis(), failure.errorCode());
+    // From the last moment everything was read: the end of the last successful sync, or else of the import.
+    private static Instant recoverySince(Checkpoint checkpoint) {
+        Instant lastRead = checkpoint.lastSyncAt() != null ? checkpoint.lastSyncAt() : checkpoint.lastSuccessAt();
+        return lastRead == null ? checkpoint.since() : lastRead.minus(RECOVERY_OVERLAP);
+    }
+
+    private static void pause(UUID accountId, Pass pass, ProviderException failure, Duration wait)
+            throws InterruptedException {
+        log.warn("{} of account {} waits {} ms: {}", pass.label, accountId, wait.toMillis(), failure.errorCode());
         Thread.sleep(wait);
     }
 
-    // A stopping thread leaves the row RUNNING (design, section 3); a failure to record the failure is only logged,
-    // and the next start takes the row up again.
-    private void fail(UUID accountId, String errorCode) {
+    // A stopping thread records nothing: an import stays RUNNING (design, section 3) and a sync runs again later. A
+    // failure to record the failure is only logged; the next start or sync takes the row up again.
+    private void fail(UUID accountId, Pass pass, String errorCode) {
         if (Thread.currentThread().isInterrupted()) {
-            log.info("Initial sync of account {} stopped; it goes on at the next start", accountId);
+            log.info("{} of account {} stopped", pass.label, accountId);
             return;
         }
-        log.warn("Initial sync of account {} failed: {}", accountId, errorCode);
+        log.warn("{} of account {} failed: {}", pass.label, accountId, errorCode);
         try {
-            checkpoints.fail(accountId, errorCode);
+            if (pass == Pass.IMPORT) {
+                checkpoints.fail(accountId, errorCode);
+            } else {
+                checkpoints.syncFailed(accountId, errorCode);
+            }
         } catch (RuntimeException failure) {
-            log.error("Initial sync of account {}: the failure could not be recorded", accountId, failure);
+            log.error("{} of account {}: the failure could not be recorded", pass.label, accountId, failure);
         }
+    }
+
+    /** The first import of an account, or a sync after it is DONE. */
+    private enum Pass {
+
+        IMPORT("Initial sync"), SYNC("Sync");
+
+        private final String label;
+
+        Pass(String label) {
+            this.label = label;
+        }
+
+    }
+
+    /** The user started the import again while a sync was reading: the sync stops, its page rolled back. */
+    private static final class ImportStartedAgain extends RuntimeException {
+
+        ImportStartedAgain() {
+            super(null, null, false, false);
+        }
+
     }
 
 }

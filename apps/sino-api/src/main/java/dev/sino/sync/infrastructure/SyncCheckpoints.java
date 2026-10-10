@@ -13,8 +13,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * Table {@code sync_checkpoint} (BE-45): one row per account, written by the import only. Every write is a single
- * statement, so two requests to start an import cannot both win.
+ * Table {@code sync_checkpoint} (BE-45, BE-48): one row per account, written by the import and by the syncs that keep
+ * the account up to date afterwards. Every write is a single statement, so two requests to start an import cannot
+ * both win, and a sync never writes over an import that started meanwhile.
  */
 @Repository
 public class SyncCheckpoints {
@@ -54,6 +55,9 @@ public class SyncCheckpoints {
                     run_imported_count = 0,
                     last_started_at = now(),
                     last_error_code = NULL,
+                    last_sync_at = NULL,
+                    last_sync_attempt_at = NULL,
+                    last_sync_error = NULL,
                     updated_at = now()
                 WHERE s.import_status <> 'RUNNING'
                 RETURNING account_id
@@ -91,16 +95,50 @@ public class SyncCheckpoints {
                 .param("done", done).param("account", accountId).update();
     }
 
-    /** The next page is the first one again, from the same moment. */
+    /** The next page of the running import is its first one again, from the same moment. */
     public void startOver(UUID accountId) {
-        jdbc.sql("UPDATE sync_checkpoint SET cursor = NULL, updated_at = now() WHERE account_id = :account")
-                .param("account", accountId).update();
+        jdbc.sql("""
+                UPDATE sync_checkpoint SET cursor = NULL, updated_at = now()
+                WHERE account_id = :account AND import_status = 'RUNNING'
+                """).param("account", accountId).update();
     }
 
     public void fail(UUID accountId, String errorCode) {
         jdbc.sql("""
                 UPDATE sync_checkpoint SET import_status = 'FAILED', last_error_code = :code, updated_at = now()
                 WHERE account_id = :account AND import_status = 'RUNNING'
+                """).param("code", errorCode).param("account", accountId).update();
+    }
+
+    /** A sync of an imported account begins; false when the row is no longer DONE (an import started again). */
+    public boolean beginSync(UUID accountId) {
+        return jdbc.sql("""
+                UPDATE sync_checkpoint SET last_sync_attempt_at = now(), updated_at = now()
+                WHERE account_id = :account AND import_status = 'DONE'
+                """).param("account", accountId).update() == 1;
+    }
+
+    /**
+     * After a page of a sync is stored, in its transaction: the cursor moves on, and after the last page the sync is
+     * recorded as successful, its last error gone. When an import started again meanwhile nothing is written and the
+     * result is false; the caller rolls the page back.
+     */
+    public boolean advanceSync(UUID accountId, String cursor, boolean done) {
+        return jdbc.sql("""
+                UPDATE sync_checkpoint
+                SET cursor = :cursor,
+                    last_sync_at = CASE WHEN :done THEN now() ELSE last_sync_at END,
+                    last_sync_error = CASE WHEN :done THEN NULL ELSE last_sync_error END,
+                    updated_at = now()
+                WHERE account_id = :account AND import_status = 'DONE'
+                """).param("cursor", cursor).param("done", done).param("account", accountId).update() == 1;
+    }
+
+    /** The sync failed; the import stays DONE and the next sync goes on from the cursor. */
+    public void syncFailed(UUID accountId, String errorCode) {
+        jdbc.sql("""
+                UPDATE sync_checkpoint SET last_sync_error = :code, updated_at = now()
+                WHERE account_id = :account AND import_status = 'DONE'
                 """).param("code", errorCode).param("account", accountId).update();
     }
 
@@ -124,13 +162,16 @@ public class SyncCheckpoints {
                 row.getInt("imported_count"), row.getInt("skipped_count"), row.getInt("run_imported_count"),
                 instant(row, "run_started_at"), row.getObject("estimated_count", Long.class),
                 instant(row, "last_started_at"), instant(row, "last_success_at"), row.getString("last_error_code"),
-                instant(row, "updated_at"));
+                instant(row, "updated_at"), instant(row, "last_sync_at"), row.getString("last_sync_error"));
     }
 
-    /** One row of {@code sync_checkpoint}; {@code estimated} is null until the connector answered. */
+    /**
+     * One row of {@code sync_checkpoint}; {@code estimated} is null until the connector answered, {@code lastSyncAt}
+     * and {@code lastSyncError} until a sync after the import ended.
+     */
     public record Checkpoint(UUID accountId, String cursor, String status, String range, Instant since, int imported,
             int skipped, int runImported, Instant runStartedAt, Long estimated, Instant lastStartedAt,
-            Instant lastSuccessAt, String lastErrorCode, Instant updatedAt) {
+            Instant lastSuccessAt, String lastErrorCode, Instant updatedAt, Instant lastSyncAt, String lastSyncError) {
     }
 
 }

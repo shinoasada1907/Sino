@@ -203,7 +203,11 @@ class InitialSyncApiTests {
 
         assertThat(awaitEnd(account)).containsEntry("status", "DONE").containsEntry("range", "DAYS_90")
                 .containsEntry("imported", 5);
-        assertThat(connector.asked()).hasSize(3);
+        // BE-48: the requests that came during the import make one more look at the row, which is DONE by then,
+        // so the account is synced once from the saved cursor; that reads what changed while it was imported.
+        awaitSyncInDatabase(account);
+        assertThat(connector.asked()).hasSize(4);
+        assertThat(connector.asked().get(3)).isEqualTo(new SyncCursor(cursorOf(account)));
     }
 
     @Test
@@ -631,6 +635,17 @@ class InitialSyncApiTests {
             Thread.sleep(25);
         }
         throw new AssertionError("The import of " + account + " did not end in time");
+    }
+
+    private void awaitSyncInDatabase(UUID account) throws InterruptedException {
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        while (jdbc.queryForObject("select last_sync_at from sync_checkpoint where account_id = ?", Object.class,
+                account) == null) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("The account " + account + " was not synced in time");
+            }
+            Thread.sleep(25);
+        }
     }
 
     private static void awaitLog(CapturedOutput output, String text) throws InterruptedException {

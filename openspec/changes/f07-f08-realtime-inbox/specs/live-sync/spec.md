@@ -16,15 +16,19 @@ Khi lần nhập đầu của một account đã `DONE`, một lượt đồng b
 - **THEN** lượt đồng bộ dừng mà không ghi con trỏ của nó lên dòng của lần nhập mới, và lần nhập mới chạy ngay sau đó
 
 ### Requirement: Lỗi khi đồng bộ
-Lượt đồng bộ MUST xử lý lỗi theo cùng bảng của lần nhập đầu (chờ rồi thử lại `RATE_LIMITED`, `PROVIDER_UNAVAILABLE`; `CURSOR_EXPIRED` đọc lại từ mốc của lần nhập đầu một lần mỗi lượt; con trỏ không tiến → `CURSOR_STUCK`). Lỗi cuối cùng MUST được ghi vào `lastError` và MUST NOT đổi `import_status` thành `FAILED`. Lượt bị ngắt vì ứng dụng tắt MUST NOT ghi lỗi.
+Lượt đồng bộ MUST xử lý lỗi theo cùng bảng của lần nhập đầu (chờ rồi thử lại `RATE_LIMITED`, `PROVIDER_UNAVAILABLE`; con trỏ không tiến → `CURSOR_STUCK`). Khi provider báo `CURSOR_EXPIRED`, lượt đồng bộ MUST đọc lại thư từ một ngày trước lần đọc trọn gần nhất (lần đồng bộ thành công gần nhất, chưa có thì lúc lần nhập đầu xong), một lần mỗi lượt; lần thứ hai trong lượt là lỗi và con trỏ đã lưu MUST được giữ nguyên. Lỗi cuối cùng MUST được ghi vào `lastError` và MUST NOT đổi `import_status` thành `FAILED`. Lượt bị ngắt vì ứng dụng tắt MUST NOT ghi lỗi. Lỗi của một lượt bắt đầu trước khi người dùng nhập lại MUST NOT được ghi lên lần nhập mới; bắt đầu nhập lại MUST xóa trạng thái đồng bộ cũ.
 
 #### Scenario: Provider không tới được
 - **WHEN** provider báo `PROVIDER_UNAVAILABLE` quá số lần thử của một lượt
 - **THEN** `lastError` = `PROVIDER_UNAVAILABLE`, `import_status` vẫn `DONE`, và lượt thành công sau đó xóa `lastError`
 
 #### Scenario: Con trỏ quá cũ
-- **WHEN** provider báo `CURSOR_EXPIRED` cho con trỏ đã lưu
-- **THEN** lượt đồng bộ đọc lại từ mốc của lần nhập đầu, không tạo thư trùng, và lưu con trỏ mới khi xong
+- **WHEN** provider báo `CURSOR_EXPIRED` cho con trỏ đã lưu của account đồng bộ thành công lần cuối lúc T
+- **THEN** lượt đồng bộ đọc lại thư từ T trừ một ngày (không từ mốc của lần nhập đầu), không tạo thư trùng, và lưu con trỏ mới khi xong
+
+#### Scenario: Ứng dụng tắt giữa lượt
+- **WHEN** ứng dụng tắt trong lúc một lượt đồng bộ đang chờ provider
+- **THEN** `lastError` và `lastSyncAt` không đổi, `import_status` vẫn `DONE`
 
 ### Requirement: Đồng bộ tự động
 Lịch MUST yêu cầu đồng bộ các account đủ điều kiện mà lần thử gần nhất cũ hơn khoảng hỏi: 60 giây khi account chưa có watch còn hạn, 5 phút khi có (cấu hình được). Account đủ điều kiện là account chưa xóa, không `DISABLED`, không `AUTH_EXPIRED`, `syncEnabled` = true và lần nhập đầu `DONE`. Thông báo push của provider cho một account đủ điều kiện MUST yêu cầu đồng bộ account đó.

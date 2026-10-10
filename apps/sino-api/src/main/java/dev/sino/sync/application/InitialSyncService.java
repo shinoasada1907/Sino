@@ -10,8 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.sino.account.AccountDirectory;
-import dev.sino.account.AccountStatus;
-import dev.sino.account.AccountSummary;
 import dev.sino.account.ProviderAccess;
 import dev.sino.common.error.SinoException;
 import dev.sino.conversation.ConversationStats;
@@ -53,7 +51,7 @@ public class InitialSyncService {
      * tell or fails. Calls the provider, so never inside a transaction.
      */
     public SyncEstimate estimate(UUID ownerId, UUID accountId, SyncRange range) {
-        requireEnabled(requireAccount(ownerId, accountId));
+        AccountChecks.requireEnabled(AccountChecks.requireAccount(directory, ownerId, accountId));
         OptionalLong messages;
         try {
             messages = access.call(accountId,
@@ -77,7 +75,7 @@ public class InitialSyncService {
      * @throws SinoException with {@code ACCOUNT_DISABLED} when the user turned the account off (D-12: not synced)
      */
     public InitialSyncStatus start(UUID ownerId, UUID accountId, SyncRange range) {
-        requireEnabled(requireAccount(ownerId, accountId));
+        AccountChecks.requireEnabled(AccountChecks.requireAccount(directory, ownerId, accountId));
         transactions.executeWithoutResult(
                 status -> checkpoints.start(accountId, range.name(), range.since(clock.instant())));
         InitialSyncStatus status = statusOf(accountId);
@@ -88,7 +86,7 @@ public class InitialSyncService {
     }
 
     public InitialSyncStatus status(UUID ownerId, UUID accountId) {
-        requireAccount(ownerId, accountId);
+        AccountChecks.requireAccount(directory, ownerId, accountId);
         return statusOf(accountId);
     }
 
@@ -123,16 +121,6 @@ public class InitialSyncService {
         return new InitialSyncStatus(checkpoint.status(), SyncRange.valueOf(checkpoint.range()), checkpoint.imported(),
                 checkpoint.skipped(), checkpoint.estimated(), remaining, stored, checkpoint.lastStartedAt(),
                 finishedAt, checkpoint.lastErrorCode());
-    }
-
-    private AccountSummary requireAccount(UUID ownerId, UUID accountId) {
-        return directory.find(ownerId, accountId).orElseThrow(SyncErrorCode::accountNotFound);
-    }
-
-    private static void requireEnabled(AccountSummary account) {
-        if (account.status() == AccountStatus.DISABLED) {
-            throw SyncErrorCode.accountDisabled();
-        }
     }
 
     private static int minutes(long messages, int perMinute) {

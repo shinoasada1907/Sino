@@ -38,7 +38,7 @@ Lần nhập đầu và đồng bộ tăng dần là hai chế độ của cùng
 ### Chốt kỹ thuật (agent, trong phạm vi trên)
 - **Khoảng hỏi định kỳ:** 60 giây khi account chưa có watch còn hạn, 5 phút khi có; lịch quét mỗi 15 giây; đều là cấu hình (`sino.sync.live.*`). Account được hỏi khi lần thử gần nhất cũ hơn khoảng của nó, nên lỗi không bị hỏi dồn mỗi 15 giây.
 - **Account được đồng bộ tự động:** chưa xóa, không `DISABLED`, không `AUTH_EXPIRED`, `syncEnabled = true`, lần nhập đầu `DONE`. "Đồng bộ ngay" chạy cả khi đã tạm dừng đồng bộ tự động (người dùng bấm tay), nhưng không chạy với `DISABLED` (`409`) hay khi chưa nhập xong (`409 IMPORT_NOT_DONE`).
-- **`CURSOR_EXPIRED` khi đồng bộ:** đọc lại từ `import_since` như lần nhập đầu (một lần mỗi lượt; upsert nên không trùng thư). Hiếm (Sino tắt hơn khoảng một tuần) nhưng có thể lâu với khoảng "toàn bộ".
+- **`CURSOR_EXPIRED` khi đồng bộ:** ~~đọc lại từ `import_since` như lần nhập đầu~~ → đọc lại thư từ **một ngày trước lần đọc trọn gần nhất** (`last_sync_at`, chưa có thì `last_success_at` của lần nhập), một lần mỗi lượt; lần thứ hai thì ghi lỗi và giữ con trỏ đã lưu. **LÝ DO (review BE-48):** `import_since` đóng băng từ ngày nhập, nên mỗi tháng trôi qua lần đọc lại càng dài; với khoảng "toàn bộ" là cả hộp thư. Thư trước lần đọc trọn gần nhất đã có trong Sino; đọc lại chúng chỉ để cập nhật nhãn của thư cũ (xóa và thùng rác vốn chưa được theo dõi, BE-38). Con trỏ đọc lại mang mốc mới nên được lưu như con trỏ thường, không cần cột mới.
 - **Lỗi đồng bộ không làm `FAILED` lần nhập đầu:** ghi `last_sync_error`; lượt sau thành công thì xóa. `AUTH_EXPIRED` vẫn do `ProviderAccess` chuyển trạng thái account như F04b.
 - **Watch:** đăng ký ngay khi lần nhập đầu `DONE`; mỗi giờ kiểm và gia hạn watch sắp hết hạn trong 2 ngày (Google khuyên gọi lại ít nhất mỗi 7 ngày); lỗi ghi `watch_error` và thử lại ở lần kiểm sau. Không theo nhãn: watch cả hộp thư, giống phạm vi nhập. Account bị xóa không gọi `stop` (token đã bị thu hồi lúc xóa); thông báo của địa chỉ không còn account nào thì bị bỏ qua.
 - **Webhook:** chỉ tạo khi đủ ba cấu hình (topic, `audience`, tài khoản dịch vụ). Token sai → `401` (Pub/Sub thử lại, không ai khác qua được). Token đúng mà nội dung hỏng hoặc địa chỉ lạ → `204` (báo nhận để Pub/Sub không gửi lại mãi) và log WARN không có địa chỉ. Đúng → `204` ngay, đồng bộ chạy nền. Không log `emailAddress`.
@@ -50,8 +50,8 @@ Lần nhập đầu và đồng bộ tăng dần là hai chế độ của cùng
 
 ## Backend design
 
-### 1. Dữ liệu (V12)
-`sync_checkpoint` thêm:
+### 1. Dữ liệu (V12, V13)
+`sync_checkpoint` thêm (V12, BE-48: ba cột `last_sync_*`; V13, BE-51: ba cột `watch_*` và index):
 
 | Cột | Kiểu | Ý nghĩa |
 |---|---|---|
