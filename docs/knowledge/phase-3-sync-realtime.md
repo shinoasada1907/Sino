@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49, BE-50, BE-51.
+> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49, BE-50, BE-51, BE-52.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -337,3 +337,98 @@ Review (agent `senior-reviewer`) không thấy lỗi nặng; một lỗi mức t
 - **Một lỗi cố ý sống sót vì test chờ sai.** Test "lần nhập lỗi không đăng ký watch" chờ tới khi **có** watch rồi mới đếm số lần đăng ký. Với code gài lỗi (đăng ký cả sau lần nhập lỗi), watch có ngay sau lần nhập lỗi, nên test đếm lúc mới có một lần và vẫn xanh. Sửa: chờ lần nhập thứ hai **xong và worker rảnh** rồi mới đếm. Bài học: khi test "không có chuyện X", phải chờ tới lúc chắc chắn mọi việc có thể gây ra X đã chạy xong; chờ "một điều kiện đúng" là chưa đủ.
 - `./mvnw -B -ntp verify` → 948 test, 0 lỗi, 4 bỏ qua (giả định theo capability trong bộ kiểm contract), BUILD SUCCESS, `ModularityTests` 2/2.
 - **Chưa xác minh:** Gmail thật (gọi lại `watch` khi còn hạn trả hạn mới; mã lỗi khi topic ở dự án khác hay thiếu quyền). Làm ở BE-53 cùng webhook.
+
+## 5. Webhook: nhận thông báo của Gmail (BE-52)
+
+**Ở đâu:** `provider/infrastructure/gmail/GmailPushController` (`POST /api/webhooks/gmail`), `GmailPushTokens` (kiểm token), `GmailPushErrorCode`, `GmailProperties.PubSub` (`audience`, `service-account`, `jwk-set-uri`), `GmailConfiguration.checkPubSub`; sự kiện `provider/ProviderPushReceived`; `sync/application/PushNotices`, `SyncCheckpoints.watchedBy`; `common/security/SecurityConfig`.
+
+```text
+Pub/Sub --POST /api/webhooks/gmail-->  chuỗi bảo mật riêng: không đăng nhập, không session, không CSRF
+          Authorization: Bearer <JWT Google ký>
+                                   |
+                                   v
+GmailPushController
+  1. GmailPushTokens.check        token sai -> 401, không làm gì khác
+                                  không tải được khóa của Google -> 503 (Pub/Sub gửi lại sau)
+  2. đọc body, tối đa 64 KB       đứt giữa chừng -> 400 (Pub/Sub gửi lại)
+  3. message.data: base64 -> {"emailAddress", "historyId"}; chỉ lấy emailAddress
+                                  đọc không được -> 204 + WARN (không in nội dung)
+  4. publish ProviderPushReceived(gmail, địa chỉ)
+                                   |  @EventListener, ngay trong request
+                                   v
+PushNotices (module sync)
+  watchedBy(địa chỉ)              các dòng có watch_address trùng, không phân biệt hoa thường
+  -> giữ account cùng provider, tự đồng bộ được (không tạm dừng, tắt, hết quyền, đã xóa)
+  -> ImportRunner.submit          trả 204 ngay; lượt đồng bộ chạy nền
+```
+
+### 5.1 JWT và chữ ký: Sino biết request đến từ Google bằng cách nào
+Webhook là một đường dẫn công khai: ai trên Internet cũng gửi được `POST` tới nó. Pub/Sub gửi kèm mỗi request một **JWT** (JSON Web Token) trong header `Authorization: Bearer ...`. Một JWT có ba phần, ngăn bởi dấu chấm, mỗi phần là base64url:
+
+```text
+eyJhbGciOiJSUzI1NiIsImtpZCI6Ii4uLiJ9 . eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC4uLn0 . <chữ ký>
+   header {"alg":"RS256","kid":"..."}        payload (các claim) {"iss", "aud", "email", "exp", ...}
+```
+
+Google ký phần đầu và phần giữa bằng **khóa bí mật RSA** của nó. Ai cũng kiểm được chữ ký bằng **khóa công khai** Google đăng ở `https://www.googleapis.com/oauth2/v3/certs` (một JWKS: danh sách khóa, mỗi khóa có `kid`). Sửa một chữ trong payload là chữ ký sai; muốn làm token mới phải có khóa bí mật của Google. Vì vậy Sino không cần giữ bí mật nào của Google cho webhook: chỉ cần khóa công khai.
+
+### 5.2 Kiểm những gì, và mỗi thứ chặn kiểu tấn công nào
+Chữ ký đúng mới chỉ nói "Google làm ra token này". Google làm token cho rất nhiều dịch vụ, nên Sino còn kiểm token đó dành cho **chính nó**:
+
+| Kiểm | Chặn |
+|---|---|
+| chữ ký RS256, khóa lấy từ JWKS của Google | token tự làm; token ký bằng khóa khác; `alg: none` (không ký); `HS256` (ký bằng một "mật khẩu" mà kẻ tấn công tự chọn) |
+| `exp` bắt buộc và chưa qua (lệch tối đa 60 giây), `nbf` nếu có | token cũ bị lấy được rồi gửi lại về sau |
+| `iss` là `https://accounts.google.com` hoặc `accounts.google.com` | token của nơi khác cấp |
+| `aud` chứa `audience` đã cấu hình | token Google cấp cho **dịch vụ khác** (một push subscription của người khác cũng có token Google ký thật) |
+| `email` là tài khoản dịch vụ đã cấu hình và `email_verified = true` | token của một tài khoản Google bất kỳ có cùng `aud` |
+
+Bẫy đã gặp khi đọc mã nguồn Spring Security 7.1.1: `JwtTimestampValidator` mặc định **cho qua token không có `exp`** (chỉ kiểm khi có). Token không hết hạn thì bị lấy được một lần là dùng mãi, nên Sino bật `setAllowEmptyExpiryClaim(false)`. Có test cho từng dòng của bảng trên (`GmailPushTokensTests`).
+
+### 5.3 Vì sao nội dung hỏng vẫn trả 204 còn token sai thì 401 (câu gợi ý của task)
+Pub/Sub coi mọi mã 2xx là "đã nhận" và xóa tin; mã khác thì **gửi lại**, giãn dần, tới 7 ngày.
+- **Token sai → 401.** Request không phải của Google (hoặc cấu hình `audience` sai): không làm gì cả. Nếu là cấu hình sai của mình, Pub/Sub cứ gửi lại cho tới khi sửa xong, nên thông báo không mất.
+- **Token đúng, nội dung hỏng → 204.** Google gửi thật nhưng Sino không đọc được: gửi lại bao nhiêu lần cũng vẫn hỏng. Trả lỗi chỉ làm Pub/Sub gửi lại vô ích suốt một tuần. Nhận rồi bỏ, ghi một dòng WARN (không in nội dung). Lịch hỏi định kỳ 5 phút vẫn mang thư về.
+- **Không tải được khóa của Google → 503.** Lỗi tạm thời ở phía Sino hoặc Google: muốn Pub/Sub gửi lại sau.
+
+### 5.4 Kiểm token trước, đọc body sau, và chỉ đọc 64 KB
+Nếu controller nhận `@RequestBody`, Spring đọc và parse cả body **trước** khi code của Sino kịp kiểm token: một người lạ gửi vài trăm MB JSON là Sino phải đọc hết. Controller nhận `InputStream`, kiểm token xong mới đọc, và chỉ đọc tối đa 64 KB + 1 byte (`readNBytes`); dài hơn là bỏ. Một thông báo của Gmail chỉ vài trăm byte.
+
+### 5.5 Khóa của Google: giữ 5 phút, tải lại tối đa hai lần mỗi 30 giây
+Khóa công khai của Google đổi định kỳ; khi token mang `kid` lạ, thư viện tải lại JWKS. Bẫy: builder `NimbusJwtDecoder.withJwkSetUri(...)` của Spring Security **tắt** giới hạn tần suất tải lại (`rateLimited(false)`). Một người lạ chỉ cần gửi token mang `kid` bịa là buộc Sino gọi Google ở mỗi request, và các request xếp hàng sau một khóa (lock). Sino tự dựng nguồn khóa bằng `JWKSourceBuilder` của Nimbus: giữ JWKS 5 phút, tải lại tối đa hai lần mỗi 30 giây, mỗi lần tải giới hạn 5 giây và 50 KB, và tắt việc làm mới trước hạn (nó giữ một thread mà không gì dừng khi DevTools khởi động lại ứng dụng). Khi bị giới hạn, thư viện báo "rate limit reached": token nêu một khóa không có trong bộ vừa tải, hoặc các lần tải vừa rồi hỏng (đã được log lúc đó). Sino trả 401 cho trường hợp này; Pub/Sub gửi lại như mọi lần bị từ chối.
+
+### 5.6 Đủ ba cấu hình hoặc không có gì
+`SINO_GOOGLE_PUBSUB_TOPIC`, `SINO_GOOGLE_PUBSUB_AUDIENCE`, `SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT` đi cùng nhau: có cả ba thì Gmail khai báo push và webhook tồn tại; không có cái nào thì chỉ hỏi định kỳ, webhook trả 404; thiếu một hai cái thì ứng dụng **không khởi động**, thông báo nêu tên biến thiếu (không nêu giá trị). Việc này đóng luôn giới hạn của BE-51 (đặt topic mà chưa có webhook thì thư chậm 5 phút).
+
+Hai lỗi thật chỉ lộ ra khi chạy RED trên **toàn bộ** ứng dụng:
+- `GmailPushController` có `@RestController`, nên **component scan** tự tạo nó, kể cả khi đã có một `@Bean` tạo nó có điều kiện. Mọi context không có cấu hình Pub/Sub đều hỏng. Sửa: đặt `@Conditional` thẳng lên lớp controller, để chính scan quyết định.
+- Record `PubSub` có thêm một constructor phụ `PubSub(String topic)` cho tiện. Spring Boot bind `sino.google.pubsub.*` vào record qua constructor; có hai constructor thì nó chọn nhầm cái một tham số, và `audience` luôn rỗng. Sửa: chỉ để một constructor; Javadoc ghi lý do.
+
+### 5.7 Webhook có chuỗi bảo mật riêng
+Spring Security cho phép nhiều `SecurityFilterChain`; request đi vào chuỗi **đầu tiên** khớp. `SecurityConfig` có hai chuỗi:
+- `webhookSecurityFilterChain` (`@Order(Ordered.HIGHEST_PRECEDENCE)`): chỉ khớp `POST /api/webhooks/*`; không đòi đăng nhập, `STATELESS` (không tạo session), không CSRF, không lưu request. Việc kiểm token nằm ở controller của connector, vì module `common` không được biết về Google.
+- `apiSecurityFilterChain`: mọi request còn lại, như trước (phiên cookie, CSRF kiểu SPA, remember-me).
+
+Bản đầu chỉ thêm `permitAll` cho webhook vào chuỗi chung và bỏ CSRF cho `/api/webhooks/**`. Review chỉ ra hai điểm: bộ lọc CSRF rộng hơn chỗ mở (mọi method, mọi độ sâu, nên một endpoint dùng cookie sau này dưới `/api/webhooks/` sẽ mất CSRF mà không ai để ý); và chuỗi chung vẫn có thể tạo cookie `XSRF-TOKEN` hay session cho request của Google. Chuỗi riêng khớp đúng một đường, và test kiểm response không có `Set-Cookie`, request không tạo session.
+
+### 5.8 Thông báo chỉ là tín hiệu
+Sino không tin `historyId` hay bất kỳ dữ liệu nào trong thông báo: chỉ lấy địa chỉ để biết account nào cần đọc, rồi đọc thay đổi từ con trỏ của chính nó (`history.list`). Kẻ nào đó dù có token hợp lệ cũng chỉ làm được một việc: khiến Sino đồng bộ sớm hơn. Connector Gmail giữ phần riêng của Google (Pub/Sub, OIDC) và phát `ProviderPushReceived` ở gói gốc `provider` (API của module); module `sync` nghe sự kiện đó và không biết gì về Google. Địa chỉ không bao giờ vào log: `toString` của sự kiện che nó, log của `PushNotices` chỉ nêu provider.
+
+### 5.9 Review: một lần từ chối không được im lặng
+Review (agent `senior-reviewer`) không thấy lỗ hổng bảo mật; một lỗi nặng đáng nhớ là **từ chối mà không để lại dấu vết**. Bản đầu trả 401 cho mọi token sai mà không log dòng nào (`GlobalExceptionHandler` không log lỗi của `SinoException`). Ở BE-53, người dùng cấu hình tay trên Google Console; gõ sai `audience` hay chọn nhầm tài khoản dịch vụ thì: watch vẫn đăng ký được (không cần webhook), nên Sino chỉ hỏi Gmail 5 phút một lần; mọi thông báo bị 401 trong im lặng; thư về **chậm hơn cả khi không bật push**, và log không nói vì sao. Sửa: phân loại lần từ chối.
+
+| Trường hợp | Log |
+|---|---|
+| Không có token, token không phải của Google (chữ ký sai), `kid` lạ | DEBUG: ai trên Internet cũng gửi được, không đáng một dòng WARN |
+| Token Google ký nhưng sai `aud`, `email`, `iss`, hết hạn | WARN, tối đa một lần mỗi phút, chỉ nêu tên kiểm tra ("The aud claim is not valid"), nhắc kiểm hai biến cấu hình |
+| Không tải được khóa của Google | WARN, tối đa một lần mỗi phút |
+
+Giới hạn "một lần mỗi phút" dùng một `AtomicLong` giữ thời điểm (`System.nanoTime()`) lần nói gần nhất và `compareAndSet`, nên hai request cùng lúc không cùng in. Các sửa nhỏ khác: client ngắt giữa lúc gửi body thì trả 400 và một dòng WARN thay vì 500 kèm stack trace; Javadoc sửa "tải lại tối đa một lần" thành "hai lần" cho đúng thư viện; test HS256 giờ đặt cả khóa bí mật vào bộ khóa, để nếu ai đó nới thuật toán thì test bắt được; thêm một test đi trọn đường: thông báo của Google → account Gmail có watch → lượt đồng bộ gọi Gmail API (giả bằng WireMock).
+
+### 5.10 Kiểm chứng (BE-52)
+- **RED trên toàn bộ ứng dụng:** thay năm chỗ logic bằng bản rỗng: 40 test đỏ. Lần chạy này còn lộ ra hai lỗi thật của chính code (mục 5.6), không phải của bản rỗng. Bài học: chạy RED cả trên các test khởi động toàn bộ ứng dụng, đừng chỉ chạy test đơn vị.
+- **Test không cần Spring cho phần khó:** `GmailPushTokensTests` tự sinh khóa RSA bằng `RSAKeyGenerator` của Nimbus, ký token giả bằng `RSASSASigner`, và đưa khóa công khai cho bộ kiểm qua `ImmutableJWKSet` (không cần mạng); vài test tải khóa qua WireMock để kiểm cache, giới hạn tần suất và Google sập. Chạy trong vài giây.
+- **Test đi trọn đường:** `GmailWebhookTests` dựng cả ứng dụng với một Google giả (WireMock phục vụ cả khóa lẫn Gmail API): thông báo hợp lệ → `ProviderPushReceived` → `PushNotices` → `ImportRunner` → `GmailProvider` gọi `history.list` → con trỏ của account tiến.
+- **Kiểm tra ngược hai vòng:** 22 lỗi cố ý trước review, 21 sau review, chạy song song trong hai worktree. Một lỗi cố ý sống sót lộ ra test base64 URL-safe dùng chuỗi mẫu mà hai bảng mã cho cùng kết quả (chỉ khác nhau khi gặp `+` hay `/`). Hai lỗi cố ý sống sót có chủ đích vì tương đương: bỏ `@Order` (thứ tự khai báo đã đặt chuỗi webhook trước) và bỏ `STATELESS` (Spring Security vốn không tạo session cho request ẩn danh; giữ làm chốt).
+- `./mvnw -B -ntp verify` → 1000 test, 0 lỗi, BUILD SUCCESS, `ModularityTests` 2/2.
+- **Chưa xác minh:** Pub/Sub và Google Console thật (BE-53).

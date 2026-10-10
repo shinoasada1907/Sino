@@ -23,7 +23,7 @@ Sino MUST đăng ký watch khi lần nhập đầu của account `DONE`, và MUS
 - **THEN** trạng thái đồng bộ của account có `push` = `FAILED`, và lịch vẫn hỏi account mỗi 60 giây
 
 ### Requirement: Webhook chỉ nhận thông báo của Google
-`POST /api/webhooks/gmail` MUST chỉ tồn tại khi đủ topic, `audience` và tài khoản dịch vụ được cấu hình, MUST NOT cần đăng nhập hay CSRF, và MUST kiểm token `Authorization: Bearer`: chữ ký theo khóa công khai của Google, còn hạn, `iss` là Google, `aud` chứa `audience` đã cấu hình, `email` là tài khoản dịch vụ đã cấu hình và `email_verified` = true. Token thiếu hoặc không đạt MUST trả `401` và MUST NOT làm gì khác (D-76).
+`POST /api/webhooks/gmail` MUST chỉ tồn tại khi đủ topic, `audience` và tài khoản dịch vụ được cấu hình, MUST NOT cần đăng nhập hay CSRF, và MUST kiểm token `Authorization: Bearer`: chữ ký theo khóa công khai của Google, còn hạn, `iss` là Google, `aud` chứa `audience` đã cấu hình, `email` là tài khoản dịch vụ đã cấu hình và `email_verified` = true. Token thiếu hoặc không đạt MUST trả `401` và MUST NOT làm gì khác (D-76). Khi không tải được khóa công khai của Google để kiểm token, webhook MUST trả `503` để Pub/Sub gửi lại sau, và MUST NOT làm gì khác. Chỉ khi cả ba cấu hình có mặt Gmail mới đăng ký watch; thiếu một hai cái thì ứng dụng MUST NOT khởi động.
 
 #### Scenario: Thông báo hợp lệ
 - **WHEN** Pub/Sub gửi thông báo có token hợp lệ cho địa chỉ của một account đủ điều kiện

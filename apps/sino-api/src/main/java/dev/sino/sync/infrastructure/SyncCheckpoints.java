@@ -208,6 +208,15 @@ public class SyncCheckpoints {
                 """).param("code", errorCode).param("account", accountId).query(Boolean.class).optional();
     }
 
+    /** The accounts whose watch was registered under this address, whatever its case (BE-52). */
+    public List<UUID> watchedBy(String address) {
+        return jdbc.sql("""
+                SELECT account_id FROM sync_checkpoint
+                WHERE watch_address IS NOT NULL AND lower(watch_address) = lower(:address)
+                ORDER BY account_id
+                """).param("address", address).query(UUID.class).list();
+    }
+
     public List<UUID> running() {
         return jdbc.sql("SELECT account_id FROM sync_checkpoint WHERE import_status = 'RUNNING'").query(UUID.class)
                 .list();

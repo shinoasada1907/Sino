@@ -1,5 +1,8 @@
 package dev.sino.provider.infrastructure.gmail;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -17,9 +20,10 @@ import org.springframework.util.StringUtils;
 
 /**
  * Gmail is on only when Sino has a Google OAuth client, so the app, the tests and CI run without a Google project.
- * Half a client (an id without its secret, or the reverse) stops the startup, and so does a Pub/Sub topic that is
- * not a topic's full name (D-76). The {@code account} module finds the
- * client by its registration id; Spring Boot's own OAuth2 client support stays off (D-38).
+ * Half a client (an id without its secret, or the reverse) stops the startup, and so does half the setup of Gmail's
+ * notices (D-76): the Pub/Sub topic, audience and service account go together, and with them comes the webhook. The
+ * {@code account} module finds the client by its registration id; Spring Boot's own OAuth2 client support stays off
+ * (D-38).
  */
 @Configuration(proxyBeanMethods = false)
 class GmailConfiguration {
@@ -28,6 +32,35 @@ class GmailConfiguration {
     private static final String CLIENT_ID = "sino.google.client-id";
     private static final String CLIENT_SECRET = "sino.google.client-secret";
     private static final Pattern PUBSUB_TOPIC = Pattern.compile("projects/[^/\\s]+/topics/[^/\\s]+");
+    private static final String PUBSUB_TOPIC_SETTING = "sino.google.pubsub.topic";
+
+    // Half a push setup would register watches whose notices nobody can check: all three settings, or none.
+    static void checkPubSub(GmailProperties.PubSub pubsub) {
+        Map<String, String> settings = new LinkedHashMap<>();
+        settings.put("SINO_GOOGLE_PUBSUB_TOPIC", pubsub.topic());
+        settings.put("SINO_GOOGLE_PUBSUB_AUDIENCE", pubsub.audience());
+        settings.put("SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT", pubsub.serviceAccount());
+        List<String> missing = settings.entrySet().stream().filter(setting -> setting.getValue() == null)
+                .map(Map.Entry::getKey).toList();
+        if (missing.size() == settings.size()) {
+            LOG.info("Gmail is only polled for new mail: set SINO_GOOGLE_PUBSUB_TOPIC, SINO_GOOGLE_PUBSUB_AUDIENCE "
+                    + "and SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT for Gmail to tell Sino");
+            return;
+        }
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException(String.join(", ", missing) + " missing: the Gmail notice settings "
+                    + String.join(", ", settings.keySet()) + " go together; set all three, or none to only poll "
+                    + "Gmail");
+        }
+        if (!PUBSUB_TOPIC.matcher(pubsub.topic()).matches()) {
+            throw new IllegalStateException("SINO_GOOGLE_PUBSUB_TOPIC (sino.google.pubsub.topic) must look like "
+                    + "projects/<project id>/topics/<topic name>");
+        }
+        if (!pubsub.serviceAccount().contains("@")) {
+            throw new IllegalStateException("SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT (sino.google.pubsub.service-account)"
+                    + " must be the email of the push subscription's service account");
+        }
+    }
 
     @Configuration(proxyBeanMethods = false)
     @Conditional(GoogleClientGiven.class)
@@ -46,13 +79,7 @@ class GmailConfiguration {
                 throw new IllegalStateException("SINO_GOOGLE_CLIENT_SECRET (" + CLIENT_SECRET + ") is missing while "
                         + "SINO_GOOGLE_CLIENT_ID is set: set both, or neither to turn Gmail off");
             }
-            String topic = properties.pubsub().topic();
-            if (topic == null) {
-                LOG.info("Gmail is only polled for new mail: set SINO_GOOGLE_PUBSUB_TOPIC for Gmail to tell Sino");
-            } else if (!PUBSUB_TOPIC.matcher(topic).matches()) {
-                throw new IllegalStateException("SINO_GOOGLE_PUBSUB_TOPIC (sino.google.pubsub.topic) must look like "
-                        + "projects/<project id>/topics/<topic name>");
-            }
+            checkPubSub(properties.pubsub());
             this.properties = properties;
         }
 
@@ -92,6 +119,15 @@ class GmailConfiguration {
         public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
             return StringUtils.hasText(context.getEnvironment().getProperty(CLIENT_ID))
                     || StringUtils.hasText(context.getEnvironment().getProperty(CLIENT_SECRET));
+        }
+
+    }
+
+    static class PubSubGiven implements Condition {
+
+        @Override
+        public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+            return StringUtils.hasText(context.getEnvironment().getProperty(PUBSUB_TOPIC_SETTING));
         }
 
     }

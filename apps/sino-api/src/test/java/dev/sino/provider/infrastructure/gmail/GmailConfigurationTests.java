@@ -6,10 +6,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URI;
+import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -33,9 +35,14 @@ class GmailConfigurationTests {
     private static final String CLIENT_ID = "1234567890-test.apps.googleusercontent.test";
     private static final String CLIENT_SECRET = "GOCSPX-test-client-secret-value";
     private static final String TOPIC = "projects/sino-test/topics/gmail";
+    private static final String AUDIENCE = "https://sino.test/api/webhooks/gmail";
+    private static final String SERVICE_ACCOUNT = "gmail-push@sino-test.iam.gserviceaccount.com";
+    private static final String PUBSUB_TOPIC = "sino.google.pubsub.topic=";
+    private static final String PUBSUB_AUDIENCE = "sino.google.pubsub.audience=";
+    private static final String PUBSUB_SERVICE_ACCOUNT = "sino.google.pubsub.service-account=";
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withUserConfiguration(GmailConfiguration.class);
+            .withUserConfiguration(GmailConfiguration.class, GmailPushController.class);
 
     @Test
     void staysOffWithoutAGoogleClientAndSaysSo(CapturedOutput output) {
@@ -133,34 +140,83 @@ class GmailConfigurationTests {
     }
 
     @Test
-    void gmailTellsSinoOfChangesWithAPubSubTopic(CapturedOutput output) {
-        contextRunner.withPropertyValues("sino.google.client-id=" + CLIENT_ID,
-                "sino.google.client-secret=" + CLIENT_SECRET, "sino.google.pubsub.topic=" + TOPIC).run(context -> {
+    void gmailTellsSinoOfChangesWithThePubSubSettings(CapturedOutput output) {
+        withGmail(PUBSUB_TOPIC + TOPIC, PUBSUB_AUDIENCE + AUDIENCE, PUBSUB_SERVICE_ACCOUNT + SERVICE_ACCOUNT)
+                .run(context -> {
+                    assertThat(context).hasNotFailed().hasSingleBean(GmailPushController.class);
                     assertThat(context.getBean(GmailProvider.class).capabilities().supports(PUSH_WEBHOOK)).isTrue();
-                    assertThat(context.getBean(GmailProperties.class).pubsub().topic()).isEqualTo(TOPIC);
+                    GmailProperties.PubSub pubsub = context.getBean(GmailProperties.class).pubsub();
+                    assertThat(pubsub.topic()).isEqualTo(TOPIC);
+                    assertThat(pubsub.audience()).isEqualTo(AUDIENCE);
+                    assertThat(pubsub.serviceAccount()).isEqualTo(SERVICE_ACCOUNT);
+                    assertThat(pubsub.jwkSetUri()).isEqualTo(URI.create("https://www.googleapis.com/oauth2/v3/certs"));
                 });
         assertThat(output).doesNotContain("only polled");
     }
 
     @Test
-    void withoutATopicGmailIsOnlyPolledAndSaysSo(CapturedOutput output) {
-        contextRunner.withPropertyValues("sino.google.client-id=" + CLIENT_ID,
-                "sino.google.client-secret=" + CLIENT_SECRET, "sino.google.pubsub.topic= ").run(context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context.getBean(GmailProvider.class).capabilities().supports(PUSH_WEBHOOK)).isFalse();
-                    assertThat(context.getBean(GmailProperties.class).pubsub().topic()).isNull();
-                });
-        assertThat(output).contains("only polled").contains("SINO_GOOGLE_PUBSUB_TOPIC");
+    void withoutThePubSubSettingsGmailIsOnlyPolledAndSaysSo(CapturedOutput output) {
+        withGmail(PUBSUB_TOPIC + " ", PUBSUB_AUDIENCE, PUBSUB_SERVICE_ACCOUNT + " ").run(context -> {
+            assertThat(context).hasNotFailed().doesNotHaveBean(GmailPushController.class);
+            assertThat(context.getBean(GmailProvider.class).capabilities().supports(PUSH_WEBHOOK)).isFalse();
+            assertThat(context.getBean(GmailProperties.class).pubsub().topic()).isNull();
+        });
+        assertThat(output).contains("only polled").contains("SINO_GOOGLE_PUBSUB_TOPIC")
+                .contains("SINO_GOOGLE_PUBSUB_AUDIENCE").contains("SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT");
+    }
+
+    // Half a setup would register watches whose notices nobody can check.
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "topic           | SINO_GOOGLE_PUBSUB_AUDIENCE, SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT",
+        "audience        | SINO_GOOGLE_PUBSUB_TOPIC, SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT",
+        "service-account | SINO_GOOGLE_PUBSUB_TOPIC, SINO_GOOGLE_PUBSUB_AUDIENCE",
+        "topic,audience  | SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT",
+        "audience,service-account | SINO_GOOGLE_PUBSUB_TOPIC",
+        "topic,service-account | SINO_GOOGLE_PUBSUB_AUDIENCE" })
+    void doesNotStartWithHalfThePubSubSettings(String given, String missing) {
+        String[] settings = Arrays.stream(given.split(",")).map(name -> switch (name.strip()) {
+            case "topic" -> PUBSUB_TOPIC + TOPIC;
+            case "audience" -> PUBSUB_AUDIENCE + AUDIENCE;
+            default -> PUBSUB_SERVICE_ACCOUNT + SERVICE_ACCOUNT;
+        }).toArray(String[]::new);
+
+        withGmail(settings).run(context -> {
+            assertThat(context).getFailure().hasStackTraceContaining(missing + " missing");
+            assertThat(stackTraceOf(context.getStartupFailure())).doesNotContain(AUDIENCE)
+                    .doesNotContain(SERVICE_ACCOUNT).doesNotContain(TOPIC);
+        });
     }
 
     @ParameterizedTest
     @ValueSource(strings = { "gmail", "projects/sino-test/gmail", "projects/sino-test/topics/",
         "projects//topics/gmail", "projects/sino test/topics/gmail", "projects/a/topics/b/c" })
     void doesNotStartWithATopicThatIsNotAFullName(String topic) {
-        contextRunner.withPropertyValues("sino.google.client-id=" + CLIENT_ID,
-                "sino.google.client-secret=" + CLIENT_SECRET, "sino.google.pubsub.topic=" + topic)
+        withGmail(PUBSUB_TOPIC + topic, PUBSUB_AUDIENCE + AUDIENCE, PUBSUB_SERVICE_ACCOUNT + SERVICE_ACCOUNT)
                 .run(context -> assertThat(context).getFailure()
-                        .hasStackTraceContaining("SINO_GOOGLE_PUBSUB_TOPIC"));
+                        .hasStackTraceContaining("SINO_GOOGLE_PUBSUB_TOPIC (sino.google.pubsub.topic) must look like"));
+    }
+
+    @Test
+    void withoutAGoogleClientThePubSubSettingsDoNothing() {
+        contextRunner.withPropertyValues(PUBSUB_TOPIC + TOPIC, PUBSUB_AUDIENCE + AUDIENCE,
+                PUBSUB_SERVICE_ACCOUNT + SERVICE_ACCOUNT).run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(GmailPushController.class);
+                    assertThat(context).doesNotHaveBean(MessageProvider.class);
+                });
+    }
+
+    @Test
+    void doesNotStartWithAServiceAccountThatIsNotAnEmail() {
+        withGmail(PUBSUB_TOPIC + TOPIC, PUBSUB_AUDIENCE + AUDIENCE, PUBSUB_SERVICE_ACCOUNT + "gmail-push")
+                .run(context -> assertThat(context).getFailure()
+                        .hasStackTraceContaining("SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT"));
+    }
+
+    private ApplicationContextRunner withGmail(String... properties) {
+        return contextRunner.withPropertyValues("sino.google.client-id=" + CLIENT_ID,
+                "sino.google.client-secret=" + CLIENT_SECRET).withPropertyValues(properties);
     }
 
     @Test

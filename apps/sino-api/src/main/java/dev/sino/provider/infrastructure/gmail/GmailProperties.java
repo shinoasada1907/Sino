@@ -26,7 +26,7 @@ record GmailProperties(String clientId, String clientSecret, URI authorizationUr
         userInfoUri = userInfoUri == null ? GOOGLE_USER_INFO : userInfoUri;
         revocationUri = revocationUri == null ? GOOGLE_REVOCATION : revocationUri;
         gmailApiUri = gmailApiUri == null ? GOOGLE_GMAIL_API : gmailApiUri;
-        pubsub = pubsub == null ? new PubSub(null) : pubsub;
+        pubsub = pubsub == null ? new PubSub(null, null, null, null) : pubsub;
     }
 
     @Override
@@ -37,13 +37,26 @@ record GmailProperties(String clientId, String clientSecret, URI authorizationUr
     }
 
     /**
-     * {@code sino.google.pubsub.*}: the Cloud Pub/Sub topic Gmail publishes the changes of the watched mailboxes to,
-     * {@code projects/<project id>/topics/<topic name>}. Blank: Gmail is only polled.
+     * {@code sino.google.pubsub.*} (D-76): the Cloud Pub/Sub topic Gmail publishes the changes of the watched
+     * mailboxes to, {@code projects/<project id>/topics/<topic name>}, and what the push subscription's OIDC token
+     * must say: the {@code audience} it was given and its service account's email. The three go together; none of
+     * them: Gmail is only polled. {@code jwkSetUri}, Google's signing keys, changes only in tests. One constructor
+     * only: with another one, binding {@code sino.google.pubsub.*} may pick it and lose settings.
      */
-    record PubSub(String topic) {
+    record PubSub(String topic, String audience, String serviceAccount, URI jwkSetUri) {
+
+        // From https://accounts.google.com/.well-known/openid-configuration
+        static final URI GOOGLE_CERTS = URI.create("https://www.googleapis.com/oauth2/v3/certs");
 
         PubSub {
-            topic = topic == null || topic.isBlank() ? null : topic.strip();
+            topic = textOrNull(topic);
+            audience = textOrNull(audience);
+            serviceAccount = textOrNull(serviceAccount);
+            jwkSetUri = jwkSetUri == null ? GOOGLE_CERTS : jwkSetUri;
+        }
+
+        private static String textOrNull(String value) {
+            return value == null || value.isBlank() ? null : value.strip();
         }
 
     }

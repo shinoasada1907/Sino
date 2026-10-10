@@ -76,6 +76,10 @@ sino:
     client-id: ${SINO_GOOGLE_CLIENT_ID:}
     client-secret: ${SINO_GOOGLE_CLIENT_SECRET:}
     pubsub:
-      # D-76: the Cloud Pub/Sub topic Gmail publishes the changes of the watched mailboxes to,
-      # projects/<project id>/topics/<topic name>. Empty: Gmail is only polled for new mail.
+      # D-76: Gmail's notices of new mail, through Cloud Pub/Sub. The topic Gmail publishes to
+      # (projects/<project id>/topics/<topic name>), and what the push subscription's token must say: the
+      # audience it was given and the email of its service account. All three or none (Gmail is then only
+      # polled); with them comes POST /api/webhooks/gmail. None of them is a secret.
       topic: ${SINO_GOOGLE_PUBSUB_TOPIC:}
+      audience: ${SINO_GOOGLE_PUBSUB_AUDIENCE:}
+      service-account: ${SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT:}

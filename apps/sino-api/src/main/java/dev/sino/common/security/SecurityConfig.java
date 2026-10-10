@@ -5,22 +5,48 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
  * Browser sign-in with a session cookie (D-22 A): {@code POST /api/auth/login} (identity module) starts the session,
  * {@code POST /api/auth/logout} ends it. Uses Spring Security interfaces only, so {@code common} depends on no
- * business module; the user store and the remember-me services come from the identity module.
+ * business module; the user store and the remember-me services come from the identity module. A provider's notices
+ * of changes ({@code POST /api/webhooks/*}) have a chain of their own.
  */
 @Configuration(proxyBeanMethods = false)
 class SecurityConfig {
+
+    /**
+     * A provider's notices of changes come from the provider, with no session, cookie or CSRF token (F07, D-76): no
+     * sign-in is asked, no session or cookie is made, and the webhook itself checks the provider's own token and does
+     * nothing without it. Only {@code POST} on one path segment under {@code /api/webhooks/}: anything else there
+     * goes through the browser chain.
+     */
+    @Bean
+    @Order(Ordered.HIGHEST_PRECEDENCE)
+    SecurityFilterChain webhookSecurityFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .securityMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/webhooks/*"))
+                .authorizeHttpRequests(requests -> requests.anyRequest().permitAll())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .csrf(AbstractHttpConfigurer::disable)
+                .requestCache(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .build();
+    }
 
     @Bean
     SecurityFilterChain apiSecurityFilterChain(HttpSecurity http,
