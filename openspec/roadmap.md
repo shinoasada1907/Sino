@@ -144,6 +144,7 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 - **FE:** cột phải: timeline, bubble inbound/outbound, metadata attachment, cuộn lên để tải tin cũ hơn.
 - **Cần chốt:** lưu và hiển thị nội dung email HTML thế nào (plain text hay HTML đã sanitize) — liên quan trực tiếp tới **XSS**.
 - **Bạn sẽ học:** phân trang ngược, sanitize nội dung không tin cậy, quan hệ aggregate giữa conversation và message.
+- **Đã mở 2026-10-10:** `openspec/changes/f06-message-history` (người dùng giao toàn quyền chốt: "tự xử hết luôn đi"). Agent chốt: D-120 lưu HTML gốc khi nhập, làm sạch ở backend khi trả, web hiện trong iframe sandbox không script; D-121 ảnh từ xa tắt sẵn; D-122 thư nhập trước đó lấy bù từ Gmail khi mở; D-123 danh sách thư và HTML là hai request; D-124 nút "Xem thư cũ hơn"; D-125 tệp tải qua Sino, không lưu, luôn là tải xuống; D-126 web đọc thread từ API.
 
 **Kết thúc Phase 2 = M1:** demo kết nối Gmail thật → inbox → đọc thread.
 
@@ -228,6 +229,7 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 - **FE:** composer tự ẩn/disable theo capability (canvas `Conversation`, `ThreadState`), optimistic UI.
 - **Hẹn giờ gửi (mở rộng, xem `planner-from-messages`):** thư đi ở `SCHEDULED` → `SENDING` → `SENT`/`FAILED`; việc `SEND_MESSAGE` qua F13; sửa/hủy trước giờ gửi; lần chạy lại gặp `SENDING` thì không gửi mù; lỗi → thông báo qua F14. FE: Gửi ▾ → Gửi lúc…, bộ lọc "Đã hẹn giờ".
 - **Bạn sẽ học:** idempotency cho lệnh không idempotent, thiết kế lỗi cho thao tác gọi hệ thống ngoài.
+- **Đã mở 2026-10-10, phần trả lời, kéo lên ngay sau F06:** `openspec/changes/f10-reply` (người dùng chọn "Trả lời trong thread", không soạn thư mới hay chuyển tiếp; ưu tiên nhắn tin từ 2026-10-09). Agent chốt: D-130 xin `gmail.send` không bắt buộc, account cũ cấp bằng kết nối lại; D-131 gửi trong request, chống trùng bằng `clientMessageId`; D-132 kết quả không rõ thì đối chiếu theo `Message-ID`, không gửi lại mù; D-133 trả lời người gửi thư mới nhất, chữ thuần; D-134 web: "Gửi lại", "Bỏ", dòng "Tới". Hẹn giờ gửi vẫn chờ F13.
 
 ---
 
@@ -257,7 +259,7 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 | Mở Phase 1 | **D-22** xác thực cho trình duyệt |
 | Mở F04 | ~~D-15, endpoint connect (C5), scope Gmail, công cụ giả lập HTTP~~ → đã chốt 2026-10-07 (D-15 = A', C5, D-37…D-41; design của `f04a-gmail-connect`) |
 | Mở F05 | Giữ/xóa lịch sử khi xóa account; cách kích hoạt nhập dữ liệu ban đầu |
-| Mở F06 | Lưu/hiển thị HTML email (XSS) |
+| Mở F06 | ~~Lưu/hiển thị HTML email (XSS)~~ → D-120 (2026-10-10) |
 | Mở Phase 3 | Thứ tự F07 / F13 |
 | Mở F13 | **D-30** scheduler tự viết hay thư viện, **D-31** cách gọi module sở hữu |
 | Mở F14 | Thư viện Web Push |
