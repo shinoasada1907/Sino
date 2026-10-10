@@ -166,8 +166,9 @@ October 2026). Do the steps in this order: the push subscription needs the ngrok
    `gmail-api-push@system.gserviceaccount.com`, role **Pub/Sub Publisher**, *Save*. Without it Gmail refuses to
    watch the mailbox and the account's sync status shows `push: FAILED`.
 4. **Service account for the pushes.** *IAM & Admin > Service Accounts > Create service account*, name
-   `sino-gmail-push`, no role, *Done*. Its email is `sino-gmail-push@<project id>.iam.gserviceaccount.com`. Do not
-   create a key: Sino never needs one. Then, on that service account, *Permissions > Grant access*: principal
+   `sino-gmail-push`, no role, *Done*. **Copy its email exactly as the list shows it**: the console may put a prefix
+   in front of the ID (on 2026-10-10 it made `id-sino-gmail-push@<project id>.iam.gserviceaccount.com`), and Sino
+   refuses every push whose token names another email. Do not create a key: Sino never needs one. Then, on that service account, *Permissions > Grant access*: principal
    `service-<project number>@gcp-sa-pubsub.iam.gserviceaccount.com` (Pub/Sub's own service agent; the project number
    is on the project dashboard), role **Service Account Token Creator**. Google requires it for Pub/Sub to sign the
    pushes; newer projects may have it already.
@@ -194,7 +195,7 @@ October 2026). Do the steps in this order: the push subscription needs the ngrok
    ```properties
    SINO_GOOGLE_PUBSUB_TOPIC=projects/<project id>/topics/gmail-notices
    SINO_GOOGLE_PUBSUB_AUDIENCE=https://<your static domain>/api/webhooks/gmail
-   SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT=sino-gmail-push@<project id>.iam.gserviceaccount.com
+   SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT=<the service account's email, exactly as in step 4>
    ```
 
 8. **Check.**
@@ -322,7 +323,7 @@ Decided in D-03 (`openspec/specs/module-boundaries/spec.md`).
 | App stops at bean `dataSource` with `'url' must start with "jdbc"` | No profile and no `SINO_DB_*` variables. Use `-Dspring-boot.run.profiles=local` on a dev machine. |
 | App stops with `SINO_GOOGLE_PUBSUB_... missing: the Gmail notice settings ... go together` | Only some of the three Pub/Sub settings are set. Set `SINO_GOOGLE_PUBSUB_TOPIC`, `SINO_GOOGLE_PUBSUB_AUDIENCE` and `SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT`, or clear all three to only poll Gmail. |
 | `GET /api/accounts/{id}/sync` shows `"push": "FAILED"` | Gmail refused to watch the mailbox; the log says `The watch of account <id> could not be registered: <code>`. `REQUEST_REJECTED`: the topic name is wrong, of another project, or `gmail-api-push@system.gserviceaccount.com` is not a Pub/Sub Publisher on it. Sino tries again every hour, and asks Gmail every minute meanwhile. |
-| Log `Gmail pushes signed by Google are refused (The aud claim is not valid)` (or `email`) | Pub/Sub's tokens are for another audience or service account than `.env` says. Make `SINO_GOOGLE_PUBSUB_AUDIENCE` and `SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT` match the push subscription exactly, and restart. |
+| Log `Gmail pushes signed by Google are refused (The aud claim is not valid)` (or `email`) | Pub/Sub's tokens are for another audience or service account than `.env` says. Make `SINO_GOOGLE_PUBSUB_AUDIENCE` and `SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT` match the push subscription exactly (open it with *Edit*: the service account's email there may start with `id-`), and restart. Meanwhile ngrok counts many connections (Pub/Sub sends a refused notice again and again) and new mail takes up to 5 minutes. |
 | Log `Google's signing keys cannot be fetched` | Sino cannot reach `https://www.googleapis.com/oauth2/v3/certs`; pushes get `503` and Pub/Sub sends them again later. Check the network. |
 | `push` is `ACTIVE` but new mail still takes up to 5 minutes | Notices do not reach Sino: ngrok is not running, its address changed, or the subscription's endpoint is wrong. *Pub/Sub > Subscriptions > gmail-notices-push > Metrics* shows failed deliveries. |
 | Port 5432 already in use | Another PostgreSQL runs locally. Stop it or change the published port in `compose.yaml` and the URL in `application-local.yaml`. |

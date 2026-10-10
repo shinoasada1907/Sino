@@ -203,6 +203,6 @@ BE-49 cho backend tự lưu thư mới khoảng mỗi phút, nhưng web chỉ đ
 
 - [x] Các scenario của `live-sync`, `gmail-push`, `realtime-events` và delta `provider-contract`, `connected-accounts` có test và xanh. (2026-10-10, BE-48…BE-52; spec `inbox-live` là của phiên web.)
 - [x] `./mvnw -B -ntp verify` xanh; `ModularityTests` xanh; kiểm tra ngược từng task. (Lần cuối ở BE-52: 1000 test, 0 lỗi.)
-- [ ] Chạy thật: thư gửi tới Gmail test hiện trong Sino không cần tải lại (qua webhook nếu người dùng đã cấu hình Pub/Sub và ngrok, nếu không qua lịch); ghi thời gian từ lúc gửi tới lúc hiện; hoặc NOT VERIFIED kèm lý do. — Backend, đường lịch: đo trên dữ liệu thật, thư vào Sino sau 14–91 giây (BE-53). Đường webhook: NOT VERIFIED (chờ người dùng cấu hình Google Cloud và ngrok). "Hiện trên web không cần tải lại" là FE-56 của phiên web.
+- [x] Chạy thật: thư gửi tới Gmail test hiện trong Sino không cần tải lại (qua webhook nếu người dùng đã cấu hình Pub/Sub và ngrok, nếu không qua lịch); ghi thời gian từ lúc gửi tới lúc hiện; hoặc NOT VERIFIED kèm lý do. — 2026-10-10 (BE-53): qua webhook, thư vào Sino sau 16 giây; qua lịch, 14–91 giây; lúc thông báo bị từ chối, lịch dự phòng mang thư về sau 266–281 giây. Bằng chứng phía web: FE-56 của phiên web.
 - [x] README (cấu hình Pub/Sub, ngrok, API mới), file kiến thức Phase 3 (`.md` + `.docx`). (2026-10-10, BE-53.)
 - [ ] `tasks.md` tick đủ (cả phần web), chỗ lệch kế hoạch có lý do; `PROJECT_STATE.md` cập nhật; change archive sau `f05-unified-inbox`.

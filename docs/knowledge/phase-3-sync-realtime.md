@@ -473,6 +473,29 @@ Pub/Sub gọi Sino qua Internet, còn Sino chạy trên máy cá nhân. ngrok m�
 
 Không có khóa (key) nào được tạo hay đưa vào Sino: tài khoản dịch vụ chỉ để Pub/Sub ký token, và Sino chỉ cần khóa **công khai** của Google để kiểm. Theo tài liệu của Pub/Sub, chỉ `102`, `200`, `201`, `204` được coi là đã nhận; mọi mã khác (kể cả `401`) đều được gửi lại, giãn dần, trong tối đa 7 ngày.
 
-### 6.4 Kiểm chứng (BE-53)
+### 6.4 Chạy thật đường webhook (2026-10-10)
+Người dùng làm các bước của README trên Google Cloud (project `sino-dev`) và cài ngrok (domain tĩnh miễn phí). Kiểm từng chặng:
+
+| Kiểm | Kết quả |
+|---|---|
+| Qua đường hầm: `GET /api/auth/me`, `/actuator/health`, `POST /api/auth/login`, `GET /api/webhooks/gmail` | `404` do ngrok trả, request không tới máy |
+| Qua đường hầm: `POST /api/webhooks/gmail` trước khi có ba biến | `404` của Sino (`RESOURCE_NOT_FOUND`): lọt qua ngrok, webhook chưa bật |
+| Sau khi có ba biến, không token hoặc token giả | `401 PUSH_TOKEN_INVALID` |
+| Lần kiểm watch đầu tiên, khoảng 1 phút sau khi khởi động | watch có, hết hạn sau 7 ngày, không lỗi |
+
+**Một lần vấp, và vì sao đó là điều tốt.** Hai thư thử đầu tiên vẫn vào Sino sau 266 và 281 giây, đúng nhịp lịch hỏi 5 phút, trong khi ngrok đếm 27 kết nối (gồm cả các lần kiểm bằng tay ở bảng trên). Pub/Sub đã gọi tới, nhưng Sino từ chối, và Pub/Sub cứ gửi lại. Nguyên nhân: console của Google đặt ID tài khoản dịch vụ là `id-sino-gmail-push`, còn `.env` ghi `sino-gmail-push`. Token mang `email` khác với cấu hình nên bị `401`, đúng như thiết kế: chỉ chấp nhận đúng tài khoản đã khai báo. Trong lúc đó lịch dự phòng vẫn mang thư về. README giờ dặn copy nguyên email của tài khoản dịch vụ.
+
+Sau khi sửa `.env`, thư thử tiếp theo đi đường webhook:
+
+| Thư tới Gmail (UTC) | Sino lưu (UTC) | Chờ | Đường |
+|---|---|---|---|
+| 11:40:12 | 11:44:53 | 281 giây | lịch dự phòng (webhook bị từ chối) |
+| 11:40:27 | 11:44:53 | 266 giây | lịch dự phòng |
+| 11:46:02 | 11:49:56 | 234 giây | lịch dự phòng (trước khi sửa) |
+| 11:50:25 | 11:50:41 | **16 giây** | webhook: lượt đồng bộ chạy 45 giây sau lượt định kỳ trước, chưa tới hạn 5 phút |
+
+16 giây gồm thời gian Gmail đẩy thông báo vào topic, Pub/Sub chuyển tới Sino qua ngrok, và lượt đọc `history.list`. So với 14–91 giây khi chỉ có lịch, và tới 5 phút khi watch đang bật mà thông báo không tới.
+
+### 6.5 Kiểm chứng (BE-53)
 - Đường lịch: đo trên dữ liệu thật như mục 6.1.
-- Đường webhook thật: **NOT VERIFIED** cho tới khi người dùng làm các bước của README trên Google Cloud và cài ngrok (máy này chưa có `ngrok`, `gcloud`); các test của BE-52 đã đi trọn đường với một Google giả.
+- Đường webhook: chạy thật như mục 6.4; số đo là mốc thời gian, không đọc nội dung thư.
