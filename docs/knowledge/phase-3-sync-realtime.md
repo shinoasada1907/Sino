@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49, BE-50, BE-51, BE-52.
+> **Phạm vi:** F07 + F08, `openspec/changes/f07-f08-realtime-inbox` (thư mới tự vào Sino và tự hiện trên web): BE-48, BE-49, BE-50, BE-51, BE-52, BE-53.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -432,3 +432,47 @@ Giới hạn "một lần mỗi phút" dùng một `AtomicLong` giữ thời đi
 - **Kiểm tra ngược hai vòng:** 22 lỗi cố ý trước review, 21 sau review, chạy song song trong hai worktree. Một lỗi cố ý sống sót lộ ra test base64 URL-safe dùng chuỗi mẫu mà hai bảng mã cho cùng kết quả (chỉ khác nhau khi gặp `+` hay `/`). Hai lỗi cố ý sống sót có chủ đích vì tương đương: bỏ `@Order` (thứ tự khai báo đã đặt chuỗi webhook trước) và bỏ `STATELESS` (Spring Security vốn không tạo session cho request ẩn danh; giữ làm chốt).
 - `./mvnw -B -ntp verify` → 1000 test, 0 lỗi, BUILD SUCCESS, `ModularityTests` 2/2.
 - **Chưa xác minh:** Pub/Sub và Google Console thật (BE-53).
+
+## 6. Chạy thật và nghiệm thu backend (BE-53)
+
+**Ở đâu:** `apps/sino-api/README.md` (mục *Gmail: new mail in seconds*, bảng endpoint, xử lý sự cố), `apps/sino-api/ngrok/gmail-webhook-only.yml`.
+
+### 6.1 Đo trên dữ liệu thật: thư chờ bao lâu mới vào Sino
+Không cần đọc nội dung thư để đo: mỗi thư có `sent_at` (lúc Gmail nhận) và `created_at` (lúc Sino lưu). Câu SQL chỉ lấy hai mốc này của các thư đến được lưu **sau** lần nhập đầu (tức là do các lượt đồng bộ mang về):
+
+```sql
+select m.sent_at, m.created_at, extract(epoch from (m.created_at - m.sent_at)) as delay_s
+from message m join conversation c on c.id = m.conversation_id
+join sync_checkpoint s on s.account_id = c.account_id
+where m.direction = 'INBOUND' and m.created_at > s.last_success_at;
+```
+
+Kết quả trên máy local (account Gmail của người dùng, 2026-10-10, giờ UTC):
+
+| Khi nào | Số thư | Thư chờ |
+|---|---|---|
+| Lịch chạy bình thường (BE-49: hỏi mỗi 60 giây, quét mỗi 15 giây) | 8 | 14 tới 91 giây, trung vị khoảng 78 giây |
+| Trước khi có lịch (2026-10-09, đồng bộ bấm tay) | 1 | 925 giây |
+| Lúc DevTools khởi động lại app liên tục (sự cố ở BE-50) | 1 | 657 giây |
+
+Con số khớp với thiết kế: một thư đến ngay sau lần hỏi phải chờ tới 60 giây cho lần hỏi sau, cộng tới 15 giây chờ nhịp quét, cộng thời gian của lượt đọc (vài giây). Đây là lý do của D-76: muốn "vài giây" thì Gmail phải tự báo.
+
+### 6.2 Đường webhook: cần một địa chỉ công khai
+Pub/Sub gọi Sino qua Internet, còn Sino chạy trên máy cá nhân. ngrok mở một đường hầm: một địa chỉ công khai cố định (gói miễn phí có một domain tĩnh) chuyển tiếp vào `localhost:8080`. Đường hầm mở cả máy ra Internet, nên có hai lớp chặn:
+- **Ở ngrok:** traffic policy `ngrok/gmail-webhook-only.yml` chỉ cho `POST /api/webhooks/gmail` đi qua; mọi đường dẫn khác (trang đăng nhập, API, actuator) bị ngrok trả `404` trước khi tới máy. Biểu thức viết bằng CEL: `!(req.method == 'POST' && req.url.path == '/api/webhooks/gmail')` → hành động `deny`.
+- **Ở Sino:** webhook chỉ nhận token Google ký cho đúng `audience` và tài khoản dịch vụ (mục 5).
+
+`--inspect=false` tắt trang xem request của ngrok (`localhost:4040`), vì trang đó giữ cả header `Authorization` (token sống tới một giờ).
+
+### 6.3 Những gì cần quyền trên Google Cloud
+| Ai | Quyền | Trên | Để làm gì |
+|---|---|---|---|
+| `gmail-api-push@system.gserviceaccount.com` (tài khoản của Gmail) | Pub/Sub Publisher | topic | Gmail đẩy thông báo vào topic |
+| `service-<project number>@gcp-sa-pubsub.iam.gserviceaccount.com` (tài khoản của Pub/Sub) | Service Account Token Creator | tài khoản dịch vụ `sino-gmail-push` | Pub/Sub ký token nhân danh tài khoản đó |
+| người tạo subscription | Service Account User (chủ dự án đã có) | tài khoản dịch vụ | gắn tài khoản đó vào subscription |
+
+Không có khóa (key) nào được tạo hay đưa vào Sino: tài khoản dịch vụ chỉ để Pub/Sub ký token, và Sino chỉ cần khóa **công khai** của Google để kiểm. Theo tài liệu của Pub/Sub, chỉ `102`, `200`, `201`, `204` được coi là đã nhận; mọi mã khác (kể cả `401`) đều được gửi lại, giãn dần, trong tối đa 7 ngày.
+
+### 6.4 Kiểm chứng (BE-53)
+- Đường lịch: đo trên dữ liệu thật như mục 6.1.
+- Đường webhook thật: **NOT VERIFIED** cho tới khi người dùng làm các bước của README trên Google Cloud và cài ngrok (máy này chưa có `ngrok`, `gcloud`); các test của BE-52 đã đi trọn đường với một Google giả.

@@ -144,6 +144,95 @@ RFC 2047 encoded (`=?...?=`). It also reports what the F04b design left to real 
 changes between two reads of a message, how many messages embed images (mailing lists or not), forwarded messages
 attached as files, folded header values. Without a connected Gmail account both tests are skipped, not failed.
 
+## Gmail: new mail in seconds (Pub/Sub notices, F07)
+
+Without this setup Sino asks Gmail for changes every minute (automatic sync, BE-49), and new mail shows up within
+about a minute. With it, Gmail tells Sino of each change through Google Cloud Pub/Sub, and new mail shows up within
+seconds; Sino then asks only every 5 minutes, in case a notice is lost (D-76).
+
+```text
+Gmail --publish--> Pub/Sub topic --push subscription (token signed by Google)--> ngrok --> Sino :8080
+                                                                     POST /api/webhooks/gmail
+```
+
+Sino keeps no secret of Google's for this: Pub/Sub signs each push with a token for a service account, and Sino checks
+the signature with Google's public keys. All in the Google project of the OAuth client above (menu names as of
+October 2026). Do the steps in this order: the push subscription needs the ngrok address.
+
+1. **Pub/Sub API.** *APIs & Services > Library*, search *Cloud Pub/Sub API*, *Enable*.
+2. **Topic.** *Pub/Sub > Topics > Create topic*, ID `gmail-notices`, untick *Add a default subscription*, *Create*.
+   Its full name, shown on the topic page, is `projects/<project id>/topics/gmail-notices`.
+3. **Let Gmail publish.** On the topic page, *Permissions* (or *Show info panel*) > *Add principal*:
+   `gmail-api-push@system.gserviceaccount.com`, role **Pub/Sub Publisher**, *Save*. Without it Gmail refuses to
+   watch the mailbox and the account's sync status shows `push: FAILED`.
+4. **Service account for the pushes.** *IAM & Admin > Service Accounts > Create service account*, name
+   `sino-gmail-push`, no role, *Done*. Its email is `sino-gmail-push@<project id>.iam.gserviceaccount.com`. Do not
+   create a key: Sino never needs one. Then, on that service account, *Permissions > Grant access*: principal
+   `service-<project number>@gcp-sa-pubsub.iam.gserviceaccount.com` (Pub/Sub's own service agent; the project number
+   is on the project dashboard), role **Service Account Token Creator**. Google requires it for Pub/Sub to sign the
+   pushes; newer projects may have it already.
+5. **ngrok.** Create a free account at <https://ngrok.com>, install the agent, run
+   `ngrok config add-authtoken <your authtoken>` once (the token stays in ngrok's own configuration, not in Sino),
+   and claim your free static domain under *Universal Gateway > Domains* (something like `name.ngrok-free.app`). Then,
+   from `apps/sino-api`, with Sino running on 8080:
+
+   ```bash
+   ngrok http 8080 --url https://<your static domain> --traffic-policy-file ngrok/gmail-webhook-only.yml --inspect=false
+   ```
+
+   The tunnel opens your machine to the Internet. The policy in `ngrok/gmail-webhook-only.yml` lets only
+   `POST /api/webhooks/gmail` through and answers `404` to everything else at ngrok, so the sign-in, the API and
+   actuator stay unreachable; never run the tunnel without it. `--inspect=false` turns off ngrok's local request
+   inspector, which would keep Google's tokens (valid up to an hour). Check from another terminal:
+   `curl -i https://<your static domain>/api/auth/me` answers `404` (refused by ngrok).
+6. **Push subscription.** *Pub/Sub > Subscriptions > Create subscription*: ID `gmail-notices-push`, topic
+   `gmail-notices`, *Delivery type* **Push**, *Endpoint URL* `https://<your static domain>/api/webhooks/gmail`, tick
+   **Enable authentication**, service account `sino-gmail-push`, *Audience* the same URL as the endpoint (any text
+   works; Sino only needs the same value), *Retry policy* **Retry after exponential backoff delay**, *Create*.
+7. **`.env`.** Set the three settings, all of them (half of them stops the app), then restart Sino:
+
+   ```properties
+   SINO_GOOGLE_PUBSUB_TOPIC=projects/<project id>/topics/gmail-notices
+   SINO_GOOGLE_PUBSUB_AUDIENCE=https://<your static domain>/api/webhooks/gmail
+   SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT=sino-gmail-push@<project id>.iam.gserviceaccount.com
+   ```
+
+8. **Check.**
+   - The startup log no longer says "Gmail is only polled".
+   - About a minute after the start (sooner for an account imported now), the log says
+     `Account <id> is watched until <time>`, and `GET /api/accounts/<id>/sync` shows `"push": "ACTIVE"` with
+     `pushExpiresAt` about 7 days ahead.
+   - Send a mail to the connected Gmail from another account: with the web app open, it appears in *Hộp thư* within
+     seconds, without reloading. *Pub/Sub > Subscriptions > gmail-notices-push > Metrics* shows the deliveries.
+
+The same steps with `gcloud`, if you use it (project chosen with `gcloud config set project <project id>`):
+
+```bash
+gcloud services enable pubsub.googleapis.com
+gcloud pubsub topics create gmail-notices
+gcloud pubsub topics add-iam-policy-binding gmail-notices \
+  --member=serviceAccount:gmail-api-push@system.gserviceaccount.com --role=roles/pubsub.publisher
+gcloud iam service-accounts create sino-gmail-push --display-name="Sino Gmail push"
+gcloud iam service-accounts add-iam-policy-binding sino-gmail-push@<project id>.iam.gserviceaccount.com \
+  --member=serviceAccount:service-<project number>@gcp-sa-pubsub.iam.gserviceaccount.com \
+  --role=roles/iam.serviceAccountTokenCreator
+gcloud pubsub subscriptions create gmail-notices-push --topic=gmail-notices \
+  --push-endpoint=https://<your static domain>/api/webhooks/gmail \
+  --push-auth-service-account=sino-gmail-push@<project id>.iam.gserviceaccount.com \
+  --push-auth-token-audience=https://<your static domain>/api/webhooks/gmail
+```
+
+Good to know:
+
+- Pub/Sub keeps a notice it could not deliver (Sino stopped, tunnel closed) and tries again for up to 7 days; the
+  5-minute check brings the mail meanwhile. Gmail stops a watch after 7 days; Sino checks every hour and renews the
+  ones ending within 2 days.
+- To turn the notices off, clear the three settings and restart. Watches registered before keep Sino's check at
+  5 minutes until they end (up to 7 days); to go back to the minute at once, clear them with
+  `update sync_checkpoint set watch_address = null, watch_expires_at = null, watch_error = null;`.
+- A leaked push token (an hour at most) only lets someone make Sino sync earlier: a notice carries no mail, and Sino
+  reads the changes itself.
+
 ## Endpoints available today
 
 | Path | Access | Notes |
@@ -157,11 +246,15 @@ attached as files, folded header values. Without a connected Gmail account both 
 | `POST /api/auth/logout` | CSRF | `204`; ends the session and deletes the remember-me cookie. |
 | `POST /api/accounts/connect/{provider}` | signed in, CSRF | Starts connecting an account over OAuth2 (F04a). Body optional: `{"accountId": "..."}` reconnects that account. `200 {authorizationUrl}`: the browser goes there to give its consent; the state and PKCE verifier stay in the session for 10 minutes. `404 UNKNOWN_PROVIDER`, `422 CONNECT_NOT_SUPPORTED` (the provider does not connect over OAuth2), `404 ACCOUNT_NOT_FOUND` (account to reconnect missing, removed or of another provider), `400 MALFORMED_REQUEST` (`accountId` is not a UUID). |
 | `GET /api/accounts/connect/{provider}/callback` | public (the pending connect in the session identifies the user) | Where the provider sends the browser back with `code` and `state` (or `error`). Always a `302`, never JSON: `/accounts?connected={accountId}` on success, `/accounts?connectError={CODE}` otherwise, with `CONNECT_CANCELLED` (the user said no), `CONNECT_STATE_INVALID` (state missing, unknown, used, older than 10 minutes, of another provider, or no session), `CONNECT_SCOPE_DENIED` (Gmail read access not granted), `CONNECT_WRONG_ACCOUNT` (a reconnect came back with another Google account; nothing changes), `CONNECT_FAILED` (anything else, including an account removed while it was being reconnected; the log says why). Whenever tokens came back but no account was connected, the grant is revoked at Google, unless it belongs to an account you already have connected (D-54): revoking would take that account's access away too. |
-| `GET /api/providers` | signed in | Supported providers with `type`, `displayName` and `capabilities`, sorted by `type`. `gmail` (no capability yet; reading mail comes with F04b) when the Google OAuth client is set, `[]` otherwise. |
+| `GET /api/providers` | signed in | Supported providers with `type`, `displayName` and `capabilities`, sorted by `type`. `gmail` (`READ_MESSAGES`, `ATTACHMENTS`, `THREADS`, plus `PUSH_WEBHOOK` with the Pub/Sub settings) when the Google OAuth client is set, `[]` otherwise. |
 | `GET /api/accounts` | signed in | Connected accounts of the current user, oldest first, with the `capabilities` of their provider (`[]` when its connector is gone). No credential field. Gmail accounts appear here once connected through the callback. `externalAccountId` is the provider's ID (Google's `sub` for Gmail), not something to show; `address` (D-75) is where others reach the account, the email for Gmail, taken each time the account is connected; `null` when the provider has none and for an account connected before this field existed, until it is connected again. |
 | `GET /api/accounts/{id}` | signed in | One account. `404` `ACCOUNT_NOT_FOUND` when it does not exist or belongs to another user (same response), `400` `MALFORMED_REQUEST` when the ID is not a UUID. |
 | `PATCH /api/accounts/{id}` | signed in | JSON body with one or more of `displayName` (1–100 characters after trimming), `syncEnabled` (pause or resume automatic sync), `enabled` (disable or enable the account); a missing or `null` field stays as it is. `address` is not a field of this request: next to other fields it is ignored, and a body with only `address` is `400 VALIDATION_FAILED` like `{}`. `400` `VALIDATION_FAILED` for `{}` or a bad name, `404` as above, `409` `CONCURRENT_MODIFICATION` when another request changed the account first. |
 | `DELETE /api/accounts/{id}` | signed in | `204`. Soft delete (D-13 B): the account row is kept but hidden from every endpoint (`404` afterwards), its stored credential is deleted for good. Connecting the same provider account again brings the same account back. For Gmail, once the removal is committed Sino also asks Google to revoke its access (best effort: if Google fails or is slow, the account is removed anyway and the log has a warning naming the account, never a token). |
+| `POST /api/accounts/{id}/sync` | signed in, CSRF | "Đồng bộ ngay" (F07): reads the account's changes in the background now, also when automatic sync is paused. `202` with the sync status below. `404 ACCOUNT_NOT_FOUND`, `409 ACCOUNT_DISABLED`, `409 IMPORT_NOT_DONE` (the first import is not done yet). |
+| `GET /api/accounts/{id}/sync` | signed in | `{importDone, lastSyncAt, lastError, push, pushExpiresAt}`: `lastSyncAt` of the last successful sync, `lastError` of the last one when it failed (the import stays done); `push` is `ACTIVE` while the provider tells Sino of changes (until `pushExpiresAt`), `FAILED` when the last registration failed, `OFF` otherwise. `404` as above. |
+| `GET /api/events/stream` | signed in | Server-Sent Events of the current user (F08, D-77): `conversations.changed {type, accountId, conversationIds, newInbound, source: import\|sync\|user, at}` and `account.changed {type, accountId, at}`, sent once the change is committed; ids and counts only, never mail. `retry: 3000` first, a `:` comment every 25 s, closed after 20 minutes (the browser connects again), at most 5 streams per user (a 6th closes the oldest). `401` without a session. |
+| `POST /api/webhooks/gmail` | public, Google's token | Where Pub/Sub pushes Gmail's notices (F07, D-76; see *Gmail: new mail in seconds*); only with the three Pub/Sub settings, `404` otherwise. No session, no CSRF: `Authorization: Bearer <OIDC token>` signed by Google for the configured audience and service account. `204` (the account watched under the notice's address is synced in the background; a notice that cannot be read is dropped), `401 PUSH_TOKEN_INVALID`, `503 PUSH_KEYS_UNAVAILABLE` (Google's keys cannot be fetched), `400` (the body broke off). |
 | any other path | denied | Other actuator endpoints need a signed-in user and are not exposed (404). The `local` profile also exposes `/actuator/modulith`. |
 
 Sign in with curl the way the browser does (D-22): fetch the CSRF cookie, send it back in `X-XSRF-TOKEN`, keep
@@ -227,4 +320,9 @@ Decided in D-03 (`openspec/specs/module-boundaries/spec.md`).
 | Sign-in answers `429` `LOGIN_LOCKED` | Five wrong passwords in a row locked that email for 15 minutes (D-35). Wait `retryAfterSeconds`, or restart the app (the counter lives in memory). |
 | Every `POST`/`PATCH`/`DELETE` answers `403` `CSRF_TOKEN_INVALID` | The `X-XSRF-TOKEN` header is missing or does not match the `XSRF-TOKEN` cookie. Call `GET /api/auth/me` first and send the cookie value back in the header. |
 | App stops at bean `dataSource` with `'url' must start with "jdbc"` | No profile and no `SINO_DB_*` variables. Use `-Dspring-boot.run.profiles=local` on a dev machine. |
+| App stops with `SINO_GOOGLE_PUBSUB_... missing: the Gmail notice settings ... go together` | Only some of the three Pub/Sub settings are set. Set `SINO_GOOGLE_PUBSUB_TOPIC`, `SINO_GOOGLE_PUBSUB_AUDIENCE` and `SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT`, or clear all three to only poll Gmail. |
+| `GET /api/accounts/{id}/sync` shows `"push": "FAILED"` | Gmail refused to watch the mailbox; the log says `The watch of account <id> could not be registered: <code>`. `REQUEST_REJECTED`: the topic name is wrong, of another project, or `gmail-api-push@system.gserviceaccount.com` is not a Pub/Sub Publisher on it. Sino tries again every hour, and asks Gmail every minute meanwhile. |
+| Log `Gmail pushes signed by Google are refused (The aud claim is not valid)` (or `email`) | Pub/Sub's tokens are for another audience or service account than `.env` says. Make `SINO_GOOGLE_PUBSUB_AUDIENCE` and `SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT` match the push subscription exactly, and restart. |
+| Log `Google's signing keys cannot be fetched` | Sino cannot reach `https://www.googleapis.com/oauth2/v3/certs`; pushes get `503` and Pub/Sub sends them again later. Check the network. |
+| `push` is `ACTIVE` but new mail still takes up to 5 minutes | Notices do not reach Sino: ngrok is not running, its address changed, or the subscription's endpoint is wrong. *Pub/Sub > Subscriptions > gmail-notices-push > Metrics* shows failed deliveries. |
 | Port 5432 already in use | Another PostgreSQL runs locally. Stop it or change the published port in `compose.yaml` and the URL in `application-local.yaml`. |
