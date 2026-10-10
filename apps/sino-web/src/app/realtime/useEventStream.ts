@@ -2,14 +2,30 @@ import { type QueryKey, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
 import { INBOX_QUERY_KEY, INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
-import { type ConversationsChanged, publishConversationsChanged, setStreamState } from '@/shared/realtime/streamState'
+import { type ConversationsChanged, publishConversationsChanged, setStreamState, useStreamState } from '@/shared/realtime/streamState'
+
+// Without the stream the backend still stores new mail about every minute (BE-49): read the inbox along with it (D-96).
+const FALLBACK_MS = 60_000
 
 /**
  * The one event stream of the signed-in app (F08, D-90). An event carries no content: it only says what to read again
- * from the API, so every permission check stays in the API. The browser reconnects by itself (`retry` of the server).
+ * from the API, so every permission check stays in the API. The browser reconnects by itself (`retry` of the server);
+ * while the stream is not open, the inbox is read again every minute instead.
  */
 export function useEventStream() {
   const queryClient = useQueryClient()
+  const state = useStreamState()
+
+  useEffect(() => {
+    if (state === 'open') {
+      return
+    }
+    const timer = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: INBOX_UNREAD_QUERY_KEY })
+    }, FALLBACK_MS)
+    return () => clearInterval(timer)
+  }, [state, queryClient])
 
   useEffect(() => {
     const source = new EventSource('/api/events/stream')

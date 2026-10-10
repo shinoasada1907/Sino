@@ -156,6 +156,9 @@ Mạng tắt: banner ngoại tuyến sẵn có của Hộp thư. Mạng còn mà
 ### D-95 — "Đồng bộ ngay" gọi `POST /api/accounts/{id}/sync` · **Agent chốt**
 Tài khoản đã nhập xong: "Đồng bộ ngay" gọi API đồng bộ (đọc thay đổi từ con trỏ), không mở bước "Đồng bộ" để nhập lại nữa (thay cách tạm của AC-07). Tài khoản chưa nhập vẫn "Nhập thư" → bước "Đồng bộ". `409 IMPORT_NOT_DONE` / `ACCOUNT_DISABLED` → câu báo riêng. Trang chi tiết đọc `GET /api/accounts/{id}/sync`: "Đồng bộ lần cuối", lỗi gần nhất (dùng cùng bảng chữ của lỗi nhập, FE-51) và "Thư mới về ngay" khi `push = ACTIVE` / "Thư mới về sau khoảng 1 phút" khi `OFF`. **Phương án bị loại:** giữ nhập lại cả khoảng (tốn hạn mức Gmail, vài phút).
 
+### D-96 — Không có luồng thì đọc lại Hộp thư mỗi phút; trạng thái đồng bộ đọc lại mỗi phút · **Agent chốt** (2026-10-10, sau BE-49)
+BE-49 cho backend tự lưu thư mới khoảng mỗi phút, nhưng web chỉ đọc lại khi có sự kiện; khi luồng không mở (chưa có BE-50, luồng hỏng, trình duyệt bỏ luồng) thư mới không bao giờ tự hiện, và dòng báo "Thư mới có thể về chậm" (D-94) thành sai. Khi luồng không mở, web đọc lại `['inbox']` và `['inbox-unread']` mỗi 60 s (query không hiện chỉ bị đánh dấu cũ). Trang chi tiết đọc lại `GET /api/accounts/{id}/sync` mỗi 60 s trong lúc mở, vì backend không phát sự kiện cho mỗi lần đồng bộ thành công (chỉ khi lỗi xuất hiện hay hết), nên "Đồng bộ lần cuối …" không đứng yên. **Phương án bị loại:** xin backend phát `account.changed` sau mỗi lần đồng bộ (một sự kiện mỗi phút mỗi account, phần lớn không đổi gì trên màn); không đọc lại (thư mới chỉ hiện khi tải lại trang).
+
 ### Test (web)
 - jsdom không có EventSource: `src/test/eventSource.ts` thay `globalThis.EventSource` bằng lớp giả ghi lại URL và cho test `open()`, `emit(type, data)`, `drop()`, `close()`; dọn sau mỗi test.
 - Hàm thuần: hàng nào là mới và có trượt không (≤ 6 / > 6), chữ "N thư mới", cộng dồn N.

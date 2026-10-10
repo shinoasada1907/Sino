@@ -107,6 +107,10 @@
   - **Test:** `POST …/sync` cho tài khoản đã nhập, `409` hai loại; trạng thái "lần cuối", lỗi, push; mất kết nối > 30 s → dòng báo, mở lại → ẩn.
   - **Acceptance criteria:** spec `inbox-live` (Đồng bộ ngay trên web, Báo mất kết nối).
 
+- [x] 2.4a **FE-55b — Theo BE-49: đọc lại khi không có luồng, trạng thái đồng bộ đọc lại mỗi phút** (người dùng 2026-10-10: "xem BE làm tới đâu rồi để update FE"; BE-49 `a9d275a`)
+  - **Thực hiện (2026-10-10, AUTO):** `useEventStream`: khi luồng không mở, đọc lại `['inbox']` và `['inbox-unread']` mỗi 60 s; luồng mở thì thôi. `useSyncStatus`: `refetchInterval` 60 s (D-96).
+  - **Kiểm chứng (2026-10-10):** RED 2 (không đọc lại; trạng thái chỉ đọc một lần), GREEN. Chạy cả bộ thấy hai test ngắt kết nối tài khoản lúc đỏ lúc xanh; chạy lại trên code đã commit (cất thay đổi bằng `git stash -u`) cũng đỏ 2/3 lần → lỗi có từ trước, do đường "xóa → đọc lại danh sách → về danh sách" quá 3 s khi máy tải nặng (phiên backend build cùng lúc); sửa riêng ở `ee4b6b2` (chờ 8 s), sau đó 3/3 lần xanh. `pnpm lint` 0, `tsc -b` 0, `vitest` 484/484, `pnpm build` 0. Không đổi giao diện nên không chạy Chrome.
+
 - [ ] 2.4 **FE-56 — Chạy với backend thật (sau BE-50; đủ khi có BE-53)**
   - **Goal / Why:** bằng chứng: gửi một thư tới Gmail, thư hiện trong Hộp thư đang mở không cần tải lại.
   - **Depends on:** FE-53…FE-55, BE-48…BE-50 (lịch 60 s đủ cho lần đầu; webhook khi có BE-52 và cấu hình Pub/Sub).

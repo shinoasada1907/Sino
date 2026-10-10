@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
@@ -74,6 +74,25 @@ describe('the event stream of the web (FE-53)', () => {
     await new Promise((resolve) => setTimeout(resolve, 50))
 
     expect(FakeEventSource.instances).toHaveLength(1)
+  })
+
+  it('reads the inbox again every minute while the stream is not open, since mail keeps coming (BE-49)', () => {
+    serveInboxFrame()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    try {
+      const { queryClient } = renderApp('/overview')
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+      act(() => vi.advanceTimersByTime(60_000))
+      expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['inbox'], ['inbox-unread']])
+
+      invalidate.mockClear()
+      act(() => lastStream().open())
+      act(() => vi.advanceTimersByTime(120_000))
+      expect(invalidate).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('asks the account list again every 2 s during an import only while the stream is not open', async () => {

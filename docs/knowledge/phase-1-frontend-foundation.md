@@ -1013,6 +1013,8 @@ xong     onSettled: lưu trữ / chưa đọc -> mọi danh sách bị đánh d�
 - **Khóa query có thứ bậc:** trạng thái đồng bộ dùng khóa `['accounts', id, 'sync']`; `invalidateQueries({ queryKey: ['accounts'] })` khớp mọi khóa bắt đầu bằng `'accounts'`, nên sự kiện `account.changed` đọc lại cả danh sách lẫn trạng thái này mà không phải liệt kê.
 - **Đợi trước khi báo:** server đóng mỗi luồng sau 20 phút và trình duyệt nối lại trong vài giây; báo ngay thì dòng báo nhấp nháy vô nghĩa. `useRealtimeDown` chỉ báo khi luồng không mở quá 30 s, và mỗi lần trạng thái đổi thì đếm lại từ đầu.
 - **Hai kiểu mất:** `connecting` (trình duyệt còn thử, "đang kết nối lại…") khác `closed` (trình duyệt đã bỏ: phiên hết hạn hay server không có luồng; chỉ tải lại trang mới thử lại).
+- **Dự phòng khi không có luồng (FE-55b, D-96):** backend vẫn lưu thư mới mỗi phút dù web không nghe được sự kiện, nên khi luồng không mở web đọc lại Hộp thư mỗi 60 s (`setInterval` trong effect phụ thuộc trạng thái luồng; luồng mở thì effect dọn timer). Trạng thái đồng bộ của trang chi tiết dùng `refetchInterval: 60_000` vì server không báo mỗi lần đồng bộ thành công.
+- **Test chập chờn, kiểm trước khi đổ lỗi:** khi một test lúc đỏ lúc xanh sau một thay đổi, chạy lại cả bộ trên code đã commit (`git stash -u` để cất cả file mới) để biết lỗi có từ trước hay không, rồi mới sửa.
 
 ## Tự kiểm tra
 
