@@ -171,7 +171,9 @@ describe('Chi tiết tài khoản', () => {
     await user.click(dialog.getByRole('button', { name: 'Ngắt kết nối' }))
 
     expect(router.state.location.pathname).toBe('/accounts')
-    expect(await screen.findByText('TÀI KHOẢN · 2 ĐÃ KẾT NỐI')).toBeInTheDocument()
+    // Removing, reading the list again and going back to it is the longest path of these tests; on a busy machine it took
+    // over the 3 s of `asyncUtilTimeout` (seen 2026-10-10 while the backend built alongside).
+    expect(await screen.findByText('TÀI KHOẢN · 2 ĐÃ KẾT NỐI', {}, { timeout: 8000 })).toBeInTheDocument()
     expect(screen.queryByRole('row', { name: /an\.nguyen\.92/ })).toBeNull()
     // The stored messages are kept (D-56: deleting them waits for F05), so the total does not change.
     expect(screen.getByText((_, element) => element?.textContent === 'Đã lưu 3.912 thư và tin nhắn' && element.tagName === 'SPAN')).toBeInTheDocument()

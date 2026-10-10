@@ -62,7 +62,8 @@ describe('Tài khoản on the backend API (D-56)', () => {
     expect(dialog.queryByRole('switch')).toBeNull()
     await user.click(dialog.getByRole('button', { name: 'Ngắt kết nối' }))
 
-    expect(await screen.findByText('TÀI KHOẢN · 1 ĐÃ KẾT NỐI')).toBeInTheDocument()
+    // Removing, reading the list again and going back to it is the longest path here (see AccountDetailPage.test.tsx).
+    expect(await screen.findByText('TÀI KHOẢN · 1 ĐÃ KẾT NỐI', {}, { timeout: 8000 })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/accounts')
     expect(calls).toEqual(['PATCH acc-1 {"syncEnabled":false}', 'DELETE acc-1'])
   })
