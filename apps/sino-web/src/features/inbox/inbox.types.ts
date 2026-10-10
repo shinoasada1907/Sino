@@ -126,6 +126,8 @@ export interface Attachment {
   sizeBytes: number | null
   image: boolean
   caption: string | null
+  /** Where Sino downloads it (F06, D-125); absent in the sample data. */
+  url?: string
 }
 
 export type Message =

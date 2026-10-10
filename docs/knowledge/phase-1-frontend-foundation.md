@@ -1065,6 +1065,8 @@ HTML đã sạch --> <iframe sandbox="allow-same-origin allow-popups allow-popup
 - **Chiều cao bằng nội dung:** sau sự kiện `load`, `ResizeObserver` theo dõi `body` của thư (ảnh tải xong thì cao thêm). Đo `body` chứ không đo `html`: trang trong khung không bao giờ ngắn hơn khung, nên đo `html` thì khung chỉ cao lên mà không thấp xuống. Khung tắt cuộn dọc bên trong (`overflow-y: hidden`) để cả cuộc trò chuyện cuộn như một.
 - **Nền trắng ở theme tối:** thư HTML luôn viết cho nền sáng (chữ đen, ô màu); đảo màu sẽ làm hỏng chúng, nên khung luôn trắng (`color-scheme: light`).
 - **Nội dung thư nằm ngoài `['inbox']`:** khóa `['message-body', conversationId, messageId]`. Nội dung không đổi; nếu nằm dưới `['inbox']` thì mỗi sự kiện realtime sẽ tải lại mọi thư HTML đang mở.
+- **Tệp đính kèm là liên kết tải về (FE-59, D-125):** `<a href="/api/conversations/…/attachments/…" download="tên tệp">`. Cùng origin nên cookie phiên đi theo; server luôn trả `Content-Disposition: attachment`, nên một tệp `.html` hay `.svg` không bao giờ được mở như một trang trên origin của Sino.
+- **Lỗi gài tìm ra test thiếu:** 23 lỗi cố ý cho `linkParts`, `mailDocument`, khung và `MailBody`; 3 cái sống sót lần đầu. Hai cái là test thiếu (địa chỉ trong dấu nháy, `https://.`), đã thêm test. Cái thứ ba là **lỗi tương đương**: cho regex nhận mọi scheme nhưng phép kiểm `^https?://.` ngay sau đó vẫn loại chúng, nên kết quả không đổi; hai lớp giữ cho nhau, không test nào phân biệt được.
 - **Chứng minh lớp 2 trên Chrome thật:** trả HTML **chưa làm sạch** có `<script>`, `onerror` và form: tiêu đề trang không đổi, gọi `form.submit()` từ ngoài không tạo request nào. jsdom không dựng `srcdoc`, nên test tự động chỉ kiểm thuộc tính của iframe; phần "không chạy" phải kiểm ở trình duyệt thật.
 
 ## Tự kiểm tra
@@ -1186,3 +1188,4 @@ HTML đã sạch --> <iframe sandbox="allow-same-origin allow-popups allow-popup
 115. Pixel theo dõi báo cho người gửi điều gì? CSP nào chặn nó, và vì sao chặn cả `url(...)` trong CSS?
 116. Vì sao đo chiều cao bằng `body` mà không bằng `html` của tài liệu trong khung?
 117. Vì sao nội dung thư dùng khóa `['message-body', ...]` mà không nằm dưới `['inbox']` như danh sách thư?
+118. "Lỗi tương đương" trong kiểm tra bằng lỗi gài là gì? Vì sao không cần (và không thể) viết test để bắt nó?

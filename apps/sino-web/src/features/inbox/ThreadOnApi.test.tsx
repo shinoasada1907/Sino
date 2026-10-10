@@ -83,6 +83,18 @@ describe('a conversation read in full on the F06 API (FE-57)', () => {
     expect(thread().queryByRole('article', { name: 'Thư mới nhất' })).toBeNull()
   })
 
+  it('downloads a file of an email through Sino (FE-59, D-125)', async () => {
+    backend()
+    open('/inbox/c-1')
+
+    const file = within(await newest()).getByRole('link', { name: /hop-dong-q4\.pdf/ })
+
+    expect(file).toHaveAttribute('href', '/api/conversations/c-1/messages/m-3/attachments/att-1')
+    expect(file).toHaveAttribute('download', 'hop-dong-q4.pdf')
+    expect(file).toHaveTextContent('PDF')
+    expect(file).toHaveTextContent('242 KB')
+  })
+
   it('opens a folded email with one click', async () => {
     backend()
     open('/inbox/c-1')

@@ -130,8 +130,13 @@ function fileType(fileName: string | null, mimeType: string | null): string {
   return subtype && subtype.length <= 5 ? subtype.toUpperCase() : 'TỆP'
 }
 
-function toAttachment({ fileName, mimeType, sizeBytes }: AttachmentResponse): Attachment {
-  return { name: fileName ?? 'Tệp không tên', type: fileType(fileName, mimeType), sizeBytes, image: mimeType?.startsWith('image/') ?? false, caption: null }
+/** `GET /api/conversations/{id}/messages/{messageId}/attachments/{attachmentId}` (F06): always a download (D-125). */
+export function attachmentUrl(conversationId: string, messageId: string, attachmentId: string): string {
+  return `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
+}
+
+function toAttachment({ fileName, mimeType, sizeBytes }: AttachmentResponse, url: string): Attachment {
+  return { name: fileName ?? 'Tệp không tên', type: fileType(fileName, mimeType), sizeBytes, image: mimeType?.startsWith('image/') ?? false, caption: null, url }
 }
 
 // A message whose fate Sino does not know yet says nothing until F10.
@@ -148,7 +153,7 @@ function ownStatus(status: MessageResponse['status']): Extract<Message, { kind: 
   }
 }
 
-function toMessage({ id, direction, status, sentAt, sender, to, text, bodyFormat, attachments }: MessageResponse): Message {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments }: MessageResponse): Message {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -160,7 +165,7 @@ function toMessage({ id, direction, status, sentAt, sender, to, text, bodyFormat
     at: sentAt,
     text: text ?? '',
     bodyFormat,
-    attachments: attachments.map(toAttachment),
+    attachments: attachments.map((file) => toAttachment(file, attachmentUrl(conversationId, id, file.id))),
     status: outbound ? ownStatus(status) : null,
     linked: [],
   }
@@ -225,7 +230,7 @@ export async function fetchMessages(conversationId: string, cursor: string | nul
   const page = await api.get<{ items: MessageResponse[]; nextCursor: string | null }>(
     `/api/conversations/${encodeURIComponent(conversationId)}/messages${query}`,
   )
-  return { items: page.items.map(toMessage), nextCursor: page.nextCursor }
+  return { items: page.items.map((message) => toMessage(conversationId, message)), nextCursor: page.nextCursor }
 }
 
 /** `GET /api/conversations/{id}/messages/{messageId}/body` (F06): the cleaned HTML of one email (D-120, D-122). */

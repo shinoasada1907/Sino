@@ -70,7 +70,9 @@
   - **Test:** iframe có đúng `sandbox`, không `allow-scripts`; `srcdoc` có CSP `default-src 'none'`; `remoteImages` → dòng báo, "Hiện ảnh" → CSP có `https:`, thư khác vẫn chặn; `TEXT` không hỏi `…/body`; `502` → phần chữ + dòng báo + "Thử lại"; hàm dựng `srcdoc` (CSP có/không ảnh, `base target`).
   - **Acceptance criteria:** spec `inbox-thread` (Thư HTML trong khung cô lập, Ảnh từ xa chỉ tải khi người dùng cho phép).
 
-- [ ] 2.3 **FE-59 — Tải tệp đính kèm; kiểm tra lỗi gài**
+- [x] 2.3 **FE-59 — Tải tệp đính kèm; kiểm tra lỗi gài**
+  - **Thực hiện (2026-10-10, AUTO):** `inbox.api.ts`: `attachmentUrl`, mỗi tệp từ API có `url`; `Attachment.url` (tùy chọn, dữ liệu mẫu không có). `EmailThread`: `MailFile` là `<a href download>` khi có `url`, vẫn là nút như canvas khi không có; tên tệp dài bị cắt (`truncate`).
+  - **Kiểm chứng (2026-10-10):** RED 1 (chưa có liên kết), GREEN. Kiểm tra lỗi gài (`mutate.mjs`, 23 lỗi cho `linkParts`, `mailDocument`, `MAIL_FRAME_SANDBOX`, `MailBody`): lần 1 bắt 20; sống sót: địa chỉ trong dấu nháy và `https://.` (thiếu test → thêm 2 test, lần 2 bắt cả hai), regex nhận mọi scheme (**giữ có chủ đích**: lỗi tương đương, phép kiểm `^https?://.` ngay sau đó loại mọi scheme khác). `pnpm lint` 0, `tsc -b` 0, `vitest` 507/507, `pnpm build` 0. Chrome 1440 tối và 390 sáng: hai tệp là `a[download]` đúng đường dẫn (`…/m-3/attachments/att-1`, `att-2`), trông như trước, không tràn ngang.
   - **Goal / Why:** bấm tệp là tải về (D-125); một lần kiểm tra bằng lỗi gài cho hàm thuần của màn đọc thư, trước khi chạy thật.
   - **Depends on:** FE-57; Contract API (`GET …/attachments/{id}`).
   - **Files:** `components/EmailThread.tsx` (tệp là `<a href download>`), `inbox.api.ts` (`attachmentUrl`), test.

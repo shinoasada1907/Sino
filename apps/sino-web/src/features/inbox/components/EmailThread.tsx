@@ -22,7 +22,7 @@ import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
 import { firstLine, formatFileSize, linkedMeta, mailTime, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
-import type { ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
+import type { Attachment, ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
 import { useConversationActions, useSendMessage, type LoadMore, type MessageHistory } from '../useInbox'
 import { Composer } from './Composer'
 import { MailsSkeleton } from './InboxStates'
@@ -277,24 +277,38 @@ function MailCard({ conversationId, mail, now, tools = false, onFold }: { conver
       <MailBody conversationId={conversationId} mail={mail} />
       {mail.attachments.length > 0 && (
         <div className="flex flex-wrap gap-2.5">
-          {mail.attachments.map((file) => (
-            <button
-              key={file.name}
-              type="button"
-              className="inline-flex h-13 cursor-pointer items-center gap-2.5 rounded-sm border bg-raised pr-3.5 pl-2 text-left text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-            >
-              <span className="grid size-9 place-items-center rounded-[8px] border bg-surface font-mono text-[10px] leading-none font-semibold tracking-[0.04em] text-muted-foreground">
-                {file.type}
-              </span>
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-sm font-semibold">{file.name}</span>
-                {file.sizeBytes !== null && <Spec>{formatFileSize(file.sizeBytes)}</Spec>}
-              </span>
-            </button>
+          {mail.attachments.map((file, index) => (
+            <MailFile key={file.url ?? `${file.name}-${index}`} file={file} />
           ))}
         </div>
       )}
     </article>
+  )
+}
+
+// Canvas `.att`: a file of an email. From the API it downloads through Sino (D-125); the sample data has no address.
+function MailFile({ file }: { file: Attachment }) {
+  const className =
+    'inline-flex h-13 min-w-0 max-w-full cursor-pointer items-center gap-2.5 rounded-sm border bg-raised pr-3.5 pl-2 text-left text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid'
+  const content = (
+    <>
+      <span className="grid size-9 shrink-0 place-items-center rounded-[8px] border bg-surface font-mono text-[10px] leading-none font-semibold tracking-[0.04em] text-muted-foreground">
+        {file.type}
+      </span>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate text-sm font-semibold">{file.name}</span>
+        {file.sizeBytes !== null && <Spec>{formatFileSize(file.sizeBytes)}</Spec>}
+      </span>
+    </>
+  )
+  return file.url ? (
+    <a href={file.url} download={file.name} className={className}>
+      {content}
+    </a>
+  ) : (
+    <button type="button" className={className}>
+      {content}
+    </button>
   )
 }
 

@@ -405,6 +405,20 @@ describe('web addresses in the text of an email (FE-57)', () => {
     ])
   })
 
+  it('leaves the quotes around an address out of the link', () => {
+    expect(linkParts(`Mở "https://acme.vn/a" hoặc 'https://acme.vn/b'`)).toEqual([
+      { text: 'Mở "', href: null },
+      { text: 'https://acme.vn/a', href: 'https://acme.vn/a' },
+      { text: `" hoặc '`, href: null },
+      { text: 'https://acme.vn/b', href: 'https://acme.vn/b' },
+      { text: "'", href: null },
+    ])
+  })
+
+  it('makes no link of an address with nothing after the scheme', () => {
+    expect(linkParts('Xem https://.')).toEqual([{ text: 'Xem https://.', href: null }])
+  })
+
   it('makes no link of other schemes or of a bare domain', () => {
     expect(linkParts('javascript:alert(1) www.acme.vn mailto:a@b.vn')).toEqual([{ text: 'javascript:alert(1) www.acme.vn mailto:a@b.vn', href: null }])
     expect(linkParts('')).toEqual([])
