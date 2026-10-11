@@ -194,14 +194,15 @@ public class JdbcConversationStore implements ConversationStore {
     }
 
     // Step 3. Read state (D-67): is_read is what Sino shows, provider_read what the provider said last. When the provider
-    // changes its mind, Sino follows; when it says the same again, a choice made in Sino stays.
+    // changes its mind, Sino follows; when it says the same again, a choice made in Sino stays. Addressees the
+    // connector cannot tell (null) keep those stored, and are no change for that alone (F06).
     private StoredMessage storeMessage(UUID conversationId, UUID senderId, NormalizedMessage message) {
         Optional<StoredMessage> written = jdbc.sql("""
                 INSERT INTO message AS m (conversation_id, sender_participant_id, external_message_id, direction, type,
                                           text_content, status, sent_at, reply_to_external_message_id, is_read,
-                                          provider_read, metadata, created_at, updated_at)
+                                          provider_read, metadata, recipients, created_at, updated_at)
                 VALUES (:conversation, :sender, :externalId, :direction, :type, :text, :status, :sentAt, :replyTo,
-                        :read, :read, cast(:metadata AS jsonb), now(), now())
+                        :read, :read, cast(:metadata AS jsonb), cast(:recipients AS jsonb), now(), now())
                 ON CONFLICT (conversation_id, external_message_id) DO UPDATE
                 SET sender_participant_id = EXCLUDED.sender_participant_id,
                     direction = EXCLUDED.direction,
@@ -211,16 +212,17 @@ public class JdbcConversationStore implements ConversationStore {
                     sent_at = EXCLUDED.sent_at,
                     reply_to_external_message_id = EXCLUDED.reply_to_external_message_id,
                     metadata = EXCLUDED.metadata,
+                    recipients = coalesce(EXCLUDED.recipients, m.recipients),
                     is_read = CASE WHEN m.provider_read IS DISTINCT FROM EXCLUDED.provider_read
                                    THEN EXCLUDED.provider_read ELSE m.is_read END,
                     provider_read = EXCLUDED.provider_read,
                     updated_at = now()
                 WHERE (m.sender_participant_id, m.direction, m.type, m.text_content, m.status, m.sent_at,
-                       m.reply_to_external_message_id, m.metadata, m.provider_read)
+                       m.reply_to_external_message_id, m.metadata, m.recipients, m.provider_read)
                       IS DISTINCT FROM
                       (EXCLUDED.sender_participant_id, EXCLUDED.direction, EXCLUDED.type, EXCLUDED.text_content,
                        EXCLUDED.status, EXCLUDED.sent_at, EXCLUDED.reply_to_external_message_id, EXCLUDED.metadata,
-                       EXCLUDED.provider_read)
+                       coalesce(EXCLUDED.recipients, m.recipients), EXCLUDED.provider_read)
                 RETURNING id, xmax = 0
                 """)
                 .param("conversation", conversationId).param("sender", senderId)
@@ -229,6 +231,8 @@ public class JdbcConversationStore implements ConversationStore {
                 .param("status", message.status().name()).param("sentAt", at(message.sentAt()))
                 .param("replyTo", message.replyToExternalMessageId()).param("read", message.read())
                 .param("metadata", JSON.writeValueAsString(message.metadata()))
+                .param("recipients", message.recipients() == null ? null
+                        : JSON.writeValueAsString(message.recipients()))
                 // xmax is 0 for a row this statement inserted, and set for one it updated.
                 .query((row, n) -> new StoredMessage(row.getObject(1, UUID.class),
                         row.getBoolean(2) ? Change.INSERTED : Change.UPDATED))

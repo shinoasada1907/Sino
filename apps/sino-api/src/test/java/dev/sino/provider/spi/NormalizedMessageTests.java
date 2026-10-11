@@ -64,7 +64,7 @@ class NormalizedMessageTests {
     @Test
     void unmappedTypeAndStatusBecomeUnknown() {
         NormalizedMessage message = new NormalizedMessage("m-1", "c-1", null, MessageDirection.OUTBOUND, null,
-                null, null, false, null, SENT_AT, null, null);
+                null, null, false, null, SENT_AT, null, null, null);
 
         assertThat(message.type()).isEqualTo(MessageType.UNKNOWN);
         assertThat(message.status()).isEqualTo(MessageStatus.UNKNOWN);
@@ -77,7 +77,7 @@ class NormalizedMessageTests {
         List<NormalizedAttachment> attachments = new ArrayList<>(List.of(attachment("a-1")));
         Map<String, String> metadata = new HashMap<>(Map.of("labelIds", "INBOX"));
         NormalizedMessage message = new NormalizedMessage("m-1", "c-1", "alice", MessageDirection.INBOUND,
-                MessageType.FILE, null, MessageStatus.DELIVERED, false, null, SENT_AT, attachments, metadata);
+                MessageType.FILE, null, MessageStatus.DELIVERED, false, null, SENT_AT, attachments, metadata, null);
 
         attachments.add(attachment("a-2"));
         metadata.put("extra", "value");
@@ -97,7 +97,7 @@ class NormalizedMessageTests {
         attachments.add(null);
 
         assertRejectedAsInvalidPayload(() -> new NormalizedMessage("m-1", "c-1", null, MessageDirection.INBOUND,
-                MessageType.FILE, null, MessageStatus.SENT, false, null, SENT_AT, attachments, Map.of()));
+                MessageType.FILE, null, MessageStatus.SENT, false, null, SENT_AT, attachments, Map.of(), null));
     }
 
     @Test
@@ -106,7 +106,7 @@ class NormalizedMessageTests {
         metadata.put("labelIds", null);
 
         assertRejectedAsInvalidPayload(() -> new NormalizedMessage("m-1", "c-1", null, MessageDirection.INBOUND,
-                MessageType.TEXT, "hi", MessageStatus.SENT, false, null, SENT_AT, List.of(), metadata));
+                MessageType.TEXT, "hi", MessageStatus.SENT, false, null, SENT_AT, List.of(), metadata, null));
     }
 
     @Test
@@ -118,7 +118,7 @@ class NormalizedMessageTests {
     private static NormalizedMessage message(String externalMessageId, String externalConversationId,
             MessageDirection direction, Instant sentAt) {
         return new NormalizedMessage(externalMessageId, externalConversationId, "alice", direction,
-                MessageType.TEXT, "hi", MessageStatus.SENT, false, null, sentAt, List.of(), Map.of());
+                MessageType.TEXT, "hi", MessageStatus.SENT, false, null, sentAt, List.of(), Map.of(), null);
     }
 
     private static NormalizedAttachment attachment(String externalAttachmentId) {

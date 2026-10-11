@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn archive (sau F04b).
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn BE-61 (ước lượng đúng cho khoảng ngày) và archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): đang làm, xong BE-54.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1543,6 +1543,80 @@ Không có lỗi nặng. Hai điểm vừa, bảy điểm nhỏ:
 - **Tốc độ dựa trên một lần đo** (nhỏ): giờ là hai lần, ghi rõ trong design; đo thêm ở lần nhập đầu thật.
 - Javadoc của tốc độ chuyển lên mức record; thay đổi định dạng của IntelliJ ở `RealtimeProperties.java` là của bạn, không nằm trong commit này.
 
+## 19. Danh sách thư của một cuộc trò chuyện, người nhận (BE-54, F06)
+
+**Ở đâu:** `db/migration/V14__conversation_add_message_recipients.sql` (mới), `provider/spi/NormalizedRecipients.java` (mới), `provider/spi/NormalizedMessage.java`, `provider/infrastructure/gmail/GmailMessageNormalizer.java`, `conversation/infrastructure/{JdbcConversationStore,WithoutNul}.java`, `conversation/application/{KeysetCursor,MessageCursor,MessageHistory,InboxMessage,MessagePage}.java`, `conversation/api/{ConversationMessagesController,MessageResponse}.java`.
+
+Trước F06, mở một cuộc trò chuyện chỉ thấy đoạn đầu của thư mới nhất. BE-54 cho web đọc mọi thư, kèm người gửi, người nhận, tiêu đề, phần chữ và tệp. Hai phần của thư còn để lại cho task sau: HTML (BE-55) và tải tệp (BE-56).
+
+### 19.1 Contract: `null` khác danh sách rỗng
+`NormalizedMessage` có thêm thành phần thứ 13, `recipients`, kiểu `NormalizedRecipients(to, cc, replyTo)`; mỗi phần tử là `Address(name, address)`.
+- `recipients` = `null`: connector **không biết** người nhận (chat không có khái niệm To/Cc).
+- `to` = `[]`: thư **không có** header `To`.
+
+API giữ đúng sự phân biệt đó: `to: null` là "Sino không biết", `to: []` là "không gửi cho ai trong To". Gộp hai nghĩa vào một thì web không biết nên ghi "không rõ" hay không ghi gì.
+
+Thêm một thành phần vào `record` thì mọi chỗ gọi constructor phải thêm một đối số: 20 chỗ, phần lớn trong test. Như BE-47, không thêm constructor phụ (mục 17.2); một script thêm `, null` vào từng lời gọi. `subject` trước là khóa riêng của Gmail, nay thành khóa dùng chung `NormalizedMessage.SUBJECT` (như `BULK`), vì module `conversation` cần đọc tiêu đề của từng thư.
+
+### 19.2 Gmail: dùng lại bộ đọc địa chỉ
+`To`, `Cc`, `Reply-To` đi qua đúng hàm đã đọc người tham gia, `MailHeaders.mailboxes` (mục 8.4, 8.5): tên trong ngoặc kép có dấu phẩy (`"Trần, Bình" <binh@…>`), tên mã hóa RFC 2047 (`=?UTF-8?Q?Ph=C3=B2ng…?=` thành "Phòng kế toán"), địa chỉ viết thường. Không viết bộ tách địa chỉ thứ hai.
+
+### 19.3 Lưu người nhận vào cột riêng và giữ chúng khi lưu lại
+Migration V14 thêm cột `message.recipients jsonb`, cho phép `NULL`: `NULL` là "Sino không biết" (thư lưu trước F06, hoặc chat), còn lại là `{"to": [...], "cc": [...], "replyTo": [...]}`.
+
+Khó nằm ở lần lưu lại. Một connector không biết người nhận (hoặc một bản cập nhật chỉ đổi trạng thái đọc) gửi thư với `recipients` = `null`. Nếu ghi đè như các cột khác, người nhận đã lưu biến mất. Câu SQL giữ chúng:
+
+```text
+INSERT INTO message AS m (..., recipients, ...) VALUES (..., cast(:recipients AS jsonb), ...)
+ON CONFLICT (conversation_id, external_message_id) DO UPDATE
+SET ...,
+    recipients = coalesce(EXCLUDED.recipients, m.recipients)
+WHERE (..., m.recipients, ...)
+      IS DISTINCT FROM
+      (..., coalesce(EXCLUDED.recipients, m.recipients), ...)
+```
+
+`coalesce(a, b)` lấy giá trị đầu tiên khác `NULL`: có người nhận mới thì lấy mới, không có thì giữ cũ. Biểu thức phải có ở **cả hai** chỗ: trong `SET` (giá trị mới) và trong `WHERE ... IS DISTINCT FROM` (mục 13.3: chỉ ghi khi có gì đổi). Thiếu ở `WHERE` thì lần lưu lại không người nhận luôn bị coi là "đổi": dòng bị ghi lại, `updatedMessages` tăng, và một sự kiện `MailStored` bay tới web dù không có gì mới.
+
+**Vì sao cột riêng, không nhét vào `metadata`.** Design ban đầu để người nhận trong `metadata`, và bản đầu của task làm đúng như vậy với một khóa `recipients`. Review hỏi: sao không dùng cột riêng? So sánh:
+
+| | Khóa trong `metadata` | Cột riêng |
+|---|---|---|
+| Giữ bản cũ khi lưu lại | một `CASE` ghép hai giá trị jsonb (`jsonb_build_object`), ở cả `SET` lẫn `WHERE` | `coalesce(...)` |
+| Khóa trùng tên do connector đặt | phải bỏ đi khi lưu, kẻo giả được người nhận | không có chuyện đó |
+| Kích thước | `metadata` là "vài giá trị nhỏ"; một thư gửi 2 000 người nặng cỡ trăm KB | cột của riêng nó |
+| Cái giá | không cần migration | một migration thêm cột |
+
+Đổi trước khi commit, nên không có dữ liệu nào phải chuyển. Trên đường đi còn gặp hai bẫy của jsonb đáng nhớ: toán tử `?` ("có khóa này không") trùng với dấu `?` mà JDBC dùng cho tham số; và `jsonb_strip_nulls` xóa **mọi** giá trị `null`, kể cả `"name": null` nằm sâu bên trong.
+
+### 19.4 API: cursor có "loại", hai câu truy vấn
+- **Cursor** (mục 15.3): base64url của `<loại><thời điểm>|<id>`, dùng chung lớp `KeysetCursor`. Hộp thư có loại rỗng, nên chữ của cursor y như trước (cursor web đang giữ vẫn dùng được). Danh sách thư có loại `message|`. Đưa cursor của danh sách này sang danh sách kia thì `400`: không có loại, một cursor Hộp thư sẽ được nhận như vị trí trong danh sách thư, trả về một trang sai mà không ai biết.
+- **Phạm vi:** `MessageHistory` hỏi `InboxService.requireInInbox` trước, nên mọi trường hợp `404` giống hệt `GET /api/conversations/{id}` (account đã xóa, đã tắt, của người khác). Hội thoại đã lưu trữ hay account hết hạn Google vẫn đọc được.
+- **Hai câu truy vấn, không N+1:** một câu lấy trang thư (kèm người gửi bằng `LEFT JOIN`), một câu lấy tệp của mọi thư trong trang (`message_id IN (...)`). Một câu cho mỗi thư thì 20 thư là 21 câu.
+- **Thứ tự:** `sent_at` giảm dần rồi `id` giảm dần; điều kiện `(m.sent_at, m.id) < (:before, :beforeId)` kèm `m.sent_at <= :before` để PostgreSQL dùng được chỉ mục `message_conversation_sent_idx`.
+
+### 19.5 Kiểm chứng (BE-54)
+- **Đỏ trước:** test API 12/13 đỏ (`404`, chưa có endpoint); test "chưa đăng nhập thì `401`" xanh từ đầu vì lớp bảo mật đã có. Test lưu 15 đỏ (chưa lưu người nhận), test Gmail 2 đỏ (người nhận còn `null`). Test của `NormalizedRecipients` xanh từ đầu: record được viết trước test, nên lần đỏ của nó đến từ kiểm tra ngược bên dưới.
+- **Xanh:** 194 test của các lớp liên quan (sau khi đổi sang cột riêng).
+- **Kiểm tra ngược:** 29 lỗi gài, cả 29 bị bắt. Lần đầu có một lỗi sống sót: bỏ phép kiểm tiền tố `message|` mà mọi giá trị lạ trong test đều tình cờ hỏng ở bước đọc thời điểm. Một chuỗi có tiền tố khác dài đúng 8 ký tự (`notours|`) rồi tới thời điểm hợp lệ lọt qua được, nên thêm đúng ca đó.
+
+| Lỗi gài | Test bắt được |
+|---|---|
+| Cũ trước mới; cursor gồm cả thư cuối trang; cursor chỉ theo giờ; không lấy dư một dòng; cursor từ thư đầu trang | `twentyFiveMessages…`, `messagesSentAtTheSameMoment…` |
+| Cc lấy từ To; không gắn tệp; `self` luôn sai; tên người gửi là địa chỉ; bỏ qua người nhận; người gửi không bao giờ `null`; `bodyFormat` = `HTML` | `aMessageShowsWhoSentIt…`, `addresseesAreUnknown…` |
+| Bỏ kiểm phạm vi; mặc định 30 thư; bỏ trần 100 | `theMessagesOfAConversationOutsideTheInbox…`, `twentyFiveMessages…`, `aBadParameterIsABadRequest` |
+| Cursor thư không có loại; cursor Hộp thư có thêm một loại; bỏ kiểm tiền tố | `aCursorOfTheInboxIsNot…`, `MessageCursorTests`, `writesTheSameTextAsBefore…` |
+| Lưu lại thì ghi đè người nhận; `WHERE` bỏ qua người nhận; `WHERE` so không qua `coalesce`; không ghi người nhận | `anUpdateThatCannotTell…`, `aMessageWhoseFieldChangedIsUpdated[recipients]`, `aMessageShowsWhoSentIt…` |
+| Không lọc NUL trong người nhận; giữ tên toàn NUL; giữ địa chỉ toàn NUL | `nulCharactersAreLeftOut` |
+| Giữ tiêu đề rỗng; Cc đọc từ To; bỏ Reply-To; bỏ tên | `aBlankSubjectIsNoSubject`, `keepsWhoTheMailWentTo…` |
+
+- **Toàn bộ:** `./mvnw -B -ntp verify` → 1035 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS; `ModularityTests` xanh.
+- **Sau review** (agent `senior-reviewer`, không có lỗi nặng):
+  - Vừa: spec `message-history` nói `sender` luôn có, trong khi code trả `null` cho thư không rõ người gửi. Đã sửa spec và thêm scenario; phiên web đã chịu được `sender: null`.
+  - Câu hỏi cuối: vì sao không dùng cột riêng. Làm theo, mục 19.3.
+  - Nhỏ, đã sửa: tiêu đề rỗng thành không có tiêu đề; tên hoặc địa chỉ chỉ toàn NUL; Javadoc của `NormalizedRecipients` nói đúng cả trường hợp nhóm không thành viên (`undisclosed-recipients:;`); đọc giờ gửi bằng `OffsetDateTime` như phần còn lại của code; bản đọc người nhận bỏ qua khóa lạ; test chốt chuỗi của cursor Hộp thư, `MessageCursorTests`, thứ tự theo `id` của thư cùng giờ.
+  - Không làm: test Gmail bằng WireMock mà task ghi. **LÝ DO:** đường gọi `messages.get` không đổi; phần mới chỉ là đọc ba header, đã có test bộ chuẩn hóa trên mẫu JSON.
+
 ---
 
 ## Tự kiểm tra
@@ -1647,3 +1721,7 @@ Không có lỗi nặng. Hai điểm vừa, bảy điểm nhỏ:
 98. Test tắt lịch đồng bộ và `ImportResumer` của JVM mình mà vẫn chưa đủ khi backend trong IntelliJ đang chạy: chiều nào còn hở, và vì sao khóa "mỗi account một người đọc" không giúp được?
 99. `when(store).store(...)` đòi một transaction: proxy và spy nằm thế nào với nhau, và vì sao lấy spy bên trong thì hết lỗi?
 100. Ước lượng 201 cho 29 thư: số nào của Gmail sai, số nào đúng, và vì sao sửa nó là một quyết định chứ không phải một bản vá?
+101. `to: null` và `to: []` khác nhau thế nào, và vì sao API không được gộp hai trường hợp?
+102. Lưu lại một thư mà connector không cho biết người nhận: `coalesce` làm gì, và vì sao nó phải có ở cả `SET` lẫn `WHERE`?
+103. Người nhận để trong `metadata` hay một cột riêng: mỗi cách tốn gì, và vì sao task này đổi sang cột riêng trước khi commit?
+104. Cursor của Hộp thư và của danh sách thư cùng dạng `<thời điểm>|<id>`: không có "loại" thì chuyện gì xảy ra, và vì sao Hộp thư giữ nguyên định dạng cũ?

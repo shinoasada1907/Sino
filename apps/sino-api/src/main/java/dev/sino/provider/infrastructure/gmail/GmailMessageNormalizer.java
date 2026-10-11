@@ -25,6 +25,8 @@ import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedParticipant;
+import dev.sino.provider.spi.NormalizedRecipients;
+import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 
@@ -39,7 +41,6 @@ final class GmailMessageNormalizer {
     static final int MAX_TEXT_LENGTH = 100_000;
     /** The id of the file when the whole mail is one file: Gmail gives the top part an empty {@code partId}. */
     static final String ROOT_PART_ID = "root";
-    static final String SUBJECT = "subject";
     static final String RFC_MESSAGE_ID = "rfcMessageId";
 
     private static final String SENT = "SENT";
@@ -73,10 +74,10 @@ final class GmailMessageNormalizer {
         List<NormalizedAttachment> attachments = new ArrayList<>();
         collectFiles(payload, attachments);
         String subject = payload.header("Subject").map(MailHeaders::decode).map(GmailMessageNormalizer::withoutNul)
-                .orElse(null);
+                .filter(text -> !text.isBlank()).orElse(null);
         Map<String, String> metadata = new LinkedHashMap<>();
         if (subject != null) {
-            metadata.put(SUBJECT, subject);
+            metadata.put(NormalizedMessage.SUBJECT, subject);
         }
         payload.header("Message-ID").ifPresent(id -> metadata.put(RFC_MESSAGE_ID, id.strip()));
         if (message.labelIds().stream().anyMatch(BULK_LABELS::contains)
@@ -88,7 +89,7 @@ final class GmailMessageNormalizer {
                 sent ? MessageDirection.OUTBOUND : MessageDirection.INBOUND,
                 attachments.isEmpty() ? MessageType.TEXT : MessageType.MIXED, textOf(payload),
                 sent ? MessageStatus.SENT : MessageStatus.UNKNOWN, !message.labelIds().contains(UNREAD), null, sentAt,
-                attachments, metadata);
+                attachments, metadata, recipientsOf(payload));
         return new NormalizedGmailMessage(normalized, titleOf(subject), participantsOf(payload, selfEmail, sent));
     }
 
@@ -138,6 +139,16 @@ final class GmailMessageNormalizer {
             }
         }
         return List.copyOf(participants.values());
+    }
+
+    private static NormalizedRecipients recipientsOf(Part payload) {
+        return new NormalizedRecipients(addressesOf(payload, "To"), addressesOf(payload, "Cc"),
+                addressesOf(payload, "Reply-To"));
+    }
+
+    private static List<Address> addressesOf(Part payload, String header) {
+        return MailHeaders.mailboxes(payload.header(header).orElse(null)).stream()
+                .map(mailbox -> new Address(nameOf(mailbox), withoutNul(mailbox.email()))).toList();
     }
 
     private static String nameOf(Mailbox mailbox) {

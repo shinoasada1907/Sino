@@ -57,7 +57,8 @@ class SyncBatchTests {
 
     private static NormalizedMessage message(String externalMessageId) {
         return new NormalizedMessage(externalMessageId, "c-1", "alice", MessageDirection.INBOUND, MessageType.TEXT,
-                "hi", MessageStatus.SENT, false, null, Instant.parse("2026-10-01T08:00:00Z"), List.of(), Map.of());
+                "hi", MessageStatus.SENT, false, null, Instant.parse("2026-10-01T08:00:00Z"), List.of(), Map.of(),
+                null);
     }
 
     private static SkippedItem skipped(String externalId) {

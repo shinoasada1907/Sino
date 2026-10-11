@@ -102,7 +102,7 @@ Mọi lỗi theo Problem Details với `code` (spec `api-conventions`). Cuộc t
 ```
 
 - Thứ tự `sentAt` giảm dần, rồi `id` giảm dần; không trùng, không sót khi nhiều thư cùng giờ. `nextCursor` = `null` khi hết.
-- `sender.address` là địa chỉ email (Gmail) hoặc ID của người gửi (provider khác); `name` có thể `null`; `self` = thư từ chính account.
+- `sender.address` là địa chỉ email (Gmail) hoặc ID của người gửi (provider khác); `name` có thể `null`; `self` = thư từ chính account. Cả `sender` là `null` khi provider không cho biết người gửi (thư hệ thống, thông báo; BE-54).
 - `to`, `cc`: `null` khi Sino không biết (thư nhập trước change này), `[]` khi thư không có.
 - `text`: `null` khi thư không có chữ. `subject`: `null` khi không có.
 - `bodyFormat`: `TEXT` | `HTML` | `UNCHECKED` (D-122).
@@ -125,13 +125,14 @@ Mọi lỗi theo Problem Details với `code` (spec `api-conventions`). Cuộc t
 
 ## Backend design (phiên backend nhận; được sửa khi làm)
 
-### 1. Dữ liệu (migration tiếp theo, V14 và V15)
-- `message`: `html_content text` (null), `body_format varchar(16) NOT NULL DEFAULT 'UNCHECKED'` (`CHECK IN ('TEXT','HTML','UNCHECKED')`). Thư mới ghi `TEXT` hoặc `HTML`. `to`/`cc` lưu trong `metadata` (`to`, `cc`: mảng `{name, address}`), cùng `replyTo` (F10 dùng để biết trả lời tới ai), không cần cột mới.
+### 1. Dữ liệu (~~migration tiếp theo, V14 và V15~~ → V14 người nhận ở BE-54, V15 nội dung ở BE-55, V16 tệp ở BE-56)
+- `message`: `html_content text` (null), `body_format varchar(16) NOT NULL DEFAULT 'UNCHECKED'` (`CHECK IN ('TEXT','HTML','UNCHECKED')`). Thư mới ghi `TEXT` hoặc `HTML`. ~~`to`/`cc` lưu trong `metadata` (`to`, `cc`: mảng `{name, address}`), cùng `replyTo`, không cần cột mới~~ → cột riêng `message.recipients jsonb` (null), V14: `{"to": […], "cc": […], "replyTo": […]}`, mỗi phần tử `{name, address}`; SQL `NULL` = Sino không biết (F10 dùng `replyTo` để biết trả lời tới ai). Lưu lại: `recipients = coalesce(EXCLUDED.recipients, m.recipients)`. **LÝ DO (BE-54, agent chốt sau review):** để trong `metadata` thì phải giữ riêng một khóa trong cột của connector, bỏ khóa trùng tên do connector đặt, và lặp một biểu thức `CASE … ||` ở cả `SET` lẫn `WHERE`; một cột riêng chỉ cần `coalesce`, và không nằm trong "vài giá trị nhỏ" của `metadata` (một thư gửi 2 000 người To/Cc nặng cỡ trăm KB). Bản đầu dùng một khóa `metadata.recipients` rồi đổi trước khi commit.
 - `attachment`: `content_id text` (null), `inline boolean NOT NULL DEFAULT false`.
 
 ### 2. Nhập và chuẩn hóa
-- `NormalizedMessage` thêm `htmlContent` (null) và người nhận. `NormalizedAttachment` thêm `contentId`, `inline`. Gmail: phần `text/html` đầu tiên không phải tệp; header `To`, `Cc`, `Reply-To` (RFC 2047, nhiều địa chỉ); phần ảnh có `Content-ID` mà không phải `attachment` → `inline = true`.
-- `ConversationStore` lưu các trường mới. Thư đã có (cập nhật nhãn, đã đọc) MUST NOT xóa HTML đã lưu.
+- `NormalizedMessage` thêm `htmlContent` (null) và người nhận. `NormalizedAttachment` thêm `contentId`, `inline`. BE-54: người nhận là thành phần `recipients` kiểu `NormalizedRecipients(to, cc, replyTo)` (mỗi phần tử `Address(name, address)`), `null` khi connector không biết (chat); `subject` thành khóa metadata dùng chung `NormalizedMessage.SUBJECT` vì module `conversation` đọc nó cho từng thư. Gmail: phần `text/html` đầu tiên không phải tệp; header `To`, `Cc`, `Reply-To` (RFC 2047, nhiều địa chỉ); phần ảnh có `Content-ID` mà không phải `attachment` → `inline = true`.
+- `ConversationStore` lưu các trường mới. Thư đã có (cập nhật nhãn, đã đọc) MUST NOT xóa HTML đã lưu. Người nhận cũng vậy: một lần lưu không mang người nhận giữ bản đã lưu (`coalesce` ở cả `SET` lẫn `WHERE ... IS DISTINCT FROM`), và không tính là "đổi" chỉ vì điều đó (BE-54).
+- Thư nhập trước BE-54 chưa có người nhận (`to`/`cc` = `null`) cho tới khi được lưu lại: đồng bộ chạm vào thư đó, nhập lại, hoặc lấy bù nội dung ở BE-55; vì vậy lấy bù ở BE-55 nên ghi cả người nhận.
 
 ### 3. Làm sạch HTML (`conversation`, một lớp, ví dụ `MailHtml`)
 - jsoup `Cleaner` với `Safelist` dựa trên `relaxed()`, thêm:

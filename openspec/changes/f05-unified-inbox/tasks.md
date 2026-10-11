@@ -132,6 +132,13 @@
   - **Acceptance criteria:** checklist *Definition of Done — F05* trong `design.md`; archive sau `f04b-gmail-read`.
   - **Hints:** Level 1 — "vì sao nhập vào database local trong test thật lại chấp nhận được, còn trong CI thì không?".
 
+- [ ] 1.9 **BE-61 — Ước lượng đúng số thư cho một khoảng ngày (D-65 = B)**
+  - **Goal / Why:** BE-46 đo được Gmail báo 201 thư cho cả 30 lẫn 90 ngày (thật là 29 và 53); người dùng chốt B ngày 2026-10-11: đếm thật bằng cách lật danh sách ID.
+  - **Depends on:** BE-46. Làm sau BE-54 (người dùng: "chọn B, làm BE-54 đi").
+  - **Files:** `provider/infrastructure/gmail/{GmailApi,GmailProvider}`, test WireMock, `RealGmailTests` (so số đếm mới với số thư liệt kê), design D-65, spec delta `gmail-reading` nếu nó ghi `resultSizeEstimate`.
+  - **Hướng làm:** khoảng ngày: `messages.list` với `q=after:`, `maxResults=500`, `fields=messages/id,nextPageToken` (chỉ lấy ID), cộng dồn qua các trang, dừng ở 5 000 và trả 5 000 (web ghi "hơn"); toàn bộ hộp thư giữ `messagesTotal` (khớp 212/212 ở BE-46). Contract `estimateMessages` giữ nguyên.
+  - **Test:** WireMock: một trang, nhiều trang, chạm trần 5 000, lỗi giữa chừng → rỗng như hiện nay; chạy thật: số đếm bằng số thư liệt kê.
+
 ## 2. Web — phiên web (sino-web-41) nhận; phiên backend không sửa `apps/sino-web`
 
 - [ ] 2.1 **FE-50 — Hộp thư trên API thật:** `GET /api/conversations` (view, lọc, infinite scroll bằng `nextCursor`), `GET /api/conversations/counts`, `PATCH` đọc/chưa đọc/lưu trữ; bỏ dữ liệu mẫu ở `inbox.api.ts`. Phụ thuộc BE-44.

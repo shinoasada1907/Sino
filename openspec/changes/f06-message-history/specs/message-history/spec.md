@@ -16,11 +16,15 @@
 - **THEN** response là `404`
 
 ### Requirement: Các trường của một thư
-Mỗi thư MUST có `id`, `direction`, `status`, `sentAt`, `sender` (`name` có thể `null`, `address`, `self`), `to`, `cc`, `subject`, `text`, `bodyFormat` (`TEXT` | `HTML` | `UNCHECKED`), `read` và `attachments` (`id`, `fileName`, `mimeType`, `sizeBytes`). `to` và `cc` MUST là `null` khi Sino không biết người nhận (thư nhập trước khi Sino lưu người nhận) và `[]` khi thư không có. Danh sách `attachments` MUST NOT có ảnh nhúng. Response MUST NOT chứa HTML của thư.
+Mỗi thư MUST có `id`, `direction`, `status`, `sentAt`, `sender` (`name` có thể `null`, `address`, `self`; cả `sender` MUST là `null` khi provider không cho biết người gửi), `to`, `cc`, `subject`, `text`, `bodyFormat` (`TEXT` | `HTML` | `UNCHECKED`), `read` và `attachments` (`id`, `fileName`, `mimeType`, `sizeBytes`). `to` và `cc` MUST là `null` khi Sino không biết người nhận (thư nhập trước khi Sino lưu người nhận) và `[]` khi thư không có. Danh sách `attachments` MUST NOT có ảnh nhúng. Response MUST NOT chứa HTML của thư.
 
 #### Scenario: Thư nhập trước khi lưu người nhận
 - **WHEN** thư được nhập trước change này
 - **THEN** `to` và `cc` là `null` và `bodyFormat` là `UNCHECKED`
+
+#### Scenario: Thư không có người gửi
+- **WHEN** provider lưu một thư hệ thống không nói ai gửi
+- **THEN** `sender` của thư đó là `null`
 
 #### Scenario: Thư có ảnh nhúng và một tệp PDF
 - **WHEN** thư có một ảnh nhúng `cid:` và một tệp PDF

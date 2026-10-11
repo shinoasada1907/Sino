@@ -25,6 +25,16 @@ class InboxCursorTests {
         assertThat(InboxCursor.valueOf(value)).isEqualTo(cursor);
     }
 
+    @Test
+    void writesTheSameTextAsBeforeMessageCursorsCame() {
+        InboxCursor cursor = new InboxCursor(Instant.parse("2026-10-07T08:00:00.123Z"),
+                UUID.fromString("0199c7a0-0000-7000-8000-000000000001"));
+
+        // A cursor the web app holds from before BE-54 must still be read.
+        assertThat(cursor.encode())
+                .isEqualTo("MjAyNi0xMC0wN1QwODowMDowMC4xMjNafDAxOTljN2EwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDAwMQ");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = { "no separator", "2026-10-07T08:00:00Z|not-a-uuid",
         "yesterday|0199c7a0-0000-7000-8000-000000000001", "+10000-01-01T00:00:00Z|0199c7a0-0000-7000-8000-000000000001",

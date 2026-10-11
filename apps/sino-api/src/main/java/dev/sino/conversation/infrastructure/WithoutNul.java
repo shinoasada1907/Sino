@@ -1,12 +1,15 @@
 package dev.sino.conversation.infrastructure;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedParticipant;
+import dev.sino.provider.spi.NormalizedRecipients;
+import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.SyncBatch;
 
 /**
@@ -41,7 +44,20 @@ final class WithoutNul {
         return new NormalizedMessage(text(m.externalMessageId()), text(m.externalConversationId()),
                 text(m.senderExternalParticipantId()), m.direction(), m.type(), text(m.textContent()), m.status(),
                 m.read(), text(m.replyToExternalMessageId()), m.sentAt(),
-                m.attachments().stream().map(WithoutNul::attachment).toList(), metadata);
+                m.attachments().stream().map(WithoutNul::attachment).toList(), metadata, recipients(m.recipients()));
+    }
+
+    private static NormalizedRecipients recipients(NormalizedRecipients r) {
+        return r == null ? null
+                : new NormalizedRecipients(addresses(r.to()), addresses(r.cc()), addresses(r.replyTo()));
+    }
+
+    // An address that was nothing but NUL is none at all, and so is such a name.
+    private static List<Address> addresses(List<Address> addresses) {
+        return addresses.stream().filter(a -> !text(a.address()).isBlank())
+                .map(a -> new Address(a.name() == null || text(a.name()).isBlank() ? null : text(a.name()),
+                        text(a.address())))
+                .toList();
     }
 
     private static NormalizedAttachment attachment(NormalizedAttachment a) {

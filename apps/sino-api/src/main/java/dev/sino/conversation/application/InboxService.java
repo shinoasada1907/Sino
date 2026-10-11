@@ -127,8 +127,7 @@ public class InboxService {
      * @throws dev.sino.common.error.SinoException with {@code CONVERSATION_NOT_FOUND} when not in the inbox
      */
     public InboxDetail detail(UUID ownerId, UUID conversationId) {
-        InboxItem conversation = find(accountsOf(ownerId), conversationId)
-                .orElseThrow(ConversationErrorCode::conversationNotFound);
+        InboxItem conversation = requireInInbox(ownerId, conversationId);
         List<InboxParticipant> participants = jdbc.sql("""
                 SELECT external_participant_id, display_name, avatar_url, is_self FROM conversation_participant
                 WHERE conversation_id = :conversation ORDER BY id
@@ -174,6 +173,15 @@ public class InboxService {
         summaries.summarize(List.of(conversationId));
         events.publishEvent(new ConversationChanged(conversation.accountId(), conversationId, Instant.now()));
         return find(accounts, conversationId).orElseThrow(ConversationErrorCode::conversationNotFound);
+    }
+
+    /**
+     * The conversation, archived or not, when one of the owner's accounts in the inbox has it.
+     *
+     * @throws dev.sino.common.error.SinoException with {@code CONVERSATION_NOT_FOUND} when not in the inbox
+     */
+    public InboxItem requireInInbox(UUID ownerId, UUID conversationId) {
+        return find(accountsOf(ownerId), conversationId).orElseThrow(ConversationErrorCode::conversationNotFound);
     }
 
     private Optional<InboxItem> find(Map<UUID, ProviderType> accounts, UUID conversationId) {

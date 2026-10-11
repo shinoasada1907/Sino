@@ -43,6 +43,8 @@ import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedParticipant;
+import dev.sino.provider.spi.NormalizedRecipients;
+import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 import tools.jackson.databind.json.JsonMapper;
@@ -61,6 +63,9 @@ class JdbcConversationStoreTests {
             null, false);
     private static final NormalizedParticipant OWNER = new NormalizedParticipant("owner@gmail.test", null, null,
             true);
+    private static final NormalizedRecipients ADDRESSEES = new NormalizedRecipients(
+            List.of(new Address(null, "owner@gmail.test")), List.of(new Address("Trần, Bình", "binh@example.test")),
+            List.of());
     private static final NormalizedAttachment REPORT = new NormalizedAttachment("1", "report.pdf",
             "application/pdf", 1024L, null, null);
     private static final NormalizedAttachment PHOTO = new NormalizedAttachment("2", "photo.png", "image/png", 2048L,
@@ -136,7 +141,8 @@ class JdbcConversationStoreTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = { "sender", "direction", "type", "text", "status", "sentAt", "replyTo", "metadata" })
+    @ValueSource(strings = { "sender", "direction", "type", "text", "status", "sentAt", "replyTo", "metadata",
+        "recipients" })
     void aMessageWhoseFieldChangedIsUpdated(String field) {
         store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question()));
         String rowVersion = rowVersion("m-1");
@@ -147,6 +153,23 @@ class JdbcConversationStoreTests {
         assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertThat(rowVersion("m-1")).isNotEqualTo(rowVersion);
         assertStoredAs(edited);
+    }
+
+    @Test
+    void anUpdateThatCannotTellTheRecipientsKeepsTheStoredOnes() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question()));
+        String rowVersion = rowVersion("m-1");
+
+        StoreResult same = store.store(account, batch(List.of(), withRecipients(question(), null)));
+
+        assertThat(same).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 0);
+        assertThat(rowVersion("m-1")).as("nothing else changed, so the row is not written").isEqualTo(rowVersion);
+
+        NormalizedMessage readOnGmail = changed(question(), "read");
+        StoreResult read = store.store(account, batch(List.of(), withRecipients(readOnGmail, null)));
+
+        assertThat(read).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
+        assertStoredAs(readOnGmail);
     }
 
     @Test
@@ -239,7 +262,7 @@ class JdbcConversationStoreTests {
     void aSenderMissingFromTheParticipantsIsAdded() {
         NormalizedMessage fromBob = new NormalizedMessage("m-3", "thread-1", "bob@example.test",
                 MessageDirection.INBOUND, MessageType.TEXT, "Chào", MessageStatus.UNKNOWN, false, null, TUESDAY,
-                List.of(), Map.of());
+                List.of(), Map.of(), null);
 
         store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), fromBob));
 
@@ -340,7 +363,7 @@ class JdbcConversationStoreTests {
     void aMessageWithoutSenderHasNone() {
         NormalizedMessage notice = new NormalizedMessage("m-4", "thread-1", null, MessageDirection.INBOUND,
                 MessageType.SYSTEM, "Alice đã vào nhóm", MessageStatus.UNKNOWN, true, null, TUESDAY, List.of(),
-                Map.of());
+                Map.of(), null);
 
         StoreResult result = store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), notice));
 
@@ -357,7 +380,10 @@ class JdbcConversationStoreTests {
         NormalizedMessage message = new NormalizedMessage("m-1", "thread-1", "b\u0000ob@example.test",
                 MessageDirection.INBOUND, MessageType.MIXED, "Xin\u0000 chào", MessageStatus.UNKNOWN, false, null,
                 MONDAY, List.of(new NormalizedAttachment("1", "re\u0000port.pdf", "application/pdf", 10L, null, null)),
-                Map.of("rfcMessageId", "<a\u0000b@example.test>"));
+                Map.of("rfcMessageId", "<a\u0000b@example.test>"), new NormalizedRecipients(
+                        List.of(new Address("B\u0000ình", "bi\u0000nh@example.test"),
+                                new Address("\u0000", "an@example.test")),
+                        List.of(new Address("Chi", "\u0000\u0000")), List.of()));
 
         StoreResult result = store.store(account, batch(List.of(thread), message));
 
@@ -367,7 +393,9 @@ class JdbcConversationStoreTests {
                 .containsExactly(tuple("alice@example.test", "Alice"), tuple("bob@example.test", "-"));
         assertStoredAs(new NormalizedMessage("m-1", "thread-1", "bob@example.test", MessageDirection.INBOUND,
                 MessageType.MIXED, "Xin chào", MessageStatus.UNKNOWN, false, null, MONDAY, List.of(),
-                Map.of("rfcMessageId", "<ab@example.test>")));
+                Map.of("rfcMessageId", "<ab@example.test>"), new NormalizedRecipients(
+                        List.of(new Address("Bình", "binh@example.test"), new Address(null, "an@example.test")),
+                        List.of(), List.of())));
         assertThat(attachments("m-1")).extracting(file -> file.get(1)).containsExactly("report.pdf");
     }
 
@@ -380,7 +408,7 @@ class JdbcConversationStoreTests {
         CountDownLatch commitFirst = new CountDownLatch(1);
         // The second page touches no row of the first: only the lock of the account can make it wait.
         NormalizedMessage elsewhere = new NormalizedMessage("m-9", "thread-2", null, MessageDirection.INBOUND,
-                MessageType.TEXT, "Khác", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(), Map.of());
+                MessageType.TEXT, "Khác", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(), Map.of(), null);
         try {
             CompletableFuture<Void> first = CompletableFuture.runAsync(() -> inTransaction.executeWithoutResult(t -> {
                 store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question()));
@@ -443,13 +471,13 @@ class JdbcConversationStoreTests {
         metadata.put("rfcMessageId", "<report-1@example.test>");
         return new NormalizedMessage("m-1", "thread-1", "alice@example.test", MessageDirection.INBOUND,
                 files.length == 0 ? MessageType.TEXT : MessageType.MIXED, "Xin chào,\nĐây là báo cáo.",
-                MessageStatus.UNKNOWN, false, null, MONDAY, List.of(files), metadata);
+                MessageStatus.UNKNOWN, false, null, MONDAY, List.of(files), metadata, ADDRESSEES);
     }
 
     private static NormalizedMessage answer() {
         return new NormalizedMessage("m-2", "thread-1", "owner@gmail.test", MessageDirection.OUTBOUND,
                 MessageType.TEXT, "Cảm ơn chị.", MessageStatus.SENT, true, "m-1", TUESDAY, List.of(),
-                Map.of("subject", "Re: Báo cáo tháng 9"));
+                Map.of("subject", "Re: Báo cáo tháng 9"), null);
     }
 
     // The same message with one field changed.
@@ -464,7 +492,15 @@ class JdbcConversationStoreTests {
                 field.equals("replyTo") ? "m-0" : m.replyToExternalMessageId(),
                 field.equals("sentAt") ? MONDAY.plusSeconds(1) : m.sentAt(),
                 m.attachments(),
-                field.equals("metadata") ? Map.of("subject", "Báo cáo tháng 9", "bulk", "true") : m.metadata());
+                field.equals("metadata") ? Map.of("subject", "Báo cáo tháng 9", "bulk", "true") : m.metadata(),
+                field.equals("recipients") ? new NormalizedRecipients(List.of(new Address(null, "owner@gmail.test")),
+                        List.of(), List.of(new Address("Kế toán", "ketoan@example.test"))) : m.recipients());
+    }
+
+    private static NormalizedMessage withRecipients(NormalizedMessage m, NormalizedRecipients recipients) {
+        return new NormalizedMessage(m.externalMessageId(), m.externalConversationId(),
+                m.senderExternalParticipantId(), m.direction(), m.type(), m.textContent(), m.status(), m.read(),
+                m.replyToExternalMessageId(), m.sentAt(), m.attachments(), m.metadata(), recipients);
     }
 
     private static SyncBatch batch(List<NormalizedConversation> conversations, NormalizedMessage... messages) {
@@ -474,12 +510,14 @@ class JdbcConversationStoreTests {
     private void assertStoredAs(NormalizedMessage expected) {
         Map<String, Object> row = jdbc.sql("""
                 select p.external_participant_id as sender, m.direction, m.type, m.text_content, m.status, m.sent_at,
-                       m.reply_to_external_message_id as reply_to, m.metadata = cast(:metadata as jsonb) as same_metadata
+                       m.reply_to_external_message_id as reply_to, m.metadata = cast(:metadata as jsonb) as same_metadata,
+                       coalesce(m.recipients, 'null') = cast(:recipients as jsonb) as same_recipients
                 from message m
                 join conversation c on c.id = m.conversation_id
                 left join conversation_participant p on p.id = m.sender_participant_id
                 where c.account_id = :account and m.external_message_id = :id
-                """).param("metadata", JSON.writeValueAsString(expected.metadata())).param("account", account)
+                """).param("metadata", JSON.writeValueAsString(expected.metadata()))
+                .param("recipients", JSON.writeValueAsString(expected.recipients())).param("account", account)
                 .param("id", expected.externalMessageId()).query().singleRow();
         assertThat(row).containsEntry("sender", expected.senderExternalParticipantId())
                 .containsEntry("direction", expected.direction().name())
@@ -488,7 +526,8 @@ class JdbcConversationStoreTests {
                 .containsEntry("status", expected.status().name())
                 .containsEntry("sent_at", Timestamp.from(expected.sentAt()))
                 .containsEntry("reply_to", expected.replyToExternalMessageId())
-                .containsEntry("same_metadata", true);
+                .containsEntry("same_metadata", true)
+                .containsEntry("same_recipients", true);
     }
 
     private Map<String, Object> conversation(String externalId) {

@@ -207,7 +207,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private static NormalizedMessage normalize(RawMessage raw) {
         return new NormalizedMessage(raw.externalMessageId(), raw.externalConversationId(), null,
                 MessageDirection.INBOUND, MessageType.TEXT, raw.text(), MessageStatus.SENT, false, null,
-                raw.sentAt(), List.of(), Map.of());
+                raw.sentAt(), List.of(), Map.of(), null);
     }
 
     private static Position position(SyncCursor cursor) {

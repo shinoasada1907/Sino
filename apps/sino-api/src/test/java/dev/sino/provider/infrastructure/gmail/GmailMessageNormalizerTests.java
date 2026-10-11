@@ -30,6 +30,8 @@ import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedParticipant;
+import dev.sino.provider.spi.NormalizedRecipients;
+import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import tools.jackson.databind.json.JsonMapper;
@@ -65,6 +67,36 @@ class GmailMessageNormalizerTests {
                 new NormalizedParticipant("owner@gmail.test", null, null, true),
                 new NormalizedParticipant("binh@example.com", "Trần, Bình", null, false),
                 new NormalizedParticipant("chi@example.com", null, null, false));
+    }
+
+    @Test
+    void keepsWhoTheMailWentToInOrderAndWhereRepliesGo() {
+        GmailMessage reply = withHeader(sample("alternative.json"), "Reply-To",
+                "=?UTF-8?Q?Ph=C3=B2ng_k=E1=BA=BF_to=C3=A1n?= <KeToan@Example.com>");
+
+        NormalizedRecipients recipients = GmailMessageNormalizer.normalize(reply, SELF).message().recipients();
+
+        assertThat(recipients.to()).containsExactly(new Address(null, "owner@gmail.test"),
+                new Address("Trần, Bình", "binh@example.com"));
+        assertThat(recipients.cc()).containsExactly(new Address(null, "chi@example.com"));
+        assertThat(recipients.replyTo()).containsExactly(new Address("Phòng kế toán", "ketoan@example.com"));
+    }
+
+    @Test
+    void aBlankSubjectIsNoSubject() {
+        NormalizedGmailMessage normalized = GmailMessageNormalizer.normalize(
+                plain("m-1", "t-1", "1760000000000", "a@example.com", "  ", "Hi"), SELF);
+
+        assertThat(normalized.message().metadata()).doesNotContainKey(NormalizedMessage.SUBJECT);
+    }
+
+    @Test
+    void aMessageWithoutCcOrReplyToHasNone() {
+        NormalizedRecipients recipients = normalize("html-only.json").message().recipients();
+
+        assertThat(recipients.to()).containsExactly(new Address(null, "owner@gmail.test"));
+        assertThat(recipients.cc()).isEmpty();
+        assertThat(recipients.replyTo()).isEmpty();
     }
 
     @Test

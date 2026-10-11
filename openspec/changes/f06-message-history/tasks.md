@@ -8,10 +8,26 @@
 
 > Mỗi task: test đỏ trước rồi xanh, kiểm tra ngược, `./mvnw -B -ntp verify` xanh, file kiến thức của backend + `.docx`, commit riêng trên `dev`. Build và test trong worktree riêng khi người dùng đang chạy backend từ IntelliJ.
 
-- [ ] 1.1 **BE-54 — Danh sách thư của một cuộc trò chuyện, người nhận**
+- [x] 1.1 **BE-54 — Danh sách thư của một cuộc trò chuyện, người nhận**
+  - **Thực hiện (2026-10-11, AUTO):**
+    - Contract: `NormalizedRecipients(to, cc, replyTo)` với `Address(name, address)` (mới); `NormalizedMessage` thêm thành phần `recipients` (`null` = connector không biết) và khóa dùng chung `SUBJECT`; 20 lời gọi constructor thêm đối số.
+    - Gmail: `To`, `Cc`, `Reply-To` qua `MailHeaders.mailboxes` (thứ tự giữ nguyên, tên RFC 2047, địa chỉ viết thường, bỏ NUL).
+    - Lưu: migration V14 thêm cột `message.recipients jsonb` (null = không biết); `JdbcConversationStore` ghi người nhận vào đó, lần lưu không mang người nhận giữ bản đã lưu bằng `coalesce` ở cả `SET` lẫn `WHERE ... IS DISTINCT FROM` nên không tính là đổi. `WithoutNul` bỏ NUL trong người nhận (địa chỉ chỉ toàn NUL thì bỏ địa chỉ đó, tên chỉ toàn NUL thì thành `null`). Gmail: tiêu đề rỗng thì không có khóa `subject`.
+    - API: `GET /api/conversations/{id}/messages` (`ConversationMessagesController`, `MessageResponse`), service `MessageHistory` (trang thư + tệp của cả trang trong hai câu SQL), phạm vi qua `InboxService.requireInInbox` (mới, `detail` dùng lại). Cursor: `KeysetCursor` dùng chung (`<loại><thời điểm>|<id>`), `InboxCursor` loại rỗng (chữ như trước), `MessageCursor` loại `message|`. `bodyFormat` luôn `TEXT` tới BE-55.
+    - README: dòng endpoint. File kiến thức Phase 2 mục 19. Design: mục Contract API (`sender` có thể `null`) và Backend design 1–2.
+  - **Làm khác kế hoạch:**
+    - ~~`metadata.to`/`cc`/`replyTo`~~ → cột riêng `message.recipients` (V14) = `{to, cc, replyTo}`. **LÝ DO:** review hỏi vì sao không dùng cột riêng; bản đầu dùng một khóa `metadata.recipients`, phải giữ riêng khóa đó trong cột của connector và lặp một biểu thức `CASE … ||` ở `SET` lẫn `WHERE`; cột riêng chỉ cần `coalesce`. Hệ quả: BE-55 dùng V15, BE-56 dùng V16 (design mục Backend 1).
+    - `sender` = `null` khi provider không cho biết người gửi (design chỉ ghi `name` có thể `null`). **LÝ DO:** cột `sender_participant_id` vốn cho phép `null` (thông báo hệ thống); phiên web đã chịu được (`501f9ee`).
+    - Danh sách thư ở service riêng `MessageHistory` thay vì thêm vào `InboxService`. **LÝ DO:** BE-55, BE-56 thêm nội dung và tệp (có gọi provider) vào cùng chỗ; `InboxService` giữ phần Hộp thư.
+    - `subject` thành khóa dùng chung của contract. **LÝ DO:** module `conversation` đọc tiêu đề của từng thư; trước đó là khóa riêng của Gmail.
+  - **Kiểm chứng (2026-10-11):** build và test trong worktree riêng (backend của người dùng chạy trong IntelliJ).
+    - RED: `ConversationMessagesApiTests` 12/13 đỏ (`404`; test `401` xanh từ đầu nhờ lớp bảo mật), `JdbcConversationStoreTests` 15 đỏ, `GmailMessageNormalizerTests` 2 đỏ; `NormalizedRecipientsTests` xanh từ đầu (record viết trước test). GREEN: 194 test của các lớp liên quan.
+    - Kiểm tra ngược: 29 lỗi gài (thứ tự, cursor, phạm vi, `limit`, các trường của thư, lưu và giữ người nhận, lọc NUL, Gmail đọc To/Cc/Reply-To, tiêu đề rỗng), 29 bị bắt; lỗi duy nhất sống sót ở lần đầu (bỏ kiểm tiền tố cursor) bị bắt sau khi thêm ca `notours|…`; lần chạy mốc xanh. Bảng ở file kiến thức mục 19.5.
+    - `./mvnw -B -ntp verify` → 1035 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS; `ModularityTests` xanh.
+  - **Sau review (2026-10-11):** agent `senior-reviewer` không thấy CRITICAL/HIGH. MEDIUM: spec `message-history` nói `sender` luôn có → sửa spec, thêm scenario "Thư không có người gửi". Câu hỏi cuối "sao không dùng cột riêng" → đổi sang cột `message.recipients` (V14), xem "Làm khác kế hoạch". LOW đã sửa: tiêu đề rỗng → không có khóa `subject`; tên/địa chỉ chỉ toàn NUL; Javadoc `NormalizedRecipients`; `getObject(OffsetDateTime)` thay `getTimestamp`; `@JsonIgnoreProperties(ignoreUnknown = true)` cho bản đọc người nhận; test chốt chuỗi cursor Hộp thư, `MessageCursorTests`, thứ tự `id` của thư cùng giờ. Không làm: test Gmail bằng WireMock. **LÝ DO:** đường gọi `messages.get` không đổi, phần mới là đọc ba header và đã có test bộ chuẩn hóa trên mẫu JSON.
   - **Goal / Why:** web đọc được mọi thư của một cuộc trò chuyện (D-123).
   - **Depends on:** F05 (bảng `message`, `attachment`; `InboxService`).
-  - **Files:** `conversation/api` (`GET /api/conversations/{id}/messages`), truy vấn keyset `message(conversation_id, sent_at DESC)` + `id`, con trỏ (dùng lại cách mã hóa của `InboxCursor`); `NormalizedMessage` + người nhận; Gmail đọc `To`/`Cc`/`Reply-To`; `ConversationStore` ghi `metadata.to`/`cc`/`replyTo` và không xóa khi cập nhật lại; test.
+  - **Files:** `conversation/api` (`GET /api/conversations/{id}/messages`), truy vấn keyset `message(conversation_id, sent_at DESC)` + `id`, con trỏ (dùng lại cách mã hóa của `InboxCursor`); `NormalizedMessage` + người nhận; Gmail đọc `To`/`Cc`/`Reply-To`; `ConversationStore` ghi ~~`metadata.to`/`cc`/`replyTo`~~ cột `recipients` (migration V14) và không xóa khi cập nhật lại; test.
   - **Hướng làm:** theo design mục Contract API và Backend design 1–2. `bodyFormat` trả `TEXT` cho tới BE-55 (chưa có cột). Ảnh nhúng chưa được ghi nên danh sách tệp đã đúng.
   - **Test:** DB thật: thứ tự, hai trang, thư cùng giờ ở chỗ cắt trang, `limit` ngoài khoảng / cursor lạ → `400`, cuộc trò chuyện của account đã xóa → `404`, người nhận `null` với thư cũ; Gmail (WireMock): `To`/`Cc` nhiều địa chỉ, RFC 2047.
   - **Acceptance criteria:** spec `message-history`.
@@ -19,7 +35,7 @@
 - [ ] 1.2 **BE-55 — Lưu HTML khi nhập, làm sạch, API nội dung, lấy bù thư cũ**
   - **Goal / Why:** thư HTML hiện đúng mà không mở đường cho XSS; thư đã nhập cũng có HTML (D-120, D-121, D-122).
   - **Depends on:** BE-54.
-  - **Files:** migration V14 (`message.html_content`, `body_format`); `NormalizedMessage.htmlContent`; Gmail lấy phần `text/html`; `conversation` lớp làm sạch (jsoup `Cleaner`); contract `fetchMessageContent` + Gmail; `GET …/messages/{messageId}/body`; mã lỗi `MESSAGE_NOT_FOUND`, `MESSAGE_CONTENT_UNAVAILABLE`; test.
+  - **Files:** migration ~~V14~~ V15 (`message.html_content`, `body_format`; V14 là cột người nhận của BE-54); `NormalizedMessage.htmlContent`; Gmail lấy phần `text/html`; `conversation` lớp làm sạch (jsoup `Cleaner`); contract `fetchMessageContent` + Gmail; `GET …/messages/{messageId}/body`; mã lỗi `MESSAGE_NOT_FOUND`, `MESSAGE_CONTENT_UNAVAILABLE`; test.
   - **Hướng làm:** design mục Backend design 3–5. Bộ lọc là hàm thuần: HTML gốc vào, `{html, remoteImages}` ra. Lấy bù: gọi provider ngoài transaction, lưu trong transaction ngắn.
   - **Test:** bảng chuỗi độc hại (OWASP XSS Filter Evasion) và vài thư thật đã ẩn danh (bản tin, biên lai, thư trả lời có `gmail_quote`); `remoteImages`; HTML quá 1 000 000 ký tự; cập nhật lại không xóa HTML; lấy bù thành công / provider lỗi → `502` và vẫn `UNCHECKED`.
   - **Acceptance criteria:** spec `mail-content`; delta `provider-contract` (đọc lại một thư).
@@ -28,7 +44,7 @@
 - [ ] 1.3 **BE-56 — Tải tệp đính kèm, ảnh nhúng**
   - **Goal / Why:** tệp mở được từ Sino, ảnh nhúng hiện trong HTML, không tệp nào chạy được trên origin của Sino (D-125).
   - **Depends on:** BE-55.
-  - **Files:** migration V15 (`attachment.content_id`, `inline`); Gmail ghi phần ảnh nhúng; contract `fetchAttachment` + Gmail `attachments.get`; `GET …/attachments/{attachmentId}`; bộ lọc đổi `cid:`; mã lỗi `ATTACHMENT_NOT_FOUND`, `ATTACHMENT_UNAVAILABLE`, `ATTACHMENT_NOT_INLINE`; test.
+  - **Files:** migration ~~V15~~ V16 (`attachment.content_id`, `inline`); Gmail ghi phần ảnh nhúng; contract `fetchAttachment` + Gmail `attachments.get`; `GET …/attachments/{attachmentId}`; bộ lọc đổi `cid:`; mã lỗi `ATTACHMENT_NOT_FOUND`, `ATTACHMENT_UNAVAILABLE`, `ATTACHMENT_NOT_INLINE`; test.
   - **Hướng làm:** design D-125, mục Contract API. Lấy bù (BE-55) cũng ghi ảnh nhúng.
   - **Test:** header (`attachment`, `filename*`, `nosniff`, CSP `sandbox`); `inline=true` chỉ với PNG/JPEG/GIF/WebP, SVG → `400`; `404`; provider lỗi → `502`; `cid:` không có phần tương ứng → ảnh bị bỏ; danh sách tệp không có ảnh nhúng.
   - **Acceptance criteria:** spec `attachment-download`; delta `provider-contract` (tải tệp).
