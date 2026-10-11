@@ -104,7 +104,8 @@ interface MessageResponse {
   direction: 'INBOUND' | 'OUTBOUND'
   status: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'UNKNOWN'
   sentAt: Instant
-  sender: PersonResponse & { self: boolean }
+  /** Null when the provider does not say who sent it (a system notice); Gmail always does. */
+  sender: (PersonResponse & { self: boolean }) | null
   /** Null when Sino does not know, for mail imported before F06. */
   to: PersonResponse[] | null
   cc: PersonResponse[] | null
@@ -163,6 +164,14 @@ function ownStatus(status: MessageResponse['status']): Mail['status'] {
   }
 }
 
+// The reader is "Bạn"; a message without a known sender is named so, or is the reader's own when it went out.
+function senderName(sender: MessageResponse['sender'], outbound: boolean): string {
+  if (!sender) {
+    return outbound ? 'Bạn' : 'Không rõ người gửi'
+  }
+  return sender.self ? 'Bạn' : (sender.name ?? sender.address)
+}
+
 function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
@@ -170,7 +179,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     id,
     kind: 'MESSAGE',
     direction: outbound ? 'OUT' : 'IN',
-    sender: sender.self ? 'Bạn' : (sender.name ?? sender.address),
+    sender: senderName(sender, outbound),
     to: recipients || null,
     at: sentAt,
     text: text ?? '',

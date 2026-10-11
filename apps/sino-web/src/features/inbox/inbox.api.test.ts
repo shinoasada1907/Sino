@@ -187,3 +187,26 @@ describe('the messages of a conversation on the F06 and F10 APIs', () => {
     expect(items[6]).not.toHaveProperty('clientMessageId')
   })
 })
+
+describe('a message without a known sender (BE-54)', () => {
+  it('names the sender as unknown, or as the reader for an own message, instead of failing', async () => {
+    server.use(
+      http.get('/api/conversations/:id/messages', () =>
+        HttpResponse.json({
+          items: [
+            { ...API_MESSAGES[0], id: 'n-1', sender: null },
+            { ...API_MESSAGES[1], id: 'n-2', sender: null },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    )
+
+    const { items } = await fetchMessages('c-1', null)
+
+    expect(items).toMatchObject([
+      { id: 'n-1', direction: 'IN', sender: 'Không rõ người gửi' },
+      { id: 'n-2', direction: 'OUT', sender: 'Bạn' },
+    ])
+  })
+})
