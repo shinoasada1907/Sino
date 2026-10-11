@@ -8,6 +8,8 @@ import java.util.Map;
  * A message as a connector reports it. {@code metadata} holds a few small values that have no normalized
  * field; never raw payloads or secrets, and the connector documents its keys. {@link #BULK} and {@link #SUBJECT} are
  * the keys every connector shares. {@code recipients} is null when the connector cannot tell them, as for a chat.
+ * {@code htmlContent} is the HTML body as the provider gives it, never cleaned, or null when the message has none; the
+ * text stays the text Sino shows in lists and previews.
  */
 public record NormalizedMessage(
         String externalMessageId,
@@ -22,7 +24,8 @@ public record NormalizedMessage(
         Instant sentAt,
         List<NormalizedAttachment> attachments,
         Map<String, String> metadata,
-        NormalizedRecipients recipients) {
+        NormalizedRecipients recipients,
+        String htmlContent) {
 
     /**
      * Metadata key, {@code "true"} when the message was sent in bulk: a newsletter, an advertisement, an automatic

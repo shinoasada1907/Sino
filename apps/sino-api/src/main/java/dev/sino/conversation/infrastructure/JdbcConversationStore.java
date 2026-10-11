@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.sino.conversation.ConversationStore;
 import dev.sino.conversation.StoreResult;
 import dev.sino.provider.spi.ConversationType;
+import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
@@ -36,6 +37,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Repository
 @Transactional(propagation = Propagation.MANDATORY)
 public class JdbcConversationStore implements ConversationStore {
+
+    /** The longest HTML body kept (F06, D-120); a longer one is not kept and the message shows its text. */
+    public static final int MAX_HTML_LENGTH = 1_000_000;
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -195,14 +199,17 @@ public class JdbcConversationStore implements ConversationStore {
 
     // Step 3. Read state (D-67): is_read is what Sino shows, provider_read what the provider said last. When the provider
     // changes its mind, Sino follows; when it says the same again, a choice made in Sino stays. Addressees the
-    // connector cannot tell (null) keep those stored, and are no change for that alone (F06).
+    // connector cannot give (null) keep those stored, and are no change for that alone (F06). The HTML of a message
+    // never changes: once kept it stays, written back as stored so PostgreSQL does not copy it again on every change.
     private StoredMessage storeMessage(UUID conversationId, UUID senderId, NormalizedMessage message) {
         Optional<StoredMessage> written = jdbc.sql("""
                 INSERT INTO message AS m (conversation_id, sender_participant_id, external_message_id, direction, type,
                                           text_content, status, sent_at, reply_to_external_message_id, is_read,
-                                          provider_read, metadata, recipients, created_at, updated_at)
+                                          provider_read, metadata, recipients, html_content, body_format,
+                                          created_at, updated_at)
                 VALUES (:conversation, :sender, :externalId, :direction, :type, :text, :status, :sentAt, :replyTo,
-                        :read, :read, cast(:metadata AS jsonb), cast(:recipients AS jsonb), now(), now())
+                        :read, :read, cast(:metadata AS jsonb), cast(:recipients AS jsonb), :html,
+                        CASE WHEN cast(:html AS text) IS NULL THEN 'TEXT' ELSE 'HTML' END, now(), now())
                 ON CONFLICT (conversation_id, external_message_id) DO UPDATE
                 SET sender_participant_id = EXCLUDED.sender_participant_id,
                     direction = EXCLUDED.direction,
@@ -213,16 +220,21 @@ public class JdbcConversationStore implements ConversationStore {
                     reply_to_external_message_id = EXCLUDED.reply_to_external_message_id,
                     metadata = EXCLUDED.metadata,
                     recipients = coalesce(EXCLUDED.recipients, m.recipients),
+                    html_content = coalesce(m.html_content, EXCLUDED.html_content),
+                    body_format = CASE WHEN coalesce(m.html_content, EXCLUDED.html_content) IS NULL THEN 'TEXT'
+                                       ELSE 'HTML' END,
                     is_read = CASE WHEN m.provider_read IS DISTINCT FROM EXCLUDED.provider_read
                                    THEN EXCLUDED.provider_read ELSE m.is_read END,
                     provider_read = EXCLUDED.provider_read,
                     updated_at = now()
                 WHERE (m.sender_participant_id, m.direction, m.type, m.text_content, m.status, m.sent_at,
-                       m.reply_to_external_message_id, m.metadata, m.recipients, m.provider_read)
+                       m.reply_to_external_message_id, m.metadata, m.recipients, m.body_format, m.provider_read)
                       IS DISTINCT FROM
                       (EXCLUDED.sender_participant_id, EXCLUDED.direction, EXCLUDED.type, EXCLUDED.text_content,
                        EXCLUDED.status, EXCLUDED.sent_at, EXCLUDED.reply_to_external_message_id, EXCLUDED.metadata,
-                       coalesce(EXCLUDED.recipients, m.recipients), EXCLUDED.provider_read)
+                       coalesce(EXCLUDED.recipients, m.recipients),
+                       CASE WHEN coalesce(m.html_content, EXCLUDED.html_content) IS NULL THEN 'TEXT' ELSE 'HTML' END,
+                       EXCLUDED.provider_read)
                 RETURNING id, xmax = 0
                 """)
                 .param("conversation", conversationId).param("sender", senderId)
@@ -233,6 +245,7 @@ public class JdbcConversationStore implements ConversationStore {
                 .param("metadata", JSON.writeValueAsString(message.metadata()))
                 .param("recipients", message.recipients() == null ? null
                         : JSON.writeValueAsString(message.recipients()))
+                .param("html", keptHtml(message.htmlContent()))
                 // xmax is 0 for a row this statement inserted, and set for one it updated.
                 .query((row, n) -> new StoredMessage(row.getObject(1, UUID.class),
                         row.getBoolean(2) ? Change.INSERTED : Change.UPDATED))
@@ -241,6 +254,32 @@ public class JdbcConversationStore implements ConversationStore {
                 SELECT id FROM message WHERE conversation_id = :conversation AND external_message_id = :externalId
                 """).param("conversation", conversationId).param("externalId", message.externalMessageId())
                 .query(UUID.class).single(), Change.NONE));
+    }
+
+    /**
+     * Keeps what reading a message again gave (F06, D-122), for one stored before Sino kept HTML: its HTML, unless too
+     * long, and its addressees. Only a message still {@code UNCHECKED} changes, so when two read it at once the second
+     * changes nothing.
+     *
+     * @return whether the message changed
+     */
+    public boolean storeContent(UUID messageId, MessageContent read) {
+        MessageContent content = WithoutNul.of(read);
+        String html = keptHtml(content.htmlContent());
+        return jdbc.sql("""
+                UPDATE message
+                SET html_content = :html,
+                    body_format = CASE WHEN cast(:html AS text) IS NULL THEN 'TEXT' ELSE 'HTML' END,
+                    recipients = coalesce(cast(:recipients AS jsonb), recipients), updated_at = now()
+                WHERE id = :id AND body_format = 'UNCHECKED'
+                """).param("html", html)
+                .param("recipients", content.recipients() == null ? null
+                        : JSON.writeValueAsString(content.recipients()))
+                .param("id", messageId).update() > 0;
+    }
+
+    private static String keptHtml(String html) {
+        return html == null || html.length() > MAX_HTML_LENGTH ? null : html;
     }
 
     // Step 4. Whether any file of the message was added, changed or removed.

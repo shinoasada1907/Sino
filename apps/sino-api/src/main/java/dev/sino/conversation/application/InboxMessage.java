@@ -12,7 +12,8 @@ import dev.sino.provider.spi.MessageStatus;
  * named none; {@code to} and {@code cc} are null when Sino does not know the addressees, empty when there are none.
  */
 public record InboxMessage(UUID id, MessageDirection direction, MessageStatus status, Instant sentAt, Sender sender,
-        List<Address> to, List<Address> cc, String subject, String text, boolean read, List<File> attachments) {
+        List<Address> to, List<Address> cc, String subject, String text, BodyFormat bodyFormat, boolean read,
+        List<File> attachments) {
 
     /** {@code address} is the email for mail, the provider's ID of the sender otherwise. */
     public record Sender(String name, String address, boolean self) {

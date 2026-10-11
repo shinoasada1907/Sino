@@ -15,6 +15,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import dev.sino.provider.spi.AccountProfile;
+import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
@@ -53,8 +54,11 @@ public final class FakeMessageProvider implements MessageProvider {
     private final Map<Integer, ProviderException> failures;
     private final PushRegistration push;
     private final ProviderException pushFailure;
+    private final Map<String, MessageContent> contents;
+    private final ProviderException contentFailure;
     private final AtomicInteger calls = new AtomicInteger();
     private final AtomicInteger pushCalls = new AtomicInteger();
+    private final AtomicInteger contentCalls = new AtomicInteger();
     private final List<SendMessageCommand> sent = new ArrayList<>();
 
     private FakeMessageProvider(Builder builder) {
@@ -69,6 +73,8 @@ public final class FakeMessageProvider implements MessageProvider {
         this.estimate = builder.estimate;
         this.estimateFailure = builder.estimateFailure;
         this.failures = Map.copyOf(builder.failures);
+        this.contents = Map.copyOf(builder.contents);
+        this.contentFailure = builder.contentFailure;
     }
 
     public static Builder builder(String type) {
@@ -183,6 +189,21 @@ public final class FakeMessageProvider implements MessageProvider {
         return Optional.ofNullable(push);
     }
 
+    /** What {@link Builder#content} set for the message; empty for any other, as for a message the provider lost. */
+    @Override
+    public Optional<MessageContent> fetchMessageContent(ProviderContext context, String externalMessageId) {
+        contentCalls.incrementAndGet();
+        if (contentFailure != null) {
+            throw contentFailure;
+        }
+        return Optional.ofNullable(contents.get(externalMessageId));
+    }
+
+    /** How many times {@link #fetchMessageContent} reached the fake provider, failed calls included. */
+    public int contentCalls() {
+        return contentCalls.get();
+    }
+
     /** How many times {@link #fetchUpdates} was called, failed calls included. */
     public int fetchCalls() {
         return calls.get();
@@ -207,7 +228,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private static NormalizedMessage normalize(RawMessage raw) {
         return new NormalizedMessage(raw.externalMessageId(), raw.externalConversationId(), null,
                 MessageDirection.INBOUND, MessageType.TEXT, raw.text(), MessageStatus.SENT, false, null,
-                raw.sentAt(), List.of(), Map.of(), null);
+                raw.sentAt(), List.of(), Map.of(), null, null);
     }
 
     private static Position position(SyncCursor cursor) {
@@ -256,6 +277,8 @@ public final class FakeMessageProvider implements MessageProvider {
         private final Map<Integer, ProviderException> failures = new HashMap<>();
         private PushRegistration push;
         private ProviderException pushFailure;
+        private final Map<String, MessageContent> contents = new HashMap<>();
+        private ProviderException contentFailure;
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -307,6 +330,18 @@ public final class FakeMessageProvider implements MessageProvider {
         /** Makes the fake declare {@code PUSH_WEBHOOK} and fail every registration for push, as a refused topic does. */
         public Builder pushFailure(ProviderException failure) {
             this.pushFailure = failure;
+            return this;
+        }
+
+        /** What reading the message again gives. */
+        public Builder content(String externalMessageId, MessageContent content) {
+            contents.put(externalMessageId, content);
+            return this;
+        }
+
+        /** Makes reading any message again fail, as a provider that cannot be reached does. */
+        public Builder contentFailure(ProviderException failure) {
+            this.contentFailure = failure;
             return this;
         }
 

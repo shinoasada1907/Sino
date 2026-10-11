@@ -32,7 +32,26 @@
   - **Test:** DB thật: thứ tự, hai trang, thư cùng giờ ở chỗ cắt trang, `limit` ngoài khoảng / cursor lạ → `400`, cuộc trò chuyện của account đã xóa → `404`, người nhận `null` với thư cũ; Gmail (WireMock): `To`/`Cc` nhiều địa chỉ, RFC 2047.
   - **Acceptance criteria:** spec `message-history`.
 
-- [ ] 1.2 **BE-55 — Lưu HTML khi nhập, làm sạch, API nội dung, lấy bù thư cũ**
+- [x] 1.2 **BE-55 — Lưu HTML khi nhập, làm sạch, API nội dung, lấy bù thư cũ**
+  - **Thực hiện (2026-10-11, AUTO):**
+    - Dữ liệu: V15 `message.html_content`, `body_format` (`TEXT`/`HTML`/`UNCHECKED`, hai `CHECK`, `DEFAULT` chỉ để đánh dấu dòng cũ rồi bỏ). `JdbcConversationStore`: HTML tối đa 1 000 000 ký tự (dài hơn thì `TEXT`), lưu lại giữ HTML đã lưu, `UNCHECKED` được chốt khi đồng bộ chạm vào; `storeContent` cho lấy bù (chỉ đổi thư còn `UNCHECKED`). `WithoutNul` lọc NUL trong HTML.
+    - Contract: `NormalizedMessage.htmlContent` (thành phần thứ 14), `MessageContent(htmlContent, recipients)`, `MessageProvider.fetchMessageContent` (mặc định rỗng). Gmail: phần `text/html` đầu tiên không phải tệp, không đi vào tệp hay thư chuyển tiếp đính kèm (`message/rfc822`, sửa luôn cho phần chữ); `fetchMessageContent` qua `messages.get`.
+    - `MailHtml` (bộ lọc, hàm thuần, jsoup `Cleaner` + danh sách cho phép), `MessageBodies` (phạm vi, tìm thư trong cuộc trò chuyện, lấy bù ngoài transaction, ghi trong `TransactionTemplate`, phát `ConversationChanged`), `BodyFormat`, `MessageBody`; `GET …/messages/{messageId}/body`; danh sách thư trả `bodyFormat` thật. Mã lỗi `MESSAGE_NOT_FOUND`, `MESSAGE_CONTENT_UNAVAILABLE` qua loại lỗi mới `PROVIDER_FAILED` (`502`).
+    - README: dòng endpoint, `bodyFormat`. File kiến thức Phase 2 mục 20. Design (Backend design 2–5), spec `mail-content` (scenario "Provider không còn thư").
+  - **Làm khác kế hoạch:**
+    - ~~migration V14~~ → V15. **LÝ DO:** V14 là cột người nhận của BE-54.
+    - Lấy bù ghi cả người nhận (`MessageContent` có `recipients`). **LÝ DO:** thư nhập trước BE-54 cũng chưa có người nhận; một lần `messages.get` cho cả hai.
+    - Ảnh `cid:` bị bỏ ở BE-55 (bộ lọc nhận một hàm tra ảnh nhúng, ở đây luôn rỗng). **LÝ DO:** ảnh nhúng và đường dẫn của chúng là BE-56.
+    - Thêm loại lỗi `PROVIDER_FAILED` → `502` (module `common`). **LÝ DO:** contract dùng `502`, chưa có loại nào ứng với nó; `503` vẫn là "Sino tạm không dùng được một thứ nó cần". F10 cũng cần `502`.
+    - Gmail không đi vào bên trong tệp hay `message/rfc822` khi chọn phần thân (đổi cả phần chữ của BE-37). **LÝ DO:** review: thư chỉ có chữ mà đính kèm một thư HTML thì lấy nhầm HTML của thư đính kèm.
+  - **Kiểm chứng (2026-10-11):** build và test trong worktree riêng (backend của người dùng chạy trong IntelliJ).
+    - RED: `MailHtmlTests` 43/52 đỏ trên `MailHtml` tạm (trả nguyên HTML). Các test lưu, API, Gmail viết sau code; khả năng đỏ của chúng chứng minh bằng kiểm tra ngược.
+    - GREEN: 409 test của các lớp liên quan (bộ lọc 64, API nội dung 9, lưu, Gmail chuẩn hóa và WireMock, contract, xử lý lỗi).
+    - Kiểm tra ngược: lượt 1, 37 lỗi gài, 33 bị bắt; 4 sống sót → 3 test mới và bỏ phép so HTML ở `WHERE` (tương đương phép so `body_format`). Lượt 2 (phần sửa sau review), 16 lỗi gài, 10 bị bắt, 6 sống sót có chủ đích (hai lớp kiểm `background` đỡ nhau; hai lớp gia cố trùng việc jsoup 1.23.2 đã làm; ưu tiên HTML mới chỉ khác ở TOAST; phát sự kiện thừa chỉ khác khi hai request cùng lúc); bảng ở file kiến thức mục 20.6.
+    - mXSS review nghi: chạy thẳng jsoup 1.23.2 với ba payload `<svg>`/`<math>` + `<style>`: jsoup mã hóa `<` trong thuộc tính và chữ nên không lọt; bộ test mới cũng xanh với bộ lọc cũ. Gia cố vẫn giữ.
+    - `./mvnw -B -ntp verify` → 1129 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS; `ModularityTests` xanh. Sau khi xuống dòng hai chỗ (chú thích, annotation): `MailHtmlTests` + `JdbcConversationStoreTests` 107/107.
+  - **Sau review (2026-10-11):** agent `senior-reviewer` không có CRITICAL/HIGH đã xác minh. MEDIUM: thứ tự và `media` của `<style>` → sửa, test; thiếu ca mXSS `<svg>`/`<math>` + `<style>` → thêm ba ca, gia cố `keepCssOnly`. LOW đã sửa: bỏ `DEFAULT` của `body_format`; Javadoc (CSP, `content`, `TEXT`); phát `ConversationChanged` sau lấy bù; `image-set`; giữ HTML đã lưu (không chép lại TOAST); Gmail không vào `message/rfc822`; `https:/…` không là địa chỉ web. Câu hỏi "gộp hai nghĩa của rỗng" → giữ, lý do ở design (Backend design 4).
+
   - **Goal / Why:** thư HTML hiện đúng mà không mở đường cho XSS; thư đã nhập cũng có HTML (D-120, D-121, D-122).
   - **Depends on:** BE-54.
   - **Files:** migration ~~V14~~ V15 (`message.html_content`, `body_format`; V14 là cột người nhận của BE-54); `NormalizedMessage.htmlContent`; Gmail lấy phần `text/html`; `conversation` lớp làm sạch (jsoup `Cleaner`); contract `fetchMessageContent` + Gmail; `GET …/messages/{messageId}/body`; mã lỗi `MESSAGE_NOT_FOUND`, `MESSAGE_CONTENT_UNAVAILABLE`; test.

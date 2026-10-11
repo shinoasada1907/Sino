@@ -5,8 +5,9 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * The user marked a conversation read or unread, or archived it or brought it back (F08), published in the
- * transaction of the change. Lets the other tabs of the user read it again.
+ * The user marked a conversation read or unread, or archived it or brought it back (F08), or opened a message whose
+ * content Sino then read again from the provider (F06), published in the transaction of the change. Lets the tabs of
+ * the user read it again.
  */
 public record ConversationChanged(UUID accountId, UUID conversationId, Instant changedAt) {
 

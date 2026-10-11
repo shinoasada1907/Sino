@@ -148,11 +148,12 @@ class ConversationMessagesApiTests {
                 Map.of(NormalizedMessage.SUBJECT, "Báo giá tháng 10", NormalizedMessage.BULK, "true"),
                 new NormalizedRecipients(List.of(new Address(null, "owner@gmail.test"),
                         new Address("Trần, Bình", "binh@example.test")), List.of(new Address(null, "chi@example.test")),
-                        List.of(new Address("Phòng kế toán", "ketoan@example.test"))));
+                        List.of(new Address("Phòng kế toán", "ketoan@example.test"))), null);
         NormalizedMessage answer = new NormalizedMessage("m-2", "report", "owner@gmail.test",
                 MessageDirection.OUTBOUND, MessageType.TEXT, "Cảm ơn chị.", MessageStatus.SENT, true, "m-1", TUESDAY,
                 List.of(), Map.of(NormalizedMessage.SUBJECT, "Re: Báo giá tháng 10"),
-                new NormalizedRecipients(List.of(new Address("Alice", "alice@example.test")), List.of(), List.of()));
+                new NormalizedRecipients(List.of(new Address("Alice", "alice@example.test")), List.of(), List.of()),
+                null);
         store(gmail, thread("report"), question, answer);
         UUID conversation = conversationId("report");
         UUID questionId = messageId("m-1");
@@ -200,7 +201,7 @@ class ConversationMessagesApiTests {
     @Test
     void addresseesAreUnknownForMailStoredWithoutThemAndAMessageMayHaveNoSenderOrText() throws Exception {
         NormalizedMessage notice = new NormalizedMessage("m-1", "report", null, MessageDirection.INBOUND,
-                MessageType.SYSTEM, null, MessageStatus.UNKNOWN, true, null, MONDAY, List.of(), Map.of(), null);
+                MessageType.SYSTEM, null, MessageStatus.UNKNOWN, true, null, MONDAY, List.of(), Map.of(), null, null);
         store(gmail, thread("report"), notice);
 
         mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
@@ -330,7 +331,7 @@ class ConversationMessagesApiTests {
 
     private static NormalizedMessage fromAlice(String conversation, String id, Instant sentAt, String text) {
         return new NormalizedMessage(id, conversation, "alice@example.test", MessageDirection.INBOUND, MessageType.TEXT,
-                text, MessageStatus.UNKNOWN, true, null, sentAt, List.of(), Map.of(), null);
+                text, MessageStatus.UNKNOWN, true, null, sentAt, List.of(), Map.of(), null, null);
     }
 
     private static RequestPostProcessor apiUser() {

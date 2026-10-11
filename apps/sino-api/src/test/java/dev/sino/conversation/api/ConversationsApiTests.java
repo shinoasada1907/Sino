@@ -628,7 +628,7 @@ class ConversationsApiTests {
         return new NormalizedMessage(id, conversation, sender, direction,
                 files.length == 0 ? MessageType.TEXT : MessageType.MIXED, text,
                 direction == MessageDirection.OUTBOUND ? MessageStatus.SENT : MessageStatus.UNKNOWN, read, null,
-                sentAt, List.of(files), metadata, null);
+                sentAt, List.of(files), metadata, null, null);
     }
 
     private static void await(CountDownLatch latch) {

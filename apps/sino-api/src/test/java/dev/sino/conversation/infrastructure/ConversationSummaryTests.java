@@ -85,7 +85,8 @@ class ConversationSummaryTests {
                 List.of(new NormalizedParticipant("bob@example.test", "Bob", null, false), OWNER), null);
         NormalizedMessage fromBob = new NormalizedMessage("m-9", "thread-2", "bob@example.test",
                 MessageDirection.INBOUND, MessageType.MIXED, "Của Bob", MessageStatus.UNKNOWN, false, null, THURSDAY,
-                List.of(new NormalizedAttachment("1", "bob.pdf", "application/pdf", 10L, null, null)), Map.of(), null);
+                List.of(new NormalizedAttachment("1", "bob.pdf", "application/pdf", 10L, null, null)), Map.of(), null,
+                null);
 
         store.store(account, batch(List.of(thread("Báo cáo"), other), inbound("m-1", MONDAY),
                 mail("m-2", MessageDirection.INBOUND, "alice@example.test", TUESDAY, "Thư m-2", true, Map.of()),
@@ -370,7 +371,7 @@ class ConversationSummaryTests {
             String text, boolean read, Map<String, String> metadata, NormalizedAttachment... files) {
         return new NormalizedMessage(id, "thread-1", sender, direction, MessageType.TEXT, text,
                 direction == MessageDirection.OUTBOUND ? MessageStatus.SENT : MessageStatus.UNKNOWN, read, null,
-                sentAt, List.of(files), metadata, null);
+                sentAt, List.of(files), metadata, null, null);
     }
 
     private static SyncBatch batch(List<NormalizedConversation> conversations, NormalizedMessage... messages) {

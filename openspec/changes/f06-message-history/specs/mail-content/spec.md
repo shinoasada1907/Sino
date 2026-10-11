@@ -40,6 +40,10 @@ Khi web hỏi nội dung một thư `UNCHECKED`, Sino MUST đọc lại thư đ�
 - **WHEN** web hỏi nội dung một thư `UNCHECKED` có phần HTML
 - **THEN** response có `format` = `HTML`, và từ đó thư có `bodyFormat` = `HTML` mà không gọi provider nữa
 
+#### Scenario: Provider không còn thư
+- **WHEN** web hỏi nội dung một thư `UNCHECKED` mà provider không còn thư đó
+- **THEN** response có `format` = `TEXT` và từ đó thư có `bodyFormat` = `TEXT`
+
 #### Scenario: Gmail tạm lỗi
 - **WHEN** provider ném `PROVIDER_UNAVAILABLE` lúc lấy bù
 - **THEN** response là `502 MESSAGE_CONTENT_UNAVAILABLE` và thư vẫn là `UNCHECKED`

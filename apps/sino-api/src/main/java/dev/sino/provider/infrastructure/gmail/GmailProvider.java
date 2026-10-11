@@ -19,6 +19,7 @@ import dev.sino.provider.infrastructure.gmail.GmailApi.MessageList;
 import dev.sino.provider.infrastructure.gmail.GmailApi.Profile;
 import dev.sino.provider.infrastructure.gmail.GmailApi.Watch;
 import dev.sino.provider.spi.AccountProfile;
+import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.OAuth2Connection;
 import dev.sino.provider.spi.OAuth2Credentials;
@@ -201,6 +202,15 @@ class GmailProvider implements MessageProvider {
         }
         return new SyncBatch(GmailMessageNormalizer.threadsOf(messages),
                 messages.stream().map(NormalizedGmailMessage::message).toList(), skipped, next.toSyncCursor(), more);
+    }
+
+    /**
+     * Reads one message again ({@code messages.get}, {@code format=full}) for its HTML and addressees; empty when
+     * Gmail no longer has it.
+     */
+    @Override
+    public Optional<MessageContent> fetchMessageContent(ProviderContext context, String externalMessageId) {
+        return api.message(accessTokenOf(context), externalMessageId).map(GmailMessageNormalizer::content);
     }
 
     // Archived mail is shown too: it still belongs to its thread.

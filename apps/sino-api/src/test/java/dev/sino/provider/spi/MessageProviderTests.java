@@ -53,6 +53,13 @@ class MessageProviderTests {
     }
 
     @Test
+    void aConnectorReadsNoMessageAgainByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThat(readOnly.fetchMessageContent(context, "m-1")).isEmpty();
+    }
+
+    @Test
     void aConnectorRegistersForNoPushByDefault() {
         ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
 

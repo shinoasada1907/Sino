@@ -21,6 +21,9 @@ public enum ErrorCategory {
     /** A dependency such as a provider is temporarily unavailable (503). */
     DEPENDENCY_UNAVAILABLE,
 
+    /** The provider failed while Sino acted on it for the caller, so the result could not be had (502). */
+    PROVIDER_FAILED,
+
     /** Too many requests to us or to a provider (429). */
     RATE_LIMITED
 

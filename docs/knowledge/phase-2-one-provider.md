@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn BE-61 (ước lượng đúng cho khoảng ngày) và archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): đang làm, xong BE-54.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn BE-61 (ước lượng đúng cho khoảng ngày) và archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): đang làm, xong BE-54, BE-55.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1617,6 +1617,92 @@ WHERE (..., m.recipients, ...)
   - Nhỏ, đã sửa: tiêu đề rỗng thành không có tiêu đề; tên hoặc địa chỉ chỉ toàn NUL; Javadoc của `NormalizedRecipients` nói đúng cả trường hợp nhóm không thành viên (`undisclosed-recipients:;`); đọc giờ gửi bằng `OffsetDateTime` như phần còn lại của code; bản đọc người nhận bỏ qua khóa lạ; test chốt chuỗi của cursor Hộp thư, `MessageCursorTests`, thứ tự theo `id` của thư cùng giờ.
   - Không làm: test Gmail bằng WireMock mà task ghi. **LÝ DO:** đường gọi `messages.get` không đổi; phần mới chỉ là đọc ba header, đã có test bộ chuẩn hóa trên mẫu JSON.
 
+## 20. Thư HTML: lưu nguyên bản, làm sạch khi trả, lấy bù thư cũ (BE-55, F06)
+
+**Ở đâu:** `db/migration/V15__conversation_add_message_html.sql` (mới), `provider/spi/{MessageContent (mới),MessageProvider,NormalizedMessage}.java`, `provider/infrastructure/gmail/{GmailMessageNormalizer,GmailProvider}.java`, `conversation/application/{MailHtml,MessageBodies,BodyFormat,MessageBody}.java` (mới), `conversation/infrastructure/JdbcConversationStore.java`, `conversation/api/ConversationMessagesController.java`, `common/error/ErrorCategory.java`.
+
+Bản tin, biên lai, thông báo của ngân hàng phần lớn là HTML: bảng, màu, nút, ảnh. Chỉ có chữ (BE-37 rút chữ từ HTML) thì mất hết bố cục. BE-55 giữ HTML, nhưng HTML từ người lạ là chỗ dễ bị tấn công nhất của một ứng dụng đọc thư: một thẻ `<script>` lọt qua là chạy trên trang của Sino, với cookie đăng nhập của bạn.
+
+### 20.1 Ba trạng thái của nội dung một thư
+Migration V15 thêm hai cột vào `message`:
+
+| `body_format` | Nghĩa | `html_content` |
+|---|---|---|
+| `TEXT` | thư không có HTML, hoặc HTML dài quá 1 000 000 ký tự | `NULL` |
+| `HTML` | đã giữ HTML như lúc nhận | có |
+| `UNCHECKED` | thư lưu trước F06: chưa biết có HTML hay không | `NULL` |
+
+Mọi dòng có sẵn nhận `UNCHECKED` nhờ `DEFAULT`. Một ràng buộc `CHECK ((body_format = 'HTML') = (html_content IS NOT NULL))` so sánh hai giá trị đúng/sai: có HTML khi và chỉ khi trạng thái là `HTML`. Code nào lỡ ghi lệch hai cột này thì PostgreSQL từ chối ngay, thay vì để dữ liệu sai nằm im.
+
+`DEFAULT 'UNCHECKED'` chỉ dùng để đánh dấu các dòng có sẵn, rồi bị bỏ ngay trong cùng migration: một câu `INSERT` sau này mà quên cột này sẽ lỗi `NOT NULL` ngay, thay vì âm thầm tạo một thư `UNCHECKED`.
+
+HTML của một thư không bao giờ đổi. Lưu lại một thư thì giữ HTML đã lưu (`coalesce(m.html_content, EXCLUDED.html_content)`): giá trị ghi lại chính là giá trị cũ, nên PostgreSQL không phải chép lại cả trăm KB HTML (nằm trong bảng phụ TOAST) mỗi lần thư chỉ đổi trạng thái đã đọc. Phép so "có gì đổi không" ở `WHERE` (mục 13.3) so `body_format` chứ không so HTML. Một thư `UNCHECKED` được đồng bộ chạm vào thì được "chốt": có HTML thành `HTML`, không có thành `TEXT`.
+
+### 20.2 Vì sao giữ HTML gốc và làm sạch mỗi lần trả (câu gợi ý của task)
+Hai cách:
+
+```text
+Cách A (bỏ): nhận thư --làm sạch--> lưu bản sạch --> trả
+Cách B (D-120): nhận thư --> lưu bản gốc --> mỗi lần trả: làm sạch --> trả
+```
+
+Bộ lọc nào cũng có ngày bị phát hiện một lỗ. Với cách A, mọi thư đã lưu bằng bộ lọc cũ vẫn mang lỗ đó, cho tới khi có ai viết một việc nền chạy lại bộ lọc trên từng dòng. Với cách B, sửa bộ lọc là có tác dụng ngay với mọi thư, kể cả thư nhập từ năm ngoái. Cái giá là làm sạch lại mỗi lần mở thư (vài mili giây với jsoup) và lưu bản gốc. Test `htmlComesOutCleanedAndTellsOfPicturesFromTheWeb` kiểm cả hai vế: API trả bản sạch, còn database vẫn giữ bản gốc.
+
+### 20.3 Bộ lọc: chỉ cho phép những gì cần
+`MailHtml` dùng `Cleaner` của jsoup với một **danh sách cho phép** (`Safelist`): bắt đầu từ `Safelist.relaxed()` rồi thêm những gì thư cần cho bố cục (`style`, `class`, thuộc tính của bảng, `font`, `center`). Thẻ hay thuộc tính nào không có trong danh sách đều bị bỏ, kể cả những thứ trình duyệt sau này mới bày ra. Danh sách cấm thì ngược lại: chỉ chặn được những gì người viết đã nghĩ tới.
+
+```text
+HTML gốc
+  -> Jsoup.parse: dựng cây DOM, giải mã thực thể (&#106; thành j)
+  -> dời các thẻ <style> của <head> vào <body> (Cleaner chỉ giữ body)
+  -> Cleaner(Safelist): giữ thẻ và thuộc tính được phép, kiểm giao thức của href/src
+  -> ảnh: cid: thành đường dẫn của Sino hoặc bỏ; data: chỉ png/jpeg/gif/webp; không còn src thì bỏ
+  -> remoteImages: có ảnh http(s), thuộc tính background, hay url(...) từ xa trong CSS không?
+  -> body().html()
+```
+
+- **Giao thức:** liên kết chỉ `http`, `https`, `mailto`, `tel`; ảnh chỉ `http`, `https`, `cid`, `data`. `&#106;avascript:` không lọt, vì jsoup giải mã thực thể lúc dựng cây, trước khi kiểm giao thức. Đường dẫn tương đối (`/api/accounts`) cũng bị bỏ: một ảnh `src="/api/..."` sẽ gọi API của Sino kèm cookie của bạn.
+- **Liên kết:** mọi `<a>` bị ép `target="_blank" rel="noopener noreferrer"`: mở tab mới, và trang đó không với ngược lại được cửa sổ của Sino.
+- **CSS giữ nguyên:** làm sạch CSS rất khó và dễ sai. CSS ở trình duyệt hiện đại không chạy được script; rủi ro còn lại là CSS tải ảnh từ xa để báo "đã mở thư", và lớp thứ hai bên dưới chặn việc đó.
+- **Các `<style>` của `<head>`** dời vào body **giữ đúng thứ tự** (trong CSS, luật viết sau thắng luật viết trước), và giữ thuộc tính `media` (`<style media="(max-width: 600px)">` chỉ áp cho màn nhỏ). Bản đầu dời từng thẻ lên đầu body nên đảo thứ tự; review bắt được.
+- **Hai lớp gia cố "phòng hờ":** sau khi làm sạch, mỗi `<style>` chỉ còn CSS thuần, có `</style` bên trong thì bỏ hẳn; địa chỉ `http` phải có đủ `//`. Review nghi một kiểu mXSS (HTML đột biến khi trình duyệt đọc lại): trong `<svg>`/`<math>`, nội dung `<style>` được đọc thành thẻ thật. Thử trực tiếp với jsoup 1.23.2 thì không lọt: jsoup mã hóa `<` trong giá trị thuộc tính và trong chữ, nên trình duyệt chỉ thấy chữ vô hại; `https:/api/...` jsoup cũng đã tự bỏ. Hai lớp này vẫn giữ, phòng khi một bản jsoup sau đổi cách làm; test của chúng vẫn xanh với bộ lọc cũ, nên lỗi gài bỏ chúng đi "sống sót" là điều đã biết.
+
+### 20.4 Hai bức tường
+```text
+Gmail --HTML gốc--> Sino lưu nguyên --> MailHtml (bức tường 1, server)
+   --> HTML sạch --> web: <iframe sandbox srcdoc> + CSP (bức tường 2, trình duyệt)
+```
+
+Bức tường 2 là của web (FE-58): iframe `sandbox` không có `allow-scripts` thì không script nào chạy, kể cả khi bộ lọc bỏ sót; CSP `default-src 'none'` chặn mọi tải từ xa, ảnh chỉ hiện khi bạn bấm "Hiện ảnh" (D-121). Hai bức tường độc lập: một bên hỏng, bên kia vẫn đứng.
+
+### 20.5 Lấy bù thư cũ
+Cả hộp thư đã nhập trước F06 nên mọi thư cũ là `UNCHECKED`. Lần đầu web hỏi nội dung một thư như vậy, `MessageBodies` gọi hàm tùy chọn mới của contract `fetchMessageContent` (Gmail: `messages.get`), lưu HTML và người nhận, rồi trả. Lần sau đọc từ database, không gọi Gmail nữa.
+
+- **Gọi provider ngoài transaction** (mục 16.1): chờ Gmail nửa giây trong một transaction là giữ một kết nối database và các khóa suốt thời gian đó. `MessageBodies` không có `@Transactional`; chỉ bước ghi chạy trong một `TransactionTemplate` ngắn.
+- **Hai request cùng lúc:** cả hai gọi Gmail, nhưng câu `UPDATE ... WHERE id = :id AND body_format = 'UNCHECKED'` chỉ đổi được một lần; request sau không đổi gì, rồi cả hai đọc lại từ database và trả cùng một kết quả.
+- **Gmail lỗi hoặc account không dùng được:** `502 MESSAGE_CONTENT_UNAVAILABLE`, thư giữ `UNCHECKED` để lần sau thử lại; web hiện phần chữ kèm "Thử lại". Gmail không còn thư đó (đã xóa hẳn): thư thành `TEXT`, không hỏi nữa.
+- **Sau khi lấy bù:** thư giờ có người nhận và định dạng mới, nên `MessageBodies` phát `ConversationChanged` ngay trong transaction ghi; luồng realtime (F08) báo các tab của bạn đọc lại danh sách thư. Chỉ phát khi thật sự đổi: request thứ hai không đổi gì thì không phát.
+- **Mã `502`:** loại lỗi mới `PROVIDER_FAILED`. `503` (`DEPENDENCY_UNAVAILABLE`) nói "Sino tạm không dùng được một thứ nó cần"; `502` (Bad Gateway) nói "Sino đã hỏi bên kia, và bên kia không trả được". F10 sẽ dùng thêm `502` và `504` cho việc gửi thư.
+
+### 20.6 Kiểm chứng (BE-55)
+- **Đỏ trước:** `MailHtmlTests` 43/52 đỏ trên một `MailHtml` tạm trả nguyên HTML gốc; 9 cái xanh vì kiểm những gì HTML để nguyên cũng đúng (thư trả lời của Gmail giữ phần trích dẫn). Các test khác (lưu, API, Gmail) viết sau code; việc chúng bắt được lỗi được chứng minh bằng kiểm tra ngược bên dưới.
+- **Xanh:** 409 test của các lớp liên quan.
+- **Kiểm tra ngược:** hai lượt, 53 lỗi gài. Lượt đầu (37): 33 bị bắt; 4 sống sót dẫn tới 3 test mới (`background` lạ, HTML giữ nguyên khi thư đổi trạng thái đọc, phần HTML toàn khoảng trắng) và một chỗ bỏ hẳn khỏi code (phép so HTML ở `WHERE`, tương đương với phép so `body_format`). Lượt hai (16, phần sửa sau review): 10 bị bắt, 6 sống sót có chủ đích:
+
+| Lỗi gài sống sót | Vì sao không có test đỏ |
+|---|---|
+| Bỏ danh sách giao thức của `background`; bỏ phép kiểm `//` của `background` | hai lớp kiểm cùng một thứ, bỏ một lớp thì lớp kia vẫn chặn |
+| Bỏ bước chỉ giữ CSS trong `<style>`; bỏ phép kiểm `//` của liên kết | jsoup 1.23.2 đã tự làm (thử trực tiếp: mã hóa `<`, bỏ `https:/...`); giữ phòng bản jsoup sau |
+| Lưu lại ưu tiên HTML mới thay vì HTML đã lưu | HTML của một thư không đổi; khác nhau chỉ ở việc PostgreSQL có chép lại dữ liệu hay không |
+| Phát sự kiện cả khi lần ghi không đổi gì | chỉ khác khi hai request lấy bù đúng cùng lúc |
+
+- **Toàn bộ:** `./mvnw -B -ntp verify` → 1129 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS; `ModularityTests` xanh. Sau khi xuống dòng hai chỗ (chú thích, annotation): `MailHtmlTests` + `JdbcConversationStoreTests` 107/107.
+- **Sau review** (agent `senior-reviewer`, không có lỗi nặng đã xác minh):
+  - Vừa: thứ tự các `<style>` của `<head>` bị đảo, `media` bị bỏ: đã sửa, có test. Thiếu ca mXSS qua `<svg>`/`<math>` + `<style>`: đã thêm ba ca; thử trực tiếp thì jsoup 1.23.2 không lọt; vẫn thêm lớp gia cố (mục 20.3).
+  - Nhỏ, đã sửa: `DEFAULT` của `body_format` bị bỏ sau khi đánh dấu dòng cũ; Javadoc nói quá (CSP, "thư bị bỏ qua", `TEXT`); lấy bù xong phát `ConversationChanged`; dò ảnh từ xa bắt cả `image-set(...)`; HTML không bị chép lại mỗi lần thư đổi trạng thái đọc; Gmail không lấy HTML của thư chuyển tiếp đính kèm; `https:/api/...` không được coi là địa chỉ web.
+  - Câu hỏi cuối "vì sao gộp connector không đọc lại được với thư không có HTML": thư `UNCHECKED` chỉ có từ trước F06 và đều là Gmail, mà Gmail có cài hàm này; ghi lý do ở design F06.
+
+
 ---
 
 ## Tự kiểm tra
@@ -1725,3 +1811,9 @@ WHERE (..., m.recipients, ...)
 102. Lưu lại một thư mà connector không cho biết người nhận: `coalesce` làm gì, và vì sao nó phải có ở cả `SET` lẫn `WHERE`?
 103. Người nhận để trong `metadata` hay một cột riêng: mỗi cách tốn gì, và vì sao task này đổi sang cột riêng trước khi commit?
 104. Cursor của Hộp thư và của danh sách thư cùng dạng `<thời điểm>|<id>`: không có "loại" thì chuyện gì xảy ra, và vì sao Hộp thư giữ nguyên định dạng cũ?
+105. Vì sao giữ HTML gốc và làm sạch mỗi lần trả, thay vì làm sạch một lần lúc lưu?
+106. Vì sao bộ lọc dùng danh sách cho phép chứ không phải danh sách cấm?
+107. `<a href="&#106;avascript:alert(1)">` không chứa chữ "javascript": vì sao bộ lọc vẫn bắt được?
+108. Bộ lọc giữ nguyên CSS: rủi ro còn lại là gì, và lớp nào chặn nó?
+109. Hai request cùng mở một thư `UNCHECKED`: Sino gọi Gmail mấy lần, ghi mấy lần, và vì sao kết quả vẫn đúng?
+110. Vì sao lỗi lấy bù là `502` chứ không phải `503` hay `500`?

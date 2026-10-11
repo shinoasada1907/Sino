@@ -57,7 +57,7 @@ class NormalizedRecipientsTests {
     @Test
     void aMessageWithoutRecipientsIsOneWhoseConnectorCannotTell() {
         NormalizedMessage message = new NormalizedMessage("m-1", "c-1", null, MessageDirection.INBOUND, null, "hi",
-                null, false, null, java.time.Instant.parse("2026-10-01T08:00:00Z"), null, null, null);
+                null, false, null, java.time.Instant.parse("2026-10-01T08:00:00Z"), null, null, null, null);
 
         assertThat(message.recipients()).isNull();
     }

@@ -23,6 +23,7 @@ import dev.sino.provider.infrastructure.gmail.GmailMessage.Body;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Header;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Part;
 import dev.sino.provider.spi.ConversationType;
+import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.MessageType;
@@ -80,6 +81,61 @@ class GmailMessageNormalizerTests {
                 new Address("Trần, Bình", "binh@example.com"));
         assertThat(recipients.cc()).containsExactly(new Address(null, "chi@example.com"));
         assertThat(recipients.replyTo()).containsExactly(new Address("Phòng kế toán", "ketoan@example.com"));
+    }
+
+    @Test
+    void keepsTheHtmlBodyAsSentNextToItsText() {
+        NormalizedMessage alternative = normalize("alternative.json").message();
+        NormalizedMessage htmlOnly = normalize("html-only.json").message();
+
+        assertThat(alternative.htmlContent()).isEqualTo("<div>HTML version</div>");
+        assertThat(alternative.textContent()).isEqualTo("Xin chào,\nĐây là báo cáo tháng 9.");
+        assertThat(htmlOnly.htmlContent()).startsWith("<html><head><title>Bản tin</title>")
+                .contains("<script>track(\"open\")</script>", "<td>Ô một</td>");
+    }
+
+    @Test
+    void whatAForwardedMessageAttachedAsAFileHoldsIsNotTheBody() {
+        Part forwarded = new Part("1", "message/rfc822", "", List.of(), new Body(null, 120L, null),
+                List.of(new Part("1.0", "multipart/alternative", "", List.of(), new Body(null, 0L, null), List.of(
+                        new Part("1.0.0", "text/plain", "", List.of(), new Body(null, 9L, base64url("Thư cũ")), null),
+                        new Part("1.0.1", "text/html", "", List.of(), new Body(null, 16L, base64url("<p>Thư cũ</p>")),
+                                null)))));
+        GmailMessage message = plain("m-1", "t-1", "1760000000000", "a@example.com", "Fwd", "unused");
+        Part outer = new Part("", "multipart/mixed", "", message.payload().headers(), new Body(null, 0L, null),
+                List.of(new Part("0", "text/plain", "", List.of(), new Body(null, 8L, base64url("Xem thư")), null),
+                        forwarded));
+        NormalizedMessage normalized = GmailMessageNormalizer.normalize(new GmailMessage(message.id(),
+                message.threadId(), message.labelIds(), message.internalDate(), outer), SELF).message();
+
+        assertThat(normalized.textContent()).isEqualTo("Xem thư");
+        assertThat(normalized.htmlContent()).isNull();
+    }
+
+    @Test
+    void aPlainTextMessageHasNoHtml() {
+        assertThat(normalizePlain("Hello").htmlContent()).isNull();
+    }
+
+    @Test
+    void anHtmlPartWithNothingInItIsNoHtml() {
+        GmailMessage message = plain("m-1", "t-1", "1760000000000", "a@example.com", "Hi", "unused");
+        Part alternative = new Part("", "multipart/alternative", "", message.payload().headers(),
+                new Body(null, 0L, null), List.of(
+                        new Part("0", "text/plain", "", List.of(), new Body(null, 5L, base64url("Hello")), null),
+                        new Part("1", "text/html", "", List.of(), new Body(null, 4L, base64url(" \n\t ")), null)));
+
+        assertThat(GmailMessageNormalizer.normalize(new GmailMessage(message.id(), message.threadId(),
+                message.labelIds(), message.internalDate(), alternative), SELF).message().htmlContent()).isNull();
+    }
+
+    @Test
+    void theContentOfAMessageReadAgainIsItsHtmlAndAddressees() {
+        MessageContent content = GmailMessageNormalizer.content(sample("alternative.json"));
+
+        assertThat(content.htmlContent()).isEqualTo("<div>HTML version</div>");
+        assertThat(content.recipients().to()).hasSize(2);
+        assertThat(GmailMessageNormalizer.content(sample("latin1.json")).htmlContent()).isNull();
     }
 
     @Test

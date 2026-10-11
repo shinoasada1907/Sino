@@ -55,6 +55,14 @@ public interface MessageProvider {
     }
 
     /**
+     * Reads one message again for its content (F06, D-122), or empty when the connector cannot or the provider no
+     * longer has that message. Empty by default, without calling the provider.
+     */
+    default Optional<MessageContent> fetchMessageContent(ProviderContext context, String externalMessageId) {
+        return Optional.empty();
+    }
+
+    /**
      * Asks the provider to notify Sino of changes to the account (D-76), or renews that while it is on; where the
      * notices go is the connector's own setup. Empty by default, and always for a connector without
      * {@link ProviderCapability#PUSH_WEBHOOK}, which never calls its provider for it.

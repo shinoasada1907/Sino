@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
@@ -44,7 +45,12 @@ final class WithoutNul {
         return new NormalizedMessage(text(m.externalMessageId()), text(m.externalConversationId()),
                 text(m.senderExternalParticipantId()), m.direction(), m.type(), text(m.textContent()), m.status(),
                 m.read(), text(m.replyToExternalMessageId()), m.sentAt(),
-                m.attachments().stream().map(WithoutNul::attachment).toList(), metadata, recipients(m.recipients()));
+                m.attachments().stream().map(WithoutNul::attachment).toList(), metadata, recipients(m.recipients()),
+                text(m.htmlContent()));
+    }
+
+    static MessageContent of(MessageContent content) {
+        return new MessageContent(text(content.htmlContent()), recipients(content.recipients()));
     }
 
     private static NormalizedRecipients recipients(NormalizedRecipients r) {

@@ -24,7 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The messages of one conversation of the inbox (F06 design, D-123), read straight with SQL: who sent each, to whom,
- * its text and files, never its HTML.
+ * its text and files, never its HTML ({@link MessageBodies} gives that, one message at a time).
  */
 @Service
 @Transactional(readOnly = true)
@@ -49,7 +49,7 @@ public class MessageHistory {
         inbox.requireInInbox(ownerId, conversationId);
         // Keyset paging as for the inbox; one more row than asked tells whether there is a next page.
         JdbcClient.StatementSpec query = jdbc.sql("""
-                SELECT m.id, m.direction, m.status, m.sent_at, m.text_content, m.is_read, m.recipients,
+                SELECT m.id, m.direction, m.status, m.sent_at, m.text_content, m.body_format, m.is_read, m.recipients,
                        m.metadata ->> :subject AS subject,
                        p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
                 FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
@@ -71,7 +71,8 @@ public class MessageHistory {
                     row.getObject("sent_at", OffsetDateTime.class).toInstant(),
                     sender == null ? null : new Sender(row.getString("sender_name"), sender, row.getBoolean("is_self")),
                     recipients == null ? null : recipients.to(), recipients == null ? null : recipients.cc(),
-                    row.getString("subject"), row.getString("text_content"), row.getBoolean("is_read"), List.of());
+                    row.getString("subject"), row.getString("text_content"),
+                    BodyFormat.valueOf(row.getString("body_format")), row.getBoolean("is_read"), List.of());
         }).list();
         List<InboxMessage> items = withFiles(rows.size() <= limit ? rows : rows.subList(0, limit));
         if (rows.size() <= limit) {
@@ -96,8 +97,8 @@ public class MessageHistory {
                                     row.getString("mime_type"), row.getObject("size_bytes", Long.class)));
                 });
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
-                m.to(), m.cc(), m.subject(), m.text(), m.read(), List.copyOf(files.getOrDefault(m.id(), List.of()))))
-                .toList();
+                m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
+                List.copyOf(files.getOrDefault(m.id(), List.of())))).toList();
     }
 
     private static Recipients recipientsOf(String json) {

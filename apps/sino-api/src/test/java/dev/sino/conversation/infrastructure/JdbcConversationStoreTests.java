@@ -36,6 +36,7 @@ import dev.sino.TestcontainersConfiguration;
 import dev.sino.conversation.ConversationStore;
 import dev.sino.conversation.StoreResult;
 import dev.sino.provider.spi.ConversationType;
+import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.MessageType;
@@ -73,6 +74,9 @@ class JdbcConversationStoreTests {
 
     @Autowired
     private ConversationStore store;
+
+    @Autowired
+    private JdbcConversationStore contents;
 
     @Autowired
     private JdbcClient jdbc;
@@ -142,7 +146,7 @@ class JdbcConversationStoreTests {
 
     @ParameterizedTest
     @ValueSource(strings = { "sender", "direction", "type", "text", "status", "sentAt", "replyTo", "metadata",
-        "recipients" })
+        "recipients", "html" })
     void aMessageWhoseFieldChangedIsUpdated(String field) {
         store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question()));
         String rowVersion = rowVersion("m-1");
@@ -170,6 +174,102 @@ class JdbcConversationStoreTests {
 
         assertThat(read).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
         assertStoredAs(readOnGmail);
+    }
+
+    @Test
+    void theHtmlOfAMessageIsKeptAsItCame() {
+        NormalizedMessage newsletter = withHtml(question(), "<p onclick=\"x()\">Chào</p>");
+
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), newsletter));
+
+        assertStoredAs(newsletter);
+        assertThat(body("m-1")).containsExactly("HTML", "<p onclick=\"x()\">Chào</p>");
+    }
+
+    @Test
+    void htmlLongerThanTheLimitIsNotKeptAndTheMessageShowsItsText() {
+        String longest = "x".repeat(JdbcConversationStore.MAX_HTML_LENGTH);
+
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withHtml(question(), longest),
+                withHtml(answer(), longest + "x")));
+
+        assertThat(body("m-1")).containsExactly("HTML", longest);
+        assertThat(body("m-2")).containsExactly("TEXT", null);
+    }
+
+    @Test
+    void anUpdateWithoutHtmlKeepsTheStoredHtmlAndIsNoChange() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withHtml(question(), "<p>Chào</p>")));
+        String rowVersion = rowVersion("m-1");
+
+        StoreResult result = store.store(account, batch(List.of(), question()));
+
+        assertThat(result).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 0);
+        assertThat(rowVersion("m-1")).isEqualTo(rowVersion);
+        assertThat(body("m-1")).containsExactly("HTML", "<p>Chào</p>");
+    }
+
+    @Test
+    void readOnGmailLaterKeepsTheStoredHtml() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withHtml(question(), "<p>Chào</p>")));
+
+        StoreResult read = store.store(account, batch(List.of(), changed(question(), "read")));
+
+        assertThat(read).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 1);
+        assertThat(body("m-1")).containsExactly("HTML", "<p>Chào</p>");
+    }
+
+    @Test
+    void mailStoredBeforeSinoKeptHtmlIsSettledWhenStoredAgain() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question(), answer()));
+        jdbc.sql("UPDATE message SET body_format = 'UNCHECKED'").update();
+
+        StoreResult again = store.store(account, batch(List.of(), question(), withHtml(answer(), "<p>Cảm ơn</p>")));
+
+        assertThat(again).extracting(StoreResult::newMessages, StoreResult::updatedMessages).containsExactly(0, 2);
+        assertThat(body("m-1")).containsExactly("TEXT", null);
+        assertThat(body("m-2")).containsExactly("HTML", "<p>Cảm ơn</p>");
+    }
+
+    @Test
+    void contentReadAgainIsKeptOnceForMailStoredBefore() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withRecipients(question(), null)));
+        UUID id = messageId("m-1");
+        jdbc.sql("UPDATE message SET body_format = 'UNCHECKED' WHERE id = :id").param("id", id).update();
+
+        assertThat(contents.storeContent(id, new MessageContent("<p>Ch\u0000ào</p>", ADDRESSEES))).isTrue();
+        assertThat(contents.storeContent(id, new MessageContent("<p>Khác</p>", null)))
+                .as("a second reader at the same time changes nothing").isFalse();
+
+        assertThat(body("m-1")).containsExactly("HTML", "<p>Chào</p>");
+        assertThat(jdbc.sql("SELECT recipients = cast(:recipients AS jsonb) FROM message WHERE id = :id")
+                .param("recipients", JSON.writeValueAsString(ADDRESSEES)).param("id", id).query(Boolean.class)
+                .single()).isTrue();
+    }
+
+    @Test
+    void contentWithoutHtmlOrWithTooMuchOfItLeavesTheText() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question(), answer()));
+        jdbc.sql("UPDATE message SET body_format = 'UNCHECKED'").update();
+
+        assertThat(contents.storeContent(messageId("m-1"), new MessageContent(null, null))).isTrue();
+        assertThat(contents.storeContent(messageId("m-2"),
+                new MessageContent("x".repeat(JdbcConversationStore.MAX_HTML_LENGTH + 1), null))).isTrue();
+
+        assertThat(body("m-1")).containsExactly("TEXT", null);
+        assertThat(body("m-2")).containsExactly("TEXT", null);
+    }
+
+    @Test
+    void contentReadAgainNeverChangesAMessageAlreadySettled() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withHtml(question(), "<p>Chào</p>"),
+                answer()));
+
+        assertThat(contents.storeContent(messageId("m-1"), new MessageContent("<p>Khác</p>", null))).isFalse();
+        assertThat(contents.storeContent(messageId("m-2"), new MessageContent("<p>Khác</p>", null))).isFalse();
+
+        assertThat(body("m-1")).containsExactly("HTML", "<p>Chào</p>");
+        assertThat(body("m-2")).containsExactly("TEXT", null);
     }
 
     @Test
@@ -262,7 +362,7 @@ class JdbcConversationStoreTests {
     void aSenderMissingFromTheParticipantsIsAdded() {
         NormalizedMessage fromBob = new NormalizedMessage("m-3", "thread-1", "bob@example.test",
                 MessageDirection.INBOUND, MessageType.TEXT, "Chào", MessageStatus.UNKNOWN, false, null, TUESDAY,
-                List.of(), Map.of(), null);
+                List.of(), Map.of(), null, null);
 
         store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), fromBob));
 
@@ -363,7 +463,7 @@ class JdbcConversationStoreTests {
     void aMessageWithoutSenderHasNone() {
         NormalizedMessage notice = new NormalizedMessage("m-4", "thread-1", null, MessageDirection.INBOUND,
                 MessageType.SYSTEM, "Alice đã vào nhóm", MessageStatus.UNKNOWN, true, null, TUESDAY, List.of(),
-                Map.of(), null);
+                Map.of(), null, null);
 
         StoreResult result = store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), notice));
 
@@ -383,7 +483,7 @@ class JdbcConversationStoreTests {
                 Map.of("rfcMessageId", "<a\u0000b@example.test>"), new NormalizedRecipients(
                         List.of(new Address("B\u0000ình", "bi\u0000nh@example.test"),
                                 new Address("\u0000", "an@example.test")),
-                        List.of(new Address("Chi", "\u0000\u0000")), List.of()));
+                        List.of(new Address("Chi", "\u0000\u0000")), List.of()), null);
 
         StoreResult result = store.store(account, batch(List.of(thread), message));
 
@@ -395,7 +495,7 @@ class JdbcConversationStoreTests {
                 MessageType.MIXED, "Xin chào", MessageStatus.UNKNOWN, false, null, MONDAY, List.of(),
                 Map.of("rfcMessageId", "<ab@example.test>"), new NormalizedRecipients(
                         List.of(new Address("Bình", "binh@example.test"), new Address(null, "an@example.test")),
-                        List.of(), List.of())));
+                        List.of(), List.of()), null));
         assertThat(attachments("m-1")).extracting(file -> file.get(1)).containsExactly("report.pdf");
     }
 
@@ -408,7 +508,7 @@ class JdbcConversationStoreTests {
         CountDownLatch commitFirst = new CountDownLatch(1);
         // The second page touches no row of the first: only the lock of the account can make it wait.
         NormalizedMessage elsewhere = new NormalizedMessage("m-9", "thread-2", null, MessageDirection.INBOUND,
-                MessageType.TEXT, "Khác", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(), Map.of(), null);
+                MessageType.TEXT, "Khác", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(), Map.of(), null, null);
         try {
             CompletableFuture<Void> first = CompletableFuture.runAsync(() -> inTransaction.executeWithoutResult(t -> {
                 store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question()));
@@ -471,13 +571,13 @@ class JdbcConversationStoreTests {
         metadata.put("rfcMessageId", "<report-1@example.test>");
         return new NormalizedMessage("m-1", "thread-1", "alice@example.test", MessageDirection.INBOUND,
                 files.length == 0 ? MessageType.TEXT : MessageType.MIXED, "Xin chào,\nĐây là báo cáo.",
-                MessageStatus.UNKNOWN, false, null, MONDAY, List.of(files), metadata, ADDRESSEES);
+                MessageStatus.UNKNOWN, false, null, MONDAY, List.of(files), metadata, ADDRESSEES, null);
     }
 
     private static NormalizedMessage answer() {
         return new NormalizedMessage("m-2", "thread-1", "owner@gmail.test", MessageDirection.OUTBOUND,
                 MessageType.TEXT, "Cảm ơn chị.", MessageStatus.SENT, true, "m-1", TUESDAY, List.of(),
-                Map.of("subject", "Re: Báo cáo tháng 9"), null);
+                Map.of("subject", "Re: Báo cáo tháng 9"), null, null);
     }
 
     // The same message with one field changed.
@@ -494,13 +594,29 @@ class JdbcConversationStoreTests {
                 m.attachments(),
                 field.equals("metadata") ? Map.of("subject", "Báo cáo tháng 9", "bulk", "true") : m.metadata(),
                 field.equals("recipients") ? new NormalizedRecipients(List.of(new Address(null, "owner@gmail.test")),
-                        List.of(), List.of(new Address("Kế toán", "ketoan@example.test"))) : m.recipients());
+                        List.of(), List.of(new Address("Kế toán", "ketoan@example.test"))) : m.recipients(),
+                field.equals("html") ? "<p>Xin chào, đây là báo cáo.</p>" : m.htmlContent());
     }
 
     private static NormalizedMessage withRecipients(NormalizedMessage m, NormalizedRecipients recipients) {
         return new NormalizedMessage(m.externalMessageId(), m.externalConversationId(),
                 m.senderExternalParticipantId(), m.direction(), m.type(), m.textContent(), m.status(), m.read(),
-                m.replyToExternalMessageId(), m.sentAt(), m.attachments(), m.metadata(), recipients);
+                m.replyToExternalMessageId(), m.sentAt(), m.attachments(), m.metadata(), recipients, m.htmlContent());
+    }
+
+    private static NormalizedMessage withHtml(NormalizedMessage m, String html) {
+        return new NormalizedMessage(m.externalMessageId(), m.externalConversationId(),
+                m.senderExternalParticipantId(), m.direction(), m.type(), m.textContent(), m.status(), m.read(),
+                m.replyToExternalMessageId(), m.sentAt(), m.attachments(), m.metadata(), m.recipients(), html);
+    }
+
+    // The body format and the HTML kept for the message.
+    private List<String> body(String message) {
+        return jdbc.sql("""
+                select m.body_format, m.html_content from message m join conversation c on c.id = m.conversation_id
+                where c.account_id = :account and m.external_message_id = :message
+                """).param("account", account).param("message", message)
+                .query((row, n) -> java.util.Arrays.asList(row.getString(1), row.getString(2))).single();
     }
 
     private static SyncBatch batch(List<NormalizedConversation> conversations, NormalizedMessage... messages) {
@@ -511,7 +627,8 @@ class JdbcConversationStoreTests {
         Map<String, Object> row = jdbc.sql("""
                 select p.external_participant_id as sender, m.direction, m.type, m.text_content, m.status, m.sent_at,
                        m.reply_to_external_message_id as reply_to, m.metadata = cast(:metadata as jsonb) as same_metadata,
-                       coalesce(m.recipients, 'null') = cast(:recipients as jsonb) as same_recipients
+                       coalesce(m.recipients, 'null') = cast(:recipients as jsonb) as same_recipients,
+                       m.html_content, m.body_format
                 from message m
                 join conversation c on c.id = m.conversation_id
                 left join conversation_participant p on p.id = m.sender_participant_id
@@ -527,7 +644,9 @@ class JdbcConversationStoreTests {
                 .containsEntry("sent_at", Timestamp.from(expected.sentAt()))
                 .containsEntry("reply_to", expected.replyToExternalMessageId())
                 .containsEntry("same_metadata", true)
-                .containsEntry("same_recipients", true);
+                .containsEntry("same_recipients", true)
+                .containsEntry("html_content", expected.htmlContent())
+                .containsEntry("body_format", expected.htmlContent() == null ? "TEXT" : "HTML");
     }
 
     private Map<String, Object> conversation(String externalId) {

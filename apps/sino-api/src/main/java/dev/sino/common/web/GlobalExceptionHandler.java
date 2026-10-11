@@ -152,6 +152,7 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case CONFLICT -> HttpStatus.CONFLICT;
             case INVALID -> HttpStatus.UNPROCESSABLE_CONTENT;
             case DEPENDENCY_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case PROVIDER_FAILED -> HttpStatus.BAD_GATEWAY;
             case RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
         };
     }

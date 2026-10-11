@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Part;
 import dev.sino.provider.infrastructure.gmail.MailHeaders.Mailbox;
 import dev.sino.provider.spi.ConversationType;
+import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.MessageType;
@@ -89,8 +90,21 @@ final class GmailMessageNormalizer {
                 sent ? MessageDirection.OUTBOUND : MessageDirection.INBOUND,
                 attachments.isEmpty() ? MessageType.TEXT : MessageType.MIXED, textOf(payload),
                 sent ? MessageStatus.SENT : MessageStatus.UNKNOWN, !message.labelIds().contains(UNREAD), null, sentAt,
-                attachments, metadata, recipientsOf(payload));
+                attachments, metadata, recipientsOf(payload), htmlOf(payload));
         return new NormalizedGmailMessage(normalized, titleOf(subject), participantsOf(payload, selfEmail, sent));
+    }
+
+    /**
+     * What the import of an early version did not keep (F06, D-122): the HTML body and the addressees.
+     *
+     * @throws ProviderException with {@code PAYLOAD_NORMALIZATION_FAILED} when the message has no payload or its HTML
+     *         is not base64url
+     */
+    static MessageContent content(GmailMessage message) {
+        if (message.payload() == null) {
+            throw invalid("The message has no payload");
+        }
+        return new MessageContent(htmlOf(message.payload()), recipientsOf(message.payload()));
     }
 
     /**
@@ -173,11 +187,21 @@ final class GmailMessageNormalizer {
                 .orElse(null);
     }
 
-    // Depth first, in the order of the message; a body Gmail keeps elsewhere (attachmentId, no data) is skipped.
+    // The first text/html body that is not a file, as the sender wrote it; never cleaned here (F06, D-120).
+    private static String htmlOf(Part payload) {
+        return firstBody(payload, "text/html").map(GmailMessageNormalizer::contentOf)
+                .map(GmailMessageNormalizer::withoutNul).filter(html -> !html.isBlank()).orElse(null);
+    }
+
+    // Depth first, in the order of the message; a body Gmail keeps elsewhere (attachmentId, no data) is skipped, and so
+    // is what a file or a forwarded message (message/rfc822) holds: that is not this message's body.
     private static Optional<Part> firstBody(Part part, String mimeType) {
         if (mimeType.equalsIgnoreCase(part.mimeType()) && !isFile(part) && part.body() != null
                 && part.body().data() != null) {
             return Optional.of(part);
+        }
+        if (isFile(part) || "message/rfc822".equalsIgnoreCase(part.mimeType())) {
+            return Optional.empty();
         }
         for (Part child : part.parts()) {
             Optional<Part> body = firstBody(child, mimeType);

@@ -131,7 +131,7 @@ Mọi lỗi theo Problem Details với `code` (spec `api-conventions`). Cuộc t
 
 ### 2. Nhập và chuẩn hóa
 - `NormalizedMessage` thêm `htmlContent` (null) và người nhận. `NormalizedAttachment` thêm `contentId`, `inline`. BE-54: người nhận là thành phần `recipients` kiểu `NormalizedRecipients(to, cc, replyTo)` (mỗi phần tử `Address(name, address)`), `null` khi connector không biết (chat); `subject` thành khóa metadata dùng chung `NormalizedMessage.SUBJECT` vì module `conversation` đọc nó cho từng thư. Gmail: phần `text/html` đầu tiên không phải tệp; header `To`, `Cc`, `Reply-To` (RFC 2047, nhiều địa chỉ); phần ảnh có `Content-ID` mà không phải `attachment` → `inline = true`.
-- `ConversationStore` lưu các trường mới. Thư đã có (cập nhật nhãn, đã đọc) MUST NOT xóa HTML đã lưu. Người nhận cũng vậy: một lần lưu không mang người nhận giữ bản đã lưu (`coalesce` ở cả `SET` lẫn `WHERE ... IS DISTINCT FROM`), và không tính là "đổi" chỉ vì điều đó (BE-54).
+- `ConversationStore` lưu các trường mới. Thư đã có (cập nhật nhãn, đã đọc) MUST NOT xóa HTML đã lưu. BE-55: HTML của một thư không bao giờ đổi, nên lưu lại giữ bản đã lưu (`coalesce(m.html_content, EXCLUDED.html_content)`, ghi lại đúng giá trị cũ để PostgreSQL không chép lại HTML vào TOAST mỗi lần thư đổi trạng thái đọc); `WHERE ... IS DISTINCT FROM` so `body_format` chứ không so HTML. V15 có hai `CHECK` (`body_format` hợp lệ; có HTML khi và chỉ khi `HTML`) và bỏ `DEFAULT` sau khi đánh dấu các dòng cũ `UNCHECKED`, để một câu `INSERT` sau này quên cột này thì lỗi ngay. Người nhận cũng vậy: một lần lưu không mang người nhận giữ bản đã lưu (`coalesce` ở cả `SET` lẫn `WHERE ... IS DISTINCT FROM`), và không tính là "đổi" chỉ vì điều đó (BE-54).
 - Thư nhập trước BE-54 chưa có người nhận (`to`/`cc` = `null`) cho tới khi được lưu lại: đồng bộ chạm vào thư đó, nhập lại, hoặc lấy bù nội dung ở BE-55; vì vậy lấy bù ở BE-55 nên ghi cả người nhận.
 
 ### 3. Làm sạch HTML (`conversation`, một lớp, ví dụ `MailHtml`)
@@ -148,14 +148,17 @@ Mọi lỗi theo Problem Details với `code` (spec `api-conventions`). Cuộc t
 - `cid:` đổi thành đường dẫn ảnh nhúng của đúng thư (D-125); không có phần tương ứng thì bỏ `img`.
 - `remoteImages` = có `img[src^=http]`, `img[srcset]`, `[background^=http]` hoặc `url(http` trong `style` (thuộc tính và thẻ).
 - Bộ lọc là hàm thuần, test bằng bảng đầu vào độc hại (chuỗi XSS của OWASP Cheat Sheet: `javascript:`, `onerror`, `<svg onload>`, `<math>`, `<style>` thoát thẻ, `srcdoc`, `formaction`, `data:text/html`, entity lồng nhau).
+- BE-55 (sau review): các `<style>` của `<head>` dời vào body **giữ thứ tự** (luật sau đè luật trước) và giữ thuộc tính `media`; sau khi làm sạch, mỗi `<style>` chỉ giữ CSS thuần (`data()`), có `</style` thì bỏ cả thẻ, vì trong `<svg>`/`<math>` trình phân tích đọc thẻ bên trong `<style>` thành phần tử và thuộc tính, viết ra lại sẽ thành mã HTML (mXSS); `src`, `href` bắt đầu bằng `http`, và `background`, phải có đủ `//` (`https:/api/x` trình duyệt hiểu là đường dẫn của chính Sino); `remoteImages` dò mọi `//` trong CSS (bắt cả `image-set(...)`).
 
 ### 4. Contract provider
 - `Optional<MessageContent> fetchMessageContent(ProviderContext, String externalMessageId)`: đọc lại một thư, trả HTML (null), các phần ảnh nhúng. Mặc định `Optional.empty()`.
 - `AttachmentContent fetchAttachment(ProviderContext, String externalMessageId, String externalAttachmentId)`: bytes và kiểu. Mặc định ném `CAPABILITY_NOT_SUPPORTED`.
 - Gmail: `messages.get format=full` (dùng lại bộ chuẩn hóa) và `messages.attachments.get` (base64url). Lỗi theo bảng `ProviderException` đã có.
+- BE-55: `MessageContent(htmlContent, recipients)`: đọc lại cho cả người nhận, vì thư nhập trước BE-54 cũng chưa có. Rỗng nghĩa là "không có gì thêm": connector không đọc lại được, hoặc provider không còn thư; khi đó thư thành `TEXT`. Gộp hai trường hợp là chủ ý: thư `UNCHECKED` chỉ có từ trước F06, đều là Gmail và Gmail có cài hàm này; connector mới (F09) lưu thư mới thẳng thành `TEXT`/`HTML`, không có `UNCHECKED`. Gmail chọn phần thân không đi vào bên trong một tệp hay một thư chuyển tiếp đính kèm (`message/rfc822`).
 
 ### 5. API (`conversation/api`)
 Ba endpoint của Contract API. Lấy bù (D-122) chạy ngoài transaction khi gọi provider, rồi lưu trong một transaction ngắn. Hai request cùng lấy bù một thư thì cả hai đều được trả; lần ghi sau không đổi gì.
+- BE-55: service `MessageBodies` (không có `@Transactional`; ghi bằng `TransactionTemplate`, chỉ đổi thư còn `UNCHECKED`). Lấy bù xong phát `ConversationChanged` để danh sách thư của các tab đọc lại (định dạng, người nhận). Lỗi provider (`ProviderException`) hay account không dùng được (`SinoException` của `ProviderAccess`, ví dụ connector đã tắt) → `502 MESSAGE_CONTENT_UNAVAILABLE` qua loại lỗi mới `PROVIDER_FAILED` (`502`; `503` vẫn là "Sino tạm không dùng được một thứ nó cần"). Ảnh `cid:` bị bỏ cho tới BE-56.
 
 ## Web
 

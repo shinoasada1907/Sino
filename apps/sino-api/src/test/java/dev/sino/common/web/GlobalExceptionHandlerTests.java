@@ -95,6 +95,13 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void moduleErrorCodeOfCategoryProviderFailedBecomes502() throws Exception {
+        mvc.perform(get("/api/probe/provider").with(apiUser()))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("PROVIDER_SAID_NO"));
+    }
+
+    @Test
     void unknownApiPathIsResourceNotFound() throws Exception {
         mvc.perform(get("/api/probe/nowhere").with(apiUser()))
                 .andExpect(status().isNotFound())
@@ -209,7 +216,8 @@ class GlobalExceptionHandlerTests {
 
         THING_NOT_FOUND(ErrorCategory.NOT_FOUND),
         THING_RULE_BROKEN(ErrorCategory.INVALID),
-        SLOW_DOWN(ErrorCategory.RATE_LIMITED);
+        SLOW_DOWN(ErrorCategory.RATE_LIMITED),
+        PROVIDER_SAID_NO(ErrorCategory.PROVIDER_FAILED);
 
         private final ErrorCategory category;
 
@@ -257,6 +265,11 @@ class GlobalExceptionHandlerTests {
         @GetMapping("/rule")
         void breakRule() {
             throw new SinoException(ProbeErrorCode.THING_RULE_BROKEN, "This thing cannot be changed now.");
+        }
+
+        @GetMapping("/provider")
+        void providerSaysNo() {
+            throw new SinoException(ProbeErrorCode.PROVIDER_SAID_NO, "The provider could not do it.");
         }
 
         @GetMapping("/conflict")
