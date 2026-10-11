@@ -132,6 +132,8 @@
   - **Test:** liên kết tệp trỏ đúng đường dẫn; kiểm tra lỗi gài cho hàm dựng `srcdoc` và hàm tìm liên kết.
   - **Acceptance criteria:** spec `inbox-thread` (Tải tệp đính kèm).
 
+  - **Theo BE-56 (2026-10-11, `d4f1a16`):** web không phải sửa: JSON không đổi, ảnh nhúng trỏ `/api/conversations/…?inline=true` (khớp CSP của khung), ảnh nhúng mà HTML không dùng thành tệp, thường không tên ("Tệp không tên"). **Giới hạn đã biết:** tệp tải bằng `<a href download>`, nên khi backend trả `422 ATTACHMENT_TOO_LARGE` (trên 25 MB) hay `503 ATTACHMENT_BUSY` (đang tải tệp lớn khác) thì người dùng chỉ thấy trình duyệt báo tải thất bại, Sino không giải thích. Cả hai hiếm (Gmail gần như không có tệp đính kèm trên 25 MB; một người dùng); nếu cần thì tải bằng `fetch` để hiện câu báo, đổi lại mất thanh tiến độ của trình duyệt.
+
 - [ ] 2.4 **FE-60 — Chạy với backend thật (sau BE-57)**
   - **Goal / Why:** bằng chứng trên hộp thư thật: thư cũ lấy bù, bản tin HTML, "Hiện ảnh", tệp tải được, thư mới tự hiện trong cuộc trò chuyện đang mở.
   - **Depends on:** FE-57…FE-59, BE-54…BE-57.
