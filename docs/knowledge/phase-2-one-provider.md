@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-45.
-> **Cập nhật:** 2026-10-09. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn archive (sau F04b).
+> **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
 
@@ -857,7 +857,7 @@ estimateMessages(context, since)
   - `messagesTotal` đếm cả nháp, spam, thùng rác, những thư Sino bỏ ra (mục 9.4).
 
   Vì thế web luôn ghi "khoảng", và khi số đã nhập vượt ước lượng thì mẫu số tăng theo (design F05). Với toàn bộ hộp thư thì ngược lại: số đã nhập thường thấp hơn ước lượng, nên lúc `DONE` web phải hiện "xong" bất kể con số ước lượng (ghi cho BE-45).
-- **Vì sao toàn bộ hộp thư dùng `messagesTotal`** mà không dùng `resultSizeEstimate` của một danh sách không có `q`: D-65 chọn như vậy. `messagesTotal` là số đếm chính xác (chỉ dư phần nháp, spam, thùng rác), còn `resultSizeEstimate` vốn thô với hộp thư lớn. Cách nào sát hơn là câu hỏi đo đạc: BE-46 so cả hai với số thư nhập thật.
+- **Vì sao toàn bộ hộp thư dùng `messagesTotal`** mà không dùng `resultSizeEstimate` của một danh sách không có `q`: D-65 chọn như vậy. `messagesTotal` là số đếm chính xác (chỉ dư phần nháp, spam, thùng rác), còn `resultSizeEstimate` vốn thô với hộp thư lớn. Cách nào sát hơn là câu hỏi đo đạc: BE-46 so cả hai với số thư nhập thật. Kết quả: `messagesTotal` khớp đúng (212/212); chỗ lệch nằm ở ước lượng theo khoảng ngày (mục 18.5).
 - **Phương án bị loại:** liệt kê hết ID để đếm cho đúng. Cách đó cần hàng trăm lời gọi trước khi nhập được thư nào.
 - **Lỗi khi ước lượng:** connector ném `ProviderException` như mọi thao tác khác; bên gọi (BE-45) coi đó là không có ước lượng. Một ước lượng hỏng không được chặn việc nhập thư.
 
@@ -1348,7 +1348,7 @@ lỗi khác (lập trình)   FAILED, INTERNAL, log ERROR có account id
 - Cả hai đường nằm trong cùng câu `INSERT ... ON CONFLICT` ở mục 16.2: mỗi cột chọn giá trị cũ hay mới bằng một `CASE`.
 
 ### 16.6 Ước lượng và số phút còn lại
-- **Ước lượng** (`GET .../estimate`): hỏi connector (mục 11.2). Số phút tính theo tốc độ giả định 200–400 thư/phút (cấu hình, BE-46 đo lại). Connector không biết hoặc lỗi thì `messages` và số phút đều `null`, không lỗi API.
+- **Ước lượng** (`GET .../estimate`): hỏi connector (mục 11.2). Số phút tính theo tốc độ giả định 200–400 thư/phút (cấu hình); BE-46 đo được khoảng 100 và đổi thành 60–120 (mục 18.5). Connector không biết hoặc lỗi thì `messages` và số phút đều `null`, không lỗi API.
 - **Trong lúc nhập:** ước lượng được hỏi **ở đầu lượt nền**, không trong `POST`, nên `POST` trả về ngay.
 - **Số phút còn lại** = (ước lượng - đã nhập) chia tốc độ **của vòng nhập đang chạy**: `run_imported_count` và `run_started_at` được đặt lại mỗi khi một vòng bắt đầu, kể cả khi chạy tiếp sau khởi động lại, vì vòng đó mang theo số của vòng trước, còn thời gian máy tắt thì không được tính. Chưa chạy đủ 5 giây, chưa nhập được thư nào, hay đã xong thì `null`. Nhập vượt ước lượng thì là 0.
 - **Giới hạn:** `imported` đếm thư mới và thư đã cập nhật, nên nhập lại một hộp thư không đổi thì `imported` đứng gần 0 trong khi ước lượng là cả khoảng. Web không nên dựa vào `imported/estimated` cho lần nhập lại.
@@ -1467,6 +1467,82 @@ ALTER TABLE connected_account ADD COLUMN address text;
   - Delta `account-connect` của F05 sửa một requirement do F04a thêm: phải archive F04a trước, và sửa câu chữ ở F04a thì phải chép lại sang F05.
 - **Câu hỏi còn mở (chờ người dùng):** kết nối lại vẫn thay tên người dùng tự đặt bằng email (từ F02). Nay email đã có `address` riêng, nên có thể giữ tên người dùng đặt; xem Open Questions trong design của F05.
 
+## 18. Nhập thật với Gmail và nghiệm thu F05 (BE-46)
+
+**Ở đâu:** test `src/test/java/dev/sino/sync/RealGmailImportTests.java` (mới), `src/test/java/dev/sino/provider/infrastructure/gmail/RealGmailTests.java` (thêm phép đo ước lượng), `sync/application/InitialSyncProperties.java` (tốc độ giả định), `apps/sino-api/README.md`.
+
+### 18.1 Test làm gì
+- Nhập lại account Gmail đang kết nối, với đúng khoảng account đang có (account của bạn: 90 ngày), qua chính API `POST /api/accounts/{id}/initial-sync`, rồi chờ `DONE`.
+- Đếm số thư được đưa vào `ConversationStore.store` (một spy) để biết đã đọc bao nhiêu thư, chia cho thời gian để ra tốc độ.
+- So database với API: số thư đã lưu, số conversation (lật từng trang như web cuộn), số chưa đọc, cần trả lời, có tệp. Tóm tắt của mỗi conversation (số chưa đọc, giờ thư mới nhất, có tệp) được tính lại từ chính các thư của nó bằng một câu SQL riêng, không dùng code của BE-43.
+- Chỉ in số đếm và thời gian, không in nội dung, tiêu đề hay địa chỉ.
+
+Kế hoạch ghi nhập 30 ngày; test dùng khoảng account đang có, vì nhập lại với khoảng khác sẽ đổi lựa chọn của người dùng (dòng `sync_checkpoint` giữ khoảng của lượt nhập gần nhất).
+
+### 18.2 Vì sao nhập vào database local trong test thật thì được, còn trong CI thì không (câu gợi ý của task)
+- Test cần token thật của một tài khoản Gmail thật. Token nằm (đã mã hóa) trong database local, khóa giải mã nằm trong `.env`. Máy CI không có, và không được có, những thứ đó: đưa token Gmail lên CI là trao quyền đọc thư cho một máy khác.
+- Kết quả phụ thuộc hộp thư thật, đổi mỗi ngày, nên không lặp lại được và không thể làm cổng chặn build. Nó là bằng chứng một lần, có ghi ngày.
+- Nhập lại không tạo thư trùng (lưu kiểu upsert, mục 13), nên chạy trên dữ liệu của chính bạn không hỏng gì; chỉ tốn một ít hạn mức Gmail API.
+
+### 18.3 Hai tiến trình trên một database
+Bản đầu của test được viết để chạy cùng backend trong IntelliJ: JVM test tắt lịch đồng bộ của nó (`sino.sync.live.scheduled=false`) và thay `ImportResumer` bằng mock, để nó không nhận làm tiếp lượt nhập của backend kia. Review chỉ ra cách đó chỉ chặn **một chiều**:
+
+```text
+Backend trong IntelliJ (8080)              JVM của test
+  thông báo Gmail -> submit(account) --+
+  "Đồng bộ ngay"  -> submit(account) --+--> sync_checkpoint = RUNNING
+  lịch mỗi phút   -> submit(account) --+          ^
+                                                  |
+                              lượt nhập do test bắt đầu
+```
+
+`ImportRunner.run` gặp dòng `RUNNING` là nhập tiếp, bất kể ai gọi `submit`. Khóa "mỗi account chỉ một người đọc" nằm trong bộ nhớ của từng JVM (mục 16.2), nên hai JVM có thể cùng nhập một account. Thư không mất, vì lưu là idempotent và khóa theo account trong database xếp hàng các lượt ghi. Nhưng số bỏ qua bị cộng hai lần, tốc độ đo sai, và cursor có thể bị ghi đè. Thiết kế F05 đã giả định **một backend cho một database**; test phải tôn trọng giả định đó chứ không lách qua nó.
+
+Cách sửa: test tự bỏ qua khi có thứ gì trả lời ở cổng 8080 (`assumeFalse` sau khi thử mở một kết nối TCP), nên bạn tắt app trong IntelliJ khoảng một phút khi chạy test này. `RealGmailTests` chỉ đọc Gmail, không đụng `sync_checkpoint`, nên vẫn chạy được khi backend bật; nó vẫn giữ hai thiết lập kia để không có lịch đồng bộ thứ hai.
+
+Hai lần đo trước khi có chốt chặn vẫn dùng được: ở cả hai lần, spy đếm đúng 53 thư, bằng số thư Gmail liệt kê, tức JVM test tự đọc mọi trang.
+
+### 18.4 Gài spy xuyên qua proxy transaction
+Lần chạy đầu lỗi ngay ở dòng gài spy: `IllegalTransactionState: No existing transaction found for transaction marked with propagation 'mandatory'`. `store` có `@Transactional(propagation = MANDATORY)` (mục 13), nên Spring bọc nó bằng một proxy, và `@MockitoSpyBean` đặt spy **bên trong** proxy đó. `when(store).store(...)` là một lời gọi qua proxy, và proxy đòi transaction trước khi tới spy. Cách sửa, giống `InitialSyncApiTests`: `AopTestUtils.getUltimateTargetObject(store)` lấy spy bên trong rồi gài lên chính nó.
+
+### 18.5 Kết quả đo (2026-10-10)
+Ước lượng ở bước "Đồng bộ" so với số thư một lượt nhập thật sự liệt kê:
+
+| Khoảng | Ước lượng hiện cho người dùng | Thư thật trong danh sách |
+|---|---|---|
+| 30 ngày | 201 (`resultSizeEstimate`) | 29 |
+| 90 ngày | 201 (`resultSizeEstimate`) | 53 |
+| Toàn bộ hộp thư | 212 (`messagesTotal`) | 212 |
+
+`resultSizeEstimate` của danh sách không có `q` là 201. Câu hỏi BE-40 để lại (mục 11.2) là `messagesTotal` có lệch không: không, khớp đúng. Chỗ lệch nằm ở khoảng ngày: Gmail trả 201 cho cả 30 lẫn 90 ngày, gần bằng cả hộp thư, như thể bỏ qua `q=after:`. Màn "Đồng bộ" sẽ báo "khoảng 201 thư" cho 29 thư thật. Đổi cách ước lượng là đổi D-65, nên được ghi thành **Decision Needed** trong design của F05 để người dùng chốt.
+
+Lượt nhập lại:
+
+| Khoảng | Đọc | Mới hoặc đổi | Bỏ qua | Thời gian | Tốc độ |
+|---|---|---|---|---|---|
+| 90 ngày | 53 | 0 | 0 | 33 giây | khoảng 97 thư/phút |
+
+- Database và API khớp: 53/53 conversation, chưa đọc 0/0/0, cần trả lời 20/20, có tệp 0/0; không conversation nào có tóm tắt lệch với thư của nó.
+- Tốc độ: thiết kế đoán 200–400 thư/phút, thật chỉ khoảng 100 (hai lần: 33 giây và 28 giây cho 53 thư, tức 97 và 115 thư/phút), vì mỗi thư là một lời gọi `messages.get` tuần tự, khoảng 0,6 giây mỗi thư từ máy này. Mặc định đổi thành 60–120 thư/phút; với 1.180 thư, màn "Đồng bộ" giờ báo 10–20 phút thay vì 3–6 phút. Hai lần đo, cùng là đọc lại (không có thư mới phải ghi), còn ít; nhưng lệch 2–4 lần thì đáng sửa ngay. Đo thêm ở một lần nhập đầu thật với hộp thư lớn hơn.
+- "Mới hoặc đổi" là 0 vì mọi thư đã có sẵn: số `imported` của trạng thái đếm thư mới hoặc đổi, không đếm thư đã đọc. Hệ quả cho web ở mục 18.7.
+
+### 18.6 Kiểm chứng (BE-46)
+- Test thật: 4 test `real-gmail` xanh (`RealGmailTests` 3, `RealGmailImportTests` 1). Lần chạy đầu của `RealGmailImportTests` lỗi ở chỗ gài spy (mục 18.4); sửa rồi xanh.
+- Test có bắt được lỗi không: gài lỗi vào `InboxService.counts` (đảo điều kiện "cần trả lời"), chạy lại test thật: đỏ, database 20 mà API 33. Trả code về như cũ.
+- Tốc độ mới: sửa kỳ vọng của `estimatesFromTheConnector` trước (10–20 phút), chạy thì đỏ (`expected:<10> but was:<3>`); đổi mặc định thì `InitialSyncApiTests` 33/33 xanh.
+- Toàn bộ: `./mvnw -B -ntp verify` → 1000 test, 0 lỗi, 4 bỏ qua; `ModularityTests` xanh.
+- Chốt chặn cổng 8080: chạy khi backend đang bật thì test được báo bỏ qua (`Skipped: 1`), không nhập gì. Lần chạy cuối với backend đã tắt: ghi ở `tasks.md`.
+- Mọi lệnh Maven chạy trong một git worktree riêng, vì backend đang chạy trong IntelliJ (DevTools khởi động lại app khi `target/classes` đổi). Worktree không có `.env`; test đọc `.env` của cây chính qua biến `SPRING_CONFIG_IMPORT=file:<đường dẫn>/.env[.properties]`, không chép file bí mật sang chỗ khác. Lưu ý: JVM test chạy Flyway trên database dùng chung, nên chỉ chạy test thật từ một worktree có đúng các migration của nhánh đang chạy; một migration chưa gộp sẽ vào database của bạn.
+
+### 18.7 Sau review
+Không có lỗi nặng. Hai điểm vừa, bảy điểm nhỏ:
+- **Cô lập một chiều** (vừa): mục 18.3; sửa bằng chốt chặn cổng 8080. Chốt chặn này cũng đóng ba điểm nhỏ: số đếm có thể lệch nếu backend kia lưu thư mới giữa hai lần đọc; một hội thoại bị đẩy lên đầu giữa lúc lật trang; backend kia bắt đầu nhập đúng lúc giữa lần kiểm tra và `POST`.
+- **`imported` chỉ đếm thư mới hoặc đổi** (vừa, chưa sửa): khi nhập lại cùng khoảng, tiến độ đứng ở 0 và "còn bao nhiêu phút" để trống suốt lượt; khi đổi 30 sang 90 ngày, tốc độ chỉ tính trên thư mới nên báo "còn 1 phút" lúc sắp xong. Sửa cần thêm cột đếm thư đã đọc (migration) và đổi nghĩa trong trạng thái, nên để thành việc riêng; ghi ở Open Questions của design F05.
+- **Kiểm tra lặp lại chính code đang kiểm** (nhỏ): "cần trả lời" giờ được tính lại từ thư (thư mới nhất là thư đến và không phải hàng loạt), và view `reply`, `attachments` được lật trang, so với số đếm.
+- **Test đổi trạng thái nhiều hơn chữ "nhập lại"** (nhỏ): Javadoc và README ghi rõ số đếm về 0, lần đồng bộ gần nhất bị xóa tới lượt sau, watch được đăng ký lại; account chưa từng nhập thì bỏ qua thay vì tự chọn 30 ngày.
+- **Tốc độ dựa trên một lần đo** (nhỏ): giờ là hai lần, ghi rõ trong design; đo thêm ở lần nhập đầu thật.
+- Javadoc của tốc độ chuyển lên mức record; thay đổi định dạng của IntelliJ ở `RealtimeProperties.java` là của bạn, không nằm trong commit này.
+
 ---
 
 ## Tự kiểm tra
@@ -1567,3 +1643,7 @@ ALTER TABLE connected_account ADD COLUMN address text;
 94. Vì sao tên quá dài từ provider bị cắt ngắn, còn địa chỉ thì không?
 95. Vì sao migration V11 không chép `display_name` sang `address` cho account cũ, dù với account của bạn hai giá trị đang giống nhau?
 96. Client gửi `PATCH` có `"address"`: phần nào của Spring làm trường đó bị bỏ qua, và test nào sẽ đỏ nếu sau này ai đó cho sửa nó?
+97. Vì sao test nhập thật chạy trên database local được, mà không bao giờ chạy trong CI?
+98. Test tắt lịch đồng bộ và `ImportResumer` của JVM mình mà vẫn chưa đủ khi backend trong IntelliJ đang chạy: chiều nào còn hở, và vì sao khóa "mỗi account một người đọc" không giúp được?
+99. `when(store).store(...)` đòi một transaction: proxy và spy nằm thế nào với nhau, và vì sao lấy spy bên trong thì hết lỗi?
+100. Ước lượng 201 cho 29 thư: số nào của Gmail sai, số nào đúng, và vì sao sửa nó là một quyết định chứ không phải một bản vá?

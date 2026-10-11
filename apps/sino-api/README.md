@@ -142,7 +142,27 @@ What it checks on the first page of the last 7 days, through `ProviderAccess` (s
 needed): no error, every message is from the last 7 days, most messages have text, no subject or name is still
 RFC 2047 encoded (`=?...?=`). It also reports what the F04b design left to real Gmail: whether `attachmentId`
 changes between two reads of a message, how many messages embed images (mailing lists or not), forwarded messages
-attached as files, folded header values. Without a connected Gmail account both tests are skipped, not failed.
+attached as files, folded header values. It also prints Gmail's estimates for 30 days, 90 days and the whole mailbox next to the messages an import really
+lists. Without a connected Gmail account the tests are skipped, not failed.
+
+### Import a real mailbox again (F05)
+
+`RealGmailImportTests`, also tagged `real-gmail`, runs with the same command. It imports the connected Gmail account
+again with the range the account already has, so the user's choice does not change and nothing is stored twice, but
+every message of the range is read again. It is a new import all the same: the status counts start from 0, the last
+sync is cleared until the next one, and Gmail is asked to watch the mailbox again. It prints how many messages it
+read, in how many seconds, and the speed. Then it checks that the import ends `DONE` and that the inbox API shows what
+the database holds: stored messages, the conversations listed page after page, the views `unread`, `reply` and
+`attachments` against the counts, and the summary of each conversation against its own messages.
+
+**Stop the backend first** (IntelliJ or `spring-boot:run`): while something answers on port 8080 the test skips
+itself. One backend per database is assumed (F05 design): a backend that is up would read the account as well, for a
+Gmail notice or a due sync, while the test imports it. The test also skips an account that was never imported (import
+it from the web first). If the test stops while its import runs, start the backend: it goes on with the import.
+
+Only this test: `./mvnw test -Preal-gmail -Dtest=RealGmailImportTests`. Measured on 2026-10-10 with an account of 53
+messages in 90 days, twice: 53 read in 33 s and in 28 s, about 100 a minute; the database and the API agreed on every
+count.
 
 ## Gmail: new mail in seconds (Pub/Sub notices, F07)
 
@@ -252,8 +272,15 @@ Good to know:
 | `GET /api/accounts/{id}` | signed in | One account. `404` `ACCOUNT_NOT_FOUND` when it does not exist or belongs to another user (same response), `400` `MALFORMED_REQUEST` when the ID is not a UUID. |
 | `PATCH /api/accounts/{id}` | signed in | JSON body with one or more of `displayName` (1–100 characters after trimming), `syncEnabled` (pause or resume automatic sync), `enabled` (disable or enable the account); a missing or `null` field stays as it is. `address` is not a field of this request: next to other fields it is ignored, and a body with only `address` is `400 VALIDATION_FAILED` like `{}`. `400` `VALIDATION_FAILED` for `{}` or a bad name, `404` as above, `409` `CONCURRENT_MODIFICATION` when another request changed the account first. |
 | `DELETE /api/accounts/{id}` | signed in | `204`. Soft delete (D-13 B): the account row is kept but hidden from every endpoint (`404` afterwards), its stored credential is deleted for good. Connecting the same provider account again brings the same account back. For Gmail, once the removal is committed Sino also asks Google to revoke its access (best effort: if Google fails or is slow, the account is removed anyway and the log has a warning naming the account, never a token). |
+| `GET /api/accounts/{id}/initial-sync/estimate?range=` | signed in | Before the first import (F05, D-65): `{messages, minMinutes, maxMinutes}` for `DAYS_30`, `DAYS_90` or `ALL`, the minutes at 60–120 messages a minute (measured with Gmail in BE-46). All three are `null` when the provider cannot tell or fails. Gmail: the whole mailbox is the profile's `messagesTotal` (exact in BE-46); a range is Gmail's `resultSizeEstimate`, which can be far off (201 for 29 messages in BE-46). `404 ACCOUNT_NOT_FOUND`, `409 ACCOUNT_DISABLED`, `400` for another range. |
+| `POST /api/accounts/{id}/initial-sync` | signed in, CSRF | `{"range": "DAYS_30"\|"DAYS_90"\|"ALL"}` → `202` with the status below; the import runs in the background, one at a time per account (a call while it runs returns its status). After `FAILED`, the same range goes on from where it stopped; another range, or a range after `DONE`, is read again from its start: nothing is stored twice, but every message is read again. After a restart the backend goes on with a running import. Errors as for the estimate. |
+| `GET /api/accounts/{id}/initial-sync` | signed in | `{status, range, imported, skipped, estimated, remainingMinutes, storedMessages, startedAt, finishedAt, errorCode}` with `status` `NOT_STARTED`, `RUNNING`, `DONE` or `FAILED`. `imported` counts the messages that were new or changed (0 when a range is read again), `storedMessages` every message of the account in Sino. `404` as above. |
 | `POST /api/accounts/{id}/sync` | signed in, CSRF | "Đồng bộ ngay" (F07): reads the account's changes in the background now, also when automatic sync is paused. `202` with the sync status below. `404 ACCOUNT_NOT_FOUND`, `409 ACCOUNT_DISABLED`, `409 IMPORT_NOT_DONE` (the first import is not done yet). |
 | `GET /api/accounts/{id}/sync` | signed in | `{importDone, lastSyncAt, lastError, push, pushExpiresAt}`: `lastSyncAt` of the last successful sync, `lastError` of the last one when it failed (the import stays done); `push` is `ACTIVE` while the provider tells Sino of changes (until `pushExpiresAt`), `FAILED` when the last registration failed, `OFF` otherwise. `404` as above. |
+| `GET /api/conversations` | signed in | The inbox (F05): `{items, nextCursor}`, the conversations of your accounts that are neither removed nor disabled, newest first. `view`: `all` (default, not archived), `unread`, `reply` (needs a reply), `attachments`, `archived`, `scheduled` and `snoozed` (empty for now); `provider` and `accountId` narrow it; `limit` 1–100 (default 30); `cursor` is the `nextCursor` of the page before, `null` on the last page. Items carry no mail body and no HTML. `400` for another view, a cursor Sino did not hand out, or a limit out of range. |
+| `GET /api/conversations/counts` | signed in | `{unread, byProvider, needsReply, withAttachments, scheduled, snoozed}`: conversations that are not archived, over the same accounts as the list; `byProvider` counts the unread ones. |
+| `GET /api/conversations/{id}` | signed in | One item with its `participants` (`externalId`, `name`, `avatarUrl`, `self`). `404 CONVERSATION_NOT_FOUND` when it is not in your inbox: another user's, of a removed or disabled account, or none. |
+| `PATCH /api/conversations/{id}` | signed in, CSRF | `{read, archived}`, at least one: `read: true` marks every message read, `read: false` the newest one unread, `archived` archives it or brings it back. Only in Sino, never sent to the provider (D-67). Returns the item. `400 VALIDATION_FAILED` for `{}`, `404` as above. |
 | `GET /api/events/stream` | signed in | Server-Sent Events of the current user (F08, D-77): `conversations.changed {type, accountId, conversationIds, newInbound, source: import\|sync\|user, at}` and `account.changed {type, accountId, at}`, sent once the change is committed; ids and counts only, never mail. `retry: 3000` first, a `:` comment every 25 s, closed after 20 minutes (the browser connects again), at most 5 streams per user (a 6th closes the oldest). `401` without a session. |
 | `POST /api/webhooks/gmail` | public, Google's token | Where Pub/Sub pushes Gmail's notices (F07, D-76; see *Gmail: new mail in seconds*); only with the three Pub/Sub settings, `404` otherwise. No session, no CSRF: `Authorization: Bearer <OIDC token>` signed by Google for the configured audience and service account. `204` (the account watched under the notice's address is synced in the background; a notice that cannot be read is dropped), `401 PUSH_TOKEN_INVALID`, `503 PUSH_KEYS_UNAVAILABLE` (Google's keys cannot be fetched), `400` (the body broke off). |
 | any other path | denied | Other actuator endpoints need a signed-in user and are not exposed (404). The `local` profile also exposes `/actuator/modulith`. |
@@ -285,7 +312,7 @@ The error code catalog is in the F01 design (`openspec/changes/archive/2026-10-0
 | All tests | `./mvnw test` |
 | Full build, as CI runs it | `./mvnw -B verify` |
 | Module boundaries only | `./mvnw test -Dtest=ModularityTests` |
-| Read the real Gmail account connected on this machine (by hand, never in CI) | `./mvnw test -Preal-gmail` (see *Read a real mailbox*) |
+| Read the real Gmail account connected on this machine and import it again (by hand, never in CI) | `./mvnw test -Preal-gmail` (see *Read a real mailbox* and *Import a real mailbox again*) |
 
 Tests run with the `test` profile (`src/test/resources/application-test.yaml`, fake owner `owner@sino.test` /
 `test-owner-password`) against PostgreSQL 18 started by Testcontainers. GitHub Actions

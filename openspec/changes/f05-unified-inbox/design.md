@@ -59,8 +59,8 @@ Thư có header `List-Unsubscribe` vẫn được đánh dấu `bulk`, kể cả
 - View `scheduled`, `snoozed` hợp lệ nhưng trả rỗng (tính năng sau); số đếm tương ứng là 0.
 - `syncProgress`, `storedMessages` của trang Tài khoản lấy từ `GET /api/accounts/{id}/initial-sync`; ~~`GET /api/accounts` không đổi~~ → chỉ thêm `address` (D-75, BE-47). **LÝ DO:** người dùng thấy mã Google thay cho email trên màn thật; module `account` vẫn không phụ thuộc hai module mới.
 - Thử lại khi nhập: `RATE_LIMITED` chờ `Retry-After` (không có thì 30 giây, tối đa 5 phút), tối đa 5 lần liên tiếp; `PROVIDER_UNAVAILABLE` sau 10/30/60 giây; thời gian chờ là cấu hình để test chạy nhanh.
-- Số phút ước lượng: tốc độ giả định ban đầu 200–400 thư/phút (đọc tuần tự, mỗi thư một lời gọi); BE-46 đo tốc độ thật với Gmail và chỉnh.
-- Giả định một tiến trình backend (MVP): chạy tiếp các dòng `RUNNING` khi ứng dụng sẵn sàng; nhiều tiến trình cần lease/khóa theo account (F07).
+- Số phút ước lượng: ~~tốc độ giả định ban đầu 200–400 thư/phút~~ → 60–120 thư/phút (đọc tuần tự, mỗi thư một lời gọi). **LÝ DO:** BE-46 đo với Gmail thật được khoảng 100 thư/phút (hai lần đọc lại 53 thư: 33 và 28 giây); giữ 200–400 thì màn "Đồng bộ" báo số phút ngắn hơn thật 2–4 lần. Hai lần đo đều là đọc lại, chưa có lần nhập đầu thật với hộp thư lớn; đo thêm khi có.
+- Giả định một tiến trình backend (MVP): chạy tiếp các dòng `RUNNING` khi ứng dụng sẵn sàng; nhiều tiến trình cần lease/khóa theo account (F07). Review BE-46: với F07, thông báo Gmail, "Đồng bộ ngay" và lịch của một tiến trình khác vẫn gọi `submit` cho một dòng `RUNNING` và nhập tiếp nó; khi có nhiều tiến trình, lời gọi đồng bộ phải bỏ qua dòng `RUNNING`, hoặc dùng lease. Test nhập thật (BE-46) vì vậy đòi tắt backend trước khi chạy.
 
 ## Backend design
 
@@ -187,7 +187,7 @@ PATCH /api/conversations/{id}     { read?: boolean, archived?: boolean }  -> Con
 
 ## Risks / Trade-offs
 
-- [Hộp thư lớn (hàng chục nghìn thư) với "toàn bộ"] → nhập tuần tự khoảng 200–400 thư/phút có thể mất hàng giờ; tiến độ và nhập tiếp sau khởi động lại giảm rủi ro; tối ưu (song song, batch API của Gmail) để F07.
+- [Hộp thư lớn (hàng chục nghìn thư) với "toàn bộ"] → nhập tuần tự khoảng 100 thư/phút (đo ở BE-46) có thể mất hàng giờ; tiến độ và nhập tiếp sau khởi động lại giảm rủi ro; tối ưu (song song, batch API của Gmail) để F07.
 - [Ước lượng của Gmail lệch] → web ghi "khoảng", mẫu số tăng theo khi vượt.
 - [Sau lần nhập đầu Hộp thư không tự cập nhật cho tới F07] → chấp nhận cho mốc M1; cursor theo dõi thay đổi đã lưu sẵn cho F07.
 - [Refresh token Testing sống 7 ngày] → lượt nhập dài có thể gặp `AUTH_EXPIRED` → `FAILED`, kết nối lại rồi nhập tiếp.
@@ -203,6 +203,9 @@ PATCH /api/conversations/{id}     { read?: boolean, archived?: boolean }  -> Con
 
 ## Open Questions
 
+- **Decision Needed — ước lượng theo khoảng ngày (D-65)** (BE-46, 2026-10-10). Đo trên hộp thư thật: `resultSizeEstimate` với `q=after:` trả 201 cho cả 30 ngày (29 thư thật) lẫn 90 ngày (53 thư thật), gần bằng cả hộp thư; `messagesTotal` của toàn bộ hộp thư khớp đúng (212/212). Màn "Đồng bộ" vì vậy báo "khoảng 201 thư" cho 29 thư. Phương án: (A) giữ, web vẫn ghi "khoảng"; (B) đếm đúng bằng cách lật danh sách ID như lúc nhập (`messages.list` với `maxResults=500`, chỉ lấy ID): mỗi 500 thư một lời gọi (5 đơn vị hạn mức), dừng ở một ngưỡng (ví dụ 5.000) và báo "hơn 5.000"; (C) không báo số cho khoảng ngày, chỉ cho toàn bộ hộp thư. Đề xuất B: khoảng 30/90 ngày thường chỉ 1–2 lời gọi mà số chính xác; chỉ sửa `GmailApi` và `GmailProvider.estimateMessages`, contract `estimateMessages` giữ nguyên.
+- **Việc sau — tiến độ khi nhập lại** (review BE-46, 2026-10-10). `imported` đếm thư mới hoặc đổi (`advance` cộng `newMessages + updatedMessages`). Khi nhập lại cùng khoảng, mọi thư đã có nên `imported` đứng ở 0: tiến độ trên web không nhích và `remainingMinutes` để trống suốt lượt. Khi đổi sang khoảng rộng hơn, tốc độ chỉ tính trên thư mới nên số phút còn lại sai (báo "còn 1 phút" lúc sắp xong). Hướng sửa: thêm `read_count`/`run_read_count` (thư đã đọc + bỏ qua) cho tiến độ và tốc độ, giữ `imported` với nghĩa thư mới; cần migration và đổi spec `initial-sync`. Chưa làm trong BE-46.
+
 - **Decision Needed — kết nối lại có đè tên người dùng đặt không?** (review BE-47, 2026-10-10). Từ F02, `reconnect` thay `displayName` bằng tên của provider (với Gmail là email), nên tên người dùng tự đặt ("Công việc") mất sau mỗi lần kết nối lại. Trước D-75 đó là cách duy nhất để email quay lại màn hình; nay email đã có `address` riêng. Phương án: (A) giữ như spec `connected-accounts` hiện tại; (B) chỉ lấy tên của provider lúc tạo account, kết nối lại giữ tên đang có; (C) như B nhưng chỉ giữ khi người dùng đã đổi tên (cần cột đánh dấu). Đề xuất B: đơn giản, đúng ý người dùng; đổi spec `connected-accounts` và một test domain.
 - "Dùng nhãn Gmail làm bộ lọc" và "Chỉ tải tệp đính kèm khi bạn mở" trên bước "Đồng bộ" của canvas: F05 không lưu nhãn Gmail và không tải nội dung tệp (F06), nên hai lựa chọn chưa có tác dụng. F04b từng ghi lọc theo nhãn cho F05; buổi brainstorm F05 chưa chốt — đề xuất hoãn tới khi có yêu cầu lọc theo nhãn cụ thể; web giữ hai công tắc ở dữ liệu mẫu hoặc ẩn.
 - Cách hiện thư "Bạn" khi người gửi là chính account trong `snippetFrom`/`title`: web quyết hiển thị (API trả tên/email; `participants[].self` cho biết).
@@ -210,8 +213,8 @@ PATCH /api/conversations/{id}     { read?: boolean, archived?: boolean }  -> Con
 
 ## Definition of Done — F05
 
-- [ ] Các scenario của `conversation-store`, `inbox-api`, `initial-sync` và delta `provider-contract`, `gmail-reading`, `connected-accounts`, `account-connect` có test và xanh.
-- [ ] `./mvnw -B -ntp verify` xanh; `ModularityTests` xanh (không vòng phụ thuộc); kiểm tra ngược từng task.
-- [ ] Nhập thật với Gmail (`real-gmail`) chạy với account thật, có số đếm và tốc độ đo được; hoặc ghi rõ NOT VERIFIED và lý do.
-- [ ] README (API Hộp thư, lần nhập đầu, chạy test thật), file kiến thức Phase 2 (`.md` + `.docx`).
-- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có lý do; `PROJECT_STATE.md` cập nhật; báo phiên web (sino-web-41) các API sẵn sàng; change archive (sau `f04b-gmail-read`).
+- [x] Các scenario của `conversation-store`, `inbox-api`, `initial-sync` và delta `provider-contract`, `gmail-reading`, `connected-accounts`, `account-connect` có test và xanh. (BE-40…BE-47, 2026-10-10.)
+- [x] `./mvnw -B -ntp verify` xanh; `ModularityTests` xanh (không vòng phụ thuộc); kiểm tra ngược từng task. (BE-46: 1000 test, 0 lỗi.)
+- [x] Nhập thật với Gmail (`real-gmail`) chạy với account thật, có số đếm và tốc độ đo được; hoặc ghi rõ NOT VERIFIED và lý do. (BE-46: 53 thư, khoảng 100 thư/phút, database và API khớp.)
+- [x] README (API Hộp thư, lần nhập đầu, chạy test thật), file kiến thức Phase 2 (`.md` + `.docx`). (BE-46.)
+- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có lý do; `PROJECT_STATE.md` cập nhật; báo phiên web (sino-web-41) các API sẵn sàng; change archive (sau `f04b-gmail-read`). — Backend BE-40…BE-47 tick đủ; phiên web đã dùng các API (FE-51, FE-52 xong; FE-50 là của phiên web). Archive chờ `f04a-gmail-connect` rồi `f04b-gmail-read` (F04a còn chờ `fe-f01-web-foundation`, người dùng đang tạm dừng FE-05).

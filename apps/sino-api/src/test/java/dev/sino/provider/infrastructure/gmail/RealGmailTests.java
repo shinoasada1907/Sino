@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import dev.sino.account.ProviderAccess;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Part;
@@ -33,6 +34,7 @@ import dev.sino.provider.spi.NormalizedParticipant;
 import dev.sino.provider.spi.OAuth2Credentials;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
+import dev.sino.sync.application.ImportResumer;
 
 /**
  * Reads the Gmail account connected on this machine (D-58): run by hand with {@code ./mvnw test -Preal-gmail}, never
@@ -41,7 +43,8 @@ import dev.sino.provider.spi.SyncCursor;
  */
 @Tag("real-gmail")
 // The default mock web environment: the security setup needs a web context, but no port is opened.
-@SpringBootTest
+// No automatic sync: the backend on 8080, if it runs, keeps the mailbox up to date on its own.
+@SpringBootTest(properties = "sino.sync.live.scheduled=false")
 @ActiveProfiles("local")
 class RealGmailTests {
 
@@ -50,6 +53,8 @@ class RealGmailTests {
             "... not from a mailing list (more likely pasted by a person)", "messages with attachments",
             "... whose attachmentId changed on a second read", "messages with a forwarded message as a file",
             "... whose inner parts Gmail shows", "messages with a folded header value");
+    // Listing a large mailbox page after page stops here (100 pages).
+    private static final long LISTED_AT_MOST = 5_000;
 
     @Autowired
     private ProviderAccess access;
@@ -59,6 +64,10 @@ class RealGmailTests {
 
     @Autowired
     private ObjectProvider<GmailProperties> gmail;
+
+    // An import running in the backend on 8080 stays that backend's: this process must not go on with it as well.
+    @MockitoBean
+    private ImportResumer resumer;
 
     @Test
     void readsTheLastSevenDaysOfTheConnectedMailbox() {
@@ -107,10 +116,7 @@ class RealGmailTests {
     void reportsWhatGmailReallySends() {
         UUID account = connectedGmailAccount();
         Instant since = Instant.now().minus(WINDOW);
-        GmailProperties properties = gmail.getIfAvailable();
-        assumeTrue(properties != null, "Gmail is off: set the Google client in .env");
-        GmailApi api = new GmailApi(properties.userInfoUri(), properties.gmailApiUri(), GmailProvider.CONNECT_TIMEOUT,
-                GmailProvider.READ_TIMEOUT);
+        GmailApi api = gmailApi();
 
         Map<String, Object> counts = access.call(account, (connector, context) -> {
             String token = ((OAuth2Credentials) context.credentials()).accessToken();
@@ -122,6 +128,53 @@ class RealGmailTests {
             return found;
         });
         print("what Gmail really sends, first page of the last 7 days", counts);
+    }
+
+    /**
+     * What the BE-40 review left to real Gmail: how close the estimates of the "Đồng bộ" step are to the messages an
+     * import lists (spam and trash left out). For 30 and 90 days the estimate is Gmail's {@code resultSizeEstimate};
+     * for the whole mailbox it is the profile's {@code messagesTotal}, next to the list's own estimate. Counts only;
+     * nothing is asserted.
+     */
+    @Test
+    void reportsHowCloseTheEstimatesAre() {
+        UUID account = connectedGmailAccount();
+        GmailApi api = gmailApi();
+        Instant now = Instant.now();
+
+        Map<String, Object> counts = access.call(account, (connector, context) -> {
+            String token = ((OAuth2Credentials) context.credentials()).accessToken();
+            Map<String, Object> found = new LinkedHashMap<>();
+            for (int days : new int[] { 30, 90 }) {
+                Instant since = now.minus(Duration.ofDays(days));
+                found.put(days + " days: estimate shown (resultSizeEstimate)", api.estimate(token, since));
+                found.put(days + " days: messages listed", listed(api, token, since));
+            }
+            found.put("whole mailbox: estimate shown (messagesTotal)", api.profile(token).messagesTotal());
+            found.put("whole mailbox: resultSizeEstimate of the list", api.estimate(token, null));
+            found.put("whole mailbox: messages listed", listed(api, token, null));
+            return found;
+        });
+        print("estimates against the messages an import lists", counts);
+    }
+
+    // The IDs an import reads, counted page after page like it lists them.
+    private static String listed(GmailApi api, String token, Instant since) {
+        long count = 0;
+        String page = null;
+        do {
+            GmailApi.MessageList list = api.messages(token, since, page);
+            count += list.ids().size();
+            page = list.nextPageToken();
+        } while (page != null && count < LISTED_AT_MOST);
+        return page == null ? String.valueOf(count) : "more than " + count;
+    }
+
+    private GmailApi gmailApi() {
+        GmailProperties properties = gmail.getIfAvailable();
+        assumeTrue(properties != null, "Gmail is off: set the Google client in .env");
+        return new GmailApi(properties.userInfoUri(), properties.gmailApiUri(), GmailProvider.CONNECT_TIMEOUT,
+                GmailProvider.READ_TIMEOUT);
     }
 
     private static void count(GmailApi api, String token, GmailMessage message, Map<String, Object> found) {

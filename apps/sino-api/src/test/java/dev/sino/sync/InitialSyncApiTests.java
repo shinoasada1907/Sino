@@ -124,8 +124,8 @@ class InitialSyncApiTests {
                 .with(apiUser()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.messages").value(1180))
-                .andExpect(jsonPath("$.minMinutes").value(3))
-                .andExpect(jsonPath("$.maxMinutes").value(6));
+                .andExpect(jsonPath("$.minMinutes").value(10))
+                .andExpect(jsonPath("$.maxMinutes").value(20));
     }
 
     @Test
