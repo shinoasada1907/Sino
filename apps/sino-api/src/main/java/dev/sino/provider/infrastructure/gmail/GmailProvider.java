@@ -18,7 +18,9 @@ import dev.sino.provider.infrastructure.gmail.GmailApi.HistoryPage;
 import dev.sino.provider.infrastructure.gmail.GmailApi.MessageList;
 import dev.sino.provider.infrastructure.gmail.GmailApi.Profile;
 import dev.sino.provider.infrastructure.gmail.GmailApi.Watch;
+import dev.sino.provider.infrastructure.gmail.GmailMessage.Part;
 import dev.sino.provider.spi.AccountProfile;
+import dev.sino.provider.spi.AttachmentContent;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.OAuth2Connection;
@@ -43,6 +45,8 @@ class GmailProvider implements MessageProvider {
     static final Set<String> SCOPES = Set.of("openid", "email", GMAIL_READONLY);
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+    /** A 25 MB file is about 33 MB of base64: 60 s is enough down to about 0.6 MB/s. */
+    static final Duration FILE_READ_TIMEOUT = Duration.ofSeconds(60);
 
     // Google issues a refresh token only for offline access, and only on a fresh consent: a reconnect must ask again.
     private static final Map<String, String> CONSENT_PARAMETERS = Map.of("access_type", "offline",
@@ -73,7 +77,7 @@ class GmailProvider implements MessageProvider {
             Duration readTimeout, String pubsubTopic) {
         this.connection = new OAuth2Connection(REGISTRATION_ID, SCOPES, Set.of(GMAIL_READONLY), CONSENT_PARAMETERS,
                 revocationUri);
-        this.api = new GmailApi(userInfoUri, gmailApiUri, connectTimeout, readTimeout);
+        this.api = new GmailApi(userInfoUri, gmailApiUri, connectTimeout, readTimeout, FILE_READ_TIMEOUT);
         this.pubsubTopic = pubsubTopic;
     }
 
@@ -211,6 +215,31 @@ class GmailProvider implements MessageProvider {
     @Override
     public Optional<MessageContent> fetchMessageContent(ProviderContext context, String externalMessageId) {
         return api.message(accessTokenOf(context), externalMessageId).map(GmailMessageNormalizer::content);
+    }
+
+    /**
+     * The content of a file or an embedded picture of a message, by its {@code partId}: Gmail's {@code attachmentId}
+     * changes on every read, so the message is read first, then {@code messages.attachments.get} when Gmail keeps the
+     * part apart.
+     *
+     * @throws ProviderException with {@code REQUEST_REJECTED} when Gmail no longer has the message or the part
+     */
+    @Override
+    public AttachmentContent fetchAttachment(ProviderContext context, String externalMessageId,
+            String externalAttachmentId) {
+        String accessToken = accessTokenOf(context);
+        GmailMessage message = api.message(accessToken, externalMessageId).orElseThrow(
+                () -> new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "Gmail no longer has the message"));
+        Part part = GmailMessageNormalizer.partOf(message, externalAttachmentId).filter(found -> found.body() != null)
+                .orElseThrow(() -> new ProviderException(ProviderErrorCode.REQUEST_REJECTED,
+                        "The message has no such part"));
+        String data = part.body().data() != null ? part.body().data()
+                : part.body().attachmentId() == null ? null
+                        : api.attachment(accessToken, externalMessageId, part.body().attachmentId()).data();
+        if (data == null) {
+            throw new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "The part has no content");
+        }
+        return new AttachmentContent(GmailMessageNormalizer.bytesOf(data), part.mimeType());
     }
 
     // Archived mail is shown too: it still belongs to its thread.

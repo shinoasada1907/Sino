@@ -68,9 +68,11 @@ class JdbcConversationStoreTests {
             List.of(new Address(null, "owner@gmail.test")), List.of(new Address("Trần, Bình", "binh@example.test")),
             List.of());
     private static final NormalizedAttachment REPORT = new NormalizedAttachment("1", "report.pdf",
-            "application/pdf", 1024L, null, null);
+            "application/pdf", 1024L, null, null, null);
+    // An embedded picture is kept as one only beside HTML that can show it.
+    private static final String SHOWS_LOGO = "<p><img src=\"cid:logo@x\"></p>";
     private static final NormalizedAttachment PHOTO = new NormalizedAttachment("2", "photo.png", "image/png", 2048L,
-            "https://files.example.test/2", "https://files.example.test/2/small");
+            "https://files.example.test/2", "https://files.example.test/2/small", null);
 
     @Autowired
     private ConversationStore store;
@@ -232,13 +234,94 @@ class JdbcConversationStoreTests {
     }
 
     @Test
+    void anEmbeddedPictureIsStoredWithItsContentIdAndIsNoFile() {
+        NormalizedAttachment logo = new NormalizedAttachment("9", "logo.png", "image/png", 10L, null, null, "logo@x");
+
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)),
+                withHtml(question(REPORT, logo), SHOWS_LOGO)));
+
+        assertThat(contentIds("m-1")).containsExactly("1=-", "9=logo@x");
+        assertThat(conversation("thread-1")).containsEntry("has_attachments", true);
+    }
+
+    @Test
+    void aPartStoredAgainAsAFileIsNoLongerAnEmbeddedPicture() {
+        NormalizedAttachment logo = new NormalizedAttachment("9", "logo.png", "image/png", 10L, null, null, "logo@x");
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withHtml(question(logo), SHOWS_LOGO)));
+
+        store.store(account, batch(List.of(), question(new NormalizedAttachment("9", "logo.png", "image/png", 10L,
+                null, null, null))));
+
+        assertThat(contentIds("m-1")).containsExactly("9=-");
+        assertThat(conversation("thread-1")).containsEntry("has_attachments", true);
+    }
+
+    @Test
+    void aPictureOfMailWhoseHtmlIsTooLongToKeepIsAFile() {
+        NormalizedAttachment logo = new NormalizedAttachment("9", "logo.png", "image/png", 10L, null, null, "logo@x");
+        String tooLong = "<p>" + "x".repeat(JdbcConversationStore.MAX_HTML_LENGTH) + "</p>";
+
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withHtml(question(logo), tooLong)));
+
+        assertThat(contentIds("m-1")).as("no HTML shows it, so the user downloads it").containsExactly("9=-");
+        assertThat(conversation("thread-1")).containsEntry("has_attachments", true);
+    }
+
+    @Test
+    void aConversationWhoseMailHasOnlyEmbeddedPicturesHasNoAttachments() {
+        NormalizedAttachment logo = new NormalizedAttachment("9", "logo.png", "image/png", 10L, null, null, "logo@x");
+
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withHtml(question(logo), SHOWS_LOGO)));
+
+        assertThat(conversation("thread-1")).containsEntry("has_attachments", false);
+    }
+
+    @Test
+    void contentReadAgainAddsItsEmbeddedPicturesBesideTheFiles() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question(REPORT)));
+        UUID id = messageId("m-1");
+        jdbc.sql("UPDATE message SET body_format = 'UNCHECKED' WHERE id = :id").param("id", id).update();
+
+        contents.storeContent(id, new MessageContent("<p><img src=\"cid:logo@x\"></p>", null, List.of(
+                new NormalizedAttachment("9", "lo go.png", "image/png", 10L, null, null, "logo@x"))));
+
+        assertThat(contentIds("m-1")).containsExactly("1=-", "9=logo@x");
+        assertThat(jdbc.sql("SELECT file_name FROM attachment WHERE external_attachment_id = '9'")
+                .query(String.class).single()).isEqualTo("logo.png");
+    }
+
+    @Test
+    void contentReadAgainAddsTheFilesAnEarlierImportLeftOut() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question(REPORT)));
+        UUID id = messageId("m-1");
+        jdbc.sql("UPDATE message SET body_format = 'UNCHECKED' WHERE id = :id").param("id", id).update();
+
+        contents.storeContent(id, new MessageContent("<p>Ảnh</p>", null, List.of(REPORT,
+                new NormalizedAttachment("7", null, "image/png", 10L, null, null, null))));
+
+        assertThat(contentIds("m-1")).containsExactly("1=-", "7=-");
+    }
+
+    @Test
+    void aPictureReadAgainWithHtmlTooLongToKeepIsAFile() {
+        store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question()));
+        UUID id = messageId("m-1");
+        jdbc.sql("UPDATE message SET body_format = 'UNCHECKED' WHERE id = :id").param("id", id).update();
+
+        contents.storeContent(id, new MessageContent("x".repeat(JdbcConversationStore.MAX_HTML_LENGTH + 1), null,
+                List.of(new NormalizedAttachment("9", "logo.png", "image/png", 10L, null, null, "logo@x"))));
+
+        assertThat(contentIds("m-1")).containsExactly("9=-");
+    }
+
+    @Test
     void contentReadAgainIsKeptOnceForMailStoredBefore() {
         store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withRecipients(question(), null)));
         UUID id = messageId("m-1");
         jdbc.sql("UPDATE message SET body_format = 'UNCHECKED' WHERE id = :id").param("id", id).update();
 
-        assertThat(contents.storeContent(id, new MessageContent("<p>Ch\u0000ào</p>", ADDRESSEES))).isTrue();
-        assertThat(contents.storeContent(id, new MessageContent("<p>Khác</p>", null)))
+        assertThat(contents.storeContent(id, new MessageContent("<p>Ch\u0000ào</p>", ADDRESSEES, List.of()))).isTrue();
+        assertThat(contents.storeContent(id, new MessageContent("<p>Khác</p>", null, List.of())))
                 .as("a second reader at the same time changes nothing").isFalse();
 
         assertThat(body("m-1")).containsExactly("HTML", "<p>Chào</p>");
@@ -252,9 +335,9 @@ class JdbcConversationStoreTests {
         store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question(), answer()));
         jdbc.sql("UPDATE message SET body_format = 'UNCHECKED'").update();
 
-        assertThat(contents.storeContent(messageId("m-1"), new MessageContent(null, null))).isTrue();
+        assertThat(contents.storeContent(messageId("m-1"), new MessageContent(null, null, List.of()))).isTrue();
         assertThat(contents.storeContent(messageId("m-2"),
-                new MessageContent("x".repeat(JdbcConversationStore.MAX_HTML_LENGTH + 1), null))).isTrue();
+                new MessageContent("x".repeat(JdbcConversationStore.MAX_HTML_LENGTH + 1), null, List.of()))).isTrue();
 
         assertThat(body("m-1")).containsExactly("TEXT", null);
         assertThat(body("m-2")).containsExactly("TEXT", null);
@@ -265,8 +348,9 @@ class JdbcConversationStoreTests {
         store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), withHtml(question(), "<p>Chào</p>"),
                 answer()));
 
-        assertThat(contents.storeContent(messageId("m-1"), new MessageContent("<p>Khác</p>", null))).isFalse();
-        assertThat(contents.storeContent(messageId("m-2"), new MessageContent("<p>Khác</p>", null))).isFalse();
+        MessageContent other = new MessageContent("<p>Khác</p>", null, List.of());
+        assertThat(contents.storeContent(messageId("m-1"), other)).isFalse();
+        assertThat(contents.storeContent(messageId("m-2"), other)).isFalse();
 
         assertThat(body("m-1")).containsExactly("HTML", "<p>Chào</p>");
         assertThat(body("m-2")).containsExactly("TEXT", null);
@@ -424,7 +508,7 @@ class JdbcConversationStoreTests {
         store.store(account, batch(List.of(thread("Báo cáo", ALICE, OWNER)), question(REPORT)));
         UUID reportId = attachmentId("m-1", "1");
         NormalizedAttachment renamed = new NormalizedAttachment("1", "report-final.pdf", "application/pdf", 4096L,
-                "https://files.example.test/1", "https://files.example.test/1/small");
+                "https://files.example.test/1", "https://files.example.test/1/small", null);
 
         StoreResult result = store.store(account, batch(List.of(), question(renamed)));
 
@@ -479,7 +563,8 @@ class JdbcConversationStoreTests {
                         false)), TUESDAY);
         NormalizedMessage message = new NormalizedMessage("m-1", "thread-1", "b\u0000ob@example.test",
                 MessageDirection.INBOUND, MessageType.MIXED, "Xin\u0000 chào", MessageStatus.UNKNOWN, false, null,
-                MONDAY, List.of(new NormalizedAttachment("1", "re\u0000port.pdf", "application/pdf", 10L, null, null)),
+                MONDAY, List.of(new NormalizedAttachment("1", "re\u0000port.pdf", "application/pdf", 10L, null, null,
+                        null)),
                 Map.of("rfcMessageId", "<a\u0000b@example.test>"), new NormalizedRecipients(
                         List.of(new Address("B\u0000ình", "bi\u0000nh@example.test"),
                                 new Address("\u0000", "an@example.test")),
@@ -608,6 +693,17 @@ class JdbcConversationStoreTests {
         return new NormalizedMessage(m.externalMessageId(), m.externalConversationId(),
                 m.senderExternalParticipantId(), m.direction(), m.type(), m.textContent(), m.status(), m.read(),
                 m.replyToExternalMessageId(), m.sentAt(), m.attachments(), m.metadata(), m.recipients(), html);
+    }
+
+    // "<external id>=<content id>" of each attachment of the message, "-" for a file.
+    private List<String> contentIds(String message) {
+        return jdbc.sql("""
+                select a.external_attachment_id, a.content_id from attachment a join message m on m.id = a.message_id
+                join conversation c on c.id = m.conversation_id
+                where c.account_id = :account and m.external_message_id = :message order by a.external_attachment_id
+                """).param("account", account).param("message", message)
+                .query((row, n) -> row.getString(1) + "=" + (row.getString(2) == null ? "-" : row.getString(2)))
+                .list();
     }
 
     // The body format and the HTML kept for the message.

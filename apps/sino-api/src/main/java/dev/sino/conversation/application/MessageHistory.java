@@ -89,7 +89,7 @@ public class MessageHistory {
         Map<UUID, List<File>> files = new HashMap<>();
         jdbc.sql("""
                 SELECT message_id, id, file_name, mime_type, size_bytes FROM attachment
-                WHERE message_id IN (:messages) ORDER BY id
+                WHERE message_id IN (:messages) AND content_id IS NULL ORDER BY id
                 """).param("messages", messages.stream().map(InboxMessage::id).toList())
                 .query(row -> {
                     files.computeIfAbsent(row.getObject("message_id", UUID.class), id -> new ArrayList<>())

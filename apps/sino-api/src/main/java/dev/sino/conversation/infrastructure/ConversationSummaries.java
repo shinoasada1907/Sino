@@ -61,7 +61,7 @@ public class ConversationSummaries {
                            (SELECT count(*) FROM message m
                             WHERE m.conversation_id = c.id AND NOT m.is_read)::integer AS unread_count,
                            EXISTS (SELECT 1 FROM attachment a JOIN message m ON m.id = a.message_id
-                                   WHERE m.conversation_id = c.id) AS has_attachments,
+                                   WHERE m.conversation_id = c.id AND a.content_id IS NULL) AS has_attachments,
                            COALESCE(latest.needs_reply, false) AS needs_reply
                     FROM conversation c
                     LEFT JOIN LATERAL (

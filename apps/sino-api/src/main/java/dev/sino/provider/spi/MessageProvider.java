@@ -63,6 +63,17 @@ public interface MessageProvider {
     }
 
     /**
+     * The content of one attachment of a message (F06, D-125), by the external IDs of both.
+     *
+     * @throws ProviderException with {@code CAPABILITY_NOT_SUPPORTED} by default, without calling the provider
+     */
+    default AttachmentContent fetchAttachment(ProviderContext context, String externalMessageId,
+            String externalAttachmentId) {
+        throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
+                type() + " cannot download an attachment");
+    }
+
+    /**
      * Asks the provider to notify Sino of changes to the account (D-76), or renews that while it is on; where the
      * notices go is the connector's own setup. Empty by default, and always for a connector without
      * {@link ProviderCapability#PUSH_WEBHOOK}, which never calls its provider for it.

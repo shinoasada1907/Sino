@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn BE-61 (ước lượng đúng cho khoảng ngày) và archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): đang làm, xong BE-54, BE-55.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn BE-61 (ước lượng đúng cho khoảng ngày) và archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): đang làm, xong BE-54, BE-55, BE-56.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1703,6 +1703,113 @@ Cả hộp thư đã nhập trước F06 nên mọi thư cũ là `UNCHECKED`. L�
   - Câu hỏi cuối "vì sao gộp connector không đọc lại được với thư không có HTML": thư `UNCHECKED` chỉ có từ trước F06 và đều là Gmail, mà Gmail có cài hàm này; ghi lý do ở design F06.
 
 
+## 21. Tệp đính kèm và ảnh nhúng: đi qua Sino, không lưu (BE-56, F06)
+
+**Ở đâu:** `db/migration/V16__conversation_add_attachment_content_id.sql` (mới), `provider/spi/{NormalizedAttachment,AttachmentContent (mới),MessageContent,MessageProvider}.java`, `provider/infrastructure/gmail/{GmailMessageNormalizer,GmailApi,GmailProvider}.java`, `conversation/application/{MessageFiles,MessageFile}.java` (mới), `conversation/application/MessageBodies.java`, `conversation/infrastructure/JdbcConversationStore.java`, `conversation/api/ConversationMessagesController.java`.
+
+### 21.1 Hai loại phần của một thư
+| | Tệp | Ảnh nhúng |
+|---|---|---|
+| Là gì | phần có tên mà Gmail giữ riêng (`attachmentId`), và mọi ảnh nhúng không hiện được | ảnh PNG, JPEG, GIF hay WebP có `Content-ID` mà HTML hiện bằng `<img src="cid:...">` (logo trong chữ ký) |
+| Trong danh sách tệp của thư | có | không |
+| Làm cuộc trò chuyện "có tệp" | có | không |
+| Cách hiện | tải xuống | trong khung thư, qua `?inline=true` |
+
+Cả hai nằm chung bảng `attachment` (Sino chỉ lưu thông tin, không lưu nội dung). Một cột `content_id` phân biệt chúng: có giá trị là ảnh nhúng. Design ban đầu có thêm cờ `inline`, nhưng cờ đó luôn suy được từ `content_id`; hai cột chỉ thêm cơ hội lệch nhau. Kiểu thư `MIXED` giờ chỉ khi có **tệp** thật: một thư chỉ có logo trong chữ ký vẫn là thư chữ.
+
+Một ảnh có `Content-ID` chưa chắc là ảnh nhúng. Thư chỉ có chữ gửi kèm ảnh chụp từ điện thoại, hay một bản vẽ SVG, cũng có `Content-ID`. Nếu Sino coi chúng là ảnh nhúng thì chúng không hiện trong thư (HTML không gọi tới, hoặc trình duyệt không được phép hiện) mà cũng không có trong danh sách tệp: người dùng mất chúng. Review của BE-56 bắt được điều này. Quy tắc bây giờ: ảnh nhúng chỉ khi **cả ba** đúng: có `Content-ID` khác rỗng, là một trong bốn kiểu ảnh, và HTML của thư có `<img src="cid:...">` tới nó. Còn lại là tệp, kể cả khi không có tên (web hiện "Tệp không tên"). Thêm hai trường hợp cùng một ý "không gì bị mất":
+- Hai phần cùng một `Content-ID` (ví dụ một phần nằm trong thư chuyển tiếp đính kèm): một id chỉ trỏ được tới một ảnh, nên phần đầu là ảnh nhúng, phần sau là tệp.
+- Thư có HTML dài hơn 1 000 000 ký tự thì Sino không lưu HTML (mục 20), thư hiện bằng chữ. Không HTML nào hiện ảnh của nó, nên lúc lưu, `JdbcConversationStore` đổi ảnh nhúng của thư đó thành tệp.
+
+Để biết HTML có gọi tới ảnh không, connector Gmail đọc HTML bằng jsoup, đúng như bộ làm sạch sẽ đọc (mục 20.3): chỉ `<img src>`, `cid:` viết hoa hay thường đều được, so cả id như viết lẫn id đã giải mã các mã `%` (như `%40` thành `@`). Việc đọc này chỉ chạy khi thư có ảnh có `Content-ID`, nên thư thường không tốn thêm gì. Bốn kiểu ảnh nằm một chỗ, `NormalizedAttachment.PICTURE_TYPES` trong contract, dùng chung cho connector (ảnh nào là ảnh nhúng) và cho endpoint (ảnh nào được hiện `inline`): hai nơi không thể lệch nhau.
+
+### 21.2 Không lưu nội dung tệp: đọc từ Gmail mỗi lần tải
+```text
+Trình duyệt --GET .../attachments/{id}--> Sino --messages.get---------> Gmail: tìm phần theo partId
+                                               --attachments.get-----> Gmail: chỉ khi Gmail giữ phần đó riêng
+            <--bytes + header an toàn-------
+```
+
+Sino nhận diện một phần bằng `partId` chứ không bằng `attachmentId` của Gmail, vì Gmail đổi `attachmentId` sau mỗi lần đọc thư (BE-39, mục 10). Nên tải một tệp là hai lời gọi: đọc thư để biết `attachmentId` lúc này, rồi lấy nội dung. Phần nhỏ (Gmail để sẵn `data` trong thư) chỉ cần một lời gọi.
+
+Lời gọi Gmail nằm ngoài transaction, như ở mục 20.5. Gmail lỗi hay không còn tệp: `502 ATTACHMENT_UNAVAILABLE`.
+
+**Bộ nhớ.** Gmail trả cả tệp một lần, base64 trong JSON. Lúc đọc một tệp 25 MB, backend giữ chuỗi base64 (khoảng 33 MB), JSON quanh nó và bytes đã giải mã (25 MB) cùng lúc: gấp mấy lần cỡ tệp. Vài lần tải lớn cùng lúc là đủ làm backend hết bộ nhớ, và khi đó mọi người dùng cùng hỏng. Review của BE-56 xếp điều này HIGH, nên có hai giới hạn, đều xét **trước** khi hỏi Gmail:
+
+| Giới hạn | Vượt thì |
+|---|---|
+| Tệp lớn hơn 25 MB (theo kích thước đã lưu) | `422 ATTACHMENT_TOO_LARGE`; web mời mở thư ở Gmail |
+| Tổng các tệp tải xuống đang đọc từ Gmail cùng lúc tối đa 50 MB, tức hai tệp lớn nhất | `503 ATTACHMENT_BUSY` ngay; thử lại sau |
+| Ảnh hiện trong thư (`inline`) có phần riêng 25 MB | như trên; nhờ phần riêng, hai tệp lớn đang tải không làm vỡ ảnh của thư đang mở |
+
+Giới hạn thứ hai dùng `java.util.concurrent.Semaphore`, một bộ đếm "giấy phép" an toàn khi nhiều luồng cùng gọi:
+
+```java
+private final Semaphore carrying = new Semaphore((int) (2 * LARGEST_FILE_BYTES));
+
+int bytes = (int) (file.sizeBytes() == null ? LARGEST_FILE_BYTES : Math.max(1, file.sizeBytes()));
+if (!carrying.tryAcquire(bytes)) {      // còn đủ thì lấy, không thì trả false ngay
+    throw ConversationErrorCode.attachmentBusy();
+}
+try {
+    content = access.call(...);         // hỏi Gmail
+} finally {
+    carrying.release(bytes);            // trả lại, kể cả khi Gmail lỗi
+}
+```
+
+- Mỗi **byte** là một giấy phép, không phải mỗi request: hai tệp 25 MB lấy hết, còn hàng trăm logo vài KB vẫn lọt cùng lúc. Đếm theo request thì một thư có mười logo sẽ phải xếp hàng sau một tệp phim.
+- Tệp không rõ kích thước tính như tệp lớn nhất: không biết thì giả định trường hợp xấu.
+- `tryAcquire` không chờ. Một request chờ thì giữ một luồng của Tomcat trong lúc chờ; trả `503` ngay rõ ràng hơn cho web.
+- `release` nằm trong `finally`: thiếu nó, mỗi lần Gmail lỗi "rò" mất một ít giấy phép, tới lúc không ai tải được gì nữa.
+- Giấy phép trả lại ngay khi Gmail trả lời. Từ lúc đó trong bộ nhớ chỉ còn một bản nội dung tệp, đang được ghi ra cho trình duyệt; giới hạn không phủ phần này (review lần hai bắt Javadoc nói quá điều đó). Đọc theo luồng (stream) từ Gmail thẳng ra trình duyệt, không giữ cả tệp, để F12.
+
+**Hạn chờ Gmail.** Mọi lời gọi Gmail có hạn 10 s (mục 10). Đọc mã của Spring 7.0.9 (`JdkClientHttpRequest.TimeoutHandler`, xem bằng `javap`) thì thấy hạn đó là hạn **tổng**, tính từ lúc gửi tới lúc đọc xong thân response: hết giờ là Spring đóng luồng đang đọc. Một tệp 25 MB là khoảng 33 MB base64; trong 10 s cần mạng nhanh hơn khoảng 3,3 MB/s, chậm hơn thì luôn hỏng. Nên `GmailApi` có hai `RestClient` dùng chung một `HttpClient`: một với hạn 10 s cho mọi lời gọi, một với hạn 60 s chỉ cho `attachments.get`. Test dùng WireMock trả thân response nhỏ giọt trong 3 s, quá hạn 2 s của các lời gọi khác trong test.
+
+### 21.3 Header làm một tệp thành vô hại
+Một tệp đính kèm là thứ người lạ gửi tới. Nếu Sino trả một tệp `.html` (hay `.svg`) với kiểu đó và trình duyệt hiện nó, script trong tệp chạy trên origin của Sino, với cookie đăng nhập của bạn. Ba header chặn việc đó:
+
+| Header | Chặn điều gì |
+|---|---|
+| `Content-Disposition: attachment; filename*=UTF-8''...` | trình duyệt tải xuống chứ không hiện; tên tiếng Việt mã hóa theo RFC 6266, dấu nháy hay xuống dòng trong tên không phá được header |
+| `X-Content-Type-Options: nosniff` | trình duyệt không tự đoán kiểu khác với kiểu Sino nói |
+| `Content-Security-Policy: sandbox; default-src 'none'` | dù ai đó mở nó như một trang, trang đó không có origin, không chạy script, không tải gì |
+
+`?inline=true` (hiện trong khung thư) chỉ dành cho ảnh PNG, JPEG, GIF, WebP. SVG cũng là ảnh nhưng có thể chứa script, nên không bao giờ được `inline`: `422 ATTACHMENT_NOT_INLINE`, và Gmail không bị hỏi.
+
+Kiểu của response: kiểu đã lưu; không có thì kiểu Gmail cho; kiểu không cụ thể như `image/*` hay `*/*` thì `application/octet-stream`, vì một kiểu như thế bắt trình duyệt phải đoán.
+
+**Bộ nhớ đệm của trình duyệt.** Mặc định Spring Security gắn `Cache-Control: no-cache, no-store, max-age=0, must-revalidate` vào mọi response: không trang nào có dữ liệu riêng bị giữ lại. Với tệp tải xuống thì đúng như vậy. Nhưng ảnh trong thư thì mỗi lần mở thư trình duyệt lại hỏi Sino, Sino lại hỏi Gmail hai lần. Ảnh của một thư không bao giờ đổi, nên ảnh `inline` có `Cache-Control: max-age=86400, private`: trình duyệt giữ một ngày, `private` để không proxy nào ở giữa giữ. Spring Security chỉ gắn header mặc định khi response chưa có `Cache-Control`, nên controller đặt được; test kiểm cả hai phía (ảnh có `max-age`, tệp tải xuống có `no-store`).
+
+### 21.4 Đổi `cid:` thành đường dẫn của Sino
+Lúc làm sạch HTML (mục 20.3), `src="cid:logo@shop"` được tra trong các ảnh nhúng đã lưu của **chính thư đó**:
+- Tra đúng `Content-ID` như viết trước, vì một id có thể chứa dấu `%` của chính nó (`a%41b`); rồi giải mã các mã `%` (như `%40` thành `@`), vì RFC 2392 cho phép địa chỉ `cid:` mã hóa ký tự như một URL (`logo%40shop`); cuối cùng không phân biệt hoa thường.
+- Thấy thì đổi thành đường dẫn **tương đối** `/api/conversations/{id}/messages/{id}/attachments/{id}?inline=true`: cùng origin với web, đúng chỗ CSP của khung thư cho phép tải ảnh.
+- Không thấy thì bỏ ảnh.
+
+Thư cũ (`UNCHECKED`) có ảnh nhúng sau lần lấy bù: `fetchMessageContent` trả thêm các tệp và ảnh nhúng như lúc nhập bây giờ (`MessageContent.attachments`), và Sino thêm chúng bên cạnh các tệp đã lưu từ trước. Ban đầu nó chỉ trả ảnh nhúng; review lần hai chỉ ra rằng ảnh mà quy tắc mới coi là tệp (ảnh chụp trong thư chỉ có chữ) chưa từng được nhập với thư cũ, nên lấy bù phải mang cả tệp. Thư nhập giữa BE-55 và BE-56 thì đã là `HTML`, không được lấy bù: ảnh nhúng của chúng chưa có dòng nào và `cid:` bị bỏ, cho tới khi thư được nhập lại. Chỉ ảnh hưởng dữ liệu trên máy dev.
+
+### 21.5 Kiểm chứng (BE-56)
+- **Đỏ trước:** 133 test trên code tạm: 15 sai, 5 lỗi. Sau review, 7 test mới đỏ trên bản trước review (giới hạn 25 MB, tải cùng lúc, `Cache-Control`, `cid:` có `%` của chính nó, kiểu do provider cho, ảnh mà HTML không gọi tới, SVG/TIFF nhúng). Sau review lần hai, 4 test đỏ: ảnh của thư có HTML quá dài (lúc nhập và lúc lấy bù), ảnh trong thư lúc hai tệp lớn đang tải, và Gmail giả trả thân response nhỏ giọt trong 3 s bị cắt ở hạn 2 s ("The connection to Google broke off while reading its answer"), đúng điều mục 21.2 nói về hạn tổng.
+- **Xanh:** 405 test các lớp liên quan lúc đầu; 244 sau hai vòng sửa.
+- **Kiểm tra ngược:** ba lượt.
+
+| Lượt | Lỗi gài | Bị bắt | Sống sót và xử lý |
+|---|---|---|---|
+| Trước review (dừng khi có review) | 13 | 10 | coi mọi phần nhúng là ảnh: đổi quy tắc và thêm test; bỏ qua khi `content_id` của một phần đổi: thêm test (lượt sau bắt được); lấy `data` trước `attachmentId`: tương đương, Gmail không bao giờ cho cả hai |
+| Sau review | 47 | 44 | bỏ điều kiện đúng thư, bỏ điều kiện đúng cuộc trò chuyện: thiếu test, đã thêm (lượt sau bắt được); bỏ `nosniff` ở controller: tương đương, Spring Security cũng gắn header đó |
+| Sau review lần hai | 14 | 14 | không |
+
+Lỗi gài "bỏ điều kiện đúng cuộc trò chuyện" đáng nhớ nhất: `requireInInbox` chỉ kiểm cuộc trò chuyện trong đường dẫn có thuộc hộp thư của bạn không. Nếu câu SQL tìm tệp không ràng buộc thư vào **chính** cuộc trò chuyện đó, ai có một cuộc trò chuyện hợp lệ cũng mở được tệp của thư bất kỳ. Test cũ không bắt được vì nó dùng một id cuộc trò chuyện ngẫu nhiên, nên đã dừng ở bước kiểm hộp thư; test mới dùng cuộc trò chuyện hợp lệ ghép với thư nằm chỗ khác.
+
+`nosniff` vẫn đặt ở controller dù Spring Security đã gắn: endpoint này không nên an toàn chỉ nhờ cấu hình chung. Test kiểm header đó chỉ có **một** giá trị, để hai nơi cùng gắn không thành hai dòng.
+
+- **Toàn bộ:** `./mvnw -B -ntp verify` → 1184 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS.
+- **Review** (agent `senior-reviewer`, hai lượt):
+  - Lượt một: HIGH bộ nhớ khi tải (mục 21.2); MEDIUM ảnh nhúng không hiện được thì mất (mục 21.1) và ảnh bị tải lại mỗi lần mở thư (mục 21.3); nhỏ: thứ tự tra `cid:`, kiểu do provider cho, kiểu không cụ thể, Javadoc.
+  - Lượt hai: không có lỗi nặng; MEDIUM ảnh của thư có HTML quá dài bị mất, Javadoc hứa giới hạn bộ nhớ rộng hơn code làm; nhỏ: `Content-ID` trùng, thư cũ lấy bù thiếu tệp mới, ảnh trong thư bị chặn khi tải tệp lớn, hạn chờ Gmail. Đã sửa hết; còn ghi lại: độ dài thật của tệp không rõ kích thước không được kiểm sau khi đọc (Gmail luôn cho kích thước; connector của F09 phải xét lại).
+- **Chưa làm:** chạy với Gmail thật (BE-57): tải tệp thật, ảnh chữ ký thật, `partId` có đứng yên giữa các lần đọc không.
+
 ---
 
 ## Tự kiểm tra
@@ -1817,3 +1924,9 @@ Cả hộp thư đã nhập trước F06 nên mọi thư cũ là `UNCHECKED`. L�
 108. Bộ lọc giữ nguyên CSS: rủi ro còn lại là gì, và lớp nào chặn nó?
 109. Hai request cùng mở một thư `UNCHECKED`: Sino gọi Gmail mấy lần, ghi mấy lần, và vì sao kết quả vẫn đúng?
 110. Vì sao lỗi lấy bù là `502` chứ không phải `503` hay `500`?
+111. Vì sao ảnh nhúng không phải là "tệp" của thư, và Sino phân biệt hai loại bằng gì?
+112. Tải một tệp thì Sino gọi Gmail mấy lần? Vì sao không gọi thẳng `attachments.get` bằng một id đã lưu?
+113. Một tệp `.html` đính kèm: ba header nào giữ cho nó không chạy trên origin của Sino, mỗi header chặn điều gì?
+114. Vì sao ảnh SVG không bao giờ được hiện `inline`, dù nó là ảnh?
+115. Một ảnh PNG có `Content-ID` trong một thư chỉ có chữ: Sino coi nó là ảnh nhúng hay tệp, và vì sao?
+116. Khi giới hạn số tệp tải cùng lúc, vì sao Sino đếm theo byte chứ không theo số request, và vì sao `release` phải nằm trong `finally`?

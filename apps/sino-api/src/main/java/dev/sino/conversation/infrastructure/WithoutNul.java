@@ -50,7 +50,8 @@ final class WithoutNul {
     }
 
     static MessageContent of(MessageContent content) {
-        return new MessageContent(text(content.htmlContent()), recipients(content.recipients()));
+        return new MessageContent(text(content.htmlContent()), recipients(content.recipients()),
+                content.attachments().stream().map(WithoutNul::attachment).toList());
     }
 
     private static NormalizedRecipients recipients(NormalizedRecipients r) {
@@ -68,7 +69,7 @@ final class WithoutNul {
 
     private static NormalizedAttachment attachment(NormalizedAttachment a) {
         return new NormalizedAttachment(text(a.externalAttachmentId()), text(a.fileName()), text(a.mimeType()),
-                a.sizeBytes(), text(a.remoteUrl()), text(a.thumbnailUrl()));
+                a.sizeBytes(), text(a.remoteUrl()), text(a.thumbnailUrl()), text(a.contentId()));
     }
 
     private static String text(String value) {

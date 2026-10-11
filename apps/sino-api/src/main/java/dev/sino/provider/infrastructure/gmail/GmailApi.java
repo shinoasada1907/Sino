@@ -50,13 +50,24 @@ class GmailApi {
 
     private final URI userInfoUri;
     private final RestClient google;
+    private final RestClient files;
 
-    GmailApi(URI userInfoUri, URI gmailApiUri, Duration connectTimeout, Duration readTimeout) {
+    /**
+     * @param readTimeout until the whole answer is read, not between two reads: Spring's JDK client closes the body
+     *        when it is up
+     * @param fileTimeout the same for the content of a file, which may be 25 MB
+     */
+    GmailApi(URI userInfoUri, URI gmailApiUri, Duration connectTimeout, Duration readTimeout, Duration fileTimeout) {
         this.userInfoUri = userInfoUri;
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(connectTimeout).build());
-        requestFactory.setReadTimeout(readTimeout);
-        this.google = RestClient.builder().baseUrl(gmailApiUri.toString()).requestFactory(requestFactory).build();
+        HttpClient client = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
+        this.google = clientOf(gmailApiUri, client, readTimeout);
+        this.files = clientOf(gmailApiUri, client, fileTimeout);
+    }
+
+    private static RestClient clientOf(URI gmailApiUri, HttpClient client, Duration timeout) {
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(client);
+        requestFactory.setReadTimeout(timeout);
+        return RestClient.builder().baseUrl(gmailApiUri.toString()).requestFactory(requestFactory).build();
     }
 
     /** The OpenID Connect user info of the token's account, as JSON. */
@@ -135,6 +146,15 @@ class GmailApi {
                 throw failure;
             }
         });
+    }
+
+    /**
+     * The content of a file of a message that Gmail keeps apart, by the {@code attachmentId} of this read of the
+     * message: base64url in {@code data}.
+     */
+    Attachment attachment(String accessToken, String messageId, String attachmentId) {
+        return call(() -> answer(files.get().uri(uri -> uri.path(USER + "/messages/{id}/attachments/{attachmentId}")
+                .build(messageId, attachmentId)).headers(bearer(accessToken)).retrieve().body(Attachment.class)));
     }
 
     private MessageList list(String accessToken, Instant since, String pageToken, int maxResults) {
@@ -245,6 +265,10 @@ class GmailApi {
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Watch(String historyId, String expiration) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Attachment(Long size, String data) {
     }
 
     /** {@code resultSizeEstimate} is Gmail's rough count of every message the query matches, on all pages. */

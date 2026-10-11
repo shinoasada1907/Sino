@@ -144,7 +144,7 @@ class ConversationMessagesApiTests {
         NormalizedMessage question = new NormalizedMessage("m-1", "report", "alice@example.test",
                 MessageDirection.INBOUND, MessageType.MIXED, "Chào bạn,\nGửi bạn báo giá.", MessageStatus.UNKNOWN,
                 false, null, MONDAY, List.of(new NormalizedAttachment("part-2", "bao-gia.pdf", "application/pdf",
-                        182000L, null, null)),
+                        182000L, null, null, null)),
                 Map.of(NormalizedMessage.SUBJECT, "Báo giá tháng 10", NormalizedMessage.BULK, "true"),
                 new NormalizedRecipients(List.of(new Address(null, "owner@gmail.test"),
                         new Address("Trần, Bình", "binh@example.test")), List.of(new Address(null, "chi@example.test")),

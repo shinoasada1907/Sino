@@ -15,6 +15,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import dev.sino.provider.spi.AccountProfile;
+import dev.sino.provider.spi.AttachmentContent;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageProvider;
@@ -56,9 +57,12 @@ public final class FakeMessageProvider implements MessageProvider {
     private final ProviderException pushFailure;
     private final Map<String, MessageContent> contents;
     private final ProviderException contentFailure;
+    private final Map<String, AttachmentContent> files;
+    private final ProviderException fileFailure;
     private final AtomicInteger calls = new AtomicInteger();
     private final AtomicInteger pushCalls = new AtomicInteger();
     private final AtomicInteger contentCalls = new AtomicInteger();
+    private final AtomicInteger fileCalls = new AtomicInteger();
     private final List<SendMessageCommand> sent = new ArrayList<>();
 
     private FakeMessageProvider(Builder builder) {
@@ -75,6 +79,8 @@ public final class FakeMessageProvider implements MessageProvider {
         this.failures = Map.copyOf(builder.failures);
         this.contents = Map.copyOf(builder.contents);
         this.contentFailure = builder.contentFailure;
+        this.files = Map.copyOf(builder.files);
+        this.fileFailure = builder.fileFailure;
     }
 
     public static Builder builder(String type) {
@@ -199,6 +205,26 @@ public final class FakeMessageProvider implements MessageProvider {
         return Optional.ofNullable(contents.get(externalMessageId));
     }
 
+    /** What {@link Builder#file} set; the provider refuses any other, as one that no longer has the file does. */
+    @Override
+    public AttachmentContent fetchAttachment(ProviderContext context, String externalMessageId,
+            String externalAttachmentId) {
+        fileCalls.incrementAndGet();
+        if (fileFailure != null) {
+            throw fileFailure;
+        }
+        AttachmentContent file = files.get(externalMessageId + "/" + externalAttachmentId);
+        if (file == null) {
+            throw new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "No such attachment");
+        }
+        return file;
+    }
+
+    /** How many times {@link #fetchAttachment} reached the fake provider, failed calls included. */
+    public int fileCalls() {
+        return fileCalls.get();
+    }
+
     /** How many times {@link #fetchMessageContent} reached the fake provider, failed calls included. */
     public int contentCalls() {
         return contentCalls.get();
@@ -279,6 +305,8 @@ public final class FakeMessageProvider implements MessageProvider {
         private ProviderException pushFailure;
         private final Map<String, MessageContent> contents = new HashMap<>();
         private ProviderException contentFailure;
+        private final Map<String, AttachmentContent> files = new HashMap<>();
+        private ProviderException fileFailure;
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -342,6 +370,18 @@ public final class FakeMessageProvider implements MessageProvider {
         /** Makes reading any message again fail, as a provider that cannot be reached does. */
         public Builder contentFailure(ProviderException failure) {
             this.contentFailure = failure;
+            return this;
+        }
+
+        /** What downloading the attachment of the message gives. */
+        public Builder file(String externalMessageId, String externalAttachmentId, AttachmentContent content) {
+            files.put(externalMessageId + "/" + externalAttachmentId, content);
+            return this;
+        }
+
+        /** Makes every download fail, as a provider that cannot be reached does. */
+        public Builder fileFailure(ProviderException failure) {
+            this.fileFailure = failure;
             return this;
         }
 

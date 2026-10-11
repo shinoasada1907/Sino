@@ -1,11 +1,13 @@
 package dev.sino.provider.infrastructure.gmail;
 
+import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -14,6 +16,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
 
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Part;
 import dev.sino.provider.infrastructure.gmail.MailHeaders.Mailbox;
@@ -72,8 +77,8 @@ final class GmailMessageNormalizer {
         Mailbox sender = payload.header("From").map(MailHeaders::mailboxes).orElse(List.of()).stream().findFirst()
                 .orElseThrow(() -> invalid("The message has no From address"));
         boolean sent = message.labelIds().contains(SENT);
-        List<NormalizedAttachment> attachments = new ArrayList<>();
-        collectFiles(payload, attachments);
+        String html = htmlOf(payload);
+        List<NormalizedAttachment> attachments = filesOf(payload, html);
         String subject = payload.header("Subject").map(MailHeaders::decode).map(GmailMessageNormalizer::withoutNul)
                 .filter(text -> !text.isBlank()).orElse(null);
         Map<String, String> metadata = new LinkedHashMap<>();
@@ -88,14 +93,16 @@ final class GmailMessageNormalizer {
 
         NormalizedMessage normalized = new NormalizedMessage(message.id(), message.threadId(), sender.email(),
                 sent ? MessageDirection.OUTBOUND : MessageDirection.INBOUND,
-                attachments.isEmpty() ? MessageType.TEXT : MessageType.MIXED, textOf(payload),
+                attachments.stream().anyMatch(file -> file.contentId() == null) ? MessageType.MIXED : MessageType.TEXT,
+                textOf(payload),
                 sent ? MessageStatus.SENT : MessageStatus.UNKNOWN, !message.labelIds().contains(UNREAD), null, sentAt,
-                attachments, metadata, recipientsOf(payload), htmlOf(payload));
+                attachments, metadata, recipientsOf(payload), html);
         return new NormalizedGmailMessage(normalized, titleOf(subject), participantsOf(payload, selfEmail, sent));
     }
 
     /**
-     * What the import of an early version did not keep (F06, D-122): the HTML body and the addressees.
+     * What the import of an early version did not keep (F06, D-122): the HTML body, the addressees, and the files and
+     * embedded pictures as {@link #normalize} gives them now.
      *
      * @throws ProviderException with {@code PAYLOAD_NORMALIZATION_FAILED} when the message has no payload or its HTML
      *         is not base64url
@@ -104,7 +111,37 @@ final class GmailMessageNormalizer {
         if (message.payload() == null) {
             throw invalid("The message has no payload");
         }
-        return new MessageContent(htmlOf(message.payload()), recipientsOf(message.payload()));
+        String html = htmlOf(message.payload());
+        return new MessageContent(html, recipientsOf(message.payload()), filesOf(message.payload(), html));
+    }
+
+    /** The part of the message with this external ID, as {@link #normalize} names files and embedded pictures. */
+    static Optional<Part> partOf(GmailMessage message, String externalAttachmentId) {
+        return message.payload() == null ? Optional.empty() : partOf(message.payload(), externalAttachmentId);
+    }
+
+    /**
+     * @throws ProviderException with {@code PAYLOAD_NORMALIZATION_FAILED} when the content is not base64url
+     */
+    static byte[] bytesOf(String data) {
+        try {
+            return Base64.getUrlDecoder().decode(data);
+        } catch (IllegalArgumentException broken) {
+            throw invalid("A part is not valid base64url");
+        }
+    }
+
+    private static Optional<Part> partOf(Part part, String externalAttachmentId) {
+        if (idOf(part).equals(externalAttachmentId)) {
+            return Optional.of(part);
+        }
+        for (Part child : part.parts()) {
+            Optional<Part> found = partOf(child, externalAttachmentId);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -241,27 +278,99 @@ final class GmailMessageNormalizer {
         return text.substring(0, end);
     }
 
-    // Every part with a file name that Gmail keeps as an attachment, except an image embedded in the HTML body.
-    private static void collectFiles(Part part, List<NormalizedAttachment> files) {
-        boolean file = isFile(part) && part.body() != null && part.body().attachmentId() != null && !isEmbedded(part);
-        if (file) {
-            // partId, not attachmentId: Gmail is reported to change attachmentId on every messages.get (BE-39 checks).
-            String id = part.partId() == null || part.partId().isBlank() ? ROOT_PART_ID : part.partId();
-            files.add(new NormalizedAttachment(id, withoutNul(MailHeaders.decode(part.filename())), part.mimeType(),
-                    part.body().size(), null, null));
+    // An embedded image that the HTML body shows by its Content-ID ("cid:") and that a browser may show is an embedded
+    // picture (F06), small enough to come inside the message or not; one per Content-ID, as one id shows one picture.
+    // Any other embedded image is a file, so nothing the sender put in the mail is lost, and so is any part with a file
+    // name that Gmail keeps as an attachment. partId, not attachmentId: Gmail is reported to change attachmentId on
+    // every messages.get (BE-39).
+    private static List<NormalizedAttachment> filesOf(Part payload, String html) {
+        List<Part> parts = new ArrayList<>();
+        collectParts(payload, parts);
+        // Only mail with an embedded image needs its HTML read.
+        Set<String> shown = parts.stream().anyMatch(GmailMessageNormalizer::isEmbeddedImage) ? shownIdsOf(html)
+                : Set.of();
+        Set<String> pictures = new HashSet<>();
+        List<NormalizedAttachment> files = new ArrayList<>();
+        for (Part part : parts) {
+            String contentId = isEmbeddedImage(part) ? contentIdOf(part) : null;
+            if (contentId != null && NormalizedAttachment.isPicture(part.mimeType())
+                    && shown.contains(contentId.toLowerCase(Locale.ROOT)) && pictures.add(contentId)) {
+                files.add(attachmentOf(part, contentId));
+            } else if (isEmbeddedImage(part)
+                    || isFile(part) && part.body() != null && part.body().attachmentId() != null) {
+                files.add(attachmentOf(part, null));
+            }
         }
+        return files;
+    }
+
+    private static void collectParts(Part part, List<Part> parts) {
+        parts.add(part);
         for (Part child : part.parts()) {
-            collectFiles(child, files);
+            collectParts(child, parts);
         }
+    }
+
+    private static NormalizedAttachment attachmentOf(Part part, String contentId) {
+        return new NormalizedAttachment(idOf(part), fileNameOf(part), part.mimeType(), part.body().size(), null, null,
+                contentId);
+    }
+
+    // The Content-IDs the HTML shows in an <img>, read as Sino's cleaning reads them (MailHtml): "cid:" in any case,
+    // the id as written and with its %XX escapes decoded (RFC 2392), in lower case.
+    private static Set<String> shownIdsOf(String html) {
+        if (html == null) {
+            return Set.of();
+        }
+        Set<String> ids = new HashSet<>();
+        for (Element image : Jsoup.parse(html).select("img[src]")) {
+            String src = image.attr("src");
+            if (src.regionMatches(true, 0, "cid:", 0, 4)) {
+                String id = src.substring(4);
+                ids.add(id.toLowerCase(Locale.ROOT));
+                ids.add(withoutEscapes(id).toLowerCase(Locale.ROOT));
+            }
+        }
+        return ids;
+    }
+
+    private static String withoutEscapes(String id) {
+        try {
+            return URLDecoder.decode(id.replace("+", "%2B"), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException broken) {
+            return id;
+        }
+    }
+
+    // An image the sender put in the mail by its Content-ID, not as an attachment, with content.
+    private static boolean isEmbeddedImage(Part part) {
+        return part.header("Content-ID").isPresent() && !isAttachment(part) && part.mimeType() != null
+                && part.mimeType().toLowerCase(Locale.ROOT).startsWith("image/") && part.body() != null
+                && (part.body().attachmentId() != null || part.body().data() != null);
+    }
+
+    private static String idOf(Part part) {
+        return part.partId() == null || part.partId().isBlank() ? ROOT_PART_ID : part.partId();
+    }
+
+    private static String fileNameOf(Part part) {
+        String name = withoutNul(MailHeaders.decode(part.filename()));
+        return name == null || name.isBlank() ? null : name;
+    }
+
+    // "<logo@shop>" in the header, "cid:logo@shop" in the HTML; null for "<>", which names nothing.
+    private static String contentIdOf(Part part) {
+        String id = withoutNul(part.header("Content-ID").orElseThrow().strip());
+        id = id.startsWith("<") && id.endsWith(">") ? id.substring(1, id.length() - 1).strip() : id;
+        return id.isEmpty() ? null : id;
     }
 
     private static boolean isFile(Part part) {
         return part.filename() != null && !part.filename().isBlank();
     }
 
-    // An image the HTML shows by its Content-ID ("cid:"), unless the sender marked it as an attachment.
-    private static boolean isEmbedded(Part part) {
-        return part.header("Content-ID").isPresent() && !part.header("Content-Disposition")
+    private static boolean isAttachment(Part part) {
+        return part.header("Content-Disposition")
                 .map(disposition -> disposition.strip().toLowerCase(Locale.ROOT).startsWith("attachment"))
                 .orElse(false);
     }

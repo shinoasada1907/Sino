@@ -113,6 +113,114 @@ class GmailMessageNormalizerTests {
     }
 
     @Test
+    void aMessageWhoseOnlyPartBesideItsTextIsAnEmbeddedPictureIsText() {
+        GmailMessage message = plain("m-1", "t-1", "1760000000000", "a@example.com", "Hi", "unused");
+        Part related = new Part("", "multipart/related", "", message.payload().headers(), new Body(null, 0L, null),
+                List.of(new Part("0", "text/html", "", List.of(), new Body(null, 30L,
+                        base64url("<p><img src=\"cid:sig\"></p>")), null),
+                        new Part("1", "image/gif", "", List.of(new Header("Content-ID", "  <sig> ")),
+                                new Body(null, 4L, base64url("GIF8")), null)));
+
+        NormalizedMessage normalized = GmailMessageNormalizer.normalize(new GmailMessage(message.id(),
+                message.threadId(), message.labelIds(), message.internalDate(), related), SELF).message();
+
+        assertThat(normalized.type()).isEqualTo(MessageType.TEXT);
+        assertThat(normalized.attachments()).containsExactly(
+                new NormalizedAttachment("1", null, "image/gif", 4L, null, null, "sig"));
+    }
+
+    @Test
+    void anEmbeddedPictureTheHtmlDoesNotShowIsAFile() {
+        Part picture = new Part("1", "image/png", "", List.of(new Header("Content-ID", "<photo@phone>")),
+                new Body(null, 4L, base64url("PNG!")), null);
+        Part text = new Part("0", "text/plain", "", List.of(), new Body(null, 5L, base64url("Hello")), null);
+        // Sino's cleaning drops an <embed>: only an <img> shows a picture.
+        Part html = new Part("0", "text/html", "", List.of(), new Body(null, 30L,
+                base64url("<p><img src=\"cid:other\"><embed src=\"cid:photo@phone\"></p>")), null);
+
+        for (Part body : List.of(text, html)) {
+            NormalizedMessage normalized = GmailMessageNormalizer.normalize(multipart(body, picture), SELF).message();
+
+            assertThat(normalized.attachments()).as("so the picture can still be downloaded").containsExactly(
+                    new NormalizedAttachment("1", null, "image/png", 4L, null, null, null));
+            assertThat(normalized.type()).isEqualTo(MessageType.MIXED);
+        }
+    }
+
+    @Test
+    void anEmbeddedPictureABrowserMayNotShowIsAFile() {
+        Part html = new Part("0", "text/html", "", List.of(), new Body(null, 30L,
+                base64url("<p><img src=\"cid:drawing\"><img src=\"cid:\"><img src=\"cid:scan\"></p>")), null);
+        Part svg = new Part("1", "image/svg+xml", "", List.of(new Header("Content-ID", "<drawing>")),
+                new Body(null, 9L, base64url("<svg></svg>")), null);
+        Part noId = new Part("2", "image/png", "", List.of(new Header("Content-ID", "<>")),
+                new Body(null, 4L, base64url("PNG!")), null);
+        Part tiff = new Part("3", "image/tiff", "scan.tif", List.of(new Header("Content-ID", "<scan>")),
+                new Body("ANGjdJ-scan", 900L, null), null);
+        Part empty = new Part("4", "image/png", "", List.of(new Header("Content-ID", "<empty>")),
+                new Body(null, 0L, null), null);
+
+        NormalizedMessage normalized = GmailMessageNormalizer.normalize(multipart(html, svg, noId, tiff, empty), SELF)
+                .message();
+
+        assertThat(normalized.attachments()).as("a part with nothing in it is nothing").containsExactly(
+                new NormalizedAttachment("1", null, "image/svg+xml", 9L, null, null, null),
+                new NormalizedAttachment("2", null, "image/png", 4L, null, null, null),
+                new NormalizedAttachment("3", "scan.tif", "image/tiff", 900L, null, null, null));
+    }
+
+    @Test
+    void theHtmlShowsAPictureWhateverTheCaseOrTheEscapesOfItsCid() {
+        Part html = new Part("0", "text/html", "", List.of(), new Body(null, 30L,
+                base64url("<p><img src='CID:Logo%40Shop'></p>")), null);
+        Part logo = new Part("1", "image/webp", "", List.of(new Header("Content-ID", "<logo@shop>")),
+                new Body(null, 4L, base64url("RIFF")), null);
+
+        assertThat(GmailMessageNormalizer.normalize(multipart(html, logo), SELF).message().attachments())
+                .containsExactly(new NormalizedAttachment("1", null, "image/webp", 4L, null, null, "logo@shop"));
+    }
+
+    @Test
+    void anEmbeddedPartThatIsNoPictureIsAFile() {
+        GmailMessage message = plain("m-1", "t-1", "1760000000000", "a@example.com", "Hi", "unused");
+        Part mixed = new Part("", "multipart/mixed", "", message.payload().headers(), new Body(null, 0L, null),
+                List.of(new Part("0", "text/plain", "", List.of(), new Body(null, 5L, base64url("Hello")), null),
+                        new Part("1", "application/pdf", "hop-dong.pdf", List.of(new Header("Content-ID", "<doc>"),
+                                new Header("Content-Disposition", "inline; filename=\"hop-dong.pdf\"")),
+                                new Body("ANGjdJ-doc", 900L, null), null)));
+
+        NormalizedMessage normalized = GmailMessageNormalizer.normalize(new GmailMessage(message.id(),
+                message.threadId(), message.labelIds(), message.internalDate(), mixed), SELF).message();
+
+        assertThat(normalized.attachments()).containsExactly(
+                new NormalizedAttachment("1", "hop-dong.pdf", "application/pdf", 900L, null, null, null));
+        assertThat(normalized.type()).isEqualTo(MessageType.MIXED);
+    }
+
+    @Test
+    void aMessageReadAgainBringsItsFilesAndEmbeddedPictures() {
+        assertThat(GmailMessageNormalizer.content(sample("mixed-sent.json")).attachments()).containsExactly(
+                new NormalizedAttachment("0.1", "logo.png", "image/png", 2048L, null, null, "logo@sino"),
+                new NormalizedAttachment("1", "Hợp đồng.pdf", "application/pdf", 52431L, null, null, null),
+                new NormalizedAttachment("2", "notes.txt", "text/plain", 44L, null, null, null));
+    }
+
+    @Test
+    void aSecondPictureWithTheSameContentIdIsAFile() {
+        Part html = new Part("0", "text/html", "", List.of(), new Body(null, 30L,
+                base64url("<p><img src=\"cid:logo\"></p>")), null);
+        Part first = new Part("1", "image/png", "", List.of(new Header("Content-ID", "<logo>")),
+                new Body(null, 4L, base64url("PNG1")), null);
+        Part second = new Part("2", "image/png", "", List.of(new Header("Content-ID", "<logo>")),
+                new Body(null, 4L, base64url("PNG2")), null);
+
+        assertThat(GmailMessageNormalizer.normalize(multipart(html, first, second), SELF).message().attachments())
+                .as("only one can be shown by that id; the other is downloaded")
+                .containsExactly(new NormalizedAttachment("1", null, "image/png", 4L, null, null, "logo"),
+                        new NormalizedAttachment("2", null, "image/png", 4L, null, null, null));
+    }
+
+    @Test
     void aPlainTextMessageHasNoHtml() {
         assertThat(normalizePlain("Hello").htmlContent()).isNull();
     }
@@ -210,7 +318,7 @@ class GmailMessageNormalizerTests {
     }
 
     @Test
-    void aSentMessageListsItsFilesButNotItsEmbeddedImage() {
+    void aSentMessageListsItsFilesAndKeepsItsEmbeddedPictureApart() {
         NormalizedGmailMessage normalized = normalize("mixed-sent.json");
         NormalizedMessage message = normalized.message();
 
@@ -221,8 +329,9 @@ class GmailMessageNormalizerTests {
         assertThat(message.textContent()).as("the text of the body, not of the attached notes.txt")
                 .isEqualTo("Gửi anh hợp đồng và ghi chú.");
         assertThat(message.attachments()).containsExactly(
-                new NormalizedAttachment("1", "Hợp đồng.pdf", "application/pdf", 52431L, null, null),
-                new NormalizedAttachment("2", "notes.txt", "text/plain", 44L, null, null));
+                new NormalizedAttachment("0.1", "logo.png", "image/png", 2048L, null, null, "logo@sino"),
+                new NormalizedAttachment("1", "Hợp đồng.pdf", "application/pdf", 52431L, null, null, null),
+                new NormalizedAttachment("2", "notes.txt", "text/plain", 44L, null, null, null));
         assertThat(message.senderExternalParticipantId()).isEqualTo(SELF);
         assertThat(normalized.participants()).containsExactly(
                 new NormalizedParticipant(SELF, "Owner", null, true),
@@ -316,17 +425,18 @@ class GmailMessageNormalizerTests {
     }
 
     @Test
-    void anImageSentAsAnAttachmentIsAFileEvenWithAContentId() {
+    void anImageSentAsAnAttachmentIsAFileEvenWithAContentIdTheHtmlShows() {
         Part image = new Part("1", "image/png", "=?UTF-8?Q?B=C3=A1o_c=C3=A1o.png?=",
                 List.of(new Header("Content-ID", "<chart@sino>"),
                         new Header("Content-Disposition", "Attachment; filename=chart.png")),
                 new Body("ANGjdJ-chart", 2048L, null), null);
-        Part body = new Part("0", "text/plain", "", List.of(), new Body(null, 4L, base64url("Body")), null);
+        Part body = new Part("0", "text/html", "", List.of(), new Body(null, 30L,
+                base64url("<p><img src=\"cid:chart@sino\"></p>")), null);
 
         NormalizedMessage message = GmailMessageNormalizer.normalize(multipart(body, image), SELF).message();
 
         assertThat(message.attachments()).containsExactly(
-                new NormalizedAttachment("1", "Báo cáo.png", "image/png", 2048L, null, null));
+                new NormalizedAttachment("1", "Báo cáo.png", "image/png", 2048L, null, null, null));
     }
 
     @Test
@@ -350,7 +460,7 @@ class GmailMessageNormalizerTests {
 
         assertThat(message.attachments()).containsExactly(
                 new NormalizedAttachment(GmailMessageNormalizer.ROOT_PART_ID, "scan.pdf", "application/pdf", 90000L,
-                        null, null));
+                        null, null, null));
         assertThat(message.textContent()).isNull();
     }
 

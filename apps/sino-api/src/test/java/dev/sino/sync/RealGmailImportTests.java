@@ -175,7 +175,7 @@ class RealGmailImportTests {
                       (SELECT count(*) FILTER (WHERE NOT m.is_read) FROM message m WHERE m.conversation_id = c.id),
                       (SELECT max(m.sent_at) FROM message m WHERE m.conversation_id = c.id),
                       EXISTS (SELECT 1 FROM attachment a JOIN message m ON m.id = a.message_id
-                              WHERE m.conversation_id = c.id),
+                              WHERE m.conversation_id = c.id AND a.content_id IS NULL),
                       coalesce(latest.needs_reply, false))
                 """, Long.class, accountId);
     }

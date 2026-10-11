@@ -60,6 +60,17 @@ class MessageProviderTests {
     }
 
     @Test
+    void aConnectorDownloadsNoAttachmentByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> readOnly.fetchAttachment(context, "m-1", "a-1"))
+                .withMessageContaining("read-only")
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    @Test
     void aConnectorRegistersForNoPushByDefault() {
         ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
 

@@ -143,7 +143,7 @@ class ConversationsApiTests {
                         Map.of()),
                 message("report", "m-2", MessageDirection.INBOUND, "alice@example.test", WEDNESDAY,
                         "Xin chào,\n\nĐây là   báo cáo.", false, Map.of(),
-                        new NormalizedAttachment("1", "report.pdf", "application/pdf", 10L, null, null)));
+                        new NormalizedAttachment("1", "report.pdf", "application/pdf", 10L, null, null, null)));
 
         String body = mvc.perform(get("/api/conversations").with(apiUser()))
                 .andExpect(status().isOk())
@@ -200,14 +200,14 @@ class ConversationsApiTests {
                 "owner@gmail.test", MONDAY, "Đã gửi", true, Map.of()));
         store(gmail, thread("files", "files", ALICE, OWNER), message("files", "m-1", MessageDirection.OUTBOUND,
                 "owner@gmail.test", Instant.parse("2026-10-05T09:00:00Z"), "Tệp", true, Map.of(),
-                new NormalizedAttachment("1", "a.pdf", "application/pdf", 1L, null, null)));
+                new NormalizedAttachment("1", "a.pdf", "application/pdf", 1L, null, null, null)));
         store(gmail, thread("reply", "reply", ALICE, OWNER), message("reply", "m-1", MessageDirection.INBOUND,
                 "alice@example.test", TUESDAY, "Chị hỏi", true, Map.of()));
         store(gmail, thread("unread", "unread", ALICE, OWNER), message("unread", "m-1", MessageDirection.INBOUND,
                 "alice@example.test", WEDNESDAY, "Bản tin", false, Map.of("bulk", "true")));
         store(gmail, thread("archived", "archived", ALICE, OWNER), message("archived", "m-1",
                 MessageDirection.INBOUND, "alice@example.test", THURSDAY, "Cũ", false, Map.of(),
-                new NormalizedAttachment("1", "b.pdf", "application/pdf", 1L, null, null)));
+                new NormalizedAttachment("1", "b.pdf", "application/pdf", 1L, null, null, null)));
         archive(gmail, "archived");
 
         List<String> subjects = JsonPath.read(mvc.perform(get("/api/conversations").param("view", view)
@@ -327,7 +327,7 @@ class ConversationsApiTests {
         archive(gmail, "archived");
         store(gmail, thread("files", "files", ALICE, OWNER), message("files", "m-1", MessageDirection.OUTBOUND,
                 "owner@gmail.test", WEDNESDAY, "Tệp", true, Map.of(),
-                new NormalizedAttachment("1", "a.pdf", "application/pdf", 1L, null, null)));
+                new NormalizedAttachment("1", "a.pdf", "application/pdf", 1L, null, null, null)));
         store(chat, thread("read-chat", "read", ALICE, OWNER), message("read-chat", "m-1", MessageDirection.INBOUND,
                 "alice@example.test", MONDAY, "Đã đọc", true, Map.of()));
         mail(disabled, "hidden", MONDAY);

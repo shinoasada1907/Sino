@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 
+import dev.sino.provider.spi.AttachmentContent;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.OAuth2Credentials;
@@ -110,6 +111,90 @@ class GmailContentTests {
                 .isThrownBy(() -> gmailProvider().fetchMessageContent(context(), ID))
                 .extracting(ProviderException::errorCode)
                 .isEqualTo(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED);
+    }
+
+    @Test
+    void aFileGmailKeepsApartIsAskedForByTheIdItHasNow() {
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID)).willReturn(okJson(sample("mixed-sent.json"))));
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID + "/attachments/ANGjdJ-contract-pdf"))
+                .willReturn(okJson("""
+                        {"size": 8, "data": "JVBERi0xLjc="}
+                        """)));
+
+        AttachmentContent file = gmailProvider().fetchAttachment(context(), ID, "1");
+
+        assertThat(new String(file.content(), StandardCharsets.UTF_8)).isEqualTo("%PDF-1.7");
+        assertThat(file.mimeType()).isEqualTo("application/pdf");
+        gmail.verify(exactly(2), anyRequestedFor(anyUrl()));
+        gmail.verify(getRequestedFor(urlPathEqualTo(API + "/messages/" + ID + "/attachments/ANGjdJ-contract-pdf"))
+                .withHeader("Authorization", equalTo("Bearer " + ACCESS_TOKEN)));
+    }
+
+    @Test
+    void aSmallPartInsideTheMessageNeedsNoSecondCall() {
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID)).willReturn(okJson(sample("mixed-sent.json"))));
+
+        AttachmentContent part = gmailProvider().fetchAttachment(context(), ID, "0.0.0");
+
+        assertThat(new String(part.content(), StandardCharsets.UTF_8)).isEqualTo("Gửi anh hợp đồng và ghi chú.");
+        assertThat(part.mimeType()).isEqualTo("text/plain");
+        gmail.verify(exactly(1), anyRequestedFor(anyUrl()));
+    }
+
+    @Test
+    void aMailThatIsOneFileGivesThatFileByTheIdOfItsTopPart() {
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID)).willReturn(okJson("""
+                {"id": "18f0a1b2c3d4e5f6", "threadId": "thread-scan", "labelIds": ["INBOX"],
+                 "internalDate": "1760000000000",
+                 "payload": {"partId": "", "mimeType": "application/pdf", "filename": "scan.pdf",
+                   "headers": [{"name": "From", "value": "scanner@example.com"}],
+                   "body": {"attachmentId": "ANGjdJ-scan", "size": 8}}}
+                """)));
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID + "/attachments/ANGjdJ-scan")).willReturn(okJson("""
+                {"size": 8, "data": "JVBERi0xLjc="}
+                """)));
+
+        AttachmentContent file = gmailProvider().fetchAttachment(context(), ID, GmailMessageNormalizer.ROOT_PART_ID);
+
+        assertThat(new String(file.content(), StandardCharsets.UTF_8)).isEqualTo("%PDF-1.7");
+        assertThat(file.mimeType()).isEqualTo("application/pdf");
+    }
+
+    @Test
+    void aLargeFileMayTakeLongerThanAnyOtherCallToGmail() {
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID)).willReturn(okJson(sample("mixed-sent.json"))));
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID + "/attachments/ANGjdJ-contract-pdf"))
+                .willReturn(okJson("""
+                        {"size": 8, "data": "JVBERi0xLjc="}
+                        """).withChunkedDribbleDelay(4, 3000)));
+
+        AttachmentContent file = gmailProvider().fetchAttachment(context(), ID, "1");
+
+        assertThat(new String(file.content(), StandardCharsets.UTF_8))
+                .as("3 s of content, past the 2 s every other call has").isEqualTo("%PDF-1.7");
+    }
+
+    @Test
+    void aPartOrAMessageGmailNoLongerHasIsRefused() {
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID)).willReturn(okJson(sample("mixed-sent.json"))));
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/gone")).willReturn(aResponse().withStatus(404)));
+
+        for (String[] ids : new String[][] { { ID, "9" }, { "gone", "1" } }) {
+            assertThatExceptionOfType(ProviderException.class)
+                    .isThrownBy(() -> gmailProvider().fetchAttachment(context(), ids[0], ids[1]))
+                    .extracting(ProviderException::errorCode).isEqualTo(ProviderErrorCode.REQUEST_REJECTED);
+        }
+    }
+
+    @Test
+    void gmailOutOfServiceWhileGivingTheFileIsAProviderThatCannotBeReached() {
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID)).willReturn(okJson(sample("mixed-sent.json"))));
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages/" + ID + "/attachments/ANGjdJ-contract-pdf"))
+                .willReturn(aResponse().withStatus(503)));
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> gmailProvider().fetchAttachment(context(), ID, "1"))
+                .extracting(ProviderException::errorCode).isEqualTo(ProviderErrorCode.PROVIDER_UNAVAILABLE);
     }
 
     private static String sample(String name) {

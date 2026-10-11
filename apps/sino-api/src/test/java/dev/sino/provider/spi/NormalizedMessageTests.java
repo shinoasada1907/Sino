@@ -123,7 +123,7 @@ class NormalizedMessageTests {
     }
 
     private static NormalizedAttachment attachment(String externalAttachmentId) {
-        return new NormalizedAttachment(externalAttachmentId, "report.pdf", "application/pdf", 1024L, null, null);
+        return new NormalizedAttachment(externalAttachmentId, "report.pdf", "application/pdf", 1024L, null, null, null);
     }
 
 }

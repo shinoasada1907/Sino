@@ -66,7 +66,8 @@ public class JdbcConversationStore implements ConversationStore {
             UUID senderId = message.senderExternalParticipantId() == null ? null
                     : participants.get(new Participant(conversation.id(), message.senderExternalParticipantId()));
             StoredMessage stored = storeMessage(conversation.id(), senderId, message);
-            boolean filesChanged = storeFiles(stored.id(), message.attachments());
+            boolean filesChanged = storeFiles(stored.id(), shownIn(keptHtml(message.htmlContent()),
+                    message.attachments()));
             if (stored.change() == Change.INSERTED) {
                 created++;
                 if (message.direction() == MessageDirection.INBOUND) {
@@ -258,15 +259,15 @@ public class JdbcConversationStore implements ConversationStore {
 
     /**
      * Keeps what reading a message again gave (F06, D-122), for one stored before Sino kept HTML: its HTML, unless too
-     * long, and its addressees. Only a message still {@code UNCHECKED} changes, so when two read it at once the second
-     * changes nothing.
+     * long, its addressees, and its files and embedded pictures, beside the files stored then. Only a message still
+     * {@code UNCHECKED} changes, so when two read it at once the second changes nothing.
      *
      * @return whether the message changed
      */
     public boolean storeContent(UUID messageId, MessageContent read) {
         MessageContent content = WithoutNul.of(read);
         String html = keptHtml(content.htmlContent());
-        return jdbc.sql("""
+        boolean changed = jdbc.sql("""
                 UPDATE message
                 SET html_content = :html,
                     body_format = CASE WHEN cast(:html AS text) IS NULL THEN 'TEXT' ELSE 'HTML' END,
@@ -276,34 +277,28 @@ public class JdbcConversationStore implements ConversationStore {
                 .param("recipients", content.recipients() == null ? null
                         : JSON.writeValueAsString(content.recipients()))
                 .param("id", messageId).update() > 0;
+        if (changed) {
+            shownIn(html, content.attachments()).forEach(file -> storeFile(messageId, file));
+        }
+        return changed;
     }
 
     private static String keptHtml(String html) {
         return html == null || html.length() > MAX_HTML_LENGTH ? null : html;
     }
 
-    // Step 4. Whether any file of the message was added, changed or removed.
+    // An embedded picture shows only inside the HTML: where none is kept (too long), it is a file to download instead.
+    private static List<NormalizedAttachment> shownIn(String keptHtml, List<NormalizedAttachment> attachments) {
+        return keptHtml != null ? attachments : attachments.stream().map(file -> file.contentId() == null ? file
+                : new NormalizedAttachment(file.externalAttachmentId(), file.fileName(), file.mimeType(),
+                        file.sizeBytes(), file.remoteUrl(), file.thumbnailUrl(), null)).toList();
+    }
+
+    // Step 4. Whether any file or embedded picture of the message was added, changed or removed.
     private boolean storeFiles(UUID messageId, List<NormalizedAttachment> files) {
         int changed = 0;
         for (NormalizedAttachment file : files) {
-            changed += jdbc.sql("""
-                    INSERT INTO attachment AS a (message_id, external_attachment_id, file_name, mime_type, size_bytes,
-                                                 remote_url, thumbnail_url)
-                    VALUES (:message, :externalId, :fileName, :mimeType, :size, :remoteUrl, :thumbnailUrl)
-                    ON CONFLICT (message_id, external_attachment_id) DO UPDATE
-                    SET file_name = EXCLUDED.file_name,
-                        mime_type = EXCLUDED.mime_type,
-                        size_bytes = EXCLUDED.size_bytes,
-                        remote_url = EXCLUDED.remote_url,
-                        thumbnail_url = EXCLUDED.thumbnail_url
-                    WHERE (a.file_name, a.mime_type, a.size_bytes, a.remote_url, a.thumbnail_url) IS DISTINCT FROM
-                          (EXCLUDED.file_name, EXCLUDED.mime_type, EXCLUDED.size_bytes, EXCLUDED.remote_url,
-                           EXCLUDED.thumbnail_url)
-                    """)
-                    .param("message", messageId).param("externalId", file.externalAttachmentId())
-                    .param("fileName", file.fileName()).param("mimeType", file.mimeType())
-                    .param("size", file.sizeBytes()).param("remoteUrl", file.remoteUrl())
-                    .param("thumbnailUrl", file.thumbnailUrl()).update();
+            changed += storeFile(messageId, file);
         }
         List<String> kept = files.stream().map(NormalizedAttachment::externalAttachmentId).toList();
         changed += kept.isEmpty()
@@ -311,6 +306,29 @@ public class JdbcConversationStore implements ConversationStore {
                 : jdbc.sql("DELETE FROM attachment WHERE message_id = :message AND external_attachment_id NOT IN (:kept)")
                         .param("message", messageId).param("kept", kept).update();
         return changed > 0;
+    }
+
+    private int storeFile(UUID messageId, NormalizedAttachment file) {
+        return jdbc.sql("""
+                INSERT INTO attachment AS a (message_id, external_attachment_id, file_name, mime_type, size_bytes,
+                                             remote_url, thumbnail_url, content_id)
+                VALUES (:message, :externalId, :fileName, :mimeType, :size, :remoteUrl, :thumbnailUrl, :contentId)
+                ON CONFLICT (message_id, external_attachment_id) DO UPDATE
+                SET file_name = EXCLUDED.file_name,
+                    mime_type = EXCLUDED.mime_type,
+                    size_bytes = EXCLUDED.size_bytes,
+                    remote_url = EXCLUDED.remote_url,
+                    thumbnail_url = EXCLUDED.thumbnail_url,
+                    content_id = EXCLUDED.content_id
+                WHERE (a.file_name, a.mime_type, a.size_bytes, a.remote_url, a.thumbnail_url, a.content_id)
+                      IS DISTINCT FROM
+                      (EXCLUDED.file_name, EXCLUDED.mime_type, EXCLUDED.size_bytes, EXCLUDED.remote_url,
+                       EXCLUDED.thumbnail_url, EXCLUDED.content_id)
+                """)
+                .param("message", messageId).param("externalId", file.externalAttachmentId())
+                .param("fileName", file.fileName()).param("mimeType", file.mimeType())
+                .param("size", file.sizeBytes()).param("remoteUrl", file.remoteUrl())
+                .param("thumbnailUrl", file.thumbnailUrl()).param("contentId", file.contentId()).update();
     }
 
     private void unarchive(Set<UUID> conversations) {

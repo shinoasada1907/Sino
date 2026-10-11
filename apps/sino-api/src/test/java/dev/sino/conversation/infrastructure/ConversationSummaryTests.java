@@ -64,7 +64,7 @@ class ConversationSummaryTests {
     @Test
     void theSummaryComesFromTheStoredMessages() {
         NormalizedMessage question = mail("m-1", MessageDirection.INBOUND, "alice@example.test", MONDAY, "Gửi chị",
-                false, Map.of(), new NormalizedAttachment("1", "report.pdf", "application/pdf", 10L, null, null));
+                false, Map.of(), new NormalizedAttachment("1", "report.pdf", "application/pdf", 10L, null, null, null));
         NormalizedMessage answer = mail("m-2", MessageDirection.OUTBOUND, "owner@gmail.test", TUESDAY, "Cảm ơn",
                 true, Map.of());
 
@@ -85,8 +85,8 @@ class ConversationSummaryTests {
                 List.of(new NormalizedParticipant("bob@example.test", "Bob", null, false), OWNER), null);
         NormalizedMessage fromBob = new NormalizedMessage("m-9", "thread-2", "bob@example.test",
                 MessageDirection.INBOUND, MessageType.MIXED, "Của Bob", MessageStatus.UNKNOWN, false, null, THURSDAY,
-                List.of(new NormalizedAttachment("1", "bob.pdf", "application/pdf", 10L, null, null)), Map.of(), null,
-                null);
+                List.of(new NormalizedAttachment("1", "bob.pdf", "application/pdf", 10L, null, null, null)), Map.of(),
+                null, null);
 
         store.store(account, batch(List.of(thread("Báo cáo"), other), inbound("m-1", MONDAY),
                 mail("m-2", MessageDirection.INBOUND, "alice@example.test", TUESDAY, "Thư m-2", true, Map.of()),
@@ -102,7 +102,8 @@ class ConversationSummaryTests {
 
     @Test
     void aMessageThatLostItsLastFileLeavesNoFileInTheConversation() {
-        NormalizedAttachment file = new NormalizedAttachment("1", "report.pdf", "application/pdf", 10L, null, null);
+        NormalizedAttachment file = new NormalizedAttachment("1", "report.pdf", "application/pdf", 10L, null, null,
+                null);
         store.store(account, batch(List.of(thread("Báo cáo")), mail("m-1", MessageDirection.INBOUND,
                 "alice@example.test", MONDAY, "Thư m-1", false, Map.of(), file)));
         assertThat(summary()).containsEntry("has_attachments", true);

@@ -1,6 +1,11 @@
 package dev.sino.conversation.application;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,8 +64,45 @@ public class MessageBodies {
         if (stored.html() == null) {
             return new MessageBody(BodyFormat.TEXT, null, false);
         }
-        MailHtml.Clean clean = MailHtml.clean(stored.html(), contentId -> Optional.empty());
+        Map<String, UUID> pictures = picturesOf(messageId);
+        // Relative, so the picture comes from Sino's own origin, the one the web's frame lets pictures come from.
+        String files = "/api/conversations/" + conversationId + "/messages/" + messageId + "/attachments/";
+        MailHtml.Clean clean = MailHtml.clean(stored.html(),
+                contentId -> pictureOf(pictures, contentId).map(picture -> files + picture + "?inline=true"));
         return new MessageBody(BodyFormat.HTML, clean.html(), clean.remoteImages());
+    }
+
+    private Map<String, UUID> picturesOf(UUID messageId) {
+        Map<String, UUID> pictures = new HashMap<>();
+        jdbc.sql("""
+                SELECT content_id, id FROM attachment WHERE message_id = :message AND content_id IS NOT NULL ORDER BY id
+                """).param("message", messageId)
+                .query(row -> {
+                    pictures.putIfAbsent(row.getString(1), row.getObject(2, UUID.class));
+                });
+        return pictures;
+    }
+
+    // A cid: URL may escape characters as %XX (RFC 2392), though an id may hold a "%" of its own, and a sender may
+    // write the id in another case: as written first, then decoded, then in any case.
+    private static Optional<UUID> pictureOf(Map<String, UUID> pictures, String cid) {
+        String decoded = withoutEscapes(cid);
+        return Optional.ofNullable(pictures.get(cid)).or(() -> Optional.ofNullable(pictures.get(decoded)))
+                .or(() -> pictures.entrySet().stream()
+                        .filter(picture -> picture.getKey().equalsIgnoreCase(cid)
+                                || picture.getKey().equalsIgnoreCase(decoded))
+                        .map(Map.Entry::getValue).findFirst());
+    }
+
+    private static String withoutEscapes(String cid) {
+        if (cid.indexOf('%') < 0) {
+            return cid;
+        }
+        try {
+            return URLDecoder.decode(cid.replace("+", "%2B"), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException broken) {
+            return cid;
+        }
     }
 
     // Another request may read the same message meanwhile: the second write changes nothing, and both show what is
@@ -69,7 +111,7 @@ public class MessageBodies {
         MessageContent content;
         try {
             content = access.call(accountId, (connector, context) -> connector.fetchMessageContent(context,
-                    externalId)).orElse(new MessageContent(null, null));
+                    externalId)).orElse(new MessageContent(null, null, List.of()));
         } catch (ProviderException failure) {
             log.warn("Message {} could not be read again: {}", messageId, failure.errorCode());
             throw ConversationErrorCode.contentUnavailable();
