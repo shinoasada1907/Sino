@@ -131,7 +131,7 @@ Chỉ cho thư `FAILED` do Sino gửi → `204`. Thư khác → `409 MESSAGE_NOT
 
 ## Backend design (phiên backend nhận; được sửa khi làm)
 
-1. **Dữ liệu (V16):** `message.client_message_id uuid` (null), unique `(conversation_id, client_message_id)` khi khác null. `metadata.replyTo` lưu khi nhập (bổ sung vào BE-54 của F06).
+1. **Dữ liệu (~~V16~~ → V17):** `message.client_message_id uuid` (null), unique `(conversation_id, client_message_id)` khi khác null. ~~`metadata.replyTo` lưu khi nhập~~ → `replyTo` nằm trong cột `message.recipients` (`{to, cc, replyTo}`), lưu khi nhập từ BE-54 của F06. **LÝ DO:** F06 dùng V14 (người nhận, BE-54), V15 (nội dung), V16 (tệp); BE-54 lưu người nhận vào cột riêng thay vì `metadata` (design F06, Backend design 1). Số migration chốt khi làm: số kế tiếp lúc đó.
 2. **Quyền:** Gmail `OAuth2Connection.scopes` + `gmail.send`; luồng kết nối gửi `include_granted_scopes=true`. `account` tính capability của từng account: capability của provider, bỏ `SEND_MESSAGES` khi scope đã cấp thiếu scope gửi của provider. Scope gửi do connector khai báo, ví dụ `OAuth2Connection.sendScopes`, để `account` không phải biết tên scope của Google.
 3. **Trạng thái trả lời:** `conversation` tính `reply` từ account (trạng thái, capability) và thư đã lưu (D-133).
 4. **Gửi:** `ReplyService`: kiểm `reply.state`, ghi `PENDING` (transaction 1); gọi provider ngoài transaction; ghi kết quả (transaction 2). Ghi `SENT` mà đồng bộ đã nhập thư đó trước (trùng `external_message_id`) thì giữ dòng đã nhập, chép `client_message_id` sang, rồi xóa dòng `PENDING`. Sau transaction 2 phát event để `realtime` đẩy `conversations.changed` (`source` = `user`).

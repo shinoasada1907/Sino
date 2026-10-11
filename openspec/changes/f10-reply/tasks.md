@@ -18,7 +18,7 @@
 - [ ] 1.2 **BE-59 — Gửi thư trả lời qua Gmail, chống trùng, kết quả không rõ, bỏ thư lỗi**
   - **Goal / Why:** trả lời từ Sino vào đúng thread, không bao giờ gửi trùng (D-131, D-132, D-133).
   - **Depends on:** BE-58.
-  - **Files:** migration V16 (`message.client_message_id` + unique); Gmail `sendMessage` (MIME, `threadId`, header thread), `findSentMessage` (contract, hàm tùy chọn); `conversation` `ReplyService`, `POST`/`DELETE /api/conversations/{id}/messages…`, ghép thư đã gửi khi đồng bộ nhập lại, đối chiếu `UNKNOWN` trong lượt đồng bộ; event cho `realtime` (`source: user`); mã lỗi `SEND_IN_PROGRESS`, `REPLY_NOT_ALLOWED`, `SEND_FAILED`, `SEND_OUTCOME_UNKNOWN`, `MESSAGE_NOT_DELETABLE`; test.
+  - **Files:** migration ~~V16~~ V17 (`message.client_message_id` + unique; V14–V16 là của F06); Gmail `sendMessage` (MIME, `threadId`, header thread), `findSentMessage` (contract, hàm tùy chọn); `conversation` `ReplyService`, `POST`/`DELETE /api/conversations/{id}/messages…`, ghép thư đã gửi khi đồng bộ nhập lại, đối chiếu `UNKNOWN` trong lượt đồng bộ; event cho `realtime` (`source: user`); mã lỗi `SEND_IN_PROGRESS`, `REPLY_NOT_ALLOWED`, `SEND_FAILED`, `SEND_OUTCOME_UNKNOWN`, `MESSAGE_NOT_DELETABLE`; test.
   - **Hướng làm:** design mục Backend design 4–6 và bảng kết quả của Contract API. Provider gọi ngoài transaction.
   - **Test:** design mục Testing (backend). **Kiểm trên Gmail thật** (cùng BE-60): Gmail có giữ `Message-ID` do Sino đặt không; ghi kết quả vào design D-132.
   - **Acceptance criteria:** spec `reply` (Gửi thư trả lời, Không gửi trùng, Gửi lỗi và kết quả không rõ, Bỏ thư gửi lỗi, Danh sách thư có `clientMessageId`).
