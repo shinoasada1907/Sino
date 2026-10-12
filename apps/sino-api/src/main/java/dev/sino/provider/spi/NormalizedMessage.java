@@ -36,6 +36,12 @@ public record NormalizedMessage(
     /** Metadata key, the subject of an email as its sender wrote it; left out when there is none. */
     public static final String SUBJECT = "subject";
 
+    /**
+     * Metadata key, the {@code Message-ID} of an email: the same in every mailbox that holds the message, so Sino finds
+     * its copies in the other accounts of the owner (F05b, D-180). Left out when there is none.
+     */
+    public static final String RFC_MESSAGE_ID = "rfcMessageId";
+
     public NormalizedMessage {
         PayloadChecks.requireText(externalMessageId, "externalMessageId");
         PayloadChecks.requireText(externalConversationId, "externalConversationId");

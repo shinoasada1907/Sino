@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Nhóm của một chuỗi ở nhiều tài khoản
-Hai cuộc trò chuyện MUST thuộc một nhóm khi chúng cùng chủ, cùng nhà cung cấp, thuộc hai tài khoản khác nhau và có ít nhất một thư cùng `Message-ID` (`rfcMessageId`). Nhóm MUST có tính bắc cầu. Hai cuộc trò chuyện của cùng một tài khoản, của hai nhà cung cấp khác nhau, hay không có thư chung MUST NOT bị gộp. Việc gộp MUST xảy ra khi lưu thư và MUST áp cho dữ liệu đã có trước change.
+Hai cuộc trò chuyện MUST thuộc một nhóm khi chúng cùng chủ, cùng nhà cung cấp, thuộc hai tài khoản khác nhau và có ít nhất một thư cùng `Message-ID` (`rfcMessageId`). Nhóm MUST có tính bắc cầu, kể cả khi nhờ đó hai cuộc trò chuyện của cùng một tài khoản chung nhóm vì một tài khoản khác giữ thư của cả hai (người dùng chốt, 2026-10-12). Hai cuộc trò chuyện của cùng một tài khoản MUST NOT bị gộp chỉ vì chúng chung thư với nhau; hai cuộc trò chuyện của hai nhà cung cấp khác nhau, hay không có thư chung, MUST NOT bị gộp. Việc gộp MUST xảy ra khi lưu thư và MUST áp cho dữ liệu đã có trước change.
 
 #### Scenario: Thư giữa hai tài khoản của cùng chủ
 - **WHEN** `tienct07@gmail.com` gửi "Helllo" cho `bonzed2001@gmail.com`, cả hai đều là tài khoản đã kết nối của chủ, và cả hai lượt đồng bộ đã lưu thư
@@ -10,6 +10,10 @@ Hai cuộc trò chuyện MUST thuộc một nhóm khi chúng cùng chủ, cùng 
 #### Scenario: Thư chung đến sau gộp hai nhóm
 - **WHEN** hai cuộc trò chuyện của hai tài khoản chưa có thư chung, rồi một thư mới gửi tới cả hai địa chỉ được lưu vào cả hai
 - **THEN** hai cuộc trò chuyện thuộc một nhóm
+
+#### Scenario: Một hộp thư tách chuỗi, hộp thư kia không
+- **WHEN** Gmail của `tienct07` để thư M1 ở thread `t-1` và thư M2 ở thread `t-2`, còn `bonzed2001` giữ M1 và M2 trong một thread
+- **THEN** `t-1`, `t-2` và thread của `bonzed2001` thuộc một nhóm
 
 #### Scenario: Hai thread cùng tiêu đề
 - **WHEN** tài khoản `tienct07` có hai thread "xin chào" khác nhau, không chung thư nào

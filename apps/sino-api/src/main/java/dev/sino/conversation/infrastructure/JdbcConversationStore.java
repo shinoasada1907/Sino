@@ -3,6 +3,7 @@ package dev.sino.conversation.infrastructure;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,15 +46,18 @@ public class JdbcConversationStore implements ConversationStore {
 
     private final JdbcClient jdbc;
     private final ConversationSummaries summaries;
+    private final ThreadGroups groups;
 
-    JdbcConversationStore(JdbcClient jdbc, ConversationSummaries summaries) {
+    JdbcConversationStore(JdbcClient jdbc, ConversationSummaries summaries, ThreadGroups groups) {
         this.jdbc = jdbc;
         this.summaries = summaries;
+        this.groups = groups;
     }
 
     @Override
     public StoreResult store(UUID accountId, SyncBatch page) {
         summaries.lock(accountId);
+        List<UUID> otherAccounts = groups.lock(accountId);
         SyncBatch batch = WithoutNul.of(page);
         Map<String, StoredConversation> conversations = storeConversations(accountId, batch);
         Map<Participant, UUID> participants = storeParticipants(batch, conversations);
@@ -61,11 +65,13 @@ public class JdbcConversationStore implements ConversationStore {
         int updated = 0;
         int createdInbound = 0;
         Set<UUID> unarchived = new LinkedHashSet<>();
+        List<UUID> storedMessages = new ArrayList<>();
         for (NormalizedMessage message : batch.messages()) {
             StoredConversation conversation = conversations.get(message.externalConversationId());
             UUID senderId = message.senderExternalParticipantId() == null ? null
                     : participants.get(new Participant(conversation.id(), message.senderExternalParticipantId()));
             StoredMessage stored = storeMessage(conversation.id(), senderId, message);
+            storedMessages.add(stored.id());
             boolean filesChanged = storeFiles(stored.id(), shownIn(keptHtml(message.htmlContent()),
                     message.attachments()));
             if (stored.change() == Change.INSERTED) {
@@ -85,6 +91,7 @@ public class JdbcConversationStore implements ConversationStore {
         List<UUID> touched = conversations.values().stream().map(StoredConversation::id).toList();
         summaries.summarize(touched);
         unarchive(unarchived);
+        groups.group(otherAccounts, storedMessages);
         return new StoreResult(created, updated, Set.copyOf(touched), createdInbound);
     }
 

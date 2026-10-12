@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive. F05b, `openspec/changes/f05b-merged-threads` (một chuỗi ở nhiều tài khoản là một dòng): xong BE-80 (nhóm); còn BE-81…BE-83.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1912,6 +1912,62 @@ API chỉ trả một con số. Với số 5 000, web không biết đó là "đ
 - **Kiểm tra ngược:** 9 lỗi gài, cả 9 bị bắt: bỏ `fields`, trang 50, trần `<=`, bỏ `Math.min`, không gửi `pageToken`, gán thay vì cộng dồn, `fields` thiếu `nextPageToken`, đảo nhánh `since`, trần gấp mười. Lỗi gài "gán thay vì cộng dồn" bị test nhiều trang bắt (120 thay vì 620), nhưng ở test trần nó làm vòng lặp không bao giờ dừng (số đếm đứng ở 500, Gmail giả luôn còn trang sau). Vì vậy script chạy test với `-Dsurefire.timeout=120`, để một lỗi gài treo máy cũng kết thúc và được tính là bị bắt.
 - **Gmail thật** (`RealGmailTests`): 30 ngày đếm 29, liệt kê 29; 90 ngày đếm 53, liệt kê 53 (trước đây cả hai báo 201); toàn bộ hộp thư 212 và 212. Gmail nhận tham số `fields`. Test giờ **đỏ** khi số đếm lệch số liệt kê, không chỉ in ra.
 - **Toàn bộ:** `./mvnw -B -ntp verify` → 1189 test (thêm 5), 0 lỗi, 4 bỏ qua, BUILD SUCCESS.
+
+---
+
+## 24. Một chuỗi ở nhiều tài khoản là một nhóm (BE-80, F05b)
+
+**Ở đâu:** `db/migration/V19__conversation_add_thread_group.sql`, `conversation/infrastructure/{ThreadGroups,GroupingAtStartup,JdbcConversationStore}.java`, `provider/spi/NormalizedMessage.java` (`RFC_MESSAGE_ID`).
+
+### 24.1 Vì sao một chuỗi hiện hai dòng
+Bạn kết nối `tienct07` và `bonzed2001`, rồi gửi thư qua lại giữa hai địa chỉ. Mỗi thư nằm trong **cả hai** hộp thư, và Gmail cho mỗi hộp thư một mã thread riêng. Sino lưu cuộc trò chuyện theo từng tài khoản (F05), nên một chuỗi thành hai cuộc trò chuyện. Hộp thư vì thế hiện hai dòng.
+
+Nhưng hai bản của cùng một thư có chung một thứ: header `Message-ID` (RFC 5322), giống hệt nhau ở mọi hộp thư nhận hay gửi thư đó. Sino đã lưu nó từ trước, ở `message.metadata.rfcMessageId`. Đó là chìa khóa để nhận ra hai bản là một (D-180).
+
+### 24.2 Nhóm, và cột do PostgreSQL tự tính
+Hai cuộc trò chuyện thuộc một **nhóm** khi cùng chủ, cùng nhà cung cấp, khác tài khoản, và có ít nhất một thư chung `Message-ID`. Nhóm có tính bắc cầu: A chung thư với B, B chung thư với C, thì A, B, C là một nhóm.
+
+```text
+  conversation
+    id            (UUIDv7)
+    grouped_with  NULL khi là nhóm một bản; bản cũ nhất của nhóm khi đã gộp
+    thread_group_id = COALESCE(grouped_with, id)   <- PostgreSQL tự tính (GENERATED ... STORED)
+```
+
+Design ban đầu định dùng một cột `thread_group_id NOT NULL` và ghi bằng `id` khi tạo dòng. Nhưng giá trị mặc định của một cột trong PostgreSQL không được lấy từ cột khác, nên mọi câu `INSERT` (cả những câu test chèn bằng SQL) sẽ phải biết về nhóm, hoặc phải có trigger. Cột tự tính giải quyết gọn: không câu `INSERT` nào phải đổi, mà `thread_group_id` vẫn không bao giờ rỗng để các truy vấn của Hộp thư (BE-81) đọc. Cột là `STORED` vì PostgreSQL 18 không index được cột tự tính `VIRTUAL`.
+
+### 24.3 Gom khi lưu: union-find
+Sau mỗi trang thư, `ThreadGroups.group` tìm bản sao của các thư vừa lưu ở các tài khoản khác của chủ, bằng index trên `metadata ->> 'rfcMessageId'`. Mỗi cặp tìm được là một "cạnh" nối hai nhóm. Nhiều cạnh có thể nối nhiều nhóm thành chuỗi, nên các nhóm được gộp bằng **union-find**: mỗi nhóm trỏ tới một nhóm khác, đi theo con trỏ tới gốc, hai nhóm cùng gốc là một. Rồi mọi cuộc trò chuyện của các nhóm đó lấy `grouped_with` là cuộc trò chuyện cũ nhất (`created_at`, rồi `id`).
+
+Chỉ cần xét thư **của trang vừa lưu**: một bản sao lưu sau sẽ được gộp khi chính bản đó được lưu. Thư Sino gửi chưa có `Message-ID` cho tới lượt đồng bộ sau; lượt đó cập nhật dòng thư, thư nằm trong trang, và được gộp lúc ấy.
+
+Dữ liệu có trước V19 được gom khi Sino khởi động (`GroupingAtStartup` → `groupAll`), cùng một đoạn code, mỗi tài khoản một transaction ngắn. Lỗi ở bước này chỉ ghi log: nhóm chỉ quyết Hộp thư hiện thế nào, Sino vẫn chạy được không có chúng.
+
+### 24.4 Thứ tự khóa: lỗi deadlock review tìm ra
+Hai lượt đồng bộ của hai tài khoản chạy song song có thể cùng lưu hai bản của một thư. Nếu mỗi bên tìm bản của bên kia trước khi bên kia commit, cả hai đều không thấy gì và nhóm không bao giờ được gộp. Vì vậy mọi thay đổi nhóm của một chủ phải lần lượt, dưới một khóa của chủ (`pg_advisory_xact_lock`).
+
+Bản đầu lấy khóa chủ ở **cuối** `store`, sau khi đã ghi (và khóa) các dòng `conversation` của trang. Review chỉ ra vòng chờ:
+
+```text
+  Tx A (tienct07): khóa tài khoản A -> khóa dòng t-1 -> chờ khóa chủ ...
+  Tx B (bonzed):   khóa tài khoản B -> ... -> giữ khóa chủ -> UPDATE dòng t-1 -> chờ A
+  => A chờ B, B chờ A: PostgreSQL hủy một bên (deadlock), lượt import đó thành FAILED
+```
+
+Sửa: mọi đường lấy khóa theo **cùng một thứ tự**: khóa tài khoản → khóa chủ → mới ghi dòng. `store` gọi `groups.lock(accountId)` ngay sau khóa tài khoản. Chủ chỉ có một tài khoản của nhà cung cấp đó thì không có gì để gộp, và không lấy khóa.
+
+Test cho thứ tự khóa không cần dựng lại deadlock (khó canh giờ). Nó giữ khóa của chủ ở một transaction khác, cho `store` chạy, rồi hỏi bằng `SELECT ... FOR UPDATE NOWAIT` xem dòng của cuộc trò chuyện có đang bị khóa không. Bản cũ khóa dòng rồi mới chờ, nên `NOWAIT` báo lỗi; bản mới chờ trước, nên dòng còn trống.
+
+### 24.5 Bắc cầu qua cùng một tài khoản (bạn chốt)
+Spec vừa bắt nhóm bắc cầu, vừa cấm gộp hai thread của cùng một tài khoản. Hai câu này va nhau khi Gmail của `tienct07` tách một chuỗi thành hai thread (thư M1 ở `t-1`, M2 ở `t-2`), còn `bonzed2001` giữ cả hai thư trong một thread. Bạn chọn "Gộp cả ba thành một dòng": một chuỗi là một dòng dù mỗi hộp thư tách khác nhau. Hai thread của một tài khoản vẫn không tự gộp chỉ vì chung thư với nhau.
+
+### 24.6 Kiểm chứng (BE-80)
+- **Đỏ trước:** trên một `ThreadGroups` chưa làm gì, 6 trên 10 test gom đỏ; 4 test "không gộp" xanh ngay vì khung không gom gì. 74 test cũ của store vẫn xanh với V19: cột tự tính không làm hỏng câu `INSERT` nào.
+- **Review** (agent `senior-reviewer`): HIGH deadlock (mục 24.4); MEDIUM mỗi tài khoản một transaction khi gom lúc khởi động, spec mâu thuẫn (mục 24.5), thiếu test; LOW gom theo thư của trang, hằng `RFC_MESSAGE_ID`, Javadoc nói quá.
+- **Chỗ lệch TDD:** test cho các phần sửa theo review được viết sau code sửa. Bằng chứng chúng bắt được lỗi là kiểm tra ngược: đặt lại khóa chủ ở cuối như bản cũ, bỏ `created_at`, chỉ gom thư mới, hay loại tài khoản `DISABLED`, mỗi lỗi đều làm test đỏ.
+- **Kiểm tra ngược:** đợt đầu 11 lỗi gài, 10 bị bắt; lỗi còn lại tương đương (điều kiện `IS NOT NULL` chỉ để PostgreSQL dùng được index một phần, vì `NULL = NULL` trong SQL không bao giờ đúng). Đợt hai 14 lỗi gài trên code cuối, 13 bị bắt; lỗi sống sót chỉ ra test lưu tài khoản `DISABLED` sau tài khoản kia, nên không đòi tài khoản `DISABLED` có trong danh sách; đảo thứ tự, chạy lại thì bị bắt.
+- **Dữ liệu thật (chỉ đọc):** 17 cặp cuộc trò chuyện giữa `tienct07` và `bonzed2001` có chung `Message-ID`, mỗi cặp một-một, cùng tiêu đề. V19 chưa vào database của bạn: nó vào khi backend chạy code mới, và lúc khởi động Sino sẽ gom 17 cặp đó.
+- **Toàn bộ:** `./mvnw -B -ntp verify` trên `dev` mới nhất: 1452 test, 0 sai, 0 lỗi, 4 bỏ qua.
 
 ---
 

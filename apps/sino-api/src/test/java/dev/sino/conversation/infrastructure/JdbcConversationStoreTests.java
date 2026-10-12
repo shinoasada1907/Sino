@@ -26,6 +26,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
@@ -33,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.sino.TestcontainersConfiguration;
+import dev.sino.account.AccountDirectory;
 import dev.sino.conversation.ConversationStore;
 import dev.sino.conversation.StoreResult;
 import dev.sino.provider.spi.ConversationType;
@@ -53,7 +55,8 @@ import tools.jackson.databind.json.JsonMapper;
 /** Storing pages of mail (BE-42) in a real PostgreSQL; each test runs in a transaction that is rolled back. */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ TestcontainersConfiguration.class, JdbcConversationStore.class, ConversationSummaries.class })
+@Import({ TestcontainersConfiguration.class, JdbcConversationStore.class, ConversationSummaries.class,
+        ThreadGroups.class })
 @ActiveProfiles("test")
 class JdbcConversationStoreTests {
 
@@ -73,6 +76,10 @@ class JdbcConversationStoreTests {
     private static final String SHOWS_LOGO = "<p><img src=\"cid:logo@x\"></p>";
     private static final NormalizedAttachment PHOTO = new NormalizedAttachment("2", "photo.png", "image/png", 2048L,
             "https://files.example.test/2", "https://files.example.test/2/small", null);
+
+    // Accounts of these tests have no owner the directory knows: nothing to group (F05b).
+    @MockitoBean
+    private AccountDirectory directory;
 
     @Autowired
     private ConversationStore store;

@@ -24,7 +24,7 @@ Người dùng chọn gom thành một dòng ("làm A đi làm 1 dòng tính the
 
 ## Impact
 
-- Backend (phiên backend): `dev/sino/conversation/**` (lưu và gom nhóm, `InboxService`, `ConversationSummaries`, `MessageHistory`, `Replies`, `ReplyService`, các controller). Migration mới (V20; V18/V19 dành cho `planner`): cột `thread_group_id`, index biểu thức trên `metadata->>'rfcMessageId'`, gom dữ liệu đã có.
+- Backend (phiên backend): `dev/sino/conversation/**` (lưu và gom nhóm, `InboxService`, `ConversationSummaries`, `MessageHistory`, `Replies`, `ReplyService`, các controller). Migration mới (~~V20; V18/V19 dành cho `planner`~~ V19: phiên `planner` nhường, "ai commit trước lấy số trống tiếp theo", 2026-10-12): cột `thread_group_id`, index biểu thức trên `metadata->>'rfcMessageId'`, gom dữ liệu đã có.
 - Web (phiên web): `features/inbox` (`inbox.types.ts`, `inbox.api.ts`, `format.ts`, `ConversationList`, `EmailThread`, `Composer`, `InboxPage`), dữ liệu mẫu và fixture MSW.
 - Thứ tự: làm trước "Tạo thư mới" (thiết kế của nó chưa được duyệt).
 

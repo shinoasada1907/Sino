@@ -29,6 +29,7 @@ Dữ liệu thật (2026-10-12, database local, chỉ đọc), hai tài khoản 
 ### D-180 — Một nhóm = các cuộc trò chuyện có thư chung `Message-ID` · **Người dùng duyệt** (2026-10-12)
 Hai cuộc trò chuyện thuộc một nhóm khi cùng chủ, cùng nhà cung cấp, khác tài khoản, và có ít nhất một thư cùng `rfcMessageId`. Nhóm có tính bắc cầu: thư chung giữa A và B, rồi giữa B và C, thì A, B, C là một nhóm. Một cuộc trò chuyện không chung thư với ai là nhóm một bản, chạy như trước.
 **LÝ DO:** `Message-ID` là mã của một thư theo RFC 5322, giống nhau ở mọi hộp thư nhận hay gửi thư đó; dữ liệu thật khớp từng thư. Không cần gọi thêm Gmail hay lưu thêm header.
+**Bắc cầu qua cùng một tài khoản (người dùng chốt 2026-10-12, khi BE-80 review thấy spec tự mâu thuẫn):** Gmail của một tài khoản có thể tách một chuỗi thành hai thread mà tài khoản kia giữ chung một thread; khi đó cả ba là một nhóm ("Gộp cả ba thành một dòng"), trả lời đi trong thread của bản chính. Hai thread của một tài khoản không tự gộp vì chung thư với nhau.
 **Phương án bị loại:** gom theo tiêu đề + người tham gia (gom nhầm hai chuỗi cùng tên, như hai "xin chào" ở trên); gom theo gốc của `References` (phải lưu thêm header, không hơn gì khi đã có thư chung); gom ở web (danh sách từng trang và số đếm của server sẽ sai).
 
 ### D-181 — Bản chính của nhóm · **Người dùng duyệt**
@@ -64,10 +65,10 @@ Mã của nhóm trong API là mã của cuộc trò chuyện **cũ nhất** (`cr
 `/api/conversations/counts` đếm nhóm (mỗi nhóm một lần) theo cùng điều kiện của dòng (D-182); `byProvider` theo nhà cung cấp của nhóm. Lọc `accountId`: nhóm có mặt khi có một bản thuộc tài khoản đó. Lọc `provider`: nhà cung cấp của nhóm.
 
 ### Chốt kỹ thuật (agent, phiên backend sửa được khi làm)
-- **Cột nhóm:** `conversation.thread_group_id uuid NOT NULL`; cuộc trò chuyện mới có `thread_group_id = id`. Gộp hai nhóm: mọi bản của cả hai nhóm lấy `thread_group_id` của bản cũ nhất. Mã của nhóm trong API vẫn theo D-183 (tính khi đọc), không dựa vào giá trị cột.
-- **Gom khi lưu:** sau khi `ConversationStore.store` ghi thư có `rfcMessageId`, tìm cuộc trò chuyện của tài khoản **khác** cùng chủ, cùng nhà cung cấp có thư cùng `rfcMessageId`, rồi gộp nhóm. Hai tài khoản đồng bộ song song có thể cùng gộp một lúc: khóa theo chủ trong transaction (`pg_advisory_xact_lock`) hoặc cập nhật theo thứ tự cố định.
-- **Gom dữ liệu đã có:** trong migration V20 (vòng lặp gộp tới khi không đổi), hoặc một lần chạy khi khởi động; phiên backend chọn.
-- **Index:** `message ((metadata->>'rfcMessageId'))` khi khác null; `conversation (thread_group_id)`.
+- **Cột nhóm:** ~~`conversation.thread_group_id uuid NOT NULL`; cuộc trò chuyện mới có `thread_group_id = id`.~~ `grouped_with uuid` (bản cũ nhất của nhóm, `NULL` khi là nhóm một bản) và `thread_group_id uuid GENERATED ALWAYS AS (COALESCE(grouped_with, id)) STORED` (BE-80). **LÝ DO:** PostgreSQL không cho giá trị mặc định lấy từ cột khác, nên `NOT NULL` + "bằng `id` khi tạo" buộc mọi câu `INSERT` (store, test chèn bằng SQL) phải biết về nhóm, hoặc phải có trigger; cột tự tính cho cùng `thread_group_id` không bao giờ rỗng để BE-81 đọc. Gộp hai nhóm: mọi bản của cả hai nhóm lấy ~~`thread_group_id`~~ `grouped_with` là bản cũ nhất. Mã của nhóm trong API vẫn theo D-183 (tính khi đọc), không dựa vào giá trị cột.
+- **Gom khi lưu:** sau khi `ConversationStore.store` ghi thư có `rfcMessageId`, tìm cuộc trò chuyện của tài khoản **khác** cùng chủ, cùng nhà cung cấp có thư cùng `rfcMessageId`, rồi gộp nhóm. Hai tài khoản đồng bộ song song có thể cùng gộp một lúc: khóa theo chủ trong transaction (`pg_advisory_xact_lock`) ~~hoặc cập nhật theo thứ tự cố định~~. **Đã làm (BE-80):** `ThreadGroups.group` cuối `JdbcConversationStore.store`, chủ và nhà cung cấp lấy qua `AccountDirectory` (module `conversation` không đọc bảng của `account`), khóa `thread-groups:<chủ>` sau khóa của tài khoản.
+- **Gom dữ liệu đã có:** ~~trong migration V20 (vòng lặp gộp tới khi không đổi), hoặc~~ một lần chạy khi khởi động (BE-80: `GroupingAtStartup` → `ThreadGroups.groupAll`, mỗi lần Sino khởi động; lỗi chỉ ghi log). **LÝ DO:** cùng một đoạn code với lúc lưu, và migration không biết chủ, nhà cung cấp của tài khoản nếu không đọc thẳng bảng `connected_account` của module `account`; chạy lại mỗi lần khởi động không đổi gì khi đã gom xong.
+- **Index:** `message ((metadata->>'rfcMessageId'))` khi khác null; `conversation (thread_group_id)` (V19).
 - **Sự kiện realtime:** `conversations.changed` mang mã của nhóm (D-183), để web làm mới đúng chuỗi đang mở.
 - **Đường con:** `…/messages/{messageId}/body`, tệp đính kèm, `DELETE …/messages/{messageId}` nhận thư của bất kỳ bản nào trong nhóm.
 
@@ -90,7 +91,7 @@ Mã của nhóm trong API là mã của cuộc trò chuyện **cũ nhất** (`cr
 
 ## Backend design (phiên backend nhận; được sửa khi làm)
 
-1. **Dữ liệu (V20):** cột `thread_group_id`, hai index, gom dữ liệu đã có; `JdbcConversationStore` ghi `thread_group_id = id` khi tạo và gom sau khi lưu thư (chốt kỹ thuật).
+1. **Dữ liệu (~~V20~~ V19):** cột ~~`thread_group_id`~~ `grouped_with` + `thread_group_id` tự tính, hai index; gom dữ liệu đã có khi khởi động; `JdbcConversationStore` ~~ghi `thread_group_id = id` khi tạo và~~ gom sau khi lưu thư (chốt kỹ thuật).
 2. **Danh sách và số đếm:** `ConversationSummaries`/`InboxService.page` trả một dòng cho mỗi nhóm trong phạm vi: bản chính theo D-181 (ví dụ `DISTINCT ON (thread_group_id)` theo thứ tự ưu tiên), các trường gộp theo D-182, `accountIds`; keyset theo `(lastMessageAt của nhóm, mã nhóm)`. `counts` đếm nhóm (D-187).
 3. **Một chuỗi:** `detail`, `change` (`PATCH`), `requireInInbox` tìm nhóm từ mã bất kỳ, làm việc trên mọi bản trong phạm vi (D-183, D-185).
 4. **Thư:** `MessageHistory` lấy thư của mọi bản, bỏ trùng theo D-184; cursor theo `(sent_at, id)` trên tập đã bỏ trùng; nội dung, tệp, xóa nhận thư của bất kỳ bản nào.
@@ -121,10 +122,14 @@ Mã của nhóm trong API là mã của cuộc trò chuyện **cũ nhất** (`cr
 - **Thư mới mở đầu chuỗi gửi từ Sino** chỉ gộp ở lượt đồng bộ sau (chưa có `rfcMessageId`); trong vài giây có thể thấy hai dòng.
 - **Bản chính đổi** khi có thư mới ở bản khác: tài khoản trả lời đổi theo; ô trả lời ghi rõ "Gửi từ".
 - **Thư tự gửi giữa hai tài khoản** có mọi người gửi là "Bạn": đúng, nhưng lạ; nhãn "Bạn · địa chỉ" cho biết địa chỉ nào.
+- **Nhóm không bao giờ tách** (BE-80): A↔B, B↔C rồi xóa tài khoản B thì A và C vẫn chung nhóm dù không còn thư chung trong phạm vi. BE-81 quyết có hiện như vậy không.
+- **Gộp không phát sự kiện cho tài khoản kia** (BE-80): khi lưu thư của một tài khoản gộp nhóm với cuộc trò chuyện của tài khoản khác, sự kiện của lượt lưu chỉ nói về cuộc trò chuyện của tài khoản đang lưu. BE-81 phát `conversations.changed` theo mã của nhóm.
+- **Gom lại mỗi lần khởi động** (BE-80): quét mọi thư có `Message-ID` của từng tài khoản, mỗi tài khoản một transaction ngắn; hộp thư rất lớn làm lần khởi động lâu hơn (đo ở BE-83).
+- **V19 ghi lại toàn bảng `conversation`** (cột tự tính `STORED`, khóa `ACCESS EXCLUSIVE` trong lúc chạy): chấp nhận với một người dùng; PostgreSQL 18 không index được cột tự tính `VIRTUAL`.
 
 ## Migration Plan
 
-V20 thêm cột (mặc định `id`), index, gom dữ liệu đã có. Quay lại: web chạy được với API chưa có `accountIds` (coi là một bản); cột thừa không ảnh hưởng code cũ.
+~~V20 thêm cột (mặc định `id`), index, gom dữ liệu đã có.~~ V19 thêm `grouped_with` và `thread_group_id` tự tính, hai index; dữ liệu đã có được gom khi Sino khởi động (BE-80). Quay lại: web chạy được với API chưa có `accountIds` (coi là một bản); cột thừa không ảnh hưởng code cũ.
 
 ## Definition of Done
 

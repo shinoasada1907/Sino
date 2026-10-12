@@ -47,7 +47,6 @@ final class GmailMessageNormalizer {
     static final int MAX_TEXT_LENGTH = 100_000;
     /** The id of the file when the whole mail is one file: Gmail gives the top part an empty {@code partId}. */
     static final String ROOT_PART_ID = "root";
-    static final String RFC_MESSAGE_ID = "rfcMessageId";
 
     private static final String SENT = "SENT";
     private static final String UNREAD = "UNREAD";
@@ -85,7 +84,7 @@ final class GmailMessageNormalizer {
         if (subject != null) {
             metadata.put(NormalizedMessage.SUBJECT, subject);
         }
-        payload.header("Message-ID").ifPresent(id -> metadata.put(RFC_MESSAGE_ID, id.strip()));
+        payload.header("Message-ID").ifPresent(id -> metadata.put(NormalizedMessage.RFC_MESSAGE_ID, id.strip()));
         if (message.labelIds().stream().anyMatch(BULK_LABELS::contains)
                 || payload.header("List-Unsubscribe").isPresent()) {
             metadata.put(NormalizedMessage.BULK, "true");

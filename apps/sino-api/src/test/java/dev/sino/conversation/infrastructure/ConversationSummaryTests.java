@@ -19,8 +19,10 @@ import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import dev.sino.TestcontainersConfiguration;
+import dev.sino.account.AccountDirectory;
 import dev.sino.conversation.ConversationStore;
 import dev.sino.conversation.StoreResult;
 import dev.sino.provider.spi.ConversationType;
@@ -40,7 +42,8 @@ import dev.sino.provider.spi.SyncCursor;
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ TestcontainersConfiguration.class, JdbcConversationStore.class, ConversationSummaries.class })
+@Import({ TestcontainersConfiguration.class, JdbcConversationStore.class, ConversationSummaries.class,
+        ThreadGroups.class })
 @ActiveProfiles("test")
 class ConversationSummaryTests {
 
@@ -52,6 +55,10 @@ class ConversationSummaryTests {
             null, false);
     private static final NormalizedParticipant OWNER = new NormalizedParticipant("owner@gmail.test", null, null,
             true);
+
+    // Accounts of these tests have no owner the directory knows: nothing to group (F05b).
+    @MockitoBean
+    private AccountDirectory directory;
 
     @Autowired
     private ConversationStore store;
