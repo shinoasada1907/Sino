@@ -100,7 +100,7 @@
 - [ ] 2.1 **BE-73 — Bảng `calendar_event` và `/api/events`**
   - **Goal / Why:** lịch hẹn lưu thật, sửa / xóa cả chuỗi (D-151).
   - **Depends on:** BE-70 (dùng `Recurrence`).
-  - **Files:** migration V19 `planner_create_calendar_event`; `planner/domain/CalendarEvent`; `planner/infrastructure/CalendarEventRepository`; `planner/application/EventService`; `planner/api/{EventsController,EventRequest,EventResponse}`; README; test.
+  - **Files:** migration ~~V19~~ số trống kế tiếp trên `dev` lúc làm (kiểm `db/migration` và báo sino-api-27 trước) `planner_create_calendar_event`. **LÝ DO (2026-10-12):** V19 nhường cho f05b BE-80 (`conversation.thread_group_id`) của sino-api-27: BE-73 chưa có lịch, Flyway không cho số nhỏ hơn số đã chạy (`out-of-order` tắt), nên ai commit trước lấy số trống kế tiếp; `planner/domain/CalendarEvent`; `planner/infrastructure/CalendarEventRepository`; `planner/application/EventService`; `planner/api/{EventsController,EventRequest,EventResponse}`; README; test.
   - **Hướng làm:** design Backend 2, 5, 7; độ dài ≤ 14 ngày; lần lặp giữ giờ bắt đầu địa phương.
   - **Test:** service (Testcontainers) và web: `201`, `GET` cả chuỗi, `PUT`, `204`, `400` (kết thúc trước bắt đầu, quá 14 ngày, hai kiểu thời gian), `422`, `401`, CSRF, `404`, `409`.
   - **Acceptance criteria:** spec `calendar` (*Lịch hẹn cá nhân*, *Tạo, xem, sửa và xóa lịch hẹn*).
