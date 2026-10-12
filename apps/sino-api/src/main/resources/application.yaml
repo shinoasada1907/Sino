@@ -83,3 +83,7 @@ sino:
       topic: ${SINO_GOOGLE_PUBSUB_TOPIC:}
       audience: ${SINO_GOOGLE_PUBSUB_AUDIENCE:}
       service-account: ${SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT:}
+  planner:
+    # D-157: the time zone of the user's days for tasks and the calendar (an IANA name such as Asia/Ho_Chi_Minh).
+    # New repeat rules take it and keep it. An unknown name stops the app.
+    time-zone: ${SINO_PLANNER_TIME_ZONE:Asia/Ho_Chi_Minh}

@@ -177,7 +177,7 @@ MSW cho mọi request; test viết trước; hook và adapter có test riêng; b
 | Web (`MockMvc` hoặc HTTP thật như các module khác) | mỗi endpoint: thành công, `400` từng lỗi validation, `422 INVALID_RECURRENCE`, `401`, thiếu CSRF, `404`, `409`; `GET /api/calendar`: lần lặp, quá hạn từ trước, lần sắp tới của việc lặp, 62 ngày |
 | Kiến trúc | `ModularityTests` thấy `planner`, không vi phạm |
 | Kiểm tra ngược | chỉ cho `RecurrenceCalculator` (logic thuần, nhanh); không chạy cho phần Spring (mỗi lượt cả giờ) |
-| Chạy thật | ACC: backend + web, đủ cỡ màn × 2 theme, sau khi V17 và V18/V19 đã lên `dev` |
+| Chạy thật | ACC: backend + web trên một PostgreSQL riêng (không chờ F10, không cần account Gmail; người dùng 2026-10-12: "làm độc lập với Gmail"), đủ cỡ màn × 2 theme |
 
 ## Risks / Trade-offs
 
