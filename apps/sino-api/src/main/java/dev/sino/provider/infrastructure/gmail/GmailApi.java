@@ -383,6 +383,7 @@ class GmailApi {
     record Sent(String id, String threadId) {
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record MessageThread(List<GmailMessage> messages) {
     }
 

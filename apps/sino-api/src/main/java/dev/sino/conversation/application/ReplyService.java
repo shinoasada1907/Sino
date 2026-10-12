@@ -146,7 +146,8 @@ public class ReplyService implements SentMessages {
 
     // Oldest first. A provider that cannot be asked now is not asked again until the next try. A send can take over
     // a minute (a refused token makes ProviderAccess run it again), so PENDING is left alone for five. The provider
-    // gets the message as it was sent and when that send started, sent_at (D-132).
+    // gets the message as it was sent, less the sender's name it does not need, and when that send started, sent_at
+    // (D-132).
     @Override
     public void reconcile(UUID accountId) {
         List<Uncertain> uncertain = jdbc.sql("""
@@ -164,7 +165,7 @@ public class ReplyService implements SentMessages {
                         new SendMessageCommand(row.getString("external_conversation_id"),
                                 row.getString("text_content"), row.getString("reply_to_external_message_id"),
                                 addresseesOf(row.getString("recipients")),
-                                row.getObject("client_message_id", UUID.class)),
+                                row.getObject("client_message_id", UUID.class), null),
                         row.getTimestamp("sent_at").toInstant()))
                 .list();
         for (Uncertain message : uncertain) {
@@ -268,6 +269,15 @@ public class ReplyService implements SentMessages {
                 WHERE conversation_id = :conversation AND external_message_id NOT LIKE 'sino:%'
                 ORDER BY sent_at DESC, id DESC LIMIT 1
                 """).param("conversation", conversation.id()).query(String.class).optional().orElse(null);
+        // The name the account wrote in the latest mail it sent itself; Sino writes none of its own (BE-62).
+        String senderName = jdbc.sql("""
+                SELECT p.display_name FROM message m
+                JOIN conversation c ON c.id = m.conversation_id
+                JOIN conversation_participant p ON p.id = m.sender_participant_id
+                WHERE c.account_id = :account AND m.direction = 'OUTBOUND' AND m.client_message_id IS NULL
+                  AND btrim(p.display_name) <> ''
+                ORDER BY m.sent_at DESC, m.id DESC LIMIT 1
+                """).param("account", conversation.accountId()).query(String.class).optional().orElse(null);
         List<NormalizedRecipients.Address> to = reply.to().stream()
                 .map(address -> new NormalizedRecipients.Address(address.name(), address.address())).toList();
         String recipients = JSON.writeValueAsString(new NormalizedRecipients(to, List.of(), List.of()));
@@ -275,7 +285,8 @@ public class ReplyService implements SentMessages {
                 : write(conversation.id(), clientMessageId, text, answered, recipients);
         changed(conversation.accountId(), conversation.id());
         return new Attempt(messageId, conversation.accountId(), conversation.id(), clientMessageId,
-                new SendMessageCommand(externalConversationId, text, answered, to, clientMessageId), false);
+                new SendMessageCommand(externalConversationId, text, answered, to, clientMessageId, senderName),
+                false);
     }
 
     private UUID write(UUID conversationId, UUID clientMessageId, String text, String answered, String recipients) {

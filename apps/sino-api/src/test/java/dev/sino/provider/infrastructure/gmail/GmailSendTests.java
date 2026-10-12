@@ -60,7 +60,7 @@ class GmailSendTests {
     private static final UUID CLIENT_MESSAGE_ID = UUID.fromString("6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b");
     private static final Instant STARTED = Instant.parse("2026-10-12T08:45:18Z");
     private static final SendMessageCommand REPLY = new SendMessageCommand("thread-42", "Em nhận được rồi.",
-            "msg-41", List.of(new Address("An", "an@example.test")), CLIENT_MESSAGE_ID);
+            "msg-41", List.of(new Address("An", "an@example.test")), CLIENT_MESSAGE_ID, "Tôi Là An");
 
     private static WireMockServer gmail;
 
@@ -109,8 +109,9 @@ class GmailSendTests {
         assertThat(send.getHeader("Authorization")).isEqualTo("Bearer " + ACCESS_TOKEN);
         assertThat(JsonPath.<String>read(send.getBodyAsString(), "$.threadId")).isEqualTo("thread-42");
         String mime = rawOf(send);
-        assertThat(mime).contains("From: me@gmail.test\r\n", "To: An <an@example.test>\r\n",
-                "In-Reply-To: <orig@mail.example.test>\r\n");
+        assertThat(MailHeaders.mailboxes(headerOf(mime, "From"))).as("the name of the command (BE-62)")
+                .containsExactly(new MailHeaders.Mailbox("me@gmail.test", "Tôi Là An"));
+        assertThat(mime).contains("To: An <an@example.test>\r\n", "In-Reply-To: <orig@mail.example.test>\r\n");
         assertThat(mime).as("Gmail gives every message it sends its own (BE-60)").doesNotContain("Message-ID:");
         assertThat(headerOf(mime, "References")).isEqualTo("<first@mail.example.test> <orig@mail.example.test>");
         assertThat(MailHeaders.decode(headerOf(mime, "Subject"))).isEqualTo("Re: Báo cáo tháng 9");
@@ -125,6 +126,17 @@ class GmailSendTests {
 
         assertThat(JsonPath.<String>read(onlySend().getBodyAsString(), "$.threadId")).isEqualTo("thread-42");
         assertThat(rawOf(onlySend())).doesNotContain("In-Reply-To:", "References:");
+    }
+
+    // Sino does not know the name the account writes in its own mail: the address alone, as before BE-62.
+    @Test
+    void withoutANameAReplyGoesFromTheAddressAlone() {
+        answerTheSendWith(okJson("{\"id\": \"msg-43\", \"threadId\": \"thread-42\"}"));
+
+        gmail().sendMessage(context(), new SendMessageCommand("thread-42", REPLY.textContent(), "msg-41", REPLY.to(),
+                CLIENT_MESSAGE_ID, null));
+
+        assertThat(rawOf(onlySend())).contains("From: me@gmail.test\r\n");
     }
 
     // Gmail refused, so the message did not go: Sino may offer to send it again.
@@ -221,7 +233,7 @@ class GmailSendTests {
                 "\"An\" <AN@Example.test>"));
 
         SendMessageCommand twoLines = new SendMessageCommand("thread-42", "Em nhận\r\nđược\rrồi.  ", "msg-41",
-                REPLY.to(), CLIENT_MESSAGE_ID);
+                REPLY.to(), CLIENT_MESSAGE_ID, null);
         assertThat(gmail().findSentMessages(context(), twoLines, STARTED)).containsExactly("msg-44");
     }
 

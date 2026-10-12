@@ -77,7 +77,7 @@ class FakeMessageProviderContractTest {
         void aRefusedSendNeverReachesTheProvider() {
             assertThatExceptionOfType(ProviderException.class)
                     .isThrownBy(() -> provider.sendMessage(CONTEXT,
-                            new SendMessageCommand("c-1", "hi", null, List.of(), UUID.randomUUID())));
+                            new SendMessageCommand("c-1", "hi", null, List.of(), UUID.randomUUID(), null)));
             assertThat(provider.sentMessages()).isEmpty();
         }
 

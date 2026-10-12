@@ -29,6 +29,7 @@ import dev.sino.provider.spi.AttachmentContent;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
+import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.OAuth2Connection;
 import dev.sino.provider.spi.OAuth2Credentials;
 import dev.sino.provider.spi.ProviderContext;
@@ -239,9 +240,9 @@ class GmailProvider implements MessageProvider {
     }
 
     /**
-     * Sends a plain text reply in the thread (D-133): from the address of the profile, with the subject and thread
-     * headers of the message it answers when Gmail still has it. A failure before {@code messages.send} leaves the
-     * message unsent.
+     * Sends a plain text reply in the thread (D-133): from the address of the profile and the name of the command
+     * (BE-62), with the subject and thread headers of the message it answers when Gmail still has it. A failure before
+     * {@code messages.send} leaves the message unsent.
      */
     @Override
     public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
@@ -249,7 +250,8 @@ class GmailProvider implements MessageProvider {
         String from = api.profile(accessToken).emailAddress();
         Optional<Part> answered = Optional.ofNullable(command.replyToExternalMessageId())
                 .flatMap(id -> api.metadata(accessToken, id)).map(GmailMessage::payload);
-        GmailReply reply = new GmailReply(from, command.to(),
+        Address sender = new Address(command.senderName(), from);
+        GmailReply reply = new GmailReply(sender, command.to(),
                 GmailReply.subjectOf(answered.flatMap(part -> part.header("Subject")).map(MailHeaders::decode)
                         .orElse(null)),
                 answered.flatMap(part -> part.header("Message-ID")).orElse(null),

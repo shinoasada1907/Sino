@@ -18,11 +18,12 @@ import dev.sino.provider.spi.NormalizedRecipients.Address;
 /** The reply Sino sends through Gmail (F10, D-133), as the raw RFC 5322 message, read back the way mail reads it. */
 class GmailReplyTests {
 
+    private static final Address ME = new Address(null, "me@gmail.test");
     private static final String TEXT = "Cảm ơn anh, em nhận được rồi.\nHẹn gặp thứ Hai.";
 
     @Test
     void aReplyGoesInTheThreadOfTheMessageItAnswers() {
-        String mime = new GmailReply("me@gmail.test", List.of(new Address("An Nguyễn", "an@example.test")),
+        String mime = new GmailReply(ME, List.of(new Address("An Nguyễn", "an@example.test")),
                 GmailReply.subjectOf("Báo cáo tháng 9"), "<orig@mail.example.test>", "<first@mail.example.test>", TEXT)
                 .mime();
 
@@ -38,6 +39,16 @@ class GmailReplyTests {
         assertThat(headers.get("Content-Type")).isEqualTo("text/plain; charset=UTF-8");
         assertThat(headers.get("Content-Transfer-Encoding")).isEqualTo("base64");
         assertThat(bodyOf(mime)).isEqualTo(TEXT.replace("\n", "\r\n"));
+    }
+
+    // As Gmail web writes it: the name of the account, so the person who gets it sees who wrote (BE-62).
+    @Test
+    void theSenderGoesWithTheirName() {
+        String mime = new GmailReply(new Address("Nguyễn Tiến", "me@gmail.test"), List.of(ME), "Re: x", null, null,
+                "ok").mime();
+
+        assertThat(MailHeaders.mailboxes(headersOf(mime).get("From")))
+                .containsExactly(new Mailbox("me@gmail.test", "Nguyễn Tiến"));
     }
 
     @Test
@@ -77,7 +88,7 @@ class GmailReplyTests {
 
     @Test
     void severalAddresseesEachKeepTheirName() {
-        String mime = new GmailReply("me@gmail.test", List.of(new Address("Bình \"Bee\" Trần", "binh@example.test"),
+        String mime = new GmailReply(ME, List.of(new Address("Bình \"Bee\" Trần", "binh@example.test"),
                 new Address("Ops, Team", "ops@example.test"), new Address(null, "dan@example.test")), "Re: x",
                 null, null, "ok").mime();
 
@@ -89,7 +100,7 @@ class GmailReplyTests {
     // Names and subjects come from mail other people sent: a line break in one must not add a header.
     @Test
     void aLineBreakInStoredTextCannotAddAHeader() {
-        String mime = new GmailReply("me@gmail.test",
+        String mime = new GmailReply(ME,
                 List.of(new Address("Evil\r\nBcc: victim@example.test", "an@example.test")),
                 GmailReply.subjectOf("Hi\r\nBcc: victim@example.test"), "<orig@x.test>\r\nBcc: v@x.test", null, "ok")
                 .mime();
@@ -101,7 +112,7 @@ class GmailReplyTests {
     }
 
     private static String reply(String original, String inReplyTo, String references, String text) {
-        return new GmailReply("me@gmail.test", List.of(new Address(null, "an@example.test")),
+        return new GmailReply(ME, List.of(new Address(null, "an@example.test")),
                 GmailReply.subjectOf(original), inReplyTo, references, text).mime();
     }
 

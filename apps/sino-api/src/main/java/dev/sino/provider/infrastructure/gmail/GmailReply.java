@@ -10,7 +10,8 @@ import java.util.regex.Pattern;
 import dev.sino.provider.spi.NormalizedRecipients.Address;
 
 /**
- * A plain text reply as the raw RFC 5322 message Gmail sends (F10, D-133): in the thread of the message it answers
+ * A plain text reply as the raw RFC 5322 message Gmail sends (F10, D-133), from the name and address the account
+ * sends with (BE-62): in the thread of the message it answers
  * ({@code In-Reply-To}, {@code References}). No {@code Message-ID}: Gmail gives what it sends its own (BE-60). Names
  * and subjects come from mail other people sent, so a line break in one is dropped rather than starting a header, and
  * text that is not ASCII becomes RFC 2047 encoded words.
@@ -19,7 +20,7 @@ import dev.sino.provider.spi.NormalizedRecipients.Address;
  * @param inReplyTo the {@code Message-ID} of the message it answers; {@code null} for none
  * @param references the {@code References} of that message; {@code null} for none
  */
-record GmailReply(String from, List<Address> to, String subject, String inReplyTo, String references, String text) {
+record GmailReply(Address from, List<Address> to, String subject, String inReplyTo, String references, String text) {
 
     private static final Pattern RE = Pattern.compile("^\\s*re\\s*:", Pattern.CASE_INSENSITIVE);
     private static final Pattern MESSAGE_ID = Pattern.compile("<[^<>\\s]+>");
@@ -42,7 +43,7 @@ record GmailReply(String from, List<Address> to, String subject, String inReplyT
 
     String mime() {
         StringBuilder mime = new StringBuilder();
-        header(mime, "From", withoutLineBreaks(from));
+        header(mime, "From", mailbox(from));
         header(mime, "To", String.join("," + CRLF + " ", to.stream().map(GmailReply::mailbox).toList()));
         if (subject != null) {
             header(mime, "Subject", encoded(subject));

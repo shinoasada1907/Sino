@@ -64,6 +64,7 @@ import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.OAuth2Credentials;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
+import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 
@@ -159,6 +160,45 @@ class ConversationSendApiTests {
                 .andExpect(jsonPath("$.items[1].clientMessageId").value(nullValue()));
         assertThat(events.stream(ConversationChanged.class)).anySatisfy(
                 event -> assertThat(event.conversationId()).isEqualTo(conversation));
+    }
+
+    // The name the account writes in mail it sent itself, as the people it writes to know it (BE-62).
+    @Test
+    void aReplyGoesWithTheNameTheAccountWritesInItsOwnMail() throws Exception {
+        store(outbound("m-0"));
+
+        send(TEXT, clientMessageId).andExpect(status().isCreated());
+
+        assertThat(mail.sentMessages()).singleElement()
+                .satisfies(command -> assertThat(command.senderName()).isEqualTo("Me"));
+    }
+
+    // The user renamed themselves: the name of the latest mail they sent, whatever the conversation.
+    @Test
+    void theNameOfTheLatestMailTheAccountSentIsTheOne() throws Exception {
+        store(outbound("m-0"));
+        NormalizedParticipant renamed = new NormalizedParticipant("me@mail.test", "Me Later", null, true);
+        NormalizedConversation other = new NormalizedConversation("thread-2", ConversationType.THREAD, "Khác", null,
+                List.of(ALICE, renamed), null);
+        NormalizedMessage later = new NormalizedMessage("m-9", "thread-2", renamed.externalParticipantId(),
+                MessageDirection.OUTBOUND, MessageType.TEXT, "Gửi chị", MessageStatus.SENT, true, null,
+                MONDAY.minusSeconds(60), List.of(), Map.of(), null, null);
+        transactions.executeWithoutResult(t -> store.store(account, new SyncBatch(List.of(other), List.of(later),
+                List.of(), new SyncCursor("next"), false)));
+
+        send(TEXT, clientMessageId).andExpect(status().isCreated());
+
+        assertThat(mail.sentMessages()).singleElement()
+                .satisfies(command -> assertThat(command.senderName()).isEqualTo("Me Later"));
+    }
+
+    // A reply Sino sent writes no name of its own: only mail the account sent itself counts.
+    @Test
+    void withoutMailTheAccountSentItselfAReplyGoesWithoutAName() throws Exception {
+        send(TEXT, clientMessageId).andExpect(status().isCreated());
+        send(TEXT, UUID.randomUUID()).andExpect(status().isCreated());
+
+        assertThat(mail.sentMessages()).extracting(SendMessageCommand::senderName).containsExactly(null, null);
     }
 
     // The user clicked again, or the network repeated the request: one message, sent once (D-131).
@@ -642,6 +682,13 @@ class ConversationSendApiTests {
                 null, List.of(ALICE, ME), null);
         transactions.executeWithoutResult(t -> store.store(account, new SyncBatch(List.of(thread),
                 List.of(message), List.of(), new SyncCursor("next"), false)));
+    }
+
+    // Sent by the account from another mail client, before Alice wrote.
+    private static NormalizedMessage outbound(String id) {
+        return new NormalizedMessage(id, "thread", ME.externalParticipantId(), MessageDirection.OUTBOUND,
+                MessageType.TEXT, "Chị gửi em báo cáo nhé", MessageStatus.SENT, true, null, MONDAY.minusSeconds(3_600),
+                List.of(), Map.of(), null, null);
     }
 
     private static NormalizedMessage inbound(String id, NormalizedParticipant from) {

@@ -126,7 +126,7 @@ class RealGmailReplyTests {
         Instant startedAt = ((Timestamp) row.get("created_at")).toInstant();
         SendMessageCommand sent = new SendMessageCommand(target.thread(), (String) row.get("text_content"),
                 (String) row.get("reply_to_external_message_id"), List.of(new Address(null, addressee)),
-                clientMessageId);
+                clientMessageId, null);
 
         Seen seen = access.call(target.account(), (connector, context) -> {
             String token = ((OAuth2Credentials) context.credentials()).accessToken();

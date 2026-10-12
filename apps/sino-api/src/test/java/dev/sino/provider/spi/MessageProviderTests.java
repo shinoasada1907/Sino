@@ -84,7 +84,8 @@ class MessageProviderTests {
 
         assertThatExceptionOfType(ProviderException.class)
                 .isThrownBy(() -> readOnly.findSentMessages(context,
-                        new SendMessageCommand("thread", "ok", null, List.of(), UUID.randomUUID()), Instant.now()))
+                        new SendMessageCommand("thread", "ok", null, List.of(), UUID.randomUUID(), null),
+                        Instant.now()))
                 .withMessageContaining("read-only")
                 .extracting(ProviderException::errorCode)
                 .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
@@ -96,7 +97,7 @@ class MessageProviderTests {
 
         assertThatExceptionOfType(ProviderException.class)
                 .isThrownBy(() -> readOnly.sendMessage(context, new SendMessageCommand("c-1", "hello", null, List.of(),
-                        UUID.randomUUID())))
+                        UUID.randomUUID(), null)))
                 .withMessageContaining("read-only")
                 .extracting(ProviderException::errorCode)
                 .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);

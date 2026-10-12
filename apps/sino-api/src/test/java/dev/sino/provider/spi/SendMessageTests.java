@@ -22,42 +22,48 @@ class SendMessageTests {
     private static final List<Address> TO = List.of(new Address("An", "an@example.test"));
 
     @Test
-    void aCommandCarriesItsAddresseesAndTheIdSinoGaveIt() {
+    void aCommandCarriesItsAddresseesTheIdSinoGaveItAndTheSendersName() {
         List<Address> to = new ArrayList<>(TO);
 
-        SendMessageCommand command = new SendMessageCommand("c-1", "hello", "m-9", to, CLIENT_MESSAGE_ID);
+        SendMessageCommand command = new SendMessageCommand("c-1", "hello", "m-9", to, CLIENT_MESSAGE_ID,
+                " Nguyễn Tiến ");
         to.add(new Address(null, "other@example.test"));
 
         assertThat(command.replyToExternalMessageId()).isEqualTo("m-9");
         assertThat(command.to()).containsExactly(new Address("An", "an@example.test"));
         assertThat(command.clientMessageId()).isEqualTo(CLIENT_MESSAGE_ID);
+        assertThat(command.senderName()).isEqualTo("Nguyễn Tiến");
         assertThatExceptionOfType(UnsupportedOperationException.class)
                 .isThrownBy(() -> command.to().add(new Address(null, "x@example.test")));
     }
 
-    // A chat provider sends to the conversation itself: no addressee and no message to reply to.
-    @Test
-    void aReplyTargetAndAddresseesAreOptional() {
-        SendMessageCommand command = new SendMessageCommand("c-1", "hello", null, null, CLIENT_MESSAGE_ID);
+    // A chat provider sends to the conversation itself: no addressee and no message to reply to. Sino may not know
+    // the name the account writes in its own mail (BE-62).
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "   ")
+    void aReplyTargetAddresseesAndTheSendersNameAreOptional(String name) {
+        SendMessageCommand command = new SendMessageCommand("c-1", "hello", null, null, CLIENT_MESSAGE_ID, name);
 
         assertThat(command.replyToExternalMessageId()).isNull();
         assertThat(command.to()).isEmpty();
+        assertThat(command.senderName()).isNull();
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = "   ")
     void aCommandNeedsAConversationAndText(String blank) {
-        assertThatThrownBy(() -> new SendMessageCommand(blank, "hello", null, TO, CLIENT_MESSAGE_ID))
+        assertThatThrownBy(() -> new SendMessageCommand(blank, "hello", null, TO, CLIENT_MESSAGE_ID, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new SendMessageCommand("c-1", blank, null, TO, CLIENT_MESSAGE_ID))
+        assertThatThrownBy(() -> new SendMessageCommand("c-1", blank, null, TO, CLIENT_MESSAGE_ID, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     // Without it a provider cannot be asked later whether the message went out (D-131, D-132).
     @Test
     void aCommandNeedsTheIdSinoGaveIt() {
-        assertThatThrownBy(() -> new SendMessageCommand("c-1", "hello", null, TO, null))
+        assertThatThrownBy(() -> new SendMessageCommand("c-1", "hello", null, TO, null, null))
                 .isInstanceOf(NullPointerException.class).hasMessageContaining("clientMessageId");
     }
 

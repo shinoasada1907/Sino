@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`). F09 (provider thứ hai) chưa mở.
+> **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai) chưa mở.
 > **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -310,3 +310,42 @@ Hai lớp này che cho nhau, như hai hàng rào chống gửi lại ở mục 2
 - **Review** (agent `senior-reviewer`): HIGH cùng chữ gửi hai lần (mục 3.4); MEDIUM provider giả còn tìm theo cách cũ, tài liệu còn tả `Message-ID`; LOW đã sửa: thread không có thư bị coi là "không có", chưa có cận trên, chưa so người nhận, mép khoảng thời gian chưa có test. Các giới hạn còn lại ghi ở design D-132.
 - **Toàn bộ:** `./mvnw -B -ntp verify` trên `dev` mới nhất: 1427 test, 0 sai, 0 lỗi, 4 bỏ qua.
 - **Chưa kiểm (NOT VERIFIED):** một lần gửi "không rõ" thật trên Gmail (không ép được mà không gửi thêm thư); bỏ tick quyền gửi trên màn đồng ý; thread quá 100 thư; thư rất dài; thư trả lời khi thư gốc đã bị xóa.
+
+---
+
+## 4. Thư Sino gửi mang tên người gửi (BE-62)
+
+**Ở đâu:** `provider/spi/SendMessageCommand.java` (`senderName`), `conversation/application/ReplyService.java` (câu truy vấn tên), `provider/infrastructure/gmail/{GmailProvider,GmailReply}.java` (`From`).
+
+### 4.1 Lỗi bạn thấy
+Thư Sino gửi chỉ có `From: tienct07@gmail.com`. Gmail của người nhận vì thế hiện địa chỉ trần với avatar chữ cái, còn thư gửi từ Gmail web hiện "Nguyễn Tiến". Account nhận thư trong Sino (`bonzed2001`) cũng không có tên người gửi, nên dòng trong Hộp thư chỉ ghi địa chỉ.
+
+### 4.2 Hướng đầu tiên sai, và kiểm trước khi kết luận
+Hướng đầu: hỏi Gmail tên gửi của địa chỉ (`users.settings.sendAs`), đọc được bằng quyền `gmail.readonly` có sẵn. Test với WireMock xanh. Nhưng trước khi coi là xong, một test chỉ đọc trên Gmail thật cho thấy `displayName` **rỗng** ở cả hai account. Tên Gmail web ghi là tên tài khoản Google, một nguồn khác hẳn, chỉ đọc được khi xin thêm quyền `profile`.
+
+Đây là cùng bài học với mục 3.2: test giả chỉ trả lời "code có làm đúng với giả định không", còn giả định về hệ thống bên ngoài thì phải hỏi chính hệ thống đó.
+
+### 4.3 Nguồn tên bạn chọn: thư account tự gửi
+Sino đã lưu sẵn người gửi của mọi thư nhập về. Thư account tự gửi bằng Gmail web có `From: Nguyễn Tiến <tienct07@gmail.com>`, nên người gửi của các thư đó có đúng cái tên Gmail web dùng. Câu truy vấn trong `ReplyService` lấy tên đó:
+
+```text
+  mọi cuộc trò chuyện của account
+    -> thư đi (OUTBOUND)
+    -> không phải thư Sino gửi (client_message_id IS NULL): thư Sino gửi không có tên của riêng nó
+    -> người gửi có tên (bỏ tên rỗng)
+    -> thư gần nhất trước (bạn đổi tên thì lấy tên mới)
+```
+
+Trên dữ liệu thật: "Nguyễn Tiến" cho `tienct07`, "Sinon sama" cho `bonzed2001`, khớp Gmail web. Account chưa từng gửi thư bằng ứng dụng khác thì không có tên, và thư đi chỉ có địa chỉ như trước.
+
+Tên đi qua contract trong `SendMessageCommand.senderName`, nên connector không phải biết database. Gmail ghi `From` bằng đúng hàm đã ghi `To` (`GmailReply.mailbox`): chữ có dấu thành RFC 2047, tên có dấu phẩy hay ngoặc kép được bọc ngoặc kép, xuống dòng bị bỏ. Record tự chuẩn hóa: tên trống hoặc chỉ có khoảng trắng thành `null`, có khoảng trắng đầu cuối thì bỏ đi.
+
+### 4.4 Kiểm tra ngược chỉ ra hai điều kiện trùng nhau
+Bản đầu lọc cả `m.direction = 'OUTBOUND'` lẫn `p.is_self`. Thư đi thì người gửi luôn là chính account, nên bỏ một trong hai điều kiện thì kết quả không đổi, và hai lỗi gài cùng sống sót. Bỏ `p.is_self`, giữ điều kiện nói đúng ý "thư account tự gửi". Sau đó, bỏ điều kiện hướng thư thì test lấy nhầm tên "Alice" của thư đến và đỏ. Lỗi gài thứ ba (đảo thứ tự, lấy thư cũ nhất) sống sót vì chưa có test nào có hai tên khác nhau; thêm test "bạn đổi tên".
+
+### 4.5 Kiểm chứng (BE-62)
+- **Đỏ trước:** 5 test đỏ trên khung (chuẩn hóa tên, tên từ thư account tự gửi, `From` mang tên). Test "thư Sino gửi không tính làm nguồn tên" xanh ngay trên khung vì khung luôn trả `null`; bằng chứng nó bắt được lỗi là lỗi gài bỏ điều kiện `client_message_id IS NULL`.
+- **Kiểm tra ngược:** 8 lỗi gài, 5 bị bắt; ba lỗi sống sót dẫn tới bỏ một điều kiện trùng và thêm test "bạn đổi tên" (mục 4.4); chạy lại 7/7 bị bắt.
+- **Bẫy khi chạy:** một lượt kiểm tra ngược có JVM sập vì máy thiếu bộ nhớ (file `hs_err_pid*.log`). Script đếm "test thất bại" là "lỗi bị bắt", nên một lần sập có thể làm một lỗi gài sống sót trông như bị bắt. Thấy log sập thì chạy lại cả đợt.
+- **Dữ liệu thật:** câu truy vấn cho "Nguyễn Tiến" và "Sinon sama", khớp Gmail web. Chưa gửi thư thật nào mang tên: bạn sẽ thấy ở lần trả lời tới từ web, sau khi chạy backend mới.
+- **Toàn bộ:** `./mvnw -B -ntp verify` trên `dev` mới nhất: 1434 test, 0 sai, 0 lỗi, 4 bỏ qua.

@@ -49,7 +49,7 @@ public abstract class MessageProviderContractTest {
     /** What the send checks send; override when the fake provider needs a known conversation. */
     protected SendMessageCommand sendCommand() {
         return new SendMessageCommand("conversation-1", "Hello from the contract test", null,
-                List.of(new NormalizedRecipients.Address(null, "someone@example.test")), UUID.randomUUID());
+                List.of(new NormalizedRecipients.Address(null, "someone@example.test")), UUID.randomUUID(), null);
     }
 
     @Test
