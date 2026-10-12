@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72.
 > **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -266,3 +266,83 @@ Mọi hàm tìm việc bằng `findByIdAndOwnerId(id, ownerId)`, không bằng `
 - RED: thân rỗng của `Due`, `Task`, `TaskService` (migration, ánh xạ và repository thật) → 30/31 test đỏ đúng lý do; GREEN ngay lần đầu.
 - Review của agent `senior-reviewer`: 1 HIGH (mục 2.5, đã sửa), 1 MEDIUM (mục 2.6, chấp nhận và ghi rõ), các LOW sửa phần lớn; 10 test mới đỏ trước khi sửa, xanh sau khi sửa.
 - `./mvnw -B -ntp verify` trên `dev` mới nhất (đã có V17 của F10): 1380 test, 0 lỗi, 4 bỏ qua; `ModularityTests` 2/2.
+
+---
+
+## 3. REST `/api/tasks` (BE-72)
+
+**Ở đâu:** `planner/api/TasksController`, các record request `CreateTaskRequest`, `UpdateTaskRequest`, `ScheduleRequest`, `RepeatBody`, record response `TaskResponse`, hai lớp nhỏ `Dues`, `Texts`; README (bảng endpoint).
+
+```text
+GET    /api/tasks                    -> 200 {generatedAt, tasks}
+GET    /api/tasks/{id}               -> 200 task
+POST   /api/tasks                    -> 201 task + Location
+PATCH  /api/tasks/{id}               -> 200 task          {title?, notes?}
+PUT    /api/tasks/{id}/schedule      -> 200 task          {dueAt, dueDate, recurrence}
+POST   /api/tasks/{id}/complete      -> 200 {task, next}
+POST   /api/tasks/{id}/reopen        -> 200 task
+DELETE /api/tasks/{id}               -> 204
+```
+
+Controller chỉ làm ba việc: lấy chủ sở hữu từ `CurrentUser`, đổi request thành lời gọi `TaskService`, đổi `Task` thành JSON. Không có logic nghiệp vụ nào ở đây.
+
+### 3.1 Ba lớp kiểm, mỗi lớp một loại lỗi
+```text
+1. Bean Validation trên record request   -> 400 VALIDATION_FAILED, kèm tên ô sai
+   (tiêu đề rỗng / quá 200, hai kiểu hạn, lặp mà không có hạn, mỗi 0 lần, hằng tuần mà không có thứ...)
+2. Domain: Recurrence.anchoredAt         -> 422 INVALID_RECURRENCE
+   (quy tắc không khớp hạn: phải đổi hạn ra ngày theo múi giờ mới biết thứ mấy)
+3. Database: CHECK của V18                -> chỉ là lưới cuối; API không bao giờ để lỗi rơi tới đây
+```
+
+Một ràng buộc dính tới **hai ô** (ví dụ "có `untilDate` thì không có `count`") viết bằng một hàm `@AssertTrue` trong record:
+
+```java
+@AssertTrue(message = "give untilDate or count, not both")
+boolean isOneEndAtMost() {
+    return untilDate == null || count == null;
+}
+```
+
+Bean Validation gọi mọi hàm `isXxx()` có `@AssertTrue`; trả `false` thì thành một lỗi ở "ô" tên `oneEndAtMost`. `RepeatBody` nằm trong `CreateTaskRequest` và có `@Valid` đứng trước, nên các ràng buộc của nó cũng được kiểm.
+
+Bẫy đã gặp lúc viết: `EnumSet.copyOf(list)` ném lỗi khi danh sách **rỗng**. Một quy tắc hằng ngày có thể gửi `"byWeekdays": []` (hợp lệ, vì không phải hằng tuần), nên phải đổi danh sách rỗng thành `null` trước khi chép.
+
+### 3.2 Vì sao `PATCH` không xóa được hạn mà phải có `PUT …/schedule` (câu gợi ý của task)
+Jackson đọc JSON vào record. Với record, hai body dưới đây cho **cùng một** object, `dueAt == null`:
+
+```text
+{"title": "A"}                    -> UpdateTaskRequest(title = "A", ..., dueAt = null)
+{"title": "A", "dueAt": null}     -> UpdateTaskRequest(title = "A", ..., dueAt = null)
+```
+
+Nên một `PATCH` kiểu "thiếu hoặc `null` là giữ nguyên" (như `PATCH /api/accounts/{id}`) không có cách nào nói "xóa hạn". Có hai lối ra:
+- Đọc JSON thô để biết ô nào có mặt (JSON Merge Patch, `JsonNullable`): phức tạp, chỉ để dùng ở một chỗ.
+- **Tách ra một endpoint thay cả cụm** (Sino chọn, D-153): `PUT /api/tasks/{id}/schedule` nhận `{dueAt, dueDate, recurrence}`, và ô nào thiếu nghĩa là "không có". `{}` xóa cả hạn lẫn quy tắc.
+
+Hạn và quy tắc vốn phải đi cùng nhau (có lặp thì phải có hạn, ngày gốc lấy từ hạn), nên gom chúng vào một lệnh `PUT` cũng đúng với nghĩa của chúng.
+
+### 3.3 Ký tự NUL: một lỗi 500 chặn trước bằng `@Pattern`
+PostgreSQL không nhận ký tự `U+0000` trong `text` / `varchar`. Nếu để lọt, câu `INSERT` hỏng và người dùng nhận `500` thay vì `400`. Mọi ô chữ của request có:
+
+```java
+@Pattern(regexp = Texts.WITHOUT_NUL, message = Texts.WITHOUT_NUL_MESSAGE)   // "[^\\x00]*"
+```
+
+Lớp ký tự `[^\x00]` khớp mọi ký tự trừ NUL, kể cả xuống dòng, nên ghi chú nhiều dòng vẫn qua. (Bẫy lúc viết: tạo file Java bằng heredoc của shell làm `\\` rút còn `\`, ra một chuỗi Java không biên dịch được; file này được viết lại bằng công cụ ghi file.)
+
+### 3.4 JSON theo hợp đồng của web
+`TaskResponse` có đúng các ô của kiểu `TaskItem` mà màn web đã dùng với dữ liệu mẫu (`fe-ui-tasks`):
+- `reminder`, `source`, `related` luôn là `null` ở đợt này. Ô vẫn có mặt để web không phải đổi kiểu khi các phần đó có sau.
+- `recurrence.byWeekdays` là `null` khi không phải hằng tuần, và luôn xếp thứ Hai trước (lấy từ `EnumSet`).
+- Múi giờ của quy tắc không ra JSON: web không cần, và đó là chi tiết của máy chủ.
+
+`POST` trả `201 Created` kèm header `Location: http://…/api/tasks/{id}`. Vì `Location` phải trỏ tới thứ đọc được, đợt này thêm `GET /api/tasks/{id}` (bảng thiết kế ban đầu không có).
+
+### 3.5 Module test phải nạp thêm `identity`
+`TaskServiceTests` là `@ApplicationModuleTest`: mặc định chỉ nạp các bean của module `planner`. Từ khi có `TasksController` (cần `CurrentUser` của module `identity`), context không dựng được nữa. Test chuyển sang `BootstrapMode.DIRECT_DEPENDENCIES` (nạp thêm các module mà `planner` dùng trực tiếp), giống các module test của `account`.
+
+### 3.6 Kiểm chứng (BE-72)
+- RED: chưa có controller → 36/38 test API đỏ (`404`); hai test xanh sẵn là `401` và thiếu CSRF, vì lớp bảo mật đứng trước controller.
+- GREEN: 38/38 test API (21 ca dữ liệu sai thành `400`, `422`, `404`, `409`, `401`, `403`, `201` + `Location`, JSON đúng hợp đồng).
+- `./mvnw -B -ntp verify`: 1418 test, 0 lỗi, 4 bỏ qua; `ModularityTests` 2/2 (`planner` giờ phụ thuộc `identity` và `common`).

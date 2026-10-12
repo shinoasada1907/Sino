@@ -36,6 +36,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.test.ApplicationModuleTest;
+import org.springframework.modulith.test.ApplicationModuleTest.BootstrapMode;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -50,10 +51,11 @@ import dev.sino.planner.domain.TaskStatus;
 import dev.sino.planner.infrastructure.TaskRepository;
 
 /**
- * Module test of the tasks on a real PostgreSQL. The test methods are not transactional, so every call commits or
- * rolls back as it would in the application. The clock is moved by hand.
+ * Module test of the tasks, with the modules the planner uses (identity for the web layer), on a real PostgreSQL. The
+ * test methods are not transactional, so every call commits or rolls back as it would in the application. The clock
+ * is moved by hand.
  */
-@ApplicationModuleTest
+@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)
 @Import({ TestcontainersConfiguration.class, TaskServiceTests.Clocks.class })
 @ActiveProfiles("test")
 class TaskServiceTests {

@@ -45,7 +45,14 @@
   - **Acceptance criteria:** spec `tasks` (phần dữ liệu và hành vi).
   - **Hints:** Level 1 — "vì sao lần kế tiếp phải tạo cùng transaction với việc đánh dấu xong?"
 
-- [ ] 1.3 **BE-72 — REST `/api/tasks`**
+- [x] 1.3 **BE-72 — REST `/api/tasks`**
+  - **Thực hiện (2026-10-12, AUTO):** `planner/api/TasksController`: `GET /api/tasks` (`{generatedAt, tasks}`), `GET /api/tasks/{id}`, `POST` (`201` + `Location`), `PATCH /{id}`, `PUT /{id}/schedule`, `POST /{id}/complete` (`{task, next}`), `POST /{id}/reopen`, `DELETE /{id}` (`204`); chủ sở hữu từ `CurrentUser`. Request: `CreateTaskRequest`, `UpdateTaskRequest` (ít nhất một ô; tiêu đề có thì không trống), `ScheduleRequest` (thiếu = không có), `RepeatBody` (`freq`, `interval`, `byWeekdays`, `byMonthDay`, `untilDate`, `count`; `@AssertTrue` cho ràng buộc giữa các ô; danh sách thứ rỗng thành `null` trước `EnumSet.copyOf`); mọi ô chữ có `@Pattern` chặn ký tự NUL (`Texts`); `Dues` gộp `dueAt` / `dueDate`. Response `TaskResponse` theo `TaskItem` của `fe-ui-tasks` (`reminder`, `source`, `related` = `null`; `byWeekdays` thứ Hai trước, `null` khi không hằng tuần; không có múi giờ). README: 8 dòng endpoint, `PUT` vào ghi chú CSRF.
+  - **Làm khác kế hoạch:**
+    - Thêm `GET /api/tasks/{id}`. **LÝ DO:** `Location` của `201` phải trỏ tới một địa chỉ đọc được; service đã có `get`.
+    - `TaskServiceTests` chuyển sang `@ApplicationModuleTest(mode = DIRECT_DEPENDENCIES)`. **LÝ DO:** có `TasksController` thì module `planner` cần `CurrentUser` của `identity`; chế độ mặc định chỉ nạp bean của chính module nên context không dựng được.
+    - `CompletedTaskResponse`, `TasksResponse` là record lồng trong controller thay vì file riêng. **LÝ DO:** chỉ controller dùng, mỗi cái hai ô.
+    - Không chạy agent review riêng cho BE-72 (tự soát: chủ sở hữu, CSRF, mọi lỗi `IllegalArgumentException` của domain đều bị chặn ở Bean Validation trước, NUL, danh sách thứ rỗng / có `null`). **LÝ DO:** lớp mỏng chỉ chuyển request; logic đã qua review ở BE-71.
+  - **Kiểm chứng (2026-10-12):** worktree riêng ở `5ade336`. RED: chưa có controller → 36/38 test của `TasksApiTests` đỏ (`404`); `401` và thiếu CSRF xanh sẵn (lớp bảo mật đứng trước). GREEN 38/38 (21 ca dữ liệu sai → `400 VALIDATION_FAILED`, `HOURLY` / ngày sai → `400 MALFORMED_REQUEST`, quy tắc không khớp hạn → `422 INVALID_RECURRENCE`, việc của người khác → `404 TASK_NOT_FOUND` ở cả 6 lệnh và không có trong danh sách, ID không phải UUID → `400`, `401`, thiếu CSRF → `403 CSRF_TOKEN_INVALID`, `409 CONCURRENT_MODIFICATION` khi service báo xung đột); `TaskServiceTests` lại xanh 39/39 sau khi đổi chế độ nạp. `./mvnw -B -ntp verify` → 1418 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS; `ModularityTests` 2/2. Commit `4b2eed3` (IN-10, web) có trên `dev` sau đó nhưng không đụng `apps/sino-api`.
   - **Goal / Why:** web gọi được mọi thao tác của việc.
   - **Depends on:** BE-71.
   - **Files:** `planner/api/{TasksController,CreateTaskRequest,UpdateTaskRequest,ScheduleRequest,RecurrenceBody,TaskResponse,TasksResponse,CompletedTaskResponse}`; `apps/sino-api/README.md`; test.
