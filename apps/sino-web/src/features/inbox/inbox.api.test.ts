@@ -77,8 +77,8 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
     expect(asked).toEqual(['?view=unread&provider=gmail'])
     expect(page.nextCursor).toBe('MjAyNi0xMC0wMQ')
     expect(page.items[0]).toEqual({ ...API_CONVERSATIONS[0], linked: [] })
-    // An item without text (only a file) has no preview.
-    expect(page.items[1]).toEqual(expect.objectContaining({ id: 'c-2', snippet: '', linked: [] }))
+    // An item without text (only a file) has no preview; an API before f05b has one account for each item.
+    expect(page.items[1]).toEqual(expect.objectContaining({ id: 'c-2', snippet: '', linked: [], accountIds: ['acc-1'] }))
   })
 
   it('asks for the next page with the cursor, and for every source without a provider', async () => {

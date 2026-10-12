@@ -55,6 +55,7 @@ export function EmailThread({
   detail,
   history,
   account,
+  accounts,
   backSearch,
   now,
   nameOf,
@@ -62,7 +63,10 @@ export function EmailThread({
   item: ConversationItem
   detail: ConversationDetail | undefined
   history: MessageHistory
+  /** The account of the primary copy: replies go from it (f05b, D-186). */
   account: InboxAccount
+  /** Every account holding the thread, the primary copy first (f05b, D-182). */
+  accounts: InboxAccount[]
   /** The filter of the list to go back to after a change. */
   backSearch: string
   now: Date
@@ -83,10 +87,13 @@ export function EmailThread({
         <div className="flex min-w-0 flex-col gap-2">
           <h2 className="text-lg leading-6.5 font-semibold tracking-[-0.01em] md:text-xl md:leading-7">{item.subject ?? item.title}</h2>
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="grid size-6 place-items-center rounded-[7px] border bg-raised text-foreground">
-              <ProviderIcon provider={item.provider} className="size-3.5" />
+            {/* The mark stays beside the source: a thread in several accounts wraps its addresses next to it (f05b). */}
+            <span className="flex min-w-0 items-start gap-2.5">
+              <span className="grid size-6 shrink-0 place-items-center rounded-[7px] border bg-raised text-foreground">
+                <ProviderIcon provider={item.provider} className="size-3.5" />
+              </span>
+              <span className="min-w-0 pt-0.5 text-sm text-muted-foreground">{threadSubtitle(item, accounts, nameOf)}</span>
             </span>
-            <span className="text-sm text-muted-foreground">{threadSubtitle(item, account, nameOf)}</span>
             {detail?.messages && <Spec>{threadMeta(detail.messages)}</Spec>}
           </div>
         </div>

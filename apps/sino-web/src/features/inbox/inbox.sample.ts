@@ -23,7 +23,7 @@ const base = {
  */
 export function createInboxSample(now: Date): InboxSample {
   const at = clockFrom(now)
-  const conversations: ConversationItem[] = [
+  const rows: Omit<ConversationItem, 'accountIds'>[] = [
     {
       ...base,
       id: 'conv-5',
@@ -152,6 +152,8 @@ export function createInboxSample(now: Date): InboxSample {
       archived: true,
     },
   ]
+  // Every sample thread is in one account; tests that need a thread in two accounts add the second (f05b).
+  const conversations: ConversationItem[] = rows.map((item) => ({ ...item, accountIds: [item.accountId] }))
 
   return {
     generatedAt: now.toISOString(),

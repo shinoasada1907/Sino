@@ -1149,6 +1149,31 @@ Trình duyệt chia chỗ trống **đều** cho các cột `auto`, và một c�
 ### 17.3 Chữ ẩn theo cỡ màn và test
 Tiền tố "Gmail · " là một `span` riêng có `hidden xl:inline`. jsdom không chạy CSS, nên test kiểm class chứ không kiểm "có thấy không"; chuyện thấy hay không do Chrome thật đo (`getComputedStyle(...).display`, độ rộng khác 0). `getByText` của Testing Library chỉ so chữ của các nút text **trực tiếp** trong phần tử, nên `getByText('an@congty.vn')` tìm được thẻ ngoài, còn `toHaveTextContent('Gmail · an@congty.vn')` kiểm cả chữ của thẻ con.
 
+## 18. Một chuỗi ở nhiều tài khoản là một dòng (f05b, phía web)
+
+### 18.0 Bức tranh
+Hai tài khoản Gmail của cùng một người gửi thư qua lại: mỗi hộp thư giữ một bản của chuỗi, Gmail cho mỗi hộp thư một mã thread riêng, nên Hộp thư hiện hai dòng. Hai bản có chung `Message-ID` của từng thư (RFC 5322), nên backend gom chúng thành một **nhóm** (change `f05b-merged-threads`, D-180…D-187). Web nhận một dòng cho mỗi nhóm, kèm danh sách tài khoản.
+
+```text
+hộp thư tienct07          hộp thư bonzed2001          Hộp thư của Sino
+thread 1a12fae4...        thread 1a12fadf...
+  Helllo     <A1@...>       Helllo     <A1@...>   ->   1 dòng: Sinon sama
+  xin chào   <B2@...>       xin chào   <B2@...>        Gmail · tienct07@gmail.com, bonzed2001@gmail.com
+  hello      <C3@...>       hello      <C3@...>        accountIds = [tienct07 (bản chính), bonzed2001]
+```
+
+### 18.1 Đổi hợp đồng mà không làm vỡ API cũ (FE-80)
+- `ConversationItem` thêm `accountIds: string[]`, bắt buộc trong kiểu của màn hình, để mọi chỗ dùng không phải hỏi "có hay không".
+- Ở kiểu của API (`ConversationResponse`) trường này là `accountIds?`. Adapter `toItem` điền `[accountId]` khi backend chưa có (D-56: thứ API thiếu thì điền ở `*.api.ts`, màn hình không biết). Nhờ vậy web chạy được cả trước và sau khi phiên backend làm xong BE-81.
+- Dữ liệu mẫu khai báo các dòng không có `accountIds` (`Omit<ConversationItem, 'accountIds'>[]`) rồi `map` thêm một lần, thay vì sửa từng object.
+- Một test cũ (IN-10) chỉ đổi `accountId` mà không đổi `accountIds` thì đỏ. Đó là dữ liệu test sai hợp đồng mới (tài khoản của bản chính phải đứng đầu `accountIds`), nên sửa dữ liệu chứ không sửa code.
+
+### 18.2 `flatMap` để giữ thứ tự và bỏ cái không tìm thấy
+`rowAccounts(item, accounts)` đi theo `item.accountIds` (bản chính trước) chứ không theo danh sách tài khoản, rồi `flatMap` mỗi mã ra 0 hoặc 1 tài khoản. Tài khoản đã gỡ khỏi danh sách tự rơi ra, không cần `filter(Boolean)` và ép kiểu.
+
+### 18.3 Một cụm không xuống dòng trong một hàng có xuống dòng
+Đầu chuỗi là hàng `flex-wrap`: icon, chữ nguồn, số thư. Khi chữ nguồn dài (hai địa chỉ), `flex-wrap` đẩy icon lên một dòng riêng. Gộp icon và chữ vào một cụm `flex items-start` không xuống dòng (`min-w-0` cho chữ) thì chữ tự xuống dòng ngay cạnh icon, còn số thư vẫn được xuống hàng như cũ.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1278,3 +1303,5 @@ Tiền tố "Gmail · " là một `span` riêng có `hidden xl:inline`. jsdom kh
 125. Mất mạng giữa lúc gửi thì vì sao thư hiện "Chưa rõ đã gửi chưa" mà vẫn có "Gửi lại", trong khi `504` thì không có?
 126. Hai phần tử flex cùng co (`flex-shrink: 1`) chia phần thiếu theo tỷ lệ nào? Vì sao điều đó cắt cả tên ngắn, còn lưới hai cột `minmax(0, auto)` thì không?
 127. Vì sao dòng thư chỉ ghi tài khoản khi nguồn có từ hai tài khoản trở lên? Dưới 1280px vì sao bỏ chữ "Gmail · "?
+128. Vì sao `accountIds` bắt buộc trong kiểu của màn hình nhưng không bắt buộc trong kiểu của API? Ai điền nó khi backend chưa có?
+129. Hai bản của một chuỗi ở hai hộp thư Gmail có chung thứ gì, và vì sao không gom theo tiêu đề?

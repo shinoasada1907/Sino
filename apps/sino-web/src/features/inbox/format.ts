@@ -124,10 +124,16 @@ export function sourceLabel(item: ConversationItem, nameOf: ProviderNameOf): str
   return item.memberCount ? `${name} · nhóm ${item.memberCount} người` : name
 }
 
-/** The account of a row when its source has more than one, so that the row can name it (D-97); null otherwise. */
-export function rowAccount<A extends { id: string; provider: string }>(item: ConversationItem, accounts: A[]): A | null {
+/**
+ * The accounts a row names when its source has more than one (D-97): every account holding the thread, the primary copy
+ * first (f05b, D-182); none otherwise.
+ */
+export function rowAccounts<A extends { id: string; provider: string }>(item: ConversationItem, accounts: A[]): A[] {
   const sameSource = accounts.filter((account) => account.provider === item.provider)
-  return sameSource.length > 1 ? (sameSource.find((account) => account.id === item.accountId) ?? null) : null
+  if (sameSource.length < 2) {
+    return []
+  }
+  return item.accountIds.flatMap((id) => sameSource.filter((account) => account.id === id))
 }
 
 /** The subtitle of a conversation in the mobile header: "Zalo · 6 người" for a group, the source name otherwise. */
@@ -210,11 +216,10 @@ export function threadMeta(messages: Message[]): string {
   return files > 0 ? `${mails.length} thư · ${files} tệp` : `${mails.length} thư`
 }
 
-/** "Gmail · an.nguyen@gmail.com", "Zalo · nhóm 6 người · qua +84 9•• ••• 218" */
-export function threadSubtitle(item: ConversationItem, account: { address: string }, nameOf: ProviderNameOf): string {
-  return item.kind === 'EMAIL'
-    ? `${nameOf(item.provider)} · ${account.address}`
-    : `${sourceLabel(item, nameOf)} · qua ${account.address}`
+/** "Gmail · an.nguyen@gmail.com", "Gmail · tienct07@gmail.com, bonzed2001@gmail.com", "Zalo · nhóm 6 người · qua +84 9•• ••• 218" */
+export function threadSubtitle(item: ConversationItem, accounts: { address: string }[], nameOf: ProviderNameOf): string {
+  const addresses = accounts.map((account) => account.address).join(', ')
+  return item.kind === 'EMAIL' ? `${nameOf(item.provider)} · ${addresses}` : `${sourceLabel(item, nameOf)} · qua ${addresses}`
 }
 
 /** The line under "Không tải được hộp thư": the code and request of the error when it carries them, then the time. */

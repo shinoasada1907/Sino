@@ -13,7 +13,7 @@ import {
   groupConversations,
   newMailText,
   previewText,
-  rowAccount,
+  rowAccounts,
   rowFlag,
   rowTime,
   sourceLabel,
@@ -81,7 +81,7 @@ export function ConversationList({
   search: string
   now: Date
   nameOf: ProviderNameOf
-  /** The owner's accounts, to name the one of a row when its source has more than one (D-97). */
+  /** The owner's accounts, to name those of a row when its source has more than one (D-97, f05b D-182). */
   accounts: InboxAccount[]
   body?: ReactNode
   switching?: boolean
@@ -191,7 +191,7 @@ export function ConversationList({
                       search={search}
                       now={now}
                       nameOf={nameOf}
-                      account={rowAccount(item, accounts)}
+                      accounts={rowAccounts(item, accounts)}
                     />
                   ))}
                 </div>
@@ -225,8 +225,9 @@ function useArrivedRows(conversations: ConversationItem[], resetKey: string): { 
 
 // Canvas `.mrow` (and `.mob-row` on mobile): unread rows are bold; a chat shows how many messages are unread, an email
 // a dot. The source next to the name and the flag line show from 1280px, as in the canvas; when the source has more
-// than one account, the row names the account at every width, after the source from 1280px (D-97). A row that has just
-// arrived slides in (only fades when motion is reduced), or appears at once when many arrived together.
+// than one account, the row names its accounts at every width, after the source from 1280px (D-97; every account of a
+// thread found in several, f05b D-182). A row that has just arrived slides in (only fades when motion is reduced), or
+// appears at once when many arrived together.
 function ConversationRow({
   item,
   selected,
@@ -234,7 +235,7 @@ function ConversationRow({
   search,
   now,
   nameOf,
-  account,
+  accounts,
 }: {
   item: ConversationItem
   selected: boolean
@@ -242,11 +243,12 @@ function ConversationRow({
   search: string
   now: Date
   nameOf: ProviderNameOf
-  account: InboxAccount | null
+  accounts: InboxAccount[]
 }) {
   const unread = item.unreadCount > 0
   const flag = rowFlag(item, now)
   const today = calendarDaysBetween(new Date(item.lastMessageAt), now) === 0
+  const named = accounts.length > 0
 
   return (
     <Link
@@ -264,11 +266,11 @@ function ConversationRow({
           <span data-slot="row-title" className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>
             {item.title}
           </span>
-          <Spec className={cn('truncate', !account && 'hidden xl:inline')}>
-            {account ? (
+          <Spec className={cn('truncate', !named && 'hidden xl:inline')}>
+            {named ? (
               <>
                 <span className="hidden xl:inline">{sourceLabel(item, nameOf)} · </span>
-                {account.address}
+                {accounts.map((account) => account.address).join(', ')}
               </>
             ) : (
               sourceLabel(item, nameOf)

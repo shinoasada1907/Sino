@@ -86,7 +86,7 @@ export function ChatThread({
             <ConversationAvatars item={item} members={members} />
             <div className="flex min-w-0 flex-col gap-0.5">
               <h1 className="truncate text-xl leading-7 font-semibold tracking-[-0.01em]">{item.title}</h1>
-              <span className="truncate text-sm text-muted-foreground">{threadSubtitle(item, account, nameOf)}</span>
+              <span className="truncate text-sm text-muted-foreground">{threadSubtitle(item, [account], nameOf)}</span>
             </div>
             {expiredAt && (
               <Status tone="err" className="ml-2 max-xl:hidden">

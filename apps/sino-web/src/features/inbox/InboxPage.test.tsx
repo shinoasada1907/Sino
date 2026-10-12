@@ -66,7 +66,9 @@ describe('Hộp thư on desktop', () => {
   it('names the account of each row when a source has more than one, at every width', async () => {
     const inbox = createInboxSample(NOW)
     inbox.accounts.push({ ...inbox.accounts[0], id: 'acc-work', externalAccountId: 'an@congty.vn', address: 'an@congty.vn' })
-    inbox.conversations = inbox.conversations.map((item) => (item.title === 'Thu Trang' ? { ...item, accountId: 'acc-work' } : item))
+    inbox.conversations = inbox.conversations.map((item) =>
+      item.title === 'Thu Trang' ? { ...item, accountId: 'acc-work', accountIds: ['acc-work'] } : item,
+    )
     renderApp('/inbox', { shell: createShellSample(NOW), inbox })
 
     // Below 1280px the icon tells the source, so only the address shows; from 1280px "Gmail · …" as the canvas source.
@@ -78,6 +80,17 @@ describe('Hộp thư on desktop', () => {
     expect(home).toHaveTextContent('Gmail · an.nguyen@gmail.com')
     expect(home).not.toHaveClass('hidden')
     expect(within(row(/Gia đình/)).getByText('Zalo · nhóm 6 người')).toHaveClass('hidden', 'xl:inline')
+  })
+
+  it('names every account of a thread found in two accounts, in its row and its header (f05b, D-182)', async () => {
+    const inbox = createInboxSample(NOW)
+    inbox.accounts.push({ ...inbox.accounts[0], id: 'acc-work', externalAccountId: 'an@congty.vn', address: 'an@congty.vn' })
+    inbox.conversations = inbox.conversations.map((item) => (item.id === 'conv-1' ? { ...item, accountIds: ['acc-gmail', 'acc-work'] } : item))
+    renderApp('/inbox/conv-1', { shell: createShellSample(NOW), inbox })
+
+    const label = await within(await list().findByRole('link', { name: /Trần Minh Anh/ })).findByText('an.nguyen@gmail.com, an@congty.vn')
+    expect(label).toHaveTextContent('Gmail · an.nguyen@gmail.com, an@congty.vn')
+    expect(await thread().findByText('Gmail · an.nguyen@gmail.com, an@congty.vn')).toBeInTheDocument()
   })
 
   it('counts each source and quick filter, and lists the accounts', async () => {

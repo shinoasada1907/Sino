@@ -87,6 +87,8 @@ export function InboxPage() {
     ? (inbox?.counts.byProvider.find((entry) => entry.provider === filter.source)?.unread ?? 0)
     : (inbox?.counts.unread ?? 0)
   const account = item && inbox?.accounts.find((entry) => entry.id === item.accountId)
+  // Every account holding the open thread, the primary copy first (f05b, D-182).
+  const threadAccounts = item && inbox ? item.accountIds.flatMap((id) => inbox.accounts.filter((entry) => entry.id === id)) : []
   const chat = item?.kind === 'CHAT' && account !== undefined
   const mobileHeader = item && (
     <MobilePageHeader
@@ -199,7 +201,17 @@ export function InboxPage() {
                 </div>
               )}
               {item && account && (
-                <EmailThread key={item.id} item={item} detail={detail} history={opened.history} account={account} backSearch={search} now={now} nameOf={nameOf} />
+                <EmailThread
+                  key={item.id}
+                  item={item}
+                  detail={detail}
+                  history={opened.history}
+                  account={account}
+                  accounts={threadAccounts}
+                  backSearch={search}
+                  now={now}
+                  nameOf={nameOf}
+                />
               )}
             </section>
           </div>

@@ -50,6 +50,8 @@ interface CountsResponse {
 interface ConversationResponse {
   id: string
   accountId: string
+  /** Absent before f05b: the item is then in one account. */
+  accountIds?: string[]
   provider: string
   kind: ConversationKind
   title: string
@@ -118,8 +120,8 @@ interface MessageResponse {
   clientMessageId?: string | null
 }
 
-function toItem({ snippet, linked, ...rest }: ConversationResponse): ConversationItem {
-  return { ...rest, snippet: snippet ?? '', linked: linked ?? [] }
+function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse): ConversationItem {
+  return { ...rest, accountIds: accountIds ?? [rest.accountId], snippet: snippet ?? '', linked: linked ?? [] }
 }
 
 function toAccount({ id, provider, externalAccountId, displayName, address, status }: AccountResponse): InboxAccount {

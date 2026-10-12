@@ -25,7 +25,7 @@ import {
   notArrivedSince,
   paragraphs,
   previewText,
-  rowAccount,
+  rowAccounts,
   rowFlag,
   rowTime,
   sendBlock,
@@ -51,6 +51,7 @@ function item(extra: Partial<ConversationItem>): ConversationItem {
   return {
     id: 'c',
     accountId: 'acc-gmail',
+    accountIds: ['acc-gmail'],
     provider: 'gmail',
     kind: 'EMAIL',
     title: 'Trần Minh Anh',
@@ -169,17 +170,21 @@ describe('row texts', () => {
     expect(sourceLabel(item({ provider: 'zalo', kind: 'CHAT', memberCount: 6 }), nameOf)).toBe('Zalo · nhóm 6 người')
   })
 
-  it('names the account of a row only when its source has more than one', () => {
+  it('names the accounts of a row only when its source has more than one', () => {
     const home = { id: 'acc-home', provider: 'gmail', address: 'an.nguyen@gmail.com' }
     const work = { id: 'acc-work', provider: 'gmail', address: 'an@congty.vn' }
     const zalo = { id: 'acc-zalo', provider: 'zalo', address: '+84 9•• ••• 218' }
     const accounts = [home, zalo, work]
+    const on = (...accountIds: string[]) => item({ accountId: accountIds[0], accountIds })
 
-    expect(rowAccount(item({ accountId: 'acc-work' }), accounts)).toBe(work)
-    expect(rowAccount(item({ accountId: 'acc-home' }), accounts)).toBe(home)
-    expect(rowAccount(item({ accountId: 'acc-zalo', provider: 'zalo' }), accounts)).toBeNull()
-    expect(rowAccount(item({ accountId: 'acc-home' }), [home, zalo])).toBeNull()
-    expect(rowAccount(item({ accountId: 'acc-gone' }), accounts)).toBeNull()
+    expect(rowAccounts(on('acc-work'), accounts)).toEqual([work])
+    expect(rowAccounts(on('acc-home'), accounts)).toEqual([home])
+    // A thread found in two accounts names both, the primary copy first (f05b, D-182).
+    expect(rowAccounts(on('acc-work', 'acc-home'), accounts)).toEqual([work, home])
+    expect(rowAccounts(on('acc-home', 'acc-gone'), accounts)).toEqual([home])
+    expect(rowAccounts({ ...on('acc-zalo'), provider: 'zalo' }, accounts)).toEqual([])
+    expect(rowAccounts(on('acc-home'), [home, zalo])).toEqual([])
+    expect(rowAccounts(on('acc-gone'), accounts)).toEqual([])
   })
 
   it('counts what is unread', () => {
@@ -246,11 +251,12 @@ describe('the open conversation', () => {
   it('says where a conversation comes from', () => {
     const gmail = { address: 'an.nguyen@gmail.com' }
     const zalo = { address: '+84 9•• ••• 218' }
-    expect(threadSubtitle(item({}), gmail, nameOf)).toBe('Gmail · an.nguyen@gmail.com')
-    expect(threadSubtitle(item({ provider: 'zalo', kind: 'CHAT', memberCount: 6 }), zalo, nameOf)).toBe(
+    expect(threadSubtitle(item({}), [gmail], nameOf)).toBe('Gmail · an.nguyen@gmail.com')
+    expect(threadSubtitle(item({}), [gmail, { address: 'an@congty.vn' }], nameOf)).toBe('Gmail · an.nguyen@gmail.com, an@congty.vn')
+    expect(threadSubtitle(item({ provider: 'zalo', kind: 'CHAT', memberCount: 6 }), [zalo], nameOf)).toBe(
       'Zalo · nhóm 6 người · qua +84 9•• ••• 218',
     )
-    expect(threadSubtitle(item({ provider: 'messenger', kind: 'CHAT' }), { address: 'an.nguyen.92' }, nameOf)).toBe(
+    expect(threadSubtitle(item({ provider: 'messenger', kind: 'CHAT' }), [{ address: 'an.nguyen.92' }], nameOf)).toBe(
       'Messenger · qua an.nguyen.92',
     )
   })

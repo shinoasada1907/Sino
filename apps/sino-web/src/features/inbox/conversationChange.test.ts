@@ -5,6 +5,7 @@ import type { ConversationItem, InboxCounts } from './inbox.types'
 const item: ConversationItem = {
   id: 'c-1',
   accountId: 'acc-1',
+  accountIds: ['acc-1'],
   provider: 'gmail',
   kind: 'EMAIL',
   title: 'Trần Minh Anh',

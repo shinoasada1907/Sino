@@ -28,8 +28,11 @@
 
 > Mỗi task: test viết trước (đỏ rồi xanh); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build`; Chrome một lượt ở các cỡ task đụng tới; file kiến thức phase 1 + `.docx`, `genoffice docs check`; commit riêng trên `dev`. Làm theo Contract trước, test bằng MSW.
 
-- [ ] 2.1 **FE-80 — `accountIds`, dòng và đầu chuỗi ghi mọi tài khoản (D-182)**
-  - **Thực hiện:** design mục Web: `accountIds` trong kiểu, adapter (thiếu → `[accountId]`), dữ liệu mẫu, fixture MSW; `rowAccounts`; nhãn dòng; đầu chuỗi.
+- [x] 2.1 **FE-80 — `accountIds`, dòng và đầu chuỗi ghi mọi tài khoản (D-182)**
+  - **Thực hiện (2026-10-12, AUTO):** `ConversationItem.accountIds` (bắt buộc); `inbox.api.ts` `accountIds?` → `[accountId]` khi API chưa có; dữ liệu mẫu (`rows` rồi thêm `accountIds`), fixture `c-1` là chuỗi gộp `acc-1` + `acc-2`, `c-2` như API cũ; `format.rowAccount` → `rowAccounts` (theo `accountIds`, bản chính trước); `threadSubtitle(item, accounts[], …)` nối địa chỉ bằng ", "; `ConversationList` ghi mọi địa chỉ; `EmailThread` nhận `accounts` (InboxPage tính từ `accountIds`); `ChatThread` truyền `[account]` (chat không gộp).
+  - **Làm khác kế hoạch:** thêm một sửa bố cục ở đầu chuỗi: icon và chữ nguồn gộp thành một cụm không xuống dòng. **LÝ DO:** Chrome cho thấy hai địa chỉ đẩy icon lên một dòng riêng ở cả 1440 và 390.
+  - **Kiểm chứng (2026-10-12):** RED 4/4 (`rowAccounts` chưa có; `threadSubtitle` ra "Gmail · undefined"; adapter thiếu `accountIds`; màn không có nhãn hai địa chỉ), GREEN; test IN-10 đỏ vì dữ liệu test chỉ đổi `accountId` → sửa dữ liệu theo hợp đồng mới. Chrome thật (headless, `vite` :5174, API qua CDP, chuỗi gộp `c-1`): dòng ghi hai địa chỉ ở 1440/1024/390 (cắt "…" khi thiếu chỗ, tài khoản chính luôn đọc được), một tài khoản giữ "Gmail" từ 1280px; đầu chuỗi ghi đủ hai địa chỉ, icon cùng hàng với chữ (lần 1 icon ở dòng riêng → sửa); thư một tài khoản không đổi; không cuộn ngang. `pnpm lint` 0, `tsc -b` 0, `pnpm test` 557/557 (67 file), `pnpm build` 0. File kiến thức mục 18 + `.docx`, `genoffice docs check` 0 lỗi.
+  - **Đã biết, ngoài phạm vi:** cột trái của đầu chuỗi ở 1440 hẹp (~176px) vì cụm nút bên phải (có từ IN-02, ghi ở IN-06), nên hai địa chỉ xuống 3 dòng.
   - **Acceptance criteria:** spec `inbox-merged-threads` *Dòng của chuỗi gộp ghi mọi tài khoản*.
 
 - [ ] 2.2 **FE-81 — Mở chuỗi gộp: "Bạn · địa chỉ", "Gửi từ", chuyển mã (D-183, D-184, D-186)**

@@ -69,7 +69,10 @@ export interface InboxCounts {
 
 export interface ConversationItem {
   id: string
+  /** The account of the primary copy: replies go from it (f05b, D-181). */
   accountId: string
+  /** Every account that holds this thread, the primary copy first; one for a thread of one account (f05b, D-182). */
+  accountIds: string[]
   provider: ProviderType
   kind: ConversationKind
   /** The other person or the group. */

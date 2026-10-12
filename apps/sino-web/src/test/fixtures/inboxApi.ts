@@ -3,6 +3,8 @@ export const API_CONVERSATIONS = [
   {
     id: 'c-1',
     accountId: 'acc-1',
+    // The thread is in two accounts of the owner (f05b, D-182); c-2 comes from an API without `accountIds` yet.
+    accountIds: ['acc-1', 'acc-2'],
     provider: 'gmail',
     kind: 'EMAIL',
     title: 'Trần Minh Anh',
