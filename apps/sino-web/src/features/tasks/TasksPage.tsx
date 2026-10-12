@@ -1,5 +1,5 @@
 import { ListFilter } from 'lucide-react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { providerNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -11,6 +11,7 @@ import { Segmented } from '@/shared/ui/segmented'
 import { Spec } from '@/shared/ui/spec'
 import { QuickAdd } from './components/QuickAdd'
 import { TaskDetail } from './components/TaskDetail'
+import { TaskFormDialog, TaskFormPage, type EditState } from './components/TaskForm'
 import { TaskRow } from './components/TaskRow'
 import { TasksLoadFailed, TasksSkeleton } from './components/TaskStates'
 import { filterTasks, groupTasks, openCountLabel, taskMeta, tasksHeadline, type TaskFilter } from './format'
@@ -27,9 +28,13 @@ const FILTERS: { value: TaskFilter; label: string }[] = [
  * The Việc cần làm screen (canvas `Tasks`, `MobileTasks`): the list in groups with its filter and the quick add, and
  * from 1280 px a right column for the open task, only while one is open. `/tasks/:taskId` opens a task; below 1280 px its detail takes the place
  * of the list, under a sub-page header on a phone (D-82). Below 768 px the list has its own header with a "Lọc" menu.
+ * `/tasks/:taskId/edit` opens the form of the task: a dialog over the page from 768 px, a page of its own below (D-158).
  */
 export function TasksPage() {
   const { taskId } = useParams()
+  const editing = useMatch('/tasks/:taskId/edit') !== null
+  const location = useLocation()
+  const navigate = useNavigate()
   const { tasks, providers, receivedAt, error, retry } = useTasks()
   const clock = useNow()
   // Data that arrives between two clock ticks is measured from its arrival, as in the top bar.
@@ -48,6 +53,14 @@ export function TasksPage() {
 
   const nameOf = providerNameOf(providers)
   const selected = taskId === undefined ? undefined : tasks.find((task) => task.id === taskId)
+  const detailPath = `/tasks/${taskId}${search}`
+  // Back to the detail it was opened from, or in place of the form when it was opened by its address.
+  const closeForm = () => ((location.state as EditState | null)?.fromDetail ? navigate(-1) : navigate(detailPath, { replace: true }))
+
+  if (editing && selected && !wide) {
+    return <TaskFormPage key={selected.id} task={selected} back={detailPath} onClose={closeForm} />
+  }
+
   const headline = tasksHeadline(tasks, now)
   const groups = groupTasks(filterTasks(tasks, filter), now)
   const filterName = FILTERS.find((option) => option.value === filter)!.label
@@ -141,6 +154,7 @@ export function TasksPage() {
                 now={now}
                 nameOf={nameOf}
                 close={`/tasks${search}`}
+                edit={`/tasks/${selected.id}/edit${search}`}
                 onToggle={() => toggle(selected)}
                 onSaveNotes={(notes) => saveNotes({ task: selected, notes })}
               />
@@ -155,6 +169,7 @@ export function TasksPage() {
           </div>
         </aside>
       )}
+      {editing && selected && <TaskFormDialog key={selected.id} task={selected} onClose={closeForm} />}
     </div>
   )
 }

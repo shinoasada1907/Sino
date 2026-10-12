@@ -443,11 +443,3 @@ function before(minutes: number): string {
 export function eventReminder(event: CalendarEvent, timeZone?: string): string {
   return event.reminder ? `${formatClock(new Date(event.reminder.at), timeZone)} · ${before(event.reminder.offsetMinutes)} trước` : 'Không'
 }
-
-/** The time zone of the legend: "Giờ Việt Nam · GMT+7"; another zone by its name. */
-export function timeZoneLabel(now: Date, timeZone?: string): string {
-  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
-  const offset = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(now).find((part) => part.type === 'timeZoneName')?.value
-  const name = zone === 'Asia/Ho_Chi_Minh' || zone === 'Asia/Saigon' ? 'Việt Nam' : zone
-  return `Giờ ${name} · ${offset}`
-}

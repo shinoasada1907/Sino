@@ -229,17 +229,13 @@ describe('Việc cần làm on desktop', () => {
     expect(detail().getByRole('link', { name: 'Về danh sách việc' })).toHaveAttribute('href', '/tasks')
   })
 
-  it('leaves the task as it is when a button without a flow yet is pressed', async () => {
-    const { router, queryClient } = open('/tasks/task-contract')
-    const user = userEvent.setup()
-    const before = queryClient.getQueryData<TasksData>(TASKS_QUERY_KEY)
+  it('shows only the actions that have a flow, and edits with the filter kept', () => {
+    open('/tasks/task-contract?filter=messages')
 
-    // "Thêm thao tác" and "Nhắc lại sau…" are hidden until they have a flow (FE-70); "Xóa task" gets one in FE-71.
+    // "Thêm thao tác" and "Nhắc lại sau…" are hidden until they have a flow (FE-70).
     expect(detail().queryByRole('button', { name: 'Thêm thao tác' })).toBeNull()
     expect(detail().queryByRole('button', { name: 'Nhắc lại sau…' })).toBeNull()
-    await user.click(detail().getByRole('button', { name: 'Xóa task' }))
-
-    expect(router.state.location.pathname).toBe('/tasks/task-contract')
-    expect(queryClient.getQueryData<TasksData>(TASKS_QUERY_KEY)).toBe(before)
+    expect(detail().getByRole('link', { name: 'Sửa' })).toHaveAttribute('href', '/tasks/task-contract/edit?filter=messages')
+    expect(detail().getByRole('button', { name: 'Xóa task' })).toBeInTheDocument()
   })
 })

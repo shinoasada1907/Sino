@@ -6,6 +6,7 @@ import {
   formatDayMonth,
   formatIn,
   formatWhen,
+  timeZoneLabel,
   weekdayName,
 } from './local'
 
@@ -50,5 +51,10 @@ describe('local time', () => {
     expect(formatIn(at('2026-10-02T09:00:00Z'), now)).toBe('sau 2 giờ')
     expect(formatIn(at('2026-10-04T07:05:00Z'), now)).toBe('sau 2 ngày')
     expect(formatIn(at('2026-10-02T07:00:00Z'), now)).toBe('đang diễn ra')
+  })
+
+  it('names the time zone of the Lịch legend and the forms', () => {
+    expect(timeZoneLabel(now, 'Asia/Ho_Chi_Minh')).toBe('Giờ Việt Nam · GMT+7')
+    expect(timeZoneLabel(now, 'Europe/Paris')).toBe('Giờ Europe/Paris · GMT+2')
   })
 })

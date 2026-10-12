@@ -48,3 +48,18 @@ export async function reopenTask(task: TaskItem): Promise<TaskItem> {
 export async function saveTaskNotes(task: TaskItem, notes: string): Promise<TaskItem> {
   return api.patch<TaskItem>(path(task), { notes })
 }
+
+/** `PATCH /api/tasks/{id}` with `{ title, notes }` (the form). */
+export async function updateTask(task: TaskItem, fields: { title: string; notes: string }): Promise<TaskItem> {
+  return api.patch<TaskItem>(path(task), fields)
+}
+
+/** `PUT /api/tasks/{id}/schedule`: the due and the repeat rule together; nulls take them away (D-153). */
+export async function scheduleTask(task: TaskItem, schedule: Pick<TaskItem, 'dueAt' | 'dueDate' | 'recurrence'>): Promise<TaskItem> {
+  return api.put<TaskItem>(path(task, '/schedule'), schedule)
+}
+
+/** `DELETE /api/tasks/{id}`: this task only; the done occurrences of its series stay. */
+export async function deleteTask(task: TaskItem): Promise<void> {
+  return api.delete<void>(path(task))
+}

@@ -120,6 +120,14 @@ export function formatWhen(date: Date, now: Date, timeZone?: string): string {
   return days === 1 ? 'Hôm qua' : formatDayMonth(date, timeZone)
 }
 
+/** The time zone of the Lịch legend and the forms: "Giờ Việt Nam · GMT+7"; another zone by its name. */
+export function timeZoneLabel(now: Date, timeZone?: string): string {
+  const zone = timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  const offset = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(now).find((part) => part.type === 'timeZoneName')?.value
+  const name = zone === 'Asia/Ho_Chi_Minh' || zone === 'Asia/Saigon' ? 'Việt Nam' : zone
+  return `Giờ ${name} · ${offset}`
+}
+
 /** How long until something starts: "sau 15 phút", "sau 2 giờ", "sau 2 ngày". */
 export function formatIn(date: Date, now: Date): string {
   const ms = date.getTime() - now.getTime()

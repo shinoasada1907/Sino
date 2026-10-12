@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { ProviderInfo } from '@/shared/domain'
-import { addTask, completeTask, fetchTasks, reopenTask, saveTaskNotes } from './tasks.api'
+import { addTask, completeTask, deleteTask, fetchTasks, reopenTask, saveTaskNotes, scheduleTask, updateTask } from './tasks.api'
 import type { CompletedTask, TaskItem, TasksData } from './tasks.types'
 
 export const TASKS_QUERY_KEY = ['tasks'] as const
@@ -85,6 +85,46 @@ export function useToggleTask() {
         return next && !updated.some((item) => sameOccurrence(item, next)) ? [...updated, next] : updated
       }),
     onError: (_error, _task, context) => restore(queryClient, context?.saved),
+    onSettled: () => refreshCalendar(queryClient),
+  })
+}
+
+export interface TaskChanges {
+  fields?: { title: string; notes: string }
+  schedule?: Pick<TaskItem, 'dueAt' | 'dueDate' | 'recurrence'>
+}
+
+/**
+ * Saves the form of a task: the due and the rule first (the change the server is likeliest to refuse, before anything
+ * else is saved), then the title and the notes. Not guessed ahead: the form waits for the server's answer, and each
+ * answer replaces the task in the list as it comes.
+ */
+export function useUpdateTask() {
+  const queryClient = useQueryClient()
+  const replace = (task: TaskItem) => setTasks(queryClient, (tasks) => tasks.map((item) => (item.id === task.id ? task : item)))
+  return useMutation({
+    mutationFn: async ({ task, changes }: { task: TaskItem; changes: TaskChanges }) => {
+      let saved = task
+      if (changes.schedule) {
+        saved = await scheduleTask(saved, changes.schedule)
+        replace(saved)
+      }
+      if (changes.fields) {
+        saved = await updateTask(saved, changes.fields)
+        replace(saved)
+      }
+      return saved
+    },
+    onSettled: () => refreshCalendar(queryClient),
+  })
+}
+
+/** Deletes a task once the server has; it leaves the list then. */
+export function useDeleteTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteTask,
+    onSuccess: (_nothing, task) => setTasks(queryClient, (tasks) => tasks.filter((item) => item.id !== task.id)),
     onSettled: () => refreshCalendar(queryClient),
   })
 }

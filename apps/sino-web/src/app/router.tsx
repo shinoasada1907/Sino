@@ -54,6 +54,11 @@ export const routes: RouteObject[] = [
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
           },
           {
+            path: 'tasks/:taskId/edit',
+            element: <TasksPage />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
             path: 'accounts/:accountId',
             element: <AccountDetailPage />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,

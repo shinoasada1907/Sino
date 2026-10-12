@@ -15,7 +15,6 @@ import {
   rangeOf,
   reminderTitle,
   shiftAnchor,
-  timeZoneLabel,
   weekDays,
   weekStart,
 } from './format'
@@ -336,10 +335,5 @@ describe('the detail of an appointment', () => {
     expect(eventReminder(at('17:00', 90), TZ)).toBe('17:00 · 1 giờ 30 phút trước')
     expect(eventReminder(at('09:00', 1440), TZ)).toBe('09:00 · 1 ngày trước')
     expect(eventReminder(event({ id: 'a' }), TZ)).toBe('Không')
-  })
-
-  it('names the time zone of the legend', () => {
-    expect(timeZoneLabel(now, 'Asia/Ho_Chi_Minh')).toBe('Giờ Việt Nam · GMT+7')
-    expect(timeZoneLabel(now, 'Europe/Paris')).toBe('Giờ Europe/Paris · GMT+2')
   })
 })

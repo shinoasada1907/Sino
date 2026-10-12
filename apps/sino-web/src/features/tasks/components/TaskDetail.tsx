@@ -1,4 +1,4 @@
-import { Bell, Calendar, Check, ChevronRight, SquareCheck, StickyNote, Trash2, X, type LucideIcon } from 'lucide-react'
+import { Bell, Calendar, Check, ChevronRight, Pencil, SquareCheck, StickyNote, Trash2, X, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
@@ -9,6 +9,8 @@ import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
 import { createdLabel, detailDue, detailReminder, recurrenceLabel } from '../format'
 import type { RelatedItem, TaskItem } from '../tasks.types'
+import { DeleteTaskDialog } from './DeleteTaskDialog'
+import type { EditState } from './TaskForm'
 import { TaskCheck } from './TaskCheck'
 
 const RELATED: Record<RelatedItem['kind'], { icon: LucideIcon; to: (item: RelatedItem) => string }> = {
@@ -21,21 +23,24 @@ const RELATED: Record<RelatedItem['kind'], { icon: LucideIcon; to: (item: Relate
  * Canvas `Tasks`, block "Chi tiết việc": the title with its done box, due, reminder, repeat and when it was made, the
  * message it came from (opens the inbox), the notes (saved when the box loses focus), related items and the actions.
  * The reminder, the message and the related items show only when the task has them: the API has none yet (D-150).
- * "Thêm thao tác" and "Nhắc lại sau…" are left out until they have a flow; "Xóa task" has none yet (FE-71).
+ * "Thêm thao tác" and "Nhắc lại sau…" are left out until they have a flow; "Sửa" opens the form (FE-71).
  */
 export function TaskDetail({
   task,
   now,
   nameOf,
   close,
+  edit,
   onToggle,
   onSaveNotes,
 }: {
   task: TaskItem
   now: Date
   nameOf: ProviderNameOf
-  /** Where "Đóng" goes: the list with its filter. */
+  /** Where "Đóng" goes, and the deleted task: the list with its filter. */
   close: string
+  /** The form of the task, with the filter. */
+  edit: string
   onToggle: () => void
   onSaveNotes: (notes: string) => void
 }) {
@@ -152,9 +157,21 @@ export function TaskDetail({
           <Check strokeWidth={1.6} />
           {done ? 'Mở lại' : 'Đánh dấu xong'}
         </Button>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="Xóa task" title="Xóa task">
-          <Trash2 strokeWidth={1.6} />
+        <Button asChild variant="secondary" size="sm">
+          <Link to={edit} state={{ fromDetail: true } satisfies EditState}>
+            <Pencil strokeWidth={1.6} />
+            Sửa
+          </Link>
         </Button>
+        <DeleteTaskDialog
+          task={task}
+          after={close}
+          trigger={
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Xóa task" title="Xóa task" className="ml-auto">
+              <Trash2 strokeWidth={1.6} />
+            </Button>
+          }
+        />
       </div>
     </>
   )

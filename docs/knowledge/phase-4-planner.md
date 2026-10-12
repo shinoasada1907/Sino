@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71.
 > **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -406,3 +406,76 @@ Màn Lịch cũng hiện việc có hạn. Sau mỗi thay đổi việc, hook g�
 ### 4.7 Kiểm chứng (FE-70)
 - RED 15 test, GREEN; `pnpm lint` 0 cảnh báo, `tsc -b` 0, `vitest` 556/556, `pnpm build` 0.
 - Chrome với backend thật: thêm, xong (máy chủ tạo lần kế tiếp T5 12/11), ghi chú (`PATCH` 200), tải lại vẫn còn; số trên điều hướng theo dữ liệu thật; 1440 và 390 (iframe 390 px), không cuộn ngang, không lỗi console.
+
+---
+
+## 5. Biểu mẫu sửa việc và xóa việc (FE-71)
+
+**Ở đâu** (tính từ `apps/sino-web/src/`): `features/tasks/taskForm.ts`; `features/tasks/components/TaskForm.tsx`, `RecurrenceField.tsx`, `DeleteTaskDialog.tsx`, `fields.tsx`, `fieldProps.ts`; `tasks.api.ts` (`updateTask`, `scheduleTask`, `deleteTask`); `useTasks.ts` (`useUpdateTask`, `useDeleteTask`); `TasksPage.tsx`; `app/router.tsx` (route `tasks/:taskId/edit`); `shared/time/local.ts` (`timeZoneLabel`, chuyển từ Lịch sang). Test: `taskForm.test.ts`, `TaskForm.test.tsx`, `test/tasksBackend.ts`.
+
+```text
+"Sửa" trong chi tiết ──> /tasks/:id/edit ──> TasksPage
+                                               |  từ 768 px : TaskFormDialog (hộp thoại trên trang)
+                                               |  dưới 768 px: TaskFormPage (trang riêng, "Lưu" trên đầu)
+                                               v
+                          useTaskForm: values = formOf(task)
+                                               |  "Lưu": validate(values) --lỗi--> hiện cạnh ô, không gửi
+                                               |  scheduleOf(values) khác của việc? --> PUT /api/tasks/{id}/schedule
+                                               |  tiêu đề / ghi chú khác?           --> PATCH /api/tasks/{id}
+                                               v
+                          xong: đóng biểu mẫu | lỗi: errorsOf(error) --> cạnh ô, hoặc dưới biểu mẫu
+```
+
+### 5.1 Logic thuần tách khỏi giao diện
+**Là gì:** `taskForm.ts` không có React: bốn hàm nhận dữ liệu, trả dữ liệu. `formOf(task)` đọc một việc thành giá trị của biểu mẫu; `scheduleOf(values)` dựng thân của `PUT …/schedule`; `validate(values)` trả các lỗi trước khi gửi; `errorsOf(error)` đặt lỗi của máy chủ vào ô.
+**Vì sao:** phần khó của biểu mẫu là quy đổi (giờ địa phương sang UTC, lựa chọn "Hằng tuần" thành quy tắc, ngày gốc hằng tháng), không phải vẽ ô. Tách ra thì 15 test chạy trong vài mili giây, không cần dựng màn, và component chỉ còn nối ô với giá trị.
+**Bẫy:** `new Date('2026-10-09T17:00:00')` (không có `Z`) là 17:00 **theo giờ của trình duyệt**, rồi `toISOString()` đổi sang UTC (`10:00:00.000Z` ở Việt Nam). Test chỉ đúng khi múi giờ cố định: `vite.config.ts` đặt `TZ: 'Asia/Ho_Chi_Minh'` cho Vitest, CI chạy UTC cũng ra cùng kết quả.
+
+### 5.2 Vì sao biểu mẫu có đường dẫn riêng chứ không chỉ là state của trang (câu gợi ý của task)
+Nếu biểu mẫu chỉ là một biến `open` trong `TasksPage`, ba thứ hỏng: trên điện thoại nút Back của máy rời cả màn Việc cần làm thay vì đóng biểu mẫu; tải lại trang mất biểu mẫu; không gửi được đường dẫn "mở biểu mẫu của việc này". Với `/tasks/:id/edit`, trình duyệt giữ chỗ đang đứng như mọi trang khác (D-82, D-158).
+Đóng biểu mẫu cũng phải tính tới lịch sử. Mở từ nút "Sửa" thì lịch sử là `[danh sách, chi tiết, biểu mẫu]`; nếu "Lưu" xong lại *đẩy* thêm chi tiết thì Back sẽ mở lại biểu mẫu cũ. Nên nút "Sửa" gắn một dấu vào lịch sử, và lúc đóng thì:
+
+```ts
+const fromDetail: EditState = { fromDetail: true }
+<Link to={edit} state={fromDetail}>Sửa</Link>
+...
+const closeForm = () => (location.state?.fromDetail ? navigate(-1) : navigate(detailPath, { replace: true }))
+```
+
+```text
+mở từ "Sửa":            [danh sách, chi tiết, biểu mẫu]  --navigate(-1)-->  [danh sách, chi tiết]
+mở thẳng bằng địa chỉ:  [biểu mẫu]                        --replace------->  [chi tiết]
+```
+
+Xóa việc dùng cùng ý: về danh sách bằng `replace`, nên Back không quay về trang chi tiết của một việc đã mất.
+
+### 5.3 Chỉ gửi phần đã đổi, và gửi hạn trước
+Biểu mẫu so giá trị hiện tại với việc đang lưu, và chỉ gửi phần khác:
+
+```ts
+if (JSON.stringify(scheduleOf(values)) !== JSON.stringify(scheduleOf(formOf(task)))) changes.schedule = …
+```
+
+Cả hai vế đều đi qua `formOf` rồi `scheduleOf`, nên biểu mẫu chưa đụng tới luôn "không đổi", kể cả khi máy chủ lưu dạng hơi khác (giây lẻ, thứ tự các thứ). **Vì sao:** đặt lại quy tắc là bắt đầu chuỗi mới (BE-71, D-159), không nên xảy ra chỉ vì người dùng sửa tiêu đề; và một quy tắc cũ không còn khớp sẽ làm cả lần sửa tiêu đề bị 422.
+Thứ tự: `PUT …/schedule` trước, `PATCH` sau, vì 422 là lỗi hay gặp nhất; nó đến trước khi có gì được lưu. Mỗi câu trả lời thay việc trong cache ngay, nên nếu `PUT` được mà `PATCH` lỗi thì lần "Lưu" sau chỉ còn gửi `PATCH`.
+
+### 5.4 Một quy tắc, hai cách nhìn: lựa chọn có sẵn và "Tùy chỉnh…"
+Máy chủ chỉ biết một kiểu `Recurrence`. Biểu mẫu nhìn nó theo hai cách: "Hằng ngày / tuần / tháng / năm" là quy tắc mỗi 1, không điểm kết thúc (hằng tuần thì đúng thứ của ngày hạn); mọi thứ khác là "Tùy chỉnh…" với mỗi N, các thứ, điểm kết thúc. Lựa chọn có sẵn được dựng lại từ ngày mỗi lần lưu, nên đổi hạn từ thứ Hai sang thứ Sáu thì "Hằng tuần" tự thành "mỗi thứ Sáu".
+Ngày gốc hằng tháng là chỗ tinh tế: quy tắc bắt đầu ngày 31, lần tháng 11 rơi vào 30/11. Biểu mẫu giữ `byMonthDay = 31` khi ngày còn "khớp" (bằng, hoặc lớn hơn và ngày là cuối tháng); người dùng dời sang 29/11 thì gửi `null` để máy chủ lấy ngày theo hạn mới.
+
+### 5.5 Lỗi hiện đúng chỗ
+Hai nguồn lỗi, một cách hiện:
+- `validate` chặn trước khi gửi những gì chắc chắn sai (tiêu đề trống, giờ trống, mỗi N ngoài 1…99, hằng tuần không chọn thứ nào, ngày kết thúc trước hạn, số lần ngoài 1…999).
+- `errorsOf` đọc lỗi của máy chủ: `422 INVALID_RECURRENCE` đặt ở ô Lặp lại; `400` đọc tên trường trong Problem Details (`title…`, `dueAt`, `oneDueAtMost`, `recurrence.interval`, `repeatingWithADue`…) để chọn ô; còn lại là một dòng dưới biểu mẫu. Câu chữ tiếng Việt nằm ở web; câu tiếng Anh của Bean Validation chỉ để lập trình viên đọc.
+
+Mỗi ô lỗi có `aria-invalid` và `aria-describedby` trỏ tới dòng lỗi, nên trình đọc màn hình đọc cả lỗi khi vào ô. Form đặt `noValidate`: không để trình duyệt hiện bong bóng kiểm tra của nó (tiếng Anh, mỗi trình duyệt một kiểu), mọi câu báo đều do biểu mẫu nói.
+
+### 5.6 Bẫy test: địa chỉ đổi trước khi màn vẽ lại
+Hai bẫy gặp khi viết `TaskForm.test.tsx`:
+- Khi hộp thoại Radix mở, mọi phần khác của trang bị gắn `aria-hidden`, nên `getByRole('region', { name: 'Danh sách việc' })` **không thấy** danh sách. Test mở thẳng `/tasks/:id/edit` phải chờ hộp thoại, không chờ danh sách.
+- `router.state.location` đổi ngay khi gọi `navigate`, còn React vẽ lại sau. Kiểm danh sách ngay sau khi địa chỉ đổi thì hộp thoại vẫn còn, danh sách vẫn bị ẩn. Test chờ hộp thoại biến mất (`formClosed()`) rồi mới kiểm.
+
+### 5.7 Kiểm chứng (FE-71)
+- RED 19 test và một file không nạp được (chưa có `taskForm.ts`); GREEN; ca "Back không mở lại biểu mẫu" viết sau nên gài lỗi một lần (`navigate(-1)` thành `replace`): test đỏ, trả code lại.
+- `pnpm lint` 0 cảnh báo (tách `fieldProps.ts` vì file component không nên export hàm thường), `tsc -b` 0, `vitest` 590/590, `pnpm build` 0.
+- Chrome với backend thật: "Tùy chỉnh…" mỗi 2 tuần thứ Hai và thứ Năm sau 6 lần (máy chủ lưu đúng); dời hạn sang thứ Ba → 422 hiện cạnh ô Lặp lại; Esc không đổi gì; bỏ hạn → việc về "KHÔNG CÓ HẠN"; xóa có hỏi lại; 768 (hộp thoại) và 390 (trang riêng, thu chip để bảy thứ nằm một dòng); không lỗi console.

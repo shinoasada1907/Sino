@@ -40,5 +40,10 @@ export function sampleTasksApi(api: typeof TasksApi): typeof TasksApi {
     reopenTask: vi.fn(async (task: TaskItem): Promise<TaskItem> => ({ ...task, status: 'OPEN', completedAt: null })),
     // Empty notes are none.
     saveTaskNotes: vi.fn(async (task: TaskItem, notes: string): Promise<TaskItem> => ({ ...task, notes: notes.trim() ? notes : null })),
+    updateTask: vi.fn(
+      async (task: TaskItem, { title, notes }: { title: string; notes: string }): Promise<TaskItem> => ({ ...task, title: title.trim(), notes: notes.trim() ? notes : null }),
+    ),
+    scheduleTask: vi.fn(async (task: TaskItem, schedule: Pick<TaskItem, 'dueAt' | 'dueDate' | 'recurrence'>): Promise<TaskItem> => ({ ...task, ...schedule })),
+    deleteTask: vi.fn(async (): Promise<void> => undefined),
   }
 }

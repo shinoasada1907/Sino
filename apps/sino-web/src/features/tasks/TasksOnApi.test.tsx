@@ -1,67 +1,12 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { API_PROVIDERS } from '@/test/fixtures/accountsApi'
-import { API_TASKS, task } from '@/test/fixtures/tasksApi'
-import { server } from '@/test/msw/server'
 import { renderApp, shellPart } from '@/test/renderApp'
-import type { TaskItem } from './tasks.types'
+import { tasksBackend } from '@/test/tasksBackend'
 
 // Friday 2 October 2026, 14:05 in Vietnam.
 const NOW = new Date('2026-10-02T07:05:00Z')
-const FAILED = { title: 'Internal Server Error', status: 500, code: 'INTERNAL_ERROR' }
-const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })
-
-/** The F16 task API over tasks held in memory, as BE-72 answers it; `refuse` makes every change fail. */
-function backend({ refuse = false }: { refuse?: boolean } = {}) {
-  let tasks: TaskItem[] = API_TASKS.map((item) => ({ ...item }))
-  const added: unknown[] = []
-  const patched: unknown[] = []
-  const replace = (changed: TaskItem) => {
-    tasks = tasks.map((item) => (item.id === changed.id ? changed : item))
-    return changed
-  }
-  const find = (id: unknown) => tasks.find((item) => item.id === id)
-  server.use(
-    http.get('/api/tasks', () => HttpResponse.json({ generatedAt: NOW.toISOString(), tasks })),
-    http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
-    http.post('/api/tasks', async ({ request }) => {
-      const body = (await request.json()) as { title: string }
-      added.push(body)
-      if (refuse) {
-        return problem(FAILED, 500)
-      }
-      const created = task({ id: `task-new-${added.length}`, title: body.title.trim(), createdAt: NOW.toISOString() })
-      tasks = [...tasks, created]
-      return HttpResponse.json(created, { status: 201 })
-    }),
-    http.post('/api/tasks/:id/complete', ({ params }) => {
-      const current = find(params.id)
-      if (refuse || !current) {
-        return problem(FAILED, 500)
-      }
-      const done = replace({ ...current, status: 'DONE', completedAt: NOW.toISOString() })
-      // The rent repeats on the 2nd of each month.
-      const next = current.id === 'task-rent' ? task({ ...current, id: 'task-rent-11', dueAt: '2026-11-02T10:00:00Z', createdAt: NOW.toISOString() }) : null
-      if (next) {
-        tasks = [...tasks, next]
-      }
-      return HttpResponse.json({ task: done, next })
-    }),
-    http.post('/api/tasks/:id/reopen', ({ params }) => {
-      const current = find(params.id)
-      return refuse || !current ? problem(FAILED, 500) : HttpResponse.json(replace({ ...current, status: 'OPEN', completedAt: null }))
-    }),
-    http.patch('/api/tasks/:id', async ({ params, request }) => {
-      const body = (await request.json()) as { notes: string }
-      patched.push([params.id, body])
-      const current = find(params.id)
-      return refuse || !current ? problem(FAILED, 500) : HttpResponse.json(replace({ ...current, notes: body.notes.trim() ? body.notes : null }))
-    }),
-  )
-  return { added, patched, tasks: () => tasks }
-}
+const backend = (options: { refuse?: boolean } = {}) => tasksBackend({ now: NOW, ...options })
 
 const open = (path: string) => renderApp(path, { tasks: null })
 const list = () => within(screen.getByRole('region', { name: 'Danh sách việc' }))

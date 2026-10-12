@@ -4,7 +4,7 @@ import { API_PROVIDERS } from '@/test/fixtures/accountsApi'
 import { API_TASKS, task } from '@/test/fixtures/tasksApi'
 import { server } from '@/test/msw/server'
 import { ApiError } from '@/shared/api/problem'
-import { addTask, completeTask, fetchTasks, reopenTask, saveTaskNotes } from './tasks.api'
+import { addTask, completeTask, deleteTask, fetchTasks, reopenTask, saveTaskNotes, scheduleTask, updateTask } from './tasks.api'
 
 const RENT = API_TASKS[1]
 
@@ -78,5 +78,49 @@ describe('the Việc cần làm requests on the F16 API (BE-72)', () => {
     )
 
     await expect(completeTask(RENT)).rejects.toEqual(expect.objectContaining<Partial<ApiError>>({ status: 404, code: 'TASK_NOT_FOUND' }))
+  })
+
+  it('renames a task with its notes', async () => {
+    let body: unknown
+    server.use(
+      http.patch('/api/tasks/task-print', async ({ request }) => {
+        body = await request.json()
+        return HttpResponse.json({ ...API_TASKS[3], title: 'Hỏi Hoàng giá in', notes: 'Hai mặt' })
+      }),
+    )
+
+    expect((await updateTask(API_TASKS[3], { title: 'Hỏi Hoàng giá in', notes: 'Hai mặt' })).title).toBe('Hỏi Hoàng giá in')
+    expect(body).toEqual({ title: 'Hỏi Hoàng giá in', notes: 'Hai mặt' })
+  })
+
+  it('puts the due and the rule together', async () => {
+    const schedule = {
+      dueAt: null,
+      dueDate: '2026-10-09',
+      recurrence: { freq: 'WEEKLY' as const, interval: 1, byWeekdays: ['FRIDAY' as const], byMonthDay: null, untilDate: null, count: null },
+    }
+    let body: unknown
+    server.use(
+      http.put('/api/tasks/task-print/schedule', async ({ request }) => {
+        body = await request.json()
+        return HttpResponse.json({ ...API_TASKS[3], ...schedule, seriesId: 'series-print' })
+      }),
+    )
+
+    expect((await scheduleTask(API_TASKS[3], schedule)).seriesId).toBe('series-print')
+    expect(body).toEqual(schedule)
+  })
+
+  it('deletes a task', async () => {
+    let deleted = false
+    server.use(
+      http.delete('/api/tasks/task-print', () => {
+        deleted = true
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    await expect(deleteTask(API_TASKS[3])).resolves.toBeUndefined()
+    expect(deleted).toBe(true)
   })
 })
