@@ -2,18 +2,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createShellSample } from '@/app/shell/shell.sample'
-import type { ShellData } from '@/app/shell/shell.types'
-import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
+import { calendarKey } from '@/features/calendar/useCalendar'
+import { navCountsOf } from './format'
 import { completeTask } from './tasks.api'
 import { createTasksSample } from './tasks.sample'
 import type { TaskItem, TasksData } from './tasks.types'
 import { TASKS_QUERY_KEY, useAddTask, useSaveTaskNotes, useTask, useToggleTask } from './useTasks'
 
-vi.mock('./tasks.api', async (importOriginal) => {
-  const api = await importOriginal<typeof import('./tasks.api')>()
-  return { ...api, completeTask: vi.fn(api.completeTask) }
-})
+vi.mock('./tasks.api', async (importOriginal) => (await import('@/test/tasksSampleApi')).sampleTasksApi(await importOriginal()))
 
 // Friday 2 October 2026, 14:05 in Vietnam.
 const NOW = new Date('2026-10-02T07:05:00Z')
@@ -21,11 +17,11 @@ const NOW = new Date('2026-10-02T07:05:00Z')
 function setup() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   queryClient.setQueryData(TASKS_QUERY_KEY, createTasksSample(NOW))
-  queryClient.setQueryData(SHELL_QUERY_KEY, createShellSample(NOW))
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   const tasks = () => queryClient.getQueryData<TasksData>(TASKS_QUERY_KEY)!.tasks
   const find = (id: string) => tasks().find((task) => task.id === id)!
-  const navCounts = () => queryClient.getQueryData<ShellData>(SHELL_QUERY_KEY)!.navCounts
+  // The shell counts the navigation from the list (D-83), so the counts follow every change of the list.
+  const navCounts = () => navCountsOf(tasks(), NOW)
   return { queryClient, wrapper, tasks, find, navCounts }
 }
 
@@ -119,6 +115,24 @@ describe('the tasks hooks', () => {
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(find('task-bill')).toMatchObject({ status: 'OPEN', completedAt: null })
     expect(navCounts()).toMatchObject({ tasksDue: 3, tasksOverdue: 1 })
+  })
+
+  it('makes the calendar read its ranges again after a task changes', async () => {
+    const { queryClient, wrapper, find } = setup()
+    const week = calendarKey({ from: '2026-09-28', to: '2026-10-05' })
+    queryClient.setQueryData(week, { tasks: [] })
+    const { result } = renderHook(() => ({ toggle: useToggleTask(), add: useAddTask(), notes: useSaveTaskNotes() }), { wrapper })
+
+    await act(() => result.current.toggle.mutateAsync(find('task-rent')))
+    expect(queryClient.getQueryState(week)?.isInvalidated).toBe(true)
+
+    queryClient.setQueryData(week, { tasks: [] })
+    await act(() => result.current.add.mutateAsync('Gọi thợ'))
+    expect(queryClient.getQueryState(week)?.isInvalidated).toBe(true)
+
+    queryClient.setQueryData(week, { tasks: [] })
+    await act(() => result.current.notes.mutateAsync({ task: find('task-print'), notes: 'Hỏi giá' }))
+    expect(queryClient.getQueryState(week)?.isInvalidated).toBe(true)
   })
 
   it('saves the notes of a task', async () => {

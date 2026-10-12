@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import type { ShellData } from '@/app/shell/shell.types'
-import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
-import { navCountsOf } from './format'
-import { addTask, completeTask, fetchTasks, reopenTask, saveTaskNotes } from './tasks.api'
 import type { ProviderInfo } from '@/shared/domain'
+import { addTask, completeTask, fetchTasks, reopenTask, saveTaskNotes } from './tasks.api'
 import type { CompletedTask, TaskItem, TasksData } from './tasks.types'
 
 export const TASKS_QUERY_KEY = ['tasks'] as const
+
+// The prefix of every range the Lịch screen holds (`calendarKey`): it shows tasks that have a due.
+const CALENDAR_QUERY_PREFIX = ['calendar'] as const
 
 export interface TasksQuery {
   tasks: TaskItem[] | undefined
@@ -31,23 +31,20 @@ export function useTask(taskId: string | undefined): { task: TaskItem | undefine
   return { task, notFound: taskId !== undefined && tasks !== undefined && task === undefined }
 }
 
-// The navigation counts the due tasks (D-83); on sample data they follow the list after every change.
-function syncNavCounts(queryClient: QueryClient, tasks: TaskItem[]) {
-  queryClient.setQueryData<ShellData>(SHELL_QUERY_KEY, (shell) => shell && { ...shell, navCounts: { ...shell.navCounts, ...navCountsOf(tasks, new Date()) } })
-}
-
+// The navigation counts the due tasks from this list (D-83, `AppShell`), so it follows every change made here.
 function setTasks(queryClient: QueryClient, change: (tasks: TaskItem[]) => TaskItem[]) {
-  const data = queryClient.setQueryData<TasksData>(TASKS_QUERY_KEY, (current) => current && { ...current, tasks: change(current.tasks) })
-  if (data) {
-    syncNavCounts(queryClient, data.tasks)
-  }
+  queryClient.setQueryData<TasksData>(TASKS_QUERY_KEY, (current) => current && { ...current, tasks: change(current.tasks) })
 }
 
 function restore(queryClient: QueryClient, saved: TasksData | undefined) {
   if (saved) {
     queryClient.setQueryData(TASKS_QUERY_KEY, saved)
-    syncNavCounts(queryClient, saved.tasks)
   }
+}
+
+// Whatever the outcome: a refused change may still have been made by another tab.
+function refreshCalendar(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: CALENDAR_QUERY_PREFIX })
 }
 
 /** Adds a task by its title; it shows under "Không có hạn". */
@@ -56,6 +53,7 @@ export function useAddTask() {
   return useMutation({
     mutationFn: addTask,
     onSuccess: (task) => setTasks(queryClient, (tasks) => [...tasks, task]),
+    onSettled: () => refreshCalendar(queryClient),
   })
 }
 
@@ -87,6 +85,7 @@ export function useToggleTask() {
         return next && !updated.some((item) => sameOccurrence(item, next)) ? [...updated, next] : updated
       }),
     onError: (_error, _task, context) => restore(queryClient, context?.saved),
+    onSettled: () => refreshCalendar(queryClient),
   })
 }
 
@@ -102,5 +101,6 @@ export function useSaveTaskNotes() {
     },
     onSuccess: (task) => setTasks(queryClient, (tasks) => tasks.map((item) => (item.id === task.id ? task : item))),
     onError: (_error, _variables, context) => restore(queryClient, context?.saved),
+    onSettled: () => refreshCalendar(queryClient),
   })
 }

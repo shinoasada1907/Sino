@@ -8,10 +8,7 @@ import { createTasksSample } from './tasks.sample'
 import type { TasksData } from './tasks.types'
 import { TASKS_QUERY_KEY } from './useTasks'
 
-vi.mock('./tasks.api', async (importOriginal) => {
-  const api = await importOriginal<typeof import('./tasks.api')>()
-  return { ...api, saveTaskNotes: vi.fn(api.saveTaskNotes) }
-})
+vi.mock('./tasks.api', async (importOriginal) => (await import('@/test/tasksSampleApi')).sampleTasksApi(await importOriginal()))
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
@@ -237,9 +234,10 @@ describe('Việc cần làm on desktop', () => {
     const user = userEvent.setup()
     const before = queryClient.getQueryData<TasksData>(TASKS_QUERY_KEY)
 
-    for (const name of ['Thêm thao tác', 'Nhắc lại sau…', 'Xóa task']) {
-      await user.click(detail().getByRole('button', { name }))
-    }
+    // "Thêm thao tác" and "Nhắc lại sau…" are hidden until they have a flow (FE-70); "Xóa task" gets one in FE-71.
+    expect(detail().queryByRole('button', { name: 'Thêm thao tác' })).toBeNull()
+    expect(detail().queryByRole('button', { name: 'Nhắc lại sau…' })).toBeNull()
+    await user.click(detail().getByRole('button', { name: 'Xóa task' }))
 
     expect(router.state.location.pathname).toBe('/tasks/task-contract')
     expect(queryClient.getQueryData<TasksData>(TASKS_QUERY_KEY)).toBe(before)

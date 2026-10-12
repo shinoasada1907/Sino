@@ -6,6 +6,8 @@ import { AppProviders } from '@/app/providers'
 import { ME_QUERY_KEY } from '@/features/auth/useAuth'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
 import { INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
+import { createTasksSample } from '@/features/tasks/tasks.sample'
+import { TASKS_QUERY_KEY } from '@/features/tasks/useTasks'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { AppShell } from './AppShell'
 import { MobilePageHeader } from './MobilePageHeader'
@@ -44,9 +46,11 @@ const routes: RouteObject[] = [
 function renderAt(path: string) {
   const queryClient = new QueryClient()
   queryClient.setQueryData(SHELL_QUERY_KEY, createShellSample(new Date()))
-  // The owner menu of the shell asks who is signed in, and its inbox count comes from the inbox (D-93).
+  // The owner menu of the shell asks who is signed in, its inbox count comes from the inbox (D-93) and its task count
+  // from the tasks (D-83).
   queryClient.setQueryData(ME_QUERY_KEY, { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' })
   queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, createInboxSample(new Date()).counts.unread)
+  queryClient.setQueryData(TASKS_QUERY_KEY, createTasksSample(new Date()))
   const router = createMemoryRouter(routes, { initialEntries: [path] })
   render(
     <AppProviders queryClient={queryClient}>

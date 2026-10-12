@@ -2,6 +2,7 @@ import { act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
+import { createTasksSample } from '@/features/tasks/tasks.sample'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
 import type { ShellData } from './shell.types'
@@ -51,9 +52,11 @@ describe('sidebar (desktop)', () => {
     expect(sidebar.getByRole('link', { name: /^Hộp thư/ })).not.toHaveAttribute('aria-current')
   })
 
-  it('takes the counts and the owner from the shell data, and the inbox count from the inbox (D-93)', async () => {
+  it('takes the owner from the shell data, the inbox count from the inbox (D-93) and the task count from the tasks (D-83)', async () => {
+    const tasks = createTasksSample(new Date())
     renderApp('/overview', {
       inbox: inboxWithUnread(5),
+      tasks: { ...tasks, tasks: tasks.tasks.filter((task) => task.id !== 'task-bill') },
       shell: shellWith((s) => {
         s.navCounts.inboxUnread = 99
         s.navCounts.tasksDue = 7
@@ -64,7 +67,8 @@ describe('sidebar (desktop)', () => {
     const sidebar = within(shellPart('sidebar'))
 
     expect(await sidebar.findByRole('link', { name: 'Hộp thư, 5 chưa đọc' })).toBeInTheDocument()
-    expect(sidebar.getByRole('link', { name: 'Việc cần làm, 7 tới hạn' })).toBeInTheDocument()
+    // The sample has three due tasks, one of them the late bill.
+    expect(sidebar.getByRole('link', { name: 'Việc cần làm, 2 tới hạn' })).toBeInTheDocument()
     expect(sidebar.getByText('Bình Trần')).toBeInTheDocument()
     expect(sidebar.getByText('2 tài khoản')).toBeInTheDocument()
   })
@@ -91,6 +95,7 @@ describe('rail (tablet)', () => {
   it('says nothing extra when nothing needs attention', async () => {
     renderApp('/overview', {
       inbox: inboxWithUnread(0),
+      tasks: { ...createTasksSample(new Date()), tasks: [] },
       shell: shellWith((s) => (s.navCounts = { inboxUnread: 0, tasksDue: 0, tasksOverdue: 0, accountsNeedingAction: 0, registrationsNew: 0 })),
     })
     const rail = within(shellPart('rail'))

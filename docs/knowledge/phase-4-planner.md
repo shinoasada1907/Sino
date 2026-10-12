@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70.
 > **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -346,3 +346,63 @@ Lớp ký tự `[^\x00]` khớp mọi ký tự trừ NUL, kể cả xuống dòn
 - RED: chưa có controller → 36/38 test API đỏ (`404`); hai test xanh sẵn là `401` và thiếu CSRF, vì lớp bảo mật đứng trước controller.
 - GREEN: 38/38 test API (21 ca dữ liệu sai thành `400`, `422`, `404`, `409`, `401`, `403`, `201` + `Location`, JSON đúng hợp đồng).
 - `./mvnw -B -ntp verify`: 1418 test, 0 lỗi, 4 bỏ qua; `ModularityTests` 2/2 (`planner` giờ phụ thuộc `identity` và `common`).
+
+---
+
+## 4. Màn Việc cần làm trên API thật (FE-70)
+
+**Ở đâu** (tính từ `apps/sino-web/src/`): `features/tasks/tasks.api.ts`, `useTasks.ts`, `TasksPage.tsx`, `components/QuickAdd.tsx`, `components/TaskDetail.tsx`; `app/shell/AppShell.tsx`; test: `test/tasksSampleApi.ts`, `test/fixtures/tasksApi.ts`, `features/tasks/tasks.api.test.ts`, `TasksOnApi.test.tsx`.
+
+```text
+màn Việc cần làm ──> useTasks (TanStack Query, khóa ['tasks'])
+                        |  queryFn = fetchTasks: GET /api/tasks + GET /api/providers
+                        |  thay đổi = addTask / completeTask / reopenTask / saveTaskNotes
+                        v
+                     tasks.api.ts ──> shared/api/client (cookie phiên, CSRF) ──> /api/tasks/**
+AppShell ──> cũng đọc ['tasks'] ──> số "tới hạn" trên điều hướng của mọi màn
+```
+
+### 4.1 Hợp đồng dữ liệu trả công: chỉ đổi thân hàm
+Lúc dựng giao diện trước (Phase 1), màn này đã có kiểu `TaskItem` làm "hợp đồng" giao cho backend, và BE-72 trả JSON đúng hình dạng đó. Vì vậy FE-70 chỉ thay **thân** các hàm trong `tasks.api.ts`: tên hàm, tham số và kiểu trả về giữ nguyên, nên hook và component không phải sửa vì dữ liệu.
+
+```ts
+export async function completeTask(task: TaskItem): Promise<CompletedTask> {
+  return api.post<CompletedTask>(path(task, '/complete'))   // trước: tự tính lần kế tiếp từ dữ liệu mẫu
+}
+```
+
+### 4.2 Test cũ vẫn chạy trên dữ liệu mẫu: `sampleTasksApi`
+Các test viết lúc dựng giao diện (nhóm, lọc, chữ trên dòng…) dựa vào dữ liệu mẫu của canvas. Logic mẫu cũ được dời sang `test/tasksSampleApi.ts`, và các file test đó thay module thật bằng bản mẫu:
+
+```ts
+vi.mock('./tasks.api', async (importOriginal) =>
+  (await import('@/test/tasksSampleApi')).sampleTasksApi(await importOriginal()))
+```
+
+Bẫy: `vi.mock` được Vitest **kéo lên đầu file**, chạy trước mọi `import`. Viết `import { sampleTasksApi } from …` ở đầu file rồi dùng trong factory sẽ hỏng ("Cannot access … before initialization"); phải `await import(...)` ngay bên trong factory, như các test của Hộp thư.
+
+Test mới (`TasksOnApi.test.tsx`) thì đi qua mạng giả MSW: một "backend" giữ danh sách việc trong bộ nhớ, trả lời đúng như BE-72, và có chế độ `refuse` để thử đường lỗi.
+
+### 4.3 Số trên điều hướng: một nguồn duy nhất
+Trước đây hook chép số "tới hạn" vào cache của khung app sau mỗi thay đổi. Cách đó có hai lỗ: chưa mở màn Việc cần làm thì số trên điều hướng vẫn là số mẫu, và hai bản số có thể lệch nhau. Giờ `AppShell` đọc chính danh sách việc và tự đếm:
+
+```ts
+const { tasks } = useTasks()
+const now = useNow()                          // đổi mỗi phút: việc hạn 12:00 thành quá hạn khi qua 12:00
+... tasks === undefined ? {} : navCountsOf(tasks, now)
+```
+
+Đánh dấu xong một việc làm đổi danh sách trong cache, nên số trên điều hướng đổi theo mà không cần ai "báo". Bẫy đã gặp: gọi `new Date()` thẳng trong lúc render bị lint (`react(purity)`) chặn, vì mỗi lần render ra một giá trị khác; dùng hook `useNow` có sẵn.
+
+### 4.4 Đổi ngay, trả lại khi lỗi, và nói cho người dùng biết
+Đánh dấu xong hiện ngay trên màn (optimistic update) rồi mới chờ máy chủ. Máy chủ từ chối thì danh sách quay về bản đã lưu trước đó, và từ FE-70 có thêm một dòng `role="alert"`: "Không lưu được thay đổi. Hãy thử lại.". Thêm nhanh thì làm ngược lại: ô trống ngay để gõ tiếp, nhưng nếu máy chủ từ chối thì tiêu đề quay lại ô (trừ khi người dùng đã gõ cái mới) cùng câu "Không thêm được việc. Hãy thử lại.". `QuickAdd` nhận một hàm trả `Promise` (`mutateAsync`) để biết kết quả.
+
+### 4.5 Việc đổi thì Lịch đọc lại
+Màn Lịch cũng hiện việc có hạn. Sau mỗi thay đổi việc, hook gọi `invalidateQueries({ queryKey: ['calendar'] })`: mọi khoảng Lịch đang có trong cache bị đánh dấu cũ, lần tới mở Lịch sẽ đọc lại. Gọi ở `onSettled` (cả khi lỗi), vì một yêu cầu "lỗi" vẫn có thể đã được máy chủ làm.
+
+### 4.6 Chạy thật mà không đụng ai
+Để thấy màn chạy với backend thật mà không làm phiền app IntelliJ của người dùng (cổng 8080) hay database dùng chung, lượt kiểm dùng: jar build từ git worktree riêng chạy cổng 8091, một PostgreSQL 18 tạm trong Docker (Flyway dựng từ V1 tới V18), vite cổng 5179 với proxy `/api` sang 8091, và các giá trị cấu hình giả chỉ cho lượt này. Xong thì dừng tiến trình và xóa container.
+
+### 4.7 Kiểm chứng (FE-70)
+- RED 15 test, GREEN; `pnpm lint` 0 cảnh báo, `tsc -b` 0, `vitest` 556/556, `pnpm build` 0.
+- Chrome với backend thật: thêm, xong (máy chủ tạo lần kế tiếp T5 12/11), ghi chú (`PATCH` 200), tải lại vẫn còn; số trên điều hướng theo dữ liệu thật; 1440 và 390 (iframe 390 px), không cuộn ngang, không lỗi console.

@@ -36,9 +36,11 @@ export function TasksPage() {
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const { filter, search, setFilter } = useTaskFilter()
   const wide = useMediaQuery('(min-width: 768px)')
-  const { mutate: add } = useAddTask()
-  const { mutate: toggle } = useToggleTask()
-  const { mutate: saveNotes } = useSaveTaskNotes()
+  const { mutateAsync: add } = useAddTask()
+  const { mutate: toggle, isError: toggleFailed } = useToggleTask()
+  const { mutate: saveNotes, isError: notesFailed } = useSaveTaskNotes()
+  // The list is already back as it was (useTasks); the line says why. It goes where the user is looking.
+  const saveFailed = (toggleFailed || notesFailed) && <SaveFailed />
 
   if (!tasks) {
     return error ? <TasksLoadFailed onRetry={retry} /> : <TasksSkeleton />
@@ -101,7 +103,8 @@ export function TasksPage() {
           <Segmented label="Lọc việc" value={filter} options={FILTERS} onChange={setFilter} />
         </header>
 
-        <QuickAdd placeholder={wide ? 'Thêm việc mới — Enter để lưu, chọn hạn sau' : 'Thêm việc mới'} onAdd={(title) => add(title)} />
+        <QuickAdd placeholder={wide ? 'Thêm việc mới — Enter để lưu, chọn hạn sau' : 'Thêm việc mới'} onAdd={add} />
+        {!taskId && saveFailed}
 
         {groups.length === 0 && (
           <p className="px-1 py-4 text-sm text-muted-foreground md:px-3.5">{tasks.length === 0 ? 'Chưa có việc nào.' : 'Không có việc nào khớp bộ lọc này.'}</p>
@@ -130,6 +133,7 @@ export function TasksPage() {
         <aside aria-label="Chi tiết việc" className="flex min-h-0 flex-col overflow-auto bg-surface md:border-l">
           <MobilePageHeader back={{ to: `/tasks${search}`, label: 'Quay lại Việc cần làm' }} title="Chi tiết việc" />
           <div className="flex grow flex-col gap-5 p-4 *:shrink-0 md:p-7">
+            {saveFailed}
             {selected ? (
               <TaskDetail
                 key={selected.id}
@@ -152,5 +156,14 @@ export function TasksPage() {
         </aside>
       )}
     </div>
+  )
+}
+
+// A change the server refused: done / reopened, or the notes.
+function SaveFailed() {
+  return (
+    <p role="alert" className="px-1 text-sm text-danger-ink md:px-3.5">
+      Không lưu được thay đổi. Hãy thử lại.
+    </p>
   )
 }

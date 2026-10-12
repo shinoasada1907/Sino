@@ -1,5 +1,8 @@
 import { Outlet, useLocation, useMatches } from 'react-router'
 import { useInboxUnread } from '@/features/inbox/useInbox'
+import { navCountsOf } from '@/features/tasks/format'
+import { useTasks } from '@/features/tasks/useTasks'
+import { useNow } from '@/shared/time/useNow'
 import { useEventStream } from '../realtime/useEventStream'
 import { PAGES } from './navItems'
 import { Rail } from './Rail'
@@ -20,9 +23,18 @@ export interface ShellHandle {
 export function AppShell() {
   useEventStream()
   const { shell: sample, receivedAt } = useShellData()
-  // The inbox count is the real one (D-93), so that new mail changes it; the other counts are still sample data.
+  // The inbox count is the real one (D-93), so that new mail changes it; the task counts come from the task list
+  // (D-83, FE-70), so every change of a task shows on the navigation; the other counts are still sample data.
   const inboxUnread = useInboxUnread()
-  const shell = inboxUnread !== undefined && sample ? { ...sample, navCounts: { ...sample.navCounts, inboxUnread } } : sample
+  const { tasks } = useTasks()
+  // Ticks every minute, so a task due at noon counts as late once noon has passed.
+  const now = useNow()
+  const navCounts = sample && {
+    ...sample.navCounts,
+    ...(inboxUnread === undefined ? {} : { inboxUnread }),
+    ...(tasks === undefined ? {} : navCountsOf(tasks, now)),
+  }
+  const shell = sample && navCounts && { ...sample, navCounts }
   const { pathname } = useLocation()
   const handle: ShellHandle = Object.assign({}, ...useMatches().map((match) => (match.handle ?? {}) as ShellHandle))
   // A sub-page such as /accounts/acc-gmail keeps the title of its section.

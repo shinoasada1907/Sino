@@ -1,4 +1,4 @@
-import { AlarmClock, Bell, Calendar, Check, ChevronRight, Ellipsis, SquareCheck, StickyNote, Trash2, X, type LucideIcon } from 'lucide-react'
+import { Bell, Calendar, Check, ChevronRight, SquareCheck, StickyNote, Trash2, X, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
@@ -20,7 +20,8 @@ const RELATED: Record<RelatedItem['kind'], { icon: LucideIcon; to: (item: Relate
 /**
  * Canvas `Tasks`, block "Chi tiết việc": the title with its done box, due, reminder, repeat and when it was made, the
  * message it came from (opens the inbox), the notes (saved when the box loses focus), related items and the actions.
- * "Thêm thao tác", "Nhắc lại sau…" and "Xóa task" have no flow yet (D-80).
+ * The reminder, the message and the related items show only when the task has them: the API has none yet (D-150).
+ * "Thêm thao tác" and "Nhắc lại sau…" are left out until they have a flow; "Xóa task" has none yet (FE-71).
  */
 export function TaskDetail({
   task,
@@ -47,9 +48,6 @@ export function TaskDetail({
       <div className="hidden items-center justify-between gap-3 md:flex">
         <span className="text-xs leading-4 font-semibold text-muted-foreground">Task</span>
         <div className="flex items-center gap-0.5">
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Thêm thao tác" title="Thêm thao tác">
-            <Ellipsis strokeWidth={1.6} />
-          </Button>
           <Button asChild variant="ghost" size="icon-sm">
             <Link to={close} aria-label="Đóng" title="Đóng">
               <X strokeWidth={1.6} />
@@ -67,10 +65,12 @@ export function TaskDetail({
 
       <dl className="m-0 grid grid-cols-[104px_minmax(0,1fr)] items-baseline gap-x-4 gap-y-3">
         <Fact term="Hạn">{detailDue(task)}</Fact>
-        <Fact term="Nhắc">
-          {task.reminder && <Bell aria-hidden="true" className="mr-1.25 inline size-3.25 align-[-2px] text-muted-foreground" strokeWidth={1.6} />}
-          {detailReminder(task)}
-        </Fact>
+        {task.reminder && (
+          <Fact term="Nhắc">
+            <Bell aria-hidden="true" className="mr-1.25 inline size-3.25 align-[-2px] text-muted-foreground" strokeWidth={1.6} />
+            {detailReminder(task)}
+          </Fact>
+        )}
         <Fact term="Lặp lại">{recurrenceLabel(task.recurrence) ?? 'Không'}</Fact>
         <Fact term="Tạo lúc">
           <span className="font-normal text-muted-foreground">{createdLabel(task, now)}</span>
@@ -151,10 +151,6 @@ export function TaskDetail({
         <Button type="button" variant="primary" size="sm" onClick={onToggle}>
           <Check strokeWidth={1.6} />
           {done ? 'Mở lại' : 'Đánh dấu xong'}
-        </Button>
-        <Button type="button" variant="secondary" size="sm">
-          <AlarmClock strokeWidth={1.6} />
-          Nhắc lại sau…
         </Button>
         <Button type="button" variant="ghost" size="icon-sm" aria-label="Xóa task" title="Xóa task">
           <Trash2 strokeWidth={1.6} />

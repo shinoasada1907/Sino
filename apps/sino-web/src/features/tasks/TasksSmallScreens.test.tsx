@@ -7,10 +7,7 @@ import { fetchTasks } from './tasks.api'
 import { createTasksSample } from './tasks.sample'
 import type { TasksData } from './tasks.types'
 
-vi.mock('./tasks.api', async (importOriginal) => {
-  const api = await importOriginal<typeof import('./tasks.api')>()
-  return { ...api, fetchTasks: vi.fn(api.fetchTasks) }
-})
+vi.mock('./tasks.api', async (importOriginal) => (await import('@/test/tasksSampleApi')).sampleTasksApi(await importOriginal()))
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
