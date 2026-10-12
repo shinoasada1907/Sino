@@ -142,8 +142,10 @@ What it checks on the first page of the last 7 days, through `ProviderAccess` (s
 needed): no error, every message is from the last 7 days, most messages have text, no subject or name is still
 RFC 2047 encoded (`=?...?=`). It also reports what the F04b design left to real Gmail: whether `attachmentId`
 changes between two reads of a message, how many messages embed images (mailing lists or not), forwarded messages
-attached as files, folded header values. It also prints Gmail's estimates for 30 days, 90 days and the whole mailbox next to the messages an import really
-lists. Without a connected Gmail account the tests are skipped, not failed.
+attached as files, folded header values. It also prints the estimates of the "Đồng bộ" step for 30 days, 90 days and
+the whole mailbox next to the messages an import really lists, and fails when the count for 30 or 90 days differs
+from the list (BE-61: Sino counts the listed IDs, up to 5 000). Without a connected Gmail account the tests are
+skipped, not failed.
 
 ### Import a real mailbox again (F05)
 

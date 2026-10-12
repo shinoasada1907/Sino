@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -132,10 +133,9 @@ class RealGmailTests {
     }
 
     /**
-     * What the BE-40 review left to real Gmail: how close the estimates of the "Đồng bộ" step are to the messages an
-     * import lists (spam and trash left out). For 30 and 90 days the estimate is Gmail's {@code resultSizeEstimate};
-     * for the whole mailbox it is the profile's {@code messagesTotal}, next to the list's own estimate. Counts only;
-     * nothing is asserted.
+     * The estimates of the "Đồng bộ" step against the messages an import lists (spam and trash left out). For 30 and
+     * 90 days the connector counts the listed IDs (BE-61), so both must agree; for the whole mailbox it is the
+     * profile's {@code messagesTotal}, only printed.
      */
     @Test
     void reportsHowCloseTheEstimatesAre() {
@@ -148,15 +148,30 @@ class RealGmailTests {
             Map<String, Object> found = new LinkedHashMap<>();
             for (int days : new int[] { 30, 90 }) {
                 Instant since = now.minus(Duration.ofDays(days));
-                found.put(days + " days: estimate shown (resultSizeEstimate)", api.estimate(token, since));
+                found.put(days + " days: estimate shown (IDs counted)",
+                        shown(connector.estimateMessages(context, since)));
                 found.put(days + " days: messages listed", listed(api, token, since));
             }
-            found.put("whole mailbox: estimate shown (messagesTotal)", api.profile(token).messagesTotal());
-            found.put("whole mailbox: resultSizeEstimate of the list", api.estimate(token, null));
+            found.put("whole mailbox: estimate shown (messagesTotal)",
+                    shown(connector.estimateMessages(context, null)));
             found.put("whole mailbox: messages listed", listed(api, token, null));
             return found;
         });
         print("estimates against the messages an import lists", counts);
+
+        for (int days : new int[] { 30, 90 }) {
+            assertThat(counts.get(days + " days: estimate shown (IDs counted)")).as("%d days", days)
+                    .isEqualTo(counts.get(days + " days: messages listed"));
+        }
+    }
+
+    // As listed() writes it, so the two compare; 5 000 is where both stop.
+    private static String shown(OptionalLong estimate) {
+        if (estimate.isEmpty()) {
+            return "none";
+        }
+        return estimate.getAsLong() < LISTED_AT_MOST ? String.valueOf(estimate.getAsLong())
+                : "more than " + estimate.getAsLong();
     }
 
     // The IDs an import reads, counted page after page like it lists them.

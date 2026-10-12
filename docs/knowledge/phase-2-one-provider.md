@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn BE-61 (ước lượng đúng cho khoảng ngày) và archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1865,6 +1865,53 @@ Account 53 thư (90 ngày), mỗi cuộc trò chuyện một thư:
 - **Chưa kiểm (bạn chọn commit trước):** tải tệp thật, ảnh chữ ký thật, `partId` có đứng yên không. Cần một thư có tệp và ảnh dán trong nội dung gửi tới account, rồi chạy lại `./mvnw test -Preal-gmail`.
 - Toàn bộ: `./mvnw -B -ntp verify` → 1184 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS (4 phút 26 giây). Hai test mới có tag `real-gmail` nên không chạy ở đây; `verify` chỉ chứng minh chúng biên dịch được và không làm hỏng gì.
 - Mọi lệnh Maven chạy trong git worktree riêng như mục 18.6.
+
+## 23. Đếm đúng số thư cho một khoảng ngày (BE-61, F05)
+
+**Ở đâu:** `provider/infrastructure/gmail/GmailApi.java` (`count`), `provider/infrastructure/gmail/GmailProvider.java` (`estimateMessages`), test `GmailEstimateTests`, `RealGmailTests`.
+
+### 23.1 Vấn đề
+Bước "Đồng bộ" của wizard kết nối hỏi "30 ngày hay 90 ngày, khoảng bao nhiêu thư". Trước đây connector hỏi Gmail một danh sách 1 thư và lấy `resultSizeEstimate`, con số Gmail **ước lượng** cho cả truy vấn. BE-46 đo trên hộp thư thật (mục 18.5): Gmail trả 201 cho cả 30 ngày (thật 29) lẫn 90 ngày (thật 53). Bạn chốt phương án B: đếm thật.
+
+### 23.2 Cách đếm
+```text
+messages.list?q=after:<giây>&maxResults=500&fields=messages/id,nextPageToken
+   trang 1: 500 ID + nextPageToken  -> đếm 500
+   trang 2: 120 ID, không token     -> đếm 620, dừng
+```
+
+```java
+long count(String accessToken, Instant since, long atMost) {
+    long counted = 0;
+    String pageToken = null;
+    do {
+        MessageList page = list(accessToken, since, pageToken, ID_PAGE_SIZE, ONLY_IDS);
+        counted += page.ids().size();
+        pageToken = page.nextPageToken();
+    } while (pageToken != null && counted < atMost);
+    return Math.min(counted, atMost);
+}
+```
+
+- **`do ... while`** chứ không phải `while`: trang đầu luôn phải hỏi, điều kiện chỉ xét từ trang thứ hai.
+- **`maxResults=500`** là mức tối đa của `messages.list`. Lúc nhập thư dùng 50 một trang vì mỗi ID còn phải đọc cả thư; ở đây chỉ đếm.
+- **`fields=messages/id,nextPageToken`** là *partial response* của Google API: Gmail chỉ gửi đúng hai trường đó, bỏ `threadId` và `resultSizeEstimate`, nên trang 500 ID nhẹ đi khoảng một nửa. Thiếu `nextPageToken` trong `fields` thì Gmail không gửi token và vòng lặp dừng sau trang đầu; test kiểm đúng chuỗi `fields`.
+- **Trần 5 000** (`GmailProvider.COUNTED_AT_MOST`): tối đa 10 lời gọi (mỗi lời gọi tốn 5 đơn vị hạn mức của Gmail) trước khi màn hình có số. Không có trần thì hộp thư 50 000 thư trong 90 ngày bắt bạn chờ 100 lời gọi.
+- **`Math.min`**: Gmail có thể trả ít hơn 500 một trang. Với 400 một trang, trang 13 đưa số đếm lên 5 200; vẫn trả 5 000 để mọi kết quả chạm trần giống nhau.
+- `resultSizeEstimate` không còn ai dùng nên đã bỏ khỏi record `MessageList`: một trường không ai đọc chỉ làm người sau tưởng nó còn ý nghĩa.
+
+### 23.3 Lỗi giữa chừng: ném lỗi, không trả số dở
+Trang 1 xong, trang 2 Gmail trả `503`. Connector có thể trả 500 (số đã đếm), nhưng 500 là con số **sai** mà trông như đúng, và người dùng sẽ chọn khoảng ngày dựa trên nó. Nên connector ném `ProviderException` như mọi lỗi Gmail khác. Bên gọi đã có sẵn cách xử lý: `InitialSyncService` đổi lỗi thành "không có ước lượng" (API trả `null`, web không hiện số), còn `ImportRunner` nhập tiếp mà không có mẫu số. Không biết thì nói không biết, đừng đoán.
+
+### 23.4 Giới hạn còn lại
+API chỉ trả một con số. Với số 5 000, web không biết đó là "đúng 5 000" hay "chạm trần", nên ghi "khoảng 5 000 thư". Muốn ghi "hơn 5 000" phải thêm một cờ vào contract `estimateMessages` và vào API. Đổi contract cho một trường hợp hiếm thì để khi có người cần (ghi ở D-65).
+
+### 23.5 Kiểm chứng (BE-61)
+- **Đỏ trước:** 6 trong 15 test của `GmailEstimateTests` sai trên code cũ: một trang, nhiều trang, chạm trần với 500 và với 400 thư một trang, lỗi ở trang 2, khoảng không có thư (Gmail vẫn "ước lượng" 201).
+- **Xanh:** `GmailEstimateTests` 15/15; `GmailSyncTests` 54, 4 bỏ qua như trước (đổi `list` dùng chung với việc nhập).
+- **Kiểm tra ngược:** 9 lỗi gài, cả 9 bị bắt: bỏ `fields`, trang 50, trần `<=`, bỏ `Math.min`, không gửi `pageToken`, gán thay vì cộng dồn, `fields` thiếu `nextPageToken`, đảo nhánh `since`, trần gấp mười. Lỗi gài "gán thay vì cộng dồn" bị test nhiều trang bắt (120 thay vì 620), nhưng ở test trần nó làm vòng lặp không bao giờ dừng (số đếm đứng ở 500, Gmail giả luôn còn trang sau). Vì vậy script chạy test với `-Dsurefire.timeout=120`, để một lỗi gài treo máy cũng kết thúc và được tính là bị bắt.
+- **Gmail thật** (`RealGmailTests`): 30 ngày đếm 29, liệt kê 29; 90 ngày đếm 53, liệt kê 53 (trước đây cả hai báo 201); toàn bộ hộp thư 212 và 212. Gmail nhận tham số `fields`. Test giờ **đỏ** khi số đếm lệch số liệt kê, không chỉ in ra.
+- **Toàn bộ:** `./mvnw -B -ntp verify` → 1189 test (thêm 5), 0 lỗi, 4 bỏ qua, BUILD SUCCESS.
 
 ---
 

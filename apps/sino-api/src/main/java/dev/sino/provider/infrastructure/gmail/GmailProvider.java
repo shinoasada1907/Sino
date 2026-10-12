@@ -47,6 +47,8 @@ class GmailProvider implements MessageProvider {
     static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
     /** A 25 MB file is about 33 MB of base64: 60 s is enough down to about 0.6 MB/s. */
     static final Duration FILE_READ_TIMEOUT = Duration.ofSeconds(60);
+    // Ten calls at most before the "Đồng bộ" step shows a number.
+    static final long COUNTED_AT_MOST = 5_000;
 
     // Google issues a refresh token only for offline access, and only on a fresh consent: a reconnect must ask again.
     private static final Map<String, String> CONSENT_PARAMETERS = Map.of("access_type", "offline",
@@ -142,15 +144,18 @@ class GmailProvider implements MessageProvider {
     }
 
     /**
-     * Gmail's own count, rough either way: since {@code since}, the {@code resultSizeEstimate} of a list of one
-     * message; for the whole mailbox, the {@code messagesTotal} of the profile, which also counts drafts, spam and
-     * trash. Empty when Gmail leaves the number out.
+     * Since {@code since}, the messages an import lists, counted from their IDs and never more than
+     * {@value #COUNTED_AT_MOST} (D-65 = B): one call for every 500. For the whole mailbox, the {@code messagesTotal} of
+     * the profile, which also counts drafts, spam and trash; empty when Gmail leaves it out.
      */
     @Override
     public OptionalLong estimateMessages(ProviderContext context, Instant since) {
         String accessToken = accessTokenOf(context);
-        Long estimate = since == null ? api.profile(accessToken).messagesTotal() : api.estimate(accessToken, since);
-        return estimate == null || estimate < 0 ? OptionalLong.empty() : OptionalLong.of(estimate);
+        if (since != null) {
+            return OptionalLong.of(api.count(accessToken, since, COUNTED_AT_MOST));
+        }
+        Long total = api.profile(accessToken).messagesTotal();
+        return total == null || total < 0 ? OptionalLong.empty() : OptionalLong.of(total);
     }
 
     /**

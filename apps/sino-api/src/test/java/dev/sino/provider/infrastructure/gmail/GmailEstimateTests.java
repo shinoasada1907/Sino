@@ -20,6 +20,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -37,7 +39,10 @@ import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 
-/** How many messages Gmail estimates (D-65), against a fake Gmail API (WireMock). */
+/**
+ * How many messages Gmail has for the "Đồng bộ" step (D-65): counted from the listed IDs for a range of days (BE-61),
+ * the profile's total for the whole mailbox; against a fake Gmail API (WireMock).
+ */
 class GmailEstimateTests {
 
     private static final String API = "/gmail/v1/users/me";
@@ -64,17 +69,45 @@ class GmailEstimateTests {
     }
 
     @Test
-    void fromAMomentGmailEstimatesWithAListOfOneMessage() {
-        answerTheListWith(okJson("""
-                {"messages": [{"id": "18f0a1b2c3d4e5f6", "threadId": "thread-report"}],
-                 "nextPageToken": "page-2", "resultSizeEstimate": 1180}
-                """));
+    void fromAMomentGmailCountsTheMessagesItLists() {
+        answerTheListWith(okJson(page(3, null)));
 
-        assertThat(gmailProvider().estimateMessages(context(), SINCE)).hasValue(1180);
+        assertThat(gmailProvider().estimateMessages(context(), SINCE)).hasValue(3);
         gmail.verify(exactly(1), anyRequestedFor(anyUrl()));
         gmail.verify(getRequestedFor(urlPathEqualTo(API + "/messages")).withQueryParam("q", equalTo(AFTER_SINCE))
-                .withQueryParam("maxResults", equalTo("1")).withQueryParam("pageToken", absent())
+                .withQueryParam("maxResults", equalTo("500"))
+                .withQueryParam("fields", equalTo("messages/id,nextPageToken"))
+                .withQueryParam("pageToken", absent())
                 .withHeader("Authorization", equalTo("Bearer " + ACCESS_TOKEN)));
+    }
+
+    @Test
+    void theCountGoesOnPageAfterPage() {
+        answerPage(null, okJson(page(500, "page-2")));
+        answerPage("page-2", okJson(page(120, null)));
+
+        assertThat(gmailProvider().estimateMessages(context(), SINCE)).hasValue(620);
+        gmail.verify(exactly(2), getRequestedFor(urlPathEqualTo(API + "/messages")));
+        gmail.verify(getRequestedFor(urlPathEqualTo(API + "/messages")).withQueryParam("q", equalTo(AFTER_SINCE))
+                .withQueryParam("pageToken", equalTo("page-2")));
+    }
+
+    // Gmail may give fewer than 500 a page; the count still never says more than 5 000.
+    @ParameterizedTest
+    @CsvSource({ "500, 10", "400, 13" })
+    void theCountStopsAtFiveThousand(int onEachPage, int pagesRead) {
+        answerTheListWith(okJson(page(onEachPage, "one-more")));
+
+        assertThat(gmailProvider().estimateMessages(context(), SINCE)).hasValue(5_000);
+        gmail.verify(exactly(pagesRead), getRequestedFor(urlPathEqualTo(API + "/messages")));
+    }
+
+    @Test
+    void aFailureMidwayGivesNoCount() {
+        answerPage(null, okJson(page(500, "page-2")));
+        answerPage("page-2", aResponse().withStatus(503));
+
+        assertThatEstimateFails(SINCE, ProviderErrorCode.PROVIDER_UNAVAILABLE);
     }
 
     @Test
@@ -99,13 +132,19 @@ class GmailEstimateTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = { "", ", \"resultSizeEstimate\": -1, \"messagesTotal\": -1" })
-    void withoutAUsableNumberThereIsNoEstimate(String numbers) {
-        answerTheListWith(okJson("{\"messages\": []" + numbers + "}"));
-        answerTheProfileWith(okJson("{\"emailAddress\": \"owner@gmail.test\"" + numbers + "}"));
+    @ValueSource(strings = { "", ", \"messagesTotal\": -1" })
+    void withoutAUsableTotalTheWholeMailboxHasNoEstimate(String total) {
+        answerTheProfileWith(okJson("{\"emailAddress\": \"owner@gmail.test\"" + total + "}"));
 
-        assertThat(gmailProvider().estimateMessages(context(), SINCE)).isEmpty();
         assertThat(gmailProvider().estimateMessages(context(), null)).isEmpty();
+    }
+
+    // Counting needs no number from Gmail: a list without messages is none, whatever Gmail estimates.
+    @Test
+    void aRangeWithoutMessagesCountsNone() {
+        answerTheListWith(okJson("{\"messages\": [], \"resultSizeEstimate\": 201}"));
+
+        assertThat(gmailProvider().estimateMessages(context(), SINCE)).hasValue(0);
     }
 
     @ParameterizedTest
@@ -128,6 +167,19 @@ class GmailEstimateTests {
 
     private static void answerTheListWith(ResponseDefinitionBuilder response) {
         gmail.stubFor(get(urlPathEqualTo(API + "/messages")).willReturn(response));
+    }
+
+    private static void answerPage(String pageToken, ResponseDefinitionBuilder response) {
+        gmail.stubFor(get(urlPathEqualTo(API + "/messages"))
+                .withQueryParam("pageToken", pageToken == null ? absent() : equalTo(pageToken)).willReturn(response));
+    }
+
+    // A page of IDs; Gmail's own estimate is there to show it is not what is counted.
+    private static String page(int messages, String nextPageToken) {
+        String ids = IntStream.range(0, messages).mapToObj(n -> "{\"id\": \"id-" + n + "\"}")
+                .collect(Collectors.joining(", "));
+        return "{\"messages\": [" + ids + "], \"resultSizeEstimate\": 201"
+                + (nextPageToken == null ? "" : ", \"nextPageToken\": \"" + nextPageToken + "\"") + "}";
     }
 
     private static void answerTheProfileWith(ResponseDefinitionBuilder response) {

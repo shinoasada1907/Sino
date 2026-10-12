@@ -37,6 +37,9 @@ import dev.sino.provider.spi.ProviderException;
 class GmailApi {
 
     static final int PAGE_SIZE = 50;
+    // The most messages.list gives at once.
+    private static final int ID_PAGE_SIZE = 500;
+    private static final String ONLY_IDS = "messages/id,nextPageToken";
 
     private static final String USER = "/gmail/v1/users/me";
     private static final Object[] CHANGES = { "messageAdded", "labelAdded", "labelRemoved" };
@@ -87,15 +90,23 @@ class GmailApi {
      * @throws ProviderException with {@code CURSOR_EXPIRED} when Gmail no longer accepts {@code pageToken} (400)
      */
     MessageList messages(String accessToken, Instant since, String pageToken) {
-        return list(accessToken, since, pageToken, PAGE_SIZE);
+        return list(accessToken, since, pageToken, PAGE_SIZE, null);
     }
 
     /**
-     * Gmail's estimate of how many messages there are since {@code since}, from a list of one message; null when
-     * Gmail leaves it out.
+     * How many messages there are since {@code since}, counted from their IDs page after page, up to {@code atMost}:
+     * Gmail's own {@code resultSizeEstimate} for a range of days can be far off (BE-46). Each page asks only for the
+     * IDs, as many as Gmail gives at once.
      */
-    Long estimate(String accessToken, Instant since) {
-        return list(accessToken, since, null, 1).resultSizeEstimate();
+    long count(String accessToken, Instant since, long atMost) {
+        long counted = 0;
+        String pageToken = null;
+        do {
+            MessageList page = list(accessToken, since, pageToken, ID_PAGE_SIZE, ONLY_IDS);
+            counted += page.ids().size();
+            pageToken = page.nextPageToken();
+        } while (pageToken != null && counted < atMost);
+        return Math.min(counted, atMost);
     }
 
     /**
@@ -157,12 +168,13 @@ class GmailApi {
                 .build(messageId, attachmentId)).headers(bearer(accessToken)).retrieve().body(Attachment.class)));
     }
 
-    private MessageList list(String accessToken, Instant since, String pageToken, int maxResults) {
+    private MessageList list(String accessToken, Instant since, String pageToken, int maxResults, String fields) {
         return call(() -> {
             try {
                 return answer(google.get().uri(uri -> withPageToken(uri.path(USER + "/messages")
                         .queryParam("maxResults", maxResults)
-                        .queryParamIfPresent("q", Optional.ofNullable(since).map(at -> "after:" + at.getEpochSecond())),
+                        .queryParamIfPresent("q", Optional.ofNullable(since).map(at -> "after:" + at.getEpochSecond()))
+                        .queryParamIfPresent("fields", Optional.ofNullable(fields)),
                         pageToken)).headers(bearer(accessToken)).retrieve().body(MessageList.class));
             } catch (RestClientResponseException failure) {
                 throw pageTokenRefused(failure, pageToken);
@@ -271,9 +283,8 @@ class GmailApi {
     record Attachment(Long size, String data) {
     }
 
-    /** {@code resultSizeEstimate} is Gmail's rough count of every message the query matches, on all pages. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record MessageList(List<MessageRef> messages, String nextPageToken, Long resultSizeEstimate) {
+    record MessageList(List<MessageRef> messages, String nextPageToken) {
 
         MessageList {
             messages = withoutNulls(messages);
