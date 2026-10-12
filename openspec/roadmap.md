@@ -187,6 +187,8 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 
 Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn; mọi thứ nằm trong Sino (D-25), nhắc nhở chỉ qua Sino (D-26). Hồ sơ phạm vi: `openspec/changes/planner-from-messages`.
 
+> **Đã mở 2026-10-12, phần lõi của F16 + F17, kéo lên trước F13/F14:** `openspec/changes/f16-f17-tasks-calendar` (người dùng: làm song song với phần Gmail; chưa gắn tin nhắn; nhắc nhở để sau). Module `planner`, việc có hạn và lặp, lịch hẹn có lặp (sửa / xóa cả chuỗi, D-151), `GET /api/calendar`; web: hai màn trên API, biểu mẫu việc và lịch hẹn. Quyết định D-150…D-158. Còn lại của F16/F17 (nhắc nhở qua F13/F14, tạo từ tin nhắn, "chỉ lần này") làm ở đợt sau.
+
 #### F15 — Ghi chú · ~S
 
 - **BE:** module `notes`; bảng `note` (≤ 20.000 ký tự, ghim, neo MESSAGE/CONVERSATION/PARTICIPANT theo loại + ID, `context_conversation_id`); tìm bằng `ILIKE` (FTS khi có F11).
