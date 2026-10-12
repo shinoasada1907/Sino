@@ -44,7 +44,9 @@ export function InboxPage() {
   )
   const { item, detail, notFound } = opened
   const { mutate: update } = useUpdateConversation()
-  const unreadOpen = item !== undefined && item.unreadCount > 0
+  // The address of another copy of a thread opens the thread under its own ID (f05b, D-183); it is read there.
+  const canonicalId = item && item.id !== conversationId ? item.id : null
+  const unreadOpen = item !== undefined && canonicalId === null && item.unreadCount > 0
   const online = useOnline()
   const realtimeDown = useRealtimeDown()
   const readOnce = useRef<string | null>(null)
@@ -59,6 +61,12 @@ export function InboxPage() {
       update({ id: conversationId, change: { read: true } })
     }
   }, [unreadOpen, conversationId, update])
+
+  useEffect(() => {
+    if (canonicalId) {
+      navigate({ pathname: `/inbox/${canonicalId}`, search }, { replace: true })
+    }
+  }, [canonicalId, search, navigate])
 
   if (inbox && inbox.accounts.length === 0) {
     return <NoSources providers={inbox.providers} />

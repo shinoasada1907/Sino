@@ -35,7 +35,9 @@
   - **Đã biết, ngoài phạm vi:** cột trái của đầu chuỗi ở 1440 hẹp (~176px) vì cụm nút bên phải (có từ IN-02, ghi ở IN-06), nên hai địa chỉ xuống 3 dòng.
   - **Acceptance criteria:** spec `inbox-merged-threads` *Dòng của chuỗi gộp ghi mọi tài khoản*.
 
-- [ ] 2.2 **FE-81 — Mở chuỗi gộp: "Bạn · địa chỉ", "Gửi từ", chuyển mã (D-183, D-184, D-186)**
+- [x] 2.2 **FE-81 — Mở chuỗi gộp: "Bạn · địa chỉ", "Gửi từ", chuyển mã (D-183, D-184, D-186)**
+  - **Thực hiện (2026-10-12, AUTO):** `Message.ownAddress` (adapter lấy từ `sender.address` khi `sender.self`); `format.mailSender(mail, manyAccounts)`; `EmailThread` truyền `sender` cho `FoldedMail`, `MailCard` và `from` cho `Composer` khi `accounts` có nhiều hơn một; `Composer` có dòng "Gửi từ {địa chỉ}" `xl:hidden` (từ 1280px dùng nút "Gửi từ" sẵn có); `InboxPage` thay đường dẫn bằng mã của nhóm (`replace`, giữ bộ lọc) và chỉ đánh dấu đã đọc khi đường dẫn đã là mã của nhóm.
+  - **Kiểm chứng (2026-10-12):** `MergedThreadOnApi.test.tsx` (MSW): RED 3/5 ("Bạn · địa chỉ", dòng "Gửi từ", chuyển mã), 2 test giữ hành vi cũ xanh từ đầu; GREEN 5/5. Test đơn vị `mailSender` viết **sau** code (hành vi đã đỏ trước ở test màn). Chrome thật (headless, `vite` :5174, API qua CDP, chuỗi 3 thư tự gửi giữa hai tài khoản): 1440 nút "Gửi từ tienct07@gmail.com", không có dòng; 1024 và 390 dòng "Gửi từ tienct07@gmail.com"; người gửi "Bạn · bonzed2001@gmail.com" / "Bạn · tienct07@gmail.com"; `/inbox/c-9?view=unread` → `/inbox/c-1?view=unread`, đúng một `PATCH` lên `c-1`; không cuộn ngang. `pnpm lint` 0, `tsc -b` 0, `pnpm test` 563/563 (68 file), `pnpm build` 0. File kiến thức mục 18.4 + `.docx`, `genoffice docs check` 0 lỗi.
   - **Acceptance criteria:** spec `inbox-merged-threads` *Thư của bạn ghi địa chỉ trong chuỗi gộp*, *Ô trả lời ghi tài khoản gửi trong chuỗi gộp*, *Mã của bản khác chuyển về mã của nhóm*.
 
 - [ ] 2.3 **FE-82 — Chạy với backend thật (sau BE-83)**

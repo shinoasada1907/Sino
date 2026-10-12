@@ -22,6 +22,7 @@ export function Composer({
   placeholder,
   account,
   via,
+  from,
   to,
   onSend,
 }: {
@@ -31,6 +32,11 @@ export function Composer({
   account: string
   /** "Zalo · +84 9•• ••• 218" for a chat. */
   via: string
+  /**
+   * The sending account of a thread in several accounts, on a line of its own below 1280px, where the bar has no room
+   * for it (f05b, D-186); the bar says it from 1280px.
+   */
+  from?: string
   /** "Trần Minh Anh <minhanh@acme.vn>": who the reply goes to. */
   to?: string
   onSend: (text: string) => void
@@ -60,6 +66,11 @@ export function Composer({
   }
   return (
     <div className="relative flex flex-wrap items-end gap-2 border-t bg-background px-3 pt-2.5 pb-6 md:flex-col md:flex-nowrap md:items-stretch md:px-5 md:pt-3 md:pb-4 xl:px-6 xl:pt-4 xl:pb-5">
+      {from && (
+        <p className="order-first w-full text-sm [overflow-wrap:anywhere] text-muted-foreground md:order-none xl:hidden">
+          Gửi từ <span className="text-foreground">{from}</span>
+        </p>
+      )}
       {to && (
         // First in the row of the phone, where the attach button is also first, and alone on its line; it wraps rather
         // than cut a recipient off.

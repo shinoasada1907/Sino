@@ -209,6 +209,11 @@ export function formatFileSize(bytes: number | null): string | null {
   return `${megabytes} MB`
 }
 
+/** "Bạn · tienct07@gmail.com": in a thread of several accounts an own email says which address it went from (f05b, D-184). */
+export function mailSender(mail: { sender: string; ownAddress?: string }, manyAccounts: boolean): string {
+  return manyAccounts && mail.ownAddress ? `${mail.sender} · ${mail.ownAddress}` : mail.sender
+}
+
 /** "3 thư · 2 tệp" */
 export function threadMeta(messages: Message[]): string {
   const mails = messages.filter((message) => message.kind === 'MESSAGE')

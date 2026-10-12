@@ -150,6 +150,8 @@ export type Message =
       kind: 'MESSAGE'
       direction: 'IN' | 'OUT'
       sender: string
+      /** An own message: the address it went from, named in a thread of several accounts (f05b, D-184). */
+      ownAddress?: string
       to: string | null
       at: Instant
       /** Plain text; paragraphs are separated by an empty line (D-53). */

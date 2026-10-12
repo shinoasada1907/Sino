@@ -19,6 +19,7 @@ import {
   groupConversations,
   linkedInfoSpec,
   linkedMeta,
+  mailSender,
   mailTime,
   memberPlaceholder,
   newMailText,
@@ -259,6 +260,13 @@ describe('the open conversation', () => {
     expect(threadSubtitle(item({ provider: 'messenger', kind: 'CHAT' }), [{ address: 'an.nguyen.92' }], nameOf)).toBe(
       'Messenger · qua an.nguyen.92',
     )
+  })
+
+  it('names the address an own email went from, only in a thread of several accounts (f05b, D-184)', () => {
+    const own = { sender: 'Bạn', ownAddress: 'tienct07@gmail.com' }
+    expect(mailSender(own, true)).toBe('Bạn · tienct07@gmail.com')
+    expect(mailSender(own, false)).toBe('Bạn')
+    expect(mailSender({ sender: 'Sinon sama' }, true)).toBe('Sinon sama')
   })
 
   it('dates emails: the open one in full, the folded ones short', () => {

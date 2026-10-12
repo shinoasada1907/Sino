@@ -1174,6 +1174,19 @@ thread 1a12fae4...        thread 1a12fadf...
 ### 18.3 Một cụm không xuống dòng trong một hàng có xuống dòng
 Đầu chuỗi là hàng `flex-wrap`: icon, chữ nguồn, số thư. Khi chữ nguồn dài (hai địa chỉ), `flex-wrap` đẩy icon lên một dòng riêng. Gộp icon và chữ vào một cụm `flex items-start` không xuống dòng (`min-w-0` cho chữ) thì chữ tự xuống dòng ngay cạnh icon, còn số thư vẫn được xuống hàng như cũ.
 
+### 18.4 Mở một chuỗi gộp (FE-81)
+- **Adapter giữ dữ liệu, màn hình quyết định chữ:** API cho biết thư của bạn đi từ địa chỉ nào (`sender.self`, `sender.address`). Adapter chỉ giữ địa chỉ đó (`ownAddress`). Hàm thuần `mailSender(mail, manyAccounts)` mới ghép "Bạn · địa chỉ" khi chuỗi có nhiều tài khoản, vì adapter không biết chuỗi có gộp hay không.
+- **Truyền chữ đã tính xuống component con:** `FoldedMail` và `MailCard` nhận prop `sender`. Không tạo object thư mới (`{ ...mail, sender }`) mỗi lần vẽ, vì component con dùng `mail` để tải nội dung và đổi object là đổi đầu vào của chúng.
+- **Một chỗ cho mỗi cỡ màn:** từ 1280px, thanh của ô trả lời đã có nút "Gửi từ …"; dưới 1280px thanh không còn chỗ, nên chuỗi gộp có thêm một dòng "Gửi từ" (`xl:hidden`), đặt giống dòng "Tới".
+- **Chuyển mã bằng `replace`:** mở `/inbox/{mã bản kia}` thì API trả dòng mang mã của nhóm; `navigate({ pathname, search }, { replace: true })` thay đường dẫn mà không thêm mục vào lịch sử, nên nút Quay lại không đưa về đường dẫn cũ rồi lại bị chuyển. Việc đánh dấu đã đọc chờ tới khi đường dẫn đã là mã của nhóm, nên chỉ có một `PATCH`.
+
+```text
+/inbox/c-9?view=unread
+  GET /api/conversations/c-9  ->  { id: "c-1", ... }      (mã của nhóm, D-183)
+  navigate replace            ->  /inbox/c-1?view=unread
+  PATCH /api/conversations/c-1 { read: true }             (một lần)
+```
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1305,3 +1318,4 @@ thread 1a12fae4...        thread 1a12fadf...
 127. Vì sao dòng thư chỉ ghi tài khoản khi nguồn có từ hai tài khoản trở lên? Dưới 1280px vì sao bỏ chữ "Gmail · "?
 128. Vì sao `accountIds` bắt buộc trong kiểu của màn hình nhưng không bắt buộc trong kiểu của API? Ai điền nó khi backend chưa có?
 129. Hai bản của một chuỗi ở hai hộp thư Gmail có chung thứ gì, và vì sao không gom theo tiêu đề?
+130. Vì sao chuyển mã của bản khác về mã của nhóm dùng `replace: true`? Nếu đánh dấu đã đọc trước khi chuyển thì có mấy `PATCH`?

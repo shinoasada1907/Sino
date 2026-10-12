@@ -182,6 +182,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     kind: 'MESSAGE',
     direction: outbound ? 'OUT' : 'IN',
     sender: senderName(sender, outbound),
+    ...(sender?.self ? { ownAddress: sender.address } : {}),
     to: recipients || null,
     at: sentAt,
     text: text ?? '',

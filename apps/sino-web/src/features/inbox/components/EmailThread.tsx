@@ -21,7 +21,7 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { firstLine, formatFileSize, linkedMeta, mailTime, recipientsText, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
+import { firstLine, formatFileSize, linkedMeta, mailSender, mailTime, recipientsText, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
 import type { Attachment, ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
 import { useConversationActions, useSendMessage, type LoadMore, type MessageHistory } from '../useInbox'
 import { Composer } from './Composer'
@@ -74,6 +74,7 @@ export function EmailThread({
 }) {
   const mails = (detail?.messages ?? []).filter((message): message is Mail => message.kind === 'MESSAGE')
   const newest = mails.at(-1)
+  const manyAccounts = accounts.length > 1
   const [opened, setOpened] = useState<string[]>([])
   const toggle = (id: string) => setOpened((ids) => (ids.includes(id) ? ids.filter((open) => open !== id) : [...ids, id]))
   const sendMessage = useSendMessage(item.id)
@@ -125,15 +126,24 @@ export function EmailThread({
         ) : (
           <>
             {history.older.hasMore && <OlderMails older={history.older} />}
-            {mails.map((mail) =>
-              mail === newest ? (
-                <MailCard key={mail.clientMessageId ?? mail.id} conversationId={item.id} mail={mail} now={now} sending={sending} tools />
+            {mails.map((mail) => {
+              const sender = mailSender(mail, manyAccounts)
+              return mail === newest ? (
+                <MailCard key={mail.clientMessageId ?? mail.id} conversationId={item.id} mail={mail} sender={sender} now={now} sending={sending} tools />
               ) : opened.includes(mail.id) ? (
-                <MailCard key={mail.clientMessageId ?? mail.id} conversationId={item.id} mail={mail} now={now} sending={sending} onFold={() => toggle(mail.id)} />
+                <MailCard
+                  key={mail.clientMessageId ?? mail.id}
+                  conversationId={item.id}
+                  mail={mail}
+                  sender={sender}
+                  now={now}
+                  sending={sending}
+                  onFold={() => toggle(mail.id)}
+                />
               ) : (
-                <FoldedMail key={mail.id} mail={mail} now={now} onOpen={() => toggle(mail.id)} />
-              ),
-            )}
+                <FoldedMail key={mail.id} mail={mail} sender={sender} now={now} onOpen={() => toggle(mail.id)} />
+              )
+            })}
           </>
         )}
       </div>
@@ -148,6 +158,7 @@ export function EmailThread({
           placeholder={`Trả lời ${item.title}…`}
           account={account.address}
           via={`${nameOf(item.provider)} · ${account.address}`}
+          from={manyAccounts ? account.address : undefined}
           to={detail.replyTo && detail.replyTo.length > 0 ? recipientsText(detail.replyTo) : undefined}
           onSend={sendMessage.send}
         />
@@ -222,7 +233,7 @@ function LinkedChips({ items, now }: { items: LinkedItem[]; now: Date }) {
 const placeholderOf = (mail: Mail) => (mail.direction === 'OUT' ? 'a' : 'c')
 
 // Canvas `.mail.is-collapsed`: a folded older email is one button that opens it.
-function FoldedMail({ mail, now, onOpen }: { mail: Mail; now: Date; onOpen: () => void }) {
+function FoldedMail({ mail, sender, now, onOpen }: { mail: Mail; sender: string; now: Date; onOpen: () => void }) {
   return (
     <button
       type="button"
@@ -232,7 +243,7 @@ function FoldedMail({ mail, now, onOpen }: { mail: Mail; now: Date; onOpen: () =
     >
       <Avatar placeholder={placeholderOf(mail)} className="size-8" />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm font-semibold">{mail.sender}</span>
+        <span className="text-sm font-semibold">{sender}</span>
         <span className="truncate text-sm text-muted-foreground">{firstLine(mail.text)}</span>
       </span>
       {/* An own email that did not go keeps saying so once a newer one folds it. */}
@@ -252,6 +263,7 @@ type Sending = Pick<ReturnType<typeof useSendMessage>, 'resend' | 'discard' | 'd
 function MailCard({
   conversationId,
   mail,
+  sender,
   now,
   sending,
   tools = false,
@@ -259,6 +271,8 @@ function MailCard({
 }: {
   conversationId: string
   mail: Mail
+  /** Who it is from, as the thread names it (f05b, D-184). */
+  sender: string
   now: Date
   sending: Sending
   tools?: boolean
@@ -268,7 +282,7 @@ function MailCard({
     <>
       <Avatar placeholder={placeholderOf(mail)} className="size-8" />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-sm font-semibold">{mail.sender}</span>
+        <span className="truncate text-sm font-semibold">{sender}</span>
         {mail.to && <Spec className="truncate">tới {mail.to}</Spec>}
       </span>
     </>
