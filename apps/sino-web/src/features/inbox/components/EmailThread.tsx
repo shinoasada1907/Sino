@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { Avatar } from '@/shared/ui/avatar'
@@ -77,7 +77,10 @@ export function EmailThread({
   const manyAccounts = accounts.length > 1
   const [opened, setOpened] = useState<string[]>([])
   const toggle = (id: string) => setOpened((ids) => (ids.includes(id) ? ids.filter((open) => open !== id) : [...ids, id]))
-  const sendMessage = useSendMessage(item.id)
+  const navigate = useNavigate()
+  // A new conversation whose opening mail did not go (f10-new-mail, D-195): dropping that mail drops the conversation.
+  const opening = detail?.opening === true
+  const sendMessage = useSendMessage(item.id, opening ? () => navigate({ pathname: '/inbox', search: backSearch }, { replace: true }) : undefined)
   const sending: Sending = { ...sendMessage, providerName: nameOf(item.provider) }
   const block = sendBlock(account, detail?.canSend)
   const { markUnread, toggleArchive } = useConversationActions(item, backSearch)
@@ -148,7 +151,7 @@ export function EmailThread({
         )}
       </div>
 
-      {block ? (
+      {opening ? null : block ? (
         <ThreadNotice block={block} kind={item.kind} providerName={nameOf(item.provider)} account={account} />
       ) : detail && !history.failed ? (
         // No box while the emails cannot load: a reply sent then would show nowhere.

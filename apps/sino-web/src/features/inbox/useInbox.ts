@@ -1,11 +1,12 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient, type QueryKey } from '@tanstack/react-query'
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, withOutbox, type InboxFilter } from './format'
-import { discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
+import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
 import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation } from './inbox.types'
+import { LEAVE_FREELY, rememberSender, type NewMailDraft } from './newMail'
 
 /** Accounts, providers and counts of the inbox. */
 export const INBOX_QUERY_KEY = ['inbox'] as const
@@ -296,7 +297,7 @@ const storedId = (error: unknown) => (error instanceof ApiError && typeof error.
  * answer never came (the network) it may be sent again safely; "not allowed" reads the conversation again so its
  * notice shows. Offline, TanStack Query holds the send until the network is back.
  */
-export function useSendMessage(conversationId: string) {
+export function useSendMessage(conversationId: string, afterDiscard?: () => void) {
   const queryClient = useQueryClient()
   const editOutbox = (change: (mails: Mail[]) => Mail[]) => queryClient.setQueryData<Mail[]>(outboxKey(conversationId), (mails = []) => change(mails))
   const editMail = (clientMessageId: string, change: (mail: Mail) => Mail) =>
@@ -370,6 +371,13 @@ export function useSendMessage(conversationId: string) {
         (data) => data && { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.filter((message) => message.id !== mail.id) })) },
       )
     },
+    onSuccess: () => {
+      // The opening mail of a new conversation was its only mail: the conversation is gone too (f10-new-mail, D-195).
+      if (afterDiscard) {
+        refreshInbox(queryClient)
+        afterDiscard()
+      }
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) }),
   })
   const sendTry = (text: string, clientMessageId: string) => {
@@ -395,4 +403,110 @@ export function useSendMessage(conversationId: string) {
     /** The `clientMessageId` of the reply the server refused to throw away, if the last try failed. */
     discardFailed: discarding.isError ? discarding.variables?.clientMessageId : undefined,
   }
+}
+
+/** The fields of the form of a new mail a refusal can point at. */
+export type NewMailField = 'from' | 'to' | 'subject' | 'text'
+
+/** What the form of a new mail shows about its send (f10-new-mail, D-194). */
+export interface NewMailSend {
+  send: (draft: NewMailDraft) => void
+  /** The same mail under the same `clientMessageId`: safe whatever became of the try before (D-131). */
+  retry: () => void
+  pending: boolean
+  /** Offline: the send waits for the network. */
+  paused: boolean
+  /** The mail may have gone: it is locked, and only "Gửi lại" (same ID) or "Bỏ" are offered. */
+  locked: string | null
+  /** A refusal the user can act on; the mail stays editable. */
+  notice: string | null
+  fieldErrors: Partial<Record<NewMailField, string>>
+}
+
+const NO_OUTCOME = { locked: null, notice: null, fieldErrors: {} } satisfies Pick<NewMailSend, 'locked' | 'notice' | 'fieldErrors'>
+
+/**
+ * Sends a new mail (f10-new-mail, D-194). Each mail gets a `clientMessageId`. The server makes the conversation before
+ * it calls Gmail (D-192), so whenever it answers with that conversation (sent, refused, unknown) the form gives way to
+ * it, without asking to drop the mail. No answer at all locks the mail: it may have gone, and only the same ID again is
+ * safe. A refusal that names a field, the account, or a backend without the request leaves the mail editable.
+ */
+export function useCreateConversation(backSearch: string): NewMailSend {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const tried = useRef<{ draft: NewMailDraft; clientMessageId: string } | null>(null)
+  const [outcome, setOutcome] = useState<Pick<NewMailSend, 'locked' | 'notice' | 'fieldErrors'>>(NO_OUTCOME)
+  const open = (conversationId: string) => {
+    refreshInbox(queryClient)
+    navigate({ pathname: `/inbox/${conversationId}`, search: backSearch }, { replace: true, state: LEAVE_FREELY })
+  }
+
+  const mutation = useMutation({
+    mutationFn: ({ draft, clientMessageId }: { draft: NewMailDraft; clientMessageId: string }) => createConversation(draft, clientMessageId),
+    onMutate: ({ draft }) => {
+      rememberSender(draft.accountId)
+      setOutcome(NO_OUTCOME)
+    },
+    onSuccess: ({ item }) => open(item.id),
+    onError: (error) => {
+      const problem = error instanceof ApiError ? error : null
+      const conversationId = typeof problem?.extra.conversationId === 'string' ? problem.extra.conversationId : null
+      if (conversationId) {
+        // Refused or unknown (502, 504, 409 SEND_OUTCOME_UNKNOWN): the conversation shows the mail with its state (F10).
+        open(conversationId)
+      } else if (problem?.code === 'VALIDATION_FAILED') {
+        setOutcome({ ...NO_OUTCOME, fieldErrors: fieldErrorsOf(problem.errors.map((entry) => entry.field)) })
+      } else if (problem?.code === 'SEND_NOT_ALLOWED' || problem?.code === 'ACCOUNT_NOT_FOUND') {
+        void queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY, exact: true })
+        setOutcome({ ...NO_OUTCOME, fieldErrors: { from: 'Tài khoản này không gửi được thư nữa' } })
+      } else if (problem?.status === 404 || problem?.status === 405) {
+        setOutcome({ ...NO_OUTCOME, notice: 'Sino chưa gửi được thư mới. Bạn gửi trong Gmail.' })
+      } else if (problem?.code === 'SEND_IN_PROGRESS') {
+        setOutcome({ ...NO_OUTCOME, locked: 'Lần gửi trước vẫn đang chạy. Chờ ít giây rồi gửi lại.' })
+      } else {
+        // No answer, or one that does not say what became of the mail.
+        const lost = problem === null || problem.code === NETWORK_ERROR
+        setOutcome({ ...NO_OUTCOME, locked: `${lost ? 'Mất kết nối khi gửi.' : 'Không rõ thư đã gửi chưa.'} Gửi lại không làm thư bị gửi hai lần.` })
+      }
+    },
+  })
+
+  return {
+    send: (draft) => {
+      tried.current = { draft, clientMessageId: crypto.randomUUID() }
+      mutation.mutate(tried.current)
+    },
+    retry: () => {
+      if (tried.current) {
+        mutation.mutate(tried.current)
+      }
+    },
+    pending: mutation.isPending,
+    paused: mutation.isPaused,
+    ...outcome,
+  }
+}
+
+// The server names fields as its request has them ("to", "to[0]", "accountId"); the form names its own.
+function fieldErrorsOf(fields: string[]): NewMailSend['fieldErrors'] {
+  const errors: NewMailSend['fieldErrors'] = {}
+  for (const field of fields) {
+    if (field.startsWith('to')) {
+      errors.to = 'Người nhận không hợp lệ'
+    } else if (field === 'subject') {
+      errors.subject = 'Tiêu đề quá dài'
+    } else if (field === 'text') {
+      errors.text = 'Nội dung không hợp lệ'
+    } else if (field === 'accountId') {
+      errors.from = 'Tài khoản không hợp lệ'
+    }
+  }
+  return errors
+}
+
+/** The frame, the lists and the count of the navigation: after a conversation came or went. */
+function refreshInbox(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY, exact: true })
+  void queryClient.invalidateQueries({ queryKey: LISTS_KEY })
+  void queryClient.invalidateQueries({ queryKey: INBOX_UNREAD_QUERY_KEY })
 }

@@ -1215,6 +1215,25 @@ Trước đây Sino chỉ trả lời trong một cuộc trò chuyện. Change `
 - **Fast refresh:** Vite chỉ thay nóng được một file khi file đó chỉ xuất component. `NewMail.tsx` từng xuất cả hằng số, nên lint cảnh báo `only-export-components`; hằng số, kiểu và hàm đọc `localStorage` chuyển sang `newMail.ts`.
 - **Test đếm link:** ba helper `rowTitles` coi mọi link trong vùng danh sách là một dòng thư. Nút "Thư mới" cũng là link trong vùng đó, nên helper giờ chỉ lấy link có dấu của dòng (`data-slot="row-title"`). Ý của test giữ nguyên, chỉ nói rõ hơn.
 
+### 19.5 Gửi thư mới: mỗi câu trả lời một cách xử (FE-84)
+`useCreateConversation` gửi `POST /api/conversations` với một `clientMessageId` mới cho mỗi thư. Nó đọc câu trả lời như sau:
+
+```text
+câu trả lời                          web làm gì
+201 / 200 (đã gửi)                   sang /inbox/{id} (replace, không hỏi "Bỏ thư?")
+502 / 504 / 409 có conversationId    cũng sang cuộc trò chuyện: thư hiện trạng thái như F10
+không có câu trả lời (mạng)          khóa form, "Gửi lại" dùng LẠI cùng ID
+400 VALIDATION_FAILED                báo dưới đúng ô, form vẫn sửa được
+409 SEND_NOT_ALLOWED                 đọc lại tài khoản, báo ở "Từ"
+404 / 405 (backend chưa có)          giữ chữ, "Sino chưa gửi được thư mới..."
+```
+
+- **Vì sao khóa form khi mất mạng:** request có thể đã tới server và thư đã đi. "Gửi lại" an toàn chỉ khi gửi **đúng** nội dung đó dưới **đúng** ID cũ, vì server thấy ID đã gửi thì trả lại thư cũ chứ không gửi nữa. Nếu cho sửa chữ rồi gửi cùng ID, server sẽ trả thư cũ và người dùng tưởng thư mới đã đi. Nếu sửa rồi gửi ID mới, có thể thành hai thư.
+- **Vì sao 400 thì không khóa:** server chưa tạo gì, nên sửa rồi gửi với ID mới là an toàn.
+- **Lỗi của web và lỗi của server cùng hiện ở một ô:** kiểm của form để `undefined` cho ô đạt, nên trước khi gộp phải bỏ các `undefined` (`dropEmpty`), không thì chúng đè lên lỗi của server khi trải object.
+- **`useRef` cho lần gửi đang thử:** "Gửi lại" cần nội dung và ID của lần trước ngay lúc bấm, mà không cần vẽ lại màn hình, nên giữ trong `useRef` thay vì `useState`.
+- **Thư mở đầu chưa gửi xong:** `reply.state = OPENING_NOT_SENT` thành `detail.opening`. Chuỗi đó không có ô trả lời (chưa có thread ở Gmail để trả lời vào), còn "Bỏ" thư duy nhất thì xóa cả cuộc trò chuyện, nên web làm mới danh sách và quay về danh sách.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1350,3 +1369,5 @@ Trước đây Sino chỉ trả lời trong một cuộc trò chuyện. Change `
 131. `/inbox/new` khớp cả `inbox/new` lẫn `inbox/:conversationId`. React Router chọn route nào, và vì sao?
 132. Vì sao hỏi "Bỏ thư đang soạn?" cần hai cơ chế (`useBlocker` và `beforeunload`)? Trang tự vẽ được hộp hỏi khi đóng tab không?
 133. Vì sao một phần tử `display: none` làm lệch lưới `grid-rows-[auto_1fr_auto]` mà không làm lệch flex dọc?
+134. Mất mạng khi gửi thư mới: vì sao form bị khóa, mà lỗi `400` thì không? Nếu cho sửa chữ rồi "Gửi lại" cùng ID thì chuyện gì xảy ra?
+135. Vì sao `502`/`504` của thư mới lại chuyển sang một cuộc trò chuyện, trong khi lỗi mạng thì ở lại form?

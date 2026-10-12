@@ -117,6 +117,8 @@ export interface ConversationDetail {
   canSend: boolean | null
   /** Who a reply goes to (D-133); null when the backend does not tell, or in the sample data. */
   replyTo: Recipient[] | null
+  /** The opening mail of a new conversation has not gone yet: no reply box and no notice (f10-new-mail, D-195). */
+  opening?: boolean
   previousCursor: string | null
 }
 

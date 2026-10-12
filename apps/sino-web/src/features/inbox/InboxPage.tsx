@@ -187,7 +187,7 @@ export function InboxPage({ compose = false }: { compose?: boolean }) {
         ) : compose ? (
           <div className="flex min-h-0 min-w-0 flex-col">
             <MobilePageHeader back={{ to: `/inbox${search}`, label: 'Quay lại Hộp thư' }} title="Thư mới" />
-            {inbox ? <NewMail accounts={inbox.accounts} backTo={`/inbox${search}`} /> : <ThreadSkeleton />}
+            {inbox ? <NewMail accounts={inbox.accounts} search={search} /> : <ThreadSkeleton />}
           </div>
         ) : (
           <div className={cn('flex min-h-0 min-w-0 flex-col', !selected && 'hidden md:flex')}>

@@ -8,7 +8,8 @@ import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { defaultSender, MAX_RECIPIENTS, parseRecipients, sendingNote } from '../format'
 import type { InboxAccount } from '../inbox.types'
-import { lastSender, type LEAVE_FREELY, type NewMailDraft } from '../newMail'
+import { lastSender, type LEAVE_FREELY } from '../newMail'
+import { useCreateConversation } from '../useInbox'
 
 const FIELD =
   'w-full min-w-0 rounded-sm border border-border bg-surface text-sm text-foreground transition-[border-color,box-shadow,background-color] duration-(--dur-hover) ease-out outline-none placeholder:text-subtle-foreground hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16 aria-invalid:border-danger aria-invalid:focus:ring-danger/24'
@@ -16,20 +17,25 @@ const FIELD =
 /**
  * "Tạo thư mới" (f10-new-mail): the form of a new mail in the reading column (D-191). The canvas has no such screen, so
  * the fields follow its `.input` and the buttons its `.composer`. "Gửi" checks the recipients and the text (D-197) and
- * hands the mail to `onSend`; "Bỏ" goes back to the list. Leaving a mail with text asks first, inside the app and when
- * the tab closes. When no account can send, a notice says how to grant sending instead (D-193).
+ * sends (D-194): the new conversation then takes the place of the form; a mail that may have gone without an answer is
+ * locked with "Gửi lại". "Bỏ" goes back to the list (`search` keeps its filter). Leaving a mail with text asks first,
+ * inside the app and when the tab closes. When no account can send, a notice says how to grant sending (D-193).
  */
-export function NewMail({ accounts, backTo, onSend }: { accounts: InboxAccount[]; backTo: string; onSend?: (draft: NewMailDraft) => void }) {
+export function NewMail({ accounts, search }: { accounts: InboxAccount[]; search: string }) {
   // A chat cannot start a mail.
   const choices = accounts.filter((account) => account.sending !== 'NOT_SUPPORTED')
   const [from, setFrom] = useState(() => defaultSender(choices, lastSender()))
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
   const [text, setText] = useState('')
-  const [errors, setErrors] = useState<{ to?: string; text?: string }>({})
+  const [checks, setChecks] = useState<{ to?: string; text?: string }>({})
+  const delivery = useCreateConversation(search)
   const navigate = useNavigate()
   const id = useId()
   const dirty = [to, subject, text].some((value) => value.trim() !== '')
+  // What the form found first, then what the server refused.
+  const errors = { ...delivery.fieldErrors, ...dropEmpty(checks) }
+  const frozen = delivery.locked !== null || delivery.pending
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
@@ -63,11 +69,12 @@ export function NewMail({ accounts, backTo, onSend }: { accounts: InboxAccount[]
               : undefined,
       text: text.trim() === '' ? 'Nhập nội dung thư' : undefined,
     }
-    setErrors(found)
+    setChecks(found)
     if (!found.to && !found.text) {
-      onSend?.({ accountId: from, to: recipients.addresses, subject: subject.trim(), text: text.trim() })
+      delivery.send({ accountId: from, to: recipients.addresses, subject: subject.trim(), text: text.trim() })
     }
   }
+  const status = delivery.locked ?? delivery.notice ?? (delivery.paused ? 'Sẽ gửi khi có mạng' : null)
 
   return (
     // A column, not a grid of three rows: the header is hidden on a phone, and a hidden row would shift the others.
@@ -77,11 +84,12 @@ export function NewMail({ accounts, backTo, onSend }: { accounts: InboxAccount[]
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 md:px-5 xl:px-6">
         {choices.length > 1 ? (
-          <Field id={`${id}-from`} label="Từ">
+          <Field id={`${id}-from`} label="Từ" error={errors.from}>
             <span className="relative">
               <select
                 id={`${id}-from`}
                 value={from}
+                disabled={frozen}
                 onChange={(event) => setFrom(event.target.value)}
                 className={cn(FIELD, 'h-11 cursor-pointer appearance-none pr-9 pl-3.5')}
               >
@@ -101,15 +109,17 @@ export function NewMail({ accounts, backTo, onSend }: { accounts: InboxAccount[]
           <div className="flex flex-col gap-1.5">
             <span className="text-[13px] leading-4.5 font-semibold">Từ</span>
             <span className="text-sm">{choices[0].address}</span>
+            {errors.from && <p className="text-sm text-danger-ink">{errors.from}</p>}
           </div>
         )}
         <Field id={`${id}-to`} label="Tới" error={errors.to}>
           <Input
             id={`${id}-to`}
             value={to}
+            disabled={frozen}
             onChange={(event) => {
               setTo(event.target.value)
-              setErrors((current) => ({ ...current, to: undefined }))
+              setChecks((current) => ({ ...current, to: undefined }))
             }}
             placeholder="ten@vi-du.com, ten-khac@vi-du.com"
             autoComplete="off"
@@ -117,16 +127,24 @@ export function NewMail({ accounts, backTo, onSend }: { accounts: InboxAccount[]
             aria-describedby={errors.to ? `${id}-to-error` : undefined}
           />
         </Field>
-        <Field id={`${id}-subject`} label="Tiêu đề">
-          <Input id={`${id}-subject`} value={subject} onChange={(event) => setSubject(event.target.value)} />
+        <Field id={`${id}-subject`} label="Tiêu đề" error={errors.subject}>
+          <Input
+            id={`${id}-subject`}
+            value={subject}
+            disabled={frozen}
+            onChange={(event) => setSubject(event.target.value)}
+            aria-invalid={errors.subject ? true : undefined}
+            aria-describedby={errors.subject ? `${id}-subject-error` : undefined}
+          />
         </Field>
         <Field id={`${id}-text`} label="Nội dung" error={errors.text} grow>
           <textarea
             id={`${id}-text`}
             value={text}
+            disabled={frozen}
             onChange={(event) => {
               setText(event.target.value)
-              setErrors((current) => ({ ...current, text: undefined }))
+              setChecks((current) => ({ ...current, text: undefined }))
             }}
             aria-invalid={errors.text ? true : undefined}
             aria-describedby={errors.text ? `${id}-text-error` : undefined}
@@ -134,13 +152,24 @@ export function NewMail({ accounts, backTo, onSend }: { accounts: InboxAccount[]
           />
         </Field>
       </div>
-      <div className="flex items-center justify-end gap-2 border-t px-4 pt-3 pb-6 md:px-5 md:pb-4 xl:px-6 xl:pb-5">
-        <Button type="button" variant="ghost" onClick={() => navigate(backTo)}>
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t px-4 pt-3 pb-6 md:px-5 md:pb-4 xl:px-6 xl:pb-5">
+        {status && (
+          <p role={delivery.paused ? 'status' : 'alert'} className={cn('mr-auto text-sm', delivery.paused ? 'text-muted-foreground' : 'text-danger-ink')}>
+            {status}
+          </p>
+        )}
+        <Button type="button" variant="ghost" onClick={() => navigate({ pathname: '/inbox', search })}>
           Bỏ
         </Button>
-        <Button type="submit" variant="primary">
-          Gửi
-        </Button>
+        {delivery.locked ? (
+          <Button type="button" variant="primary" onClick={delivery.retry}>
+            Gửi lại
+          </Button>
+        ) : (
+          <Button type="submit" variant="primary" disabled={delivery.pending}>
+            {delivery.pending ? 'Đang gửi…' : 'Gửi'}
+          </Button>
+        )}
       </div>
       <Dialog open={blocker.state === 'blocked'} onOpenChange={(open) => !open && blocker.reset?.()}>
         <DialogContent>
@@ -206,4 +235,9 @@ function CannotSend({ choices }: { choices: InboxAccount[] }) {
       </div>
     </div>
   )
+}
+
+// The checks of the form leave `undefined` for a field that passed; that must not hide what the server said about it.
+function dropEmpty(errors: { to?: string; text?: string }): { to?: string; text?: string } {
+  return Object.fromEntries(Object.entries(errors).filter(([, value]) => value !== undefined))
 }

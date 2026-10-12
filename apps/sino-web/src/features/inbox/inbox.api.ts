@@ -14,6 +14,7 @@ import type {
   MessagePage,
   OpenConversation,
 } from './inbox.types'
+import type { NewMailDraft } from './newMail'
 
 /*
  * The requests of the Hộp thư screens, on the F05 and F06 APIs (D-56): what the API does not give yet is null. Sending
@@ -75,11 +76,18 @@ interface ConversationResponse {
 
 /** Whether Sino can reply in a conversation, and to whom (F10, D-133). */
 interface ReplyResponse {
-  state: 'READY' | 'NEEDS_PERMISSION' | 'ACCOUNT_UNAVAILABLE' | 'NOT_SUPPORTED'
+  /** `OPENING_NOT_SENT`: the opening mail of a new conversation has not gone yet (f10-new-mail, D-195). */
+  state: 'READY' | 'NEEDS_PERMISSION' | 'ACCOUNT_UNAVAILABLE' | 'NOT_SUPPORTED' | 'OPENING_NOT_SENT'
   to: PersonResponse[]
 }
 
-const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = { READY: true, NEEDS_PERMISSION: false, ACCOUNT_UNAVAILABLE: false, NOT_SUPPORTED: null }
+const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = {
+  READY: true,
+  NEEDS_PERMISSION: false,
+  ACCOUNT_UNAVAILABLE: false,
+  NOT_SUPPORTED: null,
+  OPENING_NOT_SENT: null,
+}
 
 /** A person of `GET /api/conversations/{id}`; `self` is the connected account. */
 interface ParticipantResponse {
@@ -261,8 +269,18 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       canSend: reply ? (CAN_SEND[reply.state] ?? null) : null,
       replyTo: reply ? reply.to.map(({ name, address }) => ({ name, address })) : null,
       previousCursor: null,
+      ...(reply?.state === 'OPENING_NOT_SENT' ? { opening: true } : {}),
     },
   }
+}
+
+/** `POST /api/conversations` (f10-new-mail, D-195): a new conversation started by a new mail, its row and that mail. */
+export async function createConversation(draft: NewMailDraft, clientMessageId: string): Promise<{ item: ConversationItem; mail: Message }> {
+  const { conversation, message } = await api.post<{ conversation: ConversationResponse; message: MessageResponse }>('/api/conversations', {
+    ...draft,
+    clientMessageId,
+  })
+  return { item: toItem(conversation), mail: toMessage(conversation.id, message) }
 }
 
 /** `GET /api/conversations/{id}/messages` (F06): one page, newest first; `cursor` is the `nextCursor` of the page before. */
