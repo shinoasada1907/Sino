@@ -11,6 +11,12 @@ import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import jakarta.persistence.Embeddable;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+
 import dev.sino.common.error.SinoException;
 
 /**
@@ -23,9 +29,18 @@ import dev.sino.common.error.SinoException;
  * The constructor refuses a malformed rule with {@link IllegalArgumentException}: the API checks the same limits
  * first, so reaching it is a bug. {@link #anchoredAt(LocalDate)} checks the rule against its anchor, which only the
  * time zone can tell, and reports a mismatch to the user.
+ * <p>
+ * Stored in the {@code rec_*} columns of the row that repeats (BE-71); a row whose columns are all empty has no rule.
  */
-public record Recurrence(Frequency frequency, int interval, Set<DayOfWeek> byWeekdays, Integer byMonthDay,
-        LocalDate untilDate, Integer count, ZoneId timeZone) {
+@Embeddable
+public record Recurrence(
+        @Enumerated(EnumType.STRING) @Column(name = "rec_freq") Frequency frequency,
+        @Column(name = "rec_interval") int interval,
+        @Convert(converter = WeekdaysConverter.class) @Column(name = "rec_by_weekdays") Set<DayOfWeek> byWeekdays,
+        @Column(name = "rec_by_month_day") Integer byMonthDay,
+        @Column(name = "rec_until_date") LocalDate untilDate,
+        @Column(name = "rec_count") Integer count,
+        @Convert(converter = ZoneIdConverter.class) @Column(name = "rec_time_zone") ZoneId timeZone) {
 
     public static final int MAX_INTERVAL = 99;
     public static final int MAX_COUNT = 999;

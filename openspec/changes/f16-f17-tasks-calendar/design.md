@@ -64,12 +64,18 @@ Như `account`: thêm, sửa, xóa từng việc theo aggregate, khóa lạc qua
 - Đường dẫn: `/tasks/:taskId/edit`, `/calendar/new`, `/calendar/:itemId/edit` (giữ `view`, `date`), để Back và tải lại giữ đúng chỗ như D-82 / D-87. Từ 768 px biểu mẫu là hộp thoại trên trang đang xem; dưới 768 px là trang riêng có nút quay lại.
 **Phương án bị loại:** sửa từng dòng ngay trong khối chi tiết (canvas không vẽ, mỗi dòng cần bộ chọn riêng); một hộp thoại không có đường dẫn (Back đóng cả màn trên điện thoại).
 
+### D-159 — Một việc sinh lần kế tiếp đúng một lần · **Agent chốt** (2026-10-12, sửa lỗi do review BE-71 tìm ra)
+Cột `task.next_created` (mặc định `false`): khi việc tạo lần kế tiếp thì thành `true` và giữ nguyên qua "Mở lại". Xong → mở lại → xong lần nữa thì không tạo thêm.
+**LÝ DO:** D-154 giữ lần kế tiếp khi mở lại, nên lần "Xong" sau thấy việc đang `OPEN` và tạo lại đúng lần đó. Ô đánh dấu của web bật / tắt được, nên bấm nhầm hai lần là chuỗi có hai việc trùng, và mỗi việc trùng lại sinh tiếp nhánh của nó.
+**Phương án bị loại:** unique `(series_id, occurrence_index)` (đặt lại quy tắc đưa `occurrence_index` về 0 trong cùng chuỗi, nên hai việc hợp lệ có thể trùng cặp này); "Mở lại" xóa lần kế tiếp (D-154 đã loại); tìm trong chuỗi xem đã có lần sau chưa (phụ thuộc thứ tự và việc đặt lại quy tắc, dễ sai).
+**Hệ quả:** đặt lại hạn / quy tắc cho một việc đã từng sinh lần kế tiếp thì việc đó không sinh thêm nữa; lần kế tiếp cũ vẫn ở đó.
+
 ### Chốt kỹ thuật (agent, trong phạm vi trên)
 - **Tên bảng `calendar_event`**, không `event`: tránh nhầm với `event_publication` của Spring Modulith và với "event" của `realtime`. Lớp Java `CalendarEvent`.
 - **Ngày gốc của lặp hằng tháng / hằng năm** là `rec_by_month_day` (ngày trong tháng của hạn / giờ bắt đầu đầu tiên). Gửi thiếu thì máy chủ lấy ngày của mốc. Gửi kèm thì phải bằng ngày của mốc, hoặc lớn hơn khi mốc là ngày cuối tháng (mốc đã bị lùi từ ngày 31 về 30/11). Hằng năm dùng tháng của mốc và cùng cột này (29/02 → 28/02 → 29/02).
 - **Hằng tuần:** `rec_by_weekdays` không rỗng và phải có thứ của mốc. Tuần tính từ thứ Hai (ISO 8601); "mỗi N tuần" đếm từ tuần của mốc.
 - **Mốc là lần thứ nhất.** `rec_count` đếm cả mốc; `rec_until_date` gồm cả ngày đó và không trước ngày của mốc. `rec_interval` 1…99, `rec_count` 1…999.
-- **Chuỗi việc:** `series_id` đặt bằng ID của việc lần đầu nó có quy tắc lặp và giữ nguyên về sau; `occurrence_index` là thứ tự của lần (mốc = 0). `PUT …/schedule` với quy tắc mới đặt việc đó làm mốc mới (`occurrence_index = 0`, `series_id` giữ). Bỏ quy tắc thì việc vẫn giữ `series_id` (lịch sử chuỗi), không tạo lần kế tiếp nữa.
+- **Chuỗi việc:** ~~`series_id` đặt bằng ID của việc lần đầu nó có quy tắc lặp~~ → `series_id` là một UUID ngẫu nhiên tạo ngay khi việc có quy tắc lặp lần đầu (**LÝ DO**, review BE-71: ID của việc chỉ có sau khi lưu, nên cách cũ phải lưu rồi sửa: thêm một câu `UPDATE`, và quy tắc "việc lặp luôn có chuỗi" phụ thuộc người gọi; giờ CHECK `task_series_ck` giữ nó trong database), giữ nguyên về sau; `occurrence_index` là thứ tự của lần (mốc = 0). `PUT …/schedule` với quy tắc mới đặt việc đó làm mốc mới (`occurrence_index = 0`, `series_id` giữ). Bỏ quy tắc thì việc vẫn giữ `series_id` (lịch sử chuỗi), không tạo lần kế tiếp nữa.
 - **Lịch hẹn:** độ dài tối đa 14 ngày (cả có giờ và cả ngày), để lần lặp bắt đầu trước khoảng xem mà còn kéo dài vào khoảng thì vẫn tìm được (tìm các lần bắt đầu trong [`from` − 14 ngày, `to`)). Lần lặp có giờ giữ giờ bắt đầu địa phương, kết thúc = bắt đầu + độ dài của mốc.
 - **ID của một lần trên Lịch:** `<eventId>@<ngày bắt đầu>` cho mọi lịch hẹn (lặp hay không), `<taskId>@<ngày hạn>` cho lần sắp tới chưa tạo của việc lặp; việc thật dùng ID của nó.
 - **Ghi chú** của việc và lịch hẹn ≤ 20.000 ký tự (như ghi chú F15); chỉ khoảng trắng là không có ghi chú. Địa điểm ≤ 200.
@@ -101,7 +107,8 @@ task                                         calendar_event
   due_date date                                starts_at, ends_at timestamptz
   status varchar(8) OPEN|DONE                  start_date, end_date date (end không gồm)
   completed_at timestamptz                     rec_* (như bên trái)
-  series_id uuid, occurrence_index int         created_at, updated_at, version
+  series_id uuid, occurrence_index int,        created_at, updated_at, version
+  next_created boolean (D-159)
   rec_freq varchar(8), rec_interval smallint,
   rec_by_weekdays varchar(64), rec_by_month_day smallint,
   rec_until_date date, rec_count smallint, rec_time_zone varchar(64)
@@ -187,6 +194,7 @@ MSW cho mọi request; test viết trước; hook và adapter có test riêng; b
 - [Hai phiên cùng sửa repo] → số hiệu và migration đã chia; database Compose dùng chung không nhận V18/V19 trước khi cả hai lên `dev`; `PROJECT_STATE.md` mỗi phiên chỉ sửa dòng của mình, đọc lại trước khi lưu.
 - [Delta `tasks-screen`, `calendar-screen` sửa spec chưa archive] → archive change này sau `fe-ui-tasks` (TK-04) và `fe-ui-calendar` (CA-05).
 - [Sửa cả chuỗi làm đổi các lần đã qua của lịch hẹn lặp] → chấp nhận theo D-151; biểu mẫu ghi rõ "Áp dụng cho mọi lần lặp".
+- [Giờ của việc lặp trôi khi gặp khoảng hở đổi giờ mùa hè] → lần kế tiếp lấy giờ địa phương từ hạn của lần trước; nếu giờ đó không tồn tại ở ngày mới (ví dụ 02:30 ở Berlin ngày cuối tháng 3), `ZonedDateTime` đẩy lên 03:30 và các lần sau giữ 03:30 (review BE-71). Chấp nhận: múi giờ mặc định `Asia/Ho_Chi_Minh` không đổi giờ; Javadoc của `Task.makeNextOccurrence` ghi rõ giới hạn. Khi cần, thêm cột giờ địa phương của chuỗi. Lịch hẹn lặp không bị: mỗi lần tính từ mốc của chính nó.
 
 ## Migration Plan
 

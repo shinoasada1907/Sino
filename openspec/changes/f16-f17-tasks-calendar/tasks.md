@@ -1,6 +1,6 @@
 # Phase 4 · F16 + F17 — Việc cần làm và Lịch (lõi) · Implementation Plan
 
-> **HYBRID mode:** backend và frontend AUTO — Claude (sino-api-94) làm từng task theo thứ tự, kiểm chứng, commit riêng trên `dev` (không push), báo lại rồi dừng. Quyết định kiến trúc đã chốt trong `design.md` (D-150…D-158).
+> **HYBRID mode:** backend và frontend AUTO — Claude (sino-api-94) làm từng task theo thứ tự, kiểm chứng, commit riêng trên `dev` (không push), báo lại rồi dừng. Quyết định kiến trúc đã chốt trong `design.md` (D-150…D-158; D-159 agent chốt khi sửa lỗi review BE-71).
 > Mỗi task: test đỏ trước rồi mới xanh. Backend: build, test trong **git worktree riêng** (không đụng `target/` mà IntelliJ của người dùng đọc, không dùng worktree `sino-build` của sino-api-27), `./mvnw -B -ntp verify` xanh, V18/V19 chỉ chạy trên Testcontainers hoặc database riêng của change này, không bao giờ trên database Compose dùng chung trước khi V17 của F10 và V18/V19 đều đã lên `dev`. Tính năng độc lập với Gmail (người dùng 2026-10-12): không task nào cần account đã kết nối hay phần việc của sino-api-27. Web: `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build` xanh, Chrome một lượt ở các cỡ màn task đụng tới. Kiến thức vào `docs/knowledge/phase-4-planner.md` + `.docx` (`genoffice docs check`).
 > Thứ tự: BE-70 → BE-71 → BE-72 → FE-70 → FE-71 → BE-73 → BE-74 → FE-72 → FE-73 → ACC (việc chạy hết vòng rồi mới sang lịch).
 
@@ -21,7 +21,22 @@
   - **Acceptance criteria:** spec `recurrence`; delta `module-boundaries`.
   - **Hints:** Level 1 — "vì sao lặp hằng tháng tính từ ngày gốc chứ không từ lần trước?"
 
-- [ ] 1.2 **BE-71 — Bảng `task` và `TaskService`**
+- [x] 1.2 **BE-71 — Bảng `task` và `TaskService`**
+  - **Thực hiện (2026-10-12, AUTO):** V18 `planner_create_task` (bảng `task`; CHECK: một kiểu hạn, `DONE` ⇔ có `completed_at`, quy tắc lặp đủ hoặc trống và chỉ khi có hạn, thứ chỉ cho hằng tuần, ngày gốc chỉ cho hằng tháng / năm, ghi chú ≤ 20.000; index danh sách theo `status`, việc xong theo `completed_at`, và theo `due_at` / `due_date` cho Lịch). `planner/domain`: `Task` (JPA, `@Version`, UUIDv7; `create`, `rename`, `changeNotes`, `reschedule` (quy tắc mới = lần đầu của chuỗi); quy tắc được kiểm với hạn ngay trong `Task` và việc lặp có `series_id` ngẫu nhiên từ lúc tạo; `complete` / `reopen` trả `false` khi không đổi gì; `makeNextOccurrence(now)` dùng `RecurrenceCalculator`, hôm nay theo múi giờ của quy tắc, giữ giờ địa phương của hạn, chỉ một lần cho mỗi việc nhờ `next_created` (D-159)), `Due` (thời điểm hoặc ngày, đúng một), `TaskStatus`; `Recurrence` thành `@Embeddable` trên các cột `rec_*` với `WeekdaysConverter`, `ZoneIdConverter`; `PlannerErrorCode.TASK_NOT_FOUND`. `planner/infrastructure/TaskRepository` (`findByIdAndOwnerId`, `findCurrent` = mở + xong từ một mốc). `planner/application`: `TaskService` (`list`, `get`, `create`, `update`, `schedule`, `complete` lưu lần kế tiếp cùng transaction và gọi lại không tạo thêm, `reopen`, `delete`), `NewTask`, `RepeatRule` (quy tắc không có múi giờ; múi giờ là của Sino lúc đặt), `CompletedTask`.
+  - **Làm khác kế hoạch:**
+    - ~~Cột `rec_interval`, `rec_by_month_day`, `rec_count` kiểu `smallint`~~ → `integer`. **LÝ DO:** `ddl-auto: validate` so `int` / `Integer` của Java với `integer`; `smallint` làm ứng dụng không khởi động.
+    - ~~Một index `task (user_id, status, due_at, due_date)`~~ → bốn index nhỏ: `(user_id, status)`, `(user_id, completed_at) WHERE DONE`, `(user_id, due_at)`, `(user_id, due_date)` (hai cái cuối có điều kiện không trống). **LÝ DO:** danh sách lọc theo trạng thái và lúc xong, Lịch lọc theo khoảng hạn; một index bốn cột không phục vụ được khoảng của cột thứ ba. Index cho Lịch tạo luôn ở V18 để BE-74 không cần migration riêng.
+    - `occurrence_index` là `integer NOT NULL DEFAULT 0` (việc không lặp là 0). **LÝ DO:** không có giá trị trống để xử lý riêng.
+    - `PlannerErrorCode` vẫn ở `planner/domain` (xem BE-70); `TASK_NOT_FOUND` thêm vào đó.
+    - Không kiểm tra ngược cho BE-71. **LÝ DO:** theo mục Testing của `design.md`, kiểm tra ngược chỉ cho `RecurrenceCalculator`; phần này kiểm bằng test domain, test trên PostgreSQL thật và review.
+    - Sau review: ~~`series_id` = ID của việc đầu, đặt sau khi lưu (`startSeries`)~~ → UUID ngẫu nhiên lúc tạo, CHECK `task_series_ck`; thêm cột `next_created` (D-159); CHECK hằng tháng / năm ⇔ có ngày gốc; `Task` tự kiểm quy tắc với hạn. **LÝ DO:** xem mục "Sau review" dưới đây.
+  - **Kiểm chứng (2026-10-12):** worktree riêng, Testcontainers PostgreSQL 18 (không đụng database Compose dùng chung). RED với thân rỗng của `Due`, `Task`, `TaskService` (migration, ánh xạ JPA và repository là thật): 30/31 test đỏ đúng lý do (thiếu logic; context Spring nạp được nên ánh xạ khớp V18); test CHECK của database xanh sẵn vì ràng buộc nằm ở V18. GREEN 76/76 test của `planner` (31 mới: `TaskTests` 14, `TaskServiceTests` 17). `./mvnw -B -ntp verify` → 1286 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS.
+  - **Sau review (2026-10-12):** agent `senior-reviewer` (BE-70 + BE-71) không thấy CRITICAL.
+    - HIGH đã sửa: xong → mở lại → xong lần nữa tạo lại cùng lần kế tiếp (D-154 giữ lần kế tiếp, nhưng không gì ghi lại là đã tạo; ô đánh dấu của web bật / tắt được nên bấm nhầm là trùng) → cột `next_created`, `makeNextOccurrence` chỉ tạo một lần (D-159, agent chốt, phương án bị loại ghi ở `design.md`).
+    - MEDIUM chấp nhận và ghi rõ: giờ của việc lặp trôi vĩnh viễn khi gặp khoảng hở đổi giờ mùa hè (lần sau chép giờ của lần trước) → Javadoc của `makeNextOccurrence` và mục Risks của `design.md` ghi giới hạn; múi giờ của Sino là `Asia/Ho_Chi_Minh`, không đổi giờ.
+    - LOW đã sửa: `series_id` ngẫu nhiên lúc tạo (bỏ INSERT rồi UPDATE, bỏ phụ thuộc thứ tự gọi) + CHECK `task_series_ck`; CHECK hằng tháng / năm ⇔ có ngày gốc; `Task` tự kiểm quy tắc với hạn; truy vấn danh sách viết `status = DONE and completed_at >= …` để dùng được index một phần; test CHECK thành bảng 18 ca có kiểm đúng tên ràng buộc; thêm test hai lần hoàn thành cùng đọc một việc, hết số lần, hằng tuần mỗi 2 tuần ở xa mốc từ giữa tuần, thao tác không đổi gì giữ nguyên `version` (kiểm luôn nghi vấn dirty checking của converter: không có); bỏ khẳng định vô nghĩa `seriesId` bằng nhau khi cả hai `null`.
+    - LOW chuyển sang task sau: ký tự NUL trong tiêu đề / ghi chú → BE-72; giới hạn vị trí năm của `from` / `to` → BE-74 (đã ghi ở hai task).
+  - **Kiểm chứng sau review:** RED 10 test mới đỏ đúng 10 chỗ review nêu (ca hằng tuần ở xa mốc xanh sẵn, calculator đã đúng); GREEN 103/103 test của `planner`. `dev` đã có V17 của F10 (`6ef84a0`, sino-api-27): worktree đưa lên `6ef84a0` rồi chạy `./mvnw -B -ntp verify` → 1380 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS; `ModularityTests` 2/2. V18 chỉ chạy trên Testcontainers.
   - **Goal / Why:** việc lưu thật: tạo, sửa, đặt hạn và lặp, xong (lần kế tiếp) / mở lại, xóa.
   - **Depends on:** BE-70.
   - **Files:** migration V18 `planner_create_task`; `planner/domain/Task`; `planner/infrastructure/TaskRepository`; `planner/application/{TaskService,PlannerErrorCode,…}`; test.
@@ -34,7 +49,7 @@
   - **Goal / Why:** web gọi được mọi thao tác của việc.
   - **Depends on:** BE-71.
   - **Files:** `planner/api/{TasksController,CreateTaskRequest,UpdateTaskRequest,ScheduleRequest,RecurrenceBody,TaskResponse,TasksResponse,CompletedTaskResponse}`; `apps/sino-api/README.md`; test.
-  - **Hướng làm:** design Backend 4, 7; hình dạng JSON theo hợp đồng `TaskItem` của `fe-ui-tasks` (`reminder`, `source`, `related` = `null`).
+  - **Hướng làm:** design Backend 4, 7; hình dạng JSON theo hợp đồng `TaskItem` của `fe-ui-tasks` (`reminder`, `source`, `related` = `null`). Từ review BE-71: tiêu đề và ghi chú có ký tự NUL (U+0000) phải bị từ chối với `400` (PostgreSQL không nhận NUL trong `text` / `varchar`, nếu không sẽ thành lỗi `500`); xem `conversation/infrastructure/WithoutNul`.
   - **Test:** web test mỗi endpoint: `201` + `Location`, `200`, `204`, `400` từng lỗi ô, `422`, `401`, thiếu CSRF, `404`, `409`; JSON khớp hợp đồng.
   - **Acceptance criteria:** spec `tasks`.
   - **Hints:** Level 1 — "vì sao `PATCH` không xóa được hạn mà phải có `PUT …/schedule`?"
@@ -72,7 +87,7 @@
   - **Goal / Why:** một request cho một khoảng ngày gộp lần lặp của lịch hẹn và việc có hạn (D-86, D-155).
   - **Depends on:** BE-71, BE-73.
   - **Files:** `planner/application/CalendarService`; `planner/api/{CalendarController,CalendarResponse,…}`; truy vấn theo khoảng trong hai repository; README; test.
-  - **Hướng làm:** design Backend 6: lịch hẹn không lặp theo SQL giao khoảng, lịch hẹn lặp tính trong [`from` − 14 ngày, `to`); việc có hạn trong khoảng, quá hạn từ trước khi khoảng chứa hôm nay, lần sắp tới của việc lặp; `reminders: []`.
+  - **Hướng làm:** design Backend 6: lịch hẹn không lặp theo SQL giao khoảng, lịch hẹn lặp tính trong [`from` − 14 ngày, `to`); việc có hạn trong khoảng, quá hạn từ trước khi khoảng chứa hôm nay, lần sắp tới của việc lặp; `reminders: []`. Từ review BE-71: giới hạn cả **vị trí** của khoảng (ví dụ năm 1900…2200), không chỉ độ dài: ngày ở năm cực lớn làm `plusDays` / `Math.toIntExact` của calculator ném lỗi thành `500`.
   - **Test:** mọi scenario của *Xem lịch theo khoảng ngày*; biên của khoảng (`to` không gồm, lịch hẹn kết thúc đúng lúc `from`); 62 / 63 ngày; người dùng khác không thấy.
   - **Acceptance criteria:** spec `calendar` (*Xem lịch theo khoảng ngày*).
   - **Hints:** Level 1 — "vì sao tìm lần lặp từ `from` − 14 ngày chứ không từ `from`?"

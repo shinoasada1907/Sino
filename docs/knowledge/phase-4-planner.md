@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71.
 > **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -36,6 +36,7 @@ Màn Việc cần làm và Lịch của web đã dựng xong với dữ liệu m
 | D-156 | JPA với `@Version`, như module `account` |
 | D-157 | Múi giờ là cấu hình `sino.planner.time-zone`; mỗi quy tắc giữ múi giờ của nó |
 | D-158 | Biểu mẫu web theo lớp phủ `InboxTask` / `InboxEvent` của canvas |
+| D-159 | Một việc sinh lần kế tiếp đúng một lần (sửa lỗi review BE-71) |
 
 ---
 
@@ -165,3 +166,103 @@ Có một lỗi gài vẫn sống và được để nguyên: đổi `Math.ceilD
 - RED: các lớp có thân rỗng → 33 test đỏ đúng lý do; GREEN 40/40.
 - Kiểm tra ngược: lượt 1, 32 lỗi gài, 26 bị bắt, 5 sống (thiếu ca, đã thêm test), 1 mẫu sai; lượt 2, 6/7 bị bắt, 1 tương đương.
 - `./mvnw -B -ntp verify` trong worktree riêng: 1255 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS; `ModularityTests` thấy module `planner` (chỉ phụ thuộc `common`).
+
+---
+
+## 2. Bảng `task` và `TaskService` (BE-71)
+
+**Ở đâu:** migration `V18__planner_create_task.sql`; `planner/domain/Task`, `Due`, `TaskStatus`, `WeekdaysConverter`, `ZoneIdConverter` (và chú thích JPA trên `Recurrence`); `planner/infrastructure/TaskRepository`; `planner/application/TaskService`, `NewTask`, `RepeatRule`, `CompletedTask`.
+
+```text
+TaskService (mọi hàm nhận ownerId từ web, việc của người khác = TASK_NOT_FOUND)
+  list(owner)                    việc OPEN + việc DONE trong 7 ngày, cũ trước
+  create(owner, NewTask)         lưu; có quy tắc lặp thì chuỗi mang ID của chính việc này
+  update(owner, id, title, notes)  null = giữ nguyên
+  schedule(owner, id, due, rule) thay cả hạn lẫn quy tắc (D-153)
+  complete(owner, id)            DONE + lưu lần kế tiếp trong CÙNG transaction
+  reopen(owner, id)              OPEN lại; lần kế tiếp đã tạo vẫn còn (D-154)
+  delete(owner, id)              chỉ hàng đó
+```
+
+### 2.1 Quy tắc lặp nằm ngay trong hàng: `@Embeddable` record
+`Recurrence` của BE-70 giờ có thêm chú thích JPA và trở thành một **embeddable**: không có bảng riêng, các trường của nó là các cột `rec_*` của bảng `task` (D-152). Trong `Task` chỉ cần:
+
+```java
+@Embedded
+private Recurrence recurrence;
+```
+
+Hibernate 7 dựng được một `record` (gọi constructor đầy đủ của record). Khi **mọi** cột `rec_*` đều trống, Hibernate trả `recurrence = null`: đó là "việc không lặp".
+
+Hai kiểu Java không có sẵn cột tương ứng nên cần **converter** (`AttributeConverter`):
+
+| Kiểu Java | Cột | Ví dụ |
+|---|---|---|
+| `Set<DayOfWeek>` | `rec_by_weekdays varchar` | `MONDAY,THURSDAY` |
+| `ZoneId` | `rec_time_zone varchar` | `Asia/Ho_Chi_Minh` |
+
+Bẫy: converter của các thứ trả `null` cho tập rỗng, không trả chuỗi rỗng. Nếu trả `""` thì một việc không lặp sẽ có một cột `rec_*` không trống; Hibernate khi đọc lại sẽ cố dựng `Recurrence` với tần suất `null` và constructor ném lỗi.
+
+### 2.2 Ràng buộc ở cả Java lẫn database
+Java kiểm khi tạo object (`Task.create`, constructor của `Recurrence`), còn database kiểm bằng `CHECK`. Hai lớp đều cần: Java báo lỗi sớm và rõ, còn database chặn mọi đường ghi khác (SQL viết tay, một lỗi lập trình sau này).
+
+```sql
+CHECK (due_at IS NULL OR due_date IS NULL)                  -- không có cả hai kiểu hạn
+CHECK ((status = 'DONE') = (completed_at IS NOT NULL))      -- xong <=> có lúc xong
+CHECK ( (mọi rec_* trống) OR (rec_freq, rec_interval, rec_time_zone có đủ, có hạn, ...) )
+```
+
+Dòng thứ hai so hai biểu thức boolean bằng `=`: đúng khi cả hai cùng đúng hoặc cùng sai. Bẫy của `CHECK` trong SQL: một biểu thức ra `NULL` (không biết) được coi là **qua**. Ví dụ `rec_freq = 'WEEKLY'` khi `rec_freq` trống cho `NULL`, nên một ràng buộc viết hớ sẽ không chặn gì. Vì vậy ràng buộc quy tắc lặp tách hẳn nhánh "mọi cột trống" ra trước, các phép so sánh chỉ nằm trong nhánh `rec_freq` có giá trị. Test `theDatabaseRefusesATaskThatBreaksItsRules` chèn thẳng bằng SQL bốn hàng sai và cả bốn đều bị từ chối.
+
+Các cột số dùng `integer`, không `smallint`: Hibernate chạy với `ddl-auto: validate`, so kiểu cột với kiểu Java (`int` ↔ `integer`); `smallint` sẽ làm ứng dụng không khởi động.
+
+### 2.3 ID của chuỗi: tạo ngay, không chờ lưu
+Các lần của một việc lặp chung một `series_id`. Bản đầu tiên đặt nó bằng ID của việc đầu tiên; nhưng ID là UUIDv7 do Hibernate sinh **lúc lưu**, nên phải lưu trước rồi mới đặt chuỗi, và Hibernate ghi thêm một câu `UPDATE` khi commit:
+
+```text
+INSERT task (..., series_id = NULL, version = 0)
+UPDATE task SET series_id = <id>, version = 1      <- thừa, và mọi nơi tạo việc phải nhớ gọi bước này
+```
+
+Review chỉ ra hai cái giá: một câu ghi thừa, và quy tắc "việc lặp luôn có chuỗi" phụ thuộc người gọi có nhớ bước thứ hai hay không. Bản hiện tại tạo `series_id = UUID.randomUUID()` ngay trong `Task` khi việc có quy tắc lặp lần đầu. Việc tạo chỉ còn một câu `INSERT` (test kiểm `version = 0`), và database giữ quy tắc bằng `CHECK (rec_freq IS NULL OR series_id IS NOT NULL)`. ID của chuỗi không cần trùng ID của việc nào: web chỉ so hai `seriesId` với nhau.
+
+Cùng lúc, `Task` tự gọi `recurrence.anchoredAt(...)` khi nhận quy tắc. Không còn đường nào tạo ra một việc mang quy tắc không khớp hạn, kể cả khi sau này có code khác gọi `Task.create`.
+
+### 2.4 Vì sao lần kế tiếp phải tạo cùng transaction với việc đánh dấu xong (câu gợi ý của task)
+```text
+một transaction:   DONE việc này  +  INSERT lần kế tiếp   ->  cả hai, hoặc không gì cả
+hai transaction:   DONE việc này  | (máy sập ở đây) |  INSERT lần kế tiếp
+                   -> việc đã xong mà chuỗi mất lần sau; bấm "Xong" lại thì việc đã DONE nên không tạo nữa
+```
+
+Gọi `complete` hai lần (mạng chập chờn, bấm hai lần) cũng an toàn:
+- lần sau thấy việc đã `DONE`, trả `next = null` và không tạo gì (test `completingARepeatingTaskMakesTheNextOccurrenceOnce`);
+- nếu hai request tới **cùng lúc**, cả hai cùng đọc thấy `OPEN`; request commit sau sẽ hỏng ở cột `version` (khóa lạc quan, `@Version`) và rollback cả lần kế tiếp nó vừa tạo. Chuỗi vẫn chỉ có một lần kế tiếp.
+
+### 2.5 Xong, mở lại, xong lần nữa: lỗi review tìm ra (D-159)
+Ô đánh dấu trên web bật / tắt được. Theo D-154, "Mở lại" giữ lần kế tiếp đã tạo. Bản đầu của `complete` chỉ chặn trường hợp việc **đang** `DONE`:
+
+```text
+Xong      -> DONE, tạo lần 12/10                (đúng)
+Mở lại    -> OPEN, lần 12/10 vẫn còn            (đúng, D-154)
+Xong      -> việc đang OPEN nên lại tạo lần 12/10  <- trùng; bật tắt thêm thì trùng thêm
+```
+
+Không có gì ghi lại rằng việc này đã sinh lần kế tiếp. Sửa: cột `next_created`, thành `true` khi tạo lần kế tiếp và không đổi khi mở lại; `makeNextOccurrence` thấy `true` thì không làm gì. Tên hàm cũng đổi từ `nextOccurrence` thành `makeNextOccurrence`, vì nó **đổi** trạng thái chứ không chỉ tính.
+
+Vì sao không dùng ràng buộc unique `(series_id, occurrence_index)`: đặt lại quy tắc cho một việc thì `occurrence_index` về 0 trong cùng chuỗi, nên hai việc hợp lệ có thể trùng cặp đó.
+
+### 2.6 Giới hạn đã biết: giờ không tồn tại khi đổi giờ mùa hè
+Lần kế tiếp lấy giờ địa phương từ hạn của lần trước. Nếu giờ đó không có ở ngày mới (02:30 ở Berlin ngày cuối tháng 3, khi đồng hồ nhảy từ 02:00 lên 03:00), `ZonedDateTime` đẩy lên 03:30, và vì lần sau chép giờ của lần trước nên giữ luôn 03:30. Lịch hẹn lặp thì không bị, vì mỗi lần tính lại từ mốc. Chấp nhận vì múi giờ của Sino là `Asia/Ho_Chi_Minh` (không đổi giờ); Javadoc của `makeNextOccurrence` ghi rõ giới hạn này. Review lưu ý một thói quen cần bỏ: Javadoc không được hứa nhiều hơn code làm được ("luôn giữ giờ địa phương" là sai ở ca này).
+
+### 2.7 Việc của người khác là "không tìm thấy"
+Mọi hàm tìm việc bằng `findByIdAndOwnerId(id, ownerId)`, không bằng `findById` rồi mới so chủ. Việc của người khác và việc không tồn tại cho cùng một lỗi `TASK_NOT_FOUND` (sẽ là `404`), nên không ai dò được ID nào có thật. Cùng cách với `ACCOUNT_NOT_FOUND` của F02.
+
+### 2.8 Test có đồng hồ chỉnh tay và hai transaction
+- `TaskServiceTests` thay bean `Clock` bằng một `MovableClock` (`@Primary`): "xong 8 ngày trước" là đặt đồng hồ lùi 8 ngày rồi gọi `complete`, không cần chờ hay sửa database.
+- Test khóa lạc quan cần **hai** transaction thật. Gọi `service.update(...)` ngay trong transaction của test sẽ không đủ: `@Transactional` mặc định *tham gia* transaction đang có (`REQUIRED`), nên hai lần đọc là cùng một object và không có xung đột nào. Test chạy lần sửa thứ hai trên một luồng khác (`CompletableFuture.runAsync`), luồng đó có transaction riêng và commit trước; transaction của test ghi sau thì nhận `OptimisticLockingFailureException`.
+
+### 2.9 Kiểm chứng (BE-71)
+- RED: thân rỗng của `Due`, `Task`, `TaskService` (migration, ánh xạ và repository thật) → 30/31 test đỏ đúng lý do; GREEN ngay lần đầu.
+- Review của agent `senior-reviewer`: 1 HIGH (mục 2.5, đã sửa), 1 MEDIUM (mục 2.6, chấp nhận và ghi rõ), các LOW sửa phần lớn; 10 test mới đỏ trước khi sửa, xanh sau khi sửa.
+- `./mvnw -B -ntp verify` trên `dev` mới nhất (đã có V17 của F10): 1380 test, 0 lỗi, 4 bỏ qua; `ModularityTests` 2/2.

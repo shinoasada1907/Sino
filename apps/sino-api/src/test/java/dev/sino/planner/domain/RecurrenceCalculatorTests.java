@@ -1,5 +1,6 @@
 package dev.sino.planner.domain;
 
+import static java.time.DayOfWeek.FRIDAY;
 import static java.time.DayOfWeek.MONDAY;
 import static java.time.DayOfWeek.SUNDAY;
 import static java.time.DayOfWeek.THURSDAY;
@@ -83,6 +84,9 @@ class RecurrenceCalculatorTests {
                         "2027-04-01", List.of("2027-01-15", "2027-03-15")),
                 Arguments.of("every two years, far from the anchor", yearly(2, 15), "2020-03-15", "2030-01-01",
                         "2031-01-01", List.of("2030-03-15")),
+                Arguments.of("every two weeks from a Wednesday, far from the anchor",
+                        weekly(2, Set.of(MONDAY, WEDNESDAY, FRIDAY)), "2026-10-07", "2027-01-01", "2027-01-15",
+                        List.of("2027-01-01", "2027-01-11", "2027-01-13")),
                 Arguments.of("a range after the last of the count", daily(1, 5), "2026-10-01", "2026-10-06",
                         "2026-10-13", List.of()),
                 Arguments.of("the end of the range is left out", daily(1, null), "2026-10-01", "2026-10-03",

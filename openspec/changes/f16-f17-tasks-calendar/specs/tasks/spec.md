@@ -49,10 +49,10 @@ Một việc MUST có tiêu đề không rỗng tối đa 200 ký tự (bỏ kho
 
 #### Scenario: Thêm lặp cho việc có sẵn
 - **WHEN** người dùng đặt cho "Báo cáo tuần" hạn thứ Hai 12/10 9:00 và lặp mỗi thứ Hai
-- **THEN** việc có hạn đó, quy tắc hằng tuần thứ Hai và `seriesId` bằng ID của nó
+- **THEN** việc có hạn đó, quy tắc hằng tuần thứ Hai và `seriesId` khác `null`
 
 ### Requirement: Hoàn thành và mở lại
-`POST /api/tasks/{id}/complete` MUST chuyển việc sang `DONE`, lưu lúc hoàn thành và trả `{ task, next }`. Nếu việc có quy tắc lặp và còn lần kế tiếp (spec `recurrence`), hệ thống MUST tạo trong cùng transaction một việc `OPEN` mới cùng `seriesId`, tiêu đề, ghi chú và quy tắc, hạn là lần kế tiếp (cùng giờ địa phương với việc có giờ), và trả nó là `next`; không còn lần thì `next` là `null`. Hoàn thành một việc đã `DONE` MUST trả việc đó với `next` là `null` và không tạo gì. `POST /api/tasks/{id}/reopen` MUST đưa việc về `OPEN` và xóa lúc hoàn thành; lần kế tiếp đã tạo MUST còn nguyên (D-154).
+`POST /api/tasks/{id}/complete` MUST chuyển việc sang `DONE`, lưu lúc hoàn thành và trả `{ task, next }`. Nếu việc có quy tắc lặp và còn lần kế tiếp (spec `recurrence`), hệ thống MUST tạo trong cùng transaction một việc `OPEN` mới cùng `seriesId`, tiêu đề, ghi chú và quy tắc, hạn là lần kế tiếp (cùng giờ địa phương với việc có giờ), và trả nó là `next`; không còn lần thì `next` là `null`. Hoàn thành một việc đã `DONE` MUST trả việc đó với `next` là `null` và không tạo gì. `POST /api/tasks/{id}/reopen` MUST đưa việc về `OPEN` và xóa lúc hoàn thành; lần kế tiếp đã tạo MUST còn nguyên (D-154). Một việc MUST sinh lần kế tiếp nhiều nhất một lần, kể cả khi được mở lại rồi hoàn thành lại (D-159).
 
 #### Scenario: Xong việc lặp hằng tuần
 - **WHEN** người dùng đánh dấu xong vào thứ Tư 07/10 việc "Báo cáo tuần" lặp mỗi thứ Hai, hạn thứ Hai 05/10 9:00
@@ -61,6 +61,10 @@ Một việc MUST có tiêu đề không rỗng tối đa 200 ký tự (bỏ kho
 #### Scenario: Bấm xong hai lần
 - **WHEN** request hoàn thành một việc lặp được gửi lại sau khi lần đầu đã thành công
 - **THEN** máy chủ trả việc `DONE` với `next` là `null` và chuỗi chỉ có một lần kế tiếp
+
+#### Scenario: Xong, mở lại rồi xong lần nữa
+- **WHEN** người dùng đánh dấu xong "Báo cáo tuần" hạn 05/10, mở lại, rồi đánh dấu xong lần nữa
+- **THEN** lần xong thứ hai trả `next` là `null` và chuỗi vẫn chỉ có một lần 12/10
 
 #### Scenario: Mở lại sau khi đã có lần kế tiếp
 - **WHEN** người dùng mở lại "Báo cáo tuần" hạn 05/10 sau khi lần 12/10 đã được tạo
