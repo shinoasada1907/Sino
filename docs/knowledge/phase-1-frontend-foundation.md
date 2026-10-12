@@ -1234,6 +1234,31 @@ không có câu trả lời (mạng)          khóa form, "Gửi lại" dùng L�
 - **`useRef` cho lần gửi đang thử:** "Gửi lại" cần nội dung và ID của lần trước ngay lúc bấm, mà không cần vẽ lại màn hình, nên giữ trong `useRef` thay vì `useState`.
 - **Thư mở đầu chưa gửi xong:** `reply.state = OPENING_NOT_SENT` thành `detail.opening`. Chuỗi đó không có ô trả lời (chưa có thread ở Gmail để trả lời vào), còn "Bỏ" thư duy nhất thì xóa cả cuộc trò chuyện, nên web làm mới danh sách và quay về danh sách.
 
+## 20. Màn Ghi chú trên dữ liệu mẫu (`fe-ui-notes`)
+
+### 20.0 Bức tranh
+Ghi chú là F15. Backend chưa có, nên màn này dựng trước trên dữ liệu mẫu như Việc cần làm và Lịch (D-42): sáu ghi chú như canvas, neo vào cuộc trò chuyện và việc của dữ liệu mẫu Hộp thư và Việc cần làm. Khi có API, chỉ phần thân của `notes.api.ts` đổi.
+
+```text
+notes.types.ts   hợp đồng (NotesData, NoteItem, NoteAnchor)
+notes.sample.ts  6 ghi chú, giờ dời theo đồng hồ canvas
+notes.api.ts     fetchNotes / createNote / saveNote / deleteNote  (mẫu)
+useNotes.ts      useQuery + useMutation, ghi kết quả vào cache
+format.ts        hàm thuần: nhóm, lọc, tìm không dấu, chữ giờ, nguồn
+```
+
+### 20.1 Tìm không dấu bằng Unicode (NT-01)
+Người Việt hay gõ không dấu khi tìm ("thanh toan"). `normalize('NFD')` tách chữ có dấu thành chữ gốc cộng các dấu riêng (ví dụ "á" thành "a" + dấu sắc), rồi `replace(/\p{M}/gu, '')` bỏ mọi dấu (lớp ký tự Unicode `Mark`). Riêng "đ" không phải "d" cộng một dấu, nên phải đổi tay. Cùng một phép biến đổi áp cho cả từ khóa lẫn nội dung, nên so sánh công bằng.
+
+### 20.2 Mẫu trong cache, không đọc lại
+`useNotes` đặt `staleTime: Infinity`. Dữ liệu mẫu được tạo lại mỗi lần đọc, nên nếu TanStack đọc lại (khi quay lại tab, khi dữ liệu "cũ"), mọi chỉnh sửa trong phiên sẽ mất. Các mutation ghi kết quả thẳng vào cache bằng `setQueryData`. Khi nối API thật, đổi lại thành đọc lại sau mỗi thay đổi.
+
+### 20.3 Ghim không phải là sửa
+`saveNote` chỉ dời `updatedAt` khi tiêu đề hay nội dung đổi. Ghim một ghi chú không làm nó nhảy lên đầu "GẦN ĐÂY" như vừa sửa; nó chỉ chuyển nhóm.
+
+### 20.4 Vì sao test hook cần `waitFor`
+`mutateAsync` xong thì cache đã đổi, nhưng TanStack báo cho component qua một nhịp hẹn giờ sau đó (gom nhiều thay đổi thành một lần vẽ). Kiểm ngay sau `act` có thể còn thấy dữ liệu cũ; `waitFor` chờ tới khi điều kiện đúng.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1371,3 +1396,5 @@ không có câu trả lời (mạng)          khóa form, "Gửi lại" dùng L�
 133. Vì sao một phần tử `display: none` làm lệch lưới `grid-rows-[auto_1fr_auto]` mà không làm lệch flex dọc?
 134. Mất mạng khi gửi thư mới: vì sao form bị khóa, mà lỗi `400` thì không? Nếu cho sửa chữ rồi "Gửi lại" cùng ID thì chuyện gì xảy ra?
 135. Vì sao `502`/`504` của thư mới lại chuyển sang một cuộc trò chuyện, trong khi lỗi mạng thì ở lại form?
+136. `normalize('NFD')` làm gì với "thanh toán", và vì sao "đ" phải đổi riêng?
+137. Vì sao dữ liệu mẫu của Ghi chú cần `staleTime: Infinity`? Khi nối API thật thì nên đổi thế nào?

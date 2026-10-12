@@ -5,8 +5,11 @@
 
 ## 1. Dữ liệu
 
-- [ ] 1.1 **NT-01 — Hợp đồng dữ liệu, dữ liệu mẫu, hàm chữ, hook, mutation**
+- [x] 1.1 **NT-01 — Hợp đồng dữ liệu, dữ liệu mẫu, hàm chữ, hook, mutation**
   - **Thực hiện:** `notes.types.ts`, `notes.sample.ts` (6 ghi chú như canvas, giờ theo `canvasClock`), `notes.api.ts` (mẫu), `format.ts` (nhóm, lọc, tìm không dấu, số chip, giờ, nguồn neo, đoạn trích, chân ô soạn), `useNotes.ts` (`useNotes`, `useNote`, `useCreateNote`, `useSaveNote`, `useDeleteNote`).
+  - **Đã làm (2026-10-12, AUTO):** như trên; neo vào `conv-1`, `conv-2`, `conv-3` của mẫu Hộp thư và `task-contract` của mẫu Việc cần làm; ghim không dời `updatedAt` (không phải một lần sửa); `useNotes` `staleTime: Infinity` để mẫu không bị đọc lại mất chỉnh sửa.
+  - **Làm khác kế hoạch:** thứ tự "ĐÃ GHIM" theo spec (08:31 trước "Hôm qua"), khác canvas; ghi ở D-205.
+  - **Kiểm chứng (2026-10-12):** RED 12/13 trên bản rỗng (test "xóa" xanh vì bản rỗng tình cờ trả "không thấy"), GREEN 13/13; hai test hook kiểm ngay sau `act` đỏ vì TanStack báo component ở nhịp sau → chờ bằng `waitFor`. Không có Chrome (chưa có giao diện). `pnpm lint` 0, `tsc -b` 0, `pnpm test` 629/629 (74 file), `pnpm build` 0. File kiến thức mục 20 + `.docx`, `genoffice docs check` 0 lỗi.
   - **Acceptance criteria:** phần dữ liệu và chữ của spec `notes-screen` (unit test).
 
 ## 2. Màn hình
