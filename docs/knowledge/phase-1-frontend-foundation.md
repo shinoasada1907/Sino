@@ -1119,6 +1119,36 @@ POST /api/conversations/c-1/messages { text, clientMessageId }
 - **Không có câu trả lời không có nghĩa là không gửi được:** lỗi mạng có thể xảy ra sau khi server đã nhận. Nói "Không gửi được" thì người dùng có thể gửi lại bằng đường khác và thành hai thư; nói "Chưa rõ" và cho "Gửi lại" (an toàn nhờ `clientMessageId`).
 - **Phòng thủ nhiều lớp ở web dù backend sẽ lọc:** gỡ `meta`/`base`/`link` và ép `rel` cho liên kết bằng `DOMParser` (tạo tài liệu trơ, không chạy và không tải gì); CSP chỉ cho ảnh từ đường dẫn API của Sino, không phải cả origin.
 
+## 17. Dòng thư ghi tài khoản (IN-10, D-97)
+
+### 17.0 Bức tranh
+Khi chạy thật với hai tài khoản Gmail, người dùng không biết thư nào về tài khoản nào: dòng chỉ ghi "Gmail". Canvas vẽ mỗi nguồn một tài khoản nên không có câu trả lời; agent chốt D-97. Nguồn có từ hai tài khoản trở lên thì dòng ghi địa chỉ của tài khoản, ở mọi cỡ màn. Nguồn chỉ có một tài khoản thì giữ như canvas.
+
+```text
+1 tài khoản Gmail (như canvas)        2 tài khoản Gmail
+>= 1280px  Udemy  Gmail                >= 1280px  Udemy  Gmail · tienct07@gmail.com
+<  1280px  Udemy                       <  1280px  Udemy  tienct07@gmail.com
+```
+
+### 17.1 Hàm thuần quyết định, component chỉ vẽ
+`rowAccount(item, accounts)` trong `format.ts`: lọc các tài khoản cùng `provider` với dòng; có từ hai trở lên thì trả tài khoản có `id === item.accountId`, không thì `null`. Hàm nhận một kiểu chung `A extends { id; provider }` và trả lại đúng kiểu đó, nên test truyền object nhỏ còn màn truyền `InboxAccount` mà không phải ép kiểu. Danh sách tài khoản đã có sẵn trong khung Hộp thư (`GET /api/accounts`), nên không cần gọi API mới hay đổi backend.
+
+### 17.2 Hai cột chia đều bằng CSS Grid
+Tên người gửi trước đây là `whitespace-nowrap` và không bao giờ co. Chrome ở 1024px cho thấy hai lỗi: tên "Indeed Job Alerts Vietnam Team" đè lên giờ, và chữ tài khoản bị ép còn rộng 0. Flexbox co các phần tử theo tỷ lệ độ rộng của chúng, nên tên ngắn cũng bị cắt một chút mỗi khi chữ bên cạnh dài. Grid với hai cột `minmax(0, auto)` làm đúng điều mình cần:
+
+```text
+cột:   minmax(0, auto)       minmax(0, auto)      (justify-content: start)
+       gốc 0, tối đa = độ rộng chữ của nó
+
+Udemy | tienct07@gmail.com       tên ngắn lấy đủ, phần còn lại cho địa chỉ
+Indeed Jo... | tienct07@gm...    cả hai dài: chia đều, mỗi bên tự cắt "..."
+```
+
+Trình duyệt chia chỗ trống **đều** cho các cột `auto`, và một cột dừng lại khi đã đủ chỗ cho chữ của nó. `justify-start` giữ phần thừa ở cuối hàng (mặc định `normal` sẽ kéo giãn các cột `auto`). Mỗi ô là `truncate` (`overflow: hidden`, `text-overflow: ellipsis`, `white-space: nowrap`).
+
+### 17.3 Chữ ẩn theo cỡ màn và test
+Tiền tố "Gmail · " là một `span` riêng có `hidden xl:inline`. jsdom không chạy CSS, nên test kiểm class chứ không kiểm "có thấy không"; chuyện thấy hay không do Chrome thật đo (`getComputedStyle(...).display`, độ rộng khác 0). `getByText` của Testing Library chỉ so chữ của các nút text **trực tiếp** trong phần tử, nên `getByText('an@congty.vn')` tìm được thẻ ngoài, còn `toHaveTextContent('Gmail · an@congty.vn')` kiểm cả chữ của thẻ con.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1246,3 +1276,5 @@ POST /api/conversations/c-1/messages { text, clientMessageId }
 123. `502 SEND_FAILED` và `504 SEND_OUTCOME_UNKNOWN` khác nhau thế nào với người dùng? Vì sao thư "Chưa rõ" không có nút "Gửi lại"?
 124. Vì sao một thư có `height:100vh` làm khung iframe cao lên mãi, và `fitFrame` nhận ra điều đó thế nào mà không nhầm với ảnh đang tải?
 125. Mất mạng giữa lúc gửi thì vì sao thư hiện "Chưa rõ đã gửi chưa" mà vẫn có "Gửi lại", trong khi `504` thì không có?
+126. Hai phần tử flex cùng co (`flex-shrink: 1`) chia phần thiếu theo tỷ lệ nào? Vì sao điều đó cắt cả tên ngắn, còn lưới hai cột `minmax(0, auto)` thì không?
+127. Vì sao dòng thư chỉ ghi tài khoản khi nguồn có từ hai tài khoản trở lên? Dưới 1280px vì sao bỏ chữ "Gmail · "?

@@ -13,6 +13,7 @@ import {
   groupConversations,
   newMailText,
   previewText,
+  rowAccount,
   rowFlag,
   rowTime,
   sourceLabel,
@@ -21,7 +22,7 @@ import {
   type RowFlag,
   type SourceCount,
 } from '../format'
-import type { ConversationItem } from '../inbox.types'
+import type { ConversationItem, InboxAccount } from '../inbox.types'
 import type { LoadMore } from '../useInbox'
 import { ListSkeleton } from './InboxStates'
 
@@ -61,6 +62,7 @@ export function ConversationList({
   search,
   now,
   nameOf,
+  accounts,
   body,
   switching = false,
   more,
@@ -79,6 +81,8 @@ export function ConversationList({
   search: string
   now: Date
   nameOf: ProviderNameOf
+  /** The owner's accounts, to name the one of a row when its source has more than one (D-97). */
+  accounts: InboxAccount[]
   body?: ReactNode
   switching?: boolean
   more?: LoadMore
@@ -187,6 +191,7 @@ export function ConversationList({
                       search={search}
                       now={now}
                       nameOf={nameOf}
+                      account={rowAccount(item, accounts)}
                     />
                   ))}
                 </div>
@@ -219,8 +224,9 @@ function useArrivedRows(conversations: ConversationItem[], resetKey: string): { 
 }
 
 // Canvas `.mrow` (and `.mob-row` on mobile): unread rows are bold; a chat shows how many messages are unread, an email
-// a dot. The source next to the name and the flag line show from 1280px, as in the canvas. A row that has just arrived
-// slides in (only fades when motion is reduced), or appears at once when many arrived together.
+// a dot. The source next to the name and the flag line show from 1280px, as in the canvas; when the source has more
+// than one account, the row names the account at every width, after the source from 1280px (D-97). A row that has just
+// arrived slides in (only fades when motion is reduced), or appears at once when many arrived together.
 function ConversationRow({
   item,
   selected,
@@ -228,6 +234,7 @@ function ConversationRow({
   search,
   now,
   nameOf,
+  account,
 }: {
   item: ConversationItem
   selected: boolean
@@ -235,6 +242,7 @@ function ConversationRow({
   search: string
   now: Date
   nameOf: ProviderNameOf
+  account: InboxAccount | null
 }) {
   const unread = item.unreadCount > 0
   const flag = rowFlag(item, now)
@@ -251,11 +259,21 @@ function ConversationRow({
         <ProviderIcon provider={item.provider} />
       </span>
       <span className="flex min-w-0 flex-col gap-0.75">
-        <span className="flex min-w-0 items-baseline gap-2.5">
-          <span data-slot="row-title" className={cn('text-sm whitespace-nowrap', unread ? 'font-bold' : 'font-medium')}>
+        {/* Each side takes its text; when both do not fit, they share the line evenly, so a long name keeps the account. */}
+        <span className="grid grid-cols-[minmax(0,auto)_minmax(0,auto)] items-baseline justify-start gap-x-2.5">
+          <span data-slot="row-title" className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>
             {item.title}
           </span>
-          <Spec className="hidden truncate xl:inline">{sourceLabel(item, nameOf)}</Spec>
+          <Spec className={cn('truncate', !account && 'hidden xl:inline')}>
+            {account ? (
+              <>
+                <span className="hidden xl:inline">{sourceLabel(item, nameOf)} · </span>
+                {account.address}
+              </>
+            ) : (
+              sourceLabel(item, nameOf)
+            )}
+          </Spec>
         </span>
         {item.subject && (
           <span className={cn('truncate text-sm', unread ? 'font-bold text-foreground' : 'font-medium text-muted-foreground')}>{item.subject}</span>

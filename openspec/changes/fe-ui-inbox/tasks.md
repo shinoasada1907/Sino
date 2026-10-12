@@ -90,3 +90,12 @@
   - **Goal / Why:** bằng chứng thật: hình dạng API khớp, phân trang keyset, đọc / lưu trữ / chưa đọc ghi vào database, không ghi sang Gmail.
   - **Depends on:** BE-44 (API Hộp thư), BE-45 (nhập lần đầu để có thư); phiên backend chạy cổng 8080 (báo trước và sau).
   - **Test:** đăng nhập web :5173, mở Hộp thư với Gmail đã nhập; lọc, lật trang, mở, lưu trữ, chưa đọc; so số đếm với API. Xong thì nhắn phiên backend tick FE-50 (2.1) của F05.
+
+## 6. Góp ý khi dùng thật
+
+- [x] 6.1 **IN-10 — Dòng thư ghi tài khoản khi một nguồn có nhiều tài khoản (D-97)**
+  - **Goal / Why:** người dùng chạy với hai tài khoản Gmail thật (2026-10-12): "nếu có nhiều account gmail thì nên hiển thị thêm là mail này thuộc tài khoản mail nào nhìn như này không biết thuộc mail nào của ai". Canvas không vẽ trường hợp này; agent chốt D-97.
+  - **Thực hiện (2026-10-12, AUTO):** `format.rowAccount(item, accounts)` (tài khoản của dòng khi nguồn có ≥ 2 tài khoản, không thì `null`); `ConversationList` nhận `accounts` (khung `inbox.accounts`), dòng ghi địa chỉ ở mọi cỡ, "Gmail · " phía trước chỉ từ 1280px; dòng tên thành lưới `minmax(0,auto) minmax(0,auto)` `justify-start`, tên `truncate`.
+  - **Làm khác kế hoạch:** ~~chỉ thêm tài khoản vào chữ nguồn, giữ dòng tên như cũ.~~ **LÝ DO:** Chrome 1024 cho thấy tên dài (`whitespace-nowrap`, không co) đè lên giờ và ép chữ tài khoản về rộng 0; lỗi đè giờ có từ IN-02, sửa luôn vì cùng một dòng. Cũng bỏ "Gmail · " dưới 1280px vì ở cột 320px nó ăn mất phần phân biệt của địa chỉ.
+  - **Kiểm chứng (2026-10-12):** RED 2/2 (`rowAccount` chưa có; màn không có "Gmail · an@congty.vn"), GREEN; đổi bố cục sau Chrome thì test màn RED lại (không tìm thấy "an@congty.vn" riêng), rồi GREEN. Chrome thật (headless, `vite` :5174, API trả qua CDP `Fetch.fulfillRequest`, 2 tài khoản Gmail, 3 thư, có tên dài "Indeed Job Alerts Vietnam Team"): lần 1 ở 1024 tên dài đè giờ và tài khoản rộng 0 → sửa như trên; lần 2: 1440 "Gmail · tienct07@gmail.com" đủ chữ, 1024 và 390 ghi địa chỉ (cắt "…" khi thiếu chỗ), tên dài cắt, cả 3 dòng thấy tài khoản; một tài khoản: 1440 "Gmail", 390 không có chữ nguồn; không cuộn ngang ở mọi cỡ. `pnpm lint` 0, `tsc -b` 0, `pnpm test` 541/541 (65 file), `pnpm build` 0 (cảnh báo chunk > 500 kB như trước). File kiến thức mục 17 + `.docx`, `genoffice docs check` 0 lỗi.
+  - **Acceptance criteria:** *Dòng ghi tài khoản khi một nguồn có nhiều tài khoản*.

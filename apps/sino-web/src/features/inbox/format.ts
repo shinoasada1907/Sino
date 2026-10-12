@@ -124,6 +124,12 @@ export function sourceLabel(item: ConversationItem, nameOf: ProviderNameOf): str
   return item.memberCount ? `${name} · nhóm ${item.memberCount} người` : name
 }
 
+/** The account of a row when its source has more than one, so that the row can name it (D-97); null otherwise. */
+export function rowAccount<A extends { id: string; provider: string }>(item: ConversationItem, accounts: A[]): A | null {
+  const sameSource = accounts.filter((account) => account.provider === item.provider)
+  return sameSource.length > 1 ? (sameSource.find((account) => account.id === item.accountId) ?? null) : null
+}
+
 /** The subtitle of a conversation in the mobile header: "Zalo · 6 người" for a group, the source name otherwise. */
 export function mobileThreadSubtitle(item: ConversationItem, nameOf: ProviderNameOf): string {
   const name = nameOf(item.provider)

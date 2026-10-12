@@ -63,6 +63,23 @@ describe('Hộp thư on desktop', () => {
     expect(within(row(/Điện lực/)).getByText('Thứ 3')).toBeInTheDocument()
   })
 
+  it('names the account of each row when a source has more than one, at every width', async () => {
+    const inbox = createInboxSample(NOW)
+    inbox.accounts.push({ ...inbox.accounts[0], id: 'acc-work', externalAccountId: 'an@congty.vn', address: 'an@congty.vn' })
+    inbox.conversations = inbox.conversations.map((item) => (item.title === 'Thu Trang' ? { ...item, accountId: 'acc-work' } : item))
+    renderApp('/inbox', { shell: createShellSample(NOW), inbox })
+
+    // Below 1280px the icon tells the source, so only the address shows; from 1280px "Gmail · …" as the canvas source.
+    const work = await within(await list().findByRole('link', { name: /Thu Trang/ })).findByText('an@congty.vn')
+    expect(work).toHaveTextContent('Gmail · an@congty.vn')
+    expect(work).not.toHaveClass('hidden')
+    expect(within(work).getByText('Gmail ·')).toHaveClass('hidden', 'xl:inline')
+    const home = within(row(/Trần Minh Anh/)).getByText('an.nguyen@gmail.com')
+    expect(home).toHaveTextContent('Gmail · an.nguyen@gmail.com')
+    expect(home).not.toHaveClass('hidden')
+    expect(within(row(/Gia đình/)).getByText('Zalo · nhóm 6 người')).toHaveClass('hidden', 'xl:inline')
+  })
+
   it('counts each source and quick filter, and lists the accounts', async () => {
     open('/inbox')
 

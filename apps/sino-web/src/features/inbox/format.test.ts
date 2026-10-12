@@ -25,6 +25,7 @@ import {
   notArrivedSince,
   paragraphs,
   previewText,
+  rowAccount,
   rowFlag,
   rowTime,
   sendBlock,
@@ -166,6 +167,19 @@ describe('row texts', () => {
   it('names the source, with the size of a group', () => {
     expect(sourceLabel(item({}), nameOf)).toBe('Gmail')
     expect(sourceLabel(item({ provider: 'zalo', kind: 'CHAT', memberCount: 6 }), nameOf)).toBe('Zalo · nhóm 6 người')
+  })
+
+  it('names the account of a row only when its source has more than one', () => {
+    const home = { id: 'acc-home', provider: 'gmail', address: 'an.nguyen@gmail.com' }
+    const work = { id: 'acc-work', provider: 'gmail', address: 'an@congty.vn' }
+    const zalo = { id: 'acc-zalo', provider: 'zalo', address: '+84 9•• ••• 218' }
+    const accounts = [home, zalo, work]
+
+    expect(rowAccount(item({ accountId: 'acc-work' }), accounts)).toBe(work)
+    expect(rowAccount(item({ accountId: 'acc-home' }), accounts)).toBe(home)
+    expect(rowAccount(item({ accountId: 'acc-zalo', provider: 'zalo' }), accounts)).toBeNull()
+    expect(rowAccount(item({ accountId: 'acc-home' }), [home, zalo])).toBeNull()
+    expect(rowAccount(item({ accountId: 'acc-gone' }), accounts)).toBeNull()
   })
 
   it('counts what is unread', () => {

@@ -7,6 +7,17 @@ Trang `/inbox` MUST hiện mọi cuộc trò chuyện chưa lưu trữ và khôn
 - **WHEN** người dùng mở `/inbox` với dữ liệu mẫu lúc 14:05 ngày 02/10/2026
 - **THEN** đầu danh sách ghi "12 chưa đọc", nhóm "HÔM NAY" có "Trần Minh Anh" (09:41, "Task · hạn T4 07/10") và "Gia đình" (08:20, 3 tin chưa đọc), nhóm "TUẦN NÀY" có "Điện lực Hà Nội" với giờ "Thứ 3"
 
+### Requirement: Dòng ghi tài khoản khi một nguồn có nhiều tài khoản
+Khi nguồn của một dòng có từ hai tài khoản trở lên, dòng MUST ghi địa chỉ của tài khoản nhận cuộc trò chuyện đó, ở mọi cỡ màn; từ 1280px MUST ghi sau tên nguồn ("Gmail · tienct07@gmail.com"). Nguồn chỉ có một tài khoản MUST giữ chữ nguồn như cũ (chỉ từ 1280px). Tên dài và địa chỉ dài MUST cùng cắt bằng "…" trong dòng của chúng, không đè lên giờ.
+
+#### Scenario: Hai tài khoản Gmail, một tài khoản Zalo
+- **WHEN** chủ có hai tài khoản Gmail (`an.nguyen@gmail.com`, `an@congty.vn`) và một tài khoản Zalo, và thư "Thu Trang" về `an@congty.vn`
+- **THEN** dòng "Thu Trang" ghi "an@congty.vn" ở mọi cỡ màn, từ 1280px là "Gmail · an@congty.vn"; dòng "Trần Minh Anh" ghi "Gmail · an.nguyen@gmail.com"; dòng "Gia đình" vẫn chỉ ghi "Zalo · nhóm 6 người" từ 1280px
+
+#### Scenario: Chỉ một tài khoản Gmail
+- **WHEN** chủ chỉ có một tài khoản Gmail
+- **THEN** dòng thư Gmail ghi "Gmail" từ 1280px và không ghi gì dưới 1280px, như canvas
+
 ### Requirement: Lọc hộp thư
 Người dùng MUST lọc được theo nguồn (Tất cả, Gmail, Zalo, Messenger) và theo bộ lọc nhanh (Chưa đọc, Cần trả lời, Có tệp, Đã hẹn giờ, Đang tạm ẩn, Đã lưu trữ); lựa chọn MUST nằm trong URL (`source`, `view`) và mục đang chọn MUST có `aria-current="page"` (cột nguồn) hoặc `aria-pressed="true"` (nút). Khi không còn cuộc trò chuyện nào khớp, danh sách MUST báo "Không có cuộc trò chuyện nào".
 

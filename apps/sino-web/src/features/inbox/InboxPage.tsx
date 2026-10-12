@@ -157,6 +157,7 @@ export function InboxPage() {
           search={search}
           now={now}
           nameOf={nameOf}
+          accounts={inbox?.accounts ?? []}
           body={listBody}
           switching={list.switching}
           more={list.more}
