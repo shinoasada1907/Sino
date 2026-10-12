@@ -1,4 +1,7 @@
+import { Plus, Search } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useLocation, useMatch, useParams } from 'react-router'
+import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { cn } from '@/shared/lib/utils'
 import { useNow } from '@/shared/time/useNow'
 import { Button } from '@/shared/ui/button'
@@ -20,9 +23,37 @@ export function NotesPage() {
   const { data, error, refetch } = useNotes()
   const now = useNow()
   const { filter, query, search, setFilter, setQuery } = useNotesFilter()
+  const [searchOpen, setSearchOpen] = useState(false)
+  // Canvas MobileNotes: "Ghi chú" sits under "Thêm" on a phone.
+  const phoneHeader = (count: number | null) => (
+    <MobilePageHeader
+      back={{ to: '/more', label: 'Quay lại Thêm' }}
+      title="Ghi chú"
+      subtitle={count === null ? undefined : `${count} ghi chú`}
+      action={
+        count !== null && (
+          <>
+            <Button asChild variant="ghost" size="icon">
+              <Link to={{ pathname: '/notes/new', search }} aria-label="Ghi chú mới">
+                <Plus strokeWidth={1.6} />
+              </Link>
+            </Button>
+            <Button type="button" variant="ghost" size="icon" aria-label="Tìm trong ghi chú" aria-expanded={searchOpen} onClick={() => setSearchOpen((open) => !open)}>
+              <Search strokeWidth={1.6} />
+            </Button>
+          </>
+        )
+      }
+    />
+  )
 
   if (!data) {
-    return error ? <NotesLoadFailed onRetry={() => void refetch()} /> : <NotesSkeleton />
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        {phoneHeader(null)}
+        {error ? <NotesLoadFailed onRetry={() => void refetch()} /> : <NotesSkeleton />}
+      </div>
+    )
   }
 
   const open = creating || noteId !== undefined
@@ -41,6 +72,8 @@ export function NotesPage() {
         now={now}
         onFilter={setFilter}
         onQuery={setQuery}
+        phoneHeader={phoneHeader(data.notes.length)}
+        searchOpen={searchOpen}
         className={open ? 'hidden md:flex' : 'flex'}
       />
       <div className={cn('min-h-0 min-w-0 flex-col', open ? 'flex' : 'hidden md:flex')}>

@@ -1,10 +1,11 @@
 import { Ellipsis, ExternalLink, Link2Off, Pin, SquareCheck, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { anchorChip, anchorHeading, editedLine, lengthLine, linkedDue, NOTE_MAX_LENGTH, quoteHeading } from '../format'
+import { anchorChip, anchorHeading, editedLine, lengthLine, linkedDue, NOTE_MAX_LENGTH, quoteHeading, savedLine } from '../format'
 import type { NoteItem } from '../notes.types'
 import { FROM_NEW, useCreateNote, useSaveNote } from '../useNotes'
 import { DeleteNoteDialog } from './DeleteNoteDialog'
@@ -68,9 +69,18 @@ export function NoteEditor({ note, search, now }: { note: NoteItem | undefined; 
     timer.current = setTimeout(() => flush.current(), SAVE_AFTER_MS)
   }
   const anchor = note?.anchor ?? null
+  const togglePin = () => note && save({ note, change: { pinned: !note.pinned } })
 
   return (
-    <main aria-label="Ghi chú đang mở" className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto px-5 pt-6 pb-10 xl:px-14 xl:pt-7">
+    <>
+      {/* Canvas MobileNoteEditor: back to the list, when it was saved, and Ghim; the length and Xóa go to the foot. */}
+      <MobilePageHeader
+        back={{ to: `/notes${search}`, label: 'Quay lại Ghi chú' }}
+        title="Ghi chú"
+        subtitle={note ? savedLine(note.updatedAt, now) : 'Ghi chú mới'}
+        action={<PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={togglePin} size="icon" />}
+      />
+      <main aria-label="Ghi chú đang mở" className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-5 pt-4 pb-6 md:gap-5 md:pt-6 md:pb-10 xl:px-14 xl:pt-7">
       <div className="flex min-w-0 items-center gap-2">
         {anchor && (
           <>
@@ -94,19 +104,8 @@ export function NoteEditor({ note, search, now }: { note: NoteItem | undefined; 
             )}
           </>
         )}
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Ghim"
-            aria-pressed={note?.pinned ?? false}
-            disabled={!note}
-            onClick={() => note && save({ note, change: { pinned: !note.pinned } })}
-            className="aria-pressed:bg-raised aria-pressed:text-foreground"
-          >
-            <Pin strokeWidth={1.6} />
-          </Button>
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 max-md:hidden">
+          <PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={togglePin} size="icon-sm" />
           <Button type="button" variant="ghost" size="icon-sm" aria-label="Thêm thao tác">
             <Ellipsis strokeWidth={1.6} />
           </Button>
@@ -138,7 +137,7 @@ export function NoteEditor({ note, search, now }: { note: NoteItem | undefined; 
           later()
         }}
         onBlur={() => flush.current()}
-        className="w-full bg-transparent p-0 text-[28px] leading-9 font-bold tracking-[-0.018em] text-foreground outline-none placeholder:text-subtle-foreground"
+        className="w-full bg-transparent p-0 text-[22px] leading-7 font-bold md:text-[28px] md:leading-9 tracking-[-0.018em] text-foreground outline-none placeholder:text-subtle-foreground"
       />
       {note?.quote && (
         <blockquote className="flex max-w-180 flex-col gap-2 rounded-r-sm border-l-3 border-border-strong bg-surface px-4.5 py-3.5">
@@ -157,7 +156,7 @@ export function NoteEditor({ note, search, now }: { note: NoteItem | undefined; 
         }}
         onBlur={() => flush.current()}
         aria-invalid={note && body.trim() === '' ? true : undefined}
-        className="min-h-50 w-full max-w-180 flex-1 resize-none bg-transparent p-0 text-base leading-6.5 text-foreground outline-none placeholder:text-subtle-foreground"
+        className="min-h-40 w-full max-w-180 flex-1 resize-none bg-transparent p-0 text-[15px] leading-6 md:min-h-50 md:text-base md:leading-6.5 text-foreground outline-none placeholder:text-subtle-foreground"
       />
       {note && body.trim() === '' && (
         <p role="alert" className="-mt-3 text-sm text-danger-ink">
@@ -175,10 +174,43 @@ export function NoteEditor({ note, search, now }: { note: NoteItem | undefined; 
           ))}
         </div>
       )}
-      <div className="flex max-w-180 flex-wrap items-center justify-between gap-3 border-t pt-3.5">
+      <div className="flex max-w-180 flex-wrap items-center justify-between gap-3 border-t pt-3.5 max-md:hidden">
         <Spec>{note ? editedLine(note.updatedAt, now) : 'Ghi chú mới · lưu khi có nội dung'}</Spec>
         <Spec>{lengthLine(body)}</Spec>
       </div>
     </main>
+      <div role="group" aria-label="Ghi chú này" className="flex items-center justify-between gap-3 border-t px-5 pt-2.5 pb-7 md:hidden">
+        <Spec>{lengthLine(body)}</Spec>
+        {note && (
+          <DeleteNoteDialog
+            note={note}
+            after={`/notes${search}`}
+            trigger={
+              <Button type="button" variant="ghost" size="sm" className="text-danger-ink">
+                Xóa
+              </Button>
+            }
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
+/** Ghim: a toggle that keeps its name and says its state (`aria-pressed`). */
+function PinButton({ pinned, disabled, onClick, size }: { pinned: boolean; disabled: boolean; onClick: () => void; size: 'icon' | 'icon-sm' }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size={size}
+      aria-label="Ghim"
+      aria-pressed={pinned}
+      disabled={disabled}
+      onClick={onClick}
+      className="aria-pressed:bg-raised aria-pressed:text-foreground"
+    >
+      <Pin strokeWidth={1.6} />
+    </Button>
   )
 }

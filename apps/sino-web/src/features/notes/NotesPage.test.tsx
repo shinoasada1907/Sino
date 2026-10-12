@@ -28,7 +28,8 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     open('/notes')
     await ready()
 
-    expect(await list().findByRole('heading', { level: 1, name: 'Ghi chú' })).toBeInTheDocument()
+    // Two in the DOM: the phone header's and the title of 768 px up; CSS shows one.
+    expect(list().getAllByRole('heading', { level: 1, name: 'Ghi chú' })).toHaveLength(2)
     expect(list().getByText('ĐÃ GHIM')).toBeInTheDocument()
     expect(list().getByText('GẦN ĐÂY')).toBeInTheDocument()
     expect(cardTitles()).toEqual([

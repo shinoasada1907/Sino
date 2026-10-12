@@ -137,6 +137,8 @@ describe('the editor', () => {
   it('dates a related task by its due', () => {
     expect(linkedDue({ dueAt: vn('2026-10-07T17:00'), dueDate: null }, TZ)).toBe('hạn T4 07/10')
     expect(linkedDue({ dueAt: null, dueDate: '2026-10-09' }, TZ)).toBe('hạn T6 09/10')
+    // A whole day stays that day for a reader 14 hours ahead of UTC (found by a mutation check, NT-03).
+    expect(linkedDue({ dueAt: null, dueDate: '2026-10-09' }, 'Pacific/Kiritimati')).toBe('hạn T6 09/10')
     expect(linkedDue({ dueAt: null, dueDate: null }, TZ)).toBeNull()
   })
 })

@@ -1275,6 +1275,15 @@ Hàm lưu chạy **sau** lần vẽ đã hẹn nó, nên nó không được đ�
 ### 20.7 Nút bật/tắt giữ tên, nói trạng thái
 "Ghim" là một nút bật/tắt: tên luôn là "Ghim", còn trạng thái nằm ở `aria-pressed="true|false"`. Trình đọc màn hình đọc "Ghim, nút bật/tắt, đang bật". Đổi tên thành "Bỏ ghim" kèm `aria-pressed` thì người nghe nhận hai thông tin trái nhau.
 
+### 20.8 Một DOM cho mọi cỡ màn, và test không thấy CSS (NT-03)
+Trên điện thoại, danh sách có đầu trang riêng (quay lại "Thêm", "6 GHI CHÚ", "+", tìm); trang ghi chú có đầu trang riêng (quay lại, "TỰ LƯU · 09:52", Ghim) và thanh đáy (số ký tự, "Xóa"). Các phần này nằm cùng DOM với phần của desktop và được ẩn hiện bằng `md:hidden` / `max-md:hidden`. Hệ quả cho test:
+
+- jsdom không chạy CSS, nên trong test cả hai tiêu đề "Ghi chú" đều có mặt. Test phải tìm đúng phần mình muốn, ví dụ tìm đầu trang theo nút quay lại của nó.
+- Chuyện "thấy hay không" chỉ đo được ở trình duyệt thật (`getComputedStyle(...).display`, độ rộng). Lượt Chrome mỗi task làm việc đó.
+
+### 20.9 Kiểm bằng lỗi gài (mutation) một lần cho cả màn
+Script `mutate.mjs` lần lượt sửa sai `format.ts` ở 30 chỗ (đổi điều kiện, bỏ một phép biến đổi, đổi chữ), chạy test, rồi trả file về như cũ. Test đỏ thì lỗi gài "bị bắt"; test vẫn xanh thì lỗi "sống sót", tức là có một hành vi không test nào canh. Lần này 29/30 bị bắt; lỗi sống sót là "ngày cả ngày tính theo múi giờ người xem". Với múi giờ +7, trưa UTC vẫn là cùng ngày nên test không phân biệt được. Thêm một trường hợp ở múi giờ +14 (Kiribati) thì lỗi đó bị bắt.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1416,3 +1425,4 @@ Hàm lưu chạy **sau** lần vẽ đã hẹn nó, nên nó không được đ�
 137. Vì sao dữ liệu mẫu của Ghi chú cần `staleTime: Infinity`? Khi nối API thật thì nên đổi thế nào?
 138. Debounce 600 ms của tự lưu hoạt động thế nào? Vì sao hàm lưu đọc giá trị từ `useRef` chứ không từ biến của lần vẽ?
 139. Vì sao chuyển từ `/notes/new` sang `/notes/{id}` không được làm mất con trỏ, và `key` của component liên quan gì?
+140. Một lỗi gài "sống sót" nói lên điều gì về bộ test? Vì sao lỗi "ngày cả ngày theo múi giờ người xem" sống sót với múi giờ +7?

@@ -1,4 +1,5 @@
 import { Link2Off, Pin, Plus, Search } from 'lucide-react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
@@ -19,6 +20,8 @@ const CHIP =
 /**
  * The list of canvas `Notes` (`.notes-list`): the title with "+ Ghi chú", the search, the filter chips with their counts
  * over every note, then "ĐÃ GHIM" and "GẦN ĐÂY" (D-205). A card opens its note (`/notes/:noteId`), keeping the filter.
+ * On a phone (canvas `MobileNotes`) `phoneHeader` takes the place of the title, and the search shows only once asked
+ * for (`searchOpen`) or while it holds a query. Without any note it says so, with "+ Ghi chú".
  */
 export function NoteList({
   notes,
@@ -29,6 +32,8 @@ export function NoteList({
   now,
   onFilter,
   onQuery,
+  phoneHeader,
+  searchOpen = false,
   className,
 }: {
   notes: NoteItem[]
@@ -39,6 +44,8 @@ export function NoteList({
   now: Date
   onFilter: (filter: NotesFilter) => void
   onQuery: (query: string) => void
+  phoneHeader?: ReactNode
+  searchOpen?: boolean
   className?: string
 }) {
   const counts = noteCounts(notes)
@@ -47,11 +54,18 @@ export function NoteList({
     { label: 'ĐÃ GHIM', items: pinned },
     { label: 'GẦN ĐÂY', items: recent },
   ].filter((group) => group.items.length > 0)
+  const searchBox = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (searchOpen) {
+      searchBox.current?.focus()
+    }
+  }, [searchOpen])
 
   return (
     <section aria-label="Danh sách ghi chú" className={cn('min-h-0 flex-col overflow-auto md:border-r', className)}>
-      <div className="sticky top-0 z-1 flex flex-col gap-3.5 border-b bg-background px-4 pt-5 pb-3.5">
-        <div className="flex items-center justify-between gap-3">
+      {phoneHeader}
+      <div className="z-1 flex flex-col gap-3.5 border-b bg-background px-4 pt-3 pb-3.5 md:sticky md:top-0 md:pt-5">
+        <div className="flex items-center justify-between gap-3 max-md:hidden">
           <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Ghi chú</h1>
           <Button asChild variant="primary" size="sm">
             <Link to={{ pathname: '/notes/new', search }}>
@@ -60,9 +74,10 @@ export function NoteList({
             </Link>
           </Button>
         </div>
-        <span className="relative flex items-center">
+        <span data-slot="note-search" className={cn('relative flex items-center', !searchOpen && query === '' && 'max-md:hidden')}>
           <Search className="pointer-events-none absolute left-3.5 size-4 text-muted-foreground" strokeWidth={1.6} />
           <input
+            ref={searchBox}
             type="search"
             aria-label="Tìm trong ghi chú"
             placeholder="Tìm trong ghi chú"
@@ -79,7 +94,20 @@ export function NoteList({
           ))}
         </div>
       </div>
-      {groups.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground">Không có ghi chú nào khớp</p>}
+      {notes.length === 0 ? (
+        <div className="flex flex-col items-start gap-3 px-4 py-8 md:px-5.5">
+          <p className="text-base font-semibold">Chưa có ghi chú nào</p>
+          <p className="text-sm text-muted-foreground">Ghi lại điều cần nhớ; ghi chú tạo từ một tin nhắn sẽ gắn với tin nhắn đó.</p>
+          <Button asChild variant="secondary" size="sm">
+            <Link to={{ pathname: '/notes/new', search }}>
+              <Plus strokeWidth={1.6} />
+              Ghi chú
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        groups.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground">Không có ghi chú nào khớp</p>
+      )}
       {groups.map((group) => (
         <div key={group.label} className="flex flex-col gap-0.5 pb-1">
           <div className="px-4 pt-4 pb-1.5 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] text-muted-foreground md:px-5.5">{group.label}</div>
@@ -99,7 +127,7 @@ function NoteCard({ note, search, selected, now }: { note: NoteItem; search: str
     <Link
       to={{ pathname: `/notes/${note.id}`, search }}
       aria-current={selected ? 'page' : undefined}
-      className="mx-2 flex flex-col gap-1.5 rounded-xl border border-transparent p-3.5 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:border-border-strong aria-[current=page]:bg-raised"
+      className="mx-2 flex flex-col gap-1.5 rounded-xl border border-transparent p-3.5 text-foreground max-md:mx-0 max-md:rounded-none max-md:border-x-0 max-md:border-t-0 max-md:border-b-border max-md:px-4 transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:border-border-strong aria-[current=page]:bg-raised"
     >
       <span className="flex min-w-0 items-center gap-2">
         {note.pinned && <Pin role="img" aria-label="Đã ghim" className="size-3.5 shrink-0" strokeWidth={1.6} />}
