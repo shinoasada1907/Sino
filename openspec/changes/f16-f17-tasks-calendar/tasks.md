@@ -138,3 +138,4 @@
   - **Việc:** chạy backend (từ worktree, profile trỏ tới database riêng) + web thật: luồng của Definition of Done trong `design.md`, đủ cỡ màn × 2 theme; README; file kiến thức + `.docx`; `PROJECT_STATE.md`.
   - **Acceptance criteria:** Definition of Done của `design.md`.
 - [ ] 3.2 Archive: sau `fe-ui-tasks` (TK-04) và `fe-ui-calendar` (CA-05) — delta `tasks-screen`, `calendar-screen` sửa spec của hai change đó — `openspec archive f16-f17-tasks-calendar -y`. Đánh dấu mục 3.4 (F16) và 3.5 (F17) của `planner-from-messages` là làm một phần (phần nhắc nhở và gắn tin nhắn còn mở).
+  - **Trước khi archive (2026-10-12, thống nhất với sino-api-11):** delta `module-boundaries` là MODIFIED nên thay cả requirement. Nếu `f15-notes` đã archive trước thì sửa delta theo spec chính lúc đó: giữ `notes` trong danh sách module và giữ scenario của nó, chỉ thêm phần `planner`. Nếu change này archive trước thì không cần làm gì (delta của f15 đã có `planner`).
