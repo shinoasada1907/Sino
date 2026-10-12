@@ -90,6 +90,12 @@ public class CredentialStore {
                 .map(refresh -> cipher.decrypt(refresh, accountId, REFRESH_TOKEN));
     }
 
+    /** The scopes the account granted, read without decrypting anything; empty without a credential. */
+    @Transactional(readOnly = true)
+    public Set<String> grantedScopes(UUID accountId) {
+        return credentials.findByAccountId(accountId).map(row -> Set.copyOf(row.scopes())).orElse(Set.of());
+    }
+
     @Transactional
     public void delete(UUID accountId) {
         credentials.deleteByAccountId(accountId);

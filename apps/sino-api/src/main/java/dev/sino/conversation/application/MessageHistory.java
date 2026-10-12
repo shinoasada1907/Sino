@@ -8,19 +8,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import dev.sino.conversation.application.InboxMessage.Address;
 import dev.sino.conversation.application.InboxMessage.File;
 import dev.sino.conversation.application.InboxMessage.Sender;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.NormalizedMessage;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The messages of one conversation of the inbox (F06 design, D-123), read straight with SQL: who sent each, to whom,
@@ -29,8 +25,6 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 @Transactional(readOnly = true)
 public class MessageHistory {
-
-    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final JdbcClient jdbc;
     private final InboxService inbox;
@@ -63,7 +57,7 @@ public class MessageHistory {
             query = query.param("before", cursor.sentAt().atOffset(ZoneOffset.UTC)).param("beforeId", cursor.id());
         }
         List<InboxMessage> rows = query.query((row, n) -> {
-            Recipients recipients = recipientsOf(row.getString("recipients"));
+            StoredRecipients recipients = StoredRecipients.parse(row.getString("recipients"));
             String sender = row.getString("sender");
             return new InboxMessage(row.getObject("id", UUID.class),
                     MessageDirection.valueOf(row.getString("direction")),
@@ -99,15 +93,6 @@ public class MessageHistory {
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
                 List.copyOf(files.getOrDefault(m.id(), List.of())))).toList();
-    }
-
-    private static Recipients recipientsOf(String json) {
-        return json == null ? null : JSON.readValue(json, Recipients.class);
-    }
-
-    /** The addressees as the store keeps them ({@code message.recipients}); a key added later is skipped. */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record Recipients(List<Address> to, List<Address> cc, List<Address> replyTo) {
     }
 
 }

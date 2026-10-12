@@ -1,6 +1,7 @@
 package dev.sino.account.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -16,6 +17,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import dev.sino.TestcontainersConfiguration;
 import dev.sino.account.AccountDirectory;
@@ -25,6 +27,8 @@ import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.account.infrastructure.ConnectedAccountRepository;
 import dev.sino.identity.infrastructure.AppUser;
 import dev.sino.identity.infrastructure.AppUserRepository;
+import dev.sino.provider.ProviderCapabilities;
+import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderType;
 
 /** The accounts other modules see (F05), against a real database. */
@@ -51,6 +55,9 @@ class AccountDirectoryServiceTests {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @MockitoBean
+    private AccountCapabilities capabilities;
 
     private UUID alice;
     private UUID bob;
@@ -110,6 +117,19 @@ class AccountDirectoryServiceTests {
 
         assertThat(directory.byId(removed.id())).isEmpty();
         assertThat(directory.byId(UUID.randomUUID())).isEmpty();
+    }
+
+    // What an account can do is AccountCapabilities' to say (AccountCapabilitiesApiTests); the directory asks it for
+    // the account it read, without reading the account again.
+    @Test
+    void asksWhatTheAccountItReadCanDo() {
+        ConnectedAccount work = accounts.saveAndFlush(register(alice, GMAIL, "alice@work.test"));
+        given(capabilities.of(work.id(), GMAIL)).willReturn(ProviderCapabilities.of(ProviderCapability.READ_MESSAGES));
+
+        AccountSummary summary = directory.find(alice, work.id()).orElseThrow();
+
+        assertThat(directory.capabilitiesOf(summary))
+                .isEqualTo(ProviderCapabilities.of(ProviderCapability.READ_MESSAGES));
     }
 
     @Test

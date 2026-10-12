@@ -47,13 +47,15 @@ public class InboxService {
     private final JdbcClient jdbc;
     private final AccountDirectory directory;
     private final ConversationSummaries summaries;
+    private final Replies replies;
     private final ApplicationEventPublisher events;
 
-    InboxService(JdbcClient jdbc, AccountDirectory directory, ConversationSummaries summaries,
+    InboxService(JdbcClient jdbc, AccountDirectory directory, ConversationSummaries summaries, Replies replies,
             ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.directory = directory;
         this.summaries = summaries;
+        this.replies = replies;
         this.events = events;
     }
 
@@ -122,7 +124,8 @@ public class InboxService {
     }
 
     /**
-     * The conversation and its participants, in the order they were first stored.
+     * The conversation, its participants in the order they were first stored, and whether and to whom the owner can
+     * reply.
      *
      * @throws dev.sino.common.error.SinoException with {@code CONVERSATION_NOT_FOUND} when not in the inbox
      */
@@ -135,7 +138,7 @@ public class InboxService {
                 .query((row, n) -> new InboxParticipant(row.getString(1), row.getString(2), row.getString(3),
                         row.getBoolean(4)))
                 .list();
-        return new InboxDetail(conversation, participants);
+        return new InboxDetail(conversation, participants, replies.of(ownerId, conversation));
     }
 
     /**

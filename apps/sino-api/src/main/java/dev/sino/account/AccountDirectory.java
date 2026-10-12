@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import dev.sino.provider.ProviderCapabilities;
+
 /**
  * How another module reads the accounts of an owner (F05): which accounts there are, their provider and status,
  * never a credential. A removed account, or an account of another owner, reads exactly like one that does not
@@ -22,5 +24,11 @@ public interface AccountDirectory {
      * such as automatic sync. Requests of a user look accounts up with {@link #find}.
      */
     Optional<AccountSummary> byId(UUID accountId);
+
+    /**
+     * What an account read from this directory can do, whatever its status: its connector's capabilities, less sending
+     * while it has not granted the scopes to send (F10, D-130). Nothing for a provider without a connector.
+     */
+    ProviderCapabilities capabilitiesOf(AccountSummary account);
 
 }

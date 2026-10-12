@@ -77,11 +77,13 @@ class GmailProviderTests {
 
         assertThat(connection.registrationId()).isEqualTo("google");
         assertThat(connection.scopes()).containsExactlyInAnyOrder("openid", "email",
-                "https://www.googleapis.com/auth/gmail.readonly");
+                "https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send");
         // D-51: Google renames "email" in the granted scopes, and the sign-in scopes cannot be refused anyway.
+        // D-130: sending is asked for but not required, so a user who unticks it still connects to read.
         assertThat(connection.requiredScopes()).containsExactly("https://www.googleapis.com/auth/gmail.readonly");
-        assertThat(connection.extraParameters())
-                .containsExactlyInAnyOrderEntriesOf(Map.of("access_type", "offline", "prompt", "consent"));
+        assertThat(connection.sendScopes()).containsExactly("https://www.googleapis.com/auth/gmail.send");
+        assertThat(connection.extraParameters()).containsExactlyInAnyOrderEntriesOf(Map.of("access_type", "offline",
+                "prompt", "consent", "include_granted_scopes", "true"));
         assertThat(connection.revocationUri()).isEqualTo(URI.create(google.baseUrl() + "/revoke"));
     }
 

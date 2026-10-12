@@ -11,6 +11,7 @@ import dev.sino.account.AccountDirectory;
 import dev.sino.account.AccountSummary;
 import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.account.infrastructure.ConnectedAccountRepository;
+import dev.sino.provider.ProviderCapabilities;
 
 /**
  * {@link AccountDirectory} over the same owner-scoped queries as the account API, and, for work in the background,
@@ -21,9 +22,11 @@ import dev.sino.account.infrastructure.ConnectedAccountRepository;
 public class AccountDirectoryService implements AccountDirectory {
 
     private final ConnectedAccountRepository accounts;
+    private final AccountCapabilities capabilities;
 
-    AccountDirectoryService(ConnectedAccountRepository accounts) {
+    AccountDirectoryService(ConnectedAccountRepository accounts, AccountCapabilities capabilities) {
         this.accounts = accounts;
+        this.capabilities = capabilities;
     }
 
     @Override
@@ -41,6 +44,11 @@ public class AccountDirectoryService implements AccountDirectory {
     @Override
     public Optional<AccountSummary> byId(UUID accountId) {
         return accounts.findByIdAndRemovedAtIsNull(accountId).map(AccountDirectoryService::summaryOf);
+    }
+
+    @Override
+    public ProviderCapabilities capabilitiesOf(AccountSummary account) {
+        return capabilities.of(account.id(), account.provider());
     }
 
     private static AccountSummary summaryOf(ConnectedAccount account) {

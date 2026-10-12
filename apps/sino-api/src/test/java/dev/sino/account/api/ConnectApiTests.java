@@ -92,11 +92,12 @@ class ConnectApiTests {
                 .containsEntry("response_type", "code")
                 .containsEntry("access_type", "offline")
                 .containsEntry("prompt", "consent")
+                .containsEntry("include_granted_scopes", "true")
                 .containsEntry("code_challenge_method", "S256")
                 .containsKey("code_challenge")
                 .doesNotContainKey("login_hint");
         assertThat(query.get("scope").split(" ")).containsExactlyInAnyOrder("openid", "email",
-                "https://www.googleapis.com/auth/gmail.readonly");
+                "https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send");
         assertThat(pendingIn(session).take(query.get("state"), Instant.now())).get()
                 .satisfies(pending -> {
                     assertThat(pending.provider()).isEqualTo("gmail");

@@ -42,7 +42,9 @@ class GmailProvider implements MessageProvider {
     static final ProviderType TYPE = ProviderType.of("gmail");
     static final String REGISTRATION_ID = "google";
     static final String GMAIL_READONLY = "https://www.googleapis.com/auth/gmail.readonly";
-    static final Set<String> SCOPES = Set.of("openid", "email", GMAIL_READONLY);
+    // Asked for but not required (D-130): a user who unticks it on Google's consent screen still connects to read.
+    static final String GMAIL_SEND = "https://www.googleapis.com/auth/gmail.send";
+    static final Set<String> SCOPES = Set.of("openid", "email", GMAIL_READONLY, GMAIL_SEND);
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
     /** A 25 MB file is about 33 MB of base64: 60 s is enough down to about 0.6 MB/s. */
@@ -51,8 +53,9 @@ class GmailProvider implements MessageProvider {
     static final long COUNTED_AT_MOST = 5_000;
 
     // Google issues a refresh token only for offline access, and only on a fresh consent: a reconnect must ask again.
+    // With include_granted_scopes, a reconnect that adds sending keeps what the account granted before.
     private static final Map<String, String> CONSENT_PARAMETERS = Map.of("access_type", "offline",
-            "prompt", "consent");
+            "prompt", "consent", "include_granted_scopes", "true");
     private static final ProviderCapabilities CAPABILITIES = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
             ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS);
     private static final ProviderCapabilities WITH_PUSH = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
@@ -77,8 +80,8 @@ class GmailProvider implements MessageProvider {
 
     GmailProvider(URI userInfoUri, URI gmailApiUri, URI revocationUri, Duration connectTimeout,
             Duration readTimeout, String pubsubTopic) {
-        this.connection = new OAuth2Connection(REGISTRATION_ID, SCOPES, Set.of(GMAIL_READONLY), CONSENT_PARAMETERS,
-                revocationUri);
+        this.connection = new OAuth2Connection(REGISTRATION_ID, SCOPES, Set.of(GMAIL_READONLY), Set.of(GMAIL_SEND),
+                CONSENT_PARAMETERS, revocationUri);
         this.api = new GmailApi(userInfoUri, gmailApiUri, connectTimeout, readTimeout, FILE_READ_TIMEOUT);
         this.pubsubTopic = pubsubTopic;
     }

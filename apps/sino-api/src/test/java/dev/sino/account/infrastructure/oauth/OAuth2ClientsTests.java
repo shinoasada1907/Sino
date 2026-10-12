@@ -67,7 +67,7 @@ class OAuth2ClientsTests {
     private static WireMockServer tokenEndpoint;
     private static final OAuth2Connection GMAIL_LIKE = new OAuth2Connection("google",
             Set.of("openid", "email", "https://www.googleapis.com/auth/gmail.readonly"),
-            Set.of("https://www.googleapis.com/auth/gmail.readonly"),
+            Set.of("https://www.googleapis.com/auth/gmail.readonly"), Set.of(),
             Map.of("access_type", "offline", "prompt", "consent"), URI.create("https://auth.test/revoke"));
     private static final ClientRegistration GOOGLE = ClientRegistration.withRegistrationId("google")
             .clientId("client-1")
