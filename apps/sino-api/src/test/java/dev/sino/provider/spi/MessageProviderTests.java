@@ -83,7 +83,8 @@ class MessageProviderTests {
         ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
 
         assertThatExceptionOfType(ProviderException.class)
-                .isThrownBy(() -> readOnly.findSentMessage(context, UUID.randomUUID()))
+                .isThrownBy(() -> readOnly.findSentMessages(context,
+                        new SendMessageCommand("thread", "ok", null, List.of(), UUID.randomUUID()), Instant.now()))
                 .withMessageContaining("read-only")
                 .extracting(ProviderException::errorCode)
                 .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);

@@ -191,6 +191,32 @@ Only this test: `./mvnw test -Preal-gmail -Dtest=RealGmailMessagesTests`. Measur
 1.4 s), second open 35 ms; 20 HTML messages opened, none with anything that runs, all with pictures from the web
 (shown only when the user asks).
 
+### Reply from a real mailbox (F10)
+
+`RealGmailReplyTests`, also tagged `real-gmail`, **sends a real email**. It skips itself unless you name the
+conversation and its one addressee, so `./mvnw test -Preal-gmail` alone never sends anything. Same rule: stop the
+backend first.
+
+1. The account must have granted `gmail.send`: add the scope (step 5 of *Gmail*), then reconnect the account from the
+   web. `GET /api/accounts` then lists `SEND_MESSAGES` in its `capabilities`.
+2. Pick a conversation whose reply goes only to an address of yours: the simplest is to send the connected account a
+   mail from another address you own. Its ID is in the web's address bar (`/inbox/<id>`) or in the `conversation`
+   table.
+3. Run, from `apps/sino-api` (PowerShell: `.\mvnw.cmd`, each `-D…` argument in quotes):
+
+   ```bash
+   ./mvnw test -Preal-gmail -Dtest=RealGmailReplyTests \
+     -Dsino.real-gmail.reply.conversation=<conversation id> -Dsino.real-gmail.reply.to=<that address>
+   ```
+
+The test syncs the account, checks that `reply` is `READY` and goes to exactly that address (or sends nothing),
+sends one reply through `POST /api/conversations/{id}/messages`, then sends the same `clientMessageId` again, which
+must answer `200` without a second email. It then reads the thread on Gmail: the reply is there, labelled `SENT`,
+and is the one message sent with that text since the send started; `findSentMessages`, how Sino settles a send whose
+outcome is unknown, finds it (Gmail gives every message it sends its own `Message-ID`, so Sino looks in the thread for
+the same addressees and text around the time of the send, D-132). A last sync must bring it back as the same message.
+A second run sends nothing new: it asks again with the `clientMessageId` of the reply already in the conversation.
+
 ## Gmail: new mail in seconds (Pub/Sub notices, F07)
 
 Without this setup Sino asks Gmail for changes every minute (automatic sync, BE-49), and new mail shows up within
@@ -353,6 +379,7 @@ The error code catalog is in the F01 design (`openspec/changes/archive/2026-10-0
 | Full build, as CI runs it | `./mvnw -B verify` |
 | Module boundaries only | `./mvnw test -Dtest=ModularityTests` |
 | Read the real Gmail account connected on this machine, import it again and read its conversations (by hand, never in CI) | `./mvnw test -Preal-gmail` (see *Read a real mailbox*, *Import a real mailbox again* and *Read conversations of a real mailbox*) |
+| Send one real reply from that account, to an address you pick (by hand, never in CI) | `./mvnw test -Preal-gmail -Dtest=RealGmailReplyTests -Dsino.real-gmail.reply.conversation=… -Dsino.real-gmail.reply.to=…` (see *Reply from a real mailbox*) |
 
 Tests run with the `test` profile (`src/test/resources/application-test.yaml`, fake owner `owner@sino.test` /
 `test-owner-password`) against PostgreSQL 18 started by Testcontainers. GitHub Actions

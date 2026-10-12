@@ -22,6 +22,7 @@ import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
@@ -57,7 +58,7 @@ class GmailSendTests {
     private static final String API = "/gmail/v1/users/me";
     private static final String ACCESS_TOKEN = "ya29.gmail-send-access-token";
     private static final UUID CLIENT_MESSAGE_ID = UUID.fromString("6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b");
-    private static final String SINO_MESSAGE_ID = "<sino.6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b@gmail.test>";
+    private static final Instant STARTED = Instant.parse("2026-10-12T08:45:18Z");
     private static final SendMessageCommand REPLY = new SendMessageCommand("thread-42", "Em nhận được rồi.",
             "msg-41", List.of(new Address("An", "an@example.test")), CLIENT_MESSAGE_ID);
 
@@ -109,7 +110,8 @@ class GmailSendTests {
         assertThat(JsonPath.<String>read(send.getBodyAsString(), "$.threadId")).isEqualTo("thread-42");
         String mime = rawOf(send);
         assertThat(mime).contains("From: me@gmail.test\r\n", "To: An <an@example.test>\r\n",
-                "Message-ID: " + SINO_MESSAGE_ID + "\r\n", "In-Reply-To: <orig@mail.example.test>\r\n");
+                "In-Reply-To: <orig@mail.example.test>\r\n");
+        assertThat(mime).as("Gmail gives every message it sends its own (BE-60)").doesNotContain("Message-ID:");
         assertThat(headerOf(mime, "References")).isEqualTo("<first@mail.example.test> <orig@mail.example.test>");
         assertThat(MailHeaders.decode(headerOf(mime, "Subject"))).isEqualTo("Re: Báo cáo tháng 9");
     }
@@ -179,20 +181,103 @@ class GmailSendTests {
         gmail.verify(exactly(0), postRequestedFor(urlPathEqualTo(API + "/messages/send")));
     }
 
+    // Gmail gives what it sends its own Message-ID (BE-60): the message is looked for in its thread, sent around the
+    // start of the send to the same people with the same text; every such one, earliest first (D-132). Each other
+    // message fails one of those.
     @Test
-    void aMessageSinoSentIsFoundByTheMessageIdItGaveIt() {
-        gmail.stubFor(get(urlPathEqualTo(API + "/messages"))
-                .withQueryParam("q", equalTo("rfc822msgid:" + SINO_MESSAGE_ID))
-                .willReturn(okJson("{\"messages\": [{\"id\": \"msg-43\", \"threadId\": \"thread-42\"}]}")));
+    void aSendWhoseOutcomeIsUnknownIsFoundInItsThreadByItsText() {
+        answerTheThreadWith(message("msg-40", "SENT", STARTED.minusSeconds(300), REPLY.textContent()),
+                message("msg-41", "INBOX", STARTED.plusMillis(1_000), REPLY.textContent()),
+                unreadable("msg-42", STARTED.plusMillis(1_200)),
+                message("msg-43", "SENT", STARTED.plusMillis(1_500), "Một câu khác."),
+                message("msg-46", "SENT", STARTED.plusMillis(1_800), REPLY.textContent(),
+                        "An <an@example.test>, Bình <binh@example.test>"),
+                message("msg-45", "SENT", STARTED.plusSeconds(20), REPLY.textContent()),
+                message("msg-44", "SENT", STARTED.plusSeconds(2), REPLY.textContent()),
+                message("msg-47", "SENT", STARTED.plus(Duration.ofMinutes(6)), REPLY.textContent()));
 
-        assertThat(gmail().findSentMessage(context(), CLIENT_MESSAGE_ID)).contains("msg-43");
+        assertThat(gmail().findSentMessages(context(), REPLY, STARTED)).containsExactly("msg-44", "msg-45");
+        gmail.verify(getRequestedFor(urlPathEqualTo(API + "/threads/thread-42"))
+                .withQueryParam("format", equalTo("full")));
+    }
+
+    // From a minute before the send started, as Google's clock and the database's may differ, to five minutes after,
+    // as a send may be run again (D-138); both ends count.
+    @Test
+    void aSendIsLookedForFromAMinuteBeforeToFiveMinutesAfterItStarted() {
+        answerTheThreadWith(message("msg-39", "SENT", STARTED.minusSeconds(60).minusMillis(1), REPLY.textContent()),
+                message("msg-40", "SENT", STARTED.minusSeconds(60), REPLY.textContent()),
+                message("msg-44", "SENT", STARTED.plus(Duration.ofMinutes(5)), REPLY.textContent()),
+                message("msg-45", "SENT", STARTED.plus(Duration.ofMinutes(5)).plusMillis(1), REPLY.textContent()));
+
+        assertThat(gmail().findSentMessages(context(), REPLY, STARTED)).containsExactly("msg-40", "msg-44");
+    }
+
+    // The text comes back with CRLF line endings, as GmailReply sent it, and without the blanks at its end; the
+    // addresses as Gmail writes them.
+    @Test
+    void aSendIsFoundWhateverItsLineEndingsAndTheCaseOfItsAddresses() {
+        answerTheThreadWith(message("msg-44", "SENT", STARTED.plusSeconds(2), "Em nhận\r\nđược\r\nrồi.\r\n",
+                "\"An\" <AN@Example.test>"));
+
+        SendMessageCommand twoLines = new SendMessageCommand("thread-42", "Em nhận\r\nđược\rrồi.  ", "msg-41",
+                REPLY.to(), CLIENT_MESSAGE_ID);
+        assertThat(gmail().findSentMessages(context(), twoLines, STARTED)).containsExactly("msg-44");
     }
 
     @Test
-    void aMessageGmailNeverGotIsNotFound() {
-        gmail.stubFor(get(urlPathEqualTo(API + "/messages")).willReturn(okJson("{\"resultSizeEstimate\": 0}")));
+    void aSendGmailNeverGotIsNotFound() {
+        answerTheThreadWith(message("msg-40", "SENT", STARTED.minusSeconds(300), REPLY.textContent()));
 
-        assertThat(gmail().findSentMessage(context(), CLIENT_MESSAGE_ID)).isEmpty();
+        assertThat(gmail().findSentMessages(context(), REPLY, STARTED)).isEmpty();
+    }
+
+    @Test
+    void aThreadGmailNoLongerHasHoldsNoSend() {
+        gmail.stubFor(get(urlPathEqualTo(API + "/threads/thread-42")).willReturn(aResponse().withStatus(404)));
+
+        assertThat(gmail().findSentMessages(context(), REPLY, STARTED)).isEmpty();
+    }
+
+    // "Not found" would count towards giving up on the message: a Gmail that cannot answer now, or answers with no
+    // thread at all, must say so.
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = { "503||PROVIDER_UNAVAILABLE", "200|{}|PAYLOAD_NORMALIZATION_FAILED",
+            "200|{\"id\": \"thread-42\", \"messages\": []}|PAYLOAD_NORMALIZATION_FAILED" })
+    void aGmailThatCannotTellDoesNotSayNotFound(int status, String body, ProviderErrorCode code) {
+        gmail.stubFor(get(urlPathEqualTo(API + "/threads/thread-42")).willReturn(aResponse().withStatus(status)
+                .withHeader("Content-Type", "application/json").withBody(body == null ? "" : body)));
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> gmail().findSentMessages(context(), REPLY, STARTED))
+                .satisfies(failure -> assertThat(failure.errorCode()).isEqualTo(code));
+    }
+
+    private static void answerTheThreadWith(String... messages) {
+        gmail.stubFor(get(urlPathEqualTo(API + "/threads/thread-42"))
+                .willReturn(okJson("{\"id\": \"thread-42\", \"messages\": [" + String.join(",", messages) + "]}")));
+    }
+
+    private static String message(String id, String label, Instant received, String text) {
+        return message(id, label, received, text, "An <an@example.test>");
+    }
+
+    private static String message(String id, String label, Instant received, String text, String to) {
+        return message(id, label, received.toEpochMilli(),
+                Base64.getUrlEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8)), to);
+    }
+
+    // A body that is not base64url: no text to compare, and no reason to stop looking.
+    private static String unreadable(String id, Instant received) {
+        return message(id, "SENT", received.toEpochMilli(), "!not base64!", "An <an@example.test>");
+    }
+
+    private static String message(String id, String label, long received, String data, String to) {
+        return """
+                {"id": "%s", "threadId": "thread-42", "labelIds": ["%s"], "internalDate": "%d",
+                 "payload": {"mimeType": "text/plain", "headers": [{"name": "To", "value": "%s"}],
+                             "body": {"data": "%s"}}}
+                """.formatted(id, label, received, to.replace("\"", "\\\""), data);
     }
 
     private static void answerTheSendWith(ResponseDefinitionBuilder response) {

@@ -22,7 +22,7 @@ Người dùng (2026-10-10): "giờ làm giao diện gửi mail và hiển thị
 
 ## Impact
 
-- Code backend (phiên backend): `dev/sino/provider/infrastructure/gmail/**` (xin `gmail.send`; gửi MIME có header thread; đọc header của thư được trả lời; tìm thư theo `Message-ID`), `dev/sino/account` (capability theo scope đã cấp), `dev/sino/conversation/**` (trạng thái trả lời, người nhận, API gửi, thư gửi đi, đối chiếu kết quả không rõ, sự kiện).
+- Code backend (phiên backend): `dev/sino/provider/infrastructure/gmail/**` (xin `gmail.send`; gửi MIME có header thread; đọc header của thư được trả lời; tìm lại thư đã gửi trong thread, vì Gmail không giữ `Message-ID` do Sino đặt (BE-60)), `dev/sino/account` (capability theo scope đã cấp), `dev/sino/conversation/**` (trạng thái trả lời, người nhận, API gửi, thư gửi đi, đối chiếu kết quả không rõ, sự kiện).
 - Migration: cột `client_message_id` cho `message` (unique theo cuộc trò chuyện).
 - Việc người dùng làm: nếu màn đồng ý OAuth trong Google Cloud Console có khai báo danh sách scope thì thêm `gmail.send`; kết nối lại tài khoản Gmail để cấp quyền gửi.
 - Web (phiên web): `features/inbox` (API gửi, `useSendMessage`, `Composer`, `ThreadNotice`, `EmailThread`).

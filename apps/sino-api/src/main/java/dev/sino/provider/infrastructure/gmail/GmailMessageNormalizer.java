@@ -215,6 +215,20 @@ final class GmailMessageNormalizer {
         return title.isEmpty() ? null : title;
     }
 
+    /** The text of {@code message} as Sino stores it; {@code null} when it has none or Gmail gave it unreadable. */
+    static String text(GmailMessage message) {
+        try {
+            return message.payload() == null ? null : textOf(message.payload());
+        } catch (ProviderException unreadable) {
+            return null;
+        }
+    }
+
+    /** {@code text} as {@link #text} reads it once Gmail has sent it: one kind of line break, no trailing blanks. */
+    static String asSent(String text) {
+        return cut(withoutNul(text).replace("\r\n", "\n").replace('\r', '\n').stripTrailing());
+    }
+
     // The first text/plain body that is not a file, else the text of the first text/html one.
     private static String textOf(Part payload) {
         return firstBody(payload, "text/plain").map(GmailMessageNormalizer::contentOf)

@@ -45,15 +45,19 @@ Server MUST ghi thư đi `PENDING` cùng `clientMessageId` trước khi gọi pr
 - **THEN** cuộc trò chuyện vẫn chỉ có một dòng cho thư đó
 
 ### Requirement: Gửi lỗi và kết quả không rõ
-Provider từ chối (4xx), giới hạn tần suất, hoặc không kết nối được MUST làm thư thành `FAILED` và trả `502 SEND_FAILED` kèm `messageId`. Hết 15 giây, mất kết nối sau khi request đã đi, hoặc provider lỗi 5xx MUST làm thư thành `UNKNOWN` và trả `504 SEND_OUTCOME_UNKNOWN` kèm `messageId`; server MUST NOT tự gửi lại thư `UNKNOWN`. Lượt đồng bộ của account, và một nhịp riêng mỗi phút không phụ thuộc đồng bộ (account tạm dừng đồng bộ cũng vậy), MUST đối chiếu các thư `UNKNOWN` cũ hơn 1 phút với provider (Gmail: tìm theo `Message-ID` do Sino đặt): thấy thì `SENT`, không thấy sau 10 phút thì `FAILED`; connector không tìm được thì thư MUST giữ `UNKNOWN`. Thư `PENDING` quá 5 phút MUST được đối chiếu như vậy. Provider báo hết quyền lúc gửi MUST làm thư `FAILED`, account `AUTH_EXPIRED`, và trả `409 REPLY_NOT_ALLOWED`. Thư Sino gửi mà chưa `SENT` MUST NOT đổi tóm tắt của cuộc trò chuyện (thư mới nhất, "Cần trả lời"). `reply.to` rỗng MUST trả `422 REPLY_NO_RECIPIENT`, không ghi thư và không gọi provider.
+Provider từ chối (4xx), giới hạn tần suất, hoặc không kết nối được MUST làm thư thành `FAILED` và trả `502 SEND_FAILED` kèm `messageId`. Hết 15 giây, mất kết nối sau khi request đã đi, hoặc provider lỗi 5xx MUST làm thư thành `UNKNOWN` và trả `504 SEND_OUTCOME_UNKNOWN` kèm `messageId`; server MUST NOT tự gửi lại thư `UNKNOWN`. Lượt đồng bộ của account, và một nhịp riêng mỗi phút không phụ thuộc đồng bộ (account tạm dừng đồng bộ cũng vậy), MUST đối chiếu các thư `UNKNOWN` với provider (Gmail: trong thread của cuộc trò chuyện, thư đã gửi tới cùng người nhận, cùng phần chữ, Gmail nhận từ 1 phút trước tới 5 phút sau lúc bắt đầu gửi; Gmail không giữ `Message-ID` do Sino đặt): thấy thì `SENT`, không thấy sau 10 phút thì `FAILED`; connector không tìm được thì thư MUST giữ `UNKNOWN`. Một thư của provider đã thuộc một thư khác Sino gửi MUST NOT được nhận cho thư đang đối chiếu. Thư `PENDING` quá 5 phút MUST được đối chiếu như vậy. Provider báo hết quyền lúc gửi MUST làm thư `FAILED`, account `AUTH_EXPIRED`, và trả `409 REPLY_NOT_ALLOWED`. Thư Sino gửi mà chưa `SENT` MUST NOT đổi tóm tắt của cuộc trò chuyện (thư mới nhất, "Cần trả lời"). `reply.to` rỗng MUST trả `422 REPLY_NO_RECIPIENT`, không ghi thư và không gọi provider.
 
 #### Scenario: Gmail không trả lời kịp
 - **WHEN** lời gọi gửi hết 15 giây
 - **THEN** response là `504 SEND_OUTCOME_UNKNOWN`, thư là `UNKNOWN`, và gọi lại cùng `clientMessageId` trả `409 SEND_OUTCOME_UNKNOWN`
 
 #### Scenario: Đối chiếu thấy thư đã đi
-- **WHEN** lượt đồng bộ tìm thấy trên Gmail thư có `Message-ID` của một thư `UNKNOWN`
+- **WHEN** lượt đối chiếu tìm thấy trong thread trên Gmail một thư đã gửi tới cùng người nhận với cùng phần chữ, Gmail nhận ngay sau lúc Sino bắt đầu gửi thư `UNKNOWN`
 - **THEN** thư thành `SENT` với ID của Gmail
+
+#### Scenario: Cùng chữ gửi hai lần
+- **WHEN** thư `UNKNOWN` A và thư B cùng chữ, B đã `SENT`, và trên Gmail chỉ có thư của B khớp
+- **THEN** A vẫn `UNKNOWN` và B giữ `clientMessageId` của nó
 
 #### Scenario: Gửi lại sau khi lỗi
 - **WHEN** thư `FAILED` và web gọi lại cùng `clientMessageId`

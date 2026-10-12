@@ -1,9 +1,9 @@
 package dev.sino.provider.spi;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.UUID;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
@@ -60,13 +60,15 @@ public interface MessageProvider {
     }
 
     /**
-     * The provider's ID of a message Sino sent with {@code clientMessageId} (F10, D-132), for a send whose outcome was
-     * unknown; empty when the provider has no such message. A connector that cannot tell must not answer empty, or a
-     * message that went out would be offered to be sent again.
+     * The provider's IDs of the messages that may be the one Sino sent with {@code command}, the send having started
+     * at {@code startedAt} (F10, D-132), for a send whose outcome was unknown: the likeliest first, empty when the
+     * provider has none. More than one can match, such as the same text sent twice, so the caller takes the first that
+     * no other message of Sino holds. A connector that cannot tell must not answer empty, or a message that went out
+     * would be offered to be sent again.
      *
      * @throws ProviderException with {@code CAPABILITY_NOT_SUPPORTED} by default, without calling the provider
      */
-    default Optional<String> findSentMessage(ProviderContext context, UUID clientMessageId) {
+    default List<String> findSentMessages(ProviderContext context, SendMessageCommand command, Instant startedAt) {
         throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
                 type() + " cannot find a message it sent");
     }

@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59. Còn BE-60 (gửi thật một lần, khi bạn cho phép). F09 (provider thứ hai) chưa mở.
+> **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`). F09 (provider thứ hai) chưa mở.
 > **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -16,14 +16,14 @@
  (BE-59) người dùng bấm Gửi
           POST .../messages -> ghi PENDING -> Gmail messages.send -> SENT / FAILED / UNKNOWN
                          |
- (BE-60) chạy thật một lần, chỉ khi bạn cho phép
+ (BE-60) chạy thật: Gmail thay Message-ID của Sino -> đối chiếu trong thread theo người nhận, chữ, thời điểm
 ```
 
 | Quyết định | Nội dung |
 |---|---|
 | D-130 | Xin `gmail.send` khi kết nối nhưng không bắt buộc; tài khoản cũ cấp thêm bằng "Kết nối lại" |
 | D-131 | Gửi ngay trong request; chống gửi trùng bằng `clientMessageId` |
-| D-132 | Kết quả không rõ thì không gửi lại mù, đối chiếu với Gmail theo `Message-ID` |
+| D-132 | Kết quả không rõ thì không gửi lại mù, đối chiếu với Gmail; ~~theo `Message-ID`~~ theo thread, người nhận, chữ và thời điểm (BE-60, bạn chốt) |
 | D-133 | Trả lời người gửi thư mới nhất; chữ thuần; người nhận do server tính |
 | D-134 | Web: thư hiện ngay, thư lỗi ở lại với "Gửi lại" và "Bỏ" |
 
@@ -183,6 +183,8 @@ Hết hạn chờ có hai nghĩa rất khác nhau:
 Việc gửi có `RestClient` riêng với hạn chờ 15 giây (các lời gọi Gmail khác 10 giây). Test dùng hạn đọc 5 giây và hạn gửi 1 giây, rồi cho WireMock trả lời chậm 2,5 giây: nếu code lỡ gửi bằng client đọc, test sẽ nhận được câu trả lời thay vì hết giờ (review BE-59).
 
 ### 2.4 Đối chiếu: hỏi lại Gmail theo dấu Sino để lại (D-132, D-138)
+> **Đã thay ở BE-60 (mục 3):** chạy thật cho thấy Gmail không giữ `Message-ID` của Sino. Phần dưới tả cách của BE-59; phần "ai gọi đối chiếu" và "hai ngưỡng thời gian" vẫn đúng.
+
 Mỗi thư Sino gửi mang `Message-ID: <sino.<clientMessageId>@gmail.com>`, một header chuẩn của email (RFC 5322) mà mỗi thư có một giá trị duy nhất. Sau này Sino tìm lại bằng truy vấn tìm kiếm của Gmail `rfc822msgid:<...>`. Thấy thì thư `SENT` với ID của Gmail; quá 10 phút vẫn không thấy thì `FAILED`.
 
 Ai gọi đối chiếu:
@@ -199,6 +201,8 @@ Gmail trả `id` cho lệnh gửi. Trong khoảnh khắc trước transaction 2,
 Thư Sino gửi mà chưa `SENT` không được tính vào tóm tắt của cuộc trò chuyện (`ConversationSummaries`): một thư trả lời bị Gmail từ chối không làm cuộc trò chuyện rời khỏi "Cần trả lời" (review BE-59).
 
 ### 2.6 Dựng thư MIME bằng tay (`GmailReply`)
+> Từ BE-60 thư không còn dòng `Message-ID` (Gmail tự đặt, mục 3). Mọi thứ khác trong mục này vẫn đúng.
+
 Gmail nhận thư dưới dạng thô RFC 5322, mã base64url, trong trường `raw`.
 
 ```text
@@ -235,4 +239,74 @@ Contract với web hứa `504 SEND_OUTCOME_UNKNOWN` cho lần gửi không có c
   - MEDIUM: thư gửi lỗi làm cuộc trò chuyện rời "Cần trả lời" (mục 2.5); `findSentMessage` mặc định trả "không thấy" khiến thư thành `FAILED` dù connector không biết (mục 2.4); hai request cùng ID cùng lúc (mục 2.2).
   - LOW đã sửa: test dùng hạn gửi khác hạn đọc (mục 2.3), ngưỡng `PENDING` từ 1 lên 5 phút, số quyết định D-135…D-138 ghi vào design.
 - **Toàn bộ:** `./mvnw -B -ntp verify` lần đầu: 1269 test, 1 sai (`GmailWiringTests` còn chờ danh sách capability cũ, chưa có `SEND_MESSAGES`), sửa test. Lần hai: 1277 test, 0 lỗi, 4 bỏ qua. Phiên planner commit module mới lên `dev` trong lúc làm, nên chạy lại trên nền mới nhất `9faf0c6`: 1322 test, 0 sai, 0 lỗi, 4 bỏ qua.
-- **Chưa kiểm (NOT VERIFIED):** gửi thật qua Gmail; Gmail có giữ `Message-ID` Sino đặt không; truy vấn `rfc822msgid:` có tìm thấy thư không. Làm ở BE-60, chỉ gửi khi bạn cho phép.
+- **Chưa kiểm (NOT VERIFIED):** gửi thật qua Gmail; Gmail có giữ `Message-ID` Sino đặt không; truy vấn `rfc822msgid:` có tìm thấy thư không. Làm ở BE-60, chỉ gửi khi bạn cho phép. **Đã kiểm ở BE-60:** gửi được; Gmail **không** giữ `Message-ID`, nên `rfc822msgid:` không tìm ra (mục 3).
+
+---
+
+## 3. Chạy thật với Gmail, và đối chiếu lại từ đầu (BE-60)
+
+**Ở đâu:** test `provider/infrastructure/gmail/RealGmailReplyTests.java` (thư mục `src/test/java/dev/sino/`), `provider/spi/MessageProvider.java` (`findSentMessages`), `provider/infrastructure/gmail/{GmailProvider,GmailApi,GmailMessageNormalizer,GmailReply}.java`, `conversation/application/ReplyService.java`.
+
+### 3.1 Test chạy thật mà không gửi bừa
+Một test gửi thư thật thì không được chạy nhầm. `RealGmailReplyTests` có ba lớp chặn:
+- gắn tag `real-gmail`, nên `./mvnw test` thường và CI bỏ qua;
+- tự bỏ qua nếu không được chỉ rõ cuộc trò chuyện và **một** người nhận (`-Dsino.real-gmail.reply.conversation=…`, `-Dsino.real-gmail.reply.to=…`), và chỉ gửi khi `reply.to` của cuộc trò chuyện đúng bằng địa chỉ đó;
+- chạy lại thì dùng lại `clientMessageId` của thư đã gửi trong cuộc trò chuyện, nên lần sau chỉ nhận `200`, không gửi thêm (chính cơ chế chống trùng của BE-59).
+
+Lần chạy thật dùng thư trả lời bạn đã gửi từ web lúc 08:45:18, nên không có thư mới nào phải gửi.
+
+### 3.2 Điều chạy thật tìm ra: Gmail thay `Message-ID`
+| Header | Sino viết | Gmail lưu |
+|---|---|---|
+| `Message-ID` | `<sino.f55f1b37-…@gmail.com>` | `<CACwnYVC…@mail.gmail.com>`, của Gmail |
+| `In-Reply-To`, `References` | ID thư gốc | giữ nguyên |
+
+Cả cơ chế đối chiếu của BE-59 dựa trên một giả định: Gmail giữ `Message-ID` do Sino đặt. Test với WireMock không thể bắt được giả định sai này, vì WireMock trả đúng những gì test bảo nó trả. Design đã ghi giả định đó là rủi ro "phải kiểm trên Gmail thật", và lần chạy thật là chỗ duy nhất kiểm được. Bài học: hành vi của một hệ thống bên ngoài thì chỉ hệ thống đó trả lời được; test giả chỉ kiểm code của mình làm đúng với giả định.
+
+Nếu không sửa: thư "chưa rõ" không bao giờ được tìm thấy, sau 10 phút thành `FAILED`, người dùng bấm "Gửi lại", và thư có thể đi hai lần. Đó đúng là điều D-131 hứa không xảy ra.
+
+### 3.3 Cách đối chiếu mới (bạn chốt: "Theo thread + chữ + thời điểm")
+Sino biết thư được gửi vào thread nào (`threadId`), tới ai, với chữ gì, và lúc nào bắt đầu gửi. Gmail đọc cả thread (`threads.get`, `format=full`) rồi giữ những thư thỏa cả bốn điều:
+
+```text
+  thread của cuộc trò chuyện
+    |
+    +-- nhãn SENT?                      (thư đến, thư nháp: loại)
+    +-- Gmail nhận trong khoảng
+    |     [bắt đầu gửi - 1 phút, bắt đầu gửi + 5 phút]
+    |     1 phút: đồng hồ Google và database có thể lệch
+    |     5 phút: ProviderAccess có thể chạy lại lần gửi sau khi làm mới token
+    +-- To giống hệt người nhận của Sino (không phân biệt hoa thường)
+    +-- chữ giống hệt, đọc như đồng bộ đọc (CRLF -> LF, bỏ khoảng trắng cuối)
+    |
+  -> mọi thư khớp, sớm nhất trước
+```
+
+"Lúc bắt đầu gửi" là `sent_at` của dòng, ghi bằng `now()` ở transaction 1, trước khi gọi Gmail; gửi lại sau `FAILED` thì ghi lại. Một thư có thân hỏng (base64 sai) không làm cả lượt đối chiếu dừng: nó chỉ "không khớp".
+
+Trên Gmail thật, thread "xin chào" là ca thử tốt: có hai thư đi cùng chữ "xin chào", một bạn gửi từ Gmail lúc 08:40:52, một Sino gửi lúc 08:45:19. Tìm từ lúc Sino bắt đầu gửi (08:45:18) chỉ ra thư của Sino; thư 08:40:52 nằm ngoài khoảng.
+
+### 3.4 Review tìm ra: cùng chữ gửi hai lần
+Bản đầu trả về **một** thư (sớm nhất). Review chỉ ra kịch bản: thư A "chưa rõ", bạn gõ lại đúng chữ đó thành thư B, B gửi được. Đối chiếu A thấy thư của B (cùng chữ, cùng người nhận, trong khoảng), xóa dòng A và ghi đè `clientMessageId` của B. Nếu sau đó web gửi lại B, Sino không còn biết B đã đi, và gửi lần hai.
+
+Sửa có hai lớp:
+- contract trả **mọi** ứng viên (`List<String> findSentMessages(...)`). `ReplyService`, khi đang giữ khóa của account, lấy ứng viên đầu tiên chưa thuộc một thư khác của Sino (`heldByAnother`);
+- `confirm` chỉ chép `clientMessageId` sang dòng đã nhập khi dòng đó chưa thuộc ai (`WHERE ... AND (client_message_id IS NULL OR client_message_id = :client)`); không được thì ném lỗi, và transaction hoàn tác cả lệnh xóa trước đó.
+
+Hai lớp này che cho nhau, như hai hàng rào chống gửi lại ở mục 2.2: lớp đầu làm cho lớp sau không bao giờ bị chạm tới, nên kiểm tra ngược bỏ lớp sau thì test vẫn xanh.
+
+**Bẫy đã gặp:** lần sửa đầu đổi thứ tự thành "chép `clientMessageId` sang dòng đã nhập, rồi mới xóa dòng của Sino". Unique index của V17 (`conversation_id, client_message_id`) lập tức báo trùng, vì trong khoảnh khắc đó hai dòng cùng mang một ID. Phải xóa trước rồi mới chép; muốn chặn thì kiểm số dòng được cập nhật và để transaction hoàn tác.
+
+### 3.5 Contract đổi: vì sao truyền lại cả lệnh gửi
+`findSentMessages(context, command, startedAt)` nhận lại đúng `SendMessageCommand` đã gửi (dựng lại từ dòng trong database) và lúc bắt đầu gửi. Mỗi connector tự chọn cách tìm: Gmail dùng thread, người nhận, chữ, thời điểm; một provider khác có thể có ID riêng cho mỗi lần gửi và chỉ cần `clientMessageId` trong lệnh. `conversation` không phải biết gì về email. Kiểu trả về là danh sách vì cách tìm theo chữ không cho kết quả duy nhất; bên biết thư nào đã thuộc về ai (database) là bên chọn.
+
+### 3.6 Kiểm chứng (BE-60)
+- **Chạy thật:** thư thật duy nhất là thư bạn gửi từ web lúc 08:45:18. Ba lượt test sau đó dùng lại `clientMessageId` của nó, nên không có thư nào khác đi.
+  - Lượt 1, code BE-59: mọi thứ đúng trừ việc tìm lại; `rfc822msgid:` không ra gì sau 2 phút. Một test dò tạm đọc header và thấy Gmail đã thay `Message-ID` (mục 3.2).
+  - Lượt 3, code cuối: trong thread chỉ một thư khớp, thư của Sino; thư "xin chào" 08:40:52 nằm ngoài khoảng thời gian; đồng bộ xong vẫn một dòng.
+- **Đỏ trước:** `GmailSendTests` 3 test sai trên khung chưa làm gì, `ConversationSendApiTests` 1. Hai test "không thấy" xanh ngay trên khung vì khung luôn trả rỗng; chúng chỉ có nghĩa sau khi có code thật.
+- **Chỗ lệch TDD:** phần sửa lỗi HIGH của review (mục 3.4) được viết trước test của nó. Bằng chứng test bắt được lỗi là kiểm tra ngược: bỏ lớp lọc `heldByAnother` thì test mới đỏ.
+- **Kiểm tra ngược:** trên code cuối, 23 lỗi gài, 20 bị bắt. Hai lỗi sống sót chỉ ra code thừa, và code đó đã được bỏ: `MailHeaders` vốn đã viết thường địa chỉ, và dòng đang đối chiếu không bao giờ giữ ID Gmail nào. Lỗi còn lại là hai hàng rào che cho nhau (mục 3.4).
+- **Review** (agent `senior-reviewer`): HIGH cùng chữ gửi hai lần (mục 3.4); MEDIUM provider giả còn tìm theo cách cũ, tài liệu còn tả `Message-ID`; LOW đã sửa: thread không có thư bị coi là "không có", chưa có cận trên, chưa so người nhận, mép khoảng thời gian chưa có test. Các giới hạn còn lại ghi ở design D-132.
+- **Toàn bộ:** `./mvnw -B -ntp verify` trên `dev` mới nhất: 1427 test, 0 sai, 0 lỗi, 4 bỏ qua.
+- **Chưa kiểm (NOT VERIFIED):** một lần gửi "không rõ" thật trên Gmail (không ép được mà không gửi thêm thư); bỏ tick quyền gửi trên màn đồng ý; thread quá 100 thư; thư rất dài; thư trả lời khi thư gốc đã bị xóa.

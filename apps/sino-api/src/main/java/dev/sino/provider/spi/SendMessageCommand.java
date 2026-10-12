@@ -8,9 +8,9 @@ import dev.sino.provider.spi.NormalizedRecipients.Address;
 
 /**
  * A text message to send in a conversation (F10). {@code replyToExternalMessageId} is the message it answers, when
- * there is one; {@code to} whom it goes to, empty for a provider that sends to the conversation itself. The
- * connector marks the message with {@code clientMessageId}, the ID Sino gave it, so that
- * {@link MessageProvider#findSentMessage} can find it again when the outcome of the send is unknown (D-131, D-132).
+ * there is one; {@code to} whom it goes to, empty for a provider that sends to the conversation itself.
+ * {@code clientMessageId} is the ID Sino gave it (D-131). When the outcome of the send is unknown,
+ * {@link MessageProvider#findSentMessages} gets the same command to find the message again (D-132).
  */
 public record SendMessageCommand(String externalConversationId, String textContent,
         String replyToExternalMessageId, List<Address> to, UUID clientMessageId) {

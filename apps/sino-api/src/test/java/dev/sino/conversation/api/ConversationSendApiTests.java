@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -340,6 +341,72 @@ class ConversationSendApiTests {
     }
 
     // D-132: the next sync of the account asks the provider about a message whose outcome is unknown.
+    // Gmail gives what it sends its own Message-ID (BE-60): the provider gets what was sent and when the send started,
+    // to look for it in the thread by its text (D-132).
+    @Test
+    void theProviderIsToldWhatWasSentAndWhenTheSendStarted() throws Exception {
+        mail.failNextSends(new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, "no answer"));
+        send(TEXT, clientMessageId).andExpect(status().isGatewayTimeout());
+        Instant started = jdbc.queryForObject("select sent_at from message where client_message_id = ?",
+                Timestamp.class, clientMessageId).toInstant();
+
+        sentMessages.reconcile(account);
+
+        assertThat(mail.searchedAttempts()).singleElement().satisfies(search -> {
+            assertThat(search.command().externalConversationId()).isEqualTo("thread");
+            assertThat(search.command().textContent()).isEqualTo(TEXT);
+            assertThat(search.command().replyToExternalMessageId()).isEqualTo("m-1");
+            assertThat(search.command().to()).containsExactly(new Address("Alice", "alice@example.test"));
+            assertThat(search.command().clientMessageId()).isEqualTo(clientMessageId);
+            assertThat(search.startedAt()).isEqualTo(started);
+        });
+    }
+
+    // The user typed the same text again after the first send went unknown, and that one went: the provider finds it
+    // for both, but it is the second one's, and it stays so (review BE-60).
+    @Test
+    void aMessageAnotherReplyHoldsIsNotTakenForThisOne() throws Exception {
+        mail.failNextSends(new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, "no answer"));
+        send(TEXT, clientMessageId).andExpect(status().isGatewayTimeout());
+        UUID retyped = UUID.randomUUID();
+        send(TEXT, retyped).andExpect(status().isCreated());
+        String theirs = externalIdOf(retyped);
+        mail.found(clientMessageId, theirs);
+
+        sentMessages.reconcile(account);
+
+        assertThat(jdbc.queryForObject("select status from message where client_message_id = ?", String.class,
+                clientMessageId)).isEqualTo("UNKNOWN");
+        assertThat(externalIdOf(retyped)).isEqualTo(theirs);
+
+        mail.found(clientMessageId, theirs, "gm-9");
+        sentMessages.reconcile(account);
+
+        assertThat(externalIdOf(clientMessageId)).isEqualTo("gm-9");
+        assertThat(externalIdOf(retyped)).isEqualTo(theirs);
+    }
+
+    // A message sent again after it failed is looked for from that send on, not from the first one.
+    @Test
+    void aMessageSentAgainIsLookedForFromWhenItWasSentAgain() throws Exception {
+        mail.failNextSends(new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "no"));
+        send(TEXT, clientMessageId).andExpect(status().isBadGateway());
+        jdbc.update("""
+                update message set sent_at = now() - interval '1 hour', created_at = now() - interval '1 hour'
+                where client_message_id = ?
+                """, clientMessageId);
+        mail.failNextSends(new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, "no answer"));
+        send(TEXT, clientMessageId).andExpect(status().isGatewayTimeout());
+        Instant sentAgain = jdbc.queryForObject("select sent_at from message where client_message_id = ?",
+                Timestamp.class, clientMessageId).toInstant();
+
+        sentMessages.reconcile(account);
+
+        assertThat(mail.searchedAttempts()).singleElement()
+                .satisfies(search -> assertThat(search.startedAt()).isEqualTo(sentAgain)
+                        .isAfter(Instant.now().minusSeconds(60)));
+    }
+
     @Test
     void anUnknownMessageTheProviderHasBecomesSent() throws Exception {
         mail.failNextSends(new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, "no answer"));
@@ -556,6 +623,11 @@ class ConversationSendApiTests {
                 select external_message_id, status, client_message_id from message
                 where conversation_id = ? and direction = 'OUTBOUND' order by sent_at
                 """, conversation);
+    }
+
+    private String externalIdOf(UUID sentWith) {
+        return jdbc.queryForObject("select external_message_id from message where client_message_id = ?",
+                String.class, sentWith);
     }
 
     private UUID connect(Set<String> scopes, String refreshToken) {

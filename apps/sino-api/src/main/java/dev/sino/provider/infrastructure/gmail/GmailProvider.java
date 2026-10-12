@@ -6,13 +6,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
-import java.util.UUID;
+import java.util.stream.Collectors;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
@@ -58,6 +60,10 @@ class GmailProvider implements MessageProvider {
     static final Duration FILE_READ_TIMEOUT = Duration.ofSeconds(60);
     /** Past it, whether a message went out is unknown rather than failed (D-131, D-132). */
     static final Duration SEND_TIMEOUT = Duration.ofSeconds(15);
+    /** How far Google's clock may be behind the database's when a sent message is looked for (D-132). */
+    static final Duration CLOCK_SKEW = Duration.ofMinutes(1);
+    /** The latest Gmail gets a message after its send started: ProviderAccess may run a send again (D-138). */
+    static final Duration LONGEST_SEND = Duration.ofMinutes(5);
     // Ten calls at most before the "Đồng bộ" step shows a number.
     static final long COUNTED_AT_MOST = 5_000;
 
@@ -234,8 +240,8 @@ class GmailProvider implements MessageProvider {
 
     /**
      * Sends a plain text reply in the thread (D-133): from the address of the profile, with the subject and thread
-     * headers of the message it answers when Gmail still has it, marked with a {@code Message-ID} made of
-     * {@code clientMessageId}. A failure before {@code messages.send} leaves the message unsent.
+     * headers of the message it answers when Gmail still has it. A failure before {@code messages.send} leaves the
+     * message unsent.
      */
     @Override
     public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
@@ -246,7 +252,6 @@ class GmailProvider implements MessageProvider {
         GmailReply reply = new GmailReply(from, command.to(),
                 GmailReply.subjectOf(answered.flatMap(part -> part.header("Subject")).map(MailHeaders::decode)
                         .orElse(null)),
-                GmailReply.messageIdOf(command.clientMessageId(), from),
                 answered.flatMap(part -> part.header("Message-ID")).orElse(null),
                 answered.flatMap(part -> part.header("References")).orElse(null), command.textContent());
         String raw = Base64.getUrlEncoder().withoutPadding()
@@ -255,12 +260,47 @@ class GmailProvider implements MessageProvider {
                 MessageStatus.SENT, null);
     }
 
-    /** Searches the mailbox for the {@code Message-ID} the send gave the message ({@code rfc822msgid:}). */
+    /**
+     * Looks in the thread of {@code command} for what Gmail sent around {@code startedAt} to the same people with the
+     * same text: Gmail gives what it sends its own {@code Message-ID}, so nothing Sino wrote is left to search by
+     * (D-132, BE-60).
+     */
     @Override
-    public Optional<String> findSentMessage(ProviderContext context, UUID clientMessageId) {
-        String accessToken = accessTokenOf(context);
-        String from = api.profile(accessToken).emailAddress();
-        return api.messageIdWithHeader(accessToken, GmailReply.messageIdOf(clientMessageId, from));
+    public List<String> findSentMessages(ProviderContext context, SendMessageCommand command, Instant startedAt) {
+        List<GmailMessage> thread = api.thread(accessTokenOf(context), command.externalConversationId());
+        return sentLike(thread, command, startedAt).stream().map(GmailMessage::id).toList();
+    }
+
+    /**
+     * The messages of {@code thread} Gmail sent as {@code command} from {@code startedAt} (less the clock skew) to
+     * {@link #LONGEST_SEND} after it, earliest first.
+     */
+    static List<GmailMessage> sentLike(List<GmailMessage> thread, SendMessageCommand command, Instant startedAt) {
+        String text = GmailMessageNormalizer.asSent(command.textContent());
+        Set<String> to = command.to().stream().map(address -> address.address().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        Instant from = startedAt.minus(CLOCK_SKEW);
+        Instant until = startedAt.plus(LONGEST_SEND);
+        return thread.stream().filter(message -> message.labelIds().contains("SENT"))
+                .filter(message -> receivedAt(message).filter(at -> !at.isBefore(from) && !at.isAfter(until))
+                        .isPresent())
+                .filter(message -> text.equals(GmailMessageNormalizer.text(message)))
+                .filter(message -> to.isEmpty() || to.equals(addresseesOf(message)))
+                .sorted(Comparator.comparing(message -> receivedAt(message).orElseThrow())).toList();
+    }
+
+    private static Set<String> addresseesOf(GmailMessage message) {
+        return Optional.ofNullable(message.payload()).flatMap(payload -> payload.header("To")).stream()
+                .flatMap(header -> MailHeaders.mailboxes(header).stream())
+                .map(MailHeaders.Mailbox::email).collect(Collectors.toSet());
+    }
+
+    private static Optional<Instant> receivedAt(GmailMessage message) {
+        try {
+            return Optional.of(Instant.ofEpochMilli(Long.parseLong(message.internalDate())));
+        } catch (NumberFormatException unusable) {
+            return Optional.empty();
+        }
     }
 
     /**

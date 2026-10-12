@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +18,7 @@ import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
+import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 
@@ -140,8 +140,8 @@ final class ScriptedProvider implements MessageProvider {
     }
 
     @Override
-    public Optional<String> findSentMessage(ProviderContext context, UUID clientMessageId) {
-        return delegate.findSentMessage(context, clientMessageId);
+    public List<String> findSentMessages(ProviderContext context, SendMessageCommand command, Instant startedAt) {
+        return delegate.findSentMessages(context, command, startedAt);
     }
 
 }

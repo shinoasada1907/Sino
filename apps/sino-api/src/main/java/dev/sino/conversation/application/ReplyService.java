@@ -145,11 +145,13 @@ public class ReplyService implements SentMessages {
     }
 
     // Oldest first. A provider that cannot be asked now is not asked again until the next try. A send can take over
-    // a minute (a refused token makes ProviderAccess run it again), so PENDING is left alone for five.
+    // a minute (a refused token makes ProviderAccess run it again), so PENDING is left alone for five. The provider
+    // gets the message as it was sent and when that send started, sent_at (D-132).
     @Override
     public void reconcile(UUID accountId) {
         List<Uncertain> uncertain = jdbc.sql("""
-                SELECT m.id, m.conversation_id, m.client_message_id,
+                SELECT m.id, m.conversation_id, m.client_message_id, c.external_conversation_id, m.text_content,
+                       m.reply_to_external_message_id, m.recipients, m.sent_at,
                        m.sent_at < now() - interval '10 minutes' AS given_up
                 FROM message m JOIN conversation c ON c.id = m.conversation_id
                 WHERE c.account_id = :account AND m.client_message_id IS NOT NULL
@@ -158,29 +160,38 @@ public class ReplyService implements SentMessages {
                 """).param("account", accountId)
                 .query((row, n) -> new Uncertain(row.getObject("id", UUID.class),
                         row.getObject("conversation_id", UUID.class), row.getObject("client_message_id", UUID.class),
-                        row.getBoolean("given_up")))
+                        row.getBoolean("given_up"),
+                        new SendMessageCommand(row.getString("external_conversation_id"),
+                                row.getString("text_content"), row.getString("reply_to_external_message_id"),
+                                addresseesOf(row.getString("recipients")),
+                                row.getObject("client_message_id", UUID.class)),
+                        row.getTimestamp("sent_at").toInstant()))
                 .list();
         for (Uncertain message : uncertain) {
-            Optional<String> found;
+            List<String> found;
             boolean canTell = true;
             try {
                 found = access.call(accountId,
-                        (connector, context) -> connector.findSentMessage(context, message.clientMessageId()));
+                        (connector, context) -> connector.findSentMessages(context, message.command(),
+                                message.startedAt()));
             } catch (ProviderException failure) {
                 if (failure.errorCode() != ProviderErrorCode.CAPABILITY_NOT_SUPPORTED) {
                     log.warn("Messages of account {} were not checked: {}", accountId, failure.errorCode());
                     return;
                 }
-                found = Optional.empty();
+                found = List.of();
                 canTell = false;
             } catch (SinoException failure) {
                 log.warn("Messages of account {} were not checked: {}", accountId, failure.errorCode().code());
                 return;
             }
-            Optional<String> externalId = found;
+            List<String> candidates = found;
             boolean givenUp = canTell && message.givenUp();
             transactions.executeWithoutResult(status -> {
                 summaries.lock(accountId);
+                Optional<String> externalId = candidates.stream()
+                        .filter(candidate -> !heldByAnother(message.conversationId(), candidate))
+                        .findFirst();
                 if (externalId.isPresent()) {
                     confirm(accountId, message.conversationId(), message.id(), message.clientMessageId(),
                             externalId.get());
@@ -202,6 +213,23 @@ public class ReplyService implements SentMessages {
         if (changed > 0) {
             changed(accountId, message.conversationId());
         }
+    }
+
+    // The same text sent twice matches both messages: one another message of Sino holds is not this one's. A message
+    // being settled holds none yet, so any message of Sino that holds it is another.
+    private boolean heldByAnother(UUID conversationId, String externalMessageId) {
+        return jdbc.sql("""
+                SELECT EXISTS (SELECT 1 FROM message
+                               WHERE conversation_id = :conversation AND external_message_id = :external
+                                 AND client_message_id IS NOT NULL)
+                """).param("conversation", conversationId).param("external", externalMessageId)
+                .query(Boolean.class).single();
+    }
+
+    private static List<NormalizedRecipients.Address> addresseesOf(String recipients) {
+        StoredRecipients stored = StoredRecipients.parse(recipients);
+        return stored == null || stored.to() == null ? List.of() : stored.to().stream()
+                .map(address -> new NormalizedRecipients.Address(address.name(), address.address())).toList();
     }
 
     // Transaction 1: what this clientMessageId already is decides; a new or failed message is written PENDING.
@@ -300,8 +328,14 @@ public class ReplyService implements SentMessages {
         UUID confirmed = messageId;
         if (imported.isPresent() && !imported.get().equals(messageId)) {
             jdbc.sql("DELETE FROM message WHERE id = :message").param("message", messageId).update();
-            jdbc.sql("UPDATE message SET client_message_id = :client, updated_at = now() WHERE id = :message")
-                    .param("client", clientMessageId).param("message", imported.get()).update();
+            int taken = jdbc.sql("""
+                    UPDATE message SET client_message_id = :client, updated_at = now()
+                    WHERE id = :message AND (client_message_id IS NULL OR client_message_id = :client)
+                    """).param("client", clientMessageId).param("message", imported.get()).update();
+            if (taken == 0) {
+                // The transaction rolls the delete back: never take what another message of Sino holds.
+                throw new IllegalStateException("Message " + externalMessageId + " is held by another message of Sino");
+            }
             confirmed = imported.get();
         } else {
             jdbc.sql("""
@@ -353,7 +387,8 @@ public class ReplyService implements SentMessages {
     private record Existing(UUID id, MessageStatus status) {
     }
 
-    private record Uncertain(UUID id, UUID conversationId, UUID clientMessageId, boolean givenUp) {
+    private record Uncertain(UUID id, UUID conversationId, UUID clientMessageId, boolean givenUp,
+            SendMessageCommand command, Instant startedAt) {
     }
 
     private record Attempt(UUID messageId, UUID accountId, UUID conversationId, UUID clientMessageId,

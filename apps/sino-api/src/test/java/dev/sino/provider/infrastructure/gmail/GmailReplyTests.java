@@ -7,7 +7,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,21 +18,20 @@ import dev.sino.provider.spi.NormalizedRecipients.Address;
 /** The reply Sino sends through Gmail (F10, D-133), as the raw RFC 5322 message, read back the way mail reads it. */
 class GmailReplyTests {
 
-    private static final UUID CLIENT_MESSAGE_ID = UUID.fromString("6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b");
     private static final String TEXT = "Cảm ơn anh, em nhận được rồi.\nHẹn gặp thứ Hai.";
 
     @Test
     void aReplyGoesInTheThreadOfTheMessageItAnswers() {
         String mime = new GmailReply("me@gmail.test", List.of(new Address("An Nguyễn", "an@example.test")),
-                GmailReply.subjectOf("Báo cáo tháng 9"), GmailReply.messageIdOf(CLIENT_MESSAGE_ID, "me@gmail.test"),
-                "<orig@mail.example.test>", "<first@mail.example.test>", TEXT).mime();
+                GmailReply.subjectOf("Báo cáo tháng 9"), "<orig@mail.example.test>", "<first@mail.example.test>", TEXT)
+                .mime();
 
         Map<String, String> headers = headersOf(mime);
         assertThat(headers.get("From")).isEqualTo("me@gmail.test");
         assertThat(MailHeaders.mailboxes(headers.get("To")))
                 .containsExactly(new Mailbox("an@example.test", "An Nguyễn"));
         assertThat(MailHeaders.decode(headers.get("Subject"))).isEqualTo("Re: Báo cáo tháng 9");
-        assertThat(headers.get("Message-ID")).isEqualTo("<sino.6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b@gmail.test>");
+        assertThat(headers).as("Gmail gives every message it sends its own (BE-60)").doesNotContainKey("Message-ID");
         assertThat(headers.get("In-Reply-To")).isEqualTo("<orig@mail.example.test>");
         assertThat(headers.get("References")).isEqualTo("<first@mail.example.test> <orig@mail.example.test>");
         assertThat(headers.get("MIME-Version")).isEqualTo("1.0");
@@ -81,7 +79,7 @@ class GmailReplyTests {
     void severalAddresseesEachKeepTheirName() {
         String mime = new GmailReply("me@gmail.test", List.of(new Address("Bình \"Bee\" Trần", "binh@example.test"),
                 new Address("Ops, Team", "ops@example.test"), new Address(null, "dan@example.test")), "Re: x",
-                GmailReply.messageIdOf(CLIENT_MESSAGE_ID, "me@gmail.test"), null, null, "ok").mime();
+                null, null, "ok").mime();
 
         assertThat(MailHeaders.mailboxes(headersOf(mime).get("To"))).containsExactly(
                 new Mailbox("binh@example.test", "Bình \"Bee\" Trần"), new Mailbox("ops@example.test", "Ops, Team"),
@@ -93,9 +91,8 @@ class GmailReplyTests {
     void aLineBreakInStoredTextCannotAddAHeader() {
         String mime = new GmailReply("me@gmail.test",
                 List.of(new Address("Evil\r\nBcc: victim@example.test", "an@example.test")),
-                GmailReply.subjectOf("Hi\r\nBcc: victim@example.test"),
-                GmailReply.messageIdOf(CLIENT_MESSAGE_ID, "me@gmail.test"), "<orig@x.test>\r\nBcc: v@x.test", null,
-                "ok").mime();
+                GmailReply.subjectOf("Hi\r\nBcc: victim@example.test"), "<orig@x.test>\r\nBcc: v@x.test", null, "ok")
+                .mime();
 
         assertThat(headersOf(mime)).doesNotContainKey("Bcc");
         assertThat(rawHeaderLines(mime)).noneMatch(line -> line.startsWith("Bcc"));
@@ -105,8 +102,7 @@ class GmailReplyTests {
 
     private static String reply(String original, String inReplyTo, String references, String text) {
         return new GmailReply("me@gmail.test", List.of(new Address(null, "an@example.test")),
-                GmailReply.subjectOf(original), GmailReply.messageIdOf(CLIENT_MESSAGE_ID, "me@gmail.test"), inReplyTo,
-                references, text).mime();
+                GmailReply.subjectOf(original), inReplyTo, references, text).mime();
     }
 
     private static List<String> rawHeaderLines(String mime) {

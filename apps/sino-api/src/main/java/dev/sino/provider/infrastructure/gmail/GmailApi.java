@@ -167,6 +167,30 @@ class GmailApi {
     }
 
     /**
+     * The messages of a thread ({@code format=full}); empty when Gmail no longer has it (404). A thread always holds a
+     * message, so an answer without any is not taken for one.
+     */
+    List<GmailMessage> thread(String accessToken, String threadId) {
+        return call(() -> {
+            try {
+                MessageThread thread = answer(google.get().uri(uri -> uri.path(USER + "/threads/{id}")
+                        .queryParam("format", "full").build(threadId)).headers(bearer(accessToken)).retrieve()
+                        .body(MessageThread.class));
+                if (thread.messages() == null || thread.messages().isEmpty()) {
+                    throw new ProviderException(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED,
+                            "Google sent a thread without messages");
+                }
+                return thread.messages();
+            } catch (RestClientResponseException failure) {
+                if (failure.getStatusCode().value() == 404) {
+                    return List.of();
+                }
+                throw failure;
+            }
+        });
+    }
+
+    /**
      * The headers a reply needs of the message it answers ({@code format=metadata}: Subject, Message-ID, References);
      * empty when it was deleted meanwhile (404).
      */
@@ -225,14 +249,6 @@ class GmailApi {
             }
         }
         return ProviderErrorCode.OUTCOME_UNKNOWN;
-    }
-
-    /** The ID of the message whose {@code Message-ID} header is {@code rfcMessageId}, if Gmail has one. */
-    Optional<String> messageIdWithHeader(String accessToken, String rfcMessageId) {
-        MessageList found = call(() -> answer(google.get().uri(uri -> uri.path(USER + "/messages")
-                .queryParam("q", "{q}").queryParam("maxResults", 1).build(Map.of("q", "rfc822msgid:" + rfcMessageId)))
-                .headers(bearer(accessToken)).retrieve().body(MessageList.class)));
-        return found.ids().stream().findFirst();
     }
 
     /**
@@ -365,6 +381,9 @@ class GmailApi {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Sent(String id, String threadId) {
+    }
+
+    record MessageThread(List<GmailMessage> messages) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

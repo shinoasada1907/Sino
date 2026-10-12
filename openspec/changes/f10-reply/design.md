@@ -3,7 +3,7 @@
 > Mode: **HYBRID**. Frontend AUTO, backend AUTO; quyết định kiến trúc thuộc TRAINING, nhưng người dùng giao toàn quyền ngày 2026-10-10: chọn "Trả lời trong thread" cho phạm vi, rồi "tự xử hết luôn đi". Mọi quyết định dưới đây là **agent chốt theo ủy quyền**, có phương án bị loại, để người dùng xem lại.
 > Người dùng ưu tiên "kết nối và nhắn tin" trước các màn khác (2026-10-09), nên F10 (Phase 5 trong roadmap) được làm ngay sau F06, chỉ phần trả lời. Phần hẹn giờ gửi vẫn ở Phase 5 cùng F13.
 > Change dùng chung: phiên web (sino-web-33) viết hồ sơ, contract và phần Web; phiên backend (sino-api-ec) nhận mục Backend. Số quyết định: D-120…D-139 cho F06 + F10.
-> Nguồn: Gmail API (`users.messages.send`, `users.messages.get` `format=metadata`, `users.messages.list` `q=rfc822msgid:`), hướng dẫn threading của Gmail (`threadId`, `References`, `In-Reply-To`, `Subject` khớp), RFC 5322 (`Message-ID`, `In-Reply-To`, `References`, `Reply-To`), Google OAuth granular consent, roadmap F10, canvas "Sino UI" (`Inbox` `.composer`, `ThreadState` `.blocked`).
+> Nguồn: Gmail API (`users.messages.send`, `users.messages.get` `format=metadata`, ~~`users.messages.list` `q=rfc822msgid:`~~ `users.threads.get` (BE-60)), hướng dẫn threading của Gmail (`threadId`, `References`, `In-Reply-To`, `Subject` khớp), RFC 5322 (`Message-ID`, `In-Reply-To`, `References`, `Reply-To`), Google OAuth granular consent, roadmap F10, canvas "Sino UI" (`Inbox` `.composer`, `ThreadState` `.blocked`).
 
 ## Context
 
@@ -46,17 +46,35 @@ Gmail từ chối chắc chắn (lỗi 4xx, hết quyền) → `FAILED`, trả l
 - Header `Idempotency-Key`. `api` client của web không có header riêng cho từng request; trường trong body an toàn như nhau và nằm ngay trong dòng đã lưu.
 - Không chống trùng. Bấm lại sau khi mạng chập chờn là gửi hai lần.
 
-### D-132 — Kết quả không rõ: không gửi lại mù, đối chiếu với Gmail theo `Message-ID` · **Agent chốt theo ủy quyền**
-Hết 15 giây, lỗi mạng sau khi request đã đi, hoặc Gmail trả lỗi 5xx (Gmail có thể đã gửi), thì thư thành `UNKNOWN` và API trả `504 SEND_OUTCOME_UNKNOWN`. Mỗi thư Sino gửi mang `Message-ID: <sino.<clientMessageId>@<tên miền của account>>`. Lượt đồng bộ kế tiếp của account tìm `rfc822msgid:` trên Gmail:
+### D-132 — Kết quả không rõ: không gửi lại mù, đối chiếu với Gmail ~~theo `Message-ID`~~ theo thread, người nhận, phần chữ và thời điểm · **Agent chốt theo ủy quyền; cách đối chiếu do người dùng chốt ở BE-60**
+Hết 15 giây, lỗi mạng sau khi request đã đi, hoặc Gmail trả lỗi 5xx (Gmail có thể đã gửi), thì thư thành `UNKNOWN` và API trả `504 SEND_OUTCOME_UNKNOWN`. ~~Mỗi thư Sino gửi mang `Message-ID: <sino.<clientMessageId>@<tên miền của account>>`. Lượt đồng bộ kế tiếp của account tìm `rfc822msgid:` trên Gmail~~ Sino hỏi lại Gmail (D-138), rồi:
 - thấy → `SENT` với ID của Gmail;
 - không thấy sau 10 phút → `FAILED` (người dùng bấm "Gửi lại" được).
 
-Khi đồng bộ nhập một thư đi mà `Message-ID` có dạng của Sino và có dòng cùng `clientMessageId`, Sino ghép vào dòng đó, không thêm dòng mới.
+~~Khi đồng bộ nhập một thư đi mà `Message-ID` có dạng của Sino và có dòng cùng `clientMessageId`, Sino ghép vào dòng đó, không thêm dòng mới.~~ Khi đã biết ID Gmail của thư mà đồng bộ đã nhập dòng của nó trước, Sino giữ dòng đó, chép `client_message_id` sang và xóa dòng của mình: một thư luôn là một dòng (BE-59).
 **Phương án bị loại:**
 - Coi như `FAILED`. "Gửi lại" có thể gửi lần hai.
 - Coi như `SENT`. Thư có thể chưa đi mà người dùng không biết.
 
 **Phải kiểm ở BE-59 trên Gmail thật:** Gmail có giữ `Message-ID` do Sino đặt không. Nếu không giữ, đối chiếu bằng `threadId` + thư đi gần thời điểm gửi + phần chữ trùng, và ghi lại.
+
+**Kết quả trên Gmail thật (BE-60, 2026-10-12): Gmail KHÔNG giữ.** Account gmail.com, gửi qua `messages.send`: Sino viết `Message-ID: <sino.f55f1b37-…@gmail.com>`, Gmail lưu `Message-Id: <CACwnYVC…@mail.gmail.com>` của nó; `In-Reply-To`, `References` giữ nguyên; thư đúng thread, nhãn `SENT`. `rfc822msgid:` với dấu của Sino không ra gì sau 2 phút. Vậy đối chiếu theo `Message-ID` của BE-59 không bao giờ thấy thư trên Gmail: thư `UNKNOWN` sau 10 phút thành `FAILED` và "Gửi lại" có thể gửi lần hai. Cần làm phần dự phòng ở trên.
+
+**Người dùng chốt (2026-10-12): "Theo thread + chữ + thời điểm"** (phần dự phòng ở trên). Làm ở BE-60, thêm theo review BE-60:
+- Gmail tìm trong thread của cuộc trò chuyện (`threads.get`, `format=full`) các thư có nhãn `SENT`, Gmail nhận trong khoảng từ 1 phút trước lúc bắt đầu gửi (đồng hồ của Google và của database có thể lệch) tới 5 phút sau (`ProviderAccess` có thể chạy lại lần gửi sau khi làm mới token), cùng người nhận `To` (so địa chỉ, không phân biệt hoa thường), cùng phần chữ (cùng cách đọc chữ của đồng bộ: một loại xuống dòng, bỏ khoảng trắng cuối). Sớm nhất trước.
+- "Lúc bắt đầu gửi" là `sent_at` của dòng, ghi bằng `now()` ở transaction 1 của lần gửi đó (gửi lại sau `FAILED` ghi lại `sent_at`).
+- Contract trả **mọi** ứng viên (`findSentMessages`), không chỉ một: cùng chữ gửi hai lần thì khớp cả hai. `ReplyService`, dưới khóa của account, lấy ứng viên đầu tiên chưa thuộc một thư khác của Sino trong cuộc trò chuyện; `confirm` không bao giờ ghi đè `client_message_id` của thư khác (review BE-60, HIGH: người dùng gõ lại đúng chữ đó sau khi thư đầu "Chưa rõ").
+- Sino không còn đặt `Message-ID`: Gmail thay nó.
+- Kiểm trên Gmail thật: thread "xin chào" có hai thư đi cùng chữ (08:40:52 gửi từ Gmail, 08:45:19 do Sino gửi); tìm từ lúc Sino bắt đầu gửi (08:45:18) ra đúng một thư, của Sino.
+
+**Phương án bị loại ở BE-60:** header riêng `X-Sino-Client-Message-Id` rồi tìm trong thread (khớp chính xác, nhưng chưa biết Gmail có giữ header riêng không, phải gửi thêm một thư thật để kiểm); tạm giữ `UNKNOWN` mãi với Gmail (không gửi trùng, nhưng thư kẹt "Chưa rõ").
+
+**Giới hạn còn lại:**
+- Thư cùng chữ, cùng người nhận mà người dùng tự gửi từ Gmail vào cùng thread trong khoảng đó được coi là thư của Sino: Sino ghi `SENT` dù thư của nó có thể chưa đi. Người nhận vẫn nhận đúng chữ đó một lần, không có thư trùng.
+- Thread bị xóa trên Gmail (404) → không thấy → `FAILED` sau 10 phút, dù thư có thể đã đi.
+- Thư rơi ra ngoài thread thì không thấy: Gmail tách thread quá 100 thư; thư gốc đã bị xóa thì thư trả lời đi không có `Subject`/`In-Reply-To`/`References`, và tài liệu Gmail nói khi đó thư có thể không vào thread (chưa kiểm).
+- Thân `text/plain` rất dài Gmail có thể để riêng (`attachmentId`) thay vì trả trong `data`: không đọc được chữ → không khớp (chưa kiểm).
+- Mỗi thư chưa rõ tải cả thread `format=full` mỗi lần hỏi; thread quá lớn không trả kịp 10 giây thì thư giữ `UNKNOWN` (không bao giờ `FAILED`), và các thư chưa rõ khác của account đợi lượt sau.
 
 ### D-133 — Trả lời người gửi thư mới nhất; chữ thuần; không trích thư cũ; người nhận hiện ra là người nhận thật · **Agent chốt theo ủy quyền**
 Người nhận là `Reply-To`, không có thì `From`, của thư **đến** mới nhất trong cuộc trò chuyện. Cuộc trò chuyện chỉ có thư đi thì gửi tới người nhận `To` của thư đi mới nhất. Thư cũ không có `Reply-To` đã lưu thì dùng địa chỉ người gửi. `GET /api/conversations/{id}` trả `reply.to`; `POST` dùng **đúng** danh sách đó, tính lại phía server theo cùng quy tắc, không nhận người nhận từ web. Các header:
@@ -92,8 +110,8 @@ Thân thư là `text/plain; charset=UTF-8`, không trích thư cũ. `From` là �
 `ProviderErrorCode.OUTCOME_UNKNOWN` (không thử lại): hết hạn chờ sau khi request đã đi, provider trả 5xx cho một lệnh ghi, kết nối đứt giữa chừng, hay 2xx mà không đọc được ID. Không kết nối được (`ConnectException`, `HttpConnectTimeoutException`, `UnknownHostException`) vẫn là `PROVIDER_UNAVAILABLE`: chắc chắn chưa gửi. Phía web: loại lỗi mới `ErrorCategory.PROVIDER_OUTCOME_UNKNOWN` ra `504`; `SEND_OUTCOME_STILL_UNKNOWN` mang cùng chuỗi `SEND_OUTCOME_UNKNOWN` với `409`, như Contract API đã hứa với web.
 **Phương án bị loại:** một cờ `mayHaveTakenEffect` trong `ProviderException` (mọi chỗ bắt lỗi phải nhớ xem thêm cờ); coi hết giờ là `PROVIDER_UNAVAILABLE` (đúng như trước, nhưng "Gửi lại" có thể gửi hai lần).
 
-### D-136 — `SendMessageCommand` mang người nhận và `clientMessageId`; connector tự đánh dấu và tự tìm lại thư · **Agent chốt theo ủy quyền** (BE-59)
-`SendMessageCommand(externalConversationId, textContent, replyToExternalMessageId, to, clientMessageId)`. Connector đặt dấu riêng của nó (Gmail: `Message-ID: <sino.<clientMessageId>@<tên miền của account>>`, tên miền lấy từ profile) và cài `findSentMessage(context, clientMessageId)`. Chủ đề `Re:` và `In-Reply-To`/`References` do connector đọc từ thư được trả lời (`format=metadata`), vì đó là chuyện của email. `findSentMessage` mặc định ném `CAPABILITY_NOT_SUPPORTED`, không trả rỗng: "không biết" khác "không có" (review BE-59).
+### D-136 — `SendMessageCommand` mang người nhận và `clientMessageId`; connector tự tìm lại thư · **Agent chốt theo ủy quyền** (BE-59; sửa ở BE-60)
+`SendMessageCommand(externalConversationId, textContent, replyToExternalMessageId, to, clientMessageId)`. ~~Connector đặt dấu riêng của nó (Gmail: `Message-ID: <sino.<clientMessageId>@<tên miền của account>>`, tên miền lấy từ profile) và cài `findSentMessage(context, clientMessageId)`.~~ Connector cài `findSentMessages(context, command, startedAt)`: nhận lại đúng lệnh đã gửi và lúc bắt đầu gửi, trả mọi thư có thể là thư đó, sớm nhất trước; nó tự chọn cách tìm (Gmail: D-132). **LÝ DO (BE-60):** Gmail thay `Message-ID` của Sino nên không còn dấu nào của Sino để tìm theo `clientMessageId`; một lần tìm theo chữ có thể khớp nhiều thư, nên `ReplyService` mới biết thư nào đã thuộc thư khác của Sino. Chủ đề `Re:` và `In-Reply-To`/`References` do connector đọc từ thư được trả lời (`format=metadata`), vì đó là chuyện của email. `findSentMessage` mặc định ném `CAPABILITY_NOT_SUPPORTED`, không trả rỗng: "không biết" khác "không có" (review BE-59).
 **Phương án bị loại:** module `conversation` dựng `Message-ID` (phải biết tên miền và quy ước email); `findSentMessage` theo `Message-ID` (lộ khái niệm email vào contract chung).
 
 ### D-137 — Không có ai để gửi tới: `422 REPLY_NO_RECIPIENT` · **Agent chốt theo ủy quyền** (BE-59)
@@ -106,7 +124,7 @@ Thân thư là `text/plain; charset=UTF-8`, không trích thư cũ. `From` là �
 - Không thấy và đã quá 10 phút kể từ lúc gửi: `FAILED`. Connector không tìm được (`CAPABILITY_NOT_SUPPORTED`): giữ `UNKNOWN`, không bao giờ `FAILED`.
 - Thư Sino gửi mà chưa `SENT` không đổi tóm tắt cuộc trò chuyện (dòng xem trước, giờ, "Cần trả lời"): một thư trả lời bị từ chối không làm cuộc trò chuyện rời khỏi "Cần trả lời" (review BE-59, MEDIUM).
 
-**Giới hạn còn lại (BE-59):** thư gốc đã bị xóa (404) thì thư trả lời đi không có `Subject`, Gmail vẫn xếp theo `threadId`; `"` trong địa chỉ bị bỏ (hỏng địa chỉ có phần trước `@` trong ngoặc kép, rất hiếm); Gmail trả `403` khi quyền gửi bị thu hồi ở Google thì thành `502 SEND_FAILED` mãi trong khi `reply.state` vẫn `READY`; Gmail có giữ `Message-ID` của Sino không và `rfc822msgid:` có tìm ra không: kiểm ở BE-60.
+**Giới hạn còn lại (BE-59):** thư gốc đã bị xóa (404) thì thư trả lời đi không có `Subject`, Gmail vẫn xếp theo `threadId`; `"` trong địa chỉ bị bỏ (hỏng địa chỉ có phần trước `@` trong ngoặc kép, rất hiếm); Gmail trả `403` khi quyền gửi bị thu hồi ở Google thì thành `502 SEND_FAILED` mãi trong khi `reply.state` vẫn `READY`; ~~Gmail có giữ `Message-ID` của Sino không và `rfc822msgid:` có tìm ra không: kiểm ở BE-60.~~ Đã kiểm ở BE-60: không giữ (D-132).
 
 ## Contract API
 
@@ -163,11 +181,11 @@ Chỉ cho thư `FAILED` do Sino gửi → `204`. Thư khác → `409 MESSAGE_NOT
    - BE-60: kiểm trên Google thật rằng bỏ tick quyền gửi thì `account_credential.scopes` không có `gmail.send`. Khi câu trả lời token không có `scope`, `OAuth2Clients` coi như được cấp mọi scope đã xin; RFC 6749 §5.1 bắt server ghi `scope` khi nó khác những gì đã xin.
 4. **Gửi:** `ReplyService`: kiểm `reply.state`, ghi `PENDING` (transaction 1); gọi provider ngoài transaction; ghi kết quả (transaction 2). Ghi `SENT` mà đồng bộ đã nhập thư đó trước (trùng `external_message_id`) thì giữ dòng đã nhập, chép `client_message_id` sang, rồi xóa dòng `PENDING`. Sau transaction 2 phát event để `realtime` đẩy `conversations.changed` (`source` = `user`).
 5. **Gmail `sendMessage`:**
-   - Dựng MIME: `From`, `To`, `Subject` (RFC 2047 khi có chữ ngoài ASCII), `Message-ID` theo D-132, `In-Reply-To`, `References`, `Content-Type: text/plain; charset=UTF-8`, `Content-Transfer-Encoding: base64`.
+   - Dựng MIME: `From`, `To`, `Subject` (RFC 2047 khi có chữ ngoài ASCII), ~~`Message-ID` theo D-132~~ (BE-60: Gmail tự đặt), `In-Reply-To`, `References`, `Content-Type: text/plain; charset=UTF-8`, `Content-Transfer-Encoding: base64`.
    - Gọi `users.messages.send` với `raw` (base64url) và `threadId`.
    - Đọc `Message-ID` và `References` của thư được trả lời bằng `messages.get format=metadata`.
    - Lỗi theo bảng `ProviderException`. Hết thời gian chờ sau khi request đã đi thì báo là "không rõ" (cần một mã hoặc cờ riêng trong contract; phiên backend chốt khi làm).
-6. **Đối chiếu `UNKNOWN`:** lượt đồng bộ của account (BE-48) xử lý các thư `UNKNOWN` của account đó cũ hơn 1 phút, qua hàm tùy chọn mới của contract `findSentMessage(context, rfcMessageId)`.
+6. **Đối chiếu `UNKNOWN`:** ~~lượt đồng bộ của account (BE-48) xử lý các thư `UNKNOWN` của account đó cũ hơn 1 phút, qua hàm tùy chọn mới của contract `findSentMessage(context, rfcMessageId)`~~ sau mỗi lượt đồng bộ và mỗi phút (D-138), qua hàm tùy chọn của contract `findSentMessages(context, command, startedAt)` (D-132, D-136).
 
 ## Web
 
@@ -192,15 +210,15 @@ MSW theo Contract API:
 - `reply.state` → đúng loại dòng báo.
 
 ## Testing (backend)
-- MIME (đơn vị): header thread, `Re:` không lặp, RFC 2047, base64, `Message-ID` theo `clientMessageId`.
+- MIME (đơn vị): header thread, `Re:` không lặp, RFC 2047, base64, ~~`Message-ID` theo `clientMessageId`~~ không có `Message-ID` (BE-60).
 - Người nhận (đơn vị): `Reply-To`/`From`, chỉ có thư đi, thư cũ không có `Reply-To`.
 - API (MockMvc + DB thật + provider giả): `201`, gọi lại cùng ID → `200` không gửi lần hai, `409` các loại, `502` + `FAILED` rồi gửi lại thành công, `504` + `UNKNOWN`, `DELETE`, CSRF, sự kiện `source: user`.
 - Đồng bộ: thư Sino đã gửi được nhập lại không thành hai dòng; `UNKNOWN` → `SENT`/`FAILED` theo kết quả tìm.
-- Gmail (WireMock): `messages.send` với `raw` + `threadId`; `format=metadata`; `rfc822msgid:`.
+- Gmail (WireMock): `messages.send` với `raw` + `threadId`; `format=metadata`; ~~`rfc822msgid:`~~ `threads.get` và các điều kiện khớp của D-132 (BE-60).
 - Quyền: kết nối có/không có `gmail.send` → capability; kết nối lại cấp thêm.
 
 ## Risks / Trade-offs
-- Gmail có thể thay `Message-ID` → đối chiếu dự phòng (D-132), phải kiểm ở BE-59.
+- ~~Gmail có thể thay `Message-ID` → đối chiếu dự phòng (D-132), phải kiểm ở BE-59.~~ Đã kiểm ở BE-60: Gmail **thay** `Message-ID` → cần đối chiếu dự phòng (D-132).
 - `gmail.send` là scope nhạy cảm; app ở chế độ Testing vẫn dùng được với tài khoản test (D-40). Màn đồng ý của Google hiện thêm một quyền.
 - Gửi trong request giữ một luồng của server tới 15 giây. Chấp nhận với MVP một người dùng.
 - Hàng đợi khi mất mạng mất nếu tải lại trang; chữ đang soạn chưa gửi cũng mất (không có nháp).

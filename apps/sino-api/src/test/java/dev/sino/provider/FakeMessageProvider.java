@@ -70,8 +70,8 @@ public final class FakeMessageProvider implements MessageProvider {
     private final AtomicInteger fileCalls = new AtomicInteger();
     private final List<SendMessageCommand> sent = new ArrayList<>();
     private final Queue<ProviderException> sendFailures = new ArrayDeque<>();
-    private final Map<UUID, String> foundSends = new HashMap<>();
-    private final List<UUID> searches = new ArrayList<>();
+    private final Map<UUID, List<String>> foundSends = new HashMap<>();
+    private final List<Search> searches = new ArrayList<>();
     private CountDownLatch[] held;
     private boolean findsSends = true;
 
@@ -218,12 +218,13 @@ public final class FakeMessageProvider implements MessageProvider {
     }
 
     @Override
-    public synchronized Optional<String> findSentMessage(ProviderContext context, UUID clientMessageId) {
-        searches.add(clientMessageId);
+    public synchronized List<String> findSentMessages(ProviderContext context, SendMessageCommand command,
+            Instant startedAt) {
+        searches.add(new Search(command, startedAt));
         if (!findsSends) {
-            return MessageProvider.super.findSentMessage(context, clientMessageId);
+            return MessageProvider.super.findSentMessages(context, command, startedAt);
         }
-        return Optional.ofNullable(foundSends.get(clientMessageId));
+        return foundSends.getOrDefault(command.clientMessageId(), List.of());
     }
 
     /** The next send counts {@code entered} down, then waits for {@code release} before it answers. */
@@ -231,7 +232,7 @@ public final class FakeMessageProvider implements MessageProvider {
         held = new CountDownLatch[] { entered, release };
     }
 
-    /** {@code false}: {@link #findSentMessage} cannot tell, as a connector without it does. */
+    /** {@code false}: {@link #findSentMessages} cannot tell, as a connector without it does. */
     public synchronized void findsSends(boolean finds) {
         findsSends = finds;
     }
@@ -241,9 +242,14 @@ public final class FakeMessageProvider implements MessageProvider {
         sendFailures.addAll(List.of(failures));
     }
 
-    /** {@link #findSentMessage} finds the message Sino gave {@code clientMessageId} under {@code externalMessageId}. */
+    /** {@link #findSentMessages} finds the message Sino gave {@code clientMessageId} under {@code externalMessageId}. */
     public synchronized void sent(UUID clientMessageId, String externalMessageId) {
-        foundSends.put(clientMessageId, externalMessageId);
+        found(clientMessageId, externalMessageId);
+    }
+
+    /** {@link #findSentMessages} answers these, in order, for what Sino sent with {@code clientMessageId}. */
+    public synchronized void found(UUID clientMessageId, String... externalMessageIds) {
+        foundSends.put(clientMessageId, List.of(externalMessageIds));
     }
 
     /** What a test sent or searched for before, and what it set up for sending, is forgotten. */
@@ -257,6 +263,11 @@ public final class FakeMessageProvider implements MessageProvider {
     }
 
     public synchronized List<UUID> searchedSends() {
+        return searches.stream().map(search -> search.command().clientMessageId()).toList();
+    }
+
+    /** What {@link #findSentMessages} was asked for, in order. */
+    public synchronized List<Search> searchedAttempts() {
         return List.copyOf(searches);
     }
 
@@ -472,6 +483,10 @@ public final class FakeMessageProvider implements MessageProvider {
             return new FakeMessageProvider(this);
         }
 
+    }
+
+    /** One question of {@link #findSentMessages}: what Sino sent, and when the send started. */
+    public record Search(SendMessageCommand command, Instant startedAt) {
     }
 
 }
