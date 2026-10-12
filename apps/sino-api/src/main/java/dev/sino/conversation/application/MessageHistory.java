@@ -1,11 +1,14 @@
 package dev.sino.conversation.application;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -26,6 +29,15 @@ import dev.sino.provider.spi.NormalizedMessage;
 @Transactional(readOnly = true)
 public class MessageHistory {
 
+    private static final String SELECT = """
+            SELECT m.id, m.direction, m.status, m.sent_at, m.text_content, m.body_format, m.is_read, m.recipients,
+                   m.client_message_id,
+                   m.metadata ->> :subject AS subject,
+                   p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
+            FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
+            WHERE m.conversation_id = :conversation
+            """;
+
     private final JdbcClient jdbc;
     private final InboxService inbox;
 
@@ -42,38 +54,43 @@ public class MessageHistory {
     public MessagePage page(UUID ownerId, UUID conversationId, MessageCursor cursor, int limit) {
         inbox.requireInInbox(ownerId, conversationId);
         // Keyset paging as for the inbox; one more row than asked tells whether there is a next page.
-        JdbcClient.StatementSpec query = jdbc.sql("""
-                SELECT m.id, m.direction, m.status, m.sent_at, m.text_content, m.body_format, m.is_read, m.recipients,
-                       m.metadata ->> :subject AS subject,
-                       p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
-                FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
-                WHERE m.conversation_id = :conversation %s
-                ORDER BY m.sent_at DESC, m.id DESC LIMIT :rows
-                """.formatted(cursor == null ? ""
-                : "AND m.sent_at <= :before AND (m.sent_at, m.id) < (:before, :beforeId)"))
+        JdbcClient.StatementSpec query = jdbc.sql(SELECT + (cursor == null ? ""
+                : "AND m.sent_at <= :before AND (m.sent_at, m.id) < (:before, :beforeId)")
+                + " ORDER BY m.sent_at DESC, m.id DESC LIMIT :rows")
                 .param("subject", NormalizedMessage.SUBJECT).param("conversation", conversationId)
                 .param("rows", limit + 1);
         if (cursor != null) {
             query = query.param("before", cursor.sentAt().atOffset(ZoneOffset.UTC)).param("beforeId", cursor.id());
         }
-        List<InboxMessage> rows = query.query((row, n) -> {
-            StoredRecipients recipients = StoredRecipients.parse(row.getString("recipients"));
-            String sender = row.getString("sender");
-            return new InboxMessage(row.getObject("id", UUID.class),
-                    MessageDirection.valueOf(row.getString("direction")),
-                    MessageStatus.valueOf(row.getString("status")),
-                    row.getObject("sent_at", OffsetDateTime.class).toInstant(),
-                    sender == null ? null : new Sender(row.getString("sender_name"), sender, row.getBoolean("is_self")),
-                    recipients == null ? null : recipients.to(), recipients == null ? null : recipients.cc(),
-                    row.getString("subject"), row.getString("text_content"),
-                    BodyFormat.valueOf(row.getString("body_format")), row.getBoolean("is_read"), List.of());
-        }).list();
+        List<InboxMessage> rows = query.query((row, n) -> messageOf(row)).list();
         List<InboxMessage> items = withFiles(rows.size() <= limit ? rows : rows.subList(0, limit));
         if (rows.size() <= limit) {
             return new MessagePage(items, null);
         }
         InboxMessage last = items.getLast();
         return new MessagePage(items, new MessageCursor(last.sentAt(), last.id()));
+    }
+
+    /** One message of a conversation the caller already found in the inbox, as {@link #page} lists it. */
+    Optional<InboxMessage> message(UUID conversationId, UUID messageId) {
+        return jdbc.sql(SELECT + "AND m.id = :message").param("subject", NormalizedMessage.SUBJECT)
+                .param("conversation", conversationId).param("message", messageId)
+                .query((row, n) -> messageOf(row)).optional()
+                .map(message -> withFiles(List.of(message)).getFirst());
+    }
+
+    private static InboxMessage messageOf(ResultSet row) throws SQLException {
+        StoredRecipients recipients = StoredRecipients.parse(row.getString("recipients"));
+        String sender = row.getString("sender");
+        return new InboxMessage(row.getObject("id", UUID.class),
+                MessageDirection.valueOf(row.getString("direction")),
+                MessageStatus.valueOf(row.getString("status")),
+                row.getObject("sent_at", OffsetDateTime.class).toInstant(),
+                sender == null ? null : new Sender(row.getString("sender_name"), sender, row.getBoolean("is_self")),
+                recipients == null ? null : recipients.to(), recipients == null ? null : recipients.cc(),
+                row.getString("subject"), row.getString("text_content"),
+                BodyFormat.valueOf(row.getString("body_format")), row.getBoolean("is_read"), List.of(),
+                row.getObject("client_message_id", UUID.class));
     }
 
     private List<InboxMessage> withFiles(List<InboxMessage> messages) {
@@ -92,7 +109,7 @@ public class MessageHistory {
                 });
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
-                List.copyOf(files.getOrDefault(m.id(), List.of())))).toList();
+                List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId())).toList();
     }
 
 }

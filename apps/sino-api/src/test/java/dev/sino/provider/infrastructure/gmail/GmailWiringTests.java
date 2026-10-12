@@ -44,8 +44,8 @@ class GmailWiringTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].type").value("gmail"))
                 .andExpect(jsonPath("$[0].displayName").value("Gmail"))
-                .andExpect(jsonPath("$[0].capabilities", containsInAnyOrder("READ_MESSAGES", "THREADS",
-                        "ATTACHMENTS")));
+                .andExpect(jsonPath("$[0].capabilities", containsInAnyOrder("READ_MESSAGES", "SEND_MESSAGES",
+                        "THREADS", "ATTACHMENTS")));
     }
 
     @Test

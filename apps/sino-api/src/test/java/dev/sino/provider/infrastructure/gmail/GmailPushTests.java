@@ -14,6 +14,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import static dev.sino.provider.ProviderCapability.ATTACHMENTS;
 import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
 import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
+import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static dev.sino.provider.ProviderCapability.THREADS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -72,7 +73,7 @@ class GmailPushTests {
     @Test
     void withATopicGmailDeclaresPush() {
         assertThat(gmailWith(TOPIC).capabilities().values())
-                .containsExactly(READ_MESSAGES, ATTACHMENTS, PUSH_WEBHOOK, THREADS);
+                .containsExactly(READ_MESSAGES, SEND_MESSAGES, ATTACHMENTS, PUSH_WEBHOOK, THREADS);
     }
 
     @Test

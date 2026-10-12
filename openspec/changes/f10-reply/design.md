@@ -88,6 +88,26 @@ Thân thư là `text/plain; charset=UTF-8`, không trích thư cũ. `From` là �
 - Xóa ngay thư gửi lỗi và trả chữ về ô soạn. Người dùng có thể không thấy thư đã không đi.
 - Hàng đợi bền trong `localStorage`. Phải giải quyết gửi trùng giữa các tab; để sau.
 
+### D-135 — Contract: mã `OUTCOME_UNKNOWN` cho "request đã tới provider mà không có câu trả lời" · **Agent chốt theo ủy quyền** (BE-59, 2026-10-12)
+`ProviderErrorCode.OUTCOME_UNKNOWN` (không thử lại): hết hạn chờ sau khi request đã đi, provider trả 5xx cho một lệnh ghi, kết nối đứt giữa chừng, hay 2xx mà không đọc được ID. Không kết nối được (`ConnectException`, `HttpConnectTimeoutException`, `UnknownHostException`) vẫn là `PROVIDER_UNAVAILABLE`: chắc chắn chưa gửi. Phía web: loại lỗi mới `ErrorCategory.PROVIDER_OUTCOME_UNKNOWN` ra `504`; `SEND_OUTCOME_STILL_UNKNOWN` mang cùng chuỗi `SEND_OUTCOME_UNKNOWN` với `409`, như Contract API đã hứa với web.
+**Phương án bị loại:** một cờ `mayHaveTakenEffect` trong `ProviderException` (mọi chỗ bắt lỗi phải nhớ xem thêm cờ); coi hết giờ là `PROVIDER_UNAVAILABLE` (đúng như trước, nhưng "Gửi lại" có thể gửi hai lần).
+
+### D-136 — `SendMessageCommand` mang người nhận và `clientMessageId`; connector tự đánh dấu và tự tìm lại thư · **Agent chốt theo ủy quyền** (BE-59)
+`SendMessageCommand(externalConversationId, textContent, replyToExternalMessageId, to, clientMessageId)`. Connector đặt dấu riêng của nó (Gmail: `Message-ID: <sino.<clientMessageId>@<tên miền của account>>`, tên miền lấy từ profile) và cài `findSentMessage(context, clientMessageId)`. Chủ đề `Re:` và `In-Reply-To`/`References` do connector đọc từ thư được trả lời (`format=metadata`), vì đó là chuyện của email. `findSentMessage` mặc định ném `CAPABILITY_NOT_SUPPORTED`, không trả rỗng: "không biết" khác "không có" (review BE-59).
+**Phương án bị loại:** module `conversation` dựng `Message-ID` (phải biết tên miền và quy ước email); `findSentMessage` theo `Message-ID` (lộ khái niệm email vào contract chung).
+
+### D-137 — Không có ai để gửi tới: `422 REPLY_NO_RECIPIENT` · **Agent chốt theo ủy quyền** (BE-59)
+`reply.state` = `READY` chỉ nói account gửi được. Khi `reply.to` rỗng (thư đến không rõ người gửi, thư đi không rõ người nhận), `POST` trả `422 REPLY_NO_RECIPIENT`, không ghi gì và không gọi provider. Web hiện thư "Không gửi được" như một lỗi chung (FE-62 chưa biết mã này).
+
+### D-138 — Đối chiếu thư chưa rõ: sau mỗi lượt đồng bộ và theo nhịp riêng mỗi phút · **Agent chốt theo ủy quyền** (BE-59, sửa sau review)
+- Sau mỗi lượt đồng bộ thành công của account (`ImportRunner`), và mỗi phút cho mọi account còn thư chưa rõ (`LiveSyncSchedule`, trên luồng riêng), trừ account bị tắt hay phải kết nối lại. Nhịp riêng có vì account tạm dừng đồng bộ, đang import, hay đồng bộ lỗi liên tục sẽ không bao giờ có lượt đồng bộ (review BE-59, HIGH); spec nói tạm dừng đồng bộ không được chặn việc gửi.
+- Thư `UNKNOWN` được hỏi ở mọi tuổi, không chờ 1 phút như spec ghi: hỏi sớm không hại gì, và tránh hai dòng cho một thư trong lúc chờ (đồng bộ vừa nhập thư mà thư `UNKNOWN` chưa được ghép).
+- Thư `PENDING` quá 5 phút (lần gửi chết giữa chừng) cũng được hỏi. 5 phút chứ không 1, vì một lần gửi bị từ chối token rồi được `ProviderAccess` chạy lại có thể quá một phút.
+- Không thấy và đã quá 10 phút kể từ lúc gửi: `FAILED`. Connector không tìm được (`CAPABILITY_NOT_SUPPORTED`): giữ `UNKNOWN`, không bao giờ `FAILED`.
+- Thư Sino gửi mà chưa `SENT` không đổi tóm tắt cuộc trò chuyện (dòng xem trước, giờ, "Cần trả lời"): một thư trả lời bị từ chối không làm cuộc trò chuyện rời khỏi "Cần trả lời" (review BE-59, MEDIUM).
+
+**Giới hạn còn lại (BE-59):** thư gốc đã bị xóa (404) thì thư trả lời đi không có `Subject`, Gmail vẫn xếp theo `threadId`; `"` trong địa chỉ bị bỏ (hỏng địa chỉ có phần trước `@` trong ngoặc kép, rất hiếm); Gmail trả `403` khi quyền gửi bị thu hồi ở Google thì thành `502 SEND_FAILED` mãi trong khi `reply.state` vẫn `READY`; Gmail có giữ `Message-ID` của Sino không và `rfc822msgid:` có tìm ra không: kiểm ở BE-60.
+
 ## Contract API
 
 ### `GET /api/conversations/{id}` — thêm `reply`
@@ -124,6 +144,7 @@ Mỗi thư thêm `clientMessageId` (`null` với thư không do Sino gửi). `st
 | Gmail từ chối (4xx), giới hạn tần suất (429), không kết nối được tới Gmail | `502 SEND_FAILED`, extension `messageId`; thư `FAILED` |
 | Không rõ (hết 15 giây, mất kết nối sau khi request đã đi, Gmail lỗi 5xx) | `504 SEND_OUTCOME_UNKNOWN`, extension `messageId`; thư `UNKNOWN` |
 | Cùng `clientMessageId` đang `UNKNOWN` | `409 SEND_OUTCOME_UNKNOWN` |
+| `reply.to` rỗng (thêm ở BE-59, D-137) | `422 REPLY_NO_RECIPIENT` |
 | Cuộc trò chuyện không có / không thuộc người dùng | `404` |
 
 ### `DELETE /api/conversations/{id}/messages/{messageId}`

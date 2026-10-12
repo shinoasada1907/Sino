@@ -1,8 +1,11 @@
 package dev.sino.provider.infrastructure.gmail;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -54,17 +57,21 @@ class GmailApi {
     private final URI userInfoUri;
     private final RestClient google;
     private final RestClient files;
+    private final RestClient sending;
 
     /**
      * @param readTimeout until the whole answer is read, not between two reads: Spring's JDK client closes the body
      *        when it is up
      * @param fileTimeout the same for the content of a file, which may be 25 MB
+     * @param sendTimeout the same for sending a message (D-131)
      */
-    GmailApi(URI userInfoUri, URI gmailApiUri, Duration connectTimeout, Duration readTimeout, Duration fileTimeout) {
+    GmailApi(URI userInfoUri, URI gmailApiUri, Duration connectTimeout, Duration readTimeout, Duration fileTimeout,
+            Duration sendTimeout) {
         this.userInfoUri = userInfoUri;
         HttpClient client = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
         this.google = clientOf(gmailApiUri, client, readTimeout);
         this.files = clientOf(gmailApiUri, client, fileTimeout);
+        this.sending = clientOf(gmailApiUri, client, sendTimeout);
     }
 
     private static RestClient clientOf(URI gmailApiUri, HttpClient client, Duration timeout) {
@@ -160,6 +167,75 @@ class GmailApi {
     }
 
     /**
+     * The headers a reply needs of the message it answers ({@code format=metadata}: Subject, Message-ID, References);
+     * empty when it was deleted meanwhile (404).
+     */
+    Optional<GmailMessage> metadata(String accessToken, String id) {
+        return call(() -> {
+            try {
+                return Optional.ofNullable(google.get().uri(uri -> uri.path(USER + "/messages/{id}")
+                        .queryParam("format", "metadata")
+                        .queryParam("metadataHeaders", "Subject", "Message-ID", "References").build(id))
+                        .headers(bearer(accessToken)).retrieve().body(GmailMessage.class));
+            } catch (RestClientResponseException failure) {
+                if (failure.getStatusCode().value() == 404) {
+                    return Optional.empty();
+                }
+                throw failure;
+            }
+        });
+    }
+
+    /**
+     * Sends {@code raw} (an RFC 5322 message, base64url) in the thread {@code threadId}. A refusal leaves it unsent
+     * with the usual codes; when Gmail may have sent it (a 5xx, no answer in time, a connection that broke off after
+     * the request left) the code is {@code OUTCOME_UNKNOWN} (D-135).
+     */
+    Sent send(String accessToken, String raw, String threadId) {
+        try {
+            Sent sent = sending.post().uri(USER + "/messages/send").headers(bearer(accessToken))
+                    .contentType(MediaType.APPLICATION_JSON).body(Map.of("raw", raw, "threadId", threadId))
+                    .retrieve().body(Sent.class);
+            if (sent == null || sent.id() == null || sent.id().isBlank()) {
+                throw unknownOutcome("Gmail accepted the message but sent back no ID");
+            }
+            return sent;
+        } catch (RestClientResponseException failure) {
+            if (failure.getStatusCode().is5xxServerError()) {
+                throw unknownOutcome("Gmail answered " + failure.getStatusCode().value() + " to the send");
+            }
+            throw failureFor(failure);
+        } catch (RestClientException failure) {
+            ProviderErrorCode code = sendFailure(failure);
+            throw code == ProviderErrorCode.OUTCOME_UNKNOWN
+                    ? unknownOutcome("No answer from Gmail to the send")
+                    : new ProviderException(code, "Gmail could not be reached to send");
+        }
+    }
+
+    /**
+     * Whether a send that failed without an answer certainly did not leave ({@code PROVIDER_UNAVAILABLE}: no
+     * connection was made) or may have reached Gmail ({@code OUTCOME_UNKNOWN}).
+     */
+    static ProviderErrorCode sendFailure(RestClientException failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConnectException || cause instanceof HttpConnectTimeoutException
+                    || cause instanceof UnknownHostException) {
+                return ProviderErrorCode.PROVIDER_UNAVAILABLE;
+            }
+        }
+        return ProviderErrorCode.OUTCOME_UNKNOWN;
+    }
+
+    /** The ID of the message whose {@code Message-ID} header is {@code rfcMessageId}, if Gmail has one. */
+    Optional<String> messageIdWithHeader(String accessToken, String rfcMessageId) {
+        MessageList found = call(() -> answer(google.get().uri(uri -> uri.path(USER + "/messages")
+                .queryParam("q", "{q}").queryParam("maxResults", 1).build(Map.of("q", "rfc822msgid:" + rfcMessageId)))
+                .headers(bearer(accessToken)).retrieve().body(MessageList.class)));
+        return found.ids().stream().findFirst();
+    }
+
+    /**
      * The content of a file of a message that Gmail keeps apart, by the {@code attachmentId} of this read of the
      * message: base64url in {@code data}.
      */
@@ -199,6 +275,10 @@ class GmailApi {
                     "Gmail no longer accepts the page token of this cursor (400)");
         }
         return failure;
+    }
+
+    private static ProviderException unknownOutcome(String message) {
+        return new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, message);
     }
 
     private static <T> T answer(T body) {
@@ -281,6 +361,10 @@ class GmailApi {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Attachment(Long size, String data) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Sent(String id, String threadId) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

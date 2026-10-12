@@ -72,6 +72,8 @@ public class ConversationSummaries {
                                m.direction = 'INBOUND' AND COALESCE(m.metadata ->> :bulk, '') <> 'true' AS needs_reply
                         FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
                         WHERE m.conversation_id = c.id
+                          -- A reply from Sino counts once it went: one that failed leaves the conversation waiting.
+                          AND (m.client_message_id IS NULL OR m.status = 'SENT')
                         ORDER BY m.sent_at DESC, m.id DESC
                         LIMIT 1) latest ON true
                     WHERE c.id IN (:conversations)

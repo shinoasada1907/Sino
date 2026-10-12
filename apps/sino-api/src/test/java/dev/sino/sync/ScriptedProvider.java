@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -136,6 +137,11 @@ final class ScriptedProvider implements MessageProvider {
     @Override
     public OptionalLong estimateMessages(ProviderContext context, Instant since) {
         return delegate.estimateMessages(context, since);
+    }
+
+    @Override
+    public Optional<String> findSentMessage(ProviderContext context, UUID clientMessageId) {
+        return delegate.findSentMessage(context, clientMessageId);
     }
 
 }

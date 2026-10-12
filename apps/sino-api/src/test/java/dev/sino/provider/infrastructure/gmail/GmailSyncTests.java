@@ -9,6 +9,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.havingExactly;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
@@ -508,6 +509,8 @@ class GmailSyncTests {
             message("/broken", REPORT, "alternative.json");
             message("/broken", NO_FROM, "no-from.json");
             message("/broken", CAFE, "latin1.json");
+            gmail.stubFor(post(urlPathEqualTo(API + "/messages/send"))
+                    .willReturn(okJson("{\"id\": \"sent-1\", \"threadId\": \"conversation-1\"}")));
         }
 
         @Override

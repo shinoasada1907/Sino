@@ -14,12 +14,13 @@ import dev.sino.conversation.application.InboxMessage.Sender;
  * message at a time when {@code bodyFormat} is not {@code TEXT}.
  */
 record MessageResponse(UUID id, String direction, String status, Instant sentAt, Sender sender, List<Address> to,
-        List<Address> cc, String subject, String text, String bodyFormat, boolean read, List<File> attachments) {
+        List<Address> cc, String subject, String text, String bodyFormat, boolean read, List<File> attachments,
+        UUID clientMessageId) {
 
     static MessageResponse from(InboxMessage message) {
         return new MessageResponse(message.id(), message.direction().name(), message.status().name(),
                 message.sentAt(), message.sender(), message.to(), message.cc(), message.subject(), message.text(),
-                message.bodyFormat().name(), message.read(), message.attachments());
+                message.bodyFormat().name(), message.read(), message.attachments(), message.clientMessageId());
     }
 
 }

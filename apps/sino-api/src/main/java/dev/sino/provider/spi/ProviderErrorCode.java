@@ -24,7 +24,14 @@ public enum ProviderErrorCode {
     CAPABILITY_NOT_SUPPORTED(false),
 
     /** The cursor can no longer be read from; the caller starts again with an initial cursor. */
-    CURSOR_EXPIRED(false);
+    CURSOR_EXPIRED(false),
+
+    /**
+     * A write reached the provider but no answer came back (a timeout after sending, a 5xx, a connection that broke
+     * off), so it may or may not have taken effect (F10, D-135). Never repeated blindly: the caller asks the provider
+     * later instead.
+     */
+    OUTCOME_UNKNOWN(false);
 
     private final boolean retryable;
 

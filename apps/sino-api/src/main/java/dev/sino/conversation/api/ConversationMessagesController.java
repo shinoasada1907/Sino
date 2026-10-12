@@ -5,19 +5,28 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.sino.conversation.application.MessageBodies;
@@ -27,6 +36,8 @@ import dev.sino.conversation.application.MessageFile;
 import dev.sino.conversation.application.MessageFiles;
 import dev.sino.conversation.application.MessageHistory;
 import dev.sino.conversation.application.MessagePage;
+import dev.sino.conversation.application.ReplyService;
+import dev.sino.conversation.application.ReplyService.Sent;
 import dev.sino.identity.CurrentUser;
 
 /**
@@ -41,14 +52,34 @@ class ConversationMessagesController {
     private final MessageHistory history;
     private final MessageBodies bodies;
     private final MessageFiles files;
+    private final ReplyService replies;
     private final CurrentUser currentUser;
 
     ConversationMessagesController(MessageHistory history, MessageBodies bodies, MessageFiles files,
-            CurrentUser currentUser) {
+            ReplyService replies, CurrentUser currentUser) {
         this.history = history;
         this.bodies = bodies;
         this.files = files;
+        this.replies = replies;
         this.currentUser = currentUser;
+    }
+
+    /**
+     * Sends a reply (F10): {@code 201} with the message, or {@code 200} with it when this {@code clientMessageId} was
+     * sent before (D-131). The addressees are worked out here, never taken from the request (D-133).
+     */
+    @PostMapping
+    ResponseEntity<MessageResponse> send(@PathVariable UUID id, @Valid @RequestBody SendRequest request) {
+        Sent sent = replies.send(currentUser.requireOwnerId(), id, request.text(), request.clientMessageId());
+        return ResponseEntity.status(sent.created() ? HttpStatus.CREATED : HttpStatus.OK)
+                .body(MessageResponse.from(sent.message()));
+    }
+
+    /** Discards a message Sino failed to send. */
+    @DeleteMapping("/{messageId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void discard(@PathVariable UUID id, @PathVariable UUID messageId) {
+        replies.discard(currentUser.requireOwnerId(), id, messageId);
     }
 
     /** A {@code cursor} that this API did not hand out, like a {@code limit} out of range, is a 400. */
@@ -107,6 +138,10 @@ class ConversationMessagesController {
     }
 
     record MessagePageResponse(List<MessageResponse> items, String nextCursor) {
+    }
+
+    /** {@code clientMessageId}: made by the web for each message and sent again unchanged when it retries. */
+    record SendRequest(@NotBlank @Size(max = 100_000) String text, @NotNull UUID clientMessageId) {
     }
 
     record MessageBodyResponse(String format, String html, boolean remoteImages) {

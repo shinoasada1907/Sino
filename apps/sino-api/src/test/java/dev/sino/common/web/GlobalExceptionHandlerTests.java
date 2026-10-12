@@ -102,6 +102,13 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void moduleErrorCodeOfCategoryProviderOutcomeUnknownBecomes504() throws Exception {
+        mvc.perform(get("/api/probe/no-answer").with(apiUser()))
+                .andExpect(status().isGatewayTimeout())
+                .andExpect(jsonPath("$.code").value("PROVIDER_GAVE_NO_ANSWER"));
+    }
+
+    @Test
     void unknownApiPathIsResourceNotFound() throws Exception {
         mvc.perform(get("/api/probe/nowhere").with(apiUser()))
                 .andExpect(status().isNotFound())
@@ -217,7 +224,8 @@ class GlobalExceptionHandlerTests {
         THING_NOT_FOUND(ErrorCategory.NOT_FOUND),
         THING_RULE_BROKEN(ErrorCategory.INVALID),
         SLOW_DOWN(ErrorCategory.RATE_LIMITED),
-        PROVIDER_SAID_NO(ErrorCategory.PROVIDER_FAILED);
+        PROVIDER_SAID_NO(ErrorCategory.PROVIDER_FAILED),
+        PROVIDER_GAVE_NO_ANSWER(ErrorCategory.PROVIDER_OUTCOME_UNKNOWN);
 
         private final ErrorCategory category;
 
@@ -270,6 +278,11 @@ class GlobalExceptionHandlerTests {
         @GetMapping("/provider")
         void providerSaysNo() {
             throw new SinoException(ProbeErrorCode.PROVIDER_SAID_NO, "The provider could not do it.");
+        }
+
+        @GetMapping("/no-answer")
+        void providerGivesNoAnswer() {
+            throw new SinoException(ProbeErrorCode.PROVIDER_GAVE_NO_ANSWER, "The provider did not answer.");
         }
 
         @GetMapping("/conflict")

@@ -3,6 +3,7 @@ package dev.sino.provider.spi;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.UUID;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
@@ -48,10 +49,26 @@ public interface MessageProvider {
         return Optional.empty();
     }
 
-    /** Only for connectors that declare {@link ProviderCapability#SEND_MESSAGES}. */
+    /**
+     * Only for connectors that declare {@link ProviderCapability#SEND_MESSAGES}. A failure that leaves the message
+     * certainly unsent has its usual code; one after which the provider may have sent it has
+     * {@link ProviderErrorCode#OUTCOME_UNKNOWN} (D-135), and the caller must not send again blindly.
+     */
     default SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
         throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
                 type() + " does not support " + ProviderCapability.SEND_MESSAGES);
+    }
+
+    /**
+     * The provider's ID of a message Sino sent with {@code clientMessageId} (F10, D-132), for a send whose outcome was
+     * unknown; empty when the provider has no such message. A connector that cannot tell must not answer empty, or a
+     * message that went out would be offered to be sent again.
+     *
+     * @throws ProviderException with {@code CAPABILITY_NOT_SUPPORTED} by default, without calling the provider
+     */
+    default Optional<String> findSentMessage(ProviderContext context, UUID clientMessageId) {
+        throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
+                type() + " cannot find a message it sent");
     }
 
     /**

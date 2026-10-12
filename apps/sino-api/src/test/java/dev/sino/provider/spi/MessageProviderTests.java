@@ -77,12 +77,25 @@ class MessageProviderTests {
         assertThat(readOnly.registerPush(context)).isEmpty();
     }
 
+    // "Cannot tell" is not "not there": taken for the latter, a message whose send got no answer would be sent twice.
+    @Test
+    void aConnectorCannotTellWhetherItSentAMessageByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> readOnly.findSentMessage(context, UUID.randomUUID()))
+                .withMessageContaining("read-only")
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
     @Test
     void aConnectorWithoutSendingRefusesToSend() {
         ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
 
         assertThatExceptionOfType(ProviderException.class)
-                .isThrownBy(() -> readOnly.sendMessage(context, new SendMessageCommand("c-1", "hello", null)))
+                .isThrownBy(() -> readOnly.sendMessage(context, new SendMessageCommand("c-1", "hello", null, List.of(),
+                        UUID.randomUUID())))
                 .withMessageContaining("read-only")
                 .extracting(ProviderException::errorCode)
                 .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);

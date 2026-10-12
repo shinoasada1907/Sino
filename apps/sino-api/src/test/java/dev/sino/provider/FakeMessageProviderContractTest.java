@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -75,7 +76,8 @@ class FakeMessageProviderContractTest {
         @Test
         void aRefusedSendNeverReachesTheProvider() {
             assertThatExceptionOfType(ProviderException.class)
-                    .isThrownBy(() -> provider.sendMessage(CONTEXT, new SendMessageCommand("c-1", "hi", null)));
+                    .isThrownBy(() -> provider.sendMessage(CONTEXT,
+                            new SendMessageCommand("c-1", "hi", null, List.of(), UUID.randomUUID())));
             assertThat(provider.sentMessages()).isEmpty();
         }
 

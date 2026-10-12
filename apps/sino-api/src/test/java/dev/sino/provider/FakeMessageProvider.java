@@ -2,6 +2,7 @@ package dev.sino.provider;
 
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -9,7 +10,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Queue;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -64,6 +69,11 @@ public final class FakeMessageProvider implements MessageProvider {
     private final AtomicInteger contentCalls = new AtomicInteger();
     private final AtomicInteger fileCalls = new AtomicInteger();
     private final List<SendMessageCommand> sent = new ArrayList<>();
+    private final Queue<ProviderException> sendFailures = new ArrayDeque<>();
+    private final Map<UUID, String> foundSends = new HashMap<>();
+    private final List<UUID> searches = new ArrayList<>();
+    private CountDownLatch[] held;
+    private boolean findsSends = true;
 
     private FakeMessageProvider(Builder builder) {
         this.type = builder.type;
@@ -174,13 +184,80 @@ public final class FakeMessageProvider implements MessageProvider {
         return OptionalLong.of(estimate);
     }
 
+    /**
+     * Answers with {@code sent-<n>}, the n-th send since the last {@link #forgetSends()}, unless told to fail. A send
+     * held by {@link #holdNextSend} waits outside the lock of this fake, so other calls go on meanwhile.
+     */
     @Override
-    public synchronized SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
+    public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
         if (!capabilities.supports(ProviderCapability.SEND_MESSAGES)) {
             return MessageProvider.super.sendMessage(context, command);
         }
-        sent.add(command);
-        return new SendMessageResult("sent-" + sent.size(), MessageStatus.SENT, null);
+        CountDownLatch[] hold;
+        int number;
+        ProviderException failure;
+        synchronized (this) {
+            sent.add(command);
+            number = sent.size();
+            failure = sendFailures.poll();
+            hold = held;
+            held = null;
+        }
+        if (hold != null) {
+            hold[0].countDown();
+            try {
+                hold[1].await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+        return new SendMessageResult("sent-" + number, MessageStatus.SENT, null);
+    }
+
+    @Override
+    public synchronized Optional<String> findSentMessage(ProviderContext context, UUID clientMessageId) {
+        searches.add(clientMessageId);
+        if (!findsSends) {
+            return MessageProvider.super.findSentMessage(context, clientMessageId);
+        }
+        return Optional.ofNullable(foundSends.get(clientMessageId));
+    }
+
+    /** The next send counts {@code entered} down, then waits for {@code release} before it answers. */
+    public synchronized void holdNextSend(CountDownLatch entered, CountDownLatch release) {
+        held = new CountDownLatch[] { entered, release };
+    }
+
+    /** {@code false}: {@link #findSentMessage} cannot tell, as a connector without it does. */
+    public synchronized void findsSends(boolean finds) {
+        findsSends = finds;
+    }
+
+    /** The next sends fail with these, one each, in order; the send is still recorded. */
+    public synchronized void failNextSends(ProviderException... failures) {
+        sendFailures.addAll(List.of(failures));
+    }
+
+    /** {@link #findSentMessage} finds the message Sino gave {@code clientMessageId} under {@code externalMessageId}. */
+    public synchronized void sent(UUID clientMessageId, String externalMessageId) {
+        foundSends.put(clientMessageId, externalMessageId);
+    }
+
+    /** What a test sent or searched for before, and what it set up for sending, is forgotten. */
+    public synchronized void forgetSends() {
+        sent.clear();
+        sendFailures.clear();
+        foundSends.clear();
+        searches.clear();
+        held = null;
+        findsSends = true;
+    }
+
+    public synchronized List<UUID> searchedSends() {
+        return List.copyOf(searches);
     }
 
     @Override

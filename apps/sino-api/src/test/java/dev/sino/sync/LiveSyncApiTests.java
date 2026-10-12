@@ -135,6 +135,32 @@ class LiveSyncApiTests {
                 .andExpect(jsonPath("$.pushExpiresAt").value(nullValue()));
     }
 
+    // D-132: after reading the account, the sync asks the provider about a send that got no answer.
+    @Test
+    void aSyncSettlesAMessageWhoseSendGotNoAnswer() throws Exception {
+        UUID account = imported(owner);
+        UUID clientMessageId = UUID.randomUUID();
+        jdbc.update("""
+                insert into message (conversation_id, external_message_id, direction, type, text_content, status,
+                                     sent_at, is_read, provider_read, client_message_id, body_format,
+                                     created_at, updated_at)
+                select c.id, ?, 'OUTBOUND', 'TEXT', 'ok', 'UNKNOWN', now(), true, true, ?, 'TEXT', now(), now()
+                from conversation c where c.account_id = ? limit 1
+                """, "sino:" + clientMessageId, clientMessageId, account);
+        FakeMessageProvider provider = twoPages().build();
+        provider.sent(clientMessageId, "m-sent");
+        connector.use(provider);
+
+        syncNow(account).andExpect(status().isAccepted());
+
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        while (!"SENT".equals(statusOf(clientMessageId)) && System.nanoTime() < deadline) {
+            Thread.sleep(25);
+        }
+        assertThat(statusOf(clientMessageId)).isEqualTo("SENT");
+        assertThat(provider.searchedSends()).containsExactly(clientMessageId);
+    }
+
     @Test
     void aFailedSyncIsRecordedWithoutFailingTheImportAndTheNextOneClearsIt() throws Exception {
         UUID account = imported(owner);
@@ -460,6 +486,11 @@ class LiveSyncApiTests {
 
     private ResultActions syncNow(UUID account) throws Exception {
         return mvc.perform(post("/api/accounts/{id}/sync", account).with(apiUser()).with(csrf()));
+    }
+
+    private String statusOf(UUID clientMessageId) {
+        return jdbc.queryForObject("select status from message where client_message_id = ?", String.class,
+                clientMessageId);
     }
 
     private Map<String, Object> row(UUID account) {

@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import dev.sino.account.ProviderAccess;
 import dev.sino.common.error.SinoException;
 import dev.sino.conversation.ConversationStore;
+import dev.sino.conversation.SentMessages;
 import dev.sino.conversation.StoreResult;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.SyncBatch;
@@ -35,7 +36,7 @@ import dev.sino.sync.infrastructure.SyncCheckpoints.Checkpoint;
 /**
  * Reads the mail of one account in the background, page after page: its first import (F05 design, section 3), then
  * the syncs that keep it up to date from the saved cursor (F07, D-79); the account is watched once its import is done
- * (D-76). The connector is called outside any
+ * (D-76), and a sync ends by settling the sends that got no answer (D-132). The connector is called outside any
  * transaction; storing a page and moving the cursor on are one transaction, so a failure never moves the cursor past
  * mail that was not stored. Logs name the account, item IDs and error codes, never mail or tokens.
  */
@@ -53,6 +54,7 @@ class ImportRunner implements DisposableBean {
     private final InitialSyncProperties properties;
     private final ApplicationEventPublisher events;
     private final PushWatches watches;
+    private final SentMessages sent;
     // One virtual thread per account being read (D-69): reading mostly waits for the provider. Kept here rather than
     // as a bean, so Spring Boot keeps its own task executor.
     private final ExecutorService executor = Executors.newThreadPerTaskExecutor(
@@ -63,7 +65,7 @@ class ImportRunner implements DisposableBean {
 
     ImportRunner(ProviderAccess access, ConversationStore store, SyncCheckpoints checkpoints,
             TransactionTemplate transactions, InitialSyncProperties properties, ApplicationEventPublisher events,
-            PushWatches watches) {
+            PushWatches watches, SentMessages sent) {
         this.access = access;
         this.store = store;
         this.checkpoints = checkpoints;
@@ -71,6 +73,7 @@ class ImportRunner implements DisposableBean {
         this.properties = properties;
         this.events = events;
         this.watches = watches;
+        this.sent = sent;
     }
 
     /**
@@ -148,9 +151,13 @@ class ImportRunner implements DisposableBean {
             } else {
                 return;
             }
-            if (readPages(accountId, pass) && pass == Pass.IMPORT) {
-                // From now on the provider can tell Sino of new mail (D-76).
-                watches.watch(accountId);
+            if (readPages(accountId, pass)) {
+                if (pass == Pass.IMPORT) {
+                    // From now on the provider can tell Sino of new mail (D-76).
+                    watches.watch(accountId);
+                } else {
+                    settleSends(accountId);
+                }
             }
         } catch (InterruptedException stopped) {
             Thread.currentThread().interrupt();
@@ -166,6 +173,17 @@ class ImportRunner implements DisposableBean {
                 return;
             }
             fail(accountId, pass, "INTERNAL", failure);
+        }
+    }
+
+    // D-132: with the account just read, a sent message the provider has is now stored; the sync stays a success
+    // whatever this does.
+    private void settleSends(UUID accountId) {
+        try {
+            sent.reconcile(accountId);
+        } catch (RuntimeException failure) {
+            log.warn("Sync of account {}: sent messages not settled ({})", accountId,
+                    failure.getClass().getSimpleName());
         }
     }
 

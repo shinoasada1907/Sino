@@ -190,7 +190,7 @@ class RealGmailTests {
         GmailProperties properties = gmail.getIfAvailable();
         assumeTrue(properties != null, "Gmail is off: set the Google client in .env");
         return new GmailApi(properties.userInfoUri(), properties.gmailApiUri(), GmailProvider.CONNECT_TIMEOUT,
-                GmailProvider.READ_TIMEOUT, GmailProvider.FILE_READ_TIMEOUT);
+                GmailProvider.READ_TIMEOUT, GmailProvider.FILE_READ_TIMEOUT, GmailProvider.SEND_TIMEOUT);
     }
 
     private static void count(GmailApi api, String token, GmailMessage message, Map<String, Object> found) {

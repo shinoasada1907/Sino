@@ -21,12 +21,15 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
 
+import dev.sino.conversation.SentMessages;
+
 @ExtendWith(OutputCaptureExtension.class)
 class LiveSyncScheduleTests {
 
     private final LiveSyncScheduler scheduler = mock(LiveSyncScheduler.class);
     private final PushWatches watches = mock(PushWatches.class);
-    private final LiveSyncSchedule schedule = new LiveSyncSchedule(scheduler, watches);
+    private final SentMessages sent = mock(SentMessages.class);
+    private final LiveSyncSchedule schedule = new LiveSyncSchedule(scheduler, watches, sent);
 
     @AfterEach
     void closeTheSchedule() {
@@ -86,6 +89,38 @@ class LiveSyncScheduleTests {
             Thread.sleep(20);
         }
         verify(watches, times(2)).renewDueWatches();
+    }
+
+    @Test
+    void settlingSendsThatFailsIsLoggedOnceAndTheScheduleGoesOn(CapturedOutput output) {
+        doThrow(new DataAccessResourceFailureException("database down")).doThrow(
+                new DataAccessResourceFailureException("database down")).doNothing().when(sent).reconcileAll();
+
+        assertThatNoException().isThrownBy(() -> {
+            schedule.settleSends();
+            schedule.settleSends();
+            schedule.settleSends();
+        });
+
+        assertThat(output.getAll().split("Sent messages cannot be settled", -1)).hasSize(2);
+        assertThat(output.getAll()).contains("Sent messages are settled again");
+    }
+
+    // Settling asks the provider about each message: never on the scheduling thread, one round at a time.
+    @Test
+    void settlingSendsRunsBesideTheScheduleOneRoundAtATime() throws Exception {
+        CountDownLatch slowProvider = new CountDownLatch(1);
+        doAnswer(invocation -> slowProvider.await(10, TimeUnit.SECONDS)).when(sent).reconcileAll();
+
+        long started = System.nanoTime();
+        schedule.checkSentMessages();
+        verify(sent, timeout(5_000)).reconcileAll();
+        schedule.checkSentMessages();
+        assertThat(Duration.ofNanos(System.nanoTime() - started)).as("returns at once").isLessThan(
+                Duration.ofSeconds(5));
+        Thread.sleep(100);
+        verify(sent, times(1)).reconcileAll();
+        slowProvider.countDown();
     }
 
 }

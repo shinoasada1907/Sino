@@ -68,7 +68,7 @@ class GmailProviderTests {
         assertThat(gmail.type()).isEqualTo(ProviderType.of("gmail"));
         assertThat(gmail.displayName()).isEqualTo("Gmail");
         assertThat(gmail.capabilities()).isEqualTo(ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
-                ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS));
+                ProviderCapability.SEND_MESSAGES, ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS));
     }
 
     @Test

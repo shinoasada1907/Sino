@@ -45,7 +45,7 @@ Server MUST ghi thư đi `PENDING` cùng `clientMessageId` trước khi gọi pr
 - **THEN** cuộc trò chuyện vẫn chỉ có một dòng cho thư đó
 
 ### Requirement: Gửi lỗi và kết quả không rõ
-Provider từ chối (4xx), giới hạn tần suất, hoặc không kết nối được MUST làm thư thành `FAILED` và trả `502 SEND_FAILED` kèm `messageId`. Hết 15 giây, mất kết nối sau khi request đã đi, hoặc provider lỗi 5xx MUST làm thư thành `UNKNOWN` và trả `504 SEND_OUTCOME_UNKNOWN` kèm `messageId`; server MUST NOT tự gửi lại thư `UNKNOWN`. Lượt đồng bộ của account MUST đối chiếu các thư `UNKNOWN` cũ hơn 1 phút với provider (Gmail: tìm theo `Message-ID` do Sino đặt): thấy thì `SENT`, không thấy sau 10 phút thì `FAILED`. Provider báo hết quyền lúc gửi MUST làm thư `FAILED`, account `AUTH_EXPIRED`, và trả `409 REPLY_NOT_ALLOWED`.
+Provider từ chối (4xx), giới hạn tần suất, hoặc không kết nối được MUST làm thư thành `FAILED` và trả `502 SEND_FAILED` kèm `messageId`. Hết 15 giây, mất kết nối sau khi request đã đi, hoặc provider lỗi 5xx MUST làm thư thành `UNKNOWN` và trả `504 SEND_OUTCOME_UNKNOWN` kèm `messageId`; server MUST NOT tự gửi lại thư `UNKNOWN`. Lượt đồng bộ của account, và một nhịp riêng mỗi phút không phụ thuộc đồng bộ (account tạm dừng đồng bộ cũng vậy), MUST đối chiếu các thư `UNKNOWN` cũ hơn 1 phút với provider (Gmail: tìm theo `Message-ID` do Sino đặt): thấy thì `SENT`, không thấy sau 10 phút thì `FAILED`; connector không tìm được thì thư MUST giữ `UNKNOWN`. Thư `PENDING` quá 5 phút MUST được đối chiếu như vậy. Provider báo hết quyền lúc gửi MUST làm thư `FAILED`, account `AUTH_EXPIRED`, và trả `409 REPLY_NOT_ALLOWED`. Thư Sino gửi mà chưa `SENT` MUST NOT đổi tóm tắt của cuộc trò chuyện (thư mới nhất, "Cần trả lời"). `reply.to` rỗng MUST trả `422 REPLY_NO_RECIPIENT`, không ghi thư và không gọi provider.
 
 #### Scenario: Gmail không trả lời kịp
 - **WHEN** lời gọi gửi hết 15 giây
@@ -58,6 +58,14 @@ Provider từ chối (4xx), giới hạn tần suất, hoặc không kết nối
 #### Scenario: Gửi lại sau khi lỗi
 - **WHEN** thư `FAILED` và web gọi lại cùng `clientMessageId`
 - **THEN** server gửi lại và response là `201`
+
+#### Scenario: Account tạm dừng đồng bộ
+- **WHEN** account của một thư `UNKNOWN` đang tạm dừng đồng bộ và provider có thư đó
+- **THEN** trong vòng một phút thư thành `SENT`, không cần lượt đồng bộ nào
+
+#### Scenario: Thư trả lời bị từ chối
+- **WHEN** cuộc trò chuyện đang "Cần trả lời" và thư trả lời từ Sino thành `FAILED`
+- **THEN** cuộc trò chuyện vẫn "Cần trả lời" và dòng xem trước vẫn là thư đến
 
 ### Requirement: Bỏ thư gửi lỗi
 `DELETE /api/conversations/{id}/messages/{messageId}` MUST xóa thư `FAILED` do Sino gửi và trả `204`; thư khác MUST trả `409 MESSAGE_NOT_DELETABLE`; không có MUST trả `404 MESSAGE_NOT_FOUND`.

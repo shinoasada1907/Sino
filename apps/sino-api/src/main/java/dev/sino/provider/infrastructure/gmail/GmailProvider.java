@@ -1,15 +1,18 @@
 package dev.sino.provider.infrastructure.gmail;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.UUID;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
@@ -23,19 +26,23 @@ import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.AttachmentContent;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageProvider;
+import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.OAuth2Connection;
 import dev.sino.provider.spi.OAuth2Credentials;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
+import dev.sino.provider.spi.SendMessageCommand;
+import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.provider.spi.SkippedItem;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 
 /**
  * The Gmail connector: who the account is, how it connects, and its mail (F04b); with a Pub/Sub topic, Gmail also
- * tells Sino of changes (D-76). Reads only; every call to Google goes through {@link GmailApi}, with a time limit.
+ * tells Sino of changes (D-76). Reads mail and sends replies (F10); every call to Google goes through
+ * {@link GmailApi}, with a time limit.
  */
 class GmailProvider implements MessageProvider {
 
@@ -49,6 +56,8 @@ class GmailProvider implements MessageProvider {
     static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
     /** A 25 MB file is about 33 MB of base64: 60 s is enough down to about 0.6 MB/s. */
     static final Duration FILE_READ_TIMEOUT = Duration.ofSeconds(60);
+    /** Past it, whether a message went out is unknown rather than failed (D-131, D-132). */
+    static final Duration SEND_TIMEOUT = Duration.ofSeconds(15);
     // Ten calls at most before the "Đồng bộ" step shows a number.
     static final long COUNTED_AT_MOST = 5_000;
 
@@ -57,9 +66,10 @@ class GmailProvider implements MessageProvider {
     private static final Map<String, String> CONSENT_PARAMETERS = Map.of("access_type", "offline",
             "prompt", "consent", "include_granted_scopes", "true");
     private static final ProviderCapabilities CAPABILITIES = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
-            ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS);
+            ProviderCapability.SEND_MESSAGES, ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS);
     private static final ProviderCapabilities WITH_PUSH = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
-            ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS, ProviderCapability.PUSH_WEBHOOK);
+            ProviderCapability.SEND_MESSAGES, ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS,
+            ProviderCapability.PUSH_WEBHOOK);
     // Not mail of the inbox: Sino leaves these out without counting them as skipped.
     private static final Set<String> HIDDEN_LABELS = Set.of("DRAFT", "SPAM", "TRASH");
 
@@ -80,9 +90,15 @@ class GmailProvider implements MessageProvider {
 
     GmailProvider(URI userInfoUri, URI gmailApiUri, URI revocationUri, Duration connectTimeout,
             Duration readTimeout, String pubsubTopic) {
+        this(userInfoUri, gmailApiUri, revocationUri, connectTimeout, readTimeout, pubsubTopic, SEND_TIMEOUT);
+    }
+
+    GmailProvider(URI userInfoUri, URI gmailApiUri, URI revocationUri, Duration connectTimeout,
+            Duration readTimeout, String pubsubTopic, Duration sendTimeout) {
         this.connection = new OAuth2Connection(REGISTRATION_ID, SCOPES, Set.of(GMAIL_READONLY), Set.of(GMAIL_SEND),
                 CONSENT_PARAMETERS, revocationUri);
-        this.api = new GmailApi(userInfoUri, gmailApiUri, connectTimeout, readTimeout, FILE_READ_TIMEOUT);
+        this.api = new GmailApi(userInfoUri, gmailApiUri, connectTimeout, readTimeout, FILE_READ_TIMEOUT,
+                sendTimeout);
         this.pubsubTopic = pubsubTopic;
     }
 
@@ -214,6 +230,37 @@ class GmailProvider implements MessageProvider {
         }
         return new SyncBatch(GmailMessageNormalizer.threadsOf(messages),
                 messages.stream().map(NormalizedGmailMessage::message).toList(), skipped, next.toSyncCursor(), more);
+    }
+
+    /**
+     * Sends a plain text reply in the thread (D-133): from the address of the profile, with the subject and thread
+     * headers of the message it answers when Gmail still has it, marked with a {@code Message-ID} made of
+     * {@code clientMessageId}. A failure before {@code messages.send} leaves the message unsent.
+     */
+    @Override
+    public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
+        String accessToken = accessTokenOf(context);
+        String from = api.profile(accessToken).emailAddress();
+        Optional<Part> answered = Optional.ofNullable(command.replyToExternalMessageId())
+                .flatMap(id -> api.metadata(accessToken, id)).map(GmailMessage::payload);
+        GmailReply reply = new GmailReply(from, command.to(),
+                GmailReply.subjectOf(answered.flatMap(part -> part.header("Subject")).map(MailHeaders::decode)
+                        .orElse(null)),
+                GmailReply.messageIdOf(command.clientMessageId(), from),
+                answered.flatMap(part -> part.header("Message-ID")).orElse(null),
+                answered.flatMap(part -> part.header("References")).orElse(null), command.textContent());
+        String raw = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(reply.mime().getBytes(StandardCharsets.UTF_8));
+        return new SendMessageResult(api.send(accessToken, raw, command.externalConversationId()).id(),
+                MessageStatus.SENT, null);
+    }
+
+    /** Searches the mailbox for the {@code Message-ID} the send gave the message ({@code rfc822msgid:}). */
+    @Override
+    public Optional<String> findSentMessage(ProviderContext context, UUID clientMessageId) {
+        String accessToken = accessTokenOf(context);
+        String from = api.profile(accessToken).emailAddress();
+        return api.messageIdWithHeader(accessToken, GmailReply.messageIdOf(clientMessageId, from));
     }
 
     /**

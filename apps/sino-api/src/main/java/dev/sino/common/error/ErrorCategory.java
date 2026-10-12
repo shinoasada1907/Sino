@@ -24,6 +24,12 @@ public enum ErrorCategory {
     /** The provider failed while Sino acted on it for the caller, so the result could not be had (502). */
     PROVIDER_FAILED,
 
+    /**
+     * The provider took a change but gave no answer, so whether it made it is unknown; Sino finds out later rather
+     * than trying again (504, F10).
+     */
+    PROVIDER_OUTCOME_UNKNOWN,
+
     /** Too many requests to us or to a provider (429). */
     RATE_LIMITED
 
