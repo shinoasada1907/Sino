@@ -6,6 +6,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { InboxPage } from '@/features/inbox/InboxPage'
 import { OverviewPage } from '@/features/overview/OverviewPage'
+import { NotesPage } from '@/features/notes/NotesPage'
 import { TasksPage } from '@/features/tasks/TasksPage'
 import { NotFoundPage } from './NotFoundPage'
 import { MorePage } from './shell/MorePage'
@@ -19,6 +20,7 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/inbox': { element: <InboxPage />, handle: { mobilePageHeader: true } },
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
   '/tasks': { element: <TasksPage />, handle: { mobilePageHeader: true } },
+  '/notes': { element: <NotesPage />, handle: { mobilePageHeader: true } },
   '/calendar': { element: <CalendarPage />, handle: { mobilePageHeader: true } },
   '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
 }
@@ -61,6 +63,16 @@ export const routes: RouteObject[] = [
           {
             path: 'tasks/:taskId/edit',
             element: <TasksPage />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
+            path: 'notes/new',
+            element: <NotesPage />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
+            path: 'notes/:noteId',
+            element: <NotesPage />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
           },
           {

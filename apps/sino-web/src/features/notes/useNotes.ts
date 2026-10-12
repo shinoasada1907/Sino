@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { createNote, deleteNote, fetchNotes, saveNote } from './notes.api'
 import type { NoteChange, NoteItem, NotesData } from './notes.types'
 
+/** The state of the navigation from `/notes/new` to the note it became: the same editor stays, typing goes on (D-203). */
+export const FROM_NEW = { noteFromNew: true }
+
 /** Every note of the owner (D-42: sample data until F15). */
 export const NOTES_QUERY_KEY = ['notes'] as const
 

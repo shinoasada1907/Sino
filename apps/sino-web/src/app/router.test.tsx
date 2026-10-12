@@ -22,10 +22,11 @@ describe('routes', () => {
   it('opens the screen of a navigation item when it is clicked', async () => {
     const { router } = renderApp('/overview')
 
-    await userEvent.click(await within(shellPart('sidebar')).findByRole('link', { name: 'Ghi chú' }))
+    await userEvent.click(await within(shellPart('sidebar')).findByRole('link', { name: 'Dịch vụ' }))
 
-    expect(router.state.location.pathname).toBe('/notes')
-    expect(await screen.findByRole('heading', { name: 'Màn Ghi chú đang được dựng' })).toBeInTheDocument()
+    // A screen not built yet (Ghi chú has its own since fe-ui-notes).
+    expect(router.state.location.pathname).toBe('/services')
+    expect(await screen.findByRole('heading', { name: 'Màn Dịch vụ đang được dựng' })).toBeInTheDocument()
   })
 
   it('shows the 404 page for an unknown path, outside the shell', async () => {

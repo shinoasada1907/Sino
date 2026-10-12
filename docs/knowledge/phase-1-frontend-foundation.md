@@ -1259,6 +1259,22 @@ Người Việt hay gõ không dấu khi tìm ("thanh toan"). `normalize('NFD')`
 ### 20.4 Vì sao test hook cần `waitFor`
 `mutateAsync` xong thì cache đã đổi, nhưng TanStack báo cho component qua một nhịp hẹn giờ sau đó (gom nhiều thay đổi thành một lần vẽ). Kiểm ngay sau `act` có thể còn thấy dữ liệu cũ; `waitFor` chờ tới khi điều kiện đúng.
 
+### 20.5 Tự lưu bằng hẹn giờ và `useRef` (NT-02)
+Mỗi lần gõ, ô soạn hủy hẹn giờ cũ và hẹn một lần lưu sau 600 ms (debounce). Rời ô (`onBlur`) hay rời ghi chú (dọn dẹp của `useEffect` khi component bị gỡ) thì lưu ngay.
+
+```text
+gõ "a" -> hẹn 600ms -> gõ "b" -> hủy, hẹn lại 600ms -> ... ngừng gõ -> lưu một lần
+rời ô / rời ghi chú ------------------------------------------------> lưu ngay
+```
+
+Hàm lưu chạy **sau** lần vẽ đã hẹn nó, nên nó không được đọc biến của lần vẽ cũ (closure cũ): giá trị mới nhất nằm trong `useRef`, được cập nhật trong một `useEffect` sau mỗi lần vẽ. Ref không làm component vẽ lại, và luôn giữ giá trị mới nhất.
+
+### 20.6 Ghi chú mới giữ nguyên ô soạn khi đổi địa chỉ
+`/notes/new` chỉ tạo ghi chú khi đã có chữ, rồi thay địa chỉ bằng `/notes/{id}`. Nếu React gỡ ô soạn cũ và dựng ô mới (vì `key` đổi theo `noteId`), con trỏ sẽ mất giữa lúc đang gõ. Lần chuyển trang đó mang `state: FROM_NEW`, và trang giữ `key="new"` khi thấy state này, nên React giữ nguyên component: chữ và con trỏ không đổi.
+
+### 20.7 Nút bật/tắt giữ tên, nói trạng thái
+"Ghim" là một nút bật/tắt: tên luôn là "Ghim", còn trạng thái nằm ở `aria-pressed="true|false"`. Trình đọc màn hình đọc "Ghim, nút bật/tắt, đang bật". Đổi tên thành "Bỏ ghim" kèm `aria-pressed` thì người nghe nhận hai thông tin trái nhau.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1398,3 +1414,5 @@ Người Việt hay gõ không dấu khi tìm ("thanh toan"). `normalize('NFD')`
 135. Vì sao `502`/`504` của thư mới lại chuyển sang một cuộc trò chuyện, trong khi lỗi mạng thì ở lại form?
 136. `normalize('NFD')` làm gì với "thanh toán", và vì sao "đ" phải đổi riêng?
 137. Vì sao dữ liệu mẫu của Ghi chú cần `staleTime: Infinity`? Khi nối API thật thì nên đổi thế nào?
+138. Debounce 600 ms của tự lưu hoạt động thế nào? Vì sao hàm lưu đọc giá trị từ `useRef` chứ không từ biến của lần vẽ?
+139. Vì sao chuyển từ `/notes/new` sang `/notes/{id}` không được làm mất con trỏ, và `key` của component liên quan gì?
