@@ -1187,6 +1187,34 @@ thread 1a12fae4...        thread 1a12fadf...
   PATCH /api/conversations/c-1 { read: true }             (một lần)
 ```
 
+## 19. Tạo thư mới (f10-new-mail, phía web)
+
+### 19.0 Bức tranh
+Trước đây Sino chỉ trả lời trong một cuộc trò chuyện. Change `f10-new-mail` (D-190…D-197) thêm nút "Thư mới" và trang `/inbox/new`: ô soạn nằm ở chỗ đọc thư, giống như mở một cuộc trò chuyện. Backend sẽ tạo cuộc trò chuyện ngay khi bấm Gửi (D-192); phần gửi của web là FE-84.
+
+```text
+/inbox            -> danh sách | "Chọn một cuộc trò chuyện để đọc."
+/inbox/new        -> danh sách | ô soạn: Từ, Tới, Tiêu đề, Nội dung, [Bỏ] [Gửi]
+/inbox/c-1        -> danh sách | cuộc trò chuyện c-1
+(mobile: cột phải thành trang riêng, có nút quay lại, ẩn thanh dưới)
+```
+
+### 19.1 Route tĩnh đứng cạnh route có tham số (FE-83)
+`inbox/new` và `inbox/:conversationId` đều khớp đường dẫn `/inbox/new`. React Router xếp hạng route theo độ cụ thể: một đoạn tĩnh (`new`) thắng một tham số (`:conversationId`), nên không cần thủ thuật gì. Cả hai route dùng cùng `InboxPage`; route mới truyền `compose`, nên một component vẫn lo cả bố cục ba cỡ màn.
+
+### 19.2 Hỏi trước khi rời trang: hai đường khác nhau
+- **Trong app** (bấm thư khác, quay lại, "Bỏ"): `useBlocker` của React Router chặn lần chuyển trang khi hàm điều kiện trả `true`, rồi cho `blocker.proceed()` (đi tiếp) hoặc `blocker.reset()` (ở lại). Nó chỉ chạy với data router (`createBrowserRouter`), mà app đã dùng sẵn.
+- **Đóng hay tải lại tab:** trình duyệt không cho trang tự vẽ hộp hỏi. Trang chỉ được gọi `event.preventDefault()` trong `beforeunload`, và trình duyệt hiện hộp hỏi bằng lời của nó.
+- Khi gửi xong, FE-84 sẽ chuyển trang kèm `state: LEAVE_FREELY`, và hàm điều kiện bỏ qua lần chuyển đó, nên thư vừa gửi không bị hỏi "Bỏ thư?".
+
+### 19.3 Kiểm dữ liệu ở web, rồi server kiểm lại
+`parseRecipients` tách "Tới" theo dấu phẩy, chấm phẩy, xuống dòng, bỏ trùng không phân biệt hoa thường, và tách riêng những gì không phải địa chỉ. Web kiểm để báo ngay dưới ô; server vẫn kiểm lại cùng quy tắc (`400 VALIDATION_FAILED`), vì không bao giờ tin dữ liệu từ trình duyệt cho một hành động gửi ra ngoài. Ô sai có `aria-invalid` và `aria-describedby` trỏ tới câu báo, để trình đọc màn hình đọc lỗi cùng ô.
+
+### 19.4 Ba bài học nhỏ từ Chrome và lint
+- **Một hàng bị ẩn làm lệch lưới:** form ban đầu là lưới ba hàng `[auto, 1fr, auto]`. Trên mobile phần đầu bị `display: none`, nên các phần tử còn lại dồn lên: thanh nút rơi vào hàng `1fr` và bị kéo cao giữa màn. Flex dọc không có "hàng" cố định, nên phần tử ẩn không làm lệch gì.
+- **Fast refresh:** Vite chỉ thay nóng được một file khi file đó chỉ xuất component. `NewMail.tsx` từng xuất cả hằng số, nên lint cảnh báo `only-export-components`; hằng số, kiểu và hàm đọc `localStorage` chuyển sang `newMail.ts`.
+- **Test đếm link:** ba helper `rowTitles` coi mọi link trong vùng danh sách là một dòng thư. Nút "Thư mới" cũng là link trong vùng đó, nên helper giờ chỉ lấy link có dấu của dòng (`data-slot="row-title"`). Ý của test giữ nguyên, chỉ nói rõ hơn.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1319,3 +1347,6 @@ thread 1a12fae4...        thread 1a12fadf...
 128. Vì sao `accountIds` bắt buộc trong kiểu của màn hình nhưng không bắt buộc trong kiểu của API? Ai điền nó khi backend chưa có?
 129. Hai bản của một chuỗi ở hai hộp thư Gmail có chung thứ gì, và vì sao không gom theo tiêu đề?
 130. Vì sao chuyển mã của bản khác về mã của nhóm dùng `replace: true`? Nếu đánh dấu đã đọc trước khi chuyển thì có mấy `PATCH`?
+131. `/inbox/new` khớp cả `inbox/new` lẫn `inbox/:conversationId`. React Router chọn route nào, và vì sao?
+132. Vì sao hỏi "Bỏ thư đang soạn?" cần hai cơ chế (`useBlocker` và `beforeunload`)? Trang tự vẽ được hộp hỏi khi đóng tab không?
+133. Vì sao một phần tử `display: none` làm lệch lưới `grid-rows-[auto_1fr_auto]` mà không làm lệch flex dọc?

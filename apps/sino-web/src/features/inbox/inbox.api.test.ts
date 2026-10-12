@@ -39,6 +39,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
         status: 'CONNECTED',
         syncProgress: null,
         statusChangedAt: null,
+        sending: 'NEEDS_PERMISSION',
       },
       {
         id: 'acc-2',
@@ -48,6 +49,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
         status: 'AUTH_EXPIRED',
         syncProgress: null,
         statusChangedAt: null,
+        sending: 'UNAVAILABLE',
       },
     ])
     expect(inbox.counts).toEqual({
@@ -61,6 +63,24 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       scheduled: 0,
       snoozed: 0,
     })
+  })
+
+  it('says whether each account can send a new mail, from its capabilities, its status and its provider (f10-new-mail, D-193)', async () => {
+    const accounts = [
+      { ...API_ACCOUNTS[0], id: 'ready', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'] },
+      { ...API_ACCOUNTS[0], id: 'read-only', capabilities: ['READ_MESSAGES'] },
+      { ...API_ACCOUNTS[0], id: 'expired', status: 'AUTH_EXPIRED', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'] },
+      { ...API_ACCOUNTS[0], id: 'chat', provider: 'zalo', capabilities: ['READ_MESSAGES'] },
+    ]
+    server.use(
+      http.get('/api/accounts', () => HttpResponse.json(accounts)),
+      http.get('/api/providers', () => HttpResponse.json([...API_PROVIDERS, { type: 'zalo', displayName: 'Zalo', capabilities: ['READ_MESSAGES'] }])),
+      http.get('/api/conversations/counts', () => HttpResponse.json(API_COUNTS)),
+    )
+
+    const sending = Object.fromEntries((await fetchInbox()).accounts.map((account) => [account.id, account.sending]))
+
+    expect(sending).toEqual({ ready: 'READY', 'read-only': 'NEEDS_PERMISSION', expired: 'UNAVAILABLE', chat: 'NOT_SUPPORTED' })
   })
 
   it('asks for one page of a view and a source, and turns the items into the screen contract', async () => {

@@ -28,12 +28,15 @@ interface AccountResponse {
   displayName: string
   address: string | null
   status: AccountStatus
+  /** `SEND_MESSAGES` once the account granted sending (F10, BE-58); absent on an older backend. */
+  capabilities?: string[]
 }
 
 /** One provider of `GET /api/providers` (F03). */
 interface ProviderResponse {
   type: string
   displayName: string
+  capabilities?: string[]
 }
 
 /** `GET /api/conversations/counts`: conversations that are not archived; `byProvider` counts the unread ones. */
@@ -124,8 +127,20 @@ function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse):
   return { ...rest, accountIds: accountIds ?? [rest.accountId], snippet: snippet ?? '', linked: linked ?? [] }
 }
 
-function toAccount({ id, provider, externalAccountId, displayName, address, status }: AccountResponse): InboxAccount {
-  return { id, provider, externalAccountId, address: address ?? displayName, status, syncProgress: null, statusChangedAt: null }
+function toAccount(account: AccountResponse, providers: ProviderResponse[]): InboxAccount {
+  const { id, provider, externalAccountId, displayName, address, status } = account
+  return { id, provider, externalAccountId, address: address ?? displayName, status, syncProgress: null, statusChangedAt: null, sending: sendingOf(account, providers) }
+}
+
+// The same order as the reply state of the backend (F10, BE-58): the provider, then the account's status, then its grant.
+function sendingOf({ provider, status, capabilities }: AccountResponse, providers: ProviderResponse[]): InboxAccount['sending'] {
+  if (!providers.find((entry) => entry.type === provider)?.capabilities?.includes('SEND_MESSAGES')) {
+    return 'NOT_SUPPORTED'
+  }
+  if (status === 'AUTH_EXPIRED' || status === 'DISABLED') {
+    return 'UNAVAILABLE'
+  }
+  return capabilities?.includes('SEND_MESSAGES') ? 'READY' : 'NEEDS_PERMISSION'
 }
 
 // The API does not say who runs a group or who joined lately.
@@ -209,7 +224,7 @@ export async function fetchInbox(): Promise<InboxData> {
   return {
     generatedAt: new Date().toISOString(),
     providers: providers.map(({ type, displayName }): ProviderInfo => ({ type, displayName })),
-    accounts: accounts.map(toAccount),
+    accounts: accounts.map((account) => toAccount(account, providers)),
     counts: { ...counts, byProvider: Object.entries(counts.byProvider).map(([provider, unread]) => ({ provider, unread })) },
   }
 }

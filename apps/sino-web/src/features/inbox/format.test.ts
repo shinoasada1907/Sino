@@ -7,6 +7,7 @@ import {
   bubbleMeta,
   chatDayLabel,
   dayGroupLabel,
+  defaultSender,
   disconnectedSince,
   failureDetail,
   failureReason,
@@ -25,6 +26,7 @@ import {
   newMailText,
   notArrivedSince,
   paragraphs,
+  parseRecipients,
   previewText,
   rowAccounts,
   rowFlag,
@@ -32,6 +34,7 @@ import {
   sendBlock,
   sendBlockText,
   sendState,
+  sendingNote,
   sourceLabel,
   threadMeta,
   threadSubtitle,
@@ -191,6 +194,38 @@ describe('row texts', () => {
   it('counts what is unread', () => {
     expect(unreadLabel(12)).toBe('12 chưa đọc')
     expect(unreadLabel(0)).toBe('Đã đọc hết')
+  })
+})
+
+describe('a new mail (f10-new-mail)', () => {
+  it('splits the recipients on commas, semicolons and lines, drops repeats, and names the invalid ones (D-197)', () => {
+    expect(parseRecipients(' minhanh@acme.vn, An@Congty.vn ;\nan@congty.vn ,, ')).toEqual({ addresses: ['minhanh@acme.vn', 'An@Congty.vn'], invalid: [] })
+    expect(parseRecipients('minhanh@acme.vn, an@, @acme.vn, an@acme, a b@acme.vn, a@@acme.vn')).toEqual({
+      addresses: ['minhanh@acme.vn'],
+      invalid: ['an@', '@acme.vn', 'an@acme', 'a b@acme.vn', 'a@@acme.vn'],
+    })
+    expect(parseRecipients(`${'a'.repeat(247)}@acme.vn`).invalid).toHaveLength(1) // 255 characters
+    expect(parseRecipients('   ')).toEqual({ addresses: [], invalid: [] })
+  })
+
+  it('starts from the account used last while it can send, else the first that can (D-193)', () => {
+    const accounts = [
+      { id: 'expired', sending: 'UNAVAILABLE' as const },
+      { id: 'home', sending: 'READY' as const },
+      { id: 'work', sending: 'READY' as const },
+      { id: 'read-only', sending: 'NEEDS_PERMISSION' as const },
+    ]
+    expect(defaultSender(accounts, 'work')).toBe('work')
+    expect(defaultSender(accounts, 'read-only')).toBe('home')
+    expect(defaultSender(accounts, 'gone')).toBe('home')
+    expect(defaultSender(accounts, null)).toBe('home')
+    expect(defaultSender(accounts.slice(0, 1), null)).toBeNull()
+  })
+
+  it('says why an account cannot send', () => {
+    expect(sendingNote('READY')).toBeNull()
+    expect(sendingNote('NEEDS_PERMISSION')).toBe('Cần cấp quyền gửi')
+    expect(sendingNote('UNAVAILABLE')).toBe('Cần đăng nhập lại')
   })
 })
 

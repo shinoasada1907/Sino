@@ -40,7 +40,8 @@ describe('states of the inbox', () => {
 
     expect(await screen.findByRole('status', { name: 'Đang tải hộp thư' })).toBeInTheDocument()
     expect(list().getByText('đang tải')).toBeInTheDocument()
-    expect(list().queryAllByRole('link')).toHaveLength(0)
+    // No rows; "Thư mới" stays (f10-new-mail).
+    expect(list().queryAllByRole('link').filter((link) => link.querySelector('[data-slot="row-title"]'))).toHaveLength(0)
   })
 
   it('shows the first sync of an account while nothing has arrived yet', async () => {

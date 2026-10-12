@@ -16,7 +16,11 @@ function open(path: string) {
 }
 
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
-const rowTitles = () => list().queryAllByRole('link').map((link) => link.querySelector('[data-slot="row-title"]')?.textContent)
+// Rows only: the list also has "Thư mới" (f10-new-mail).
+const rowTitles = () =>
+  list()
+    .queryAllByRole('link')
+    .flatMap((link) => link.querySelector('[data-slot="row-title"]')?.textContent ?? [])
 /** The page's own mobile header: a <header> inside <main> is no landmark, so it is found through its heading. */
 const mobileHeader = (heading: HTMLElement) => heading.closest('header')!
 

@@ -1,4 +1,4 @@
-import { Calendar, CalendarClock, ChevronDown, Clock, ListFilter, Paperclip, Search, SquareCheck, StickyNote, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { Calendar, CalendarClock, ChevronDown, Clock, ListFilter, Paperclip, Search, SquareCheck, SquarePen, StickyNote, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
@@ -101,7 +101,12 @@ export function ConversationList({
       <header className="flex min-h-15 items-center gap-1 py-2 pr-2 pl-4 md:hidden">
         <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.018em]">Hộp thư</h1>
         <Spec className="ml-2.5 pt-1.5">{unread}</Spec>
-        <Button type="button" variant="ghost" size="icon" aria-label="Tìm kiếm" className="ml-auto">
+        <Button asChild variant="ghost" size="icon" className="ml-auto">
+          <Link to={{ pathname: '/inbox/new', search }} aria-label="Thư mới">
+            <SquarePen strokeWidth={1.6} />
+          </Link>
+        </Button>
+        <Button type="button" variant="ghost" size="icon" aria-label="Tìm kiếm">
           <Search strokeWidth={1.6} />
         </Button>
         <Button type="button" variant="ghost" size="icon" aria-label="Bộ lọc">
@@ -165,12 +170,14 @@ export function ConversationList({
                 {tab.label}
               </button>
             ))}
+            <NewMailLink search={search} className="ml-auto" />
           </div>
         )}
         <div className="sticky top-0 z-1 hidden flex-col gap-3.5 border-b bg-background px-4 pt-5 pb-3.5 xl:flex">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
             <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Hộp thư</h1>
-            <Spec>{unread}</Spec>
+            <Spec className="ml-auto">{unread}</Spec>
+            <NewMailLink search={search} />
           </div>
           {filters && <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />}
         </div>
@@ -352,6 +359,18 @@ function ListEnd({ more: { hasMore, loading, failed, load } }: { more: LoadMore 
       </Button>
     </div>
   ) : null
+}
+
+/** "Thư mới" (f10-new-mail, D-191): opens the form of a new mail, keeping the filter of the list. */
+function NewMailLink({ search, className }: { search: string; className?: string }) {
+  return (
+    <Button asChild variant="secondary" size="sm" className={className}>
+      <Link to={{ pathname: '/inbox/new', search }}>
+        <SquarePen strokeWidth={1.6} />
+        Thư mới
+      </Link>
+    </Button>
+  )
 }
 
 function FlagGlyph({ kind }: { kind: RowFlag['kind'] }) {

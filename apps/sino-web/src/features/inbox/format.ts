@@ -10,7 +10,7 @@ import {
   weekdayNumbered,
   weekdayShort,
 } from '@/shared/time/local'
-import type { ConversationItem, InboxData, LinkedItem, LinkedKind, Member, Message, Recipient } from './inbox.types'
+import type { AccountSending, ConversationItem, InboxData, LinkedItem, LinkedKind, Member, Message, Recipient } from './inbox.types'
 
 export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
 export interface InboxFilter {
@@ -207,6 +207,47 @@ export function formatFileSize(bytes: number | null): string | null {
   }
   const megabytes = (bytes / (1024 * 1024)).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   return `${megabytes} MB`
+}
+
+/** At most this many people on a new mail (f10-new-mail, D-197). */
+export const MAX_RECIPIENTS = 50
+
+/**
+ * The recipients of a new mail (D-197): split on commas, semicolons and lines, repeats dropped whatever their case, and
+ * the ones that are not an address: one `@`, something before it, a dotted domain after it, no space, at most 254
+ * characters.
+ */
+export function parseRecipients(text: string): { addresses: string[]; invalid: string[] } {
+  const addresses: string[] = []
+  const invalid: string[] = []
+  const seen = new Set<string>()
+  for (const entry of text.split(/[,;\n]/).map((part) => part.trim())) {
+    if (entry === '' || seen.has(entry.toLowerCase())) {
+      continue
+    }
+    seen.add(entry.toLowerCase())
+    const valid = entry.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry)
+    ;(valid ? addresses : invalid).push(entry)
+  }
+  return { addresses, invalid }
+}
+
+/** The account a new mail starts from: the one used last in this browser while it can send, else the first that can (D-193). */
+export function defaultSender(accounts: { id: string; sending: AccountSending }[], remembered: string | null): string | null {
+  const ready = accounts.filter((account) => account.sending === 'READY')
+  return (ready.find((account) => account.id === remembered) ?? ready[0])?.id ?? null
+}
+
+/** Why an account cannot send a new mail; null when it can. */
+export function sendingNote(sending: AccountSending): string | null {
+  switch (sending) {
+    case 'NEEDS_PERMISSION':
+      return 'Cần cấp quyền gửi'
+    case 'UNAVAILABLE':
+      return 'Cần đăng nhập lại'
+    default:
+      return null
+  }
 }
 
 /** "Bạn · tienct07@gmail.com": in a thread of several accounts an own email says which address it went from (f05b, D-184). */

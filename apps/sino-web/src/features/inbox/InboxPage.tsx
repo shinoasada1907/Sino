@@ -13,6 +13,7 @@ import { ConversationAvatars } from './components/ConversationAvatars'
 import { ConversationInfo } from './components/ConversationInfo'
 import { ConversationList } from './components/ConversationList'
 import { EmailThread } from './components/EmailThread'
+import { NewMail } from './components/NewMail'
 import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
 import { SourcePane } from './components/SourcePane'
 import { failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
@@ -27,8 +28,9 @@ import { useNewMailNotice } from './useNewMailNotice'
  * open conversation are two screens (canvas `MobileInbox`, `MobileConversation`), each with its own header. The states
  * of `InboxState` (D-55): loading, first sync, cannot load, offline (above everything), no source yet (instead of it).
  * On the F05 API the server filters and pages the list; the frame (accounts, providers, counts) loads beside it.
+ * `compose` (`/inbox/new`): the form of a new mail takes the place of an open conversation (f10-new-mail, D-191).
  */
-export function InboxPage() {
+export function InboxPage({ compose = false }: { compose?: boolean }) {
   const { conversationId } = useParams()
   const { inbox, receivedAt, error: frameError, failedAt: frameFailedAt, retry: retryFrame } = useInbox()
   const clock = useNow()
@@ -73,7 +75,7 @@ export function InboxPage() {
   }
 
   const nameOf = providerNameOf(inbox?.providers ?? [])
-  const selected = conversationId !== undefined
+  const selected = conversationId !== undefined || compose
   const { conversations } = list
   const error = frameError ?? list.error
   const failedAt = frameError ? frameFailedAt : list.failedAt
@@ -182,6 +184,11 @@ export function InboxPage() {
             </div>
             <ConversationInfo key={`info-${item.id}`} item={item} detail={detail} account={account} now={now} nameOf={nameOf} className="hidden min-h-0 xl:grid" />
           </>
+        ) : compose ? (
+          <div className="flex min-h-0 min-w-0 flex-col">
+            <MobilePageHeader back={{ to: `/inbox${search}`, label: 'Quay lại Hộp thư' }} title="Thư mới" />
+            {inbox ? <NewMail accounts={inbox.accounts} backTo={`/inbox${search}`} /> : <ThreadSkeleton />}
+          </div>
         ) : (
           <div className={cn('flex min-h-0 min-w-0 flex-col', !selected && 'hidden md:flex')}>
             {mobileHeader}

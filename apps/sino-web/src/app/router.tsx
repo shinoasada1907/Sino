@@ -39,6 +39,11 @@ export const routes: RouteObject[] = [
             ...(SCREENS[to] ?? { element: <UnderConstructionPage title={title} /> }),
           })),
           {
+            path: 'inbox/new',
+            element: <InboxPage compose />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
             path: 'inbox/:conversationId',
             element: <InboxPage />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,

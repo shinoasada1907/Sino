@@ -31,7 +31,7 @@ const FRAME: InboxData = {
   generatedAt: now.toISOString(),
   providers: [{ type: 'gmail', displayName: 'Gmail' }],
   accounts: [
-    { id: 'acc-1', provider: 'gmail', externalAccountId: '115758365451560723981', address: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null },
+    { id: 'acc-1', provider: 'gmail', externalAccountId: '115758365451560723981', address: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null, sending: 'READY' },
   ],
   counts: { unread: 1, byProvider: [{ provider: 'gmail', unread: 1 }], needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0 },
 }

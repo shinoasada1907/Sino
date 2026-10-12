@@ -54,7 +54,11 @@ export interface InboxAccount {
   syncProgress: number | null
   /** When the status last changed: for an expired account, since when nothing arrives (D-55). */
   statusChangedAt: Instant | null
+  /** Whether a new mail can go from it (f10-new-mail, D-193); `NOT_SUPPORTED`: its provider cannot start one. */
+  sending: AccountSending
 }
+
+export type AccountSending = 'READY' | 'NEEDS_PERMISSION' | 'UNAVAILABLE' | 'NOT_SUPPORTED'
 
 /** Counts of conversations that are not archived (D-70). */
 export interface InboxCounts {

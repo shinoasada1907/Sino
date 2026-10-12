@@ -89,7 +89,11 @@ const open = (path: string) => renderApp(path, { inbox: null })
 const sources = () => within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 const thread = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện đang mở' }))
-const rowTitles = () => list().queryAllByRole('link').map((link) => link.querySelector('[data-slot="row-title"]')?.textContent)
+// Rows only: the list also has "Thư mới" (f10-new-mail).
+const rowTitles = () =>
+  list()
+    .queryAllByRole('link')
+    .flatMap((link) => link.querySelector('[data-slot="row-title"]')?.textContent ?? [])
 
 describe('Hộp thư on the F05 API (FE-50)', () => {
   beforeEach(() => {

@@ -19,7 +19,11 @@ const sources = () => within(screen.getByRole('complementary', { name: 'Nguồn 
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 const thread = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện đang mở' }))
 const row = (name: RegExp) => list().getByRole('link', { name })
-const rowTitles = () => list().queryAllByRole('link').map((link) => link.querySelector('[data-slot="row-title"]')?.textContent)
+// Rows only: the list also has "Thư mới" (f10-new-mail).
+const rowTitles = () =>
+  list()
+    .queryAllByRole('link')
+    .flatMap((link) => link.querySelector('[data-slot="row-title"]')?.textContent ?? [])
 
 describe('Hộp thư on desktop', () => {
   beforeEach(() => {
