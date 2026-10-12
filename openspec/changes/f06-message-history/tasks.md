@@ -82,7 +82,10 @@
   - **Test:** header (`attachment`, `filename*`, `nosniff`, CSP `sandbox`); `inline=true` chỉ với PNG/JPEG/GIF/WebP, SVG → `400`; `404`; provider lỗi → `502`; `cid:` không có phần tương ứng → ảnh bị bỏ; danh sách tệp không có ảnh nhúng.
   - **Acceptance criteria:** spec `attachment-download`; delta `provider-contract` (tải tệp).
 
-- [ ] 1.4 **BE-57 — Chạy thật với Gmail, README, tổng kết**
+- [x] 1.4 **BE-57 — Chạy thật với Gmail, README, tổng kết**
+  - **Thực hiện (2026-10-12, AUTO):** `RealGmailMessagesTests` (mới, tag `real-gmail`, bỏ qua khi có backend ở 8080): đồng bộ account trước mỗi test; lật mọi cuộc trò chuyện 20 thư một trang và so với database; mở hai lần 10 thư `UNCHECKED` cũ nhất (lần hai phải cùng định dạng); kiểm HTML đã làm sạch của tối đa 30 thư; tải tối đa 5 tệp và 5 ảnh nhúng (header, số byte, tệp quá 25 MB → `422`). `RealGmailTests` đếm thêm thư có `partId` đứng yên giữa hai lần đọc. README mục *Read conversations of a real mailbox (F06)*. File kiến thức Phase 2 mục 22.
+  - **Kiểm chứng (2026-10-12):** `./mvnw test -Preal-gmail -Dtest=RealGmailMessagesTests` (worktree, backend tắt): 2 test, 1 xanh, 1 bỏ qua. 53/53 cuộc trò chuyện và thư qua API khớp database, trang chậm nhất 142 ms; 10 thư cũ → cả 10 `HTML`, mở lần đầu trung vị 637 ms (chậm nhất 1,4 s), lần hai 35 ms, người nhận biết đủ cả 10; còn 33 thư `UNCHECKED` để web mở; 20 thư HTML không còn gì chạy được, cả 20 có ảnh từ web. `RealGmailTests` (với `SPRING_CONFIG_IMPORT` trỏ `.env` của cây chính): 3/3 xanh, 23 thư trong 7 ngày, 0 thư kèm tệp nên phép đếm `partId` là 0. `./mvnw -B -ntp verify` → 1184 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS. Sự cố: lần đầu chép `.env` sang worktree, trái cách của BE-46; đã xóa, lần sau dùng `SPRING_CONFIG_IMPORT`.
+  - **Còn mở (người dùng chọn commit trước, 2026-10-12):** tải tệp và ảnh nhúng trên Gmail thật, và `partId` có đứng yên không: **NOT VERIFIED**, hộp thư chưa có thư nào kèm tệp nên test tải tệp bị bỏ qua. Gửi tới account một thư có tệp và ảnh dán trong nội dung, rồi chạy lại `./mvnw test -Preal-gmail`.
   - **Goal / Why:** bằng chứng trên hộp thư thật của người dùng: thư cũ được lấy bù, bản tin hiện HTML, tệp tải được.
   - **Depends on:** BE-54…BE-56.
   - **Test:** gọi ba endpoint trên dữ liệu thật; đếm thư `UNCHECKED` → `HTML`/`TEXT` sau khi mở; đo thời gian lấy bù; không ghi nội dung thư vào hồ sơ.

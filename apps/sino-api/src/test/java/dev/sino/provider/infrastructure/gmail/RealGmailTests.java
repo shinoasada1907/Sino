@@ -51,7 +51,8 @@ class RealGmailTests {
     private static final Duration WINDOW = Duration.ofDays(7);
     private static final List<String> REPORT = List.of("messages read", "messages with embedded images",
             "... not from a mailing list (more likely pasted by a person)", "messages with attachments",
-            "... whose attachmentId changed on a second read", "messages with a forwarded message as a file",
+            "... whose attachmentId changed on a second read", "... whose partIds stayed the same on a second read",
+            "messages with a forwarded message as a file",
             "... whose inner parts Gmail shows", "messages with a folded header value");
     // Listing a large mailbox page after page stops here (100 pages).
     private static final long LISTED_AT_MOST = 5_000;
@@ -108,8 +109,8 @@ class RealGmailTests {
     }
 
     /**
-     * What the F04b design left to real Gmail: does {@code attachmentId} change between two reads of a message (why
-     * files use {@code partId}), how many messages embed images (left out of the files), forwarded messages as
+     * What the F04b design left to real Gmail: does {@code attachmentId} change between two reads of a message, and
+     * does {@code partId}, by which Sino finds a file (BE-56); how many messages embed images, forwarded messages as
      * files ({@code message/rfc822}), folded header values. Counts only; nothing is asserted.
      */
     @Test
@@ -203,9 +204,13 @@ class RealGmailTests {
         Map<String, String> files = attachmentIds(parts);
         if (!files.isEmpty()) {
             increment(found, "messages with attachments");
-            Optional<GmailMessage> again = api.message(token, message.id());
-            if (again.isPresent() && !attachmentIds(partsOf(again.get().payload())).equals(files)) {
+            Optional<Map<String, String>> again = api.message(token, message.id())
+                    .map(read -> attachmentIds(partsOf(read.payload())));
+            if (again.isPresent() && !again.get().equals(files)) {
                 increment(found, "... whose attachmentId changed on a second read");
+            }
+            if (again.isPresent() && again.get().keySet().equals(files.keySet())) {
+                increment(found, "... whose partIds stayed the same on a second read");
             }
         }
     }

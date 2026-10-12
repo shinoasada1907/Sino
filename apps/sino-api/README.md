@@ -164,6 +164,29 @@ Only this test: `./mvnw test -Preal-gmail -Dtest=RealGmailImportTests`. Measured
 messages in 90 days, twice: 53 read in 33 s and in 28 s, about 100 a minute; the database and the API agreed on every
 count.
 
+### Read conversations of a real mailbox (F06)
+
+`RealGmailMessagesTests`, also tagged `real-gmail`, runs with the same command and the same rule: **stop the backend
+first**, or it skips itself. Each of its two tests first syncs the account, as "Đồng bộ ngay" does, so mail sent a
+moment ago is there.
+
+- Lists every conversation through `GET /api/conversations/{id}/messages`, 20 a page, and checks that each message
+  comes once and that the pages hold what the database holds.
+- Opens the 10 oldest messages stored before Sino kept HTML (`body_format = 'UNCHECKED'`) through
+  `.../messages/{messageId}/body`, twice: the first open reads the message again from Gmail and keeps what it gave
+  (HTML or text, addressees, files), the second comes from the database. The rest stays for the web to open, so a run
+  changes at most 10 messages.
+- Opens up to 30 messages stored with HTML and checks that the cleaned HTML holds no script, event handler or
+  `javascript:` link.
+- Downloads up to 5 files and 5 embedded pictures through `.../attachments/{attachmentId}`: status, headers, and the
+  size Gmail gave at import. A file over 25 MB must be refused. Without any file or embedded picture in the mailbox
+  this test is skipped: send the account a mail with a file and a picture pasted in the text.
+
+Only this test: `./mvnw test -Preal-gmail -Dtest=RealGmailMessagesTests`. Measured on 2026-10-12 with the account of
+53 messages: the slowest page took 142 ms; the 10 older messages all became HTML, first open 637 ms (median, slowest
+1.4 s), second open 35 ms; 20 HTML messages opened, none with anything that runs, all with pictures from the web
+(shown only when the user asks).
+
 ## Gmail: new mail in seconds (Pub/Sub notices, F07)
 
 Without this setup Sino asks Gmail for changes every minute (automatic sync, BE-49), and new mail shows up within
@@ -315,7 +338,7 @@ The error code catalog is in the F01 design (`openspec/changes/archive/2026-10-0
 | All tests | `./mvnw test` |
 | Full build, as CI runs it | `./mvnw -B verify` |
 | Module boundaries only | `./mvnw test -Dtest=ModularityTests` |
-| Read the real Gmail account connected on this machine and import it again (by hand, never in CI) | `./mvnw test -Preal-gmail` (see *Read a real mailbox* and *Import a real mailbox again*) |
+| Read the real Gmail account connected on this machine, import it again and read its conversations (by hand, never in CI) | `./mvnw test -Preal-gmail` (see *Read a real mailbox*, *Import a real mailbox again* and *Read conversations of a real mailbox*) |
 
 Tests run with the `test` profile (`src/test/resources/application-test.yaml`, fake owner `owner@sino.test` /
 `test-owner-password`) against PostgreSQL 18 started by Testcontainers. GitHub Actions

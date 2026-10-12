@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn BE-61 (ước lượng đúng cho khoảng ngày) và archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): đang làm, xong BE-54, BE-55, BE-56.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); còn BE-61 (ước lượng đúng cho khoảng ngày) và archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1809,6 +1809,62 @@ Lỗi gài "bỏ điều kiện đúng cuộc trò chuyện" đáng nhớ nhất
   - Lượt một: HIGH bộ nhớ khi tải (mục 21.2); MEDIUM ảnh nhúng không hiện được thì mất (mục 21.1) và ảnh bị tải lại mỗi lần mở thư (mục 21.3); nhỏ: thứ tự tra `cid:`, kiểu do provider cho, kiểu không cụ thể, Javadoc.
   - Lượt hai: không có lỗi nặng; MEDIUM ảnh của thư có HTML quá dài bị mất, Javadoc hứa giới hạn bộ nhớ rộng hơn code làm; nhỏ: `Content-ID` trùng, thư cũ lấy bù thiếu tệp mới, ảnh trong thư bị chặn khi tải tệp lớn, hạn chờ Gmail. Đã sửa hết; còn ghi lại: độ dài thật của tệp không rõ kích thước không được kiểm sau khi đọc (Gmail luôn cho kích thước; connector của F09 phải xét lại).
 - **Chưa làm:** chạy với Gmail thật (BE-57): tải tệp thật, ảnh chữ ký thật, `partId` có đứng yên giữa các lần đọc không.
+
+## 22. Chạy thật F06 với Gmail (BE-57)
+
+**Ở đâu:** test `src/test/java/dev/sino/conversation/RealGmailMessagesTests.java` (mới), `src/test/java/dev/sino/provider/infrastructure/gmail/RealGmailTests.java` (thêm phép đếm `partId`), `apps/sino-api/README.md` (mục *Read conversations of a real mailbox*).
+
+### 22.1 Test làm gì
+Hai test, cùng tag `real-gmail` như mục 18, chạy tay bằng `./mvnw test -Preal-gmail`, không bao giờ chạy trong CI (lý do ở mục 18.2). Mỗi test đồng bộ account trước, như nút "Đồng bộ ngay", rồi chờ lượt đồng bộ xong, để thư vừa gửi tới cũng có mặt.
+
+```text
+readsEveryConversationAndOpensOlderMail
+  1. mọi cuộc trò chuyện: GET .../messages, 20 thư một trang, lật tới hết
+       -> mỗi thư xuất hiện một lần; số thư qua API = số dòng trong database
+  2. 10 thư cũ nhất còn UNCHECKED: GET .../body hai lần
+       -> lần 1 hỏi lại Gmail rồi lưu (HTML hoặc chữ, người nhận, tệp); lần 2 lấy từ database
+  3. tối đa 30 thư đã có HTML: GET .../body
+       -> HTML đã làm sạch không còn script, thuộc tính on...=, liên kết javascript:
+
+downloadsFilesAndShowsEmbeddedPictures
+  tối đa 5 tệp và 5 ảnh nhúng: GET .../attachments/{id}
+       -> 200, header an toàn (mục 21.3), đúng số byte Gmail báo lúc nhập
+       -> tệp quá 25 MB bị từ chối 422 trước khi hỏi Gmail
+```
+
+Chốt chặn cổng 8080 giữ nguyên như mục 18.3: lượt đồng bộ ghi vào `sync_checkpoint`, nên chỉ một backend được đọc account lúc đó.
+
+### 22.2 Vì sao chỉ mở 10 thư cũ
+Mở một thư `UNCHECKED` không chỉ là đọc: nó đổi dữ liệu. Sino hỏi lại Gmail rồi lưu kết quả, nên thư đó thành `HTML` hoặc `TEXT` vĩnh viễn (D-122, mục 20). Nếu test mở hết 43 thư cũ, sẽ không còn thư `UNCHECKED` nào cho lượt kiểm trên web thật (FE-60) thử đúng đường "mở thư cũ lần đầu". Nên test chỉ mở 10 thư cũ nhất, và README ghi rõ một lượt chạy đổi tối đa 10 thư.
+
+Hai lần mở cùng một thư kiểm tra hai điều. Lần 2 phải trả **cùng định dạng** với lần 1, tức kết quả đã được lưu. Lần 2 phải **nhanh hơn nhiều**, tức không hỏi lại Gmail.
+
+### 22.3 Kết quả đo (2026-10-12)
+Account 53 thư (90 ngày), mỗi cuộc trò chuyện một thư:
+
+| Phép đo | Kết quả |
+|---|---|
+| Đồng bộ trước test | 2 giây, 0 thư mới, không lỗi |
+| Cuộc trò chuyện / thư qua API | 53 / 53, bằng database |
+| Trang chậm nhất | 142 ms |
+| Thư chưa biết người nhận (lưu trước BE-54) | 43 |
+| 10 thư cũ mở lần đầu | cả 10 thành `HTML`; trung vị 637 ms, chậm nhất 1,4 giây |
+| Mở lại lần hai | trung vị 35 ms, chậm nhất 49 ms |
+| Người nhận sau khi lấy bù | biết đủ cả 10 |
+| Thư cũ còn để web mở | 33 |
+| Thư có HTML được mở và kiểm | 20, không thư nào còn thứ chạy được; cả 20 có ảnh từ web (chỉ hiện khi người dùng bấm "Hiện ảnh") |
+| Tệp và ảnh nhúng | 0: hộp thư chưa có thư nào kèm tệp, test tải tệp bị bỏ qua |
+
+- **Trung vị** (median) chứ không phải trung bình: một lần Gmail chậm 1,4 giây kéo trung bình lên, còn trung vị cho biết lần mở "bình thường" mất bao lâu. In thêm số chậm nhất để thấy trường hợp xấu.
+- Lần mở đầu khoảng 0,6 giây khớp với số đo ở BE-46 (mỗi `messages.get` khoảng 0,6 giây từ máy này): web cần khung chờ khi mở thư cũ, đúng như FE-57 đã làm.
+- Cả 20 thư HTML đều có ảnh từ web vì hộp thư toàn bản tin. Đó là lý do mặc định chặn ảnh từ xa (D-121): mở một bản tin là báo cho người gửi biết bạn đã đọc, kèm địa chỉ IP.
+
+### 22.4 Kiểm chứng (BE-57)
+- `RealGmailMessagesTests`: 2 test, 1 xanh, 1 bỏ qua (chưa có thư kèm tệp). BUILD SUCCESS.
+- `RealGmailTests`: 3/3 xanh; 23 thư trong 7 ngày, không thư nào kèm tệp, nên phép đếm "`partId` đứng yên" mới là 0.
+- **Chưa kiểm (bạn chọn commit trước):** tải tệp thật, ảnh chữ ký thật, `partId` có đứng yên không. Cần một thư có tệp và ảnh dán trong nội dung gửi tới account, rồi chạy lại `./mvnw test -Preal-gmail`.
+- Toàn bộ: `./mvnw -B -ntp verify` → 1184 test, 0 lỗi, 4 bỏ qua, BUILD SUCCESS (4 phút 26 giây). Hai test mới có tag `real-gmail` nên không chạy ở đây; `verify` chỉ chứng minh chúng biên dịch được và không làm hỏng gì.
+- Mọi lệnh Maven chạy trong git worktree riêng như mục 18.6.
 
 ---
 

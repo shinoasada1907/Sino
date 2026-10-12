@@ -194,8 +194,8 @@ Ba endpoint của Contract API. Lấy bù (D-122) chạy ngoài transaction khi 
 - Hạn đọc của client JDK trong Spring 7 là hạn **tổng** tới lúc đọc xong thân response, không phải giữa hai lần đọc. 10 s cho một tệp 25 MB (khoảng 33 MB base64) đòi mạng nhanh hơn khoảng 3,3 MB/s, nên riêng `attachments.get` có hạn 60 s (BE-56, có test WireMock trả chậm).
 - Tệp không rõ kích thước tính như 25 MB lúc giữ chỗ, nhưng kích thước thật không được kiểm sau khi đọc. Gmail luôn cho kích thước; connector của F09 phải xét lại.
 - Thư nhập giữa BE-55 và BE-56 đã là `HTML` nên không được lấy bù: ảnh nhúng của chúng chưa có dòng `attachment` và `cid:` bị bỏ, cho tới khi thư được nhập lại. Chỉ ảnh hưởng dữ liệu trên máy dev.
-- `attachmentId` của Gmail đổi sau mỗi lần đọc thư (BE-39, theo tài liệu) nên Sino tìm phần theo `partId`; BE-57 kiểm trên hộp thư thật rằng `partId` đứng yên giữa các lần đọc.
-- Lần đầu mở thư cũ chờ Gmail (khoảng nửa giây). Trong lúc đó vẫn thấy phần chữ.
+- `attachmentId` của Gmail đổi sau mỗi lần đọc thư (BE-39, theo tài liệu) nên Sino tìm phần theo `partId`; BE-57 kiểm trên hộp thư thật rằng `partId` đứng yên giữa các lần đọc. **Còn mở (2026-10-12):** hộp thư thử chưa có thư kèm tệp, nên chưa đo được; `RealGmailTests` đã có phép đếm, chạy lại khi có thư kèm tệp.
+- Lần đầu mở thư cũ chờ Gmail (BE-57 đo: trung vị 637 ms, chậm nhất 1,4 s; mở lại 35 ms). Trong lúc đó vẫn thấy phần chữ.
 
 ## Migration Plan
 - Migration chỉ thêm cột có mặc định. Thư hiện có thành `UNCHECKED` và được lấy bù khi mở. Rollback = bỏ cột; không mất dữ liệu cũ.
