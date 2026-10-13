@@ -3,6 +3,7 @@ import { PageFrame } from '@/layout/PageFrame'
 import { BrandPage } from '@/pages/brand/BrandPage'
 import { MessagesPage } from '@/pages/messages/MessagesPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { PrivacyPage, PrivacyPageEn } from '@/pages/privacy/PrivacyPages'
 import { pageById, type PageId } from '@/site/pages'
 import { SiteProvider } from '@/site/SiteProvider'
 import type { SiteData } from '@/site/site-data'
@@ -10,6 +11,8 @@ import type { SiteData } from '@/site/site-data'
 const PAGE_COMPONENTS: Record<PageId, ComponentType> = {
   brand: BrandPage,
   messages: MessagesPage,
+  privacy: PrivacyPage,
+  'privacy-en': PrivacyPageEn,
   'not-found': NotFoundPage,
 }
 
@@ -18,7 +21,7 @@ export function App({ pageId, site }: { pageId: PageId; site: SiteData }) {
   const Page = PAGE_COMPONENTS[pageId]
   return (
     <SiteProvider site={site}>
-      <PageFrame nav={pageById(pageId).nav}>
+      <PageFrame page={pageById(pageId)}>
         <Page />
       </PageFrame>
     </SiteProvider>

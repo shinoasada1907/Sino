@@ -8,6 +8,14 @@ export { PAGES } from './site/pages'
 
 /** The HTML file of one page: the app rendered to a string inside the client build's index.html (D-250). */
 export function prerender(pageId: PageId, template: string, site: SiteData = __SITE_DATA__): string {
+  const page = pageById(pageId)
+  const other = page.alternate ? pageById(page.alternate) : undefined
   const appHtml = renderToString(<App pageId={pageId} site={site} />)
-  return renderDocument({ template, page: pageById(pageId), site, appHtml })
+  return renderDocument({
+    template,
+    page,
+    site,
+    appHtml,
+    alternate: other && { lang: other.lang, path: other.path },
+  })
 }

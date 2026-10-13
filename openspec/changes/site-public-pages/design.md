@@ -293,7 +293,7 @@ apps/sino-site/
 - **Sino lưu gì:**
   - tài khoản Sino: email, tên hiển thị, mật khẩu chỉ lưu dạng băm BCrypt;
   - tài khoản Gmail đã kết nối: địa chỉ, quyền đã cấp, token mã hóa;
-  - thư: nội dung, người gửi, người nhận, thời gian, HTML đã làm sạch, thông tin tệp đính kèm;
+  - thư: nội dung, người gửi, người nhận, thời gian, ~~HTML đã làm sạch~~ HTML như nhận từ Gmail, thông tin tệp đính kèm. **LÝ DO (SI-03):** code lưu HTML gốc và chỉ làm sạch lúc hiện (`MessageBodies` gọi `MailHtml.clean(stored.html())`). Nội dung tệp đính kèm không lưu, mỗi lần mở mới lấy từ Gmail (`MessageFiles`);
   - dữ liệu bạn tạo: việc cần làm.
 
   Đối chiếu lại với các bảng của Flyway lúc viết. Ghi chú và lịch chỉ thêm vào khi đã có.

@@ -60,7 +60,7 @@ describe('the prerendered 404 page', () => {
 })
 
 /** Pages the footer already links to; each SI task removes its own when it builds the page. */
-const PAGES_NOT_BUILT_YET = ['/privacy', '/en/privacy', '/terms', '/en/terms', '/security', '/open-source']
+const PAGES_NOT_BUILT_YET = ['/terms', '/en/terms', '/security', '/open-source']
 
 describe('links between the pages', () => {
   const docs = new Map(PAGES.map((p) => [p.path, prerendered(p.id, PRODUCTION_SITE).doc]))

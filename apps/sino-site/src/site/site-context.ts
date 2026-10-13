@@ -11,6 +11,7 @@ export function useSite() {
   return {
     mode: site.mode,
     year: site.year,
+    config: site.config,
     /** A link into the Sino app; a visible placeholder anchor while its URL is not filled in (D-242). */
     appHref: (path: string) => (appUrl ? `${appUrl}${path}` : '#chua-dien-app-url'),
   }

@@ -71,6 +71,8 @@ describe('a production build', () => {
   it('writes the pages, the icon, the script, the styles and the fonts, and no server bundle', () => {
     expect(files).toContain('index.html')
     expect(files).toContain('messages/index.html')
+    expect(files).toContain('privacy/index.html')
+    expect(files).toContain('en/privacy/index.html')
     expect(files).toContain('404.html')
     expect(files).toContain('favicon.svg')
     expect(files.some((f) => /^assets\/.+\.js$/.test(f))).toBe(true)
@@ -90,9 +92,9 @@ describe('a production build', () => {
   it('loads every script, stylesheet and icon from the site itself', async () => {
     for (const file of files.filter((f) => f.endsWith('.html'))) {
       const doc = new JSDOM(await readFile(join(outDir, file), 'utf8')).window.document
-      const urls = [...doc.querySelectorAll('script[src], link[href]')]
-        .filter((el) => el.getAttribute('rel') !== 'canonical')
-        .map((el) => el.getAttribute('src') ?? el.getAttribute('href') ?? '')
+      // What the page loads; canonical and hreflang links name pages, they load nothing.
+      const resources = 'script[src], link[rel~="stylesheet"], link[rel~="icon"], link[rel~="modulepreload"], link[rel~="preload"]'
+      const urls = [...doc.querySelectorAll(resources)].map((el) => el.getAttribute('src') ?? el.getAttribute('href') ?? '')
 
       expect(urls.length, file).toBeGreaterThan(0)
       for (const url of urls) {

@@ -1,15 +1,20 @@
+import type { Lang } from '@/site/pages'
 import { useSite } from '@/site/site-context'
 import { cn } from '@/shared/lib/utils'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { microLabel, spec } from '@/shared/ui/text'
-import { FOOTER_COLUMNS } from './nav'
+import { CHROME } from './nav'
 
 const column = 'flex flex-col gap-2.5'
 const footLink = 'text-sm leading-5 font-medium text-muted-foreground hover:text-foreground'
 
-/** Canvas `lp-foot` + `lp-legal`. */
-export function SiteFooter() {
+/**
+ * Canvas `lp-foot` + `lp-legal`. A page that exists in the other language links to it in place of the canvas
+ * "VI ▾" button (D-243).
+ */
+export function SiteFooter({ lang = 'vi', alternate }: { lang?: Lang; alternate?: { lang: Lang; path: string } }) {
   const { year } = useSite()
+  const words = CHROME[lang]
 
   return (
     <footer>
@@ -19,11 +24,9 @@ export function SiteFooter() {
             <SinoMark className="size-5" />
             Sino
           </a>
-          <span className="max-w-75 text-sm leading-5 text-muted-foreground">
-            Ứng dụng gọn cho việc mỗi ngày.
-          </span>
+          <span className="max-w-75 text-sm leading-5 text-muted-foreground">{words.tagline}</span>
         </div>
-        {FOOTER_COLUMNS.map((col) => (
+        {words.columns.map((col) => (
           <div key={col.title} className={column}>
             <span className={microLabel}>{col.title}</span>
             {col.links.map((l) => (
@@ -36,6 +39,16 @@ export function SiteFooter() {
       </div>
       <div className="flex items-center justify-between gap-4 border-t border-border pt-5 pb-10">
         <span className={spec}>{`© ${year} SINO`}</span>
+        {alternate && (
+          <a
+            className="inline-flex h-9 items-center rounded-[8px] border border-border bg-surface px-2.5 font-mono text-xs leading-4 font-semibold tracking-[.04em] text-foreground transition-colors duration-(--dur-hover) ease-out hover:border-border-strong hover:bg-hover"
+            href={alternate.path}
+            hrefLang={alternate.lang}
+            lang={alternate.lang}
+          >
+            {CHROME[alternate.lang].languageName}
+          </a>
+        )}
       </div>
     </footer>
   )

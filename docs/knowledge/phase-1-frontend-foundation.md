@@ -1417,6 +1417,28 @@ Người dùng cho biết sẽ có nhiều sản phẩm Sino, và landing phải
 - **Đổi tên theo ý nghĩa:** thư mục `pages/home` thành `pages/messages`, `HomePage` thành `MessagesPage`. Đổi bằng `git mv` để git hiểu đây là đổi tên, giữ lịch sử.
 - **Lại bài học về script kiểm:** lần đo hover đầu tiên ở `/` cho kết quả "không nhấc". Lý do: trang bật `scroll-behavior: smooth`, nên `scrollIntoView` còn đang cuộn thì script đã đặt chuột, và chuột rơi ra ngoài thẻ. Script giờ tắt cuộn mượt trước mỗi lần rê chuột. Trước khi kết luận "site lỗi", phải xem công cụ đo có đúng không.
 
+### 21.13 Chính sách quyền riêng tư: viết theo code, không theo trí nhớ (SI-03)
+Privacy là trang Google đọc kỹ nhất khi thẩm định quyền `gmail.readonly`. Google so từng câu với cách ứng dụng chạy thật, nên mỗi câu được dò tới chỗ nó nằm trong code trước khi viết:
+
+| Câu trong Privacy | Đối chiếu ở |
+|---|---|
+| Lưu tiêu đề, nội dung chữ và HTML, người gửi, người nhận | Flyway V8, V14, V15; `GmailMessageNormalizer` (metadata chỉ có tiêu đề, Message-ID, cờ thư hàng loạt) |
+| Tệp đính kèm chỉ lưu tên, loại, dung lượng | V9 (không có cột nội dung); `MessageFiles` lấy tệp từ Gmail mỗi lần mở |
+| Ngắt kết nối: thu hồi ở Google, xóa token, thư giữ lại | `AccountManagementService.remove`: đánh dấu đã gỡ, `credentials.delete`, rồi `revoker.revoke` |
+| Token mã hóa AES-256-GCM, khóa ngoài database | `CredentialCipher` (`AES/GCM/NoPadding`, khóa 32 byte từ cấu hình) |
+| Người vận hành chỉ thấy số liệu | spec `admin-api` (D-264) |
+| Không analytics, không script bên thứ ba | tìm `gtag`, `sentry`, `posthog`… trong `sino-web` và `sino-api`: không có |
+
+Dò code bắt được một câu sai ngay trong thiết kế: `design.md` ghi Sino lưu "HTML đã làm sạch", nhưng code lưu HTML gốc và chỉ làm sạch lúc hiện. Privacy viết theo code, và `design.md` được sửa có ghi lý do.
+
+Vài kỹ thuật dùng ở trang này:
+
+- **Một khuôn, hai bản chữ:** `PolicyPage` là bố cục (đầu trang, mục lục, các mục). `PRIVACY_VI` và `PRIVACY_EN` chỉ là dữ liệu (`PolicyDoc`). Test so danh sách `id` của hai bản, nên thêm một mục ở bản này mà quên bản kia thì test đỏ (spec đòi "cùng nội dung").
+- **Câu bắt buộc của Google là hằng số:** `LIMITED_USE` và `GOOGLE_APP_NAME` nằm ở một chỗ, hai bản cùng dùng. Câu này phải nêu đúng tên ứng dụng trên consent screen.
+- **`hreflang`:** mỗi bản khai cả hai URL trong `<head>`. Nhờ vậy Google biết đây là một trang ở hai ngôn ngữ, không phải hai trang trùng nội dung.
+- **Ngày viết tay, không dùng `Intl`:** `formatDate` tự ghép `01/11/2026` và `1 November 2026`. `Intl.DateTimeFormat` có thể in khác nhau giữa Node (lúc prerender) và trình duyệt, làm hydrate lệch.
+- **Mục lục dính (`position: sticky`)** từ 768 px, và thành hàng chip trên điện thoại. `scroll-margin-top` giữ cho tiêu đề mục không bị thanh trên che khi bấm `#google`.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1578,3 +1600,6 @@ Người dùng cho biết sẽ có nhiều sản phẩm Sino, và landing phải
 129. Vì sao App home page khai với Google là `/messages` chứ không phải `/`, và vì sao phải chốt URL này trước khi khai?
 130. Thêm một sản phẩm Sino thứ hai thì phải sửa những chỗ nào trong `sino-site`? Vì sao chỉ là vài chỗ?
 131. Đo hover cho kết quả "không nhấc" dù CSS đúng. Bạn kiểm điều gì trước khi sửa CSS?
+132. Kể ba câu trong Privacy của Sino và chỗ trong code chứng minh từng câu. Vì sao phải dò code thay vì viết theo thiết kế?
+133. Hai bản VI và EN được giữ "cùng nội dung" bằng cách nào? Nếu thêm một mục chỉ ở bản tiếng Việt thì chuyện gì xảy ra?
+134. Vì sao ngày hiệu lực được định dạng bằng tay chứ không bằng `Intl.DateTimeFormat`?

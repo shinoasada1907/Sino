@@ -1,30 +1,32 @@
 import { List } from 'lucide-react'
 import { useRef } from 'react'
-import type { NavKind } from '@/site/pages'
+import type { Lang, NavKind } from '@/site/pages'
 import { useSite } from '@/site/site-context'
 import { cn } from '@/shared/lib/utils'
 import { buttonVariants } from '@/shared/ui/button'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { wrap } from '@/shared/ui/text'
-import { MESSAGES_SECTIONS, PRODUCTS } from './nav'
+import { CHROME, MESSAGES_SECTIONS, PRODUCTS } from './nav'
 
 const link =
   'rounded-[8px] px-3 py-2 text-sm leading-5 font-medium text-muted-foreground transition-colors duration-(--dur-hover) ease-out hover:bg-hover hover:text-foreground'
 
 /** The links of each top bar (D-254): the sections of Sino Messages, or the products of the Sino family. */
-const NAV_LINKS: Record<NavKind, { label: string; links: { label: string; href: string }[] }> = {
-  product: {
-    label: 'Các mục của Sino Messages',
-    links: MESSAGES_SECTIONS.map((s) => ({ label: s.label, href: `/messages#${s.id}` })),
-  },
-  family: { label: 'Sản phẩm Sino', links: PRODUCTS.map((p) => ({ label: p.name, href: p.href })) },
+function navLinksOf(nav: NavKind, lang: Lang) {
+  return nav === 'product'
+    ? {
+        label: 'Các mục của Sino Messages',
+        links: MESSAGES_SECTIONS.map((s) => ({ label: s.label as string, href: `/messages#${s.id}` })),
+      }
+    : { label: CHROME[lang].familyNav, links: PRODUCTS.map((p) => ({ label: p.name as string, href: p.href as string })) }
 }
 
 /** Canvas `lp-nav`. The phone menu is a <details>, so it opens without JavaScript too (D-247). */
-export function SiteHeader({ nav }: { nav: NavKind }) {
+export function SiteHeader({ nav, lang = 'vi' }: { nav: NavKind; lang?: Lang }) {
   const { appHref } = useSite()
   const menu = useRef<HTMLDetailsElement>(null)
-  const { label, links } = NAV_LINKS[nav]
+  const words = CHROME[lang]
+  const { label, links } = navLinksOf(nav, lang)
   const navLinks = (className: string) =>
     links.map((l) => (
       <a key={l.href} className={cn(link, className)} href={l.href}>
@@ -52,11 +54,11 @@ export function SiteHeader({ nav }: { nav: NavKind }) {
                 className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'max-md:hidden')}
                 href={appHref('/login')}
               >
-                Đăng nhập
+                {words.login}
               </a>
             )}
             <a className={buttonVariants({ size: 'sm' })} href={appHref('/')}>
-              Mở Sino Messages
+              {words.openApp}
             </a>
             <details ref={menu} className="group lg:hidden">
               <summary
@@ -64,7 +66,7 @@ export function SiteHeader({ nav }: { nav: NavKind }) {
                   buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
                   'list-none group-open:bg-hover group-open:text-foreground [&::-webkit-details-marker]:hidden',
                 )}
-                aria-label="Mở menu"
+                aria-label={words.openMenu}
               >
                 <List strokeWidth={1.6} aria-hidden="true" />
               </summary>
@@ -79,7 +81,7 @@ export function SiteHeader({ nav }: { nav: NavKind }) {
                 {navLinks('px-2 py-3 text-base')}
                 {nav === 'product' && (
                   <a className={cn(link, 'px-2 py-3 text-base')} href={appHref('/login')}>
-                    Đăng nhập
+                    {words.login}
                   </a>
                 )}
               </nav>

@@ -1,4 +1,4 @@
-export type PageId = 'brand' | 'messages' | 'not-found'
+export type PageId = 'brand' | 'messages' | 'privacy' | 'privacy-en' | 'not-found'
 
 export type Lang = 'vi' | 'en'
 
@@ -18,6 +18,8 @@ export interface PageMeta {
   /** False for the 404 page: no canonical URL and kept out of search results. */
   indexable: boolean
   nav: NavKind
+  /** The same page in the other language (D-243): `hreflang` in the head, a language link in the footer. */
+  alternate?: PageId
 }
 
 export const PAGES: PageMeta[] = [
@@ -42,6 +44,29 @@ export const PAGES: PageMeta[] = [
       'Sino Messages gom các tài khoản Gmail của bạn vào một hộp thư chung. Đọc, trả lời và giữ việc cần làm ở cùng một chỗ.',
     indexable: true,
     nav: 'product',
+  },
+  {
+    // The Privacy policy declared to Google (D-253); shared by the Sino family.
+    id: 'privacy',
+    path: '/privacy',
+    file: 'privacy/index.html',
+    lang: 'vi',
+    title: 'Chính sách quyền riêng tư · Sino',
+    description: 'Sino lưu dữ liệu gì, dùng để làm gì, ai được xem, giữ bao lâu và bạn xóa thế nào.',
+    indexable: true,
+    nav: 'family',
+    alternate: 'privacy-en',
+  },
+  {
+    id: 'privacy-en',
+    path: '/en/privacy',
+    file: 'en/privacy/index.html',
+    lang: 'en',
+    title: 'Privacy policy · Sino',
+    description: 'What Sino stores, what it uses it for, who can see it, how long it is kept and how you delete it.',
+    indexable: true,
+    nav: 'family',
+    alternate: 'privacy',
   },
   {
     id: 'not-found',

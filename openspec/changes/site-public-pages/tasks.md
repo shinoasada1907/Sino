@@ -235,7 +235,7 @@
     - Lỗi script kiểm (không phải lỗi site): lần đo hover đầu ra `translate: none` vì `scrollIntoView` cuộn mượt chưa xong thì chuột đã đặt. Script giờ tắt cuộn mượt trước khi rê chuột; `:hover` khớp.
     - File kiến thức phase 1 mục 21.12 + câu 129–131; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
-- [ ] 2.2 **SI-03 — Chính sách quyền riêng tư, tiếng Việt và tiếng Anh**
+- [x] 2.2 **SI-03 — Chính sách quyền riêng tư, tiếng Việt và tiếng Anh**
   - **Thực hiện:**
     - `src/pages/privacy.ts` theo `SitePrivacy` (mục lục, các mục, tóm tắt), nội dung theo mục "Privacy: những gì phải ghi đúng" của `design.md`. Privacy là chung cho nhà Sino; phần dữ liệu Google nằm trong mục riêng của Sino Messages, giữ `#google` (D-253).
     - Đối chiếu từng câu với các bảng Flyway và code: `CredentialCipher`, BE-33, D-13, F05.
@@ -243,6 +243,53 @@
     - Bỏ khung "Bản nháp để thiết kế".
   - **Acceptance criteria:** spec *Chính sách quyền riêng tư đáp ứng Limited Use* (hai scenario).
   - **Kiểm chứng:** Chrome 1440 và 390, dark và light; người dùng đọc lại nội dung, nhất là thời hạn xóa 30 ngày.
+  - **Đã làm (2026-10-13, AUTO):**
+    - Bảng trang:
+      - `privacy` (`/privacy`, `vi`) và `privacy-en` (`/en/privacy`, `en`), thanh trên `family`, `alternate` trỏ lẫn nhau;
+      - `renderDocument` ghi `<link rel="alternate" hreflang>` cho cả hai bản (tiếng Việt trước).
+    - `src/layout/nav.ts` có `CHROME` cho `vi`/`en` (thanh trên, chân trang). Chân trang có link đổi ngôn ngữ (`hreflang`, `lang`) thay cho nút "VI ▾" của canvas.
+    - `src/site/ConfigValue.tsx`:
+      - giá trị của `site.config.ts`, hoặc `[chưa điền: …]` (lớp `.ph` của canvas);
+      - email thành link `mailto:`, ngày hiệu lực qua `formatDate` (`01/11/2026`, `1 November 2026`).
+    - `src/pages/privacy/`:
+      - `PolicyPage` theo `SitePrivacy`: đầu trang, mục lục dính từ 768 px, chip trên điện thoại, các mục; bỏ khung "Bản nháp để thiết kế";
+      - `privacy.vi.tsx`, `privacy.en.tsx`, `privacy.shared.ts` (`GOOGLE_APP_NAME`, `LIMITED_USE`, `POLICY_URL`, `SCOPES`).
+    - Đối chiếu với code (2026-10-13):
+      - Flyway V2…V19;
+      - `AccountManagementService.remove` (đánh dấu đã gỡ, xóa token, thu hồi ở Google);
+      - `CredentialCipher` (AES-256-GCM);
+      - `MessageBodies` / `MailHtml` (làm sạch HTML lúc hiện);
+      - `MessageFiles` (tệp lấy từ Gmail mỗi lần mở);
+      - `GmailMessageNormalizer` (metadata);
+      - `GmailProvider.SCOPES`;
+      - spec `admin-api` (D-264);
+      - không có analytics hay script bên thứ ba trong `sino-web` và `sino-api`.
+  - **Làm khác kế hoạch:**
+    - ~~"HTML đã làm sạch" (design.md)~~ → "nội dung (dạng chữ và HTML)". **LÝ DO:** code lưu HTML gốc, chỉ làm sạch lúc hiện; đã sửa `design.md`.
+    - Thêm ba mục so với canvas:
+      - "Chính sách này áp dụng cho ai" (D-253, site chung);
+      - "Ai được xem dữ liệu của bạn" (ba ngoại lệ Limited Use, và người vận hành chỉ thấy metadata theo `admin-api` D-264);
+      - "Thay đổi chính sách".
+
+      **LÝ DO:** Google kiểm việc người đọc dữ liệu Gmail. Admin đã có trong backend, nên Privacy phải nói người vận hành thấy gì (risk ghi ở design `admin-api`).
+    - Bỏ khỏi canvas: xuất/xóa trong Cài đặt, thông báo trình duyệt, nhắc nhở, hẹn giờ gửi, số điện thoại, địa chỉ pháp nhân. **LÝ DO:** D-241 (chưa có); config không có trường địa chỉ, và Google không bắt buộc.
+    - Câu Limited Use dùng tên `Sino Messages`. **LÝ DO:** câu phải nêu tên ứng dụng trên consent screen; nếu App name ở Google Cloud khác thì sửa `GOOGLE_APP_NAME` (kiểm ở SI-06).
+    - Test CLI "tải mọi tài nguyên từ chính site" chỉ xét script, stylesheet, icon, preload. **LÝ DO:** thẻ `hreflang` mới là URL tuyệt đối của trang, không phải tài nguyên tải về.
+  - **Người dùng cần đọc lại (cam kết của chủ sở hữu, chưa qua luật sư):**
+    - xóa hẳn trong 30 ngày khi có yêu cầu qua email;
+    - trả lời yêu cầu xem, sửa, xóa trong 30 ngày;
+    - "sẽ hỏi lại bạn" trước khi dùng dữ liệu theo cách mới;
+    - câu "theo pháp luật Việt Nam về bảo vệ dữ liệu cá nhân".
+  - **Kiểm chứng (2026-10-13):**
+    - RED: thiếu trang `privacy` (`Unknown page: privacy`); test link toàn site đỏ vì `/privacy` chưa có. Lượt chạy đầu đỏ cả 10 file không liên quan vì thư mục làm việc đổi chữ ổ đĩa giữa chừng; chạy lại thì chỉ còn đúng hai chỗ đỏ đó.
+    - GREEN: 104/104 (15 file). `pnpm lint` 0, `pnpm typecheck` 0, `pnpm build:preview` 0 (`dist/privacy/index.html`, `dist/en/privacy/index.html`). Test CLI đỏ một lần ở thẻ `hreflang` (xem trên), sửa xong thì xanh.
+    - Chrome headless (`pnpm serve`), `/privacy` 1440 và 390 × dark và light, `/en/privacy` 1440 dark và 390 light:
+      - không cuộn ngang, hydrate không lỗi;
+      - mục lục `position: sticky` (top 104 px như canvas), ở 390 px thành hàng chip;
+      - `/privacy#google`: mục ở top 96 px, ngay dưới thanh trên 73 px;
+      - link "English" ↔ "Tiếng Việt" đúng;
+      - bản xem trước hiện 6 chỗ `[chưa điền: …]`.
+    - File kiến thức phase 1 mục 21.13 + câu 132–134; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
 - [ ] 2.3 **SI-04 — Điều khoản, tiếng Việt và tiếng Anh**
   - **Thực hiện:**
