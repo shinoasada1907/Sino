@@ -191,9 +191,28 @@
     - File kiến thức phase 1 mục 21.11 + câu 125–128; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
     - File kiến thức phase 1 mục 21.8–21.9 + câu 118–120; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
+- [ ] 2.1c **SI-07 — Site chung của nhà Sino: trang thương hiệu `/`, Sino Messages chuyển sang `/messages`**
+  - **Thực hiện:**
+    - Bảng trang:
+      - `brand` (`/`, `index.html`) và `messages` (`/messages`, `messages/index.html`);
+      - `PageMeta.nav` là `product` hoặc `family` (D-254).
+    - `SiteHeader` hai kiểu: `product` giữ các mục của Sino Messages, trỏ `/messages#…`; `family` có link "Sino Messages" và nút "Mở Sino Messages".
+    - Chân trang chung: cột SẢN PHẨM (Sino Messages), TIN CẬY (Bảo mật, Câu hỏi thường gặp), PHÁP LÝ.
+    - `src/pages/brand/BrandPage.tsx` (D-253): hero và một thẻ Sino Messages (MagicBentoCard), không hứa sản phẩm chưa có.
+    - Trang chủ SI-02R thành trang `messages`. "Mở Sino" ở band và 404 thành "Mở Sino Messages".
+  - **Acceptance criteria:**
+    - spec *Trang thương hiệu của nhà Sino*;
+    - *Trang Sino Messages mô tả đúng ứng dụng…*;
+    - *Mở trang chủ khi tắt JavaScript* (`/messages`);
+    - *Link nội bộ không gãy* (hai scenario).
+  - **Kiểm chứng:**
+    - test bảng trang, nội dung `/messages` (đổi từ `home`), trang `/` (đúng một thẻ sản phẩm, link `/messages`, `/privacy`), link nội bộ toàn site, CLI có `messages/index.html`;
+    - lint, typecheck, test, `build:preview`;
+    - Chrome `/` ở 1440 và 390 × dark/light; `/messages` một lượt ở 1440 và 390.
+
 - [ ] 2.2 **SI-03 — Chính sách quyền riêng tư, tiếng Việt và tiếng Anh**
   - **Thực hiện:**
-    - `src/pages/privacy.ts` theo `SitePrivacy` (mục lục, các mục, tóm tắt), nội dung theo mục "Privacy: những gì phải ghi đúng" của `design.md`.
+    - `src/pages/privacy.ts` theo `SitePrivacy` (mục lục, các mục, tóm tắt), nội dung theo mục "Privacy: những gì phải ghi đúng" của `design.md`. Privacy là chung cho nhà Sino; phần dữ liệu Google nằm trong mục riêng của Sino Messages, giữ `#google` (D-253).
     - Đối chiếu từng câu với các bảng Flyway và code: `CredentialCipher`, BE-33, D-13, F05.
     - Bản `/en/privacy` có cùng nội dung; link đổi ngôn ngữ và `hreflang` (D-243).
     - Bỏ khung "Bản nháp để thiết kế".
@@ -223,6 +242,6 @@
     - Chrome mọi trang ở 1440 / 768 / 390 × dark / light, không cuộn ngang; ghi chỗ khác canvas.
     - Đọc lại bảng D-241.
     - `pnpm build` với config đủ giá trị (giá trị thử, không commit) xanh; với config thiếu thì đỏ.
-    - `README.md`: dựng, xem trước, đưa lên Cloudflare Pages hoặc GitHub Pages, gắn tên miền, xác minh trong Search Console, URL cuối cùng không chuyển hướng (D-248), các ô của consent screen (App home page, Privacy policy, Terms of service, Authorized domains).
+    - `README.md`: dựng, xem trước, đưa lên Cloudflare Pages hoặc GitHub Pages, gắn tên miền, xác minh trong Search Console, URL cuối cùng không chuyển hướng (D-248), các ô của consent screen (App home page `…/messages`, Privacy policy `…/privacy`, Terms of service `…/terms`, Authorized domains; D-253).
   - **Acceptance criteria:** Definition of Done trong `design.md`.
   - **Kiểm chứng:** như trên; sau đó chạy `openspec archive site-public-pages -y`.

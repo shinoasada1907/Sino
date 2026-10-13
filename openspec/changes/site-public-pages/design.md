@@ -99,9 +99,12 @@ export interface SiteConfig {
 
 ### D-244 — Các trang: các trang công khai của canvas, trừ Đăng nhập · **Người dùng duyệt**
 
+> **Sửa bởi D-253 (2026-10-13):** ~~`/` = `Landing`, trang chủ khai với Google~~ → `/` là trang thương hiệu của nhà Sino; `Landing` (Sino Messages) ở `/messages` và đó là App home page khai với Google. **LÝ DO:** sẽ có thêm sản phẩm Sino, site này là site chung.
+
 | Đường dẫn | Canvas | Ghi chú |
 |---|---|---|
-| `/` | `Landing` | Trang chủ khai với Google |
+| `/` | (không có; ghép từ khối canvas, D-253) | Trang thương hiệu nhà Sino |
+| `/messages` | `Landing` | Trang Sino Messages, App home page khai với Google |
 | `/privacy`, `/en/privacy` | `SitePrivacy` | Chính sách quyền riêng tư khai với Google |
 | `/terms`, `/en/terms` | `SiteTerms` | Ô Terms (tùy chọn) trên consent screen |
 | `/security` | `SiteSecurity` | |
@@ -109,7 +112,7 @@ export interface SiteConfig {
 | `404.html` | `SiteNotFound` | Host tĩnh trả trang này cho đường dẫn không có |
 
 - `SiteLogin` thuộc app (`sino-web` đã có `/login`), không nằm ở site.
-- Các link trong mục "Tính năng", "Kế hoạch"… ở thanh trên của trang con trỏ về `/#tinh-nang`…, thay cho `Landing.dc.html` trần của canvas.
+- ~~Các link trong mục "Tính năng", "Kế hoạch"… ở thanh trên của trang con trỏ về `/#tinh-nang`…, thay cho `Landing.dc.html` trần của canvas.~~ → thanh trên hai kiểu (D-254). **LÝ DO:** D-253.
 
 ### D-245 — Trang chủ có khối "Sino xin quyền gì từ Google" · **Người dùng duyệt**
 - Đặt trong mục "Quyền riêng tư" (`#rieng-tu`), sau bốn thẻ của canvas: một danh sách bốn dòng, mỗi dòng gồm scope, tên dễ hiểu và lý do.
@@ -218,6 +221,33 @@ Mã React Bits (reactbits.dev, bản TS-TW) được chép vào `src/shared/moti
 - Hiệu ứng mạnh hơn canvas (DotGrid theo chuột, MagicBento có hạt, SplitText ở hero): trái mục "Không làm".
 - Cài nguyên bản React Bits qua `shadcn add`: kéo `@hugeicons`, palette tím-hồng, theme riêng, không theo token canvas.
 
+### D-253 — Site chung của nhà Sino: `/` là trang thương hiệu, Sino Messages ở `/messages` · **Người dùng chốt** (2026-10-13, "/ thương hiệu, /messages sản phẩm"; "Trang thương hiệu tối giản"; duyệt "oke duyệt")
+Người dùng: sau này sẽ có nhiều sản phẩm Sino, và landing (cùng admin) phải dùng chung cho các sản phẩm.
+
+- **`/`, trang thương hiệu tối giản:**
+  - hero ("SINO", một câu về nhà Sino), một thẻ lớn cho mỗi sản phẩm (hôm nay chỉ Sino Messages: mô tả ngắn, "Xem Sino Messages" → `/messages`, "Mở ứng dụng" → `appUrl`), chân trang chung;
+  - ghép từ khối canvas có sẵn (canvas chưa vẽ trang này); không hứa sản phẩm chưa có (D-241);
+  - thêm sản phẩm = thêm một thẻ.
+- **`/messages`:** toàn bộ trang chủ của SI-02R chuyển sang (`messages/index.html`, D-248). Đây là **App home page** khai với Google, vì Google đòi trang chủ khai trên consent screen mô tả đúng ứng dụng.
+- **Trang chung cho cả nhà Sino:** `/privacy`, `/terms` (và bản `/en/`), `/security`, `/open-source`, `404.html`. Privacy có mục riêng cho Sino Messages, giữ `#google` (SI-03).
+- **Consent screen:** App home page `https://<tên miền>/messages`, Privacy policy `/privacy`, Terms `/terms`. URL đã khai thì không đổi khi thêm sản phẩm.
+- **Config:** `appUrl` giữ tên, nghĩa là URL app Sino Messages. Khi có sản phẩm thứ hai mới đổi thành danh sách theo sản phẩm.
+
+**Phương án bị loại:**
+- Giữ `/` là Sino Messages, tách khi có sản phẩm thứ hai: URL đã khai với Google phải đổi và khai lại.
+- Mỗi sản phẩm một subdomain landing: phải xác minh và cấu hình host cho từng subdomain.
+- `/` chuyển hướng sang `/messages`: cần host có chuyển hướng (GitHub Pages không có).
+
+### D-254 — Thanh trên hai kiểu: trang sản phẩm và trang chung · **Người dùng duyệt** (thiết kế 2026-10-13)
+- **Trang sản phẩm (`/messages`):** như SI-02R. Các mục Tính năng, Kế hoạch, Cách hoạt động, Quyền riêng tư, Câu hỏi trỏ `/messages#…`; nút "Đăng nhập" (`appUrl/login`) và "Mở Sino Messages" (`appUrl/`). Menu điện thoại có các mục đó.
+- **Trang chung (`/`, Privacy, Terms, Bảo mật, Nguồn mở, 404):** logo Sino → `/`; link "Sino Messages" → `/messages`; nút "Mở Sino Messages" (`appUrl/`). Menu điện thoại có link sản phẩm.
+- **Chân trang chung cho mọi trang:**
+  - SẢN PHẨM: Sino Messages;
+  - TIN CẬY: Bảo mật, Câu hỏi thường gặp (`/messages#cau-hoi`);
+  - PHÁP LÝ: Điều khoản, Chính sách quyền riêng tư, Phần mềm nguồn mở.
+- Mỗi trang khai thanh trên của mình trong bảng trang (`PageMeta.nav`: `product` hoặc `family`).
+- "Mở Sino" ở 404 và ở band thành "Mở Sino Messages". **LÝ DO:** khi có nhiều sản phẩm, "Mở Sino" không nói mở cái gì.
+
 ## Cấu trúc
 
 > ~~Cấu trúc site tĩnh của SI-01 (`src/html.ts`, `src/layout.ts`, `styles/site.css`, `src/pages/*.ts`)~~ → cấu trúc React dưới đây (D-250, D-251). **LÝ DO:** người dùng đổi sang React (2026-10-13).
@@ -250,10 +280,10 @@ apps/sino-site/
 
 | Yêu cầu | Đáp ứng ở |
 |---|---|
-| Trang chủ xem được không cần đăng nhập, URL không chuyển hướng | `/` là `index.html` tĩnh (D-240, D-248) |
-| Mô tả ứng dụng và tính năng | Trang chủ, theo bảng D-241 |
+| Trang chủ xem được không cần đăng nhập, URL không chuyển hướng | ~~`/` là `index.html` tĩnh~~ `/messages` là `messages/index.html` tĩnh (D-240, D-248, D-253) |
+| Mô tả ứng dụng và tính năng | Trang `/messages`, theo bảng D-241 |
 | Vì sao xin dữ liệu Google | Khối D-245; Privacy mục "Dữ liệu nhận từ Google" |
-| Link tới Privacy từ trang chủ | Chân trang ("Chính sách quyền riêng tư") và khối D-245, nằm trong HTML gốc |
+| Link tới Privacy từ trang chủ | Chân trang ("Chính sách quyền riêng tư") và khối D-245 của `/messages`, nằm trong HTML gốc |
 | Privacy cùng tên miền | `/privacy` trên cùng site |
 | Limited Use | Privacy `#google`: câu nguyên văn tiếng Anh, link tới [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy) |
 | Responsive | Bố cục canvas 1440 / 768 / 390 px |

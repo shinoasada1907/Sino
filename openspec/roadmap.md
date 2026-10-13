@@ -269,6 +269,12 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 >   - `app.<tên miền>`: chuyển `/api/**` tới `sino-api` nhưng **chặn `/api/admin/**`**;
 >   - `admin.<tên miền>`: **chỉ** chuyển `/api/auth/**` và `/api/admin/**`;
 >   - trước `admin.<tên miền>` đặt thêm một lớp chặn truy cập: chỉ IP của người vận hành, hoặc Cloudflare Access.
+
+> **Nhiều sản phẩm Sino (người dùng, 2026-10-13):** "sau này sẽ có nhiều sino khác nên tôi muốn cái landing page này là chung cho các sino luôn và admin cũng tương tự".
+> - **Landing chung:** `apps/sino-site` là site của cả nhà Sino. `/` là trang thương hiệu; mỗi sản phẩm một trang (`/messages` cho Sino Messages, là App home page khai với Google); Privacy/Terms chung, mỗi sản phẩm một mục (`site-public-pages` D-253, D-254).
+> - **Admin chung:** `apps/sino-admin` (khi làm) là admin của mọi sản phẩm, mỗi sản phẩm một mục. Dữ liệu của mỗi sản phẩm ở lại backend của sản phẩm đó và đọc qua `/api/admin/**` của nó (như `sino-api` đã có); admin không đọc thẳng database.
+> - **Backend chung (nền tảng):** đăng nhập một lần cho mọi sản phẩm và cho admin (OIDC; ưu tiên Keycloak hoặc dịch vụ có sẵn hơn tự viết), danh sách sản phẩm, có thể cả nội dung landing. Dựng khi sản phẩm thứ hai bắt đầu, vì hôm nay chưa có gì dùng chung để đặt vào đó.
+> - **Câu còn mở:** các sản phẩm có dùng chung tài khoản người dùng không (một tài khoản Sino cho mọi sản phẩm). Trả lời trước khi dựng backend chung.
 > - **Nội dung landing:** giữ trong code (git là lịch sử phiên bản; Privacy/Terms phải được đọc lại trước khi đổi). Chỉ xem headless CMS khi có người không viết code cần sửa chữ thường xuyên.
 
 ---

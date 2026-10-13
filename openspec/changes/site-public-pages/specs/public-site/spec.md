@@ -2,24 +2,25 @@
 
 ### Requirement: Các trang của site công khai
 Site công khai MUST là HTML dựng sẵn trên host tĩnh, xem được đầy đủ không cần đăng nhập và không cần JavaScript; JavaScript chỉ thêm chuyển động. Site MUST có:
-- trang chủ `/`;
+- trang thương hiệu của nhà Sino `/`;
+- trang Sino Messages `/messages`;
 - Chính sách quyền riêng tư `/privacy` (tiếng Việt) và `/en/privacy` (tiếng Anh);
 - Điều khoản `/terms` và `/en/terms`;
 - Bảo mật `/security`, Phần mềm nguồn mở `/open-source`;
 - trang `404.html` cho đường dẫn không có.
 
-Mỗi trang MUST theo canvas "Sino UI" tương ứng (`Landing`, `SitePrivacy`, `SiteTerms`, `SiteSecurity`, `SiteOpenSource`, `SiteNotFound`) và MUST có `lang`, `<title>`, mô tả và viewport. Mọi trang trừ 404 MUST có link canonical; trang 404 MUST có `noindex` và không có canonical. Trang MUST NOT tải script, stylesheet, phông hay ảnh từ tên miền khác.
+Mỗi trang MUST theo canvas "Sino UI" tương ứng (`Landing` cho `/messages`, `SitePrivacy`, `SiteTerms`, `SiteSecurity`, `SiteOpenSource`, `SiteNotFound`) và MUST có `lang`, `<title>`, mô tả và viewport. Mọi trang trừ 404 MUST có link canonical; trang 404 MUST có `noindex` và không có canonical. Trang MUST NOT tải script, stylesheet, phông hay ảnh từ tên miền khác.
 
 #### Scenario: Mở trang chủ khi tắt JavaScript
-- **WHEN** một trình duyệt tắt JavaScript mở `/`
+- **WHEN** một trình duyệt tắt JavaScript mở `/messages`
 - **THEN** trang hiện đủ chữ của mọi mục, và link "Chính sách quyền riêng tư" trỏ tới `/privacy`
 
 #### Scenario: Đường dẫn không có
 - **WHEN** người dùng mở một đường dẫn không có trên site
-- **THEN** host trả `404.html` với "Không tìm thấy trang này.", nút "Về trang chủ" và "Mở Sino"
+- **THEN** host trả `404.html` với "Không tìm thấy trang này.", nút "Về trang chủ" và "Mở Sino Messages"
 
-### Requirement: Trang chủ mô tả đúng ứng dụng và lý do xin dữ liệu Google
-Trang chủ MUST giữ các mục của canvas `Landing`: giới thiệu, dịch vụ kết nối, tính năng, kế hoạch, cách hoạt động, quyền riêng tư, câu hỏi thường gặp, lời kêu gọi cuối và chân trang. Trang MUST chỉ khẳng định tính năng đang chạy thật, và tính năng chưa có MUST mang nhãn "Sắp có" hoặc không xuất hiện. Mục "Quyền riêng tư" MUST liệt kê từng quyền Sino xin từ Google (`openid`, `email`, `gmail.readonly`, `gmail.send`) kèm lý do, và MUST có link tới mục dữ liệu Google của Chính sách quyền riêng tư.
+### Requirement: Trang Sino Messages mô tả đúng ứng dụng và lý do xin dữ liệu Google
+Trang `/messages`, App home page khai với Google, MUST giữ các mục của canvas `Landing`: giới thiệu, dịch vụ kết nối, tính năng, kế hoạch, cách hoạt động, quyền riêng tư, câu hỏi thường gặp, lời kêu gọi cuối và chân trang. Trang MUST chỉ khẳng định tính năng đang chạy thật, và tính năng chưa có MUST mang nhãn "Sắp có" hoặc không xuất hiện. Mục "Quyền riêng tư" MUST liệt kê từng quyền Sino xin từ Google (`openid`, `email`, `gmail.readonly`, `gmail.send`) kèm lý do, và MUST có link tới mục dữ liệu Google của Chính sách quyền riêng tư.
 
 #### Scenario: Dịch vụ chưa kết nối được
 - **WHEN** người dùng xem dải "KẾT NỐI VỚI"
@@ -28,6 +29,13 @@ Trang chủ MUST giữ các mục của canvas `Landing`: giới thiệu, dịch
 #### Scenario: Lý do của quyền đọc Gmail
 - **WHEN** người dùng đọc mục "Quyền riêng tư"
 - **THEN** có dòng `gmail.readonly` giải thích Sino đọc thư để hiện trong hộp thư chung, và link tới `/privacy#google`
+
+### Requirement: Trang thương hiệu của nhà Sino
+Trang `/` MUST giới thiệu nhà Sino bằng một câu, và MUST có một thẻ cho mỗi sản phẩm Sino đang chạy thật, với link tới trang của sản phẩm và link mở ứng dụng. Trang MUST NOT nhắc tới sản phẩm chưa có. Trang MUST có link tới Chính sách quyền riêng tư trong HTML gốc.
+
+#### Scenario: Hôm nay chỉ có Sino Messages
+- **WHEN** người dùng mở `/`
+- **THEN** trang có đúng một thẻ sản phẩm là Sino Messages, với "Xem Sino Messages" trỏ `/messages` và "Mở ứng dụng" trỏ URL app trong cấu hình
 
 ### Requirement: Chính sách quyền riêng tư đáp ứng Limited Use
 Chính sách quyền riêng tư MUST nói đúng những gì Sino làm hôm nay:
@@ -67,16 +75,20 @@ Chuyển động trên site MUST theo canvas "Foundations · Chuyển động":
 Khi người dùng bật giảm chuyển động, trang MUST bỏ mọi dịch chuyển và chỉ giữ mờ dần tối đa 160ms. HTML dựng sẵn MUST NOT ẩn nội dung; chỉ JavaScript được ẩn một phần tử trước khi cho nó hiện ra.
 
 #### Scenario: Giảm chuyển động
-- **WHEN** người dùng bật giảm chuyển động trong hệ điều hành rồi mở trang chủ và cuộn xuống
+- **WHEN** người dùng bật giảm chuyển động trong hệ điều hành rồi mở `/messages` và cuộn xuống
 - **THEN** các mục hiện ra chỉ bằng mờ dần, không trượt; thẻ tính năng không nhấc lên khi rê chuột
 
-#### Scenario: Trang chủ khi script chưa chạy
-- **WHEN** trình duyệt hiện HTML của `/` trước khi JavaScript chạy, hoặc khi JavaScript bị tắt
+#### Scenario: Trang Sino Messages khi script chưa chạy
+- **WHEN** trình duyệt hiện HTML của `/messages` trước khi JavaScript chạy, hoặc khi JavaScript bị tắt
 - **THEN** mọi mục đều hiện, không mục nào bị ẩn chờ hiệu ứng
 
 ### Requirement: Link nội bộ không gãy
-Mọi link nội bộ của site MUST trỏ tới một trang đã dựng, hoặc tới một `id` có thật trên trang đó. Nút "Đăng nhập" và "Mở Sino" MUST trỏ tới URL app trong cấu hình.
+Mọi link nội bộ của site MUST trỏ tới một trang đã dựng, hoặc tới một `id` có thật trên trang đó. Nút "Đăng nhập" và "Mở Sino Messages" MUST trỏ tới URL app trong cấu hình.
 
 #### Scenario: Link ở thanh trên của trang Điều khoản
-- **WHEN** người dùng ở `/terms` bấm "Tính năng"
-- **THEN** trình duyệt mở `/#tinh-nang` trên trang chủ
+- **WHEN** người dùng ở `/terms` bấm "Sino Messages"
+- **THEN** trình duyệt mở `/messages`
+
+#### Scenario: Link ở thanh trên của trang Sino Messages
+- **WHEN** người dùng ở `/messages` bấm "Tính năng"
+- **THEN** trang cuộn tới `/messages#tinh-nang`
