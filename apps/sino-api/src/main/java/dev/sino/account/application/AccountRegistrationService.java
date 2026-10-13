@@ -57,10 +57,10 @@ public class AccountRegistrationService {
         Optional<StatusChange> statusChange = Optional.empty();
         if (existing.isPresent()) {
             account = existing.get();
-            statusChange = account.reconnect(profile.displayName(), profile.avatarUrl());
+            statusChange = account.reconnect(profile.displayName(), profile.avatarUrl(), profile.address());
         } else {
             account = accounts.save(ConnectedAccount.register(command.ownerId(), command.provider(),
-                    profile.externalAccountId(), profile.displayName(), profile.avatarUrl()));
+                    profile.externalAccountId(), profile.displayName(), profile.avatarUrl(), profile.address()));
         }
 
         credentials.save(account.id(), command.credentials(), command.refreshToken());

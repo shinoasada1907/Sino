@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.account.infrastructure.ConnectedAccountRepository;
 import dev.sino.common.error.SinoException;
+import dev.sino.provider.ProviderType;
 
 /**
  * Reads the accounts of one owner. Every method takes the owner, so no read can forget to filter by it, and an
@@ -36,6 +37,13 @@ public class AccountQueryService {
     public ConnectedAccount get(UUID ownerId, UUID accountId) {
         return accounts.findByIdAndOwnerIdAndRemovedAtIsNull(accountId, ownerId)
                 .orElseThrow(AccountErrorCode::accountNotFound);
+    }
+
+    /** Whether the owner has a live (not removed) account for this account of the provider. */
+    public boolean hasAccount(UUID ownerId, ProviderType provider, String externalAccountId) {
+        return accounts.findByOwnerIdAndProviderAndExternalAccountId(ownerId, provider, externalAccountId)
+                .filter(account -> !account.isRemoved())
+                .isPresent();
     }
 
 }

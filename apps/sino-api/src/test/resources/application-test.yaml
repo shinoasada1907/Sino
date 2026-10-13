@@ -6,13 +6,24 @@ spring:
     name: sino-api
 
 sino:
-  security:
-    api-user:
-      username: test-user
-      password: test-password
+  sync:
+    live:
+      # Tests call LiveSyncScheduler themselves; ScheduledSyncTests turns the schedule on.
+      scheduled: false
+  # Where the browser reaches Sino; the connect flow builds its redirect URI from it.
+  public-base-url: http://localhost:5173
   owner:
     email: owner@sino.test
     display-name: Test Owner
+    # Fake, not a secret.
+    password: test-owner-password
+  admin:
+    # D-260: the admin of the tests (AdminSignInTests). Fake, not a secret.
+    email: admin@sino.test
+    password: test-admin-password
+  auth:
+    # Fake, not a secret.
+    remember-me-key: test-remember-me-key-0123456789abcdef
   credentials:
     encryption:
       # Fake key (the bytes 0..31), not a secret.

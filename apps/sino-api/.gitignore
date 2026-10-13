@@ -34,3 +34,6 @@ build/
 
 ### Local environment (real values, never commit; template is .env.example) ###
 .env
+
+### Claude Code agent memory (per machine; the shared .claude/ is at the repo root) ###
+.claude/

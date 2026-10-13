@@ -31,6 +31,8 @@
         <spring-modulith.version>2.1.1</spring-modulith.version>
         <!-- D-23: test JVMs run in UTC (tests do not go through SinoApiApplication.main). Read by Surefire. -->
         <argLine>-Duser.timezone=UTC</argLine>
+        <!-- D-58: tests against a real Gmail account run only by hand, with the real-gmail profile below. -->
+        <sino.excluded-test-tags>real-gmail</sino.excluded-test-tags>
     </properties>
     <dependencies>
         <dependency>
@@ -76,6 +78,12 @@
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-jpa</artifactId>
+        </dependency>
+        <!-- D-61: the text of a mail that only has HTML. -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.23.2</version>
         </dependency>
 
         <dependency>
@@ -159,6 +167,14 @@
             <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- D-39: stands in for Google (and other providers) over real HTTP in tests. The standalone jar shades
+             its own Jetty and Jackson, so it cannot clash with Spring's. -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>3.13.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
@@ -177,6 +193,13 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>${sino.excluded-test-tags}</excludedGroups>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -201,5 +224,26 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <!-- D-58: ./mvnw test -Preal-gmail runs only the tests tagged real-gmail, against the Gmail account connected
+             on this machine (local Spring profile: .env and the Compose database). Never in CI. -->
+        <profile>
+            <id>real-gmail</id>
+            <properties>
+                <sino.excluded-test-tags/>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <groups>real-gmail</groups>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

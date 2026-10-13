@@ -1,7 +1,7 @@
 package dev.sino;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,8 +36,8 @@ class ActuatorEndpointsTests {
     }
 
     @Test
-    void healthShowsComponentsToTheApiUser() throws Exception {
-        mvc.perform(get("/actuator/health").with(httpBasic("test-user", "test-password")))
+    void healthShowsComponentsToASignedInUser() throws Exception {
+        mvc.perform(get("/actuator/health").with(user("owner@sino.test")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.components.db.status").value("UP"));
     }
@@ -61,7 +61,7 @@ class ActuatorEndpointsTests {
     void sensitiveEndpointsNeedLoginAndAreNotExposed() throws Exception {
         for (String path : new String[] { "/actuator/env", "/actuator/configprops", "/actuator/heapdump" }) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
-            mvc.perform(get(path).with(httpBasic("test-user", "test-password"))).andExpect(status().isNotFound());
+            mvc.perform(get(path).with(user("owner@sino.test"))).andExpect(status().isNotFound());
         }
     }
 

@@ -8,7 +8,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -145,6 +146,7 @@ class AccountsApiTests {
                 .andExpect(jsonPath("$.provider").value("fake"))
                 .andExpect(jsonPath("$.externalAccountId").value("me@fake.test"))
                 .andExpect(jsonPath("$.displayName").value("Fake account"))
+                .andExpect(jsonPath("$.address").value(nullValue()))
                 .andExpect(jsonPath("$.avatarUrl").value(nullValue()))
                 .andExpect(jsonPath("$.status").value("CONNECTED"))
                 .andExpect(jsonPath("$.syncEnabled").value(true))
@@ -156,8 +158,37 @@ class AccountsApiTests {
 
         Map<String, Object> fields = JsonPath.read(body, "$");
         assertThat(fields.keySet()).containsExactlyInAnyOrder("id", "provider", "externalAccountId", "displayName",
-                "avatarUrl", "status", "syncEnabled", "lastSyncedAt", "capabilities", "createdAt", "updatedAt");
+                "address", "avatarUrl", "status", "syncEnabled", "lastSyncedAt", "capabilities", "createdAt",
+                "updatedAt");
         assertThat(body).doesNotContain(ACCESS).doesNotContain(REFRESH).doesNotContain("mail.read");
+    }
+
+    @Test
+    void showsTheAddressOfAnAccountInTheListAndAlone() throws Exception {
+        UUID id = connect(owner, FAKE, "1157", "2026-10-05T03:15:00Z");
+        jdbc.update("update connected_account set address = 'me@fake.test' where id = ?", id);
+
+        mvc.perform(get("/api/accounts").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].externalAccountId").value("1157"))
+                .andExpect(jsonPath("$[0].address").value("me@fake.test"));
+        mvc.perform(get("/api/accounts/{id}", id).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.address").value("me@fake.test"));
+    }
+
+    @Test
+    void aPatchCannotChangeTheAddress() throws Exception {
+        UUID id = connect(owner, FAKE, "1157", "2026-10-05T03:15:00Z");
+        jdbc.update("update connected_account set address = 'me@fake.test' where id = ?", id);
+
+        mvc.perform(patchAccount(id, "{\"displayName\": \"Công việc\", \"address\": \"other@example.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("Công việc"))
+                .andExpect(jsonPath("$.address").value("me@fake.test"));
+
+        assertThat(jdbc.queryForObject("select address from connected_account where id = ?", String.class, id))
+                .isEqualTo("me@fake.test");
     }
 
     @Test
@@ -329,7 +360,7 @@ class AccountsApiTests {
         credentials.save(id, new OAuth2Credentials(ACCESS, null, Set.of("mail.read")), REFRESH);
         Instant before = Instant.now();
 
-        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()))
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()).with(csrf()))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
 
@@ -352,12 +383,12 @@ class AccountsApiTests {
     @Test
     void aRemovedAccountCannotBeChangedOrRemovedAgain() throws Exception {
         UUID id = connect(owner, FAKE, "me@fake.test", "2026-10-05T03:15:00Z");
-        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser())).andExpect(status().isNoContent());
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()).with(csrf())).andExpect(status().isNoContent());
 
         mvc.perform(patchAccount(id, "{\"displayName\": \"Back\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
-        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()))
+        mvc.perform(delete("/api/accounts/{id}", id).with(apiUser()).with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
         assertThat(events.stream(AccountRemoved.class)).hasSize(1);
@@ -368,7 +399,7 @@ class AccountsApiTests {
         UUID foreign = connect(otherUser, FAKE, "other@fake.test", "2026-10-05T03:15:00Z");
         credentials.save(foreign, new OAuth2Credentials(ACCESS, null, Set.of("mail.read")), REFRESH);
 
-        mvc.perform(delete("/api/accounts/{id}", foreign).with(apiUser()))
+        mvc.perform(delete("/api/accounts/{id}", foreign).with(apiUser()).with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_FOUND"));
 
@@ -380,7 +411,7 @@ class AccountsApiTests {
     }
 
     private RequestBuilder patchAccount(UUID id, String json) {
-        return patch("/api/accounts/{id}", id).with(apiUser()).contentType(APPLICATION_JSON).content(json);
+        return patch("/api/accounts/{id}", id).with(apiUser()).with(csrf()).contentType(APPLICATION_JSON).content(json);
     }
 
     private String displayNameInDatabase(UUID id) {
@@ -389,15 +420,15 @@ class AccountsApiTests {
 
     /** Saves an account directly, then pins its timestamps so the expected order and JSON are known. */
     private UUID connect(UUID user, ProviderType provider, String externalAccountId, String createdAt) {
-        UUID id = accounts.save(ConnectedAccount.register(user, provider, externalAccountId, "Fake account", null))
-                .id();
+        UUID id = accounts.save(ConnectedAccount.register(user, provider, externalAccountId, "Fake account", null,
+                null)).id();
         OffsetDateTime time = OffsetDateTime.ofInstant(Instant.parse(createdAt), ZoneOffset.UTC);
         jdbc.update("update connected_account set created_at = ?, updated_at = ? where id = ?", time, time, id);
         return id;
     }
 
     private static RequestPostProcessor apiUser() {
-        return httpBasic("test-user", "test-password");
+        return user("owner@sino.test");
     }
 
     @TestConfiguration(proxyBeanMethods = false)

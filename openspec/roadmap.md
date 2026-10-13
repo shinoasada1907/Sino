@@ -2,6 +2,7 @@
 
 > Mode **TRAINING**: bạn viết code, Claude mentor/review/test.
 > Nguồn: Notion 03 (Feature Map, Dependency, Milestones M1–M4), 01, 02/02A/02B/02C, 04A và các change OpenSpec đã viết.
+> **Giao diện** (người dùng, 2026-10-08): theo canvas "Sino UI" (https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB, bản sao `design/sino-ui/project/`), là thiết kế cuối cùng và ưu tiên hơn 02C; tên màn trong ngoặc dưới đây là artboard của canvas.
 > Độ chi tiết giảm dần theo khoảng cách: **Phase 0** đã có task chi tiết; các phase sau là khung. Mỗi feature chỉ được viết spec chi tiết (một change OpenSpec) **khi bắt đầu làm nó**, để không lập kế hoạch cho thứ chưa hiểu rõ.
 > Ước lượng kích thước (S = 1–2 buổi, M = 3–5 buổi, L = 6–10 buổi; một buổi ≈ 2–3 giờ) chỉ để định hướng và sẽ chỉnh sau khi xong F01.
 
@@ -55,7 +56,7 @@ Luật từ Notion 03: F01–F03 làm **BE trước**; từ F04 trở đi mỗi 
 
 ## 3. Chi tiết từng phase và feature
 
-### Phase 0 — Nền móng backend (đang làm)
+### Phase 0 — Nền móng backend · ✅ DONE 2026-10-07 (PR #3 vào `main`)
 
 Mục tiêu: backend có nền móng vững, contract provider rõ, account được lưu an toàn. Chưa có provider thật, chưa có frontend.
 
@@ -95,7 +96,7 @@ Cần chốt: **D-01** (đề xuất làm F03 trước F02), **D-16**, **D-18**.
 
 ~~Cần chốt: **D-10**, **D-11**, **D-12**, **D-13**, **D-14**.~~ Đã chốt: D-10 = A, D-11 = A, D-12 = A, D-13 = B (xóa mềm), D-14 = thêm cột.
 
-**Kết thúc Phase 0:** PR `feature/be-f01-f03-plan` + các nhánh BE vào `main`, archive 3 change, cập nhật Notion 04C/04D.
+~~**Kết thúc Phase 0:** PR `feature/be-f01-f03-plan` + các nhánh BE vào `main`, archive 3 change, cập nhật Notion 04C/04D.~~ → Đã làm 2026-10-07: PR #1, #2, #3 vào `main` (#3 là `dev`, merge commit `9d1ff9b`, CI xanh), 3 change đã archive. Còn mở: cập nhật Notion 02B (D-12/D-13/D-14) và 04C/04D, người dùng làm.
 
 ---
 
@@ -105,11 +106,13 @@ Mục tiêu: có web app thật gọi API thật, để từ Phase 2 mỗi featu
 
 | Feature | FE | Việc nhỏ ở BE |
 |---|---|---|
-| F01-FE | Cài stack FE đã chọn (React Router, TanStack Query, Tailwind, shadcn/ui) vào `apps/sino-web`; `AppShell` 3 cột (02C §2, §12); route theo 02C §11; API client có kiểu; xử lý Problem Details | Vite dev proxy `/api` → `localhost:8080` (tránh CORS khi dev) |
-| F02-FE | Trang Accounts (02C §8): danh sách, badge trạng thái với wording dễ hiểu ("Needs login again"...), đổi tên, tắt/bật, xóa | — |
-| F03-FE | Provider card + badge capability (02C §5); tiện ích "chỉ hiện hành động khi provider hỗ trợ" | — |
+| F01-FE | Cài stack FE đã chọn (React Router, TanStack Query, Tailwind, shadcn/ui) vào `apps/sino-web`; khung app theo canvas (`Sidebar`, `Rail`, `TabBar`, `Topbar`, `Breakpoints`; dựng ở `fe-ui-overview` UI-01); API client có kiểu; xử lý Problem Details | Vite dev proxy `/api` → `localhost:8080` (tránh CORS khi dev) |
+| F02-FE | Trang Accounts (canvas `Accounts`, `AccountDetail`, `MobileAccounts`): danh sách, badge trạng thái với wording dễ hiểu ("Needs login again"...), đổi tên, tắt/bật, xóa | — |
+| F03-FE | Provider card + badge capability (canvas `Services`, `ConnectWizard`); tiện ích "chỉ hiện hành động khi provider hỗ trợ" | — |
 
-**Quyết định mở phase — D-22: xác thực cho trình duyệt.** HTTP Basic (D-02) không hợp với SPA (phải giữ mật khẩu trong JS) và với SSE (`EventSource` không gửi được header). Các phương án sẽ so sánh khi mở phase: session cookie + CSRF token (form/JSON login), hoặc OAuth2 login bằng Google, hoặc token ngắn hạn. Phải chốt trước khi FE gọi API thật, và chắc chắn trước F08.
+**Quyết định mở phase — D-22: xác thực cho trình duyệt.** → **Accepted A (2026-10-07):** email + mật khẩu của owner, session cookie, CSRF, remember-me; bỏ HTTP Basic (D-32…D-36, xem `openspec/changes/fe-f01-web-foundation/design.md`). Phase 1 chia ba change: (1) `fe-f01-web-foundation` (D-22 + F01-FE), (2) F02-FE, (3) F03-FE. HTTP Basic (D-02) không hợp với SPA (phải giữ mật khẩu trong JS) và với SSE (`EventSource` không gửi được header). Các phương án sẽ so sánh khi mở phase: session cookie + CSRF token (form/JSON login), hoặc OAuth2 login bằng Google, hoặc token ngắn hạn. Phải chốt trước khi FE gọi API thật, và chắc chắn trước F08.
+
+> **Đổi cách làm frontend (D-42, D-43, D-44, người dùng 2026-10-07):** dựng giao diện trước với dữ liệu mẫu, mỗi màn một change (`fe-ui-<màn>`), bắt đầu từ **Tổng quan** (màn vượt MVP, nay vào phạm vi); kiểu dữ liệu của màn là hợp đồng giao backend để API khớp theo. Web chưa có xác thực trong lúc dựng giao diện; FE-02…FE-05 của change 1 tạm hoãn. Ở phần frontend, cách này thay luật vertical slice nói dưới đây. Chi tiết: `openspec/changes/fe-ui-overview/design.md`.
 
 Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API client, xử lý lỗi ở FE, cookie/CSRF trong SPA.
 
@@ -118,6 +121,8 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 ### Phase 2 — Một provider hoàn chỉnh (M1 Single-provider proof)
 
 #### F04 — Gmail connector + luồng Connect · ~L (feature lớn nhất)
+
+> **Tách làm hai change (D-37, người dùng chốt 2026-10-07):** **F04a** `openspec/changes/f04a-gmail-connect` — luồng kết nối OAuth2, kết nối lại, thu hồi token khi xóa, connector Gmail khung; backend làm song song với web của Phase 1 (D-41). **F04b** `openspec/changes/f04b-gmail-read` — refresh token (D-15 = A'), `fetchUpdates` bằng Gmail API, chuẩn hóa thread/MIME; làm ngay trước F05. Quyết định khi mở (người dùng, 2026-10-09): D-57 phạm vi connector + token (lưu thư, `startInitialSync`, tiến độ → F05), D-58 kiểm Gmail thật bằng test có tag, D-59 cursor khởi tạo mang mốc thời gian, D-60 mã lỗi `CURSOR_EXPIRED`, D-61 jsoup, D-62 `ProviderAccess`. **Trạng thái 2026-10-09:** BE-35…BE-39 xong, nghiệm thu xong (Gmail thật: đọc 5 thư, refresh token); còn archive, sau `f04a-gmail-connect`.
 
 - **BE:** luồng OAuth2 authorization code (tạo URL + `state` → Google → callback kiểm tra `state` → đổi code lấy token → `getAccountProfile` → use case `register` của F02); connector Gmail implement SPI F03 (profile, `fetchUpdates` bằng Gmail API, chuẩn hóa thread/message/MIME); refresh token theo D-15; connector vượt contract test kit.
 - **FE:** nút "Add account → Gmail", màn hình kết quả connect (thành công/lỗi có hướng dẫn).
@@ -128,16 +133,18 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 #### F05 — Unified Inbox · ~L
 
 - **BE:** module `conversation`; bảng `conversation`, `conversation_participant` (02B); **nhập dữ liệu ban đầu tối thiểu** để inbox có dữ liệu trước khi có F07 (gọi `fetchUpdates` và upsert idempotent theo unique constraint — cách kích hoạt chốt khi mở spec); `GET /api/conversations` lọc theo account/provider/unread, phân trang bằng cursor, sắp theo `last_message_at`; `GET/PATCH /api/conversations/{id}` (star/archive).
-- **FE:** danh sách conversation ở cột giữa, infinite scroll, badge provider/account, unread (02C §6).
+- **FE:** danh sách conversation, infinite scroll, badge provider/account, unread (canvas `Inbox`, `TabletInbox`, `MobileInbox`, `InboxState`).
 - **Cần chốt:** quyết định sản phẩm khi xóa account thì giữ hay xóa lịch sử (02B §12, D-13); cách dọn dữ liệu phụ thuộc (listener hay FK cascade).
 - **Bạn sẽ học:** keyset/cursor pagination, index (02B §5), upsert `ON CONFLICT` so với JPA, projection, `EXPLAIN ANALYZE`.
+- **Đã mở 2026-10-09:** `openspec/changes/f05-unified-inbox`. Quyết định (người dùng): D-63 F05 lưu cả thư (bảng `message`/`attachment` chuyển từ F06 sang F05), D-64 lần nhập đầu do người dùng bắt đầu, chạy nền, D-65 ước lượng qua hàm tùy chọn của contract, D-66 xóa account thì giữ thư nhưng ẩn, D-67 đã đọc/lưu trữ chỉ trong Sino, D-68 "Cần trả lời" = thư cuối đến từ người, không hàng loạt, D-69 hai module `conversation` + `sync`.
 
 #### F06 — Message History · ~M
 
-- **BE:** module `messaging`; bảng `message`, `attachment`; luồng upsert message và cập nhật preview/unread (02B §11); `GET /api/conversations/{id}/messages?before=&limit=` (mới nhất trước).
+- **BE:** ~~module `messaging`; bảng `message`, `attachment`; luồng upsert message và cập nhật preview/unread (02B §11)~~ → làm ở F05 (D-63); còn `GET /api/conversations/{id}/messages?before=&limit=` (mới nhất trước) trong module `conversation`.
 - **FE:** cột phải: timeline, bubble inbound/outbound, metadata attachment, cuộn lên để tải tin cũ hơn.
 - **Cần chốt:** lưu và hiển thị nội dung email HTML thế nào (plain text hay HTML đã sanitize) — liên quan trực tiếp tới **XSS**.
 - **Bạn sẽ học:** phân trang ngược, sanitize nội dung không tin cậy, quan hệ aggregate giữa conversation và message.
+- **Đã mở 2026-10-10:** `openspec/changes/f06-message-history` (người dùng giao toàn quyền chốt: "tự xử hết luôn đi"). Agent chốt: D-120 lưu HTML gốc khi nhập, làm sạch ở backend khi trả, web hiện trong iframe sandbox không script; D-121 ảnh từ xa tắt sẵn; D-122 thư nhập trước đó lấy bù từ Gmail khi mở; D-123 danh sách thư và HTML là hai request; D-124 nút "Xem thư cũ hơn"; D-125 tệp tải qua Sino, không lưu, luôn là tải xuống; D-126 web đọc thread từ API.
 
 **Kết thúc Phase 2 = M1:** demo kết nối Gmail thật → inbox → đọc thread.
 
@@ -148,8 +155,9 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 #### F07 — Sync Engine · ~L
 
 - **BE:** module `sync`; bảng `sync_checkpoint`, `sync_run` (02B); scheduler; **khóa theo account** để một account không bị sync song song; sync tăng dần theo cursor, chỉ tiến checkpoint sau khi lưu thành công (02A §7); retry có backoff cho `RATE_LIMITED`/`PROVIDER_UNAVAILABLE`; chuyển trạng thái account (`AUTH_EXPIRED`, `DEGRADED`...); listener `AccountConnected` → initial sync; `POST /api/accounts/{id}/sync`; event `AccountSync*`; export credential cho `sync` qua named interface riêng (F02 đã để ngỏ).
-- **FE:** trạng thái sync/lỗi theo từng account, nút "Sync now" (02C §8, §15).
+- **FE:** trạng thái sync/lỗi theo từng account, nút "Sync now" (canvas `Accounts`, `Topbar`, `Dashboard`).
 - **Bạn sẽ học:** job nền, idempotency khi chạy đồng thời, khóa trong PostgreSQL (advisory lock / `SKIP LOCKED`), backoff, listener tin cậy nhờ Event Publication Registry.
+- **Đã mở 2026-10-10 (gộp với F08):** `openspec/changes/f07-f08-realtime-inbox` — người dùng bảo bỏ kế hoạch cũ nếu không còn hợp: Gmail báo qua webhook Pub/Sub có hỏi dự phòng (D-76), SSE (D-77), thư mới chỉ hiện trong Sino (D-78), đồng bộ tăng dần trong `sync` với `@Scheduled` (D-79). `sync_run` và lease nhiều tiến trình chưa làm.
 
 #### F08 — Realtime (SSE) · ~M
 
@@ -178,6 +186,8 @@ Bạn sẽ học: TanStack Query (cache, invalidation), React Router, typed API 
 ### Phase 4 — Kế hoạch từ tin nhắn
 
 Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn; mọi thứ nằm trong Sino (D-25), nhắc nhở chỉ qua Sino (D-26). Hồ sơ phạm vi: `openspec/changes/planner-from-messages`.
+
+> **Đã mở 2026-10-12, phần lõi của F16 + F17, kéo lên trước F13/F14:** `openspec/changes/f16-f17-tasks-calendar` (người dùng: làm song song với phần Gmail; chưa gắn tin nhắn; nhắc nhở để sau). Module `planner`, việc có hạn và lặp, lịch hẹn có lặp (sửa / xóa cả chuỗi, D-151), `GET /api/calendar`; web: hai màn trên API, biểu mẫu việc và lịch hẹn. Quyết định D-150…D-158. Còn lại của F16/F17 (nhắc nhở qua F13/F14, tạo từ tin nhắn, "chỉ lần này") làm ở đợt sau.
 
 #### F15 — Ghi chú · ~S
 
@@ -208,6 +218,8 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 #### F09 — Provider thứ hai · ~L
 
+> **Người dùng muốn Zalo và Messenger sau Gmail (2026-10-07).** Theo hiểu biết hiện tại, cả hai không có API chính thức đọc tin nhắn của tài khoản cá nhân (Messenger Platform dành cho Facebook Page; Zalo có API cho Official Account). Làm **spike khả thi** trước khi thiết kế; kết quả quyết định provider thứ hai.
+
 - **Quyết định lớn khi mở spec:** chọn provider nào (00: Telegram hoặc provider có API phù hợp). Với Telegram: **Bot API** chỉ thấy chat với bot, không đọc được tin cá nhân của người dùng; **MTProto/TDLib** đọc được tin cá nhân nhưng phức tạp hơn nhiều (đăng nhập bằng số điện thoại, session). Chọn sai thì không chứng minh được mục tiêu "unified".
 - **BE:** connector thứ hai, credential loại `TOKEN` (D-14), capability khác Gmail → đây là bài kiểm tra thật của contract F03 (nếu phải sửa core → contract có vấn đề, ghi lại).
 - **FE:** badge/filter đa provider.
@@ -216,9 +228,10 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 #### F10 — Send Message · ~M
 
 - **BE:** `POST /api/conversations/{id}/messages`; kiểm tra capability trước khi gửi (FR-06); **idempotency key** chống gửi trùng khi retry; message outbound `PENDING → SENT/FAILED`; map `ProviderException` ra HTTP; Gmail send (MIME, header threading `In-Reply-To`/`References`); event `MessageSent`.
-- **FE:** composer tự ẩn/disable theo capability (02C §7), optimistic UI.
+- **FE:** composer tự ẩn/disable theo capability (canvas `Conversation`, `ThreadState`), optimistic UI.
 - **Hẹn giờ gửi (mở rộng, xem `planner-from-messages`):** thư đi ở `SCHEDULED` → `SENDING` → `SENT`/`FAILED`; việc `SEND_MESSAGE` qua F13; sửa/hủy trước giờ gửi; lần chạy lại gặp `SENDING` thì không gửi mù; lỗi → thông báo qua F14. FE: Gửi ▾ → Gửi lúc…, bộ lọc "Đã hẹn giờ".
 - **Bạn sẽ học:** idempotency cho lệnh không idempotent, thiết kế lỗi cho thao tác gọi hệ thống ngoài.
+- **Đã mở 2026-10-10, phần trả lời, kéo lên ngay sau F06:** `openspec/changes/f10-reply` (người dùng chọn "Trả lời trong thread", không soạn thư mới hay chuyển tiếp; ưu tiên nhắn tin từ 2026-10-09). Agent chốt: D-130 xin `gmail.send` không bắt buộc, account cũ cấp bằng kết nối lại; D-131 gửi trong request, chống trùng bằng `clientMessageId`; D-132 kết quả không rõ thì đối chiếu theo `Message-ID`, không gửi lại mù; D-133 trả lời người gửi thư mới nhất, chữ thuần; D-134 web: "Gửi lại", "Bỏ", dòng "Tới". Hẹn giờ gửi vẫn chờ F13.
 
 ---
 
@@ -228,13 +241,19 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 - **BE:** module `search`; PostgreSQL Full Text Search + GIN index (02B §5); `GET /api/search` lọc provider/account/thời gian; phân trang; highlight.
 - **Cần chốt:** tìm kiếm tiếng Việt không dấu (extension `unaccent`?), cấu hình `simple` hay khác.
-- **FE:** trang Search (02C §9).
+- **FE:** trang Search (canvas `SearchEmpty`, ô tìm kiếm của `Topbar`).
 - **Bạn sẽ học:** FTS, GIN, đọc query plan.
 
 #### F12 — Hardening · ~L
 
 - Rate limit và retry cho lời gọi provider; structured logging + MDC `accountId`/`provider`; metrics cho sync; job mã hóa lại credential khi xoay khóa (D-11); dọn `sync_run` theo retention; rà soát bảo mật theo OWASP API Top 10; UX reconnect/lỗi.
 - **Bạn sẽ học:** vận hành hệ thống thật: quan sát, giới hạn, phục hồi.
+
+---
+
+### Ngoài các phase — Admin (vận hành)
+
+> **Mở 2026-10-13 (người dùng):** "sau này đường nào cũng có 1 trang admin để quản lý Sino và quản lý cả nội dung landing page". Hướng đã chốt: admin là module `admin` trong `sino-api` (`/api/admin/**`, role `ADMIN`), không dựng backend thứ hai; khi có sản phẩm thứ hai mới tách phần nền tảng dùng chung (đăng nhập chung, CMS), dữ liệu riêng của Sino ở lại. Đợt đầu: change `openspec/changes/admin-api` (D-260…D-266, agent chốt theo ủy quyền "xây đi không cần hỏi"): tài khoản admin từ cấu hình, tách quyền với owner, API chỉ đọc (tổng quan, người dùng, tài khoản kết nối và tình trạng sync), không bao giờ trả nội dung thư. Để sau: giao diện admin (project web riêng), quản lý nội dung landing (`apps/sino-site`, cân nhắc headless CMS), thao tác ghi và nhật ký thao tác (khi có nhiều người dùng).
 
 ---
 
@@ -246,9 +265,9 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 | Trước F02 | D-01, D-10, D-11, D-12, D-13, D-14 |
 | Trước F03 | D-16, D-18 |
 | Mở Phase 1 | **D-22** xác thực cho trình duyệt |
-| Mở F04 | D-15, endpoint connect (C5), scope Gmail, công cụ giả lập HTTP |
+| Mở F04 | ~~D-15, endpoint connect (C5), scope Gmail, công cụ giả lập HTTP~~ → đã chốt 2026-10-07 (D-15 = A', C5, D-37…D-41; design của `f04a-gmail-connect`) |
 | Mở F05 | Giữ/xóa lịch sử khi xóa account; cách kích hoạt nhập dữ liệu ban đầu |
-| Mở F06 | Lưu/hiển thị HTML email (XSS) |
+| Mở F06 | ~~Lưu/hiển thị HTML email (XSS)~~ → D-120 (2026-10-10) |
 | Mở Phase 3 | Thứ tự F07 / F13 |
 | Mở F13 | **D-30** scheduler tự viết hay thư viện, **D-31** cách gọi module sở hữu |
 | Mở F14 | Thư viện Web Push |
@@ -258,6 +277,6 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 ## 5. Vị trí hiện tại
 
-- **Phase 0:** code xong: F01 (2026-10-01), F03 (2026-10-03), F02 (2026-10-07), cả ba đã archive, trên nhánh `dev`. Để đóng phase còn: đưa `dev` vào `main` (người dùng quyết định, hỏi trước khi merge/push/PR) và cập nhật Notion (02B theo D-12/D-13/D-14, 04C/04D).
-- **Tiếp theo:** Phase 1 (frontend), mở bằng quyết định **D-22** (xác thực cho trình duyệt).
+- **Phase 0:** ✅ đóng 2026-10-07. F01, F03, F02 xong và đã archive; code vào `main` qua PR #3 (`9d1ff9b`, CI xanh). Còn mở (người dùng): Notion 02B, 04C/04D.
+- **Phase 1 (đang làm, mở 2026-10-07):** change 1 `fe-f01-web-foundation` đã lập kế hoạch (D-22 = A), chờ người dùng duyệt.
 - `PROJECT_STATE.md` là nơi ghi trạng thái thật; file này chỉ là bản đồ và được cập nhật khi xong mỗi phase.

@@ -1,0 +1,56 @@
+{
+  "id": "18f0a1b2c3d4e5fc",
+  "threadId": "thread-digest",
+  "labelIds": [
+    "INBOX",
+    "UNREAD",
+    "CATEGORY_PERSONAL"
+  ],
+  "snippet": "Gmail adds a snippet; Sino does not read it",
+  "historyId": "987660",
+  "internalDate": "1760004000000",
+  "sizeEstimate": 2048,
+  "payload": {
+    "headers": [
+      {
+        "name": "From",
+        "value": "Sino Digest <digest@lists.example.com>"
+      },
+      {
+        "name": "To",
+        "value": "owner@gmail.test"
+      },
+      {
+        "name": "Subject",
+        "value": "Bản tin tuần"
+      },
+      {
+        "name": "Message-ID",
+        "value": "<digest-42@lists.example.com>"
+      },
+      {
+        "name": "List-Id",
+        "value": "Sino Digest <digest.lists.example.com>"
+      },
+      {
+        "name": "List-Unsubscribe",
+        "value": "<mailto:unsubscribe@lists.example.com>, <https://lists.example.com/unsubscribe/42>"
+      },
+      {
+        "name": "List-Unsubscribe-Post",
+        "value": "List-Unsubscribe=One-Click"
+      },
+      {
+        "name": "Content-Type",
+        "value": "text/plain; charset=\"UTF-8\""
+      }
+    ],
+    "mimeType": "text/plain",
+    "body": {
+      "size": 45,
+      "data": "VHXhuqduIG7DoHkg4bufIFNpbm86IGJhIGLDoGkgdmnhur90IG3hu5tpLg0K"
+    },
+    "partId": "",
+    "filename": ""
+  }
+}

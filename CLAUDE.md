@@ -7,7 +7,8 @@ Sino Messages: gom nhiều tài khoản và nhiều nhà cung cấp tin nhắn (
 | Thư mục | Nội dung |
 |---|---|
 | `apps/sino-api` | Backend: Spring Boot 4, Java 25, PostgreSQL 18, Flyway, Spring Modulith. Lệnh chạy/test ở `apps/sino-api/README.md` |
-| `apps/sino-web` | Frontend: React + Vite (khung, chưa bắt đầu — Phase 1) |
+| `apps/sino-web` | Frontend: React + Vite + Tailwind + shadcn/ui. Lệnh chạy/test ở `apps/sino-web/README.md` |
+| `design/sino-ui/project/` | Bản sao canvas thiết kế giao diện "Sino UI" (bản gốc và bản cuối cùng: https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB); phải khớp với link |
 | `openspec/roadmap.md` | Lộ trình Phase 0–5, feature F01–F12 |
 | `openspec/specs/` | Mô tả hệ thống **đang chạy** (gộp từ các feature đã xong) |
 | `openspec/changes/<feature>/` | Feature đang làm: `proposal.md`, `design.md`, `specs/`, `tasks.md` |
@@ -32,8 +33,16 @@ Vị trí hiện tại chỉ ghi trong `PROJECT_STATE.md`; file này không lặ
 - Nhánh làm việc `dev`. Không commit thẳng `main`. Agent commit lên `dev` sau mỗi task đã kiểm chứng; **push, merge, mở PR chỉ khi người dùng yêu cầu**.
 - Làm khác kế hoạch thì gạch task cũ trong `tasks.md` và ghi **LÝ DO** ngay tại đó. Xong feature thì `openspec archive <change> -y`.
 - Không chạy thêm bước kiểm tra chậm ngoài phạm vi được giao mà chưa hỏi.
+- Kiểm chứng mỗi task **frontend** (người dùng chọn 2026-10-09 để làm nhanh hơn):
+  - Giữ: test viết trước (đỏ rồi xanh); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build` trước khi commit; đối chiếu canvas.
+  - Chrome thật: một lượt mỗi task, chỉ ở các cỡ màn task đó đụng tới. Đủ các cỡ × 2 theme để dành cho task nghiệm thu của màn.
+  - Kiểm tra bằng lỗi gài (mutation): không chạy ở mỗi task; chỉ một lần cho hàm logic thuần của màn (như `format.ts`), ở task cuối trước nghiệm thu.
+  - File kiến thức: sinh lại `.docx` và chạy `genoffice docs check`; không render thành ảnh.
+  - Bằng chứng trong `tasks.md` ghi ngắn: lệnh, kết quả, lỗi đáng kể và cách sửa.
 - Secret chỉ nằm trong `apps/sino-api/.env` (bị ignore); mẫu là `.env.example`.
 
 ## Tài liệu sản phẩm gốc (Notion, trang public)
 
 00 Project Context · 01 Yêu cầu chức năng MVP · 02 Thiết kế hệ thống (02A kiến trúc, 02B database, 02C UI/UX) · 03 Roadmap · 04 Backend Workspace (04A ràng buộc, 04B hướng dẫn lập kế hoạch). Khi tài liệu mâu thuẫn: 01 > 02/02A/02B/02C > 04A > 04B > 03 > code.
+
+**Giao diện web** (người dùng, 2026-10-08): canvas "Sino UI" (https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB) là **thiết kế cuối cùng**. Với mọi thứ người dùng nhìn thấy, canvas ưu tiên hơn 02C; 02C chỉ còn dùng ở chỗ canvas không nói tới. Trước khi dựng hay sửa một màn, đối chiếu với canvas; nếu link có bản mới hơn bản sao trong `design/sino-ui/project/` thì cập nhật bản sao trước.

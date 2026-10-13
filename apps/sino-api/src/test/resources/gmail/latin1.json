@@ -1,0 +1,42 @@
+{
+  "id": "18f0a1b2c3d4e5f9",
+  "threadId": "thread-cafe",
+  "labelIds": [
+    "INBOX"
+  ],
+  "snippet": "Gmail adds a snippet; Sino does not read it",
+  "historyId": "987654",
+  "internalDate": "1760007600000",
+  "sizeEstimate": 4096,
+  "payload": {
+    "headers": [
+      {
+        "name": "From",
+        "value": "paul@example.fr"
+      },
+      {
+        "name": "To",
+        "value": "owner@gmail.test"
+      },
+      {
+        "name": "Subject",
+        "value": "Café"
+      },
+      {
+        "name": "Content-Type",
+        "value": "text/plain; charset=\"ISO-8859-1\""
+      },
+      {
+        "name": "Content-Transfer-Encoding",
+        "value": "quoted-printable"
+      }
+    ],
+    "mimeType": "text/plain",
+    "body": {
+      "size": 25,
+      "data": "VW4gY2Fm6SwgcydpbCB2b3VzIHBsYe50Lg=="
+    },
+    "partId": "",
+    "filename": ""
+  }
+}

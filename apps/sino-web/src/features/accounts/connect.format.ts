@@ -1,0 +1,147 @@
+// The Vietnamese text of the connect wizard, from provider types, capability and scope codes, and error codes.
+import { ApiError } from '@/shared/api/problem'
+import { formatCount, methodLabel } from '@/shared/format'
+import { formatAgo } from '@/shared/time/relative'
+import type { SyncStatus } from './accounts.types'
+import type { ConnectableProvider, InitialSyncStatus, SyncEstimate } from './connect.types'
+
+const CAPABILITY_TAGS: [capability: string, tag: string][] = [
+  ['READ_MESSAGES', 'Đọc'],
+  ['SEND_MESSAGES', 'Gửi'],
+  ['REGISTRATIONS', 'Đăng ký'],
+]
+
+/** "Đọc", "Gửi"…; a provider that cannot be connected yet only says "Sắp có". */
+export function providerTags(provider: ConnectableProvider): string[] {
+  if (!provider.connectable) {
+    return ['Sắp có']
+  }
+  return CAPABILITY_TAGS.filter(([capability]) => provider.capabilities.includes(capability)).map(([, tag]) => tag)
+}
+
+// The account the user signs in with on the provider's own page.
+const IDENTITIES: Record<string, string> = { gmail: 'google', google: 'google', messenger: 'facebook', zalo: 'zalo' }
+
+/** "Google" for Gmail, "Facebook" for Messenger; otherwise the provider name. */
+export function identityName(type: string, displayName: string): string {
+  const identity = IDENTITIES[type]
+  return identity ? methodLabel(identity) : displayName
+}
+
+const PURPOSES: Record<string, string> = {
+  'gmail.readonly': 'Để thư hiện trong Hộp thư hợp nhất và tìm kiếm được.',
+  'userinfo.email': 'Để biết thư nào thuộc tài khoản này.',
+  'gmail.send': 'Để trả lời ngay trong Sino.',
+}
+
+/** Why Sino asks for a scope, or null for a scope the web does not know. */
+export function scopePurpose(code: string): string | null {
+  return PURPOSES[code] ?? null
+}
+
+const NOT_ASKED: Record<string, string> = {
+  gmail: 'Sino không xin quyền xóa thư, đổi cài đặt Gmail hay đọc danh bạ.',
+}
+
+export function notAskedNote(type: string): string | null {
+  return NOT_ASKED[type] ?? null
+}
+
+/** Label, title, footer note and main button of each of the five steps (D-47 order). */
+export function wizardStep(step: number, identity: string): { label: string; title: string; note: string; next: string | null } {
+  switch (step) {
+    case 1:
+      return { label: '1 · Nhà cung cấp', title: 'Chọn nhà cung cấp', note: 'Chỉ xin quyền tối thiểu. Bạn xem lại ở bước 2.', next: 'Tiếp tục' }
+    case 2:
+      return { label: '2 · Quyền', title: 'Xem lại quyền truy cập', note: 'Thu hồi quyền bất cứ lúc nào trong Tài khoản.', next: 'Đồng ý và tiếp tục' }
+    case 3:
+      return { label: '3 · Đăng nhập', title: 'Đăng nhập', note: `Đăng nhập diễn ra trên trang của ${identity}.`, next: `Tiếp tục tới ${identity}` }
+    case 4:
+      return { label: '4 · Đồng bộ', title: 'Tùy chọn đồng bộ', note: 'Đổi lại sau trong chi tiết tài khoản.', next: 'Bắt đầu đồng bộ' }
+    default:
+      return { label: '5 · Xong', title: 'Hoàn tất', note: 'Bạn có thể đóng cửa sổ này.', next: null }
+  }
+}
+
+const ERRORS: Record<string, string> = {
+  CONNECT_CANCELLED: 'Bạn đã hủy kết nối.',
+  CONNECT_STATE_INVALID: 'Phiên kết nối đã hết hạn. Hãy thử lại.',
+  CONNECT_SCOPE_DENIED: 'Sino cần quyền đọc Gmail. Hãy thử lại và cho phép đọc thư.',
+  CONNECT_WRONG_ACCOUNT: 'Bạn đã chọn một tài khoản Google khác. Hãy chọn đúng tài khoản, hoặc dùng "Thêm Gmail".',
+  CONNECT_FAILED: 'Không kết nối được với Google. Hãy thử lại sau.',
+}
+
+/** The message for `?connectError=CODE` (catalog of F04a); an unknown code gets the general one. */
+export function connectErrorMessage(code: string): string {
+  return ERRORS[code] ?? ERRORS.CONNECT_FAILED
+}
+
+/** "khoảng 1.180 thư" and "3–5 phút" */
+export function estimateParts(estimate: SyncEstimate): { messages: string; time: string } {
+  const { minMinutes, maxMinutes } = estimate
+  return {
+    messages: `khoảng ${formatCount(estimate.messages)} thư`,
+    time: minMinutes === maxMinutes ? `${minMinutes} phút` : `${minMinutes}–${maxMinutes} phút`,
+  }
+}
+
+/**
+ * While the first import runs: "412 / 1.180 thư · còn khoảng 3 phút" and the share done, when the estimate is known. Once
+ * DONE: "Đã nhập xong · 1.180 thư đã lưu", whatever the estimate said.
+ */
+export function initialSyncView(status: InitialSyncStatus): { text: string; percent: number | null } {
+  const { state, fetched, total, remainingMinutes, storedMessages } = status
+  if (state === 'DONE') {
+    return { text: `Đã nhập xong · ${formatCount(storedMessages)} thư đã lưu`, percent: null }
+  }
+  const count = total === null ? `${formatCount(fetched)} thư` : `${formatCount(fetched)} / ${formatCount(total)} thư`
+  const remaining = remainingMinutes ? ` · còn khoảng ${remainingMinutes} phút` : ''
+  // The estimate is rough and updated messages count too, so the share stays below 100 until the backend says DONE.
+  const percent = total === null || total === 0 ? null : Math.min(99, Math.round((fetched / total) * 100))
+  return { text: `${count}${remaining}`, percent }
+}
+
+const DISABLED = 'Tài khoản này đang tắt nhận thư. Bật lại trong chi tiết tài khoản rồi thử lại.'
+
+/** Why the first import stopped (its `errorCode`), and what gets it going again: trying again, or signing in again. */
+export function initialSyncFailure(code: string | null, providerName: string): { text: string; fix: 'RETRY' | 'SIGN_IN' } {
+  switch (code) {
+    case 'RATE_LIMITED':
+      return { text: `${providerName} đang giới hạn số lần đọc. Đợi vài phút rồi thử lại.`, fix: 'RETRY' }
+    case 'PROVIDER_UNAVAILABLE':
+      return { text: `${providerName} chưa trả lời. Hãy thử lại sau.`, fix: 'RETRY' }
+    case 'AUTH_EXPIRED':
+      return { text: `Sino không còn quyền đọc ${providerName} của tài khoản này. Hãy đăng nhập lại.`, fix: 'SIGN_IN' }
+    case 'ACCOUNT_DISABLED':
+      return { text: DISABLED, fix: 'RETRY' }
+    default:
+      return { text: 'Sino chưa nhập xong thư. Hãy thử lại.', fix: 'RETRY' }
+  }
+}
+
+/** Why the first import could not start. */
+export function startSyncFailure(error: unknown): string {
+  return error instanceof ApiError && error.code === 'ACCOUNT_DISABLED' ? DISABLED : 'Chưa bắt đầu đồng bộ được. Hãy thử lại.'
+}
+
+/** "Đồng bộ lần cuối 2 phút trước · thư mới về ngay" (D-95). */
+export function liveSyncText(status: SyncStatus, now: Date): string {
+  const last = status.lastSyncAt ? `Đồng bộ lần cuối ${formatAgo(new Date(status.lastSyncAt), now)}` : 'Chưa đồng bộ lần nào'
+  return `${last} · ${status.push === 'ACTIVE' ? 'thư mới về ngay' : 'thư mới về sau khoảng 1 phút'}`
+}
+
+const SYNC_ERRORS_WITH_A_FIX = ['RATE_LIMITED', 'PROVIDER_UNAVAILABLE', 'AUTH_EXPIRED', 'ACCOUNT_DISABLED']
+
+/** The last live sync error, in the words of the first import where it has one; otherwise Sino tries again. */
+export function liveSyncError(code: string, providerName: string): string {
+  const text = SYNC_ERRORS_WITH_A_FIX.includes(code) ? initialSyncFailure(code, providerName).text : 'Sino sẽ thử lại ở lượt sau.'
+  return `Lần đồng bộ gần nhất lỗi: ${text}`
+}
+
+/** Why "Đồng bộ ngay" could not start. */
+export function syncNowFailure(error: unknown): string {
+  if (error instanceof ApiError && error.code === 'IMPORT_NOT_DONE') {
+    return 'Lần nhập đầu chưa xong nên chưa đồng bộ được.'
+  }
+  return error instanceof ApiError && error.code === 'ACCOUNT_DISABLED' ? DISABLED : 'Chưa đồng bộ được. Hãy thử lại.'
+}

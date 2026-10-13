@@ -1,0 +1,5 @@
+# Repository-wide ignores. Each app keeps its own .gitignore (apps/sino-api, apps/sino-web).
+
+# OAuth client files downloaded from the Google Cloud console hold the client secret in plain text.
+# The secret belongs in apps/sino-api/.env only.
+client_secret*.json

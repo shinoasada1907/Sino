@@ -1,0 +1,30 @@
+{
+  "id": "18f0a1b2c3d4e5fb",
+  "threadId": "thread-broken",
+  "labelIds": [
+    "INBOX"
+  ],
+  "snippet": "Gmail adds a snippet; Sino does not read it",
+  "historyId": "987654",
+  "internalDate": "1760014800000",
+  "sizeEstimate": 4096,
+  "payload": {
+    "headers": [
+      {
+        "name": "To",
+        "value": "owner@gmail.test"
+      },
+      {
+        "name": "Subject",
+        "value": "Who sent this?"
+      }
+    ],
+    "mimeType": "text/plain",
+    "body": {
+      "size": 5,
+      "data": "aGVsbG8="
+    },
+    "partId": "",
+    "filename": ""
+  }
+}

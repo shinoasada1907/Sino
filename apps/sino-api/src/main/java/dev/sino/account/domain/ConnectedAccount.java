@@ -59,6 +59,9 @@ public class ConnectedAccount {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Column(name = "address")
+    private String address;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private AccountStatus status;
@@ -87,7 +90,7 @@ public class ConnectedAccount {
     }
 
     private ConnectedAccount(UUID ownerId, ProviderType provider, String externalAccountId, String displayName,
-            String avatarUrl) {
+            String avatarUrl, String address) {
         this.ownerId = Objects.requireNonNull(ownerId, "ownerId must not be null");
         this.provider = Objects.requireNonNull(provider, "provider must not be null");
         if (externalAccountId == null || externalAccountId.isBlank()) {
@@ -96,23 +99,29 @@ public class ConnectedAccount {
         this.externalAccountId = externalAccountId;
         this.displayName = nameFromProvider(displayName);
         this.avatarUrl = avatarUrl;
+        this.address = addressFromProvider(address);
         this.status = CONNECTED;
         this.syncEnabled = true;
     }
 
-    /** A newly connected account. The display name comes from the provider. */
+    /**
+     * A newly connected account. The display name, avatar and address come from the provider; avatar and address
+     * are optional.
+     */
     public static ConnectedAccount register(UUID ownerId, ProviderType provider, String externalAccountId,
-            String displayName, String avatarUrl) {
-        return new ConnectedAccount(ownerId, provider, externalAccountId, displayName, avatarUrl);
+            String displayName, String avatarUrl, String address) {
+        return new ConnectedAccount(ownerId, provider, externalAccountId, displayName, avatarUrl, address);
     }
 
     /**
-     * The user connected the same account again: fresh display data from the provider, back to CONNECTED. A removed
-     * account comes back like a new one, with automatic sync on; otherwise a paused sync stays paused.
+     * The user connected the same account again: fresh display data and address from the provider, back to
+     * CONNECTED. A removed account comes back like a new one, with automatic sync on; otherwise a paused sync stays
+     * paused.
      */
-    public Optional<StatusChange> reconnect(String displayName, String avatarUrl) {
+    public Optional<StatusChange> reconnect(String displayName, String avatarUrl, String address) {
         this.displayName = nameFromProvider(displayName);
         this.avatarUrl = avatarUrl;
+        this.address = addressFromProvider(address);
         if (removedAt != null) {
             removedAt = null;
             syncEnabled = true;
@@ -193,6 +202,11 @@ public class ConnectedAccount {
         return avatarUrl;
     }
 
+    /** Where others reach the account, such as an email address; null when the provider gave none. */
+    public String address() {
+        return address;
+    }
+
     public AccountStatus status() {
         return status;
     }
@@ -262,6 +276,10 @@ public class ConnectedAccount {
         return characters(trimmed) > MAX_DISPLAY_NAME_LENGTH
                 ? trimmed.substring(0, trimmed.offsetByCodePoints(0, MAX_DISPLAY_NAME_LENGTH))
                 : trimmed;
+    }
+
+    private static String addressFromProvider(String address) {
+        return address == null || address.isBlank() ? null : address.trim();
     }
 
     // Code points, as PostgreSQL counts varchar(100); an emoji is two Java chars but one character.

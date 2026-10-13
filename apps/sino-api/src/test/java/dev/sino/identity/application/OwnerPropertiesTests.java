@@ -40,12 +40,12 @@ class OwnerPropertiesTests {
         contextRunner
                 .withPropertyValues("sino.owner.email=owner@example.com", "sino.owner.display-name=Owner")
                 .run(context -> assertThat(context.getBean(OwnerProperties.class))
-                        .isEqualTo(new OwnerProperties("owner@example.com", "Owner")));
+                        .isEqualTo(new OwnerProperties("owner@example.com", "Owner", null)));
     }
 
     @Test
     void trimsAndLowerCasesTheEmail() {
-        OwnerProperties owner = new OwnerProperties("  Owner@Example.COM ", " Owner ");
+        OwnerProperties owner = new OwnerProperties("  Owner@Example.COM ", " Owner ", null);
 
         assertThat(owner.email()).isEqualTo("owner@example.com");
         assertThat(owner.displayName()).isEqualTo("Owner");

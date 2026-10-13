@@ -1,0 +1,69 @@
+{
+  "id": "18f0a1b2c3d4e5fa",
+  "threadId": "thread-big",
+  "labelIds": [
+    "INBOX"
+  ],
+  "snippet": "Gmail adds a snippet; Sino does not read it",
+  "historyId": "987654",
+  "internalDate": "1760011200000",
+  "sizeEstimate": 4096,
+  "payload": {
+    "headers": [
+      {
+        "name": "From",
+        "value": "big@example.com"
+      },
+      {
+        "name": "To",
+        "value": "owner@gmail.test"
+      },
+      {
+        "name": "Subject",
+        "value": "Big"
+      }
+    ],
+    "mimeType": "multipart/alternative",
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "text/plain",
+        "filename": "",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/plain; charset=\"UTF-8\""
+          }
+        ],
+        "body": {
+          "attachmentId": "ANGjdJ-big-plain",
+          "size": 3000000
+        }
+      },
+      {
+        "partId": "1",
+        "mimeType": "text/html",
+        "filename": "",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/html; charset=\"UTF-8\""
+          },
+          {
+            "name": "Content-Transfer-Encoding",
+            "value": "quoted-printable"
+          }
+        ],
+        "body": {
+          "size": 34,
+          "data": "PHA-UGjhuqduIEhUTUwgxJHhu41jIMSRxrDhu6NjPC9wPg=="
+        }
+      }
+    ],
+    "partId": "",
+    "filename": ""
+  }
+}

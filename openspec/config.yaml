@@ -23,6 +23,9 @@ context: |
 
   Source-of-truth order when docs conflict (Notion): 01 Functional Requirements > 02/02A/02B/02C System Design >
   04A Backend Constraints > 04B Planning Instructions > 03 Roadmap > existing code.
+  Web UI (user, 2026-10-08): the "Sino UI" design canvas (https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB, copy in
+  design/sino-ui/project/) is the final interface design. For anything the user sees it overrides 02C UI/UX;
+  02C still applies where the canvas says nothing (for example the realtime event envelope).
 
   Working mode: HYBRID (see project-mode.yaml). Default AUTO: the AI implements one small task at a time,
   verifies it and reports. Any task the human claims runs in TRAINING (human codes, AI hints/reviews).

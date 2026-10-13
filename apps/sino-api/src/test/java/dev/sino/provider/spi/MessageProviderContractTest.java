@@ -1,13 +1,18 @@
 package dev.sino.provider.spi;
 
+import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
+import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,18 +25,31 @@ public abstract class MessageProviderContractTest {
     /** The connector under test; the same instance on every call within one test. */
     protected abstract MessageProvider provider();
 
-    /** The same connector, set up so that the first page has three messages and one misses required data. */
+    /**
+     * The same connector, set up so that the first page has three messages and one misses required data. Only
+     * used when the connector declares {@code READ_MESSAGES}.
+     */
     protected abstract MessageProvider providerWithOneBrokenMessage();
 
     /** A context the connector accepts; its secret must be distinctive (at least 8 characters). */
     protected abstract ProviderContext context();
 
-    /** External IDs of the messages the first sync of {@link #provider()} returns; none may be skipped. */
+    /**
+     * External IDs of the messages the first sync of {@link #provider()} returns; none may be skipped. Only used
+     * when the connector declares {@code READ_MESSAGES}.
+     */
     protected abstract Set<String> expectedMessageIds();
+
+    /**
+     * A moment between the sample messages of {@link #provider()}: the first sync from it keeps at least one of
+     * them and leaves out at least one. Only used when the connector declares {@code READ_MESSAGES}.
+     */
+    protected abstract Instant since();
 
     /** What the send checks send; override when the fake provider needs a known conversation. */
     protected SendMessageCommand sendCommand() {
-        return new SendMessageCommand("conversation-1", "Hello from the contract test", null);
+        return new SendMessageCommand("conversation-1", "Hello from the contract test", null,
+                List.of(new NormalizedRecipients.Address(null, "someone@example.test")), UUID.randomUUID(), null);
     }
 
     @Test
@@ -62,7 +80,18 @@ public abstract class MessageProviderContractTest {
     }
 
     @Test
+    void refusesToSyncWithoutTheCapability() {
+        assumeFalse(provider().capabilities().supports(READ_MESSAGES), "the connector can read messages");
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> provider().fetchUpdates(context(), SyncCursor.initial()))
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    @Test
     void theFirstSyncReturnsTheSampleMessagesAndACursor() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
         SyncBatch batch = provider().fetchUpdates(context(), SyncCursor.initial());
 
         assertThat(batch.nextCursor()).isNotNull();
@@ -74,6 +103,7 @@ public abstract class MessageProviderContractTest {
 
     @Test
     void theSameCursorReturnsTheSameIds() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
         SyncBatch first = provider().fetchUpdates(context(), SyncCursor.initial());
         SyncBatch again = provider().fetchUpdates(context(), SyncCursor.initial());
 
@@ -81,7 +111,38 @@ public abstract class MessageProviderContractTest {
     }
 
     @Test
+    void theFirstSyncFromAMomentLeavesOutOlderItems() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
+        Instant since = since();
+        SyncBatch batch = provider().fetchUpdates(context(), SyncCursor.initial(since));
+
+        assertThat(messageIds(batch)).as("only the sample messages from the moment on").isNotEmpty()
+                .isSubsetOf(expectedMessageIds()).hasSizeLessThan(expectedMessageIds().size());
+        assertThat(batch.messages()).allSatisfy(message -> assertThat(message.sentAt()).isAfterOrEqualTo(since));
+        assertThat(batch.conversations()).map(NormalizedConversation::lastActivityAt).filteredOn(Objects::nonNull)
+                .allSatisfy(lastActivityAt -> assertThat(lastActivityAt).isAfterOrEqualTo(since));
+    }
+
+    @Test
+    void anEstimateIsEmptyOrNotNegative() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
+
+        assertThat(List.of(provider().estimateMessages(context(), null),
+                provider().estimateMessages(context(), since())))
+                .allSatisfy(estimate -> assertThat(estimate.orElse(0)).isNotNegative());
+    }
+
+    @Test
+    void aConnectorThatCannotReadEstimatesNothing() {
+        assumeFalse(provider().capabilities().supports(READ_MESSAGES), "the connector can read messages");
+
+        assertThat(provider().estimateMessages(context(), null)).isEmpty();
+        assertThat(provider().estimateMessages(context(), Instant.parse("2026-07-01T00:00:00Z"))).isEmpty();
+    }
+
+    @Test
     void aBrokenMessageIsSkippedAndTheOthersAreKept() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
         SyncBatch batch = providerWithOneBrokenMessage().fetchUpdates(context(), SyncCursor.initial());
 
         assertThat(batch.messages()).hasSize(2);
@@ -89,6 +150,23 @@ public abstract class MessageProviderContractTest {
             assertThat(item.kind()).isEqualTo(SkippedItem.Kind.MESSAGE);
             assertThat(item.reason()).isEqualTo(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED);
         });
+    }
+
+    @Test
+    void aConnectorWithoutPushRegistersNothing() {
+        assumeFalse(provider().capabilities().supports(PUSH_WEBHOOK), "the connector can register for push");
+
+        assertThat(provider().registerPush(context())).isEmpty();
+    }
+
+    @Test
+    void aConnectorWithPushSaysWhatItsNoticesCarryAndUntilWhen() {
+        assumeTrue(provider().capabilities().supports(PUSH_WEBHOOK), "the connector cannot register for push");
+
+        PushRegistration registration = provider().registerPush(context()).orElseThrow();
+
+        assertThat(registration.address()).isNotBlank();
+        assertThat(registration.expiresAt()).isAfter(Instant.now());
     }
 
     @Test

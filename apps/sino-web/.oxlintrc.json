@@ -3,6 +3,17 @@
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "cn",
+            "message": "Import cn from '@/shared/lib/utils': it knows the Sino theme names. shadcn add writes 'cn'; change that import."
+          }
+        ]
+      }
+    ]
   }
 }

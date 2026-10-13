@@ -14,4 +14,15 @@ class ProviderErrorCodeTests {
                 .containsExactlyInAnyOrder(ProviderErrorCode.RATE_LIMITED, ProviderErrorCode.PROVIDER_UNAVAILABLE);
     }
 
+    // A write that may have taken effect must not be repeated blindly (D-132).
+    @Test
+    void anUnknownOutcomeIsNotRetryable() {
+        assertThat(ProviderErrorCode.valueOf("OUTCOME_UNKNOWN").retryable()).isFalse();
+    }
+
+    @Test
+    void anExpiredCursorIsNotRetryable() {
+        assertThat(ProviderErrorCode.CURSOR_EXPIRED.retryable()).isFalse();
+    }
+
 }

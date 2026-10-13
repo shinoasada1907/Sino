@@ -1,0 +1,506 @@
+// Turns the raw inbox data (instants, counts, codes) into the Vietnamese text of the Hộp thư screens.
+import type { AccountStatus } from '@/shared/domain'
+import { formatCount, type ProviderNameOf } from '@/shared/format'
+import {
+  calendarDaysBetween,
+  daysSinceMonday,
+  formatClock,
+  formatDayMonth,
+  weekdayName,
+  weekdayNumbered,
+  weekdayShort,
+} from '@/shared/time/local'
+import type { AccountSending, ConversationItem, InboxData, LinkedItem, LinkedKind, Member, Message, Recipient } from './inbox.types'
+
+export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
+export interface InboxFilter {
+  source: string | null
+  view: InboxView
+}
+export type RowFlag = {
+  kind: 'SCHEDULE_FAILED' | 'RESURFACED' | 'SCHEDULED' | LinkedKind
+  tone: 'muted' | 'err'
+  text: string
+}
+
+/** Where a conversation sorts: its last message, or when it came back from a snooze if that is later. */
+export function sortTime(item: ConversationItem): number {
+  const resurfaced = item.snooze?.resurfacedAt ? Date.parse(item.snooze.resurfacedAt) : 0
+  return Math.max(Date.parse(item.lastMessageAt), resurfaced)
+}
+
+export function dayGroupLabel(at: Date, now: Date, timeZone?: string): string {
+  const days = calendarDaysBetween(at, now, timeZone)
+  if (days <= 0) {
+    return 'HÔM NAY'
+  }
+  if (days === 1) {
+    return 'HÔM QUA'
+  }
+  return days <= daysSinceMonday(now, timeZone) ? 'TUẦN NÀY' : 'TRƯỚC ĐÓ'
+}
+
+/** Newest first, in day groups. */
+export function groupConversations(items: ConversationItem[], now: Date, timeZone?: string) {
+  const groups: { label: string; items: ConversationItem[] }[] = []
+  for (const item of [...items].sort((a, b) => sortTime(b) - sortTime(a))) {
+    const label = dayGroupLabel(new Date(sortTime(item)), now, timeZone)
+    const group = groups.at(-1)
+    if (group?.label === label) {
+      group.items.push(item)
+    } else {
+      groups.push({ label, items: [item] })
+    }
+  }
+  return groups
+}
+
+/** The time of a row: the clock today and yesterday, the weekday this week, the date before. */
+export function rowTime(item: ConversationItem, now: Date, timeZone?: string): string {
+  const last = new Date(item.lastMessageAt)
+  const days = calendarDaysBetween(last, now, timeZone)
+  const groupDays = calendarDaysBetween(new Date(sortTime(item)), now, timeZone)
+  if (days <= 1 && days === groupDays) {
+    return formatClock(last, timeZone)
+  }
+  if (days === 1) {
+    return 'Hôm qua'
+  }
+  if (days <= 0) {
+    return formatClock(last, timeZone)
+  }
+  return days <= daysSinceMonday(now, timeZone) ? weekdayNumbered(last, timeZone) : formatDayMonth(last, timeZone)
+}
+
+/** "T4 07/10" for a whole day, "T7 03/10 17:00" otherwise. */
+function dateLabel(at: Date, allDay: boolean, timeZone?: string): string {
+  const day = `${weekdayShort(at, timeZone)} ${formatDayMonth(at, timeZone)}`
+  return allDay ? day : `${day} ${formatClock(at, timeZone)}`
+}
+
+/** The clock today, otherwise "T7 03/10 08:00". */
+function dayTime(at: Date, now: Date, timeZone?: string): string {
+  return calendarDaysBetween(at, now, timeZone) === 0 ? formatClock(at, timeZone) : dateLabel(at, false, timeZone)
+}
+
+const LINKED_NAMES: Record<LinkedKind, string> = { TASK: 'Task', EVENT: 'Lịch hẹn', NOTE: 'Ghi chú' }
+
+/**
+ * The flag line of a row: a failed scheduled send first, then a snooze that ended, a scheduled reply, and the nearest
+ * linked task or appointment (upcoming first); a note only when there is nothing else.
+ */
+export function rowFlag(item: ConversationItem, now: Date, timeZone?: string): RowFlag | null {
+  if (item.scheduledSend?.failed) {
+    return { kind: 'SCHEDULE_FAILED', tone: 'err', text: 'Thư hẹn giờ không gửi được' }
+  }
+  if (item.snooze?.resurfacedAt) {
+    return { kind: 'RESURFACED', tone: 'muted', text: `Hiện lại theo hẹn · ${dayTime(new Date(item.snooze.resurfacedAt), now, timeZone)}` }
+  }
+  if (item.scheduledSend) {
+    return { kind: 'SCHEDULED', tone: 'muted', text: `Hẹn gửi trả lời · ${dayTime(new Date(item.scheduledSend.at), now, timeZone)}` }
+  }
+  const timed = item.linked
+    .filter((linked) => linked.at !== null)
+    .map((linked) => ({ ...linked, time: Date.parse(linked.at!) }))
+    .sort((a, b) => a.time - b.time)
+  const nearest = timed.find((linked) => linked.time >= now.getTime()) ?? timed.at(-1)
+  if (nearest) {
+    const when = dateLabel(new Date(nearest.time), nearest.allDay, timeZone)
+    return nearest.kind === 'TASK'
+      ? { kind: 'TASK', tone: 'muted', text: `Task · hạn ${when}` }
+      : { kind: nearest.kind, tone: 'muted', text: `${LINKED_NAMES[nearest.kind]} · ${when}` }
+  }
+  return item.linked.length > 0 ? { kind: 'NOTE', tone: 'muted', text: 'Ghi chú' } : null
+}
+
+/** "Hà: Con mua bánh…" in a group, the message alone otherwise. */
+export function previewText(item: ConversationItem): string {
+  return item.snippetFrom ? `${item.snippetFrom}: ${item.snippet}` : item.snippet
+}
+
+/** "Gmail", "Zalo · nhóm 6 người" */
+export function sourceLabel(item: ConversationItem, nameOf: ProviderNameOf): string {
+  const name = nameOf(item.provider)
+  return item.memberCount ? `${name} · nhóm ${item.memberCount} người` : name
+}
+
+/**
+ * The accounts a row names when its source has more than one (D-97): every account holding the thread, the primary copy
+ * first (f05b, D-182); none otherwise.
+ */
+export function rowAccounts<A extends { id: string; provider: string }>(item: ConversationItem, accounts: A[]): A[] {
+  const sameSource = accounts.filter((account) => account.provider === item.provider)
+  if (sameSource.length < 2) {
+    return []
+  }
+  return item.accountIds.flatMap((id) => sameSource.filter((account) => account.id === id))
+}
+
+/** The subtitle of a conversation in the mobile header: "Zalo · 6 người" for a group, the source name otherwise. */
+export function mobileThreadSubtitle(item: ConversationItem, nameOf: ProviderNameOf): string {
+  const name = nameOf(item.provider)
+  return item.memberCount ? `${name} · ${item.memberCount} người` : name
+}
+
+export function unreadLabel(count: number): string {
+  return count > 0 ? `${count} chưa đọc` : 'Đã đọc hết'
+}
+
+/** One source of the inbox: its unread messages, or null when all its accounts need signing in again. */
+export interface SourceCount {
+  type: string
+  name: string
+  unread: number | null
+}
+
+export function sourceCounts(inbox: Pick<InboxData, 'providers' | 'accounts' | 'counts'>, nameOf: ProviderNameOf): SourceCount[] {
+  return inbox.providers.map((provider) => {
+    const accounts = inbox.accounts.filter((account) => account.provider === provider.type)
+    const needsLogin = accounts.length > 0 && accounts.every((account) => account.status === 'AUTH_EXPIRED')
+    const unread = inbox.counts.byProvider.find((entry) => entry.provider === provider.type)?.unread ?? 0
+    return { type: provider.type, name: nameOf(provider.type), unread: needsLogin ? null : unread }
+  })
+}
+
+const isSnoozed = (item: ConversationItem, now: Date) =>
+  item.snooze?.until != null && Date.parse(item.snooze.until) > now.getTime()
+
+const VIEW_TESTS: Record<Exclude<InboxView, 'snoozed' | 'archived'>, (item: ConversationItem) => boolean> = {
+  all: () => true,
+  unread: (item) => item.unreadCount > 0,
+  reply: (item) => item.needsReply,
+  attachments: (item) => item.hasAttachments,
+  scheduled: (item) => item.scheduledSend !== null && !item.scheduledSend.failed,
+}
+
+/** The inbox hides archived and snoozed conversations; "Đang tạm ẩn" and "Đã lưu trữ" show only those. */
+export function filterConversations(items: ConversationItem[], { source, view }: InboxFilter, now: Date): ConversationItem[] {
+  return items.filter((item) => {
+    if (source !== null && item.provider !== source) {
+      return false
+    }
+    if (view === 'archived') {
+      return item.archived
+    }
+    if (item.archived) {
+      return false
+    }
+    if (view === 'snoozed') {
+      return isSnoozed(item, now)
+    }
+    return !isSnoozed(item, now) && VIEW_TESTS[view](item)
+  })
+}
+
+/** "1,4 MB", "86 KB" */
+export function formatFileSize(bytes: number): string
+export function formatFileSize(bytes: number | null): string | null
+export function formatFileSize(bytes: number | null): string | null {
+  if (bytes === null) {
+    return null
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`
+  }
+  const megabytes = (bytes / (1024 * 1024)).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return `${megabytes} MB`
+}
+
+/** At most this many people on a new mail (f10-new-mail, D-197). */
+export const MAX_RECIPIENTS = 50
+
+/**
+ * The recipients of a new mail (D-197): split on commas, semicolons and lines, repeats dropped whatever their case, and
+ * the ones that are not an address: one `@`, something before it, a dotted domain after it, no space, at most 254
+ * characters.
+ */
+export function parseRecipients(text: string): { addresses: string[]; invalid: string[] } {
+  const addresses: string[] = []
+  const invalid: string[] = []
+  const seen = new Set<string>()
+  for (const entry of text.split(/[,;\n]/).map((part) => part.trim())) {
+    if (entry === '' || seen.has(entry.toLowerCase())) {
+      continue
+    }
+    seen.add(entry.toLowerCase())
+    const valid = entry.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry)
+    ;(valid ? addresses : invalid).push(entry)
+  }
+  return { addresses, invalid }
+}
+
+/** The account a new mail starts from: the one used last in this browser while it can send, else the first that can (D-193). */
+export function defaultSender(accounts: { id: string; sending: AccountSending }[], remembered: string | null): string | null {
+  const ready = accounts.filter((account) => account.sending === 'READY')
+  return (ready.find((account) => account.id === remembered) ?? ready[0])?.id ?? null
+}
+
+/** Why an account cannot send a new mail; null when it can. */
+export function sendingNote(sending: AccountSending): string | null {
+  switch (sending) {
+    case 'NEEDS_PERMISSION':
+      return 'Cần cấp quyền gửi'
+    case 'UNAVAILABLE':
+      return 'Cần đăng nhập lại'
+    default:
+      return null
+  }
+}
+
+/** "Bạn · tienct07@gmail.com": in a thread of several accounts an own email says which address it went from (f05b, D-184). */
+export function mailSender(mail: { sender: string; ownAddress?: string }, manyAccounts: boolean): string {
+  return manyAccounts && mail.ownAddress ? `${mail.sender} · ${mail.ownAddress}` : mail.sender
+}
+
+/** "3 thư · 2 tệp" */
+export function threadMeta(messages: Message[]): string {
+  const mails = messages.filter((message) => message.kind === 'MESSAGE')
+  const files = mails.reduce((sum, message) => sum + message.attachments.length, 0)
+  return files > 0 ? `${mails.length} thư · ${files} tệp` : `${mails.length} thư`
+}
+
+/** "Gmail · an.nguyen@gmail.com", "Gmail · tienct07@gmail.com, bonzed2001@gmail.com", "Zalo · nhóm 6 người · qua +84 9•• ••• 218" */
+export function threadSubtitle(item: ConversationItem, accounts: { address: string }[], nameOf: ProviderNameOf): string {
+  const addresses = accounts.map((account) => account.address).join(', ')
+  return item.kind === 'EMAIL' ? `${nameOf(item.provider)} · ${addresses}` : `${sourceLabel(item, nameOf)} · qua ${addresses}`
+}
+
+/** The line under "Không tải được hộp thư": the code and request of the error when it carries them, then the time. */
+export function failureDetail(error: unknown, at: Date, timeZone?: string): string {
+  const field = (name: 'code' | 'requestId') => {
+    const value = typeof error === 'object' && error !== null ? (error as Record<string, unknown>)[name] : undefined
+    return typeof value === 'string' ? value : null
+  }
+  const requestId = field('requestId')
+  return [field('code'), requestId && `yêu cầu ${requestId}`, formatClock(at, timeZone)].filter(Boolean).join(' · ')
+}
+
+/**
+ * The sentence under "Không tải được hộp thư": a server that answered with an error (an HTTP status) is not a server that
+ * did not answer (no network, server down: status 0 or no status).
+ */
+export function failureReason(error: unknown): string {
+  const status = typeof error === 'object' && error !== null ? (error as Record<string, unknown>).status : undefined
+  const answered = typeof status === 'number' && status > 0
+  return `${answered ? 'Máy chủ Sino trả lỗi khi lấy hộp thư.' : 'Máy chủ Sino không phản hồi.'} Thư và tin nhắn của bạn vẫn an toàn ở nhà cung cấp.`
+}
+
+/** "Ngắt kết nối từ 21:04 hôm qua" */
+export function disconnectedSince(at: string, now: Date, timeZone?: string): string {
+  return `Ngắt kết nối từ ${mailTime(at, now, timeZone, true)}`
+}
+
+/** "Tin nhắn sau 21:04 chưa về Sino": the clock up to yesterday, the day before that. */
+export function notArrivedSince(at: string, now: Date, timeZone?: string): string {
+  const date = new Date(at)
+  const when = calendarDaysBetween(date, now, timeZone) <= 1 ? formatClock(date, timeZone) : dateLabel(date, false, timeZone)
+  return `Tin nhắn sau ${when} chưa về Sino`
+}
+
+export type SendBlock = 'RECONNECT' | 'PERMISSION' | 'NOT_READY'
+
+/**
+ * Why the reply box is replaced: the account must sign in again, or only the permission to send expired (D-55), or Sino
+ * cannot send yet (`canSend` null, F10, D-72). Undefined `canSend` (the detail is loading) blocks nothing.
+ */
+export function sendBlock(account: { status: AccountStatus }, canSend: boolean | null | undefined): SendBlock | null {
+  if (account.status === 'AUTH_EXPIRED') {
+    return 'RECONNECT'
+  }
+  if (canSend === null) {
+    return 'NOT_READY'
+  }
+  return canSend === false ? 'PERMISSION' : null
+}
+
+export function sendBlockText(block: SendBlock, kind: ConversationItem['kind'], providerName: string, accountId: string): { title: string; text: string } {
+  if (block === 'RECONNECT') {
+    return { title: `Cần đăng nhập lại ${providerName} để nhận và gửi tin`, text: 'Quyền truy cập đã hết hạn. Tin cũ vẫn đọc được ở đây.' }
+  }
+  const what = kind === 'EMAIL' ? 'thư' : 'tin'
+  if (block === 'NOT_READY') {
+    return { title: `${providerName} chưa cho Sino gửi ${what}`, text: `Bạn trả lời trong ${providerName}.` }
+  }
+  // An account connected before Sino could send never granted it, so "again" would be wrong (D-134).
+  return {
+    title: `Sino chưa có quyền gửi ${what} từ ${accountId}`,
+    text: `Bạn vẫn đọc ${what} bình thường. Cấp thêm quyền gửi để trả lời từ Sino.`,
+  }
+}
+
+/** Who a reply goes to (D-133): "Trần Minh Anh <minhanh@acme.vn>, binh@example.com". */
+export function recipientsText(people: Recipient[]): string {
+  return people.map(({ name, address }) => (name ? `${name} <${address}>` : address)).join(', ')
+}
+
+/** The date of an email: in full when it is open ("09:41 hôm nay"), short when folded ("28/09"). */
+export function mailTime(at: string, now: Date, timeZone: string | undefined, expanded: boolean): string {
+  const date = new Date(at)
+  const days = calendarDaysBetween(date, now, timeZone)
+  const time = formatClock(date, timeZone)
+  if (expanded) {
+    return days <= 0 ? `${time} hôm nay` : days === 1 ? `${time} hôm qua` : `${formatDayMonth(date, timeZone)} · ${time}`
+  }
+  return days <= 0 ? time : days === 1 ? 'Hôm qua' : formatDayMonth(date, timeZone)
+}
+
+const STATUS_LABELS = { SENDING: 'Đang gửi', SENT: 'Đã gửi', SEEN: 'Đã xem', FAILED: 'Không gửi được', UNKNOWN: 'Chưa rõ đã gửi chưa' } as const
+
+/** What an own email still has to say about sending: "Đang gửi", "Không gửi được", "Chưa rõ…"; nothing once it went out. */
+export function sendState(message: Message & { kind: 'MESSAGE' }): string | null {
+  return message.status === 'SENDING' || message.status === 'FAILED' || message.status === 'UNKNOWN' ? STATUS_LABELS[message.status] : null
+}
+
+type Mail = Message & { kind: 'MESSAGE' }
+
+/**
+ * The messages of a conversation with those sent from this browser (F10, D-134), by `clientMessageId`: the server's copy
+ * wins, except a failed one this browser is sending again; a message the server does not have shows after its list.
+ */
+export function withOutbox(server: Message[], outbox: Mail[]): Message[] {
+  const sending = new Map(outbox.filter((mail) => mail.status === 'SENDING' && mail.clientMessageId).map((mail) => [mail.clientMessageId, mail]))
+  const stored = new Set(server.flatMap((message) => (message.kind === 'MESSAGE' && message.clientMessageId ? [message.clientMessageId] : [])))
+  return [
+    ...server.map((message) => (message.kind === 'MESSAGE' && message.status === 'FAILED' && message.clientMessageId && sending.get(message.clientMessageId)) || message),
+    ...outbox.filter((mail) => !mail.clientMessageId || !stored.has(mail.clientMessageId)),
+  ]
+}
+
+/** "08:24 · Đang gửi" under an own bubble (only own messages have a status), the time alone under the others. */
+export function bubbleMeta(message: Message & { kind: 'MESSAGE' }, timeZone?: string): string {
+  const time = formatClock(new Date(message.at), timeZone)
+  return message.status ? `${time} · ${STATUS_LABELS[message.status]}` : time
+}
+
+/** A plain text body as paragraphs of lines (D-53). */
+const WEB_ADDRESS = /https?:\/\/[^\s<>"']+/g
+const SENTENCE_END = /[.,;:!?)]+$/
+
+/**
+ * A line of an email cut into text and web addresses (`http`, `https` only, so a `javascript:` address never becomes a
+ * link); the punctuation that ends a sentence after an address stays text.
+ */
+export function linkParts(line: string): { text: string; href: string | null }[] {
+  const parts: { text: string; href: string | null }[] = []
+  let done = 0
+  for (const match of line.matchAll(WEB_ADDRESS)) {
+    const address = match[0].replace(SENTENCE_END, '')
+    if (!/^https?:\/\/./.test(address)) {
+      continue
+    }
+    if (match.index > done) {
+      parts.push({ text: line.slice(done, match.index), href: null })
+    }
+    parts.push({ text: address, href: address })
+    done = match.index + address.length
+  }
+  if (done < line.length) {
+    parts.push({ text: line.slice(done), href: null })
+  }
+  return parts
+}
+
+export function paragraphs(text: string): string[][] {
+  return text
+    .trim()
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.split('\n'))
+}
+
+const PLACEHOLDERS = ['a', 'd', 'c', 'b'] as const
+
+/** The placeholder picture of a group member follows their place in the group; anyone else gets the striped one. */
+export function memberPlaceholder(name: string, members: Member[] | null): (typeof PLACEHOLDERS)[number] {
+  const index = members?.findIndex((member) => member.name === name) ?? -1
+  return index >= 0 ? PLACEHOLDERS[index % PLACEHOLDERS.length] : 'c'
+}
+
+/** The messages of a chat, each with the day line to draw above it when the day changes. */
+export function withDayLines(messages: Message[], now: Date, timeZone?: string): { message: Message; dayLine: string | null }[] {
+  return messages.map((message, index) => {
+    const day = chatDayLabel(message.at, now, timeZone)
+    const previous = index > 0 ? chatDayLabel(messages[index - 1].at, now, timeZone) : null
+    return { message, dayLine: day === previous ? null : day }
+  })
+}
+
+/** The day line of a chat: "HÔM NAY", "HÔM QUA", then "THỨ BA · 29/09". */
+export function chatDayLabel(at: string, now: Date, timeZone?: string): string {
+  const date = new Date(at)
+  const days = calendarDaysBetween(date, now, timeZone)
+  if (days <= 0) {
+    return 'HÔM NAY'
+  }
+  return days === 1 ? 'HÔM QUA' : `${weekdayName(date, timeZone).toUpperCase()} · ${formatDayMonth(date, timeZone)}`
+}
+
+export function firstLine(text: string): string {
+  return (
+    text
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) ?? ''
+  )
+}
+
+/** "18:00 hôm nay", otherwise "T2 09:00". */
+function remindLabel(at: Date, now: Date, timeZone?: string): string {
+  const time = formatClock(at, timeZone)
+  return calendarDaysBetween(at, now, timeZone) === 0 ? `${time} hôm nay` : `${weekdayShort(at, timeZone)} ${time}`
+}
+
+/** The line of a linked chip: "hạn T4 07/10 · nhắc T2 09:00", "T5 08/10 14:00"; nothing for a note. */
+export function linkedMeta(linked: LinkedItem, now: Date, timeZone?: string): string | null {
+  if (linked.kind === 'NOTE' || linked.at === null) {
+    return null
+  }
+  const when = dateLabel(new Date(linked.at), linked.allDay, timeZone)
+  if (linked.kind === 'EVENT') {
+    return when
+  }
+  return linked.remindAt ? `hạn ${when} · nhắc ${remindLabel(new Date(linked.remindAt), now, timeZone)}` : `hạn ${when}`
+}
+
+/** The line of a linked item in the info column: "TASK · T7 03/10 17:00 · NHẮC 18:00 HÔM NAY". */
+export function linkedInfoSpec(linked: LinkedItem, now: Date, timeZone?: string): string {
+  if (linked.kind === 'NOTE') {
+    return linked.pinned ? 'GHI CHÚ · ĐÃ GHIM' : 'GHI CHÚ'
+  }
+  const parts = [linked.kind === 'TASK' ? 'Task' : 'Lịch hẹn']
+  if (linked.at) {
+    parts.push(dateLabel(new Date(linked.at), linked.allDay, timeZone))
+  }
+  if (linked.kind === 'TASK' && linked.remindAt) {
+    parts.push(`nhắc ${remindLabel(new Date(linked.remindAt), now, timeZone)}`)
+  }
+  return parts.join(' · ').toUpperCase()
+}
+
+// MotionSpec C: at most six new rows slide in at a time; more appear at once.
+const MAX_SLIDE = 6
+
+/**
+ * The rows of a list read again that were not there before: those above the first row already shown, since new mail goes
+ * to the top. Rows loaded at the end (older pages) and a known conversation that moves up are not new. `before` is null
+ * when there is nothing to compare with (another filter); an empty `before` is a list still loading, so nothing is new.
+ */
+export function arrivedRows(before: ReadonlySet<string> | null, ids: readonly string[]): { ids: Set<string>; slide: boolean } {
+  const fresh = new Set<string>()
+  if (before !== null && before.size > 0) {
+    for (const id of ids) {
+      if (before.has(id)) {
+        break
+      }
+      fresh.add(id)
+    }
+  }
+  return { ids: fresh, slide: fresh.size > 0 && fresh.size <= MAX_SLIDE }
+}
+
+/** "2 thư mới" */
+export function newMailText(count: number): string {
+  return `${formatCount(count)} thư mới`
+}

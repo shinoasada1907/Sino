@@ -15,13 +15,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.sino.account.application.AccountCapabilities;
 import dev.sino.account.application.AccountManagementService;
 import dev.sino.account.application.AccountQueryService;
 import dev.sino.account.domain.ConnectedAccount;
 import dev.sino.identity.CurrentUser;
-import dev.sino.provider.ProviderCapabilities;
-import dev.sino.provider.ProviderRegistry;
-import dev.sino.provider.spi.MessageProvider;
 
 /**
  * The Account Management screen (02C §8): list, show, change and remove accounts. Always scoped to the current
@@ -33,14 +31,14 @@ class AccountsController {
 
     private final AccountQueryService accounts;
     private final AccountManagementService management;
-    private final ProviderRegistry providers;
+    private final AccountCapabilities capabilities;
     private final CurrentUser currentUser;
 
-    AccountsController(AccountQueryService accounts, AccountManagementService management, ProviderRegistry providers,
-            CurrentUser currentUser) {
+    AccountsController(AccountQueryService accounts, AccountManagementService management,
+            AccountCapabilities capabilities, CurrentUser currentUser) {
         this.accounts = accounts;
         this.management = management;
-        this.providers = providers;
+        this.capabilities = capabilities;
         this.currentUser = currentUser;
     }
 
@@ -68,12 +66,9 @@ class AccountsController {
         management.remove(currentUser.requireOwnerId(), id);
     }
 
-    // find, not get: an account outlives a removed connector and must still be listed, just without capabilities.
+    // An account outlives a removed connector and must still be listed, just without capabilities.
     private AccountResponse toResponse(ConnectedAccount account) {
-        ProviderCapabilities capabilities = providers.find(account.provider())
-                .map(MessageProvider::capabilities)
-                .orElseGet(() -> ProviderCapabilities.of());
-        return AccountResponse.from(account, capabilities);
+        return AccountResponse.from(account, capabilities.of(account.id(), account.provider()));
     }
 
 }

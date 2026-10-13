@@ -1,0 +1,39 @@
+{
+  "id": "18f0a1b2c3d4e5f7",
+  "threadId": "thread-news",
+  "labelIds": [
+    "INBOX",
+    "CATEGORY_PROMOTIONS"
+  ],
+  "snippet": "Gmail adds a snippet; Sino does not read it",
+  "historyId": "987654",
+  "internalDate": "1760000400000",
+  "sizeEstimate": 4096,
+  "payload": {
+    "headers": [
+      {
+        "name": "From",
+        "value": "Sino News <news@example.com>"
+      },
+      {
+        "name": "To",
+        "value": "owner@gmail.test"
+      },
+      {
+        "name": "Subject",
+        "value": "Tin tuần này"
+      },
+      {
+        "name": "Content-Type",
+        "value": "text/html; charset=\"UTF-8\""
+      }
+    ],
+    "mimeType": "text/html",
+    "body": {
+      "size": 0,
+      "data": "PGh0bWw-PGhlYWQ-PHRpdGxlPkLhuqNuIHRpbjwvdGl0bGU-PHN0eWxlPnAgeyBjb2xvcjogcmVkOyB9PC9zdHlsZT48L2hlYWQ-PGJvZHk-PHA-Q2gmYWdyYXZlO28gYiYjNzg0MTtuICZhbXA7IGMmIzc4NDM7IG5oJm9hY3V0ZTttPC9wPjxzY3JpcHQ-dHJhY2soIm9wZW4iKTwvc2NyaXB0PjxkaXY-RCZvZ3JhdmU7bmcgaGFpPGJyPkQmb2dyYXZlO25nICAgYmE8L2Rpdj48dGFibGU-PHRyPjx0ZD7DlCBt4buZdDwvdGQ-PHRkPsOUIGhhaTwvdGQ-PC90cj48L3RhYmxlPjwvYm9keT48L2h0bWw-"
+    },
+    "partId": "",
+    "filename": ""
+  }
+}

@@ -1,0 +1,11 @@
+# ngrok traffic policy for a local Sino (F07, D-76): the tunnel opens this machine to the Internet, so only
+# Pub/Sub's pushes of Gmail's notices may pass. Everything else (the sign-in, the API, actuator) is refused by ngrok
+# before it reaches the machine. Use it with:
+#   ngrok http 8080 --url https://<your static domain> --traffic-policy-file ngrok/gmail-webhook-only.yml --inspect=false
+on_http_request:
+  - expressions:
+      - "!(req.method == 'POST' && req.url.path == '/api/webhooks/gmail')"
+    actions:
+      - type: deny
+        config:
+          status_code: 404

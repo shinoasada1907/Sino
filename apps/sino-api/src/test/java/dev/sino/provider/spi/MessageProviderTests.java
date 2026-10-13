@@ -1,7 +1,9 @@
 package dev.sino.provider.spi;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,7 +29,7 @@ class MessageProviderTests {
 
         @Override
         public AccountProfile getAccountProfile(ProviderContext context) {
-            return new AccountProfile("alice", "Alice", null);
+            return new AccountProfile("alice", "Alice", null, null);
         }
 
         @Override
@@ -38,11 +40,64 @@ class MessageProviderTests {
     };
 
     @Test
+    void aConnectorDeclaresNoOAuth2ConnectionByDefault() {
+        assertThat(readOnly.oauth2()).isEmpty();
+    }
+
+    @Test
+    void aConnectorEstimatesNothingByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThat(readOnly.estimateMessages(context, null)).isEmpty();
+        assertThat(readOnly.estimateMessages(context, Instant.parse("2026-07-01T00:00:00Z"))).isEmpty();
+    }
+
+    @Test
+    void aConnectorReadsNoMessageAgainByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThat(readOnly.fetchMessageContent(context, "m-1")).isEmpty();
+    }
+
+    @Test
+    void aConnectorDownloadsNoAttachmentByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> readOnly.fetchAttachment(context, "m-1", "a-1"))
+                .withMessageContaining("read-only")
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    @Test
+    void aConnectorRegistersForNoPushByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThat(readOnly.registerPush(context)).isEmpty();
+    }
+
+    // "Cannot tell" is not "not there": taken for the latter, a message whose send got no answer would be sent twice.
+    @Test
+    void aConnectorCannotTellWhetherItSentAMessageByDefault() {
+        ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> readOnly.findSentMessages(context,
+                        new SendMessageCommand("thread", "ok", null, List.of(), UUID.randomUUID(), null),
+                        Instant.now()))
+                .withMessageContaining("read-only")
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    @Test
     void aConnectorWithoutSendingRefusesToSend() {
         ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
 
         assertThatExceptionOfType(ProviderException.class)
-                .isThrownBy(() -> readOnly.sendMessage(context, new SendMessageCommand("c-1", "hello", null)))
+                .isThrownBy(() -> readOnly.sendMessage(context, new SendMessageCommand("c-1", "hello", null, List.of(),
+                        UUID.randomUUID(), null)))
                 .withMessageContaining("read-only")
                 .extracting(ProviderException::errorCode)
                 .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);

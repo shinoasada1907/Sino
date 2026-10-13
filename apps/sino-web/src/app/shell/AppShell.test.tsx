@@ -1,0 +1,199 @@
+import { act, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import { createInboxSample } from '@/features/inbox/inbox.sample'
+import { createTasksSample } from '@/features/tasks/tasks.sample'
+import { renderApp, shellPart } from '@/test/renderApp'
+import { createShellSample } from './shell.sample'
+import type { ShellData } from './shell.types'
+import { SHELL_QUERY_KEY } from './useShellData'
+
+// The inbox count of the navigation comes from the inbox (D-93), not from the shell data.
+function inboxWithUnread(unread: number) {
+  const inbox = createInboxSample(new Date())
+  return { ...inbox, counts: { ...inbox.counts, unread } }
+}
+
+function shellWith(change: (shell: ShellData) => void): ShellData {
+  const shell = createShellSample(new Date())
+  change(shell)
+  return shell
+}
+
+describe('sidebar (desktop)', () => {
+  it('links every main screen', async () => {
+    renderApp('/overview')
+    const sidebar = within(shellPart('sidebar'))
+    await sidebar.findByText('An Nguyễn')
+
+    const expected: [string | RegExp, string][] = [
+      [/^Tổng quan/, '/overview'],
+      [/^Hộp thư/, '/inbox'],
+      ['Lịch', '/calendar'],
+      [/^Việc cần làm/, '/tasks'],
+      ['Ghi chú', '/notes'],
+      [/^Tài khoản/, '/accounts'],
+      ['Dịch vụ', '/services'],
+      [/^Đăng ký/, '/registrations'],
+      ['Cài đặt', '/settings'],
+    ]
+    for (const [name, href] of expected) {
+      expect(sidebar.getByRole('link', { name })).toHaveAttribute('href', href)
+    }
+    expect(sidebar.getByText('KẾ HOẠCH')).toBeInTheDocument()
+    expect(sidebar.getByText('DANH TÍNH')).toBeInTheDocument()
+  })
+
+  it('marks only the open screen as current', async () => {
+    renderApp('/overview')
+    const sidebar = within(shellPart('sidebar'))
+
+    expect(await sidebar.findByRole('link', { name: /^Tổng quan/ })).toHaveAttribute('aria-current', 'page')
+    expect(sidebar.getByRole('link', { name: /^Hộp thư/ })).not.toHaveAttribute('aria-current')
+  })
+
+  it('takes the owner from the shell data, the inbox count from the inbox (D-93) and the task count from the tasks (D-83)', async () => {
+    const tasks = createTasksSample(new Date())
+    renderApp('/overview', {
+      inbox: inboxWithUnread(5),
+      tasks: { ...tasks, tasks: tasks.tasks.filter((task) => task.id !== 'task-bill') },
+      shell: shellWith((s) => {
+        s.navCounts.inboxUnread = 99
+        s.navCounts.tasksDue = 7
+        s.owner.displayName = 'Bình Trần'
+        s.accountCount = 2
+      }),
+    })
+    const sidebar = within(shellPart('sidebar'))
+
+    expect(await sidebar.findByRole('link', { name: 'Hộp thư, 5 chưa đọc' })).toBeInTheDocument()
+    // The sample has three due tasks, one of them the late bill.
+    expect(sidebar.getByRole('link', { name: 'Việc cần làm, 2 tới hạn' })).toBeInTheDocument()
+    expect(sidebar.getByText('Bình Trần')).toBeInTheDocument()
+    expect(sidebar.getByText('2 tài khoản')).toBeInTheDocument()
+  })
+
+  it('shows no count when it is zero', async () => {
+    renderApp('/overview', { inbox: inboxWithUnread(0), shell: shellWith((s) => (s.navCounts.inboxUnread = 0)) })
+
+    expect(await within(shellPart('sidebar')).findByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
+  })
+})
+
+describe('rail (tablet)', () => {
+  it('names each icon-only link, with what needs attention', async () => {
+    renderApp('/overview')
+    const rail = within(shellPart('rail'))
+
+    expect(await rail.findByRole('link', { name: 'Hộp thư, 12 chưa đọc' })).toHaveAttribute('href', '/inbox')
+    expect(rail.getByRole('link', { name: 'Việc cần làm, 1 quá hạn' })).toHaveAttribute('href', '/tasks')
+    expect(rail.getByRole('link', { name: 'Tài khoản, 1 cần xử lý' })).toHaveAttribute('href', '/accounts')
+    expect(rail.getByRole('link', { name: 'Lịch' })).toHaveAttribute('href', '/calendar')
+    expect(rail.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('says nothing extra when nothing needs attention', async () => {
+    renderApp('/overview', {
+      inbox: inboxWithUnread(0),
+      tasks: { ...createTasksSample(new Date()), tasks: [] },
+      shell: shellWith((s) => (s.navCounts = { inboxUnread: 0, tasksDue: 0, tasksOverdue: 0, accountsNeedingAction: 0, registrationsNew: 0 })),
+    })
+    const rail = within(shellPart('rail'))
+    const tabbar = within(shellPart('tabbar'))
+
+    expect(await rail.findByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
+    expect(rail.getByRole('link', { name: 'Việc cần làm' })).toBeInTheDocument()
+    expect(tabbar.getByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
+    expect(tabbar.getByRole('link', { name: 'Việc' })).toBeInTheDocument()
+  })
+})
+
+describe('tab bar (mobile)', () => {
+  it('has the five mobile tabs, with the unread count on Hộp thư', async () => {
+    renderApp('/overview')
+    const tabbar = within(shellPart('tabbar'))
+
+    expect(await tabbar.findByRole('link', { name: 'Hộp thư, 12 chưa đọc' })).toHaveAttribute('href', '/inbox')
+    expect(tabbar.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page')
+    expect(tabbar.getByRole('link', { name: 'Lịch' })).toHaveAttribute('href', '/calendar')
+    expect(tabbar.getByRole('link', { name: 'Việc, 1 quá hạn' })).toHaveAttribute('href', '/tasks')
+    expect(tabbar.getByRole('link', { name: 'Thêm' })).toHaveAttribute('href', '/more')
+    expect(tabbar.getAllByRole('link')).toHaveLength(5)
+  })
+})
+
+describe('top bar', () => {
+  it('shows when the last sync was', async () => {
+    renderApp('/overview')
+
+    expect(await within(shellPart('topbar')).findAllByText('Đồng bộ 2 phút trước')).not.toHaveLength(0)
+  })
+
+  it('measures the time since the last sync when it renders, not when the shell first appeared', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-10-02T07:00:00Z'))
+      const { queryClient } = renderApp('/overview', {
+        shell: shellWith((s) => (s.sync = { state: 'SYNCING', lastSyncedAt: null, progress: 10 })),
+      })
+      await within(shellPart('topbar')).findAllByText('Đang đồng bộ lần đầu · 10%')
+
+      vi.setSystemTime(new Date('2026-10-02T07:00:50Z'))
+      act(() => queryClient.setQueryData(SHELL_QUERY_KEY, shellWith((s) => (s.sync = { state: 'OK', lastSyncedAt: '2026-10-02T06:58:50Z', progress: null }))))
+
+      expect(await within(shellPart('topbar')).findAllByText('Đồng bộ 2 phút trước')).not.toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows the progress of a first sync', async () => {
+    renderApp('/overview', { shell: shellWith((s) => (s.sync = { state: 'SYNCING', lastSyncedAt: null, progress: 35 })) })
+
+    expect(await within(shellPart('topbar')).findAllByText('Đang đồng bộ lần đầu · 35%')).not.toHaveLength(0)
+  })
+
+  it('says when no source is connected yet', async () => {
+    renderApp('/overview', { shell: shellWith((s) => (s.sync = { state: 'IDLE', lastSyncedAt: null, progress: null })) })
+
+    expect(await within(shellPart('topbar')).findAllByText('Chưa có nguồn nào')).not.toHaveLength(0)
+  })
+
+  it('says no source is connected once every account is gone, even after earlier syncs', async () => {
+    renderApp('/overview', {
+      shell: shellWith((s) => (s.sync = { state: 'IDLE', lastSyncedAt: new Date(Date.now() - 3_600_000).toISOString(), progress: null })),
+    })
+
+    expect(await within(shellPart('topbar')).findAllByText('Chưa có nguồn nào')).not.toHaveLength(0)
+  })
+
+  it('links the bell to the notifications with the unread count, and offers the theme switch', async () => {
+    renderApp('/overview')
+    const topbar = within(shellPart('topbar'))
+
+    const bells = await topbar.findAllByRole('link', { name: 'Thông báo, 3 mới' })
+    for (const bell of bells) {
+      expect(bell).toHaveAttribute('href', '/notifications')
+    }
+    expect(topbar.getAllByRole('button', { name: /Chuyển sang giao diện/ })).not.toHaveLength(0)
+    expect(topbar.getByRole('searchbox', { name: 'Tìm trong Sino' })).toBeInTheDocument()
+  })
+
+  it('shows the language switch of the canvas, which does nothing yet', async () => {
+    const { router } = renderApp('/overview')
+    const switches = await within(shellPart('topbar')).findAllByRole('button', { name: 'Ngôn ngữ: Tiếng Việt' })
+
+    expect(switches).toHaveLength(2) // desktop bar and tablet bar
+    await userEvent.click(switches[0])
+    expect(router.state.location.pathname).toBe('/overview')
+  })
+
+  it('keeps the theme switch on desktop only, as the canvas shows it', async () => {
+    renderApp('/overview')
+    const topbar = within(shellPart('topbar'))
+
+    expect(await topbar.findAllByRole('button', { name: /Chuyển sang giao diện/ })).toHaveLength(1)
+    expect(topbar.getAllByRole('button', { name: 'Tìm kiếm' })).toHaveLength(1)
+  })
+
+})

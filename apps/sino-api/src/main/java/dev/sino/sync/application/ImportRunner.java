@@ -1,0 +1,385 @@
+package dev.sino.sync.application;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import dev.sino.account.ProviderAccess;
+import dev.sino.common.error.SinoException;
+import dev.sino.conversation.ConversationStore;
+import dev.sino.conversation.SentMessages;
+import dev.sino.conversation.StoreResult;
+import dev.sino.provider.spi.ProviderException;
+import dev.sino.provider.spi.SyncBatch;
+import dev.sino.provider.spi.SyncCursor;
+import dev.sino.sync.MailStored;
+import dev.sino.sync.SyncStateChanged;
+import dev.sino.sync.infrastructure.SyncCheckpoints;
+import dev.sino.sync.infrastructure.SyncCheckpoints.Checkpoint;
+
+/**
+ * Reads the mail of one account in the background, page after page: its first import (F05 design, section 3), then
+ * the syncs that keep it up to date from the saved cursor (F07, D-79); the account is watched once its import is done
+ * (D-76), and a sync ends by settling the sends that got no answer (D-132). The connector is called outside any
+ * transaction; storing a page and moving the cursor on are one transaction, so a failure never moves the cursor past
+ * mail that was not stored. Logs name the account, item IDs and error codes, never mail or tokens.
+ */
+@Component
+class ImportRunner implements DisposableBean {
+
+    private static final Logger log = LoggerFactory.getLogger(ImportRunner.class);
+    // When a sync's cursor expired, mail is listed again from this long before the last successful read.
+    private static final Duration RECOVERY_OVERLAP = Duration.ofDays(1);
+
+    private final ProviderAccess access;
+    private final ConversationStore store;
+    private final SyncCheckpoints checkpoints;
+    private final TransactionTemplate transactions;
+    private final InitialSyncProperties properties;
+    private final ApplicationEventPublisher events;
+    private final PushWatches watches;
+    private final SentMessages sent;
+    // One virtual thread per account being read (D-69): reading mostly waits for the provider. Kept here rather than
+    // as a bean, so Spring Boot keeps its own task executor.
+    private final ExecutorService executor = Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("mail-sync-", 0).factory());
+    // Per account: 1 while a worker reads it, more when requests came meanwhile. Those ask for one more look at the
+    // row, however many they are, and two workers never read one account.
+    private final Map<UUID, AtomicInteger> requests = new ConcurrentHashMap<>();
+
+    ImportRunner(ProviderAccess access, ConversationStore store, SyncCheckpoints checkpoints,
+            TransactionTemplate transactions, InitialSyncProperties properties, ApplicationEventPublisher events,
+            PushWatches watches, SentMessages sent) {
+        this.access = access;
+        this.store = store;
+        this.checkpoints = checkpoints;
+        this.transactions = transactions;
+        this.properties = properties;
+        this.events = events;
+        this.watches = watches;
+        this.sent = sent;
+    }
+
+    /**
+     * Reads the account in the background: goes on with its import if the row is RUNNING, syncs it if the import is
+     * DONE, does nothing otherwise. Harmless while a worker already reads it: that one looks at the row once more.
+     */
+    void submit(UUID accountId) {
+        AtomicInteger pending = requests.computeIfAbsent(accountId, id -> new AtomicInteger());
+        if (pending.getAndIncrement() == 0) {
+            try {
+                executor.execute(() -> work(accountId, pending));
+            } catch (RejectedExecutionException closing) {
+                pending.set(0);
+            }
+        }
+    }
+
+    /** Whether a worker reads the account right now, or is about to. */
+    boolean isReading(UUID accountId) {
+        AtomicInteger pending = requests.get(accountId);
+        return pending != null && pending.get() > 0;
+    }
+
+    /**
+     * Interrupts the running reads when the application closes. An import keeps its row RUNNING, and
+     * {@link ImportResumer} goes on with it at the next start; a sync records nothing and runs at the next request.
+     */
+    @Override
+    public void destroy() {
+        executor.shutdownNow();
+    }
+
+    private void work(UUID accountId, AtomicInteger pending) {
+        try {
+            while (true) {
+                run(accountId);
+                if (Thread.currentThread().isInterrupted()) {
+                    // This thread is being stopped; what was asked meanwhile goes to a fresh one, unless closing.
+                    if (pending.getAndSet(0) > 1) {
+                        submit(accountId);
+                    }
+                    return;
+                }
+                if (pending.updateAndGet(count -> count > 1 ? 1 : 0) == 0) {
+                    return;
+                }
+            }
+        } catch (Error fatal) {
+            // Left at 1 or more, the count would keep every later request from starting a worker.
+            pending.set(0);
+            log.error("Reading account {} stopped on an error", accountId, fatal);
+            throw fatal;
+        }
+    }
+
+    private void run(UUID accountId) {
+        Pass pass = Pass.IMPORT;
+        try {
+            Checkpoint checkpoint = checkpoints.find(accountId).orElse(null);
+            if (checkpoint == null) {
+                return;
+            }
+            if ("RUNNING".equals(checkpoint.status())) {
+                checkpoints.beginRun(accountId);
+                log.info("Initial sync of account {} runs ({}, {} messages imported so far)", accountId,
+                        checkpoint.range(), checkpoint.imported());
+                if (checkpoint.estimated() == null) {
+                    estimate(checkpoint);
+                }
+            } else if ("DONE".equals(checkpoint.status())) {
+                pass = Pass.SYNC;
+                if (!checkpoints.beginSync(accountId)) {
+                    return;
+                }
+            } else {
+                return;
+            }
+            if (readPages(accountId, pass)) {
+                if (pass == Pass.IMPORT) {
+                    // From now on the provider can tell Sino of new mail (D-76).
+                    watches.watch(accountId);
+                } else {
+                    settleSends(accountId);
+                }
+            }
+        } catch (InterruptedException stopped) {
+            Thread.currentThread().interrupt();
+            log.info("{} of account {} stopped", pass.label, accountId);
+        } catch (ImportStartedAgain again) {
+            log.info("Sync of account {} stopped: its import started again", accountId);
+        } catch (SinoException failure) {
+            // ProviderAccess: the account was removed or turned off, or its connector is gone.
+            fail(accountId, pass, failure.errorCode().code());
+        } catch (RuntimeException failure) {
+            if (Thread.currentThread().isInterrupted()) {
+                log.info("{} of account {} stopped", pass.label, accountId);
+                return;
+            }
+            fail(accountId, pass, "INTERNAL", failure);
+        }
+    }
+
+    // D-132: with the account just read, a sent message the provider has is now stored; the sync stays a success
+    // whatever this does.
+    private void settleSends(UUID accountId) {
+        try {
+            sent.reconcile(accountId);
+        } catch (RuntimeException failure) {
+            log.warn("Sync of account {}: sent messages not settled ({})", accountId,
+                    failure.getClass().getSimpleName());
+        }
+    }
+
+    // The estimate is only shown; when the connector cannot tell or fails, the import goes on without it.
+    private void estimate(Checkpoint checkpoint) {
+        try {
+            access.call(checkpoint.accountId(), (connector, context) -> connector.estimateMessages(context,
+                    checkpoint.since())).ifPresent(messages -> checkpoints.estimated(checkpoint.accountId(), messages));
+        } catch (ProviderException failure) {
+            log.warn("Initial sync of account {}: no estimate ({})", checkpoint.accountId(), failure.errorCode());
+        }
+    }
+
+    // Whether every page was read and stored; false when the pass failed and recorded it.
+    private boolean readPages(UUID accountId, Pass pass) throws InterruptedException {
+        int throttled = 0;
+        int unreachable = 0;
+        boolean startedOver = false;
+        SyncCursor recovery = null;
+        while (!Thread.currentThread().isInterrupted()) {
+            Checkpoint checkpoint = checkpoints.find(accountId).orElseThrow();
+            if (pass == Pass.SYNC && !"DONE".equals(checkpoint.status())) {
+                throw new ImportStartedAgain();
+            }
+            SyncCursor cursor = recovery != null ? recovery
+                    : checkpoint.cursor() == null ? SyncCursor.initial(checkpoint.since())
+                            : new SyncCursor(checkpoint.cursor());
+            recovery = null;
+            SyncBatch batch;
+            try {
+                batch = access.call(accountId, (connector, context) -> connector.fetchUpdates(context, cursor));
+            } catch (ProviderException failure) {
+                switch (failure.errorCode()) {
+                    case RATE_LIMITED -> {
+                        if (++throttled > properties.rateLimitAttempts()) {
+                            fail(accountId, pass, failure.errorCode().name());
+                            return false;
+                        }
+                        Duration wait = failure.retryAfter().orElse(properties.rateLimitWait());
+                        pause(accountId, pass, failure, wait.compareTo(properties.rateLimitMaxWait()) > 0
+                                ? properties.rateLimitMaxWait() : wait);
+                    }
+                    case PROVIDER_UNAVAILABLE -> {
+                        if (unreachable >= properties.unavailableWaits().size()) {
+                            fail(accountId, pass, failure.errorCode().name());
+                            return false;
+                        }
+                        pause(accountId, pass, failure, properties.unavailableWaits().get(unreachable++));
+                    }
+                    // D-60: the provider no longer knows the cursor. Listing again is safe once, since storing is
+                    // idempotent: an import from its start, a sync from a day before what it last read in full.
+                    case CURSOR_EXPIRED -> {
+                        if (startedOver) {
+                            fail(accountId, pass, failure.errorCode().name());
+                            return false;
+                        }
+                        startedOver = true;
+                        log.atLevel(pass.level).log("{} of account {} starts over: {}", pass.label, accountId,
+                                failure.errorCode());
+                        if (pass == Pass.IMPORT) {
+                            checkpoints.startOver(accountId);
+                        } else {
+                            recovery = SyncCursor.initial(recoverySince(checkpoint));
+                        }
+                    }
+                    default -> {
+                        fail(accountId, pass, failure.errorCode().name());
+                        return false;
+                    }
+                }
+                continue;
+            }
+            boolean done = !batch.hasMore();
+            // A connector that says there is more but gives back the same cursor would be asked forever.
+            if (!done && batch.nextCursor().value().equals(cursor.value())) {
+                fail(accountId, pass, "CURSOR_STUCK");
+                return false;
+            }
+            // Events published here reach the web only once the page is committed (F08).
+            transactions.executeWithoutResult(status -> {
+                StoreResult stored = store.store(accountId, batch);
+                if (pass == Pass.IMPORT) {
+                    checkpoints.advance(accountId, batch.nextCursor().value(), stored.newMessages()
+                            + stored.updatedMessages(), batch.skipped().size(), done);
+                } else if (!checkpoints.advanceSync(accountId, batch.nextCursor().value(), done)) {
+                    throw new ImportStartedAgain();
+                }
+                if (stored.newMessages() + stored.updatedMessages() > 0) {
+                    events.publishEvent(new MailStored(accountId, stored.conversationIds(), stored.newInbound(),
+                            pass == Pass.SYNC, Instant.now()));
+                }
+                // The progress of an import; a sync only when the error it clears was shown.
+                if (pass == Pass.IMPORT || done && checkpoint.lastSyncError() != null) {
+                    events.publishEvent(new SyncStateChanged(accountId, Instant.now()));
+                }
+            });
+            if (!batch.skipped().isEmpty()) {
+                log.warn("{} of account {} skipped {}", pass.label, accountId, batch.skipped().stream()
+                        .map(item -> item.externalId() + " (" + item.reason() + ")").collect(Collectors.joining(", ")));
+            }
+            throttled = 0;
+            unreachable = 0;
+            if (done) {
+                if (pass == Pass.IMPORT) {
+                    log.info("Initial sync of account {} is done", accountId);
+                } else {
+                    log.debug("Sync of account {} is done", accountId);
+                }
+                return true;
+            }
+        }
+        throw new InterruptedException();
+    }
+
+    // From the last moment everything was read: the end of the last successful sync, or else of the import.
+    private static Instant recoverySince(Checkpoint checkpoint) {
+        Instant lastRead = checkpoint.lastSyncAt() != null ? checkpoint.lastSyncAt() : checkpoint.lastSuccessAt();
+        return lastRead == null ? checkpoint.since() : lastRead.minus(RECOVERY_OVERLAP);
+    }
+
+    private static void pause(UUID accountId, Pass pass, ProviderException failure, Duration wait)
+            throws InterruptedException {
+        log.atLevel(pass.level).log("{} of account {} waits {} ms: {}", pass.label, accountId, wait.toMillis(),
+                failure.errorCode());
+        Thread.sleep(wait);
+    }
+
+    // A stopping thread records nothing: an import stays RUNNING (design, section 3) and a sync runs again later. A
+    // failure to record the failure is only logged; the next start or sync takes the row up again.
+    private void fail(UUID accountId, Pass pass, String errorCode) {
+        fail(accountId, pass, errorCode, null);
+    }
+
+    // Automatic sync tries a failing account every minute: a sync logs its error, with the stack of an unexpected
+    // one, only when it differs from the last one.
+    private void fail(UUID accountId, Pass pass, String errorCode, RuntimeException cause) {
+        if (Thread.currentThread().isInterrupted()) {
+            log.info("{} of account {} stopped", pass.label, accountId);
+            return;
+        }
+        try {
+            if (pass == Pass.IMPORT) {
+                logFailure(Level.WARN, pass, accountId, errorCode, cause);
+                checkpoints.fail(accountId, errorCode);
+                events.publishEvent(new SyncStateChanged(accountId, Instant.now()));
+                return;
+            }
+            Optional<Boolean> newError = checkpoints.syncFailed(accountId, errorCode);
+            if (newError.isEmpty()) {
+                log.info("Sync of account {} stopped: its import started again", accountId);
+            } else {
+                logFailure(newError.get() ? Level.WARN : Level.DEBUG, pass, accountId, errorCode, cause);
+                if (newError.get()) {
+                    events.publishEvent(new SyncStateChanged(accountId, Instant.now()));
+                }
+            }
+        } catch (RuntimeException failure) {
+            logFailure(Level.WARN, pass, accountId, errorCode, cause);
+            log.error("{} of account {}: the failure could not be recorded", pass.label, accountId, failure);
+        }
+    }
+
+    private static void logFailure(Level level, Pass pass, UUID accountId, String errorCode, RuntimeException cause) {
+        if (cause == null) {
+            log.atLevel(level).log("{} of account {} failed: {}", pass.label, accountId, errorCode);
+        } else {
+            log.atLevel(level == Level.DEBUG ? Level.DEBUG : Level.ERROR).setCause(cause)
+                    .log("{} of account {} failed: {}", pass.label, accountId, errorCode);
+        }
+    }
+
+    /**
+     * The first import of an account, or a sync after it is DONE. Waits and starting over are worth a WARN in an
+     * import, which runs once; a sync runs every minute, so there they are DEBUG.
+     */
+    private enum Pass {
+
+        IMPORT("Initial sync", Level.WARN), SYNC("Sync", Level.DEBUG);
+
+        private final String label;
+        private final Level level;
+
+        Pass(String label, Level level) {
+            this.label = label;
+            this.level = level;
+        }
+
+    }
+
+    /** The user started the import again while a sync was reading: the sync stops, its page rolled back. */
+    private static final class ImportStartedAgain extends RuntimeException {
+
+        ImportStartedAgain() {
+            super(null, null, false, false);
+        }
+
+    }
+
+}

@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -48,7 +49,15 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(SinoException.class)
     ResponseEntity<ProblemDetail> handleSinoException(SinoException ex, HttpServletRequest request) {
         HttpStatus status = statusOf(ex.errorCode().category());
-        return problem(status, ex.getMessage(), ex.errorCode().code(), request);
+        ResponseEntity<ProblemDetail> response = problem(status, ex.getMessage(), ex.errorCode().code(), request);
+        ex.properties().forEach(response.getBody()::setProperty);
+        if (status == HttpStatus.TOO_MANY_REQUESTS
+                && ex.properties().get("retryAfterSeconds") instanceof Number retryAfterSeconds) {
+            return ResponseEntity.status(status)
+                    .header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds.longValue()))
+                    .body(response.getBody());
+        }
+        return response;
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
@@ -62,6 +71,13 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication is required to access this resource.",
                 ProblemCodes.UNAUTHORIZED, request);
+    }
+
+    // CsrfException is an AccessDeniedException; its own code lets the web app fetch a new token and retry once.
+    @ExceptionHandler(CsrfException.class)
+    ResponseEntity<ProblemDetail> handleCsrf(CsrfException ex, HttpServletRequest request) {
+        return problem(HttpStatus.FORBIDDEN, "The CSRF token is missing or invalid. Reload and retry.",
+                ProblemCodes.CSRF_TOKEN_INVALID, request);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -131,10 +147,13 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static HttpStatus statusOf(ErrorCategory category) {
         return switch (category) {
+            case UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;
             case INVALID -> HttpStatus.UNPROCESSABLE_CONTENT;
             case DEPENDENCY_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case PROVIDER_FAILED -> HttpStatus.BAD_GATEWAY;
+            case PROVIDER_OUTCOME_UNKNOWN -> HttpStatus.GATEWAY_TIMEOUT;
             case RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
         };
     }

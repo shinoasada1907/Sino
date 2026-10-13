@@ -6,6 +6,11 @@ spring:
     url: ${SINO_DB_URL}
     username: ${SINO_DB_USERNAME}
     password: ${SINO_DB_PASSWORD}
+    hikari:
+      data-source-properties:
+        # An error of PostgreSQL must not repeat the row it refused ("Failing row contains ..."): that row can hold
+        # the text of a message, which never goes into exceptions or logs (F05, review BE-45).
+        logServerErrorDetail: false
   jpa:
     # Transactions and the persistence context end in the application service, not in the web layer.
     open-in-view: false
@@ -33,16 +38,33 @@ management:
           # Ready only when the database answers. Liveness deliberately ignores the database.
           include: readinessState,db
 
+server:
+  servlet:
+    session:
+      # D-22: the browser session ends after 30 minutes without a request; "keep me signed in" (D-34) outlives it.
+      timeout: 30m
+      cookie:
+        http-only: true
+        same-site: lax
+        # Set to true behind HTTPS so the cookie is never sent over plain HTTP.
+        secure: ${SINO_SESSION_COOKIE_SECURE:false}
+
 sino:
-  security:
-    api-user:
-      # D-02 A. The empty default turns a missing variable into a validation error at startup.
-      username: ${SINO_API_USERNAME:}
-      password: ${SINO_API_PASSWORD:}
   owner:
-    # D-10: the single Sino user of the MVP, upserted by email at startup. Required, like the API user.
+    # D-10: the single Sino user of the MVP, upserted by email at startup. Required.
     email: ${SINO_OWNER_EMAIL:}
     display-name: ${SINO_OWNER_DISPLAY_NAME:}
+    # D-33: the login password of the owner, at least 12 characters. Only a BCrypt hash is kept after startup.
+    password: ${SINO_OWNER_PASSWORD:}
+  admin:
+    # D-260, D-261: optional admin, a person who runs Sino (role ADMIN, /api/admin/** only). Empty email: no admin.
+    # With an email, the password is required, at least 12 characters, and the email must differ from the owner's.
+    email: ${SINO_ADMIN_EMAIL:}
+    password: ${SINO_ADMIN_PASSWORD:}
+  auth:
+    # D-34: signs the remember-me cookie, at least 32 characters (openssl rand -base64 32). Changing it signs
+    # everybody out of "keep me signed in".
+    remember-me-key: ${SINO_REMEMBER_ME_KEY:}
   credentials:
     encryption:
       # D-11: AES-256-GCM keys, base64 of 32 random bytes (openssl rand -base64 32). Values only come from the
@@ -50,3 +72,23 @@ sino:
       active-key-id: ${SINO_CREDENTIAL_ACTIVE_KEY_ID:}
       keys:
         k1: ${SINO_CREDENTIAL_KEY_K1:}
+  # The address the browser uses to reach Sino (D-36), for example http://localhost:5173 in development. Required as
+  # soon as a connector connects over OAuth2 (Gmail): the connect flow builds its redirect URI from it.
+  public-base-url: ${SINO_PUBLIC_BASE_URL:}
+  google:
+    # D-38/D-40: Sino's Google OAuth client (Google Cloud console, type "Web application"). Without both values
+    # Gmail is off and the app still starts; with only one the app stops. The secret only comes from the environment.
+    client-id: ${SINO_GOOGLE_CLIENT_ID:}
+    client-secret: ${SINO_GOOGLE_CLIENT_SECRET:}
+    pubsub:
+      # D-76: Gmail's notices of new mail, through Cloud Pub/Sub. The topic Gmail publishes to
+      # (projects/<project id>/topics/<topic name>), and what the push subscription's token must say: the
+      # audience it was given and the email of its service account. All three or none (Gmail is then only
+      # polled); with them comes POST /api/webhooks/gmail. None of them is a secret.
+      topic: ${SINO_GOOGLE_PUBSUB_TOPIC:}
+      audience: ${SINO_GOOGLE_PUBSUB_AUDIENCE:}
+      service-account: ${SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT:}
+  planner:
+    # D-157: the time zone of the user's days for tasks and the calendar (an IANA name such as Asia/Ho_Chi_Minh).
+    # New repeat rules take it and keep it. An unknown name stops the app.
+    time-zone: ${SINO_PLANNER_TIME_ZONE:Asia/Ho_Chi_Minh}

@@ -46,7 +46,7 @@ class OwnerProvisioningTests {
     @Test
     @Transactional // rolled back, so the other tests still see the configured name
     void aChangedDisplayNameIsWrittenBack() {
-        new OwnerProvisioner(users, new OwnerProperties("owner@sino.test", "Renamed Owner")).run(null);
+        new OwnerProvisioner(users, new OwnerProperties("owner@sino.test", "Renamed Owner", null)).run(null);
 
         assertThat(users.findByEmail("owner@sino.test")).get()
                 .extracting(AppUser::displayName).isEqualTo("Renamed Owner");

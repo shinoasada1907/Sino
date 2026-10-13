@@ -67,6 +67,10 @@ public class AppUser {
         return status;
     }
 
+    public Instant createdAt() {
+        return createdAt;
+    }
+
     public void rename(String displayName) {
         this.displayName = displayName;
     }

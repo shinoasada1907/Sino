@@ -1,0 +1,53 @@
+# Frontend CI (FE-01): lint, test and build apps/sino-web on every push or pull request that touches it.
+name: frontend-ci
+
+on:
+  push:
+    branches: [main, dev, "feature/**"]
+    paths:
+      - "apps/sino-web/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    paths:
+      - "apps/sino-web/**"
+      - ".github/workflows/frontend-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/sino-web
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs the pnpm version named in "packageManager" of package.json.
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/sino-web/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: pnpm
+          cache-dependency-path: apps/sino-web/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
