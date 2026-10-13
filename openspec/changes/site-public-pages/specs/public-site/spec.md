@@ -1,14 +1,14 @@
 ## ADDED Requirements
 
 ### Requirement: Các trang của site công khai
-Site công khai MUST là HTML tĩnh dựng sẵn, xem được không cần đăng nhập và không cần JavaScript. Site MUST có:
+Site công khai MUST là HTML dựng sẵn trên host tĩnh, xem được đầy đủ không cần đăng nhập và không cần JavaScript; JavaScript chỉ thêm chuyển động. Site MUST có:
 - trang chủ `/`;
 - Chính sách quyền riêng tư `/privacy` (tiếng Việt) và `/en/privacy` (tiếng Anh);
 - Điều khoản `/terms` và `/en/terms`;
 - Bảo mật `/security`, Phần mềm nguồn mở `/open-source`;
 - trang `404.html` cho đường dẫn không có.
 
-Mỗi trang MUST theo canvas "Sino UI" tương ứng (`Landing`, `SitePrivacy`, `SiteTerms`, `SiteSecurity`, `SiteOpenSource`, `SiteNotFound`) và MUST có `lang`, `<title>`, mô tả và viewport. Mọi trang trừ 404 MUST có link canonical; trang 404 MUST có `noindex` và không có canonical. Trang MUST NOT có thẻ `<script>` và MUST NOT tải tài nguyên từ tên miền khác.
+Mỗi trang MUST theo canvas "Sino UI" tương ứng (`Landing`, `SitePrivacy`, `SiteTerms`, `SiteSecurity`, `SiteOpenSource`, `SiteNotFound`) và MUST có `lang`, `<title>`, mô tả và viewport. Mọi trang trừ 404 MUST có link canonical; trang 404 MUST có `noindex` và không có canonical. Trang MUST NOT tải script, stylesheet, phông hay ảnh từ tên miền khác.
 
 #### Scenario: Mở trang chủ khi tắt JavaScript
 - **WHEN** một trình duyệt tắt JavaScript mở `/`
@@ -57,6 +57,22 @@ Tên miền của site, URL của app, email liên hệ, người đứng tên, 
 #### Scenario: Xem trước khi thiếu email
 - **WHEN** chạy `pnpm build:preview` mà `contactEmail` chưa có giá trị
 - **THEN** mục liên hệ của Privacy hiện "[chưa điền: email liên hệ]", và mọi trang có `<meta name="robots" content="noindex">`
+
+### Requirement: Chuyển động theo bản đồ React Bits của canvas
+Chuyển động trên site MUST theo canvas "Foundations · Chuyển động":
+- mỗi hiệu ứng chỉ ở chỗ bản đồ cho phép;
+- chỉ chạy khi trang mở, khi cuộn tới, hoặc khi rê chuột hay focus; không có vòng lặp chạy mãi;
+- thời lượng tối đa 240ms, mỗi lần dịch chuyển tối đa 6px.
+
+Khi người dùng bật giảm chuyển động, trang MUST bỏ mọi dịch chuyển và chỉ giữ mờ dần tối đa 160ms. HTML dựng sẵn MUST NOT ẩn nội dung; chỉ JavaScript được ẩn một phần tử trước khi cho nó hiện ra.
+
+#### Scenario: Giảm chuyển động
+- **WHEN** người dùng bật giảm chuyển động trong hệ điều hành rồi mở trang chủ và cuộn xuống
+- **THEN** các mục hiện ra chỉ bằng mờ dần, không trượt; thẻ tính năng không nhấc lên khi rê chuột
+
+#### Scenario: Trang chủ khi script chưa chạy
+- **WHEN** trình duyệt hiện HTML của `/` trước khi JavaScript chạy, hoặc khi JavaScript bị tắt
+- **THEN** mọi mục đều hiện, không mục nào bị ẩn chờ hiệu ứng
 
 ### Requirement: Link nội bộ không gãy
 Mọi link nội bộ của site MUST trỏ tới một trang đã dựng, hoặc tới một `id` có thật trên trang đó. Nút "Đăng nhập" và "Mở Sino" MUST trỏ tới URL app trong cấu hình.

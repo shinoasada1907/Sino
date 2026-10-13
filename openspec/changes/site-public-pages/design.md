@@ -35,8 +35,11 @@
 
 ## Decisions
 
-### D-240 — Site tĩnh riêng `apps/sino-site`, HTML thuần không cần JavaScript · **Người dùng duyệt**
-- Gói pnpm riêng, không phụ thuộc `sino-web`. Kết quả là thư mục `dist/` chỉ gồm HTML, CSS, phông chữ và favicon. Đưa lên host tĩnh nào cũng chạy được, không chờ deploy app.
+### D-240 — Site tĩnh riêng `apps/sino-site`, ~~HTML thuần không cần JavaScript~~ HTML dựng sẵn · **Người dùng duyệt**
+
+> **Thay một phần bởi D-250 (2026-10-13).** Gạch phần "HTML thuần, không cần JavaScript". **LÝ DO:** người dùng thay site tĩnh bằng template Vite + React và yêu cầu landing "sử dụng react-bit theo như design". Phần còn lại vẫn giữ: gói riêng, `dist/` tĩnh, nội dung nằm sẵn trong HTML.
+
+- Gói pnpm riêng, không phụ thuộc `sino-web`. ~~Kết quả là thư mục `dist/` chỉ gồm HTML, CSS, phông chữ và favicon.~~ Kết quả là thư mục `dist/` tĩnh: HTML dựng sẵn, CSS, JS, phông chữ và favicon (D-250). Đưa lên host tĩnh nào cũng chạy được, không chờ deploy app.
 - Nội dung nằm sẵn trong HTML, nên Google và trình duyệt tắt JavaScript đều đọc được.
 - Sau này app ở tên miền con (ví dụ `app.<tên miền>`), site ở tên miền gốc. Cùng một tên miền được xác minh nên dùng chung "Authorized domains" trên consent screen.
 
@@ -124,12 +127,12 @@ export interface SiteConfig {
   - trang 404 giữ "Mở Sino".
 - Khi app có đăng ký thì đổi lại chữ của canvas, trong một change khác.
 
-### D-247 — Phông tự host, theme theo hệ điều hành, không JavaScript · **Người dùng duyệt**
-- **Phông:** Inter và JetBrains Mono, bản variable `woff2`, chép từ `@fontsource-variable/*` vào `dist/fonts` lúc dựng. Không gọi Google Fonts như canvas `<helmet>`, nên Privacy nói đúng được rằng site không gửi gì cho bên thứ ba.
+### D-247 — Phông tự host, theme theo hệ điều hành, ~~không JavaScript~~ không tải gì từ site khác · **Người dùng duyệt**
+- **Phông:** Inter và JetBrains Mono, bản variable `woff2`, ~~chép từ `@fontsource-variable/*` vào `dist/fonts` lúc dựng~~ import `@fontsource-variable/*` như `sino-web`, Vite đóng gói vào `dist/assets` (D-250). Không gọi Google Fonts như canvas `<helmet>`, nên Privacy nói đúng được rằng site không gửi gì cho bên thứ ba.
 - **Theme:** biến màu `.theme-dark` của canvas là mặc định. `@media (prefers-color-scheme: light)` đổi sang biến của `.theme-light`. Canvas không có nút đổi theme trên trang công khai, nên site cũng không có.
-- **Câu hỏi thường gặp:** `<details>` / `<summary class="lp-q">`, câu đầu mở sẵn như canvas.
-- **Menu dưới 768 px:** `<details>` với `<summary>` là nút menu (`aria-label="Mở menu"`); bấm thì `lp-menu` hiện.
-- **Không có thẻ `<script>`.**
+- **Câu hỏi thường gặp:** `<details>` / `<summary>`, câu đầu mở sẵn như canvas.
+- **Menu trên màn hẹp:** `<details>` với `<summary>` là nút menu (`aria-label="Mở menu"`); bấm thì danh sách hiện. Có JavaScript thì bấm một link sẽ đóng menu.
+- ~~**Không có thẻ `<script>`.**~~ **Không tải script, stylesheet, phông hay ảnh từ tên miền khác.** **LÝ DO:** D-250 dùng React, nên trang có script của chính site.
 
 ### D-248 — Đường dẫn dạng thư mục; URL nộp cho Google là URL trình duyệt hiện sau khi chọn host · **Agent chốt**
 - Script dựng ghi `privacy/index.html`, `en/privacy/index.html`… nên `/privacy` chạy trên mọi host tĩnh.
@@ -140,7 +143,9 @@ export interface SiteConfig {
 **Phương án bị loại:**
 - Ghi `privacy.html`: Cloudflare Pages lại chuyển hướng `.html` sang đường dẫn không đuôi.
 
-### D-249 — Script TypeScript chạy thẳng bằng Node, mỗi trang là một hàm trả về HTML · **Agent chốt**
+### ~~D-249 — Script TypeScript chạy thẳng bằng Node, mỗi trang là một hàm trả về HTML~~ · **Agent chốt** · thay bởi D-250
+
+> **LÝ DO:** người dùng đổi sang React (2026-10-13). Phần còn dùng: `scripts/build.ts` chạy thẳng bằng `node`, thanh trên và chân trang viết ở một chỗ, giá trị từ config được escape (React tự làm).
 - `scripts/build.ts` chạy bằng `node` (Node 26 tự bỏ kiểu TypeScript). Mỗi trang là một hàm `(ctx) => string` trong `src/pages/`.
 - `src/layout.ts` dựng `<head>`, thanh trên, chân trang dùng chung, nên thanh trên và chân trang chỉ viết ở một chỗ.
 - Mọi giá trị từ config đi qua hàm `escapeHtml`.
@@ -151,24 +156,91 @@ export interface SiteConfig {
 - Vite nhiều trang: không có cách ghép thanh trên và chân trang dùng chung nếu không thêm plugin.
 - Viết tay tám file HTML: thanh trên và chân trang lặp lại tám lần.
 
+### D-250 — React 19 + Vite, prerender ra HTML rồi hydrate · **Người dùng chốt** (2026-10-13, "Prerender + hydrate")
+Người dùng thay site tĩnh SI-01/SI-02 bằng template Vite + React và yêu cầu landing "sử dụng react-bit theo như design".
+
+- **Dựng:** `scripts/build.ts` (chạy thẳng bằng `node`) gọi API của Vite hai lần:
+  - bản client: `index.html` + `src/entry-client.tsx` → `dist/` (JS, CSS, phông, favicon);
+  - bản SSR: `src/entry-server.tsx` → thư mục tạm.
+- **Prerender:** script nạp bản SSR, render từng trang bằng `react-dom/server`, rồi ghi vào khung `dist/index.html`:
+  - `index.html` (trang chủ) và `404.html`;
+  - `<head>` có title, description, canonical, `noindex` (404 và bản xem trước);
+  - `<div id="root" data-page="…">` chứa HTML của trang.
+- **Hydrate:** trình duyệt nạp `entry-client.tsx`, gọi `hydrateRoot` cho đúng trang ghi ở `data-page`. Không dùng react-router: site gồm các trang tĩnh, link là `<a>` thường.
+- **Config (D-242 giữ nguyên):**
+  - Script đọc `site.config.ts`, kiểm `configProblems`. Bản `build` còn thiếu thì dừng trước khi gọi Vite.
+  - Giá trị config, chế độ dựng và năm bản quyền được đưa vào cả hai bản bằng `define` (`__SITE_DATA__`). Nhờ vậy HTML của server và của client giống hệt nhau.
+- **`pnpm dev`:** Vite dev server render ở client, dùng `site.config.ts` ở chế độ xem trước, để sửa giao diện.
+- **Không JavaScript:** trang đọc được đủ vì HTML có sẵn. Chuyển động chỉ ẩn phần tử sau khi hydrate, và chỉ phần tử dưới màn đầu (D-252).
+- **`pnpm serve`:** giữ `scripts/serve.ts` của SI-01 (trả `404.html` như host tĩnh).
+
+**Phương án bị loại:**
+- SPA thuần (template Vite giữ nguyên): `index.html` chỉ có `<div id="root">`, tắt JavaScript thì trang trắng. Google bắt trang chủ mô tả ứng dụng và có link Privacy, nên không dựa vào việc Google chạy JavaScript.
+- `vite-react-ssg` hay framework (Astro, Next): thêm phụ thuộc lớn cho hai trang; script tự viết khoảng 80 dòng.
+
+### D-251 — Style như `sino-web`: Tailwind 4, token canvas, `cn`/`cva`, `lucide-react` · **Người dùng chốt** (2026-10-13, "làm giống bên sino-web đi")
+- `src/index.css` chép phần token của `sino-web/src/index.css`:
+  - biến màu canvas, `@theme inline`, `bg-dots`;
+  - khác `sino-web`: dark là mặc định, light theo `prefers-color-scheme` (giữ D-247), không có class `theme-*`.
+- `Button` (`buttonVariants`), `Badge`, `SinoMark` chép từ `sino-web/src/shared/ui`. Bỏ `asChild` / `radix-ui`: site chỉ cần link mang dáng nút (`<a className={buttonVariants(…)}>`).
+- `cn` từ `src/shared/lib/utils.ts` như `sino-web`, cùng luật oxlint chặn import `cn` trần.
+- Icon: `lucide-react` với `strokeWidth={1.6}` như canvas; dấu Zalo / Messenger / Telegram lấy từ `sino-web` `provider-icon.tsx`.
+- Điểm gãy mặc định của Tailwind như `sino-web`: `md` = 768px, `lg` = 1024px. Khác SI-02: menu dùng nút dưới 1024px (SI-02: dưới 960px).
+- `styles/site.css` của SI-01/SI-02 chuyển thành class Tailwind trong component; phần lặp lại nhiều (hàng thư, thẻ) thành component.
+
+### D-252 — Chuyển động: React Bits theo bản đồ của canvas · **Người dùng chốt** (2026-10-13, "Theo bản đồ canvas")
+Nguồn: canvas "Foundations · Chuyển động" (`Motion`, `MotionSpec`):
+- Mỗi hiệu ứng React Bits có đúng một chỗ dùng.
+- Thời lượng 160–240ms, `ease.out` = `cubic-bezier(.2,.8,.2,1)`.
+- Không có gì tự chạy lặp lại.
+- Khi giảm chuyển động: bỏ mọi dịch chuyển, chỉ giữ mờ dần ≤160ms.
+
+Mã React Bits (reactbits.dev, bản TS-TW) được chép vào `src/shared/motion/` rồi cắt theo luật đó. Bỏ `@hugeicons`, palette nhiều màu, grain, hạt, tia sáng, tilt, magnetism.
+
+| Hiệu ứng | Chỗ dùng | Quy tắc | Khi giảm chuyển động |
+|---|---|---|---|
+| Vào trang (CSS, `.anim-enter` của canvas) | Hero: chữ, nút, khung minh họa, trễ 0/40/80ms | Mờ dần + 6px, 240ms, chạy ngay từ HTML, không chờ JS | Chỉ mờ dần |
+| **AnimatedList** | Các dòng thư trong khung minh họa ở hero | Mỗi dòng trễ 40ms, tối đa 6 dòng; CSS nên không chờ JS | Hiện ngay, chỉ mờ |
+| **FadeContent** (gsap + ScrollTrigger) | Mỗi mục dưới hero khi cuộn tới | Mờ dần + 6px, 240ms, một lần | Chỉ mờ, 160ms |
+| **MagicBento** | 6 thẻ "Tính năng" | Nhấc 2px, viền đậm khi hover; không hạt, không tia sáng | Chỉ đổi viền |
+| **SpotlightCard** | Khung minh họa hộp thư ở hero | Vệt sáng 6–11% theo chuột, chỉ khi hover hoặc focus | Vệt sáng đứng yên |
+| **BorderGlow** | Nút "Mở Sino" ở hero và band | Viền sáng 1px, quầng ≤24px theo hướng chuột khi hover; đủ vòng khi focus | Chỉ viền |
+
+- **Không dùng:**
+  - DotGrid: nền chấm đứng yên, nên dùng utility `bg-dots` như `sino-web`;
+  - CountUp: landing không có số liệu;
+  - DecryptedText: canvas chỉ cho dùng ở Onboarding;
+  - LogoLoop hay vòng lặp nào: mục "Không làm" của canvas.
+- **Hero không dùng FadeContent:** FadeContent ẩn phần tử trong `useEffect`. Hero đã hiện từ HTML nên sẽ nháy (hiện → ẩn → hiện).
+- **Giấy phép:** React Bits là MIT + Commons Clause, cho dùng trong sản phẩm, chỉ cấm bán lại chính các component. Mỗi file chép ghi nguồn ở đầu.
+
+**Phương án bị loại:**
+- Hiệu ứng mạnh hơn canvas (DotGrid theo chuột, MagicBento có hạt, SplitText ở hero): trái mục "Không làm".
+- Cài nguyên bản React Bits qua `shadcn add`: kéo `@hugeicons`, palette tím-hồng, theme riêng, không theo token canvas.
+
 ## Cấu trúc
+
+> ~~Cấu trúc site tĩnh của SI-01 (`src/html.ts`, `src/layout.ts`, `styles/site.css`, `src/pages/*.ts`)~~ → cấu trúc React dưới đây (D-250, D-251). **LÝ DO:** người dùng đổi sang React (2026-10-13).
 
 ```text
 apps/sino-site/
-  package.json          build, build:preview, serve, test, lint, typecheck
+  package.json          dev, build, build:preview, serve, test, lint, typecheck
   site.config.ts        SiteConfig (D-242)
+  index.html            khung: <!--app-head-->, <div id="root"><!--app-html--></div>
+  vite.config.ts        react(), tailwindcss(), alias @, vitest
   src/
-    config.ts           missingFields(config), cách hiện chỗ thiếu
-    html.ts             escapeHtml, html``
-    layout.ts           page({ title, description, lang, path, alternate, body })
-    icons.ts
-    pages/              home.ts, privacy.ts (vi + en), terms.ts (vi + en),
-                        security.ts, open-source.ts, not-found.ts
-  styles/site.css       phần cần dùng của canvas sino.css: biến màu hai theme, chữ, nút,
-                        badge, lp-*, doc-*, oss, nf, mrow, các thẻ minh họa
+    entry-client.tsx    hydrateRoot / createRoot (dev)
+    entry-server.tsx    renderPage(pageId, site) → { lang, head, html }
+    index.css           Tailwind + token canvas (D-251)
+    site/               config.ts (configProblems), site.tsx (SiteData, useSite), pages.ts (bảng trang), document.ts
+    layout/             PageFrame, SiteHeader, SiteFooter
+    pages/home/         Hero, ProviderStrip, Features, Planning, HowItWorks, Privacy, Faq, Band, MailRow
+    pages/NotFoundPage.tsx
+    shared/ui/          button, badge, sino-mark, provider-icon (từ sino-web)
+    shared/lib/         utils.ts (cn), static-files.ts
+    shared/motion/      FadeContent, MagicBento, SpotlightCard, AnimatedList, BorderGlow, useReducedMotion
   public/favicon.svg    logo S2 như sino-web
-  scripts/build.ts      dist/: index.html, privacy/, en/privacy/, terms/, en/terms/,
-                        security/, open-source/, 404.html, site.css, fonts/
+  scripts/build.ts      config → Vite client + SSR → prerender → dist/: index.html, 404.html, assets/
   scripts/serve.ts      phục vụ dist/ ở localhost, trả 404.html như host tĩnh
   test/
   README.md
@@ -209,17 +281,19 @@ apps/sino-site/
 
 ## Kiểm chứng
 
-- **Test viết trước, đỏ rồi xanh** (vitest, đọc HTML trong `dist/` của một lần dựng vào thư mục tạm, parse bằng jsdom):
-  - `missingFields` và hai chế độ dựng;
-  - trang nào cũng có `lang`, `<title>`, mô tả, viewport, canonical;
+- **Test viết trước, đỏ rồi xanh** (vitest, parse bằng jsdom):
+  - `configProblems` và hai chế độ dựng;
+  - HTML prerender của từng trang (`renderDocument`, không cần dựng Vite): trang nào cũng có `lang`, `<title>`, mô tả, viewport, canonical (trừ 404);
   - trang chủ có `<a href="/privacy">` trong HTML gốc;
-  - không có thẻ `<script>`, không có URL `fonts.googleapis.com`;
+  - nội dung không bị ẩn trong HTML (không `opacity: 0` hay `visibility: hidden` nằm sẵn), để tắt JavaScript vẫn đọc được (D-250, D-252);
   - mọi `href` nội bộ trỏ tới một trang đã dựng hoặc một `id` có thật;
   - bản để đưa lên mạng không còn `[chưa điền` hay `noindex`;
+  - chuyển động: trễ của AnimatedList, thông số FadeContent khi giảm chuyển động;
+  - một lần dựng thật bằng CLI vào thư mục tạm: có `index.html`, `404.html`, `favicon.svg`; script, stylesheet, phông đều nằm trên site, không có `fonts.googleapis.com` (D-247);
   - hai bản VI/EN link qua lại.
-- **Mỗi task:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build:preview`; Chrome một lượt ở các cỡ task đụng tới, đối chiếu canvas.
+- **Mỗi task:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build:preview`; Chrome một lượt ở các cỡ task đụng tới, đối chiếu canvas. Từ SI-02R thêm một lượt tắt JavaScript và một lượt giảm chuyển động.
 - **Nghiệm thu (SI-06):** mọi trang ở 1440 / 768 / 390 × dark / light, không cuộn ngang. Đọc lại bảng D-241 và từng câu của Bảo mật với code.
-- **Không chạy:** kiểm tra bằng lỗi gài (mutation). Site không có hàm logic đáng kể ngoài `missingFields`, và test đã phủ hàm đó.
+- **Không chạy:** kiểm tra bằng lỗi gài (mutation). Site không có hàm logic đáng kể ngoài `configProblems`, và test đã phủ hàm đó.
 
 ## Definition of Done
 

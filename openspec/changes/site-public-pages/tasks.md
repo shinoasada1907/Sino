@@ -1,6 +1,7 @@
 # Site công khai cho thẩm định OAuth của Google · Implementation Plan
 
 > **HYBRID mode:** frontend AUTO. Người dùng duyệt thiết kế 2026-10-13 ("duyệt"): D-240…D-247; D-248, D-249 agent chốt.
+> **Đổi sang React (2026-10-13):** người dùng thay site tĩnh bằng template Vite + React, yêu cầu landing "sử dụng react-bit theo như design" và duyệt D-250…D-252. SI-01 và SI-02 được làm lại trên React ở SI-01R và SI-02R. Từ SI-03 trở đi, mỗi trang là component React trong `src/pages/`, thay cho `src/pages/*.ts`.
 > Mỗi task gồm:
 > - test viết trước (đỏ rồi xanh);
 > - `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build:preview` trong `apps/sino-site`;
@@ -11,6 +12,7 @@
 ## 1. Nền
 
 - [x] 1.1 **SI-01 — Gói `apps/sino-site`, cấu hình, khung trang, CSS, phông, dựng và xem, trang 404**
+  - ~~Site tĩnh `src/html.ts` / `src/layout.ts` / `styles/site.css`~~ → làm lại ở 1.2 SI-01R. **LÝ DO:** người dùng đổi sang React + React Bits (2026-10-13, D-250…D-252). Phần giữ lại: `configProblems`, `site.config.ts`, `scripts/serve.ts`, `resolveRequest`, test của chúng.
   - **Thực hiện:**
     - `package.json`: `build`, `build:preview`, `serve`, `test`, `lint`, `typecheck`.
     - `site.config.ts` với mọi trường `null`; `src/config.ts` (`missingFields`).
@@ -49,9 +51,40 @@
     - Chrome headless (CDP, `localhost:4321/nope`), 1440 và 390 × dark và light: không cuộn ngang; nền `#070707` / `#F2F2EF`; Inter (cả bộ chữ tiếng Việt) và JetBrains Mono đã nạp; bố cục như canvas `SiteNotFound`. Ở 390, bấm nút menu thì `details.open = true`, danh sách `display: flex` hiện dưới thanh trên.
     - File kiến thức phase 1 mục 21 + câu 113–117; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
+- [ ] 1.2 **SI-01R — Nền React: Vite + React + Tailwind như `sino-web`, prerender, trang 404**
+  - **Thực hiện:**
+    - Trên template Vite + React người dùng đã tạo:
+      - bỏ `App.tsx`, `App.css`, `src/assets/`, `public/icons.svg`;
+      - `public/favicon.svg` trả về logo S2 của SI-01.
+    - `package.json`:
+      - script `dev`, `build`, `build:preview`, `serve`, `test`, `lint`, `typecheck`;
+      - thêm Tailwind 4, `cn`, `class-variance-authority`, `lucide-react`, `@fontsource-variable/*`, `gsap`, vitest, Testing Library, jsdom.
+    - `vite.config.ts`: `react()`, `tailwindcss()`, alias `@`, vitest; `__SITE_DATA__` cho `dev` và test.
+    - `src/index.css`: token canvas từ `sino-web`, dark mặc định, light theo hệ điều hành (D-251).
+    - `src/shared/ui`: `buttonVariants`, `Badge`, `SinoMark`, `ProviderIcon`. `src/shared/lib/utils.ts` (`cn`).
+    - `src/site/`:
+      - `config.ts` (`configProblems` của SI-01);
+      - `site.tsx` (`SiteData`, `SiteProvider`, `useSite`: `appHref`, `value`);
+      - `pages.ts` (bảng trang: id, đường dẫn, file, lang, title, description, indexable);
+      - `document.ts` (`renderDocument`: ghi head và HTML vào khung).
+    - `src/layout/`: `PageFrame`, `SiteHeader` (menu `<details>`, bấm link thì đóng), `SiteFooter`.
+    - `src/pages/NotFoundPage.tsx` theo `SiteNotFound`.
+    - `src/entry-server.tsx`, `src/entry-client.tsx`, `index.html` có chỗ trống `<!--app-head-->` và `<!--app-html-->`.
+    - `scripts/build.ts`: config → Vite client + SSR → prerender → `dist/`.
+    - `scripts/serve.ts` + `resolveRequest` của SI-01.
+  - **Acceptance criteria:**
+    - spec *Thông tin chủ sở hữu nằm trong một cấu hình*: hai scenario;
+    - *Các trang của site công khai*: phần chung và scenario 404;
+    - *Link nội bộ không gãy* cho 404.
+  - **Kiểm chứng:**
+    - test `configProblems`, `resolveRequest`, `renderDocument` cho 404, CLI dựng thật;
+    - lint, typecheck, test, `build:preview`, `serve`;
+    - Chrome `/nope` ở 1440 và 390, dark và light.
+
 ## 2. Các trang
 
 - [x] 2.1 **SI-02 — Trang chủ**
+  - ~~`src/pages/home.ts` + `styles/site.css`~~ → làm lại ở 2.1b SI-02R. **LÝ DO:** người dùng đổi sang React + React Bits (2026-10-13, D-250…D-252). Chữ và các quyết định nội dung của SI-02 giữ nguyên.
   - **Thực hiện:**
     - Đọc lại bảng sự thật D-241 với `tasks.md` của các change ngay trước khi viết.
     - `src/pages/home.ts` theo `Landing`: hero và ảnh minh họa chỉ có Gmail, dải "KẾT NỐI VỚI", bento tính năng, kế hoạch, ba bước, quyền riêng tư cùng khối quyền Google (D-245), câu hỏi thường gặp bằng `<details>`, lời kêu gọi cuối (D-246).
@@ -84,6 +117,22 @@
     - GREEN: 58/58 (8 file). `pnpm lint` 0, `pnpm typecheck` 0, `pnpm build:preview` 0.
     - Chrome headless, cả trang ở 1440 / 768 / 390 × dark / light: không cuộn ngang, phông tiếng Việt đã nạp. Ở 390 và 768, bấm menu thì danh sách hiện (`display: flex`). Câu hỏi thường gặp: bấm câu 2 thì mở, bấm câu 1 thì đóng.
     - Lỗi script kiểm (không phải lỗi site): trang cuộn mượt (`scroll-behavior: smooth`) nên ảnh chụp ngay sau `scrollIntoView` còn đang cuộn dở → script tắt cuộn mượt trước khi chụp.
+
+- [ ] 2.1b **SI-02R — Trang chủ trên React, chuyển động React Bits theo canvas**
+  - **Thực hiện:**
+    - Đọc lại bảng D-241 với `tasks.md` của các change trước khi chép chữ của SI-02 (`0793678`).
+    - `src/pages/home/`: `Hero`, `ProviderStrip`, `Features`, `Planning`, `HowItWorks`, `Privacy` (+ khối quyền Google D-245), `Faq` (`<details>`), `Band`, `MailRow`.
+    - `src/shared/motion/` (D-252), chép từ React Bits rồi cắt theo canvas: `FadeContent`, `MagicBento`, `SpotlightCard`, `AnimatedList`, `BorderGlow`, `useReducedMotion`.
+    - Thêm trang chủ vào bảng trang; prerender ghi `index.html`.
+  - **Acceptance criteria:**
+    - spec *Trang chủ mô tả đúng ứng dụng…* (hai scenario);
+    - *Mở trang chủ khi tắt JavaScript*;
+    - *Chuyển động theo bản đồ React Bits của canvas* (hai scenario);
+    - *Link nội bộ không gãy* cho trang chủ.
+  - **Kiểm chứng:**
+    - test nội dung trang chủ (chuyển từ `home.test.ts` của SI-02), HTML prerender không ẩn nội dung, thông số chuyển động;
+    - lint, typecheck, test, `build:preview`;
+    - Chrome 1440 / 768 / 390 × dark / light so với `Landing`, `LandingLight`, `LandingMobile`; một lượt tắt JavaScript; một lượt giảm chuyển động.
     - File kiến thức phase 1 mục 21.8–21.9 + câu 118–120; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
 - [ ] 2.2 **SI-03 — Chính sách quyền riêng tư, tiếng Việt và tiếng Anh**
