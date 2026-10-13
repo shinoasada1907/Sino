@@ -291,19 +291,35 @@
       - bản xem trước hiện 6 chỗ `[chưa điền: …]`.
     - File kiến thức phase 1 mục 21.13 + câu 132–134; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
+- [ ] 2.2b **SI-03a — Người dùng duyệt nội dung Privacy** (người dùng 2026-10-13: "đưa vào change rồi mai làm")
+  - Cam kết của chủ sở hữu trong `/privacy` và `/en/privacy`, chưa qua luật sư. Duyệt từng câu; câu nào đổi thì sửa cả `privacy.vi.tsx` lẫn `privacy.en.tsx`, chạy lại test:
+    - [ ] xóa hẳn dữ liệu trong vòng 30 ngày khi có yêu cầu qua email (mục *Lưu giữ và xóa*);
+    - [ ] trả lời yêu cầu xem, sửa, xóa trong vòng 30 ngày (mục *Quyền của bạn*);
+    - [ ] hỏi lại người dùng trước khi dùng dữ liệu theo cách mới (mục *Thay đổi chính sách*);
+    - [ ] câu "Sino xử lý dữ liệu cá nhân theo pháp luật Việt Nam về bảo vệ dữ liệu cá nhân" (mục *Quyền của bạn*);
+    - [ ] App name trên OAuth consent screen của Google Cloud là "Sino Messages". Nếu khác, sửa `GOOGLE_APP_NAME` trong `apps/sino-site/src/pages/privacy/privacy.shared.ts`, vì câu Limited Use phải nêu đúng tên đó.
+
 - [ ] 2.3 **SI-04 — Điều khoản, tiếng Việt và tiếng Anh**
   - **Thực hiện:**
-    - `src/pages/terms.ts` theo `SiteTerms`.
-    - Bỏ đoạn nói về thư hẹn giờ (chưa có).
-    - Báo trước thay đổi lớn 30 ngày; luật Việt Nam; giới hạn trách nhiệm soạn ở mức "dịch vụ cung cấp nguyên trạng", đánh dấu cần người dùng đọc lại.
-    - Bản `/en/terms`.
-  - **Acceptance criteria:** spec *Các trang của site công khai* cho `/terms`, `/en/terms`; scenario *Link ở thanh trên của trang Điều khoản*.
-  - **Kiểm chứng:** Chrome 1440 và 390, dark và light.
+    - ~~`src/pages/terms.ts` theo `SiteTerms`.~~ → theo khuôn của SI-03. **LÝ DO:** site đã sang React (D-250), và Privacy đã có khuôn trang pháp lý dùng chung:
+      - `src/pages/terms/terms.vi.tsx`, `terms.en.tsx` là dữ liệu `PolicyDoc`; `TermsPages.tsx` dùng `PolicyPage` (đầu trang có ngày hiệu lực, mục lục, các mục), theo bố cục `SiteTerms`;
+      - bảng trang thêm `terms` (`/terms`, `terms/index.html`, `vi`) và `terms-en` (`/en/terms`, `en/terms/index.html`, `en`), thanh trên `family`, `alternate` trỏ lẫn nhau (`hreflang`, link đổi ngôn ngữ ở chân trang có sẵn);
+      - bỏ `/terms`, `/en/terms` khỏi `PAGES_NOT_BUILT_YET`; test CLI chờ `terms/index.html`, `en/terms/index.html`.
+    - Điều khoản chung cho cả nhà Sino, có phần riêng cho Sino Messages (D-253).
+    - Đối chiếu với code như SI-03: chỉ mô tả điều Sino làm thật. Bỏ đoạn thư hẹn giờ (chưa có).
+    - Báo trước thay đổi lớn 30 ngày; luật Việt Nam; giới hạn trách nhiệm ở mức "dịch vụ cung cấp nguyên trạng". Các cam kết này ghi vào danh sách người dùng cần đọc lại, như SI-03a.
+    - Dẫn chiếu sang `/privacy` cho phần dữ liệu; người đứng tên, email liên hệ, ngày hiệu lực dùng `ConfigValue`.
+  - **Acceptance criteria:**
+    - spec *Các trang của site công khai* cho `/terms`, `/en/terms`;
+    - scenario *Link ở thanh trên của trang Điều khoản* (`/terms` bấm "Sino Messages" → `/messages`);
+    - test: hai bản cùng các mục, mục lục khớp các mục, `hreflang`, link đổi ngôn ngữ, chỗ thiếu config ở bản xem trước, không khẳng định tính năng chưa có.
+  - **Kiểm chứng:** lint, typecheck, test, `build:preview`; Chrome 1440 và 390, dark và light, cả hai ngôn ngữ.
 
 - [ ] 2.4 **SI-05 — Bảo mật và Phần mềm nguồn mở**
   - **Thực hiện:**
-    - `src/pages/security.ts` theo `SiteSecurity`: chỉ giữ biện pháp có trong code, mỗi câu ghi nguồn đối chiếu ở phần "Đã làm".
-    - `src/pages/open-source.ts` theo `SiteOpenSource`: thành phần và giấy phép lấy từ `apps/sino-api/pom.xml` và `apps/sino-web/package.json`; "Xem toàn văn giấy phép" trỏ tới trang giấy phép của từng dự án; bỏ câu "sinh tự động mỗi lần đóng gói".
+    - ~~`src/pages/security.ts`, `src/pages/open-source.ts`~~ → component React trong `src/pages/security/`, `src/pages/open-source/`, thanh trên `family`. **LÝ DO:** D-250.
+    - Bảo mật theo `SiteSecurity`: chỉ giữ biện pháp có trong code, mỗi câu ghi nguồn đối chiếu ở phần "Đã làm". Privacy mục *Bảo mật* đã liệt kê bốn biện pháp có thật; trang này phải khớp với mục đó.
+    - Nguồn mở theo `SiteOpenSource`: thành phần và giấy phép lấy từ `apps/sino-api/pom.xml` và `apps/sino-web/package.json`; "Xem toàn văn giấy phép" trỏ tới trang giấy phép của từng dự án; bỏ câu "sinh tự động mỗi lần đóng gói".
   - **Acceptance criteria:** spec *Các trang của site công khai* cho `/security`, `/open-source`.
   - **Kiểm chứng:** Chrome 1440 và 390, dark và light.
 
@@ -312,7 +328,9 @@
 - [ ] 3.1 **SI-06 — Nghiệm thu, README, archive**
   - **Thực hiện:**
     - Chrome mọi trang ở 1440 / 768 / 390 × dark / light, không cuộn ngang; ghi chỗ khác canvas.
-    - Đọc lại bảng D-241.
+    - Đọc lại bảng D-241, và đối chiếu lại Privacy với code: từ SI-03 (2026-10-13) có thể đã có tính năng mới, như ghi chú (F15), lịch (BE-73).
+    - SI-03a đã xong: người dùng duyệt cam kết, App name trên consent screen khớp `GOOGLE_APP_NAME`.
+    - Cân nhắc tải gsap muộn (dynamic import): JS hôm nay 456 kB (145 kB gzip), gsap khoảng 140 kB (ghi ở SI-02R).
     - `pnpm build` với config đủ giá trị (giá trị thử, không commit) xanh; với config thiếu thì đỏ.
     - `README.md`: dựng, xem trước, đưa lên Cloudflare Pages hoặc GitHub Pages, gắn tên miền, xác minh trong Search Console, URL cuối cùng không chuyển hướng (D-248), các ô của consent screen (App home page `…/messages`, Privacy policy `…/privacy`, Terms of service `…/terms`, Authorized domains; D-253).
   - **Acceptance criteria:** Definition of Done trong `design.md`.
