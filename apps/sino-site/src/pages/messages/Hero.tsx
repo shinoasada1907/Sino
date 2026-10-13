@@ -79,7 +79,7 @@ export function Hero() {
         <div data-slot="cta" className={cn('flex w-full flex-wrap gap-3 max-md:*:grow', enter, d2)}>
           <BorderGlow>
             <a className={buttonVariants({ className: 'w-full' })} href={appHref('/')}>
-              Mở Sino
+              Mở Sino Messages
               <ChevronRight {...ICON} />
             </a>
           </BorderGlow>

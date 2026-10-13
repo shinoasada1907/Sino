@@ -14,6 +14,7 @@ const page: PageMeta = {
   title: 'A & B <c>',
   description: 'Say "hi"',
   indexable: true,
+  nav: 'family',
 }
 
 describe('renderDocument', () => {

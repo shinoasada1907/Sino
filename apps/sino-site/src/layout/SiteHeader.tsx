@@ -1,23 +1,34 @@
 import { List } from 'lucide-react'
 import { useRef } from 'react'
+import type { NavKind } from '@/site/pages'
 import { useSite } from '@/site/site-context'
 import { cn } from '@/shared/lib/utils'
 import { buttonVariants } from '@/shared/ui/button'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { wrap } from '@/shared/ui/text'
-import { SECTIONS } from './nav'
+import { MESSAGES_SECTIONS, PRODUCTS } from './nav'
 
 const link =
   'rounded-[8px] px-3 py-2 text-sm leading-5 font-medium text-muted-foreground transition-colors duration-(--dur-hover) ease-out hover:bg-hover hover:text-foreground'
 
+/** The links of each top bar (D-254): the sections of Sino Messages, or the products of the Sino family. */
+const NAV_LINKS: Record<NavKind, { label: string; links: { label: string; href: string }[] }> = {
+  product: {
+    label: 'Các mục của Sino Messages',
+    links: MESSAGES_SECTIONS.map((s) => ({ label: s.label, href: `/messages#${s.id}` })),
+  },
+  family: { label: 'Sản phẩm Sino', links: PRODUCTS.map((p) => ({ label: p.name, href: p.href })) },
+}
+
 /** Canvas `lp-nav`. The phone menu is a <details>, so it opens without JavaScript too (D-247). */
-export function SiteHeader() {
+export function SiteHeader({ nav }: { nav: NavKind }) {
   const { appHref } = useSite()
   const menu = useRef<HTMLDetailsElement>(null)
-  const sectionLinks = (className: string) =>
-    SECTIONS.map((s) => (
-      <a key={s.id} className={cn(link, className)} href={`/#${s.id}`}>
-        {s.label}
+  const { label, links } = NAV_LINKS[nav]
+  const navLinks = (className: string) =>
+    links.map((l) => (
+      <a key={l.href} className={cn(link, className)} href={l.href}>
+        {l.label}
       </a>
     ))
 
@@ -32,15 +43,20 @@ export function SiteHeader() {
             <SinoMark className="size-5" />
             Sino
           </a>
-          <nav className="hidden gap-0.5 lg:flex" aria-label="Các mục của trang chủ">
-            {sectionLinks('')}
+          <nav className="hidden gap-0.5 lg:flex" aria-label={label}>
+            {navLinks('')}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <a className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'max-md:hidden')} href={appHref('/login')}>
-              Đăng nhập
-            </a>
+            {nav === 'product' && (
+              <a
+                className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'max-md:hidden')}
+                href={appHref('/login')}
+              >
+                Đăng nhập
+              </a>
+            )}
             <a className={buttonVariants({ size: 'sm' })} href={appHref('/')}>
-              Mở Sino
+              Mở Sino Messages
             </a>
             <details ref={menu} className="group lg:hidden">
               <summary
@@ -60,10 +76,12 @@ export function SiteHeader() {
                   if ((event.target as Element).closest('a') && menu.current) menu.current.open = false
                 }}
               >
-                {sectionLinks('px-2 py-3 text-base')}
-                <a className={cn(link, 'px-2 py-3 text-base')} href={appHref('/login')}>
-                  Đăng nhập
-                </a>
+                {navLinks('px-2 py-3 text-base')}
+                {nav === 'product' && (
+                  <a className={cn(link, 'px-2 py-3 text-base')} href={appHref('/login')}>
+                    Đăng nhập
+                  </a>
+                )}
               </nav>
             </details>
           </div>

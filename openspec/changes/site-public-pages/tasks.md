@@ -191,7 +191,7 @@
     - File kiến thức phase 1 mục 21.11 + câu 125–128; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
     - File kiến thức phase 1 mục 21.8–21.9 + câu 118–120; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
-- [ ] 2.1c **SI-07 — Site chung của nhà Sino: trang thương hiệu `/`, Sino Messages chuyển sang `/messages`**
+- [x] 2.1c **SI-07 — Site chung của nhà Sino: trang thương hiệu `/`, Sino Messages chuyển sang `/messages`**
   - **Thực hiện:**
     - Bảng trang:
       - `brand` (`/`, `index.html`) và `messages` (`/messages`, `messages/index.html`);
@@ -209,6 +209,31 @@
     - test bảng trang, nội dung `/messages` (đổi từ `home`), trang `/` (đúng một thẻ sản phẩm, link `/messages`, `/privacy`), link nội bộ toàn site, CLI có `messages/index.html`;
     - lint, typecheck, test, `build:preview`;
     - Chrome `/` ở 1440 và 390 × dark/light; `/messages` một lượt ở 1440 và 390.
+  - **Đã làm (2026-10-13, AUTO):**
+    - `src/site/pages.ts`:
+      - `brand` (`/`, `index.html`), `messages` (`/messages`, `messages/index.html`), `not-found`;
+      - `PageMeta.nav`;
+      - `pageForPath` hiểu `/messages/` và `/messages/index.html`.
+    - `src/layout/nav.ts`: `MESSAGES_SECTIONS`, `PRODUCTS`, chân trang chung. `SiteHeader({ nav })` hai kiểu; `PageFrame({ nav })`.
+    - `src/pages/home` → `src/pages/messages` (`git mv`), `HomePage` → `MessagesPage`.
+    - `src/pages/brand/BrandPage.tsx`: hero và một thẻ `MagicBentoCard` cho Sino Messages, có hai dòng thư minh họa (`aria-hidden`).
+    - "Mở Sino" → "Mở Sino Messages" ở thanh trên, hero, band và 404. Câu ở chân trang thành "Ứng dụng gọn cho việc mỗi ngày.", vì câu cũ chỉ nói về Messages.
+  - **Làm khác kế hoạch:**
+    - Nút ở hero của `/messages` cũng thành "Mở Sino Messages" (kế hoạch chỉ nêu band và 404). **LÝ DO:** cùng một nút ở mọi chỗ. Ở 390 px, hai nút của hero vì vậy xếp hai hàng.
+    - Thêm test `pageForPath` (`src/site/pages.test.ts`). **LÝ DO:** `/messages/` phải ra đúng trang khi `pnpm dev`.
+  - **Kiểm chứng (2026-10-13):**
+    - RED:
+      - 5 file đỏ: chưa có trang `brand`/`messages`, chưa có thanh trên `family`;
+      - 6 test đỏ: `pageForPath` và menu của trang chung.
+    - GREEN: 87/87 (14 file). `pnpm lint` 0, `pnpm typecheck` 0, `pnpm build:preview` 0.
+      - `dist/` có `index.html` (`data-page="brand"`), `messages/index.html` (`messages`), `404.html`.
+      - `tsc` bắt fixture `PageMeta` trong `document.test.ts` thiếu `nav`, đã sửa.
+    - Chrome headless (`pnpm serve`):
+      - `/` ở 1440 và 390 × dark/light: không cuộn ngang, hydrate không lỗi; thanh trên có "Sino Messages" và "Mở Sino Messages"; hover thẻ: `translate: 0 -2px`, viền `#4A4A4F`;
+      - `/messages` ở 1440 dark và 390 light: thanh trên có năm mục `/messages#…`, "Đăng nhập", "Mở Sino Messages";
+      - `/messages/` ra đúng trang; `/messages#cau-hoi` hiện ngay mục câu hỏi; `/nope` → 404 với thanh trên chung.
+    - Lỗi script kiểm (không phải lỗi site): lần đo hover đầu ra `translate: none` vì `scrollIntoView` cuộn mượt chưa xong thì chuột đã đặt. Script giờ tắt cuộn mượt trước khi rê chuột; `:hover` khớp.
+    - File kiến thức phase 1 mục 21.12 + câu 129–131; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
 - [ ] 2.2 **SI-03 — Chính sách quyền riêng tư, tiếng Việt và tiếng Anh**
   - **Thực hiện:**

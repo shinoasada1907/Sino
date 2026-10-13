@@ -1,5 +1,5 @@
-/** Sections of the home page, linked from the top bar of every page (D-244). */
-export const SECTIONS = [
+/** Sections of the Sino Messages page, linked from its top bar (D-254). */
+export const MESSAGES_SECTIONS = [
   { label: 'Tính năng', id: 'tinh-nang' },
   { label: 'Kế hoạch', id: 'ke-hoach' },
   { label: 'Cách hoạt động', id: 'cach-hoat-dong' },
@@ -7,21 +7,19 @@ export const SECTIONS = [
   { label: 'Câu hỏi', id: 'cau-hoi' },
 ] as const
 
+/** The Sino products that run today; each gets a card on the brand page and a link in the family top bar (D-253). */
+export const PRODUCTS = [{ name: 'Sino Messages', href: '/messages' }] as const
+
 export const FOOTER_COLUMNS = [
   {
     title: 'SẢN PHẨM',
-    links: [
-      { label: 'Tính năng', href: '/#tinh-nang' },
-      { label: 'Kế hoạch', href: '/#ke-hoach' },
-      { label: 'Cách hoạt động', href: '/#cach-hoat-dong' },
-    ],
+    links: PRODUCTS.map((p) => ({ label: p.name, href: p.href })),
   },
   {
     title: 'TIN CẬY',
     links: [
-      { label: 'Quyền riêng tư', href: '/#rieng-tu' },
       { label: 'Bảo mật', href: '/security' },
-      { label: 'Câu hỏi thường gặp', href: '/#cau-hoi' },
+      { label: 'Câu hỏi thường gặp', href: '/messages#cau-hoi' },
     ],
   },
   {
@@ -32,4 +30,4 @@ export const FOOTER_COLUMNS = [
       { label: 'Phần mềm nguồn mở', href: '/open-source' },
     ],
   },
-] as const
+]

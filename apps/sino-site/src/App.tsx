@@ -1,13 +1,15 @@
 import type { ComponentType } from 'react'
 import { PageFrame } from '@/layout/PageFrame'
-import { HomePage } from '@/pages/home/HomePage'
+import { BrandPage } from '@/pages/brand/BrandPage'
+import { MessagesPage } from '@/pages/messages/MessagesPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import type { PageId } from '@/site/pages'
+import { pageById, type PageId } from '@/site/pages'
 import { SiteProvider } from '@/site/SiteProvider'
 import type { SiteData } from '@/site/site-data'
 
 const PAGE_COMPONENTS: Record<PageId, ComponentType> = {
-  home: HomePage,
+  brand: BrandPage,
+  messages: MessagesPage,
   'not-found': NotFoundPage,
 }
 
@@ -16,7 +18,7 @@ export function App({ pageId, site }: { pageId: PageId; site: SiteData }) {
   const Page = PAGE_COMPONENTS[pageId]
   return (
     <SiteProvider site={site}>
-      <PageFrame>
+      <PageFrame nav={pageById(pageId).nav}>
         <Page />
       </PageFrame>
     </SiteProvider>

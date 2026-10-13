@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { PAGES } from '@/site/pages'
 import { PRODUCTION_SITE } from '@/test/configs'
-import { links, prerendered, text } from '@/test/prerendered'
+import { hrefOf, links, prerendered, text } from '@/test/prerendered'
 
-describe('the home page', () => {
-  const { html, doc } = prerendered('home', PRODUCTION_SITE)
+describe('the Sino Messages page', () => {
+  const { html, doc } = prerendered('messages', PRODUCTION_SITE)
 
-  it('is the root of the site, indexed under the site domain', () => {
-    expect(PAGES.find((p) => p.id === 'home')).toMatchObject({ path: '/', file: 'index.html' })
-    expect(doc.title).toBe('Sino · Hộp thư chung cho Gmail và việc cần làm')
-    expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://sino.example/')
+  it('lives at /messages, the App home page declared to Google, indexed under the site domain', () => {
+    expect(PAGES.find((p) => p.id === 'messages')).toMatchObject({ path: '/messages', file: 'messages/index.html' })
+    expect(doc.title).toBe('Sino Messages · Hộp thư chung cho Gmail và việc cần làm')
+    expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://sino.example/messages')
     expect(doc.querySelector('meta[name="robots"]')).toBeNull()
   })
 
@@ -86,13 +86,26 @@ describe('the home page', () => {
 
   it('opens the app from the calls to action', () => {
     expect(links(doc.querySelector('#dau-trang [data-slot="cta"]'))).toEqual([
-      ['Mở Sino', 'https://app.sino.example/'],
+      ['Mở Sino Messages', 'https://app.sino.example/'],
       ['Xem cách hoạt động', '#cach-hoat-dong'],
     ])
     expect(links(doc.querySelector('[aria-label="Bắt đầu"] [data-slot="cta"]'))).toEqual([
-      ['Mở Sino', 'https://app.sino.example/'],
+      ['Mở Sino Messages', 'https://app.sino.example/'],
       ['Đăng nhập', 'https://app.sino.example/login'],
     ])
+  })
+
+  it('takes the product top bar: the sections of this page and the app', () => {
+    const nav = doc.querySelector('header nav[aria-label="Các mục của Sino Messages"]')
+
+    expect(links(nav)).toEqual([
+      ['Tính năng', '/messages#tinh-nang'],
+      ['Kế hoạch', '/messages#ke-hoach'],
+      ['Cách hoạt động', '/messages#cach-hoat-dong'],
+      ['Quyền riêng tư', '/messages#rieng-tu'],
+      ['Câu hỏi', '/messages#cau-hoi'],
+    ])
+    expect(hrefOf(doc, 'Đăng nhập')).toBe('https://app.sino.example/login')
   })
 
   it('hides nothing in the HTML, so it reads the same before and without JavaScript', () => {

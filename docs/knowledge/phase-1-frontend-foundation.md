@@ -1394,7 +1394,28 @@ Ba bài học:
 - **Giảm chuyển động có hai đường.** CSS: tiền tố `motion-safe:` / `motion-reduce:` của Tailwind (ứng với `@media (prefers-reduced-motion: ...)`). JavaScript: `matchMedia('(prefers-reduced-motion: reduce)')`, gọi trong `useEffect` vì server không có `window`. Luật của canvas: bỏ mọi dịch chuyển, chỉ giữ mờ dần tối đa 160ms.
 - **`gsap` chỉ đăng ký plugin ở trình duyệt.** `gsap.registerPlugin(ScrollTrigger, CustomEase)` nằm trong một hàm gọi lần đầu từ `useEffect`, không nằm ở đầu module. Bản SSR có import `gsap` nhưng không bao giờ chạy nó. `CustomEase.create('sino-out', '.2,.8,.2,1')` cho gsap đúng đường cong `ease.out` của canvas.
 
-Kiểm chứng: jsdom chạy được gsap (đặt style inline) nên test đo được "phần tử dưới màn đầu bị ẩn, phần tử trên màn thì không". Nhưng hover, vệt sáng hay quầng sáng thì phải kiểm bằng Chrome thật. Script CDP gửi `Input.dispatchMouseEvent` để di chuột thật, rồi đọc `getComputedStyle`. Một lỗi của chính script: nó chờ *trước* khi cuộn rồi chụp ngay sau khi cuộn, nên ảnh bắt được lúc khối đang mờ dần. Bước chờ phải đặt sau khi cuộn.
+Kiểm chứng (SI-02R): jsdom chạy được gsap (đặt style inline) nên test đo được "phần tử dưới màn đầu bị ẩn, phần tử trên màn thì không". Nhưng hover, vệt sáng hay quầng sáng thì phải kiểm bằng Chrome thật. Script CDP gửi `Input.dispatchMouseEvent` để di chuột thật, rồi đọc `getComputedStyle`. Một lỗi của chính script: nó chờ *trước* khi cuộn rồi chụp ngay sau khi cuộn, nên ảnh bắt được lúc khối đang mờ dần. Bước chờ phải đặt sau khi cuộn.
+
+### 21.12 Một site cho cả nhà Sino (SI-07)
+Người dùng cho biết sẽ có nhiều sản phẩm Sino, và landing phải dùng chung (D-253). Site đổi từ "trang của một app" thành "site của một thương hiệu":
+
+```text
+/                 trang thương hiệu: một câu về Sino, mỗi sản phẩm một thẻ   (thanh trên: family)
+/messages         trang Sino Messages (trang chủ cũ)  <- App home page khai với Google   (thanh trên: product)
+/privacy, /terms  chung cho cả nhà Sino, mỗi sản phẩm một mục                  (thanh trên: family)
+404.html          chung                                                        (thanh trên: family)
+```
+
+- **Vì sao chốt URL trước khi khai với Google:**
+  - Google đòi trang chủ khai trên consent screen "mô tả đúng ứng dụng". Một trang thương hiệu liệt kê nhiều sản phẩm có thể bị coi là không mô tả ứng dụng, nên trang khai là `/messages`.
+  - URL đã khai mà đổi thì phải khai lại, có khi phải thẩm định lại. Vì vậy URL được chốt từ bây giờ, khi chưa khai, để sau này thêm sản phẩm thì chỉ thêm trang, không đổi URL cũ.
+- **Dữ liệu điều khiển giao diện:**
+  - mỗi trang khai `nav: 'product' | 'family'` trong bảng `PAGES`, và `PageFrame` chọn thanh trên theo đó;
+  - danh sách sản phẩm là một mảng `PRODUCTS`, dùng chung cho thanh trên, chân trang và thẻ ở trang thương hiệu.
+
+  Thêm sản phẩm thứ hai chủ yếu là thêm một dòng vào bảng và một trang, không phải sửa từng chỗ.
+- **Đổi tên theo ý nghĩa:** thư mục `pages/home` thành `pages/messages`, `HomePage` thành `MessagesPage`. Đổi bằng `git mv` để git hiểu đây là đổi tên, giữ lịch sử.
+- **Lại bài học về script kiểm:** lần đo hover đầu tiên ở `/` cho kết quả "không nhấc". Lý do: trang bật `scroll-behavior: smooth`, nên `scrollIntoView` còn đang cuộn thì script đã đặt chuột, và chuột rơi ra ngoài thẻ. Script giờ tắt cuộn mượt trước mỗi lần rê chuột. Trước khi kết luận "site lỗi", phải xem công cụ đo có đúng không.
 
 ## Tự kiểm tra
 
@@ -1554,3 +1575,6 @@ Kiểm chứng: jsdom chạy được gsap (đặt style inline) nên test đo �
 126. Vì sao hero dùng CSS animation còn các khối bên dưới dùng FadeContent (gsap)? Nếu dùng FadeContent cho hero thì người dùng thấy gì?
 127. FadeContent để yên phần tử nào khi trang hydrate, và vì sao mở trang bằng `/#rieng-tu` lại cần điều đó?
 128. Khi người dùng bật giảm chuyển động, mỗi hiệu ứng của trang chủ lùi về đâu? Code nào lo phần CSS, code nào lo phần JavaScript?
+129. Vì sao App home page khai với Google là `/messages` chứ không phải `/`, và vì sao phải chốt URL này trước khi khai?
+130. Thêm một sản phẩm Sino thứ hai thì phải sửa những chỗ nào trong `sino-site`? Vì sao chỉ là vài chỗ?
+131. Đo hover cho kết quả "không nhấc" dù CSS đúng. Bạn kiểm điều gì trước khi sửa CSS?

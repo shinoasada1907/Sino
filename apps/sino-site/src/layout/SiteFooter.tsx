@@ -20,7 +20,7 @@ export function SiteFooter() {
             Sino
           </a>
           <span className="max-w-75 text-sm leading-5 text-muted-foreground">
-            Hộp thư chung và việc cần làm, ở cùng một nơi.
+            Ứng dụng gọn cho việc mỗi ngày.
           </span>
         </div>
         {FOOTER_COLUMNS.map((col) => (

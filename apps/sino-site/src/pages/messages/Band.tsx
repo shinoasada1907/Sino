@@ -21,7 +21,7 @@ export function Band() {
       <div data-slot="cta" className="flex flex-wrap gap-3 max-md:*:grow">
         <BorderGlow>
           <a className={buttonVariants({ className: 'w-full' })} href={appHref('/')}>
-            Mở Sino
+            Mở Sino Messages
             <ChevronRight {...ICON} />
           </a>
         </BorderGlow>

@@ -20,7 +20,7 @@ export function NotFoundPage() {
           Về trang chủ
         </a>
         <a className={buttonVariants({ variant: 'secondary' })} href={appHref('/')}>
-          Mở Sino
+          Mở Sino Messages
         </a>
       </div>
     </section>

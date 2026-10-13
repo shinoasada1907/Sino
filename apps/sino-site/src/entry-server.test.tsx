@@ -35,14 +35,14 @@ describe('the prerendered 404 page', () => {
   it('offers the home page and the app', () => {
     expect(links(doc.querySelector('main section'))).toEqual([
       ['Về trang chủ', '/'],
-      ['Mở Sino', 'https://app.sino.example/'],
+      ['Mở Sino Messages', 'https://app.sino.example/'],
     ])
   })
 
-  it('opens the app from the top bar and points the footer at the legal pages', () => {
-    expect(hrefOf(doc, 'Đăng nhập')).toBe('https://app.sino.example/login')
-    expect(hrefOf(doc, 'Mở Sino')).toBe('https://app.sino.example/')
-    expect(hrefOf(doc, 'Tính năng')).toBe('/#tinh-nang')
+  it('takes the family top bar and points the footer at the products and the legal pages', () => {
+    expect(links(doc.querySelector('header nav[aria-label="Sản phẩm Sino"]'))).toEqual([['Sino Messages', '/messages']])
+    expect(hrefOf(doc, 'Mở Sino Messages')).toBe('https://app.sino.example/')
+    expect(hrefOf(doc, 'Câu hỏi thường gặp')).toBe('/messages#cau-hoi')
     expect(hrefOf(doc, 'Chính sách quyền riêng tư')).toBe('/privacy')
     expect(hrefOf(doc, 'Điều khoản')).toBe('/terms')
     expect(doc.querySelector('summary[aria-label="Mở menu"]')).not.toBeNull()
@@ -98,6 +98,6 @@ describe('a preview build', () => {
   it('points the app links at a visible placeholder while the app URL is unknown', () => {
     const { doc } = prerendered('not-found', PREVIEW_SITE)
 
-    expect(hrefOf(doc, 'Đăng nhập')).toBe('#chua-dien-app-url')
+    expect(hrefOf(doc, 'Mở Sino Messages')).toBe('#chua-dien-app-url')
   })
 })
