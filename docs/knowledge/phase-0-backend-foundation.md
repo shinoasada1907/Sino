@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–24, xong BE-09…BE-18, nghiệm thu và archive 2026-10-07).
-> **Cập nhật:** 2026-10-07. Đường dẫn code tính từ `apps/sino-api/`.
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–24, xong BE-09…BE-18, nghiệm thu và archive 2026-10-07); backend cho admin (mục 25, change `admin-api`, 2026-10-13).
+> **Cập nhật:** 2026-10-13. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
 
@@ -909,3 +909,76 @@ DISABLED      CONNECTED  -         CONNECTED -         -         -      -
 - **Mất ngay khi xóa:** credential (token) bị xóa hẳn.
 - **Còn:** dòng `connected_account` (cùng ID, ngày tạo), đánh dấu `removed_at`; tin nhắn sau này (F05 quyết định giữ hay bỏ).
 - **Khi kết nối lại:** cùng ID quay lại, `removed_at` bị xóa, trạng thái `CONNECTED`, sync bật lại, tên và ảnh lấy mới từ provider (tên người dùng tự đặt trước đó bị thay), credential mới. Event: `AccountRemoved` lúc xóa; lúc kết nối lại có `AccountConnected(reconnected = true)`, cộng `AccountStatusChanged` nếu trạng thái cũ không phải `CONNECTED`.
+
+---
+
+## 25. Admin: người vận hành tách khỏi owner (change `admin-api`)
+
+Bối cảnh: Sino có một owner (người đọc thư). Người dùng muốn có thêm một trang admin để quản lý Sino. Hướng đã chốt (2026-10-13): admin là **một module trong `sino-api`**, có role riêng và quy tắc riêng trong security chain, không dựng backend thứ hai. Các quyết định chi tiết D-260…D-266 nằm trong `openspec/changes/admin-api/design.md`.
+
+```text
+                    POST /api/auth/login (chung)
+                               |
+              +----------------+----------------+
+              |                                 |
+        owner (ROLE_OWNER)               admin (ROLE_ADMIN)
+              |                                 |
+   /api/** (trừ /api/admin/**)           /api/admin/** chỉ đọc
+   thư, tài khoản, ghi chú, việc          người dùng, tài khoản, tình trạng sync
+              |                                 |
+   /api/admin/** -> 403                  /api/** khác -> 403
+```
+
+### 25.1 Tài khoản admin từ cấu hình (BE-100, D-260, D-261)
+
+- **Ở đâu:** `identity/application/AdminProperties.java`, `LoginSettings.java`; `application.yaml` (`sino.admin.*`); `.env.example` (`SINO_ADMIN_EMAIL`, `SINO_ADMIN_PASSWORD`).
+- **Là gì:** một `record` gắn với tiền tố `sino.admin` bằng `@ConfigurationProperties`, giống `OwnerProperties`. Constructor gọn của record (`AdminProperties { ... }`) chuẩn hóa email: trống thì thành `null` (nghĩa là không có admin), có thì bỏ khoảng trắng và viết thường.
+- **Để làm gì:** cho một người vận hành đăng nhập mà **không** phải là một người dùng Sino: admin không có dòng `app_user`, không sở hữu tài khoản Gmail, thư hay ghi chú nào.
+- **Vì sao chọn:** người đọc thư và người vận hành là hai vai. Nếu cho owner kiêm luôn admin thì một phiên owner bị lộ (hoặc cookie "ghi nhớ" 30 ngày) cũng mở luôn quyền vận hành. Lưu admin trong database thì cần migration và một màn quản lý admin cho việc chưa có, nên để sau.
+- **Kiểm lúc khởi động (`LoginSettings`):** có email mà mật khẩu dưới 12 ký tự, email trùng owner, hoặc có mật khẩu mà thiếu email thì ứng dụng **dừng ngay**. Lý do của luật cuối: cấu hình dở dang mà im lặng bỏ qua thì người dùng tưởng đã có admin.
+- **Bẫy:** thông báo lỗi chỉ được nêu **tên** cấu hình (`sino.admin.password (SINO_ADMIN_PASSWORD)`), không bao giờ nêu giá trị. Vì vậy độ dài mật khẩu được kiểm bằng code trong `LoginSettings`, không bằng `@Size` của Bean Validation: lỗi Bean Validation in kèm giá trị bị từ chối. Email thì được kiểm bằng `@Email`, vì email không phải bí mật. `toString()` của record tự viết để che mật khẩu.
+
+### 25.2 Một `UserDetailsService`, hai role (BE-100, D-262)
+
+- **Ở đâu:** `identity/application/LoginConfiguration.java`, bean `userDetailsService`.
+- **Là gì:** `UserDetailsService` là interface Spring Security dùng để hỏi "email này là ai, hash mật khẩu là gì, có role nào". Ở đây nó trả owner với `roles("OWNER")` hoặc admin với `roles("ADMIN")`; email khác thì ném `UsernameNotFoundException`.
+- **Để làm gì:** admin dùng chung `POST /api/auth/login` với owner, nên dùng chung luôn phiên cookie, CSRF, khóa tạm 15 phút sau 5 lần sai (D-35) và cách so một hash giả khi email lạ (để đoán email không nhanh hơn đoán mật khẩu).
+- **Vì sao chọn:** viết endpoint và chain đăng nhập riêng cho admin thì phải lặp lại cả bốn thứ trên, mỗi lần sửa phải sửa hai nơi.
+- **Bẫy:** `roles("ADMIN")` lưu thành quyền `ROLE_ADMIN` (Spring tự thêm tiền tố `ROLE_`). Khi so bằng tay phải so với `"ROLE_ADMIN"`, còn `hasRole("ADMIN")` thì tự thêm tiền tố. Nhầm hai cách viết này là lỗi hay gặp.
+
+### 25.3 "Ghi nhớ đăng nhập" chỉ cho owner (BE-100, D-262)
+
+- **Ở đâu:** lớp lồng `OwnerRememberMeServices` trong `LoginConfiguration.java`.
+- **Là gì:** lớp con của `TokenBasedRememberMeServices`, ghi đè `onLoginSuccess`: chỉ gọi lớp cha (tạo cookie `remember-me`) khi người vừa đăng nhập có quyền `ROLE_OWNER`.
+- **Để làm gì:** admin gửi `rememberMe: true` cũng không bao giờ nhận cookie 30 ngày. Thêm nữa, dịch vụ remember-me chỉ biết owner, nên một cookie giả mạo mang tên admin không đăng nhập được ai.
+- **Vì sao chọn:** kế hoạch đầu là để `AuthController` hỏi "người này có được ghi nhớ không" trước khi gọi. Đặt luật ngay trong dịch vụ remember-me thì luật nằm cạnh cấu hình D-34 và đúng cho **mọi** chỗ gọi `loginSuccess`, không chỉ endpoint đăng nhập; lại bớt sửa hai file.
+- **Bẫy:** ghi đè (override) một method của thư viện là dựa vào chi tiết bên trong thư viện. Test `AdminLoginTests` gọi thẳng `loginSuccess` cho owner và admin, nên khi nâng cấp Spring Security mà cách gọi đổi thì test sẽ báo.
+
+### 25.4 Tách quyền trong security chain (BE-100, D-263)
+
+- **Ở đâu:** `common/security/SecurityConfig.java`, trong `authorizeHttpRequests`.
+- **Là gì:** hai quy tắc, đặt theo thứ tự (Spring dùng quy tắc **đầu tiên** khớp):
+
+```text
+/api/admin/**  -> hasRole("ADMIN")
+/api/**        -> allOf(authenticated(), not(hasRole("ADMIN")))
+```
+
+  `AuthorizationManagers.allOf` và `AuthorizationManagers.not` ghép các điều kiện nhỏ thành một điều kiện: "đã đăng nhập **và** không phải admin".
+- **Để làm gì:** admin gọi `/api/accounts` hay `/api/conversations` nhận `403 FORBIDDEN`, không thấy dữ liệu nào của owner; owner gọi `/api/admin/me` cũng nhận `403`.
+- **Vì sao chọn "không phải admin" (danh sách cấm) thay vì "phải là owner" (danh sách cho phép):** danh sách cho phép an toàn hơn về lâu dài (role mới mặc định bị chặn). Nhưng khoảng 50 test tạo người gọi bằng `user("owner@sino.test")`, role mặc định là `USER`, và hai phiên làm việc song song cũng đang viết test kiểu đó. Đổi sang `hasRole("OWNER")` thì tất cả cùng đỏ. Ở MVP, ai không phải admin thì là owner, nên danh sách cấm cho kết quả y hệt. Khi có nhiều người dùng và role thật thì đổi sang danh sách cho phép (ghi trong Risks của design).
+- **Bẫy 1, thứ tự:** đặt `/api/**` lên trước `/api/admin/**` thì quy tắc admin không bao giờ được dùng, admin bị chặn khỏi chính API của mình.
+- **Bẫy 2, `401` hay `403`:** chưa đăng nhập thì `401`; đã đăng nhập mà sai vai thì `403`. Riêng người chỉ đăng nhập bằng cookie "ghi nhớ" mà bị từ chối thì Spring Security trả `401` (`ExceptionTranslationFilter` coi đăng nhập bằng remember-me là chưa đầy đủ và mời đăng nhập lại), không phải `403`. Test `theOwnersRememberMeCookieDoesNotOpenTheAdminApi` ghi lại điều này.
+- **Bẫy 3, role viết ở hai nơi:** `common` không được phụ thuộc `identity` (luật module), nên chữ `"ADMIN"` có ở cả `LoginConfiguration` (cấp role) và `SecurityConfig` (kiểm role). Test `AdminSignInTests` đăng nhập thật và gọi thật, nên hai nơi lệch nhau là test đỏ.
+
+### 25.5 Module mới `admin` và `GET /api/admin/me` (BE-100)
+
+- **Ở đâu:** `admin/api/AdminController.java`, `AdminMeResponse.java`.
+- **Là gì:** package con trực tiếp của `dev.sino` nên Spring Modulith tự coi `admin` là một module. `GET /api/admin/me` trả `{ "email": ... }` lấy từ `Authentication.getName()`.
+- **Để làm gì:** giao diện admin sau này hỏi "tôi là ai". `GET /api/auth/me` của web owner thì trả `401` cho phiên admin, vì nó tìm người dùng trong `app_user` mà admin không có ở đó: web owner coi như chưa đăng nhập và không mở giao diện owner cho admin.
+- **Bẫy:** controller không cần tự kiểm role. Security chain đã chặn trước khi request tới controller; thêm kiểm role trong controller là kiểm hai lần và dễ lệch nhau.
+
+### 25.6 Kiểm chứng của BE-100
+
+- `LoginSettingsTests` (thêm 8 ca admin), `AdminLoginTests` (role, cookie ghi nhớ, cookie giả mạo), `AdminSignInTests` (server thật cổng ngẫu nhiên, client giữ cookie như trình duyệt).
+- Test viết trước: sau bước "identity" (cấu hình, đăng nhập), `AdminSignInTests` đỏ đúng 4 ca (admin vẫn đọc được `/api/accounts`, chưa có `/api/admin/me`); sau bước "security chain + controller" thì xanh.

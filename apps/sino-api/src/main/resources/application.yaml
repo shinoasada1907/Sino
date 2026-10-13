@@ -56,6 +56,11 @@ sino:
     display-name: ${SINO_OWNER_DISPLAY_NAME:}
     # D-33: the login password of the owner, at least 12 characters. Only a BCrypt hash is kept after startup.
     password: ${SINO_OWNER_PASSWORD:}
+  admin:
+    # D-260, D-261: optional admin, a person who runs Sino (role ADMIN, /api/admin/** only). Empty email: no admin.
+    # With an email, the password is required, at least 12 characters, and the email must differ from the owner's.
+    email: ${SINO_ADMIN_EMAIL:}
+    password: ${SINO_ADMIN_PASSWORD:}
   auth:
     # D-34: signs the remember-me cookie, at least 32 characters (openssl rand -base64 32). Changing it signs
     # everybody out of "keep me signed in".

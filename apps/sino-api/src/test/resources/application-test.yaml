@@ -17,6 +17,10 @@ sino:
     display-name: Test Owner
     # Fake, not a secret.
     password: test-owner-password
+  admin:
+    # D-260: the admin of the tests (AdminSignInTests). Fake, not a secret.
+    email: admin@sino.test
+    password: test-admin-password
   auth:
     # Fake, not a secret.
     remember-me-key: test-remember-me-key-0123456789abcdef

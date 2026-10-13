@@ -10,13 +10,14 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
- * The owner password and the remember-me key are checked while the application starts (D-33, D-34), so a missing
- * or short value stops it, and their values never show up in a message or a log line.
+ * The owner password, the remember-me key and the optional admin are checked while the application starts (D-33,
+ * D-34, D-261), so a missing or short value stops it, and their values never show up in a message or a log line.
  */
 class LoginSettingsTests {
 
     private static final String PASSWORD = "correct horse battery";
     private static final String KEY = "0123456789abcdef0123456789abcdef-test";
+    private static final String ADMIN_PASSWORD = "staple admin battery";
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(LoginConfiguration.class, LoginSettings.class)
@@ -98,13 +99,105 @@ class LoginSettingsTests {
     @Test
     void neverPrintsTheSecrets() {
         contextRunner
-                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY)
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.email=admin@example.com", "sino.admin.password=" + ADMIN_PASSWORD)
                 .run(context -> assertThat(String.join(" | ", context.getBean(OwnerProperties.class).toString(),
                         context.getBean(AuthProperties.class).toString(),
+                        context.getBean(AdminProperties.class).toString(),
                         context.getBean(LoginSettings.class).toString()))
                         .contains("owner@example.com")
+                        .contains("admin@example.com")
                         .doesNotContain(PASSWORD)
+                        .doesNotContain(ADMIN_PASSWORD)
                         .doesNotContain(KEY));
+    }
+
+    @Test
+    void noAdminWithoutItsEmail() {
+        contextRunner
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.email=  ")
+                .run(context -> assertThat(context.getBean(LoginSettings.class).adminEmail()).isEmpty());
+    }
+
+    @Test
+    void keepsOnlyAHashOfTheAdminPassword() {
+        contextRunner
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.email= Admin@Example.com ", "sino.admin.password=" + ADMIN_PASSWORD)
+                .run(context -> {
+                    LoginSettings settings = context.getBean(LoginSettings.class);
+                    PasswordEncoder encoder = context.getBean(PasswordEncoder.class);
+
+                    assertThat(settings.adminEmail()).contains("admin@example.com");
+                    assertThat(settings.adminPasswordHash()).startsWith("{bcrypt}").doesNotContain(ADMIN_PASSWORD);
+                    assertThat(encoder.matches(ADMIN_PASSWORD, settings.adminPasswordHash())).isTrue();
+                    assertThat(encoder.matches(PASSWORD, settings.adminPasswordHash())).isFalse();
+                });
+    }
+
+    @Test
+    void acceptsTheShortestAllowedAdminPassword() {
+        contextRunner
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.email=admin@example.com", "sino.admin.password=" + "a".repeat(12))
+                .run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void doesNotStartWithAnElevenCharacterAdminPasswordAndNeverPrintsIt() {
+        String elevenCharacters = "Adm1n-pass!";
+
+        contextRunner
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.email=admin@example.com", "sino.admin.password=" + elevenCharacters)
+                .run(context -> {
+                    assertThat(context).getFailure()
+                            .hasStackTraceContaining("sino.admin.password (SINO_ADMIN_PASSWORD)");
+                    assertThat(stackTraceOf(context.getStartupFailure())).doesNotContain(elevenCharacters);
+                });
+    }
+
+    @Test
+    void doesNotStartWithAnAdminEmailButNoPassword() {
+        contextRunner
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.email=admin@example.com")
+                .run(context -> assertThat(context).getFailure()
+                        .hasStackTraceContaining("sino.admin.password (SINO_ADMIN_PASSWORD)"));
+    }
+
+    @Test
+    void doesNotStartWhenTheAdminIsTheOwner() {
+        contextRunner
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.email=  OWNER@example.COM ", "sino.admin.password=" + ADMIN_PASSWORD)
+                .run(context -> {
+                    assertThat(context).getFailure().hasStackTraceContaining("sino.admin.email (SINO_ADMIN_EMAIL)");
+                    assertThat(stackTraceOf(context.getStartupFailure())).doesNotContain(ADMIN_PASSWORD);
+                });
+    }
+
+    @Test
+    void doesNotStartWithAnAdminPasswordButNoEmail() {
+        contextRunner
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.password=" + ADMIN_PASSWORD)
+                .run(context -> {
+                    assertThat(context).getFailure().hasStackTraceContaining("sino.admin.email (SINO_ADMIN_EMAIL)");
+                    assertThat(stackTraceOf(context.getStartupFailure())).doesNotContain(ADMIN_PASSWORD);
+                });
+    }
+
+    @Test
+    void doesNotStartWithAMalformedAdminEmail() {
+        contextRunner
+                .withPropertyValues("sino.owner.password=" + PASSWORD, "sino.auth.remember-me-key=" + KEY,
+                        "sino.admin.email=not-an-email", "sino.admin.password=" + ADMIN_PASSWORD)
+                .run(context -> {
+                    assertThat(context).getFailure().hasStackTraceContaining("sino.admin");
+                    assertThat(stackTraceOf(context.getStartupFailure())).doesNotContain(ADMIN_PASSWORD);
+                });
     }
 
     private static String stackTraceOf(Throwable failure) {

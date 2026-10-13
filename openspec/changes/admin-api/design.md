@@ -35,7 +35,7 @@
 
 ### D-262 — Đăng nhập dùng chung `POST /api/auth/login`; admin không có "ghi nhớ đăng nhập"; `GET /api/admin/me` · **Agent chốt**
 - `UserDetailsService` biết hai người: owner (role `OWNER`) và admin (role `ADMIN`, khi có). Cùng endpoint, cùng phiên cookie, cùng CSRF, cùng khóa tạm theo email (D-35), cùng cách so một hash giả khi email lạ.
-- `keepSignedIn: true` của admin bị **bỏ qua**: không bao giờ có cookie `remember-me` cho admin. Dịch vụ remember-me vẫn chỉ biết owner, nên một cookie giả mạo tên admin cũng không đăng nhập được.
+- `rememberMe: true` (ô "ghi nhớ đăng nhập" trong body của `POST /api/auth/login`) của admin bị **bỏ qua**: không bao giờ có cookie `remember-me` cho admin. Dịch vụ remember-me vẫn chỉ biết owner, nên một cookie giả mạo tên admin cũng không đăng nhập được.
 - `GET /api/auth/me` (của web owner) với phiên admin trả `401 UNAUTHORIZED` như chưa đăng nhập: web owner sẽ mời đăng nhập lại, không mở giao diện owner cho admin. Admin hỏi mình là ai qua `GET /api/admin/me` → `{ "email": "…" }`.
 - Đăng xuất: `POST /api/auth/logout` như owner.
 **Phương án bị loại:** endpoint và chain đăng nhập riêng cho admin (lặp lại phiên, CSRF, khóa tạm); admin có "ghi nhớ" 30 ngày (một cookie bị lộ cho quyền vận hành cả tháng); thêm `role` vào `GET /api/auth/me` (web owner phải tự hiểu role để khỏi mở giao diện cho admin).
@@ -70,6 +70,7 @@ API admin trả: người dùng (email, tên hiển thị, trạng thái, ngày 
 - `accountsByStatus` trong tổng quan luôn có đủ năm trạng thái (`0` khi không có), để giao diện không phải đoán khóa nào có.
 - "Tài khoản có lỗi đồng bộ" = `importStatus` là `FAILED`, hoặc có `syncError`, hoặc `push` là `FAILED`.
 - Không phân trang: một người dùng, vài tài khoản. Thêm khi có đăng ký nhiều người.
+- Owner chỉ còn cookie "ghi nhớ" (phiên đã hết) gọi `/api/admin/**` → `401`, không phải `403`: Spring Security (`ExceptionTranslationFilter`) đòi đăng nhập đầy đủ khi người đăng nhập bằng remember-me bị từ chối. Vẫn bị chặn; web owner không gọi API admin nên không gặp. (BE-100, test `theOwnersRememberMeCookieDoesNotOpenTheAdminApi`.)
 
 ## Backend design
 
@@ -86,8 +87,8 @@ dev.sino.identity
 └── application/
     ├── AdminProperties              (mới) sino.admin.email / password
     ├── LoginSettings                + kiểm và băm mật khẩu admin
-    ├── LoginConfiguration           UserDetailsService biết owner và admin
-    ├── SignInService                + mayStaySignedIn(authentication): chỉ owner
+    ├── LoginConfiguration           UserDetailsService biết owner và admin;
+    │                                remember-me chỉ cấp cookie cho ROLE_OWNER
     └── UserDirectoryService         (mới)
 
 dev.sino.account
@@ -104,11 +105,12 @@ dev.sino.common.security.SecurityConfig   quy tắc theo role (D-263)
 ### 2. Đăng nhập và tách quyền (BE-100)
 
 ```text
-POST /api/auth/login {email, password, keepSignedIn}
+POST /api/auth/login {email, password, rememberMe}
   -> SignInService.authenticate  (khóa tạm theo email, D-35)
   -> UserDetailsService: owner -> ROLE_OWNER | admin -> ROLE_ADMIN | khác -> sai mật khẩu
   -> phiên mới (đổi session ID), SecurityContext vào session
-  -> keepSignedIn && mayStaySignedIn(owner) -> cookie remember-me    (admin: không bao giờ)
+  -> rememberMe -> RememberMeServices.loginSuccess
+       ROLE_OWNER -> cookie remember-me | ROLE_ADMIN -> không làm gì
 
 Chain trình duyệt:
   công khai như cũ (/actuator/health, GET /api/auth/me, POST /api/auth/login, callback kết nối)
@@ -130,7 +132,7 @@ Chain trình duyệt:
 | Tầng | Nội dung |
 |---|---|
 | Cấu hình (unit, viết test trước) | `LoginSettings`: không có admin; mật khẩu admin ngắn / trống; trùng email owner (cả khác hoa thường, khoảng trắng); có mật khẩu mà không có email; thông báo không chứa giá trị. `UserDetailsService`: admin → `ROLE_ADMIN`, owner → `ROLE_OWNER`, không cấu hình admin thì email admin là lạ |
-| Đăng nhập thật (server cổng ngẫu nhiên, client giữ cookie như `AuthApiTests`) | admin đăng nhập → `204`, `GET /api/admin/me` → email; `keepSignedIn` của admin không có cookie `remember-me`; phiên admin: `GET /api/auth/me` → `401`, `GET /api/accounts` và `GET /api/conversations` → `403 FORBIDDEN`; phiên owner: `GET /api/admin/me` → `403`; chưa đăng nhập: `401`; sai mật khẩu admin → `401 INVALID_CREDENTIALS` kèm `remainingAttempts` |
+| Đăng nhập thật (server cổng ngẫu nhiên, client giữ cookie như `AuthApiTests`) | admin đăng nhập → `204`, `GET /api/admin/me` → email; `rememberMe: true` của admin không có cookie `remember-me`; phiên admin: `GET /api/auth/me` → `401`, `GET /api/accounts` và `GET /api/conversations` → `403 FORBIDDEN`; phiên owner: `GET /api/admin/me` → `403`; owner chỉ có cookie "ghi nhớ" → `401`; chưa đăng nhập: `401`; sai mật khẩu admin → `401 INVALID_CREDENTIALS` kèm `remainingAttempts` |
 | Public API (Testcontainers PostgreSQL 18) | `UserDirectory`: thứ tự, đủ trường; `AccountRoster`: mọi owner, bỏ tài khoản đã gỡ, thứ tự; `SyncStatuses`: chưa nhập → `NONE`, đang nhập, nhập lỗi kèm mã, đồng bộ lỗi, push `ACTIVE` / `FAILED` / `OFF` |
 | API admin (`MockMvc`, `user(...).roles("ADMIN")`) | hai owner, nhiều tài khoản: JSON từng endpoint; đếm theo trạng thái đủ năm khóa; tài khoản đã gỡ không có; không có trường nội dung / token (kiểm cả chuỗi JSON không chứa tiêu đề, nội dung thư mẫu, token mẫu); role khác → `403` |
 | Ranh giới | `ModularityTests`: module `admin` chỉ phụ thuộc public API |

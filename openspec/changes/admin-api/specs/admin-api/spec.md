@@ -20,14 +20,14 @@
 - **THEN** ứng dụng dừng lúc khởi động với thông báo nêu `sino.admin.email (SINO_ADMIN_EMAIL)`
 
 ### Requirement: Đăng nhập quản trị
-Admin MUST đăng nhập qua `POST /api/auth/login` như owner, với cùng phiên cookie, CSRF và khóa tạm theo email. Phiên admin MUST mang role `ADMIN`. Admin MUST NOT nhận cookie "ghi nhớ đăng nhập", kể cả khi gửi `keepSignedIn: true`. `GET /api/admin/me` MUST trả `{ "email" }` của admin đang đăng nhập. `GET /api/auth/me` với phiên admin MUST trả `401 UNAUTHORIZED`.
+Admin MUST đăng nhập qua `POST /api/auth/login` như owner, với cùng phiên cookie, CSRF và khóa tạm theo email. Phiên admin MUST mang role `ADMIN`. Admin MUST NOT nhận cookie "ghi nhớ đăng nhập", kể cả khi gửi `rememberMe: true`. `GET /api/admin/me` MUST trả `{ "email" }` của admin đang đăng nhập. `GET /api/auth/me` với phiên admin MUST trả `401 UNAUTHORIZED`.
 
 #### Scenario: Admin đăng nhập
 - **WHEN** admin gửi đúng email và mật khẩu tới `POST /api/auth/login`
 - **THEN** máy chủ trả `204` với cookie phiên, và `GET /api/admin/me` trả email của admin
 
 #### Scenario: Admin xin ghi nhớ đăng nhập
-- **WHEN** admin đăng nhập với `keepSignedIn: true`
+- **WHEN** admin đăng nhập với `rememberMe: true`
 - **THEN** đăng nhập thành công nhưng không có cookie `remember-me` nào được đặt
 
 #### Scenario: Web của owner hỏi phiên admin
