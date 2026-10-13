@@ -68,7 +68,8 @@ describe('a production build', () => {
     files = await listFiles(outDir)
   })
 
-  it('writes the 404 page, the icon, the script, the styles and the fonts, and no server bundle', () => {
+  it('writes the pages, the icon, the script, the styles and the fonts, and no server bundle', () => {
+    expect(files).toContain('index.html')
     expect(files).toContain('404.html')
     expect(files).toContain('favicon.svg')
     expect(files.some((f) => /^assets\/.+\.js$/.test(f))).toBe(true)

@@ -46,6 +46,31 @@
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --ease-std: cubic-bezier(.4, 0, .2, 1);
 
+  /*
+   * Canvas Motion (D-252). `enter` is the canvas .anim-enter (the hero, on load); `row-in` is a new row of
+   * AnimatedList; `fade-in` replaces both when the user asks for less motion (fade only, at most 160 ms).
+   */
+  --animate-enter: enter var(--dur-page) var(--ease-out) both;
+  --animate-row-in: row-in var(--dur-page) var(--ease-out) both;
+  --animate-fade-in: fade-in var(--dur-fast) var(--ease-out) both;
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
   --shadow-popover: var(--shadow-pop);
 
   /* Canvas roles. */

@@ -148,7 +148,7 @@
     - Chrome headless, cả trang ở 1440 / 768 / 390 × dark / light: không cuộn ngang, phông tiếng Việt đã nạp. Ở 390 và 768, bấm menu thì danh sách hiện (`display: flex`). Câu hỏi thường gặp: bấm câu 2 thì mở, bấm câu 1 thì đóng.
     - Lỗi script kiểm (không phải lỗi site): trang cuộn mượt (`scroll-behavior: smooth`) nên ảnh chụp ngay sau `scrollIntoView` còn đang cuộn dở → script tắt cuộn mượt trước khi chụp.
 
-- [ ] 2.1b **SI-02R — Trang chủ trên React, chuyển động React Bits theo canvas**
+- [x] 2.1b **SI-02R — Trang chủ trên React, chuyển động React Bits theo canvas**
   - **Thực hiện:**
     - Đọc lại bảng D-241 với `tasks.md` của các change trước khi chép chữ của SI-02 (`0793678`).
     - `src/pages/home/`: `Hero`, `ProviderStrip`, `Features`, `Planning`, `HowItWorks`, `Privacy` (+ khối quyền Google D-245), `Faq` (`<details>`), `Band`, `MailRow`.
@@ -163,6 +163,32 @@
     - test nội dung trang chủ (chuyển từ `home.test.ts` của SI-02), HTML prerender không ẩn nội dung, thông số chuyển động;
     - lint, typecheck, test, `build:preview`;
     - Chrome 1440 / 768 / 390 × dark / light so với `Landing`, `LandingLight`, `LandingMobile`; một lượt tắt JavaScript; một lượt giảm chuyển động.
+  - **Đã làm (2026-10-13, AUTO):**
+    - Đọc lại bảng D-241: từ SI-02 (`0793678`) không có commit tính năng nào, nên chữ của SI-02 giữ nguyên.
+    - `src/pages/home/`: `HomePage`, `Hero`, `MailRow`, `ProviderStrip`, `Features` (+ `FeatureIcon`, `CardCopy`), `Planning`, `HowItWorks`, `Privacy` (+ khối quyền Google), `Faq`, `Band`, `SectionHead`.
+    - `src/shared/motion/`: `FadeContent`, `AnimatedList`, `MagicBento` (+ `MagicBentoCard`), `SpotlightCard`, `BorderGlow`, `motion-values.ts` (`fadeMotion`, `pointerAngle`), `reduced-motion.ts`. Mỗi file ghi nguồn React Bits và phần đã bỏ.
+    - Chép từ `sino-web`: `Badge`, `ProviderIcon`. Thêm `ICON` (nét 1.6 như canvas).
+    - `index.css`: `animate-enter` (hero, `.anim-enter` của canvas), `animate-row-in`, `animate-fade-in`.
+    - Test nhận diện phần tử bằng `data-slot` (`mail-row`, `mail-source`, `provider`, `badge`, `scope`, `cta`) và `data-soon`, thay cho lớp `lp-*` của SI-02.
+  - **Làm khác kế hoạch:**
+    - FadeContent không ẩn phần tử đã ở trên màn hình (hoặc phía trên) lúc hydrate. **LÝ DO:** HTML prerender đã hiện phần tử đó; bản gốc React Bits ẩn nó trong `useEffect` nên phần tử sẽ nháy. Chrome: lúc mở trang ở 1440, dải "KẾT NỐI VỚI" (top 783) và Tính năng (top 865) để yên, năm khối dưới bị ẩn tới khi cuộn tới. Mở `/#rieng-tu` thì mục đó hiện ngay.
+    - Thẻ "Hôm nay" của mục Kế hoạch cũng dùng `MagicBentoCard` (kế hoạch: chỉ 6 thẻ Tính năng). **LÝ DO:** canvas cho thẻ đó lớp `card-bento`, cùng hover với bento.
+    - Thẻ "Hộp thư hợp nhất" giữ vệt sáng đứng yên của canvas (`card-spotlight`), không có hover. **LÝ DO:** canvas vẽ như vậy; SpotlightCard chỉ có một chỗ dùng, là khung minh họa ở hero.
+    - Tách `fadeMotion` và `pointerAngle` ra `motion-values.ts`. **LÝ DO:** oxlint `only-export-components`.
+    - Không làm gsap tải muộn (dynamic import). JS 456 kB (145 kB gzip), trong đó gsap + ScrollTrigger + CustomEase khoảng 140 kB. Ghi lại để cân nhắc ở SI-06.
+  - **Kiểm chứng (2026-10-13):**
+    - RED: 6 file đỏ (chưa có trang chủ và module chuyển động); test link toàn site đỏ vì 404 trỏ tới `/` chưa có.
+    - GREEN: 74/74 (12 file). `pnpm lint` 0 cảnh báo, `pnpm typecheck` 0, `pnpm build:preview` 0 (`dist/index.html` có `data-page="home"`).
+    - Chrome headless (CDP, `pnpm serve`):
+      - 1440 / 768 / 390 × dark / light: không cuộn ngang, không lỗi console hay hydration, phông tiếng Việt đã nạp;
+      - hero 2 cột ở 1440 và 1 cột ở 768/390; bento 12 cột từ 768 và 1 cột ở 390; menu từ dưới 1024;
+      - cuộn hết trang thì 0/7 khối còn ẩn; tắt JavaScript thì đủ 7 khối;
+      - hover thẻ bento: `translate: 0 -2px`, viền `#4A4A4F`;
+      - rê chuột trên khung minh họa: vệt sáng `opacity ≈ 1` đúng chỗ chuột; rê sát mép phải nút "Mở Sino": `--glow-angle: 90deg`, quầng hiện;
+      - giảm chuyển động: khối chờ hiện không có `translate` (chỉ mờ), bento không nhấc (chỉ đổi viền), hero dùng `fade-in`, glow chỉ còn viền 1px, vệt sáng không chạy;
+      - menu ở 768 mở được; câu hỏi thường gặp bấm câu 2 thì mở, câu 1 thì đóng.
+    - Lỗi script kiểm (không phải lỗi site): lượt chụp đầu ở 390 chờ trước khi cuộn nên ảnh bắt lúc khối đang mờ dần. Chụp lại với bước chờ sau khi cuộn thì đúng.
+    - File kiến thức phase 1 mục 21.11 + câu 125–128; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
     - File kiến thức phase 1 mục 21.8–21.9 + câu 118–120; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
 - [ ] 2.2 **SI-03 — Chính sách quyền riêng tư, tiếng Việt và tiếng Anh**

@@ -1377,6 +1377,25 @@ pnpm build
   - phần lớn test gọi thẳng `prerender(pageId, template, site)` rồi parse bằng `DOMParser`, khỏi phải dựng Vite (nhanh);
   - ba test chạy CLI thật: thiếu config thì dừng, bản xem trước dựng được, bản đầy đủ có đủ file và mọi script, stylesheet, phông đều nằm trên site.
 
+### 21.11 Trang chủ với React Bits theo bản đồ của canvas (SI-02R)
+React Bits (reactbits.dev) là một bộ component hiệu ứng cho React. Nó không phải thư viện cài qua npm: mình **chép mã nguồn** của từng component vào dự án rồi sửa theo ý (giấy phép MIT + Commons Clause cho làm vậy, chỉ cấm bán lại chính các component). Canvas có trang "Foundations · Chuyển động" quy định mỗi hiệu ứng dùng ở đâu và lùi về đâu khi người dùng chọn giảm chuyển động (D-252). Vì vậy mã chép về bị cắt bớt khá nhiều:
+
+| Component | Giữ lại | Bỏ đi | Ở trang chủ |
+|---|---|---|---|
+| FadeContent | gsap + ScrollTrigger, chạy một lần khi cuộn tới | blur, tự biến mất | Mỗi khối dưới hero |
+| AnimatedList | các hàng vào lần lượt | cuộn, chọn hàng, phím mũi tên, icon `@hugeicons` | Các dòng thư trong ảnh minh họa |
+| MagicBento | lưới bento, thẻ phản ứng khi rê chuột | hạt, tia sáng, tilt, magnetism | 6 thẻ Tính năng, thẻ "Hôm nay" |
+| SpotlightCard | vệt sáng theo chuột, có làm mượt | grain, flare, trôi tự động, bảng màu riêng | Khung minh họa hộp thư |
+| BorderGlow | quầng sáng theo góc của chuột | lưới nhiều màu, vòng quét lúc đầu | Nút "Mở Sino" |
+
+Ba bài học:
+
+- **Hiệu ứng không được ẩn HTML đã prerender.** FadeContent của React Bits gọi `gsap.set(el, { autoAlpha: 0 })` trong `useEffect`, tức là *sau* khi trình duyệt đã vẽ HTML. Phần tử đang nằm trên màn hình sẽ hiện, biến mất, rồi hiện lại (nháy). Cách sửa: lúc gắn, đo `getBoundingClientRect().top`; phần tử đã ở trên màn hình (hoặc phía trên nó, khi mở trang bằng `/#rieng-tu`) thì để yên, chỉ ẩn phần tử phía dưới. Hero thì dùng **CSS animation** (`animate-enter`): animation CSS chạy ngay trên HTML, không chờ JavaScript, và tắt JavaScript vẫn chạy.
+- **Giảm chuyển động có hai đường.** CSS: tiền tố `motion-safe:` / `motion-reduce:` của Tailwind (ứng với `@media (prefers-reduced-motion: ...)`). JavaScript: `matchMedia('(prefers-reduced-motion: reduce)')`, gọi trong `useEffect` vì server không có `window`. Luật của canvas: bỏ mọi dịch chuyển, chỉ giữ mờ dần tối đa 160ms.
+- **`gsap` chỉ đăng ký plugin ở trình duyệt.** `gsap.registerPlugin(ScrollTrigger, CustomEase)` nằm trong một hàm gọi lần đầu từ `useEffect`, không nằm ở đầu module. Bản SSR có import `gsap` nhưng không bao giờ chạy nó. `CustomEase.create('sino-out', '.2,.8,.2,1')` cho gsap đúng đường cong `ease.out` của canvas.
+
+Kiểm chứng: jsdom chạy được gsap (đặt style inline) nên test đo được "phần tử dưới màn đầu bị ẩn, phần tử trên màn thì không". Nhưng hover, vệt sáng hay quầng sáng thì phải kiểm bằng Chrome thật. Script CDP gửi `Input.dispatchMouseEvent` để di chuột thật, rồi đọc `getComputedStyle`. Một lỗi của chính script: nó chờ *trước* khi cuộn rồi chụp ngay sau khi cuộn, nên ảnh bắt được lúc khối đang mờ dần. Bước chờ phải đặt sau khi cuộn.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1531,3 +1550,7 @@ pnpm build
 122. Vì sao năm bản quyền của site được đưa vào lúc dựng, không lấy bằng `new Date()` trong trình duyệt?
 123. Vì sao bản SSR được ghi vào một thư mục trong `node_modules`, không phải `/tmp`?
 124. `cva` trả `border-transparent ... border-border-strong`. Vì sao nút vẫn không có viền, và `cn` sửa thế nào?
+125. React Bits khác một thư viện npm như `gsap` ở chỗ nào? Vì sao mình được (và nên) sửa mã của nó?
+126. Vì sao hero dùng CSS animation còn các khối bên dưới dùng FadeContent (gsap)? Nếu dùng FadeContent cho hero thì người dùng thấy gì?
+127. FadeContent để yên phần tử nào khi trang hydrate, và vì sao mở trang bằng `/#rieng-tu` lại cần điều đó?
+128. Khi người dùng bật giảm chuyển động, mỗi hiệu ứng của trang chủ lùi về đâu? Code nào lo phần CSS, code nào lo phần JavaScript?

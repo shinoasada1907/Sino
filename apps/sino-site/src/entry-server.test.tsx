@@ -59,6 +59,33 @@ describe('the prerendered 404 page', () => {
   })
 })
 
+/** Pages the footer already links to; each SI task removes its own when it builds the page. */
+const PAGES_NOT_BUILT_YET = ['/privacy', '/en/privacy', '/terms', '/en/terms', '/security', '/open-source']
+
+describe('links between the pages', () => {
+  const docs = new Map(PAGES.map((p) => [p.path, prerendered(p.id, PRODUCTION_SITE).doc]))
+
+  it('point only at pages and sections that exist', () => {
+    for (const [from, doc] of docs) {
+      for (const a of doc.querySelectorAll('a[href]')) {
+        const href = a.getAttribute('href') ?? ''
+        if (/^(https?:|mailto:)/.test(href)) continue
+        expect(href, `${from}: ${href}`).toMatch(/^(\/|#)/)
+
+        const [path, fragment] = href.split('#')
+        if (PAGES_NOT_BUILT_YET.includes(path)) continue
+        const target = path === '' ? doc : docs.get(path)
+        expect(target, `${from}: ${href}`).toBeDefined()
+        if (fragment) expect(target?.getElementById(fragment), `${from}: ${href}`).not.toBeNull()
+      }
+    }
+  })
+
+  it('have really not built the pages still listed as not built yet', () => {
+    for (const path of PAGES_NOT_BUILT_YET) expect(docs.has(path), path).toBe(false)
+  })
+})
+
 describe('a preview build', () => {
   it('keeps every page out of search results', () => {
     for (const page of PAGES) {

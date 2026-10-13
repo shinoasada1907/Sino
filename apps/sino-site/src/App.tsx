@@ -1,11 +1,13 @@
 import type { ComponentType } from 'react'
 import { PageFrame } from '@/layout/PageFrame'
+import { HomePage } from '@/pages/home/HomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import type { PageId } from '@/site/pages'
 import { SiteProvider } from '@/site/SiteProvider'
 import type { SiteData } from '@/site/site-data'
 
 const PAGE_COMPONENTS: Record<PageId, ComponentType> = {
+  home: HomePage,
   'not-found': NotFoundPage,
 }
 

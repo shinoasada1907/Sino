@@ -1,4 +1,4 @@
-export type PageId = 'not-found'
+export type PageId = 'home' | 'not-found'
 
 export type Lang = 'vi' | 'en'
 
@@ -17,6 +17,16 @@ export interface PageMeta {
 }
 
 export const PAGES: PageMeta[] = [
+  {
+    id: 'home',
+    path: '/',
+    file: 'index.html',
+    lang: 'vi',
+    title: 'Sino · Hộp thư chung cho Gmail và việc cần làm',
+    description:
+      'Sino gom các tài khoản Gmail của bạn vào một hộp thư chung. Đọc, trả lời và giữ việc cần làm ở cùng một chỗ.',
+    indexable: true,
+  },
   {
     id: 'not-found',
     path: '/404',
