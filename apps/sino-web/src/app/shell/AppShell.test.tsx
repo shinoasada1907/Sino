@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
 import { createTasksSample } from '@/features/tasks/tasks.sample'
+import { CANVAS_NOW } from '@/shared/time/canvasClock'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
 import type { ShellData } from './shell.types'
@@ -52,25 +53,33 @@ describe('sidebar (desktop)', () => {
     expect(sidebar.getByRole('link', { name: /^Hộp thư/ })).not.toHaveAttribute('aria-current')
   })
 
+  // At the moment of the canvas: the sample's rent is due at 17:00 that day, which is the next day once the test runs
+  // after 21:05 in Asia/Ho_Chi_Minh.
   it('takes the owner from the shell data, the inbox count from the inbox (D-93) and the task count from the tasks (D-83)', async () => {
-    const tasks = createTasksSample(new Date())
-    renderApp('/overview', {
-      inbox: inboxWithUnread(5),
-      tasks: { ...tasks, tasks: tasks.tasks.filter((task) => task.id !== 'task-bill') },
-      shell: shellWith((s) => {
-        s.navCounts.inboxUnread = 99
-        s.navCounts.tasksDue = 7
-        s.owner.displayName = 'Bình Trần'
-        s.accountCount = 2
-      }),
-    })
-    const sidebar = within(shellPart('sidebar'))
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(CANVAS_NOW)
+      const tasks = createTasksSample(new Date())
+      renderApp('/overview', {
+        inbox: inboxWithUnread(5),
+        tasks: { ...tasks, tasks: tasks.tasks.filter((task) => task.id !== 'task-bill') },
+        shell: shellWith((s) => {
+          s.navCounts.inboxUnread = 99
+          s.navCounts.tasksDue = 7
+          s.owner.displayName = 'Bình Trần'
+          s.accountCount = 2
+        }),
+      })
+      const sidebar = within(shellPart('sidebar'))
 
-    expect(await sidebar.findByRole('link', { name: 'Hộp thư, 5 chưa đọc' })).toBeInTheDocument()
-    // The sample has three due tasks, one of them the late bill.
-    expect(sidebar.getByRole('link', { name: 'Việc cần làm, 2 tới hạn' })).toBeInTheDocument()
-    expect(sidebar.getByText('Bình Trần')).toBeInTheDocument()
-    expect(sidebar.getByText('2 tài khoản')).toBeInTheDocument()
+      expect(await sidebar.findByRole('link', { name: 'Hộp thư, 5 chưa đọc' })).toBeInTheDocument()
+      // The sample has three due tasks, one of them the late bill.
+      expect(sidebar.getByRole('link', { name: 'Việc cần làm, 2 tới hạn' })).toBeInTheDocument()
+      expect(sidebar.getByText('Bình Trần')).toBeInTheDocument()
+      expect(sidebar.getByText('2 tài khoản')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows no count when it is zero', async () => {
