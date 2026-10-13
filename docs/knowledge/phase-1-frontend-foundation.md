@@ -1284,6 +1284,45 @@ Trên điện thoại, danh sách có đầu trang riêng (quay lại "Thêm", "
 ### 20.9 Kiểm bằng lỗi gài (mutation) một lần cho cả màn
 Script `mutate.mjs` lần lượt sửa sai `format.ts` ở 30 chỗ (đổi điều kiện, bỏ một phép biến đổi, đổi chữ), chạy test, rồi trả file về như cũ. Test đỏ thì lỗi gài "bị bắt"; test vẫn xanh thì lỗi "sống sót", tức là có một hành vi không test nào canh. Lần này 29/30 bị bắt; lỗi sống sót là "ngày cả ngày tính theo múi giờ người xem". Với múi giờ +7, trưa UTC vẫn là cùng ngày nên test không phân biệt được. Thêm một trường hợp ở múi giờ +14 (Kiribati) thì lỗi đó bị bắt.
 
+## 21. Site công khai cho Google (`site-public-pages`)
+
+### 21.0 Bức tranh
+Muốn đưa ứng dụng OAuth của Sino ra khỏi chế độ Testing, Google bắt khai một trang chủ và một Chính sách quyền riêng tư. Hai trang phải công khai, không cần đăng nhập, không chuyển hướng, và đặt trên tên miền mình sở hữu. `sino-web` không hợp: mọi trang của nó nằm sau đăng nhập, và `/` chuyển hướng. Vì vậy site là một gói riêng `apps/sino-site`, sinh ra HTML tĩnh và không cần JavaScript (D-240).
+
+```text
+site.config.ts --> configProblems --> production: thiếu thì dừng, không ghi gì
+                                      preview: hiện "[chưa điền: ...]", noindex
+
+src/pages/*.ts --> PageSpec --> layout.renderPage --> HTML --+
+styles/site.css, public/, phông chữ ----------------------->+--> dist/
+```
+
+### 21.1 Chạy TypeScript thẳng bằng Node (SI-01)
+Node 26 chạy được file `.ts` bằng cách bỏ phần kiểu đi (type stripping), không biên dịch. Đổi lại có hai luật:
+
+- Chỉ dùng cú pháp "xóa được": không `enum`, không `namespace`, không khai thuộc tính trong tham số constructor (`constructor(readonly value: string)`). Vì vậy lớp `Html` gán `this.value` trong thân constructor. `tsconfig` bật `erasableSyntaxOnly` để `tsc` báo lỗi sớm.
+- Import phải ghi đủ đuôi `.ts` (`allowImportingTsExtensions`). `tsc` chỉ kiểm tra (`noEmit`), không sinh file.
+
+### 21.2 Template `html` và escape
+Trang được viết bằng tagged template: `` html`<p>${name}</p>` ``. Phần chữ cố định là markup do mình viết, còn giá trị chèn vào (`${name}`) luôn được escape (`&` thành `&amp;`, `<` thành `&lt;`...). Trừ khi giá trị đã là `Html`, tức là markup đã an toàn. Đây cũng là cách JSX của React làm với chữ. Nhờ vậy, một tên như "A & B" trong `site.config.ts` không làm hỏng trang.
+
+### 21.3 Hai chế độ dựng: không để lỡ đưa bản thiếu lên mạng
+`pnpm build` gọi `configProblems` trước khi đụng tới thư mục ra. Còn trường nào trống hoặc viết sai (URL có `/` cuối, ngày 30/02...) thì ném `ConfigError` và không ghi file nào. Script đặt `process.exitCode = 1` thay vì gọi `process.exit(1)`, để Node in hết thông báo rồi mới thoát. `pnpm build:preview` vẫn dựng được để xem, nhưng đánh dấu chỗ thiếu và gắn `noindex` cho mọi trang, phòng khi bản xem trước bị lỡ đưa lên mạng.
+
+### 21.4 Menu điện thoại không cần JavaScript
+`<details>` và `<summary>` là phần tử có sẵn của HTML: bấm `summary` thì phần còn lại hiện hoặc ẩn. Bàn phím (Enter, Space) và trình đọc màn hình (trạng thái mở/đóng) đều được trình duyệt lo sẵn. CSS giấu dấu tam giác mặc định (`list-style: none`, `::-webkit-details-marker`). Danh sách link đặt `position: absolute; top: 100%`: phần tử định vị gần nhất bên ngoài là thanh trên `position: sticky`, nên danh sách hiện ngay dưới thanh trên.
+
+### 21.5 Theme theo hệ điều hành
+Bộ biến màu tối của canvas là mặc định. `@media (prefers-color-scheme: light)` đổi giá trị của cùng những tên biến đó, nên phần còn lại của CSS không cần biết đang ở theme nào. Thẻ `<meta name="color-scheme" content="dark light">` báo cho trình duyệt vẽ thanh cuộn và ô nhập theo cùng theme.
+
+### 21.6 Test trên HTML thật, và một danh sách chỉ được phép ngắn đi
+Test dựng site vào một thư mục tạm, đọc từng file bằng jsdom, rồi kiểm: thẻ `head`, không có `<script>`, mọi tài nguyên lấy từ chính site, mọi link nội bộ trỏ tới trang hay `id` có thật. Thanh trên và chân trang đã link tới các trang chưa làm, nên test có danh sách `PAGES_NOT_BUILT_YET`. Một test khác kiểm rằng các trang trong danh sách đó **thật sự chưa có**: làm xong một trang mà quên xóa nó khỏi danh sách thì test đỏ. Nhờ vậy danh sách không thể nằm đó mãi để che link gãy.
+
+Phần "trông có đúng không" thì jsdom không biết, vì nó không chạy CSS. Script CDP mở Chrome headless, giả lập `prefers-color-scheme`, đặt cỡ màn, đo `scrollWidth - innerWidth` (cuộn ngang) và kiểm `document.fonts.check(...)` để biết phông tiếng Việt đã nạp.
+
+### 21.7 Phục vụ như host tĩnh và chặn path traversal
+`pnpm serve` trả file theo cách Cloudflare Pages hay GitHub Pages làm: `/privacy` lấy `privacy/index.html`, đường dẫn lạ trả `404.html` với mã 404. Hàm `resolveRequest` chặn đường dẫn tìm cách ra khỏi `dist/`, như `/../package.json` hay bản mã hóa `/%2e%2e/...`. Cách chặn: giải mã, `resolve` thành đường dẫn tuyệt đối, rồi kiểm nó còn bắt đầu bằng thư mục gốc cộng dấu phân cách. `decodeURIComponent` ném lỗi với chuỗi hỏng như `%E0%A4%A`, nên có `try/catch`.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1426,3 +1465,8 @@ Script `mutate.mjs` lần lượt sửa sai `format.ts` ở 30 chỗ (đổi đi
 138. Debounce 600 ms của tự lưu hoạt động thế nào? Vì sao hàm lưu đọc giá trị từ `useRef` chứ không từ biến của lần vẽ?
 139. Vì sao chuyển từ `/notes/new` sang `/notes/{id}` không được làm mất con trỏ, và `key` của component liên quan gì?
 140. Một lỗi gài "sống sót" nói lên điều gì về bộ test? Vì sao lỗi "ngày cả ngày theo múi giờ người xem" sống sót với múi giờ +7?
+113. Google bắt trang chủ có URL "không chuyển hướng". Vì sao `/` của `sino-web` không dùng được, và vì sao site tĩnh thì dùng được?
+114. Vì sao lớp `Html` không viết `constructor(readonly value: string)` như ở các file khác?
+115. `pnpm build` và `pnpm build:preview` khác nhau ở những điểm nào, và vì sao bản xem trước có `noindex`?
+116. Test link nội bộ có danh sách `PAGES_NOT_BUILT_YET`. Điều gì ngăn danh sách đó che mãi một link gãy?
+117. `resolveRequest(root, '/%2e%2e/package.json')` trả gì, và nhờ bước nào?

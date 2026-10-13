@@ -8,7 +8,7 @@ Site công khai MUST là HTML tĩnh dựng sẵn, xem được không cần đă
 - Bảo mật `/security`, Phần mềm nguồn mở `/open-source`;
 - trang `404.html` cho đường dẫn không có.
 
-Mỗi trang MUST theo canvas "Sino UI" tương ứng (`Landing`, `SitePrivacy`, `SiteTerms`, `SiteSecurity`, `SiteOpenSource`, `SiteNotFound`) và MUST có `lang`, `<title>`, mô tả, viewport và link canonical. Trang MUST NOT có thẻ `<script>` và MUST NOT tải tài nguyên từ tên miền khác.
+Mỗi trang MUST theo canvas "Sino UI" tương ứng (`Landing`, `SitePrivacy`, `SiteTerms`, `SiteSecurity`, `SiteOpenSource`, `SiteNotFound`) và MUST có `lang`, `<title>`, mô tả và viewport. Mọi trang trừ 404 MUST có link canonical; trang 404 MUST có `noindex` và không có canonical. Trang MUST NOT có thẻ `<script>` và MUST NOT tải tài nguyên từ tên miền khác.
 
 #### Scenario: Mở trang chủ khi tắt JavaScript
 - **WHEN** một trình duyệt tắt JavaScript mở `/`

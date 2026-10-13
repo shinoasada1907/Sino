@@ -119,7 +119,7 @@ export interface SiteConfig {
 ### D-246 — Nút "Bắt đầu" thành "Đăng nhập" / "Mở Sino", trỏ tới `appUrl` · **Người dùng duyệt**
 - App chưa có đăng ký tài khoản, nên "Bắt đầu" và "Bắt đầu với Sino" của canvas trỏ đi đâu cũng sai.
 - Khi chưa có đăng ký:
-  - nút chính ghi "Mở Sino" và trỏ `appUrl + "/login"`;
+  - ~~nút chính ghi "Mở Sino" và trỏ `appUrl + "/login"`;~~ nút chính ghi "Mở Sino" và trỏ `appUrl + "/"` (SI-01). **LÝ DO:** thanh trên có cả "Đăng nhập" lẫn "Mở Sino"; nếu hai nút cùng trỏ `/login` thì một nút thừa. App tự chuyển tới `/login` khi chưa đăng nhập, và vào thẳng Tổng quan khi đã đăng nhập;
   - nút phụ giữ như canvas ("Xem cách hoạt động", "Đăng nhập");
   - trang 404 giữ "Mở Sino".
 - Khi app có đăng ký thì đổi lại chữ của canvas, trong một change khác.
