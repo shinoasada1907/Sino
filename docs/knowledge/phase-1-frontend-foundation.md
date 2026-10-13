@@ -1287,7 +1287,7 @@ Script `mutate.mjs` lần lượt sửa sai `format.ts` ở 30 chỗ (đổi đi
 ## 21. Site công khai cho Google (`site-public-pages`)
 
 ### 21.0 Bức tranh
-Muốn đưa ứng dụng OAuth của Sino ra khỏi chế độ Testing, Google bắt khai một trang chủ và một Chính sách quyền riêng tư. Hai trang phải công khai, không cần đăng nhập, không chuyển hướng, và đặt trên tên miền mình sở hữu. `sino-web` không hợp: mọi trang của nó nằm sau đăng nhập, và `/` chuyển hướng. Vì vậy site là một gói riêng `apps/sino-site`, sinh ra HTML tĩnh và không cần JavaScript (D-240).
+Muốn đưa ứng dụng OAuth của Sino ra khỏi chế độ Testing, Google bắt khai một trang chủ và một Chính sách quyền riêng tư. Hai trang phải công khai, không cần đăng nhập, không chuyển hướng, và đặt trên tên miền mình sở hữu. `sino-web` không hợp: mọi trang của nó nằm sau đăng nhập, và `/` chuyển hướng. Vì vậy site là một gói riêng `apps/sino-site`, sinh ra HTML tĩnh và không cần JavaScript (D-240). Các mục 21.1–21.9 tả bản đầu (HTML thuần). Từ SI-01R site chạy React, prerender ra HTML rồi hydrate (mục 21.10); `configProblems`, hai chế độ dựng, `resolveRequest` và chữ của trang chủ vẫn giữ.
 
 ```text
 site.config.ts --> configProblems --> production: thiếu thì dừng, không ghi gì
@@ -1346,6 +1346,36 @@ Cách sửa:
 - Cho tên người gửi `overflow: hidden; text-overflow: ellipsis; min-width: 0`. Phần tử con của flex mặc định không co nhỏ hơn chữ bên trong nó (`min-width: auto`), nên phải đặt `min-width: 0` thì dấu "…" mới hiện được.
 
 Còn một bài học về chính công cụ kiểm: trang bật `scroll-behavior: smooth`, nên ảnh chụp ngay sau `scrollIntoView` bắt được lúc trang còn đang cuộn. Script phải tắt cuộn mượt trước khi chụp.
+
+### 21.10 Đổi sang React: prerender rồi hydrate (SI-01R)
+Người dùng đổi site sang React để dùng hiệu ứng React Bits (D-250). Một trang React thông thường (SPA) gửi về `index.html` gần như rỗng, chỉ có `<div id="root">`, và JavaScript vẽ mọi thứ. Tắt JavaScript thì trang trắng. Google cần đọc được trang chủ và link tới Privacy, nên site dùng cách thứ ba: **prerender**.
+
+```text
+pnpm build
+  site.config.ts --> configProblems --> production thiếu: dừng (exit 1), chưa gọi Vite
+        |
+        v
+  Vite bản client: index.html + entry-client.tsx --> assets/*.js, *.css, phông, favicon
+  Vite bản SSR:    entry-server.tsx              --> entry-server.js (chạy trong Node)
+        |
+        v
+  với mỗi trang trong PAGES:
+    renderToString(<App pageId site/>) --> chèn vào khung index.html --> 404.html ...
+        |
+        v
+  trình duyệt: HTML đã đủ chữ --> nạp JS --> hydrateRoot gắn React vào DOM có sẵn
+```
+
+- **Hai bản dựng:** bản client chạy trong trình duyệt. Bản SSR là cùng mã React, đóng gói để chạy trong Node, chỉ dùng lúc dựng. Script ghi bản SSR vào một thư mục tạm **bên trong `node_modules`**. Lý do: bản SSR để `react` ở ngoài (external), và Node tìm `react` bằng cách đi ngược lên các thư mục cha để tìm `node_modules`. Đặt bản SSR ở `/tmp` thì Node không tìm thấy.
+- **Hydrate:** `hydrateRoot` không vẽ lại trang. Nó đi qua DOM đã có và gắn sự kiện (click, hover) vào. Điều kiện là React ở trình duyệt phải render ra **đúng y** HTML mà server đã ghi; khác một chữ là lỗi "hydration mismatch". Vì vậy:
+  - giá trị config, chế độ dựng và cả **năm bản quyền** được đưa vào cả hai bản bằng `define` (`__SITE_DATA__`). Nếu trình duyệt tự gọi `new Date()`, trang dựng tháng 12 mà mở tháng 1 sẽ lệch năm;
+  - HTML ghi `data-page="not-found"` để trình duyệt biết hydrate trang nào, kể cả khi host trả `404.html` cho một URL bất kỳ.
+- **`define` của Vite:** thay một tên (`__SITE_DATA__`) bằng một biểu thức lúc dựng, như tìm-và-thay trong mã. Không có biến toàn cục nào lúc chạy. TypeScript cần một khai báo `declare global { const __SITE_DATA__: SiteData }` để biết kiểu.
+- **`NODE_ENV`:** test chạy CLI bên trong vitest, và vitest đặt `NODE_ENV=test`. Vite giữ giá trị đó, nên React đóng gói bản dành cho phát triển (hơn 500 kB, có cảnh báo). Script dựng tự đặt `NODE_ENV=production`. Bản đưa lên mạng không được phụ thuộc vào biến môi trường của người chạy lệnh.
+- **Style như `sino-web` (D-251):** Tailwind 4 với cùng token canvas, chỉ khác ở chỗ theme đi theo hệ điều hành (`@media (prefers-color-scheme: light)`) thay vì class `theme-*`. Bẫy gặp ở đây: `cva` chỉ nối chuỗi lớp. Biến thể `secondary` thêm `border-border-strong`, nhưng lớp gốc đã có `border-transparent`. Hai lớp cùng đặt màu viền, và Tailwind xếp CSS theo thứ tự riêng của nó chứ không theo thứ tự trong chuỗi, nên `border-transparent` thắng và nút mất viền. `Button` của `sino-web` gọi `cn(buttonVariants(...))`, và `cn` bỏ lớp bị thay. Bản của site cũng phải đi qua `cn`. Chrome bắt được lỗi này; jsdom thì không, vì nó không chạy CSS.
+- **Test:**
+  - phần lớn test gọi thẳng `prerender(pageId, template, site)` rồi parse bằng `DOMParser`, khỏi phải dựng Vite (nhanh);
+  - ba test chạy CLI thật: thiếu config thì dừng, bản xem trước dựng được, bản đầy đủ có đủ file và mọi script, stylesheet, phông đều nằm trên site.
 
 ## Tự kiểm tra
 
@@ -1497,3 +1527,7 @@ Còn một bài học về chính công cụ kiểm: trang bật `scroll-behavio
 118. Trang chủ có test "không được chứa cụm từ X". Test đó bảo vệ điều gì, và khi tính năng X ra mắt thì phải làm gì?
 119. Vì sao một phần tử con của flex có `text-overflow: ellipsis` vẫn tràn ra ngoài, và `min-width: 0` sửa thế nào?
 120. Ảnh chụp sau `scrollIntoView` ra sai vùng. Vì sao, và vì sao đây là lỗi của công cụ kiểm chứ không phải của trang?
+121. SPA, prerender và hydrate khác nhau thế nào? Tắt JavaScript thì mỗi cách hiện gì?
+122. Vì sao năm bản quyền của site được đưa vào lúc dựng, không lấy bằng `new Date()` trong trình duyệt?
+123. Vì sao bản SSR được ghi vào một thư mục trong `node_modules`, không phải `/tmp`?
+124. `cva` trả `border-transparent ... border-border-strong`. Vì sao nút vẫn không có viền, và `cn` sửa thế nào?

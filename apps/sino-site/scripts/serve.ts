@@ -4,12 +4,13 @@ import { createServer } from 'node:http'
 import { extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { resolveRequest } from '../src/static-files.ts'
+import { resolveRequest } from './static-files.ts'
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.js': 'text/javascript; charset=utf-8',
   '.woff2': 'font/woff2',
 }
 

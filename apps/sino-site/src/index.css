@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens copied from sino-web/src/index.css, which copies the "Sino UI" canvas (design/sino-ui/project/sino.css).
+ * Unlike the app, the public site has no theme switch (D-247): the canvas dark theme is the default and the light one
+ * follows the OS setting.
+ */
+:root {
+  color-scheme: dark;
+  --bg: #070707; --surface: #151516; --raised: #1B1B1D; --hover: #232326;
+  --border: #2A2A2D; --border-strong: #4A4A4F;
+  --text: #F7F7F4; --text-muted: #9A9A9F; --text-subtle: #717177;
+  --inverse: #F7F7F4; --inverse-hover: #DCDCD8; --on-inverse: #070707;
+  --success: #52D273; --warning: #E8B75A; --danger: #E56B6F;
+  --success-ink: #52D273; --warning-ink: #E8B75A; --danger-ink: #E56B6F;
+  --ring: #F7F7F4;
+  --grid-dot: rgba(247, 247, 244, .07); --spot: rgba(247, 247, 244, .06); --spot-strong: rgba(247, 247, 244, .11);
+  --shadow-pop: 0 32px 72px -28px rgba(0, 0, 0, .85), 0 0 0 1px var(--border);
+  --dur-fast: 160ms; --dur-hover: 180ms; --dur-panel: 220ms; --dur-page: 240ms;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #F2F2EF; --surface: #FFFFFF; --raised: #FAFAF8; --hover: #ECECEA;
+    --border: #DEDEDA; --border-strong: #C3C3C0;
+    --text: #111111; --text-muted: #66666B; --text-subtle: #8A8A8F;
+    --inverse: #111111; --inverse-hover: #2B2B2B; --on-inverse: #FFFFFF;
+    --success-ink: #1F7A3D; --warning-ink: #8A5A00; --danger-ink: #B4383D;
+    --ring: #111111;
+    --grid-dot: rgba(17, 17, 17, .08); --spot: rgba(17, 17, 17, .035); --spot-strong: rgba(17, 17, 17, .06);
+    --shadow-pop: 0 32px 72px -32px rgba(17, 17, 17, .30), 0 0 0 1px var(--border);
+  }
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  /* Canvas radii (--r-xs ... --r-lg). */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-std: cubic-bezier(.4, 0, .2, 1);
+
+  --shadow-popover: var(--shadow-pop);
+
+  /* Canvas roles. */
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted-foreground: var(--text-muted);
+  --color-subtle-foreground: var(--text-subtle);
+  --color-primary: var(--inverse);
+  --color-primary-hover: var(--inverse-hover);
+  --color-primary-foreground: var(--on-inverse);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-success-ink: var(--success-ink);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger-ink: var(--danger-ink);
+  --color-ring: var(--ring);
+}
+
+/* The canvas `.dotbg`: the faint dot grid behind the page. It stays still (canvas Motion: DotGrid). */
+@utility bg-dots {
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.4px);
+  background-size: 28px 28px;
+  background-position: -14px -14px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--bg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "cv11";
+  }
+
+  a:focus-visible,
+  summary:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}

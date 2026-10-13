@@ -51,7 +51,7 @@
     - Chrome headless (CDP, `localhost:4321/nope`), 1440 và 390 × dark và light: không cuộn ngang; nền `#070707` / `#F2F2EF`; Inter (cả bộ chữ tiếng Việt) và JetBrains Mono đã nạp; bố cục như canvas `SiteNotFound`. Ở 390, bấm nút menu thì `details.open = true`, danh sách `display: flex` hiện dưới thanh trên.
     - File kiến thức phase 1 mục 21 + câu 113–117; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
-- [ ] 1.2 **SI-01R — Nền React: Vite + React + Tailwind như `sino-web`, prerender, trang 404**
+- [x] 1.2 **SI-01R — Nền React: Vite + React + Tailwind như `sino-web`, prerender, trang 404**
   - **Thực hiện:**
     - Trên template Vite + React người dùng đã tạo:
       - bỏ `App.tsx`, `App.css`, `src/assets/`, `public/icons.svg`;
@@ -80,6 +80,36 @@
     - test `configProblems`, `resolveRequest`, `renderDocument` cho 404, CLI dựng thật;
     - lint, typecheck, test, `build:preview`, `serve`;
     - Chrome `/nope` ở 1440 và 390, dark và light.
+  - **Đã làm (2026-10-13, AUTO):**
+    - Cấu trúc theo D-250/D-251:
+      - `src/site/{config,site-data,site-context,SiteProvider,pages,document}`;
+      - `src/layout/{PageFrame,SiteHeader,SiteFooter,nav}`, `src/pages/NotFoundPage.tsx`, `src/App.tsx`;
+      - `src/entry-{client,server}.tsx`, `scripts/build.ts`.
+    - Chép từ `sino-web`: token canvas, `cn`, `buttonVariants`, `SinoMark`. Mã của SI-01 giữ lại: `configProblems`, `scripts/serve.ts`, `scripts/static-files.ts` (`resolveRequest`), cùng test của chúng.
+    - `scripts/build.ts`:
+      - kiểm config rồi gọi Vite bản client và bản SSR vào một thư mục tạm trong `node_modules`;
+      - prerender mỗi trang của `PAGES` vào khung `index.html`;
+      - xóa khung `index.html` để `dist/` chỉ còn trang đã prerender;
+      - chép sang `--out` (mặc định `dist/`).
+  - **Làm khác kế hoạch:**
+    - ~~`src/site/site.tsx` (`SiteProvider` + `useSite`)~~ → `SiteProvider.tsx` và `site-context.ts`. **LÝ DO:** oxlint `only-export-components` cảnh báo khi một file `.tsx` vừa xuất component vừa xuất hook (fast refresh); `sino-web` cũng tách như vậy (`themeContext.ts`).
+    - `scripts/build.ts` đặt `NODE_ENV=production`. **LÝ DO:** test chạy CLI bên trong vitest (`NODE_ENV=test`); Vite giữ biến đó và đóng gói bản React phát triển (>500 kB, có cảnh báo ra stderr).
+    - `buttonVariants` là hàm gọi `cn(cva(...))`, không phải `cva` trần. **LÝ DO:** Chrome cho thấy nút phụ mất viền. `border-transparent` (lớp gốc) và `border-border-strong` (biến thể) cùng nằm trong chuỗi, và CSS của Tailwind để `border-transparent` thắng. `Button` của `sino-web` gọi `cn` nên không bị. Có test `button.test.ts`.
+    - Menu dùng nút dưới 1024 px (điểm `lg` của Tailwind, D-251), SI-01 là dưới 960 px.
+    - Không thêm `value(field)` (chỗ thiếu `[chưa điền: …]`) vào `useSite`. **LÝ DO:** 404 không dùng; SI-03 (Privacy) sẽ thêm.
+  - **Kiểm chứng (2026-10-13):**
+    - RED: 6/6 file test đỏ vì chưa có module; CLI báo `Cannot find module scripts/build.ts`.
+    - GREEN: 42/42 (7 file), kể cả 3 test CLI dựng thật. `pnpm lint` 0 cảnh báo, `pnpm typecheck` 0, `pnpm build:preview` 0.
+    - `dist/`: `404.html`, `favicon.svg`, `assets/` (1 JS 303 kB, 1 CSS, phông woff2). `404.html` có title, description, `noindex`, `data-page="not-found"` và đủ chữ.
+    - `pnpm serve`: `/nope` → 404.
+    - Chrome headless (CDP, `localhost:4321/nope`), 1440 và 390 × dark và light:
+      - không cuộn ngang; nền `#070707` / `#F2F2EF`;
+      - Inter (cả bộ tiếng Việt) và JetBrains Mono đã nạp;
+      - hydrate xong, không lỗi hydration trong console;
+      - ở 390: bấm nút menu thì `details.open` và danh sách hiện ở `top: 60px`; bấm một link thì menu đóng;
+      - tắt JavaScript: trang vẫn hiện đủ.
+      - Lỗi Chrome bắt được: nút phụ mất viền (đã sửa, xem trên). Đo lại: viền `#4A4A4F` (dark), `#C3C3C0` (light).
+    - File kiến thức phase 1 mục 21.10 + câu 121–124; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
 ## 2. Các trang
 

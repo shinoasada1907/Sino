@@ -1,21 +1,10 @@
 {
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
   "compilerOptions": {
-    "target": "es2024",
-    "lib": ["ES2024"],
-    "types": ["node"],
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "erasableSyntaxOnly": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-    "skipLibCheck": true,
-
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
-  },
-  "include": ["site.config.ts", "src", "scripts", "test"]
+    "paths": { "@/*": ["./src/*"] }
+  }
 }

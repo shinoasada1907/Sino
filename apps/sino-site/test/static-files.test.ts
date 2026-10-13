@@ -1,8 +1,9 @@
+// @vitest-environment node
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { resolveRequest } from '../src/static-files.ts'
+import { resolveRequest } from '../scripts/static-files.ts'
 
 describe('resolveRequest', () => {
   let root: string

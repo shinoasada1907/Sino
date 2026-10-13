@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { configProblems } from '../src/config.ts'
-import { EMPTY_CONFIG, FULL_CONFIG } from './fixtures/configs.ts'
+import { EMPTY_CONFIG, FULL_CONFIG } from '@/test/configs'
+import { configProblems } from './config'
 
 describe('configProblems', () => {
   it('finds nothing wrong when every field is filled correctly', () => {

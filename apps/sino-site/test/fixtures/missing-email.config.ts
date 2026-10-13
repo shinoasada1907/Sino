@@ -1,3 +1,3 @@
-import { FULL_CONFIG } from './configs.ts'
+import { FULL_CONFIG } from '../../src/test/configs.ts'
 
 export default { ...FULL_CONFIG, contactEmail: null }

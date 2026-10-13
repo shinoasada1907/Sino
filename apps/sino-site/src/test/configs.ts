@@ -1,4 +1,5 @@
-import type { SiteConfig } from '../../src/config.ts'
+import type { SiteConfig } from '../site/config.ts'
+import type { SiteData } from '../site/site-data.ts'
 
 /** Every field filled with made-up values on reserved names (.example), as a production build needs. */
 export const FULL_CONFIG: SiteConfig = {
@@ -19,3 +20,6 @@ export const EMPTY_CONFIG: SiteConfig = {
   effectiveDate: null,
   hosting: null,
 }
+
+export const PRODUCTION_SITE: SiteData = { mode: 'production', config: FULL_CONFIG, year: 2026 }
+export const PREVIEW_SITE: SiteData = { mode: 'preview', config: EMPTY_CONFIG, year: 2026 }

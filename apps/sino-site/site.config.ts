@@ -1,4 +1,4 @@
-import type { SiteConfig } from './src/config.ts'
+import type { SiteConfig } from './src/site/config.ts'
 
 /**
  * Owner details for the public pages (D-242). `pnpm build` refuses to run while any value is null;
