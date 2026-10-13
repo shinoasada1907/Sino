@@ -255,6 +255,17 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 > **Mở 2026-10-13 (người dùng):** "sau này đường nào cũng có 1 trang admin để quản lý Sino và quản lý cả nội dung landing page". Hướng đã chốt: admin là module `admin` trong `sino-api` (`/api/admin/**`, role `ADMIN`), không dựng backend thứ hai; khi có sản phẩm thứ hai mới tách phần nền tảng dùng chung (đăng nhập chung, CMS), dữ liệu riêng của Sino ở lại. Đợt đầu: change `openspec/changes/admin-api` (D-260…D-266, agent chốt theo ủy quyền "xây đi không cần hỏi"): tài khoản admin từ cấu hình, tách quyền với owner, API chỉ đọc (tổng quan, người dùng, tài khoản kết nối và tình trạng sync), không bao giờ trả nội dung thư. Để sau: giao diện admin (project web riêng), quản lý nội dung landing (`apps/sino-site`, cân nhắc headless CMS), thao tác ghi và nhật ký thao tác (khi có nhiều người dùng).
 
+> **Giao diện admin: chưa làm (người dùng, 2026-10-13).** Người dùng hỏi đặt trang admin vào `sino-site`, rồi chọn "Chưa làm UI". Lý do: Sino mới có một người dùng; owner đã thấy tình trạng tài khoản và đồng bộ ở màn Tài khoản của `sino-web`; API admin gọi được bằng `curl` (README `sino-api`, mục *Admin*).
+> - **Trước UI:** người dùng duyệt D-260…D-266 và chạy thử API admin trên backend thật.
+> - **Khi làm** (lúc mở đăng ký cho nhiều người dùng):
+>   - app riêng `apps/sino-admin` (Vite + React + Tailwind như `sino-web`), ở tên miền con riêng;
+>   - cùng site với API qua reverse proxy `/api` (D-266);
+>   - ba màn chỉ đọc: Tổng quan, Người dùng, Tài khoản kết nối; chỉ metadata;
+>   - thao tác ghi chỉ thêm sau khi có nhật ký thao tác.
+> - **Không đặt trong `sino-site`:** site công khai dựng tĩnh để Google thẩm định. Host tĩnh không chuyển `/api` sang backend được, nên phải mở CORS có cookie và đổi `SameSite`. Mọi khách cũng sẽ tải về code và trang đăng nhập quản trị.
+> - **Không đặt trong `sino-web`:** admin và owner sẽ dùng chung cookie phiên trên một trình duyệt.
+> - **Nội dung landing:** giữ trong code (git là lịch sử phiên bản; Privacy/Terms phải được đọc lại trước khi đổi). Chỉ xem headless CMS khi có người không viết code cần sửa chữ thường xuyên.
+
 ---
 
 ## 4. Các điểm quyết định theo thời gian
