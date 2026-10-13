@@ -8,7 +8,7 @@ import { buildInto, type BuiltSite } from './built-site.ts'
 import { FULL_CONFIG } from './fixtures/configs.ts'
 
 /** Pages the footer and the top bar already link to; each SI task removes its own when it builds the page. */
-const PAGES_NOT_BUILT_YET = ['/', '/privacy', '/en/privacy', '/terms', '/en/terms', '/security', '/open-source']
+const PAGES_NOT_BUILT_YET = ['/privacy', '/en/privacy', '/terms', '/en/terms', '/security', '/open-source']
 
 describe('production build', () => {
   let site: BuiltSite

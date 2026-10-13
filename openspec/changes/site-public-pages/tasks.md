@@ -51,13 +51,40 @@
 
 ## 2. Các trang
 
-- [ ] 2.1 **SI-02 — Trang chủ**
+- [x] 2.1 **SI-02 — Trang chủ**
   - **Thực hiện:**
     - Đọc lại bảng sự thật D-241 với `tasks.md` của các change ngay trước khi viết.
     - `src/pages/home.ts` theo `Landing`: hero và ảnh minh họa chỉ có Gmail, dải "KẾT NỐI VỚI", bento tính năng, kế hoạch, ba bước, quyền riêng tư cùng khối quyền Google (D-245), câu hỏi thường gặp bằng `<details>`, lời kêu gọi cuối (D-246).
     - Thêm vào `site.css` các lớp của trang chủ.
   - **Acceptance criteria:** spec *Trang chủ mô tả đúng ứng dụng và lý do xin dữ liệu Google* (hai scenario); scenario *Mở trang chủ khi tắt JavaScript*.
   - **Kiểm chứng:** Chrome 1440 / 768 / 390, dark và light, so với `Landing`, `LandingLight`, `LandingMobile`; menu mobile mở và đóng được; không cuộn ngang.
+  - **Đã làm (2026-10-13, AUTO):**
+    - Đọc lại bảng D-241 với code. Ba điều canvas nói mà app chưa làm, nên trang không khẳng định: danh sách quyền đã cấp ở trang tài khoản (API trả `scopes: null`), thông báo trình duyệt, xuất/xóa dữ liệu. Bốn điều có thật được đưa vào thay:
+      - bước "Xem lại quyền truy cập" trước khi sang Google;
+      - "không xin quyền xóa thư, đổi cài đặt Gmail hay đọc danh bạ" (`connect.format.ts`);
+      - ảnh trong thư ẩn tới khi bấm "Hiện ảnh" (`MailBody.tsx`);
+      - nhập 30 ngày / 90 ngày / toàn bộ hộp thư (`ConnectWizard.tsx`).
+    - `src/pages/home.ts` theo `Landing`:
+      - hero và ảnh minh họa chỉ có thư Gmail; thẻ nổi là một việc cần làm và "Đã trả lời … trong cùng chuỗi thư" (thay lịch hẹn và nhắc nhở);
+      - dải "KẾT NỐI VỚI": Gmail, còn Zalo, Messenger, Telegram mang "Sắp có";
+      - bento: Hộp thư hợp nhất, Thư mới tự hiện, Trả lời ngay trong Sino, Đọc thư an toàn, Việc cần làm, Lịch hẹn và ghi chú ("Sắp có");
+      - Kế hoạch: chỉ có việc cần làm, không gắn tin nhắn;
+      - ba bước; quyền riêng tư (bốn mục có thật) + khối "QUYỀN GOOGLE" (D-245: `openid`, `email`, `gmail.readonly`, `gmail.send`, câu Limited Use, link `/privacy#google`);
+      - sáu câu hỏi thường gặp bằng `<details>`, câu đầu mở; band.
+    - Icon thêm vào `icons.ts`, lấy từ canvas. Hai icon canvas không có (`reply`, `refresh`) lấy từ Lucide.
+    - CSS: các khối của trang chủ và các mảnh mượn từ màn app của canvas (`mrow`, `lchip`, `nitem`, `td-row`…). `style=""` gắn thẳng trên thẻ ở canvas chuyển thành lớp (`lp-card is-wide/is-half/is-third`, `lp-split-copy`, `lp-today`…).
+  - **Làm khác kế hoạch:**
+    - Thanh trên dùng nút menu từ **960 px** trở xuống (kế hoạch: theo canvas, chỉ dưới 720 px). **LÝ DO:** Chrome ở 768 px cho thấy năm link gãy thành 2–3 dòng; canvas không vẽ tablet. Ở 961 px các link vẫn trên một dòng (cao 36 px).
+    - Hero và band xếp một cột từ 960 px trở xuống. **LÝ DO:** ở 768 px tiêu đề gãy 6 dòng và khung minh họa chỉ rộng 290 px.
+    - `.mrow-sender` được cắt bằng "…" (`overflow: hidden; min-width: 0`). **LÝ DO:** ở 768 px "Phòng khám Ánh Dương" tràn đè lên giờ 08:15.
+    - Thêm câu hỏi "Sino có dùng thư của tôi để quảng cáo hay huấn luyện AI không?" và "Ngắt kết nối thì thư đã lưu có bị xóa không?"; câu về thư hẹn giờ thành "Nếu gửi thư bị lỗi giữa chừng thì sao?". **LÝ DO:** D-241, và Google đọc kỹ cách ứng dụng dùng dữ liệu Gmail.
+    - Nút "Xem màn Lịch" thành "Mở Việc cần làm" (`appUrl/tasks`). **LÝ DO:** Lịch chưa có backend.
+  - **Kiểm chứng (2026-10-13):**
+    - RED: lần chạy đầu 15 test trang chủ bị *bỏ qua* chứ không đỏ, vì chưa có `index.html` nên `beforeAll` lỗi → thêm một trang chủ rỗng, chạy lại: 9 đỏ đúng vì thiếu nội dung (kể cả test link nội bộ, vì `/#tinh-nang`… chưa có `id`).
+    - GREEN: 58/58 (8 file). `pnpm lint` 0, `pnpm typecheck` 0, `pnpm build:preview` 0.
+    - Chrome headless, cả trang ở 1440 / 768 / 390 × dark / light: không cuộn ngang, phông tiếng Việt đã nạp. Ở 390 và 768, bấm menu thì danh sách hiện (`display: flex`). Câu hỏi thường gặp: bấm câu 2 thì mở, bấm câu 1 thì đóng.
+    - Lỗi script kiểm (không phải lỗi site): trang cuộn mượt (`scroll-behavior: smooth`) nên ảnh chụp ngay sau `scrollIntoView` còn đang cuộn dở → script tắt cuộn mượt trước khi chụp.
+    - File kiến thức phase 1 mục 21.8–21.9 + câu 118–120; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
 - [ ] 2.2 **SI-03 — Chính sách quyền riêng tư, tiếng Việt và tiếng Anh**
   - **Thực hiện:**

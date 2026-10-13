@@ -1323,6 +1323,30 @@ Phần "trông có đúng không" thì jsdom không biết, vì nó không chạ
 ### 21.7 Phục vụ như host tĩnh và chặn path traversal
 `pnpm serve` trả file theo cách Cloudflare Pages hay GitHub Pages làm: `/privacy` lấy `privacy/index.html`, đường dẫn lạ trả `404.html` với mã 404. Hàm `resolveRequest` chặn đường dẫn tìm cách ra khỏi `dist/`, như `/../package.json` hay bản mã hóa `/%2e%2e/...`. Cách chặn: giải mã, `resolve` thành đường dẫn tuyệt đối, rồi kiểm nó còn bắt đầu bằng thư mục gốc cộng dấu phân cách. `decodeURIComponent` ném lỗi với chuỗi hỏng như `%E0%A4%A`, nên có `try/catch`.
 
+### 21.8 Trang chủ viết theo sự thật, và test chặn chữ sai (SI-02)
+Google so trang chủ với video demo và với cách ứng dụng thật sự chạy. Vì vậy, trước khi viết chữ, mỗi khẳng định đều được dò tới chỗ nó nằm trong code. Ví dụ, "ảnh trong thư chỉ tải khi bạn bấm Hiện ảnh" có thật ở `MailBody.tsx`. Ngược lại, câu "mỗi tài khoản liệt kê quyền đã cấp" của canvas thì sai, vì API còn trả `scopes: null`.
+
+Hai loại test giữ cho trang đúng về sau:
+
+- **Test phủ định:** một danh sách cụm từ của canvas mà Sino chưa làm ("Hẹn giờ gửi", "Tạm ẩn", "Nhắc nhở"...) không được xuất hiện trên trang. Ai đó chép lại chữ canvas thì test đỏ.
+- **Test bất biến:** phần tử nào mang lớp `is-soon` thì phải có nhãn "Sắp có". Nhờ vậy, đánh dấu một tính năng chưa có không thể quên phần chữ.
+
+Khi một tính năng ra mắt, người sửa trang phải xóa nhãn "Sắp có" và cụm từ đó khỏi danh sách phủ định. Đó là lúc đối chiếu lại với code.
+
+### 21.9 Chrome bắt lỗi ở cỡ màn mà canvas không vẽ
+Canvas chỉ vẽ 1440 và 390 px. jsdom không chạy CSS nên test xanh, nhưng Chrome ở 768 px cho thấy ba lỗi:
+
+- Năm link của thanh trên gãy thành hai, ba dòng.
+- Hero hai cột làm tiêu đề gãy sáu dòng.
+- Tên người gửi dài tràn đè lên giờ.
+
+Cách sửa:
+
+- Thêm một mốc `@media (max-width: 960px)`: thanh trên dùng nút menu, hero và band xếp một cột.
+- Cho tên người gửi `overflow: hidden; text-overflow: ellipsis; min-width: 0`. Phần tử con của flex mặc định không co nhỏ hơn chữ bên trong nó (`min-width: auto`), nên phải đặt `min-width: 0` thì dấu "…" mới hiện được.
+
+Còn một bài học về chính công cụ kiểm: trang bật `scroll-behavior: smooth`, nên ảnh chụp ngay sau `scrollIntoView` bắt được lúc trang còn đang cuộn. Script phải tắt cuộn mượt trước khi chụp.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1470,3 +1494,6 @@ Phần "trông có đúng không" thì jsdom không biết, vì nó không chạ
 115. `pnpm build` và `pnpm build:preview` khác nhau ở những điểm nào, và vì sao bản xem trước có `noindex`?
 116. Test link nội bộ có danh sách `PAGES_NOT_BUILT_YET`. Điều gì ngăn danh sách đó che mãi một link gãy?
 117. `resolveRequest(root, '/%2e%2e/package.json')` trả gì, và nhờ bước nào?
+118. Trang chủ có test "không được chứa cụm từ X". Test đó bảo vệ điều gì, và khi tính năng X ra mắt thì phải làm gì?
+119. Vì sao một phần tử con của flex có `text-overflow: ellipsis` vẫn tràn ra ngoài, và `min-width: 0` sửa thế nào?
+120. Ảnh chụp sau `scrollIntoView` ra sai vùng. Vì sao, và vì sao đây là lỗi của công cụ kiểm chứ không phải của trang?
