@@ -307,6 +307,40 @@ Good to know:
 - A leaked push token (an hour at most) only lets someone make Sino sync earlier: a notice carries no mail, and Sino
   reads the changes itself.
 
+## Admin (read-only operator API)
+
+An optional second sign-in for the person who runs Sino (change `admin-api`, D-260…D-266). The admin sees numbers and
+statuses (users, connected accounts, how their import and sync go) and never a message, a credential or the
+provider's own ID. The admin cannot call the owner's API, and the owner cannot call the admin's.
+
+Turn it on in `.env` and restart:
+
+```dotenv
+SINO_ADMIN_EMAIL=admin@example.com    # must differ from SINO_OWNER_EMAIL
+SINO_ADMIN_PASSWORD=                  # at least 12 characters; only a BCrypt hash is kept
+```
+
+Leave `SINO_ADMIN_EMAIL` empty for no admin. A password without an email, a short password or the owner's email stops
+the startup with a message naming the setting (never its value).
+
+The admin signs in like the owner (`POST /api/auth/login`, same lock after 5 wrong passwords) but never gets the
+30-day remember-me cookie, even with `rememberMe: true`. On the owner's web an admin session looks signed out
+(`GET /api/auth/me` is `401`); one browser holds one session, so signing in as one signs the other out.
+
+```bash
+curl -s -c jar -b jar http://localhost:8080/api/auth/me > /dev/null              # sets XSRF-TOKEN
+XSRF=$(awk '$6 == "XSRF-TOKEN" {print $7}' jar)
+curl -s -c jar -b jar -H "X-XSRF-TOKEN: $XSRF" -H 'Content-Type: application/json' \
+     -d '{"email":"admin@example.com","password":"<SINO_ADMIN_PASSWORD>"}' http://localhost:8080/api/auth/login
+curl -s -b jar http://localhost:8080/api/admin/overview
+curl -s -b jar http://localhost:8080/api/admin/accounts
+```
+
+Roles: `/api/admin/**` needs `ADMIN`; every other `/api/**` path needs a signed-in caller that is **not** `ADMIN`
+(D-263). That is a deny list, right while every caller who is not the admin is the owner. When Sino gets more users
+or a third role, switch `/api/**` to an allow list (`hasRole("OWNER")`, or the users' role) in `SecurityConfig` and
+give the tests' `user(...)` that role.
+
 ## Endpoints available today
 
 | Path | Access | Notes |
@@ -314,7 +348,8 @@ Good to know:
 | `/actuator/health` | public | Overall status. Signed in, you also see each component. |
 | `/actuator/health/liveness`, `/actuator/health/readiness` | public | Readiness includes the database, liveness does not. |
 | `/actuator/info` | public | |
-| `/api/**` | signed in (session cookie, see below) | Business endpoints below. Changes (`POST`, `PUT`, `PATCH`, `DELETE`) also need the CSRF token. |
+| `/api/**` | signed in (session cookie, see below), not as admin | Business endpoints below. Changes (`POST`, `PUT`, `PATCH`, `DELETE`) also need the CSRF token. A signed-in admin gets `403 FORBIDDEN` here (D-263, see *Admin*). |
+| `/api/admin/**` | signed in as admin | The read-only admin API (see *Admin*); anyone else signed in gets `403 FORBIDDEN` (`401` when signed in by the remember-me cookie alone). |
 | `GET /api/auth/me` | public | `200 {email, displayName}` when signed in, `401` otherwise. Also hands out the `XSRF-TOKEN` cookie. |
 | `POST /api/auth/login` | public, CSRF | `{email, password, rememberMe}` → `204` and a session cookie (plus a 30-day remember-me cookie when `rememberMe` is true). Wrong email or password → `401` `INVALID_CREDENTIALS` with `remainingAttempts`; the 5th wrong attempt in a row locks that email for 15 minutes → `429` `LOGIN_LOCKED` with `retryAfterSeconds` and a `Retry-After` header (D-35). |
 | `POST /api/auth/logout` | CSRF | `204`; ends the session and deletes the remember-me cookie. |
@@ -348,6 +383,10 @@ Good to know:
 | `POST /api/tasks/{id}/reopen` | signed in, CSRF | The task is `OPEN` again; a next occurrence already made stays (D-154). |
 | `DELETE /api/tasks/{id}` | signed in, CSRF | `204`; this task only, the other occurrences of its series stay. |
 | `GET /api/events/stream` | signed in | Server-Sent Events of the current user (F08, D-77): `conversations.changed {type, accountId, conversationIds, newInbound, source: import\|sync\|user, at}` and `account.changed {type, accountId, at}`, sent once the change is committed; ids and counts only, never mail. `retry: 3000` first, a `:` comment every 25 s, closed after 20 minutes (the browser connects again), at most 5 streams per user (a 6th closes the oldest). `401` without a session. |
+| `GET /api/admin/me` | admin | `{email}` of the signed-in admin. |
+| `GET /api/admin/overview` | admin | `{generatedAt, users, accounts, accountsByStatus, accountsWithSyncErrors, storedMessages}`: `accounts` and `storedMessages` leave removed accounts out; `accountsByStatus` always has `CONNECTED`, `DEGRADED`, `AUTH_EXPIRED`, `ERROR` and `DISABLED`; `accountsWithSyncErrors` counts the accounts whose import failed, whose last sync failed, or whose push notices could not be turned on. |
+| `GET /api/admin/users` | admin | `{generatedAt, users}`: every Sino user, oldest first, `{id, email, displayName, status, createdAt, accounts}`, `accounts` = connected accounts that are not removed. |
+| `GET /api/admin/accounts` | admin | `{generatedAt, accounts}`: every account that is not removed, of every user, oldest first, `{id, ownerId, provider, address, status, syncEnabled, createdAt, storedMessages, sync: {importStatus, importError, lastSyncAt, syncError, push}}`; `importStatus` is `NONE` (never started), `RUNNING`, `DONE` or `FAILED`, `push` as in `GET /api/accounts/{id}/sync`. No message, credential or provider ID, ever (D-264). |
 | `POST /api/webhooks/gmail` | public, Google's token | Where Pub/Sub pushes Gmail's notices (F07, D-76; see *Gmail: new mail in seconds*); only with the three Pub/Sub settings, `404` otherwise. No session, no CSRF: `Authorization: Bearer <OIDC token>` signed by Google for the configured audience and service account. `204` (the account watched under the notice's address is synced in the background; a notice that cannot be read is dropped), `401 PUSH_TOKEN_INVALID`, `503 PUSH_KEYS_UNAVAILABLE` (Google's keys cannot be fetched), `400` (the body broke off). |
 | any other path | denied | Other actuator endpoints need a signed-in user and are not exposed (404). The `local` profile also exposes `/actuator/modulith`. |
 
@@ -382,7 +421,8 @@ The error code catalog is in the F01 design (`openspec/changes/archive/2026-10-0
 | Send one real reply from that account, to an address you pick (by hand, never in CI) | `./mvnw test -Preal-gmail -Dtest=RealGmailReplyTests -Dsino.real-gmail.reply.conversation=… -Dsino.real-gmail.reply.to=…` (see *Reply from a real mailbox*) |
 
 Tests run with the `test` profile (`src/test/resources/application-test.yaml`, fake owner `owner@sino.test` /
-`test-owner-password`) against PostgreSQL 18 started by Testcontainers. GitHub Actions
+`test-owner-password`, fake admin `admin@sino.test` / `test-admin-password`) against PostgreSQL 18 started by
+Testcontainers. GitHub Actions
 (`.github/workflows/backend-ci.yml`) runs `./mvnw -B verify` on pushes and pull requests that touch this folder.
 
 ## Module conventions

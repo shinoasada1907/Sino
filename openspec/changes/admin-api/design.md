@@ -156,8 +156,8 @@ Không chạy mutation cho từng task (luật chung của dự án cho task nh�
 
 ## Definition of Done
 
-- [ ] Scenario của spec `admin-api` và delta `module-boundaries` chạy đúng.
-- [ ] `./mvnw -B -ntp verify` xanh; `ModularityTests` thấy `admin` và ranh giới đúng.
-- [ ] Test sẵn có (owner, web) không phải sửa; owner không thấy thay đổi nào.
-- [ ] README (mục admin, biến môi trường), `.env.example`, mục admin trong file kiến thức Phase 0 + `.docx` (`genoffice docs check`), ghi chú `openspec/roadmap.md`.
-- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có **LÝ DO**; `PROJECT_STATE.md` cập nhật; người dùng xem lại D-260…D-266 rồi mới archive.
+- [x] Scenario của spec `admin-api` và delta `module-boundaries` chạy đúng (BE-102 đối chiếu từng scenario với test; ca "người dùng không có tài khoản → `0`" thiếu test, đã thêm `aUserWithoutAccountsCountsZero`). Trên server thật chỉ là test trên PostgreSQL thật (Testcontainers); chạy thật trên backend của người dùng là ACC.
+- [x] `./mvnw -B -ntp verify` xanh (BE-101: 1494 test, 0 lỗi); `ModularityTests` thấy `admin` và ranh giới đúng.
+- [x] Test sẵn có của backend không phải sửa hành vi (chỉ thêm admin giả vào `application-test.yaml` và thêm ca vào `LoginSettingsTests`); toàn bộ test của owner xanh. Web không đổi file nào nên không chạy test web.
+- [x] README (mục admin, biến môi trường), `.env.example`, mục 25 trong file kiến thức Phase 0 + `.docx` (`genoffice docs check`), ghi chú `openspec/roadmap.md`.
+- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có **LÝ DO**; `PROJECT_STATE.md` cập nhật; người dùng xem lại D-260…D-266 rồi mới archive. (Còn: ACC và archive của người dùng.)

@@ -159,6 +159,16 @@ class AdminApiTests {
     }
 
     @Test
+    void aUserWithoutAccountsCountsZero() throws Exception {
+        UUID carol = users.save(new AppUser("carol@admin.test", "Carol")).id();
+
+        mvc.perform(get("/api/admin/users").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.users[2].id").value(carol.toString()))
+                .andExpect(jsonPath("$.users[2].accounts").value(0));
+    }
+
+    @Test
     void theAccountsComeOldestFirstWithTheirSyncAndMailCount() throws Exception {
         mvc.perform(get("/api/admin/accounts").with(admin()))
                 .andExpect(status().isOk())

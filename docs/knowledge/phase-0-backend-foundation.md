@@ -1020,3 +1020,15 @@ admin ──> identity.UserDirectory      (người dùng)
 
 - `UserDirectoryServiceTests`, `AccountRosterServiceTests` (`@DataJpaTest`), `SyncStatusServiceTests` (`@JdbcTest`, ghi trạng thái bằng chính `SyncCheckpoints` của module `sync`), `AdminApiTests` (cả ứng dụng, `MockMvc`, thư lưu bằng `ConversationStore` thật).
 - Test viết trước: sau bước "ba public API", test của chúng xanh còn `AdminApiTests` đỏ đúng 4 ca (`404`, chưa có endpoint); sau bước "module admin" thì xanh.
+- Lúc nghiệm thu (BE-102), đối chiếu từng scenario của spec với test thì thấy thiếu ca "người dùng không có tài khoản nào đếm là 0". Test `aUserWithoutAccountsCountsZero` viết **sau** code nên xanh ngay; để biết nó có thể đỏ, gài lỗi `getOrDefault(user.id(), 1L)` vào `AdminQueries`: test đỏ, rồi trả code về như cũ.
+
+### 25.11 Tự kiểm tra phần admin
+
+1. Vì sao admin không phải là một dòng trong `app_user`, và khi nào điều đó sẽ phải đổi?
+2. Admin gửi `rememberMe: true` thì điều gì xảy ra, và luật đó nằm ở lớp nào?
+3. Đổi thứ tự hai quy tắc `/api/admin/**` và `/api/**` trong `SecurityConfig` thì admin gặp gì?
+4. Vì sao Sino chặn admin khỏi API của owner bằng "không phải ADMIN" chứ chưa dùng "phải là OWNER"? Cái giá phải trả là gì?
+5. Owner chỉ còn cookie ghi nhớ (phiên đã hết) gọi `/api/admin/me` thì nhận `401` hay `403`, và vì sao?
+6. Vì sao module `admin` không viết SQL đọc thẳng bảng `sync_checkpoint`, dù như vậy nhanh hơn?
+7. Vì sao `UserSummary.status` là chữ mà không phải enum `UserStatus`?
+8. Test `noAnswerCarriesTheMailItself` bảo vệ điều gì, và vì sao điều đó quan trọng với việc Google thẩm định Sino?

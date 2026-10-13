@@ -26,7 +26,8 @@
   - **Test:** như mục Testing của design (public API trên PostgreSQL thật, API admin, không lộ nội dung, `ModularityTests`).
   - **Acceptance criteria:** requirement "Danh sách người dùng cho admin", "Danh sách tài khoản kết nối cho admin", "Tổng quan cho admin", "Admin không thấy nội dung của người dùng" của spec `admin-api`; delta `module-boundaries`.
 
-- [ ] 1.3 **BE-102 — README, biến môi trường, ghi chú roadmap**
+- [x] 1.3 **BE-102 — README, biến môi trường, ghi chú roadmap** · DONE 2026-10-13
+  - **Bằng chứng:** README có mục *Admin (read-only operator API)*, các dòng `/api/admin/**` trong bảng endpoint, dòng `/api/**` ghi "not as admin", admin giả của test; `.env.example` có từ BE-100; ghi chú "Ngoài các phase — Admin" trong `openspec/roadmap.md`; mục 25.11 (tự kiểm tra) trong file kiến thức, `.docx` sinh lại, `genoffice docs check` không lỗi; `openspec validate admin-api --strict` hợp lệ. Đối chiếu scenario với test: thêm `aUserWithoutAccountsCountsZero` (`AdminApiTests` 7/7; gài lỗi `getOrDefault(..., 1L)` làm test này đỏ, rồi trả code lại).
   - **Goal / Why:** người dùng bật được admin và biết giới hạn của nó.
   - **Depends on:** BE-101.
   - **Files:** `apps/sino-api/README.md` (mục admin), `.env.example` (nếu BE-100 chưa đủ), `openspec/roadmap.md` (ghi chú admin), file kiến thức + `.docx`, `PROJECT_STATE.md`.

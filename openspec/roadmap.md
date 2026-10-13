@@ -251,6 +251,12 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 ---
 
+### Ngoài các phase — Admin (vận hành)
+
+> **Mở 2026-10-13 (người dùng):** "sau này đường nào cũng có 1 trang admin để quản lý Sino và quản lý cả nội dung landing page". Hướng đã chốt: admin là module `admin` trong `sino-api` (`/api/admin/**`, role `ADMIN`), không dựng backend thứ hai; khi có sản phẩm thứ hai mới tách phần nền tảng dùng chung (đăng nhập chung, CMS), dữ liệu riêng của Sino ở lại. Đợt đầu: change `openspec/changes/admin-api` (D-260…D-266, agent chốt theo ủy quyền "xây đi không cần hỏi"): tài khoản admin từ cấu hình, tách quyền với owner, API chỉ đọc (tổng quan, người dùng, tài khoản kết nối và tình trạng sync), không bao giờ trả nội dung thư. Để sau: giao diện admin (project web riêng), quản lý nội dung landing (`apps/sino-site`, cân nhắc headless CMS), thao tác ghi và nhật ký thao tác (khi có nhiều người dùng).
+
+---
+
 ## 4. Các điểm quyết định theo thời gian
 
 | Khi nào | Quyết định |
