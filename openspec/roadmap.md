@@ -264,6 +264,11 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 >   - thao tác ghi chỉ thêm sau khi có nhật ký thao tác.
 > - **Không đặt trong `sino-site`:** site công khai dựng tĩnh để Google thẩm định. Host tĩnh không chuyển `/api` sang backend được, nên phải mở CORS có cookie và đổi `SameSite`. Mọi khách cũng sẽ tải về code và trang đăng nhập quản trị.
 > - **Không đặt trong `sino-web`:** admin và owner sẽ dùng chung cookie phiên trên một trình duyệt.
+> - **Không tách backend riêng cho admin** (người dùng hỏi, đồng ý 2026-10-13): vẫn là module `admin` của `sino-api` (D-260…D-266). Tách quyền theo role, subdomain tách cookie phiên, API chỉ trả metadata. Hai backend sẽ phải viết lại đăng nhập, phiên, CSRF, và phải đọc database của nhau. Chỉ tách khi có sản phẩm thứ hai dùng chung nền tảng, hoặc khi admin phải chạy ở mạng riêng.
+> - **Chặn thêm ở reverse proxy khi deploy** (lớp phòng thủ thứ hai, không thay cho kiểm role ở `sino-api`):
+>   - `app.<tên miền>`: chuyển `/api/**` tới `sino-api` nhưng **chặn `/api/admin/**`**;
+>   - `admin.<tên miền>`: **chỉ** chuyển `/api/auth/**` và `/api/admin/**`;
+>   - trước `admin.<tên miền>` đặt thêm một lớp chặn truy cập: chỉ IP của người vận hành, hoặc Cloudflare Access.
 > - **Nội dung landing:** giữ trong code (git là lịch sử phiên bản; Privacy/Terms phải được đọc lại trước khi đổi). Chỉ xem headless CMS khi có người không viết code cần sửa chữ thường xuyên.
 
 ---
