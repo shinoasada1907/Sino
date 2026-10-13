@@ -52,9 +52,14 @@ public class LiveSyncService {
         if (checkpoint == null) {
             return new LiveSyncStatus(false, null, null, "OFF", null);
         }
-        String push = checkpoint.watchError() != null ? "FAILED" : checkpoint.watchOn() ? "ACTIVE" : "OFF";
+        String push = pushOf(checkpoint);
         return new LiveSyncStatus("DONE".equals(checkpoint.status()), checkpoint.lastSyncAt(),
                 checkpoint.lastSyncError(), push, "ACTIVE".equals(push) ? checkpoint.watchExpiresAt() : null);
+    }
+
+    /** {@code FAILED} when the last watch registration failed, {@code ACTIVE} while the watch is on, else {@code OFF}. */
+    static String pushOf(Checkpoint checkpoint) {
+        return checkpoint.watchError() != null ? "FAILED" : checkpoint.watchOn() ? "ACTIVE" : "OFF";
     }
 
     /**

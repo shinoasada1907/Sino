@@ -982,3 +982,41 @@ Bối cảnh: Sino có một owner (người đọc thư). Người dùng muốn
 
 - `LoginSettingsTests` (thêm 8 ca admin), `AdminLoginTests` (role, cookie ghi nhớ, cookie giả mạo), `AdminSignInTests` (server thật cổng ngẫu nhiên, client giữ cookie như trình duyệt).
 - Test viết trước: sau bước "identity" (cấu hình, đăng nhập), `AdminSignInTests` đỏ đúng 4 ca (admin vẫn đọc được `/api/accounts`, chưa có `/api/admin/me`); sau bước "security chain + controller" thì xanh.
+- Kiểm bằng lỗi gài (mutation): 8 lỗi gài vào `LoginSettings`, `LoginConfiguration`, `SecurityConfig` (ví dụ bỏ `not(hasRole("ADMIN"))`, cho admin nhận cookie ghi nhớ), cả 8 đều làm test đỏ. Nghĩa là nếu ai đó vô tình làm hỏng một trong các luật này, build sẽ báo.
+
+### 25.7 Ba public API mới cho người vận hành (BE-101, D-265)
+
+- **Ở đâu:** `identity/UserDirectory.java` + `UserSummary.java`; `account/AccountRoster.java` + `AccountListing.java`; `sync/SyncStatuses.java` + `AccountSyncStatus.java`. Phần cài đặt: `UserDirectoryService`, `AccountRosterService`, `SyncStatusService` trong package `application` của từng module.
+- **Là gì:** mỗi module mở thêm một "cửa sổ chỉ đọc" ở **base package** của nó (package `dev.sino.<module>`). Spring Modulith chỉ cho module khác dùng type ở base package; mọi thứ trong `application`, `domain`, `infrastructure` là nội bộ.
+
+```text
+admin ──> identity.UserDirectory      (người dùng)
+      ──> account.AccountRoster       (tài khoản của mọi owner, trừ đã gỡ)
+      ──> sync.SyncStatuses           (tình trạng nhập thư / đồng bộ / thông báo đẩy)
+      ──> conversation.ConversationStats  (số thư đã lưu, có sẵn từ F05)
+```
+
+- **Để làm gì:** module `admin` cần dữ liệu của bốn module khác mà không được đọc thẳng bảng của chúng.
+- **Vì sao chọn:** nếu `admin` viết SQL đọc thẳng `connected_account` hay `sync_checkpoint`, thì `ModularityTests` **không bắt được** (nó chỉ kiểm tham chiếu giữa các class Java, không đọc chuỗi SQL), và khi module `sync` đổi bảng thì admin hỏng mà không ai biết. Qua public API, module sở hữu dữ liệu tự quyết cách đọc.
+- **Vì sao `AccountRoster` tách khỏi `AccountDirectory`:** `AccountDirectory` là cách các module đọc tài khoản **của một owner** để làm việc cho owner đó. "Mọi tài khoản của mọi người" là việc của người vận hành, một vai khác; trộn vào một interface thì dễ có người dùng nhầm method "mọi tài khoản" trong một request của người dùng.
+- **Bẫy:** `UserSummary.status` là chữ (`"ACTIVE"`), không phải enum `UserStatus`. Enum đó nằm trong `identity.infrastructure` (nội bộ); đưa nó vào một type công khai thì module khác phải import một type nội bộ và `ModularityTests` báo lỗi.
+
+### 25.8 Một chỗ tính `push` cho cả owner và admin (BE-101)
+
+- **Ở đâu:** `sync/application/LiveSyncService.pushOf(Checkpoint)`, được `LiveSyncService` (API của owner) và `SyncStatusService` (cho admin) cùng gọi.
+- **Là gì:** `FAILED` khi lần đăng ký nhận thông báo cuối bị lỗi, `ACTIVE` khi đang nhận, `OFF` khi không có.
+- **Vì sao chọn:** chép quy tắc này sang `SyncStatusService` thì sau này sửa một chỗ, quên chỗ kia, owner và admin sẽ thấy hai trạng thái khác nhau cho cùng một tài khoản. `LiveSyncApiTests` (test cũ của owner) vẫn xanh, chứng tỏ tách ra không đổi hành vi.
+
+### 25.9 `AdminQueries` và API chỉ đọc (BE-101, D-264)
+
+- **Ở đâu:** `admin/application/AdminQueries.java` và các record `UserView`, `AccountView`, `SyncView`, `Overview`; `admin/api/AdminController.java` với `OverviewResponse`, `UsersResponse`, `AccountsResponse`.
+- **Là gì:** `AdminQueries` ghép dữ liệu từ bốn public API ở trên thành ba câu trả lời: tổng quan, người dùng, tài khoản. Controller thêm `generatedAt` (lấy từ bean `Clock`, như các API khác của Sino) và trả JSON.
+- **Không lộ nội dung:** các record chỉ có metadata và con số. Test `noAnswerCarriesTheMailItself` lưu một thư thật (có tiêu đề, nội dung, người gửi) rồi kiểm rằng **không** câu trả lời nào của admin chứa các chuỗi đó, cũng không chứa ID của nhà cung cấp hay chữ "token". Lý do: chính sách Limited Use của Google không cho người vận hành đọc thư của người dùng.
+- **Vì sao `accountsByStatus` luôn đủ năm khóa:** giao diện không phải đoán khóa nào có mặt; một `Map` chỉ có khóa khi có tài khoản ở trạng thái đó buộc mọi giao diện viết thêm `?? 0`. Dùng `LinkedHashMap` để thứ tự theo enum `AccountStatus`, không ngẫu nhiên.
+- **Bẫy, N+1:** mỗi tài khoản tốn hai truy vấn (tình trạng sync, số thư). Với vài tài khoản thì không đáng kể; khi có hàng trăm người dùng thì phải thêm cách đọc theo lô. Đây là đánh đổi có ý thức, ghi ở Risks của design.
+- **Bẫy, test dùng chung database:** các test của Sino chạy trên cùng một PostgreSQL (Testcontainers). Con số tổng quan đếm **mọi** người dùng và tài khoản, nên `AdminApiTests` xóa dữ liệu trước mỗi test (như `AccountsApiTests`). Các test của public API thì không xóa, mà chỉ nhìn những dòng chính nó tạo, vì xóa `app_user` có thể vướng khóa ngoại của bảng khác (`task`).
+
+### 25.10 Kiểm chứng của BE-101
+
+- `UserDirectoryServiceTests`, `AccountRosterServiceTests` (`@DataJpaTest`), `SyncStatusServiceTests` (`@JdbcTest`, ghi trạng thái bằng chính `SyncCheckpoints` của module `sync`), `AdminApiTests` (cả ứng dụng, `MockMvc`, thư lưu bằng `ConversationStore` thật).
+- Test viết trước: sau bước "ba public API", test của chúng xanh còn `AdminApiTests` đỏ đúng 4 ca (`404`, chưa có endpoint); sau bước "module admin" thì xanh.

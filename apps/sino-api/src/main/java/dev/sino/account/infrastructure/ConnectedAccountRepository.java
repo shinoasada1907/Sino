@@ -18,6 +18,9 @@ public interface ConnectedAccountRepository extends JpaRepository<ConnectedAccou
     /** The accounts of one user that are not removed, oldest first. */
     List<ConnectedAccount> findByOwnerIdAndRemovedAtIsNullOrderByCreatedAtAscIdAsc(UUID ownerId);
 
+    /** The accounts of every user that are not removed, oldest first: for the admin (D-265), never for a user. */
+    List<ConnectedAccount> findByRemovedAtIsNullOrderByCreatedAtAscIdAsc();
+
     /** The account with this ID when it is not removed, whoever owns it: for calls inside Sino, never for the API. */
     Optional<ConnectedAccount> findByIdAndRemovedAtIsNull(UUID id);
 
