@@ -36,8 +36,8 @@
 
 ## 2. Nghiệm thu
 
-- [ ] 2.1 **ACC — Người dùng chạy thật, xem lại quyết định**
+- [x] 2.1 ~~**ACC — Người dùng chạy thật, xem lại quyết định** trước khi archive~~ → để sau archive. **LÝ DO:** người dùng cho archive ngay sau BE-102 ("archive admin-api luôn đi", 2026-10-13). Chạy thật trên backend của người dùng **chưa làm**, D-260…D-266 vẫn là "agent chốt", chưa được duyệt; cả hai ghi là việc còn mở ở `PROJECT_STATE.md`. Đổi quyết định nào sau này thì làm thành change mới, sửa spec `admin-api`.
   - Đặt `SINO_ADMIN_EMAIL` / `SINO_ADMIN_PASSWORD` trong `.env`, khởi động lại backend, đăng nhập admin bằng `curl` theo README, gọi ba endpoint; thấy owner vẫn dùng web như cũ.
-  - Xem lại D-260…D-266 (agent chốt theo ủy quyền); quyết định nào đổi thì ghi lại và sửa trước khi archive.
+  - Xem lại D-260…D-266 (agent chốt theo ủy quyền).
 
-- [ ] 2.2 **Archive:** `openspec archive admin-api -y` sau ACC. Delta `module-boundaries` là ADDED, không đụng requirement mà `f15-notes` / `f16-f17-tasks-calendar` sửa, nên thứ tự archive với hai change đó không quan trọng.
+- [x] 2.2 **Archive:** `openspec archive admin-api -y` (2026-10-13, theo yêu cầu của người dùng, trước ACC). Delta `module-boundaries` là ADDED, không đụng requirement mà `f15-notes` / `f16-f17-tasks-calendar` sửa, nên thứ tự archive với hai change đó không quan trọng.

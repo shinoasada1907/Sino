@@ -160,4 +160,4 @@ Không chạy mutation cho từng task (luật chung của dự án cho task nh�
 - [x] `./mvnw -B -ntp verify` xanh (BE-101: 1494 test, 0 lỗi); `ModularityTests` thấy `admin` và ranh giới đúng.
 - [x] Test sẵn có của backend không phải sửa hành vi (chỉ thêm admin giả vào `application-test.yaml` và thêm ca vào `LoginSettingsTests`); toàn bộ test của owner xanh. Web không đổi file nào nên không chạy test web.
 - [x] README (mục admin, biến môi trường), `.env.example`, mục 25 trong file kiến thức Phase 0 + `.docx` (`genoffice docs check`), ghi chú `openspec/roadmap.md`.
-- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có **LÝ DO**; `PROJECT_STATE.md` cập nhật; người dùng xem lại D-260…D-266 rồi mới archive. (Còn: ACC và archive của người dùng.)
+- [x] `tasks.md` tick đủ, chỗ lệch kế hoạch có **LÝ DO**; `PROJECT_STATE.md` cập nhật. ~~Người dùng xem lại D-260…D-266 rồi mới archive~~ → người dùng cho archive trước (2026-10-13); D-260…D-266 vẫn chờ duyệt, chạy thật chưa làm (ghi ở `PROJECT_STATE.md`).
