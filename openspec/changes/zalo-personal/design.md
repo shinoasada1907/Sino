@@ -3,7 +3,7 @@
 > Mode: **HYBRID**, change này **TRAINING**: người dùng code toàn bộ ("Toàn bộ", 2026-10-14; `project-mode.yaml` `zalo-personal`, `new_features: TRAINING`). Claude lên kế hoạch, hướng dẫn từng task theo D-287, review, chạy test.
 > Thiết kế duyệt trong chat ngày 2026-10-14, theo 5 phần: tổng thể, kết nối QR, nhận tin, trả lời và lỗi, test và thứ tự task. Mỗi phần người dùng trả lời "oke". Quyết định do người dùng chốt ghi **Người dùng chốt**. Chi tiết agent thêm khi viết hồ sơ ghi **Agent chốt khi viết hồ sơ, cần xem lại**.
 > Review đối chiếu với code ngày 2026-10-14 (session sino-api-dc) tìm ra một lỗi ở luồng quét lại và vài chỗ hở; người dùng: "làm đi". Phần sửa ghi **Agent chốt theo ủy quyền, cần xem lại**, và chỗ đổi trong quyết định cũ ghi "Đã sửa sau review" kèm **LÝ DO**.
-> Số quyết định: D-270…D-290. Mã task: ZL-00…ZL-13.
+> Số quyết định: D-270…D-290. Mã task: ZL-00…ZL-13 (ZL-00 gộp vào ZL-13 theo người dùng, D-270).
 > Nguồn: zca-js 2.2.0 (README, `src/apis/listen.ts`, `loginQR.ts`, `getGroupChatHistory.ts`, `sendMessage.d.ts`), issue zca-js #331 và #344 (mã `3003`), spike `spikes/zalo-zca/` (2026-10-14), contract F03 (`MessageProvider`), F07 (`PushWatches`, `PushNotices`, `LiveSyncSchedule`), F10 (`ReplyService`, D-131…D-138).
 
 ## Context
@@ -33,7 +33,7 @@
 | Listener khi chỉ dùng app trên điện thoại | sống đủ 20 phút; nhận 2 tin nhóm (ảnh `chat.photo`, chữ `webchat` 65 ký tự), mỗi tin đến sau khoảng 0,2 giây |
 | `requestOldMessages(type, lastId)` | chỉ trả tin **sau** `lastId`; khi `lastId` = null thì trả 2 tin gần đây của buổi trước. Không lấy được lịch sử cũ |
 | `getGroupChatHistory` | `404` với zca-js 2.2.0 |
-| Tin 1-1, tin tự gửi từ điện thoại, gửi tin, tuổi thọ phiên, Zalo PC | **chưa đo** → ZL-00 |
+| Tin 1-1, tin tự gửi từ điện thoại, gửi tin, tuổi thọ phiên, Zalo PC | **chưa đo** → ~~ZL-00~~ ZL-13 (D-270) |
 
 ## Goals / Non-Goals
 
@@ -54,13 +54,21 @@
 
 ## Decisions
 
-### D-270 — Zalo cá nhân qua zca-js, có cổng đi/không đi ZL-00 · **Người dùng chốt** (2026-10-14)
+### D-270 — Zalo cá nhân qua zca-js; ~~có cổng đi/không đi ZL-00~~ đo gộp vào nghiệm thu ZL-13 · **Người dùng chốt** (2026-10-14)
 Provider thứ hai (F09) là Zalo cá nhân, đi qua thư viện không chính thức zca-js.
-Trước khi code từ ZL-03 trở đi, ZL-00 đo bằng script spike. Nếu listener bị đá khi người dùng không mở Web/PC, hoặc không bù được tin lỡ, thì **dừng**; khi đó Decision Needed DN-1 do người dùng quyết.
+~~Trước khi code từ ZL-03 trở đi, ZL-00 đo bằng script spike. Nếu listener bị đá khi người dùng không mở Web/PC, hoặc không bù được tin lỡ, thì **dừng**; khi đó Decision Needed DN-1 do người dùng quyết.~~
+**Đã sửa (người dùng, 2026-10-14, sau review):** không có cổng đo trước khi code. Code từ ZL-01 tới ZL-12 liền một mạch. Các phép đo của ZL-00 làm cùng lúc với lần chạy thật ở ZL-13, bằng `sino-zalo` thật (hoặc script spike khi cần). **LÝ DO:** người dùng: "không cần đầu khi nào làm rồi work 1 thể vì login được rồi mà". Spike đã chứng minh đăng nhập QR, dùng lại phiên và nhận tin chạy được. Phần còn chưa đo được thiết kế để vẫn chạy được trước khi đo:
+- tên `zaloType` sai thì tin rơi vào hàng "loại khác" của D-279, không mất tin;
+- độ dài trang bù tin không cần biết trước, vì bù tin đọc tới khi nối liền (D-278);
+- quét lại khi phiên cũ còn sống được D-289 xử lý dù Zalo có đá phiên cũ hay không.
+
+**Rủi ro người dùng chấp nhận:** nếu ZL-13 thấy listener bị đá cả khi chỉ dùng điện thoại, hoặc Zalo giữ tin quá ngắn để bù (DN-1), thì phần đã code có thể phải bỏ hoặc sửa nhiều.
+
 **Phương án bị loại:**
 - Zalo Official Account: chỉ dành cho doanh nghiệp, không đọc được hộp thư cá nhân.
 - Telegram trước: roadmap để ngỏ, nhưng người dùng muốn Zalo (2026-10-07, 2026-10-14).
-- Code ngay, không đo trước: nếu Zalo đá liên tục thì mất công cả change.
+- ~~Code ngay, không đo trước: nếu Zalo đá liên tục thì mất công cả change.~~ (Thành phương án được chọn, xem "Đã sửa" ở trên.)
+- Giữ ZL-00 làm cổng: thêm 24 giờ đến vài ngày đo trước khi code, trong khi phần quan trọng nhất (đăng nhập, nhận tin) đã chạy được.
 
 ### D-271 — Phạm vi bản đầu: đọc + trả lời chữ · **Người dùng chốt**
 Gồm tin mới 1-1 và nhóm vào Hộp thư, mở ra đọc, trả lời bằng chữ thuần (ngang Gmail ở F10). Ảnh, sticker, tệp, giọng nói hiện chữ thay thế.
@@ -168,10 +176,10 @@ QrLogin.cancel(loginId)
   2. chờ ~~cả hai trả về~~ (tối đa 5 giây cho cả lần bù);
   3. đổ kết quả vào bộ đệm, rồi mới trả lời;
   4. dừng vì hết 10 trang hoặc hết 5 giây mà chưa nối liền thì ghi log WARN (ID account, số trang, số tin; không có nội dung) và trả những gì đã có: phần còn lại bị mất, và log cho biết điều đó.
-  - **Đã sửa sau review:** đọc nhiều trang. **LÝ DO:** mỗi lần gọi `requestOldMessages` chỉ trả một trang. Nếu số tin lỡ dài hơn một trang thì phần giữa mất, và lần kéo sau không bù nữa vì bộ đệm đã có tin nhỏ hơn cursor, nên chỗ mất không ai thấy. Độ dài một trang đo ở ZL-00.
+  - **Đã sửa sau review:** đọc nhiều trang. **LÝ DO:** mỗi lần gọi `requestOldMessages` chỉ trả một trang. Nếu số tin lỡ dài hơn một trang thì phần giữa mất, và lần kéo sau không bù nữa vì bộ đệm đã có tin nhỏ hơn cursor, nên chỗ mất không ai thấy. Độ dài một trang đo ở ZL-13 (D-270).
 - **Giới hạn đã chấp nhận** (agent chốt theo ủy quyền, cần xem lại): trước tin đầu tiên của account, cursor còn rỗng (`nextCursor` rỗng, `ImportRunner` gọi lại bằng cursor đầu). Nếu `sino-zalo` khởi động lại trong khoảng đó thì tin đến lúc nó tắt không được bù, vì không có mốc để bù. Khoảng này chỉ kéo dài từ lúc kết nối tới tin đầu tiên. **Phương án bị loại:** lấy mốc bằng `requestOldMessages(loại, null)` (trả cả tin của buổi trước, trái "không nhập lịch sử", và chưa đo).
 - **Đã sửa so với phần 3 lúc trình bày:** ~~`PUT session` gửi kèm cursor để bù tin khi kết nối~~. **LÝ DO:** `registerPush` (D-277) không có cursor; chỉ lần kéo mới biết Sino đang ở đâu, nên bù ở đó là đúng một chỗ.
-- Zalo giữ tin bao lâu để bù thì đo ở ZL-00 (DN-1).
+- Zalo giữ tin bao lâu để bù, và một trang dài bao nhiêu tin, thì đo ở ~~ZL-00~~ ZL-13 (DN-1, D-270).
 
 **Phương án bị loại:** nhập lịch sử bằng `getGroupChatHistory` (trả `404`; với 1-1 thì không có API).
 
@@ -193,7 +201,7 @@ QrLogin.cancel(loginId)
 | `ts` | `sentAt` |
 | `msgId` | `externalMessageId` |
 
-Spike mới thấy hai loại `webchat` và `chat.photo`. Tên `chat.sticker`, `share.file`, `chat.voice` là **giả định, chưa kiểm**: ZL-00 ghi lại tên thật (gửi thử từng loại) và sửa bảng này trước ZL-08. Ảnh, tệp và giọng nói không có `NormalizedAttachment` ở bản đầu (D-271). Thu hồi tin, reaction, đã xem: `sino-zalo` ghi log loại sự kiện, không xử lý.
+Spike mới thấy hai loại `webchat` và `chat.photo`. Tên `chat.sticker`, `share.file`, `chat.voice` là **giả định, chưa kiểm**: ~~ZL-00 ghi lại tên thật (gửi thử từng loại) và sửa bảng này trước ZL-08~~ ZL-13 ghi lại tên thật (gửi thử từng loại), rồi sửa bảng này và `ZaloMessageNormalizer` (D-270). Tới lúc đó, tin có tên khác giả định rơi vào hàng "loại khác": hiện `[Tin Zalo chưa hỗ trợ]` và giữ tên gốc trong `metadata.zaloType`, nên không mất tin. Ảnh, tệp và giọng nói không có `NormalizedAttachment` ở bản đầu (D-271). Thu hồi tin, reaction, đã xem: `sino-zalo` ghi log loại sự kiện, không xử lý.
 
 ### D-280 — Trả lời chữ, chống gửi trùng, tra tin đã gửi, 1 tin/giây · **Người dùng chốt** (phần 4)
 - **Gửi:** `ZaloProvider.sendMessage` gọi `POST /accounts/{id}/messages` `{ threadId, threadType, text, clientMessageId }`, rồi `sino-zalo` gọi `sendMessage(text, threadId, type)` của zca-js. Kết quả là `SendMessageResult(msgId, SENT, sentAt)`. `ReplyService` (F10) không đổi.
@@ -357,24 +365,25 @@ Mọi request (trừ `/health`) có `Authorization: Bearer <SINO_ZALO_SECRET>`. 
   - Quét lại sau khi bị đá (D-289): account `AUTH_EXPIRED`, quét lại, lượt đồng bộ kế tiếp gặp `410` → `PUT` phiên mới → đọc được, account vẫn `CONNECTED`.
   - `ModularityTests` vẫn xanh.
 - **`sino-web`:** Vitest + MSW cho bước Zalo: cảnh báo (nút khóa tới khi tick), QR, `SCANNED` hiện tên, `DONE`, `EXPIRED` → "Tạo mã mới", `DECLINED`, đóng hộp thoại → `DELETE`, kết nối lại.
-- **Zalo thật:** chỉ ZL-00 (script spike) và ZL-13 (nghiệm thu), bằng nick phụ.
+- **Zalo thật:** chỉ ở ZL-13 (nghiệm thu và các phép đo chuyển từ ZL-00, D-270), bằng nick phụ; script spike dùng được khi cần đo riêng một điểm.
 
 ## Risks / Trade-offs
 
 - **Bị khóa nick:** cảnh báo và đồng ý (D-272), giới hạn 1 tin/giây (D-280), không tự đăng nhập lại sau khi bị đá (D-276), có công tắc tắt (D-286).
 - **Zalo đổi giao thức, zca-js hỏng:** zca-js ghim phiên bản; account thành "Cần đăng nhập lại" hoặc lỗi đồng bộ, nhìn thấy được; nâng zca-js là một task riêng.
 - **Người dùng mở Zalo Web bằng cùng nick:** Sino bị đăng xuất. Cảnh báo nói trước; trạng thái account nói sau.
-- **Mất tin khi `sino-zalo` tắt lâu hơn cửa sổ Zalo giữ tin:** đo ở ZL-00 (DN-1). Bù tin dừng ở 10 trang hoặc 5 giây thì phần còn lại mất, có log WARN (D-278); `sino-zalo` khởi động lại trước tin đầu tiên của account thì không bù được (D-278, giới hạn đã chấp nhận).
+- **Đo sau khi code xong** (D-270): độ bền 24 giờ và cửa sổ bù tin chỉ biết ở ZL-13. Nếu kết quả xấu thì phần đã code có thể phải bỏ hoặc sửa nhiều; người dùng chấp nhận.
+- **Mất tin khi `sino-zalo` tắt lâu hơn cửa sổ Zalo giữ tin:** đo ở ~~ZL-00~~ ZL-13 (DN-1). Bù tin dừng ở 10 trang hoặc 5 giây thì phần còn lại mất, có log WARN (D-278); `sino-zalo` khởi động lại trước tin đầu tiên của account thì không bù được (D-278, giới hạn đã chấp nhận).
 - **Cùng một nick ở hai owner:** bị chặn lúc kết nối (D-290).
 - **Thêm một service phải chạy:** `/health`, README, job CI (ZL-12).
 
 ## Decision Needed
 
-- **DN-1 (ZL-00):** nếu Zalo chỉ giữ tin trong thời gian ngắn, thì khi `sino-zalo` tắt lâu sẽ mất tin. **Phương án:**
+- **DN-1 (~~ZL-00~~ ZL-13):** nếu Zalo chỉ giữ tin trong thời gian ngắn, thì khi `sino-zalo` tắt lâu sẽ mất tin. **Phương án:**
   - (a) chấp nhận và ghi rõ trong màn kết nối;
   - (b) `sino-zalo` lưu bộ đệm xuống đĩa;
   - (c) dừng change.
 
   **Đề xuất:** (a) nếu cửa sổ ≥ 1 ngày, (c) nếu chỉ vài phút. **Câu hỏi cho người dùng:** cửa sổ ngắn nhất bạn chấp nhận?
-- **DN-2 (ZL-11):** chữ cảnh báo. **Bản nháp:** "Sino kết nối Zalo bằng cách không chính thức. Zalo có thể khóa tài khoản dùng cách này. Đừng mở Zalo Web hay Zalo PC bằng tài khoản này, vì Sino sẽ bị đăng xuất. Sino lưu phiên đăng nhập đã mã hóa và chỉ nhận tin từ lúc kết nối." **Câu hỏi:** sửa chữ nào? (Câu về Zalo PC theo kết quả ZL-00.)
+- **DN-2 (ZL-11):** chữ cảnh báo. **Bản nháp:** "Sino kết nối Zalo bằng cách không chính thức. Zalo có thể khóa tài khoản dùng cách này. Đừng mở Zalo Web hay Zalo PC bằng tài khoản này, vì Sino sẽ bị đăng xuất. Sino lưu phiên đăng nhập đã mã hóa và chỉ nhận tin từ lúc kết nối." **Câu hỏi:** sửa chữ nào? (Câu về Zalo PC giữ nguyên ở ZL-11 cho chắc, rồi sửa theo kết quả đo ở ZL-13.)
 - **DN-3 (sau change):** nơi chạy `sino-zalo` khi lên production, theo nơi chạy `sino-api`, chưa chọn.

@@ -29,7 +29,7 @@ Mọi lệnh ghi một dòng JSON mỗi sự kiện ra màn hình và `logs/<l�
 | Q4 | Nhận tin mới (1-1, nhóm, ảnh, tin của chính mình từ máy khác) và gửi tin có ổn? | `listen` + nhắn từ nick chính; `send` | 2026-10-14: 2 tin nhóm (`chat.photo`, `webchat` 65 ký tự), mỗi tin đến sau khoảng 0,2 giây. Tin 1-1, tin tự gửi, gửi: chưa đo |
 | Q5 | Có cảnh báo, đăng xuất hay khóa tài khoản trong lúc thử? | quan sát app Zalo trên điện thoại | 2026-10-14: chưa thấy cảnh báo, ngoài lần bị đá ở Q2 |
 
-Kế hoạch tích hợp và các phép đo còn lại (task ZL-00): `openspec/changes/zalo-personal/`.
+Kế hoạch tích hợp: `openspec/changes/zalo-personal/`. Các phép đo còn lại làm cùng lần nghiệm thu thật (task ZL-13, trước đây là ZL-00; người dùng chọn 2026-10-14, D-270).
 
 ## Dọn sau khi xong
 

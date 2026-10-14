@@ -14,29 +14,13 @@
 > - có mục trong `docs/knowledge/phase-5-multi-provider-send.md` và `.docx` sinh lại;
 > - có một commit riêng trên `dev`.
 >
-> **Zalo thật:** chỉ dùng nick phụ, chỉ ở ZL-00 và ZL-13.
+> **Zalo thật:** chỉ dùng nick phụ, chỉ ở ~~ZL-00 và~~ ZL-13.
 
 ## 0. Cổng đi/không đi
 
-- [ ] 0.1 **ZL-00 — Đo độ bền bằng script spike** (Claude chạy, người dùng làm theo hướng dẫn trên điện thoại)
-  - **Goal:** biết Zalo có giữ được kết nối và bù được tin lỡ không, trước khi code phần lớn (D-270).
-  - **Đã có (2026-10-14):** QR được; dùng lại phiên được; mở chat.zalo.me thì bị đá (`3003`, phiên bị hủy); 20 phút chỉ dùng điện thoại thì không bị đá; `requestOldMessages` chỉ trả tin sau `lastId`; `getGroupChatHistory` trả `404`. Bằng chứng ở design (Kết quả spike).
-  - **Còn đo:**
-    1. Listener 24 giờ, người dùng dùng điện thoại bình thường, không mở Web/PC.
-    2. Tin 1-1 từ nick chính; tin nhóm; tin tự gửi từ điện thoại; một ảnh, một sticker, một tệp, một tin thoại (ghi tên `zaloType` thật để sửa bảng D-279).
-    3. `send` một tin chữ tới nick chính, trong lúc `listen` đang chạy: ghi xem listener có nhận lại tin đó (`isSelf`) không, và `msgId` nhận lại có trùng `msgId` mà `send` trả không. Khác nhau thì một tin trả lời từ Sino sẽ hiện hai lần: báo lại trước ZL-09.
-    4. Tắt listener 1 giờ, rồi qua đêm, nhắn vào trong lúc tắt, rồi bù bằng `requestOldMessages(lastId)` (cần thêm lệnh `catchup <lastId>` vào script spike). Nhắn vào nhiều hơn một trang (khoảng 30 tin) để ghi **một trang dài bao nhiêu tin** và gọi tiếp bằng `lastId` của trang trước có ra trang sau không (D-278).
-    5. `check` sau 24 giờ và 72 giờ.
-    6. Mở Zalo PC bằng nick phụ.
-    7. Quét QR lần nữa bằng `login` trong lúc `listen` đang chạy (giống người dùng quét lại khi phiên cũ còn sống): listener cũ có bị đá không, và `check` bằng phiên cũ còn được không (D-289).
-    - Mục 7 và phần "trùng `msgId`" của mục 3, "độ dài trang" của mục 4 thêm sau review 2026-10-14 (D-278, D-289).
-  - **Acceptance criteria:**
-    - bảng kết quả trong `spikes/zalo-zca/README.md` đã điền;
-    - kết luận **đi** hoặc **dừng** theo D-270, ghi vào design;
-    - DN-1 được người dùng trả lời nếu cửa sổ bù tin ngắn.
-  - **Test:** log JSON của script (`logs/*.jsonl`, không commit), trích số liệu vào README.
-  - **Depends on:** —
-  - **Hints:** Level 1: "tại sao `requestOldMessages` với `lastId` cũ lại quan trọng hơn lịch sử cũ đối với Sino?"
+- [x] 0.1 ~~**ZL-00 — Đo độ bền bằng script spike** trước khi code~~ → các phép đo chuyển sang ZL-13, làm cùng lần chạy thật. **LÝ DO:** người dùng (2026-10-14): "không cần đầu khi nào làm rồi work 1 thể vì login được rồi mà". Spike đã chứng minh đăng nhập QR, dùng lại phiên và nhận tin chạy được. Phần chưa đo được thiết kế để vẫn chạy trước khi đo (D-270). Rủi ro người dùng chấp nhận: nếu ZL-13 thấy kết quả xấu (bị đá khi chỉ dùng điện thoại, cửa sổ bù tin quá ngắn) thì phần đã code có thể phải bỏ hoặc sửa nhiều. Không còn task nào chờ ZL-00.
+  - **Đã có từ spike (2026-10-14):** QR được; dùng lại phiên được; mở chat.zalo.me thì bị đá (`3003`, phiên bị hủy); 20 phút chỉ dùng điện thoại thì không bị đá; `requestOldMessages` chỉ trả tin sau `lastId`; `getGroupChatHistory` trả `404`. Bằng chứng ở design (Kết quả spike).
+  - **Hints** (giữ lại cho ZL-04): Level 1: "tại sao `requestOldMessages` với `lastId` cũ lại quan trọng hơn lịch sử cũ đối với Sino?"
 
 ## 1. `apps/sino-zalo` (Node + TypeScript)
 
@@ -45,7 +29,7 @@
   - **Files:** `apps/sino-zalo/{package.json,tsconfig.json,eslint.config.js,vitest.config.ts,.env.example,.gitignore,README.md}`, `src/{server.ts,app.ts,config.ts,auth.ts}`, `test/{auth.test.ts,health.test.ts,config.test.ts}`.
   - **Acceptance criteria:** spec `zalo-gateway` (Chỉ sino-api gọi được sino-zalo); `pnpm lint`, `pnpm typecheck`, `pnpm test` xanh; `pnpm dev` chạy và `curl /health` trả `UP`.
   - **Test:** thiếu khóa / sai khóa / đúng khóa; khóa ngắn hơn 32 byte làm `loadConfig` ném lỗi; `/health` không cần khóa.
-  - **Depends on:** — (làm được trong lúc ZL-00 đang đo)
+  - **Depends on:** — ~~(làm được trong lúc ZL-00 đang đo)~~ (ZL-00 gộp vào ZL-13, D-270)
   - **Bạn sẽ học:** cấu trúc một service Node + TypeScript, `app.ts` tách khỏi `server.ts` để test bằng `inject`, hook `onRequest` của Fastify, vì sao so khóa phải dùng `timingSafeEqual`.
   - **Hints:** Level 2: hàm `buildApp(config)` trả `FastifyInstance`, `server.ts` chỉ gọi `listen`. Kiểm khóa ở một hook, bỏ qua đúng `/health`.
 
@@ -63,7 +47,7 @@
   - **Files:** `src/sessions/{SessionManager.ts,routes.ts}`, `src/notify.ts`, `test/sessions.test.ts`.
   - **Acceptance criteria:** spec `zalo-gateway` (Vòng đời phiên và listener, gồm dấu vân tay phiên của D-289).
   - **Test:** `PUT` hai lần chỉ một listener; mã `3003` → `ENDED` + webhook + `410`; mã `1006` → nối lại; `DELETE` xóa sạch; account lạ → `404 UNKNOWN_ACCOUNT`; bốn hàng `PUT` của D-289: cùng phiên đang sống → không làm gì; cùng phiên đã `ENDED` → `410` mà `FakeZaloGateway` không nhận lời gọi nào; phiên khác → thay phiên, listener cũ dừng; phiên khác bị từ chối → `ENDED` + `410` (thêm sau review 2026-10-14).
-  - **Depends on:** ZL-02, **ZL-00 = đi**
+  - **Depends on:** ZL-02 ~~, **ZL-00 = đi**~~ (**LÝ DO:** ZL-00 gộp vào ZL-13, D-270)
   - **Bạn sẽ học:** vòng đời tài nguyên dài hạn (websocket) trong một service, idempotency, phân biệt lỗi tạm thời và lỗi vĩnh viễn.
   - **Hints:** Level 2: `SessionManager` giữ `Map<accountId, Session>`; `Session` có `state` (`LIVE` | `ENDED`), `ownId`, `fingerprint`, `listener`, bộ đệm (ZL-04). Level 1 (D-289): "nếu `PUT` thấy phiên đang sống là bỏ qua, thì người dùng quét lại xong, phiên mới đi vào `sino-zalo` bằng đường nào?"
 
@@ -115,7 +99,7 @@
   - **Goal:** tin Zalo hiện trong Hộp thư vài giây sau khi đến (D-277, D-279).
   - **Files:** `provider/infrastructure/zalo/{ZaloWebhookController,ZaloMessageNormalizer,ZaloMessages}.java`, `ZaloProvider.{registerPush,fetchUpdates}`, cấu hình bảo mật cho `/api/webhooks/zalo`, test `ZaloWebhookTests`, `ZaloMessageNormalizerTests`, `ZaloFetchUpdatesTests`.
   - **Acceptance criteria:** spec `zalo-provider` (Bảo đảm listener đang chạy; Lấy tin Zalo theo cursor; Chuẩn hóa tin Zalo; Webhook báo có tin Zalo).
-  - **Test:** từng hàng của bảng D-279 (đã sửa theo ZL-00); `registerPush` trả `expiresAt` = bây giờ + 3 ngày; `404` → `PUT session` → thử lại một lần; `410` → `PUT session` với phiên mới → thử lại → batch, account vẫn `CONNECTED` (quét lại sau khi bị đá, D-289); `410` rồi `PUT` cũng `410` → `AUTH_EXPIRED`; `nextCursor` = `null` của `sino-zalo` → cursor đầu; webhook đúng/sai khóa; body quá 1 KB bị từ chối. (Phần `410`, `expiresAt` và `nextCursor` = `null` thêm sau review 2026-10-14.)
+  - **Test:** từng hàng của bảng D-279 ~~(đã sửa theo ZL-00)~~ (tên `zaloType` ngoài `webchat`, `chat.photo` là giả định tới ZL-13; test thêm ca tên lạ → `[Tin Zalo chưa hỗ trợ]` + `metadata.zaloType`, D-270); `registerPush` trả `expiresAt` = bây giờ + 3 ngày; `404` → `PUT session` → thử lại một lần; `410` → `PUT session` với phiên mới → thử lại → batch, account vẫn `CONNECTED` (quét lại sau khi bị đá, D-289); `410` rồi `PUT` cũng `410` → `AUTH_EXPIRED`; `nextCursor` = `null` của `sino-zalo` → cursor đầu; webhook đúng/sai khóa; body quá 1 KB bị từ chối. (Phần `410`, `expiresAt` và `nextCursor` = `null` thêm sau review 2026-10-14.)
   - **Depends on:** ZL-07
   - **Bạn sẽ học:** luồng push → sync có sẵn của F07 (`PushNotices`, `PushWatches`), chuẩn hóa dữ liệu ngoài về mô hình chung, endpoint public có khóa bí mật.
   - **Hints:** Level 1: ~~"vì sao `expiresAt` = 1 ngày lại làm `PushWatches` gọi `registerPush` mỗi giờ, và đó có phải điều mình muốn không?"~~ **LÝ DO:** review 2026-10-14 đổi `expiresAt` thành 3 ngày (D-277), câu hỏi cũ không còn đúng. Câu mới: "`registerPush` giờ chỉ chạy khoảng mỗi ngày một lần; vậy sau khi `sino-zalo` khởi động lại, cái gì bật lại listener trong vòng 5 phút?"
@@ -124,7 +108,7 @@
   - **Goal:** trả lời tin Zalo từ Sino qua `ReplyService` của F10 mà không sửa lõi (D-280).
   - **Files:** `ZaloProvider.{sendMessage,findSentMessages}`, `ZaloClient` (gửi, tra), test `ZaloSendTests`, thêm ca Zalo vào `ConversationSendApiTests` nếu cần.
   - **Acceptance criteria:** spec `zalo-provider` (Trả lời tin Zalo); thư `UNKNOWN` của Zalo đi đúng D-136/D-138 khi tra trả `CANNOT_TELL` (ghi kết quả vào design D-280).
-  - **Test:** gửi `USER` và `GROUP`; `429` / `422` / `504`; `404` / `410` khi gửi → `PUT session` → gửi lại một lần, không gửi trùng (D-289); tra theo `clientMessageId`; tra gặp `404` → `PUT` → tra lại; `CANNOT_TELL` thành lỗi; nếu ZL-00 thấy tin vọng lại qua listener có `msgId` khác, thêm test cho cách đã chọn để không hiện hai lần. (Phần `404` / `410` và tin vọng lại thêm sau review 2026-10-14.)
+  - **Test:** gửi `USER` và `GROUP`; `429` / `422` / `504`; `404` / `410` khi gửi → `PUT session` → gửi lại một lần, không gửi trùng (D-289); tra theo `clientMessageId`; tra gặp `404` → `PUT` → tra lại; `CANNOT_TELL` thành lỗi; nếu ~~ZL-00~~ ZL-13 thấy tin vọng lại qua listener có `msgId` khác, sửa và thêm test cho cách đã chọn để không hiện hai lần. (Phần `404` / `410` và tin vọng lại thêm sau review 2026-10-14.)
   - **Depends on:** ZL-08
   - **Bạn sẽ học:** idempotency đầu-cuối (web → `sino-api` → `sino-zalo`), xử lý "kết quả không rõ".
   - **Hints:** Level 2: loại thread lấy từ cuộc trò chuyện đã lưu (`DIRECT` → `USER`).
@@ -170,8 +154,21 @@
       5. Tắt `sino-zalo` 10 phút, nhắn vào: tin được bù.
       6. Xóa account: phiên dừng.
       7. Tắt công tắc: Zalo thành "Sắp có".
+    - **Đo (chuyển từ ZL-00, D-270; làm cùng kịch bản trên, bằng `sino-zalo` thật, hoặc script spike khi cần đo riêng):**
+      1. Chạy 24 giờ, người dùng dùng điện thoại bình thường, không mở Web/PC: listener có bị đá không.
+      2. Tin 1-1 từ nick chính, tin nhóm, tin tự gửi từ điện thoại, một ảnh, một sticker, một tệp, một tin thoại: ghi tên `zaloType` thật (log của `sino-zalo` có loại tin), rồi sửa bảng D-279 và `ZaloMessageNormalizer` kèm test.
+      3. Trả lời từ Sino: listener có nhận lại tin đó (`isSelf`) không, và `msgId` nhận lại có trùng `msgId` mà gửi trả không. Khác nhau thì một tin hiện hai lần: sửa theo ZL-09.
+      4. Tắt `sino-zalo` 1 giờ, rồi qua đêm, nhắn vào trong lúc tắt (hơn 30 tin một lần): bù được không, một trang `requestOldMessages` dài bao nhiêu tin, có log WARN "bù tin chưa hết" không (D-278).
+      5. Mở lại Sino sau 24 giờ và 72 giờ không quét lại: phiên còn dùng được không.
+      6. Mở Zalo PC bằng nick phụ: Sino có bị đăng xuất không.
+      7. Quét lại trong Sino khi phiên cũ còn sống: phiên cũ có bị Zalo đá không, và account có ở trạng thái đã kết nối sau lượt đồng bộ kế tiếp không (D-289).
+    - **Sau khi đo:**
+      - điền bảng kết quả trong `spikes/zalo-zca/README.md` và mục Kết quả spike của design;
+      - người dùng trả lời DN-1 nếu cửa sổ bù tin ngắn;
+      - sửa câu Zalo PC trong chữ cảnh báo (DN-2) theo mục 6;
+      - nếu listener bị đá cả khi chỉ dùng điện thoại: dừng và hỏi người dùng (giữ, sửa hay bỏ F09) trước khi archive.
     - Sửa `apps/sino-site`: chính sách quyền riêng tư VI/EN nói Zalo (phiên mã hóa, chỉ tin từ lúc kết nối, rủi ro); trang Sino Messages đổi "Zalo sắp có".
     - Cập nhật roadmap F09.
     - `openspec archive zalo-personal -y`.
-  - **Acceptance criteria:** mọi bước của kịch bản có bằng chứng ngắn trong mục này; spec đã gộp vào `openspec/specs/`.
+  - **Acceptance criteria:** mọi bước của kịch bản và mọi phép đo có bằng chứng ngắn trong mục này; bảng D-279 dùng tên `zaloType` thật; spec đã gộp vào `openspec/specs/`.
   - **Depends on:** ZL-12

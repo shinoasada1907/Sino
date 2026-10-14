@@ -1,6 +1,6 @@
 ## Why
 
-Người dùng (2026-10-14) gửi thư viện [zca-js](https://github.com/RFS-ADRENO/zca-js): "có cách tích hợp zalo cá nhân rồi nè", rồi "phần tích hợp zalo này bạn lên kế hoạch rồi tôi làm". Roadmap F09 ghi Zalo cá nhân không có API chính thức và cần **spike khả thi** trước khi thiết kế. Spike `spikes/zalo-zca/` (2026-10-14, nick Zalo phụ của người dùng) cho thấy đăng nhập QR, dùng lại phiên không cần quét lại và nhận tin thời gian thực đều chạy được. Nhưng mở chat.zalo.me bằng cùng nick thì phiên của Sino bị đá và bị hủy, và không lấy được lịch sử cũ. Change này đưa Zalo cá nhân vào Sino như **provider thứ hai (F09)**, với một cổng đi/không đi đo độ bền trước khi code phần lớn.
+Người dùng (2026-10-14) gửi thư viện [zca-js](https://github.com/RFS-ADRENO/zca-js): "có cách tích hợp zalo cá nhân rồi nè", rồi "phần tích hợp zalo này bạn lên kế hoạch rồi tôi làm". Roadmap F09 ghi Zalo cá nhân không có API chính thức và cần **spike khả thi** trước khi thiết kế. Spike `spikes/zalo-zca/` (2026-10-14, nick Zalo phụ của người dùng) cho thấy đăng nhập QR, dùng lại phiên không cần quét lại và nhận tin thời gian thực đều chạy được. Nhưng mở chat.zalo.me bằng cùng nick thì phiên của Sino bị đá và bị hủy, và không lấy được lịch sử cũ. Change này đưa Zalo cá nhân vào Sino như **provider thứ hai (F09)**. ~~với một cổng đi/không đi đo độ bền trước khi code phần lớn~~ Các phép đo độ bền làm cùng lần chạy thật lúc nghiệm thu (người dùng, 2026-10-14, D-270).
 
 zca-js là thư viện **không chính thức**: nó giả làm Zalo Web, và tài liệu của nó nói dùng nó là trái chính sách Zalo, có thể bị khóa tài khoản. Người dùng chấp nhận rủi ro này, với điều kiện người kết nối phải được cảnh báo và đồng ý trước (D-272).
 
@@ -16,7 +16,7 @@ zca-js là thư viện **không chính thức**: nó giả làm Zalo Web, và t�
 - **Công tắc `sino.zalo.enabled`:** tắt thì Zalo quay về "Sắp có" và mọi phiên dừng; dữ liệu đã lưu giữ nguyên (D-272).
 - **`GET /api/providers`** cho biết mỗi provider kết nối bằng cách nào (`OAUTH2`, `QR`) và hiện có kết nối được không, thay cho `connectable: true` mà web đang tự gán (D-50).
 - **Web:** bước Zalo trong hộp thoại kết nối gồm cảnh báo rủi ro, ô đồng ý, mã QR, các trạng thái (chờ quét, đã quét, xong, hết hạn, bị từ chối) và kết nối lại.
-- **Cổng ZL-00:** đo độ bền của listener (24 giờ), cửa sổ bù tin, tin 1-1/nhóm/tự gửi, tuổi thọ phiên, Zalo PC. Kết quả quyết định có làm tiếp từ ZL-03 không (D-270).
+- **Đo ở nghiệm thu ZL-13** (~~cổng ZL-00 trước khi code~~, D-270): độ bền của listener (24 giờ), cửa sổ bù tin, tin 1-1/nhóm/tự gửi, tuổi thọ phiên, Zalo PC. Kết quả xấu thì người dùng quyết giữ, sửa hay bỏ F09 trước khi archive.
 
 ## Capabilities
 
