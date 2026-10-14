@@ -219,6 +219,8 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 #### F09 — Provider thứ hai · ~L
 
 > **Người dùng muốn Zalo và Messenger sau Gmail (2026-10-07).** Theo hiểu biết hiện tại, cả hai không có API chính thức đọc tin nhắn của tài khoản cá nhân (Messenger Platform dành cho Facebook Page; Zalo có API cho Official Account). Làm **spike khả thi** trước khi thiết kế; kết quả quyết định provider thứ hai.
+>
+> **Đã lên kế hoạch 2026-10-14: Zalo cá nhân qua zca-js** (thư viện không chính thức), `openspec/changes/zalo-personal`. Spike `spikes/zalo-zca/` trên nick phụ: đăng nhập QR và nhận tin chạy được; mở Zalo Web cùng nick thì Sino bị đá; không lấy được lịch sử cũ. Người dùng chọn: đọc + trả lời chữ, mọi người dùng kết nối được sau cảnh báo, service Node riêng `apps/sino-zalo` (D-270…D-288). Cổng đi/không đi ZL-00 (đo 24 giờ, bù tin) đứng trước phần code. Người dùng tự code toàn bộ (TRAINING).
 
 - **Quyết định lớn khi mở spec:** chọn provider nào (00: Telegram hoặc provider có API phù hợp). Với Telegram: **Bot API** chỉ thấy chat với bot, không đọc được tin cá nhân của người dùng; **MTProto/TDLib** đọc được tin cá nhân nhưng phức tạp hơn nhiều (đăng nhập bằng số điện thoại, session). Chọn sai thì không chứng minh được mục tiêu "unified".
 - **BE:** connector thứ hai, credential loại `TOKEN` (D-14), capability khác Gmail → đây là bài kiểm tra thật của contract F03 (nếu phải sửa core → contract có vấn đề, ghi lại).
