@@ -332,6 +332,6 @@
     - SI-03a đã xong: người dùng duyệt cam kết, App name trên consent screen khớp `GOOGLE_APP_NAME`.
     - Cân nhắc tải gsap muộn (dynamic import): JS hôm nay 456 kB (145 kB gzip), gsap khoảng 140 kB (ghi ở SI-02R).
     - `pnpm build` với config đủ giá trị (giá trị thử, không commit) xanh; với config thiếu thì đỏ.
-    - `README.md`: dựng, xem trước, đưa lên Cloudflare Pages hoặc GitHub Pages, gắn tên miền, xác minh trong Search Console, URL cuối cùng không chuyển hướng (D-248), các ô của consent screen (App home page `…/messages`, Privacy policy `…/privacy`, Terms of service `…/terms`, Authorized domains; D-253).
+    - `README.md`: ~~dựng, xem trước,~~ đưa lên Cloudflare Pages hoặc GitHub Pages, gắn tên miền, xác minh trong Search Console, URL cuối cùng không chuyển hướng (D-248), các ô của consent screen (App home page `…/messages`, Privacy policy `…/privacy`, Terms of service `…/terms`, Authorized domains; D-253). **LÝ DO:** người dùng yêu cầu README sớm (2026-10-14, task `readme`), nên file đã có phần yêu cầu cài đặt, lệnh, `site.config.ts`, bảng trang, cấu trúc thư mục, test. SI-06 điền mục "Putting the site online" (đang ghi "Not written yet") và thêm `/terms`, `/security`, `/open-source` vào bảng trang khi SI-04, SI-05 xong.
   - **Acceptance criteria:** Definition of Done trong `design.md`.
   - **Kiểm chứng:** như trên; sau đó chạy `openspec archive site-public-pages -y`.
