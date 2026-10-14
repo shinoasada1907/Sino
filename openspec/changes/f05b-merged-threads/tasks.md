@@ -24,12 +24,22 @@
   - **Test:** design mục Testing (Gom); dữ liệu đã có trước change được gom đúng.
   - **Acceptance criteria:** spec `thread-merge` *Nhóm của một chuỗi ở nhiều tài khoản*.
 
-- [ ] 1.2 **BE-81 — API Hộp thư theo nhóm (D-181…D-183, D-185, D-187)**
+- [x] 1.2 **BE-81 — API Hộp thư theo nhóm (D-181…D-183, D-185, D-187)**
   - **Thực hiện:** design mục Backend 2, 3: một item mỗi nhóm, `accountIds`, bản chính, trường gộp, keyset; số đếm; lọc; mã của bản bất kỳ → mã nhóm; `PATCH` mọi bản; `participants` gộp; sự kiện mang mã nhóm.
+  - **Đã làm (2026-10-14, AUTO, phiên sino-api-84; người dùng: "làm BE 81...83 đi"):**
+    - `InboxService`: câu 1 `GROUP BY thread_group_id` trên các cuộc trò chuyện trong phạm vi (bản cũ → mới, mã nhóm = bản đầu, `max`/`bool_and`/`bool_or` theo D-182, cùng tên cột nên điều kiện `InboxView` dùng lại được), lọc, keyset `(giờ nhóm, mã nhóm)`; câu 2 đọc các bản của nhóm trong trang (thư mới nhất: `Message-ID`, chiều) và chọn bản chính bằng Java (D-181: giữ thư mới nhất theo giờ hoặc cùng `Message-ID`, rồi thư đến, rồi bản cũ nhất); `counts` đếm nhóm; lọc `accountId` bằng `HAVING bool_or`; `detail`/`change`/`requireInInbox` nhận mã bản bất kỳ; `PATCH` khóa mọi tài khoản của nhóm theo thứ tự, đọc/lưu trữ mọi bản, chưa đọc = thư mới nhất của bản chính; người tham gia gộp (`array_agg … FILTER`, `bool_or(is_self)`).
+    - `InboxItem`: `id` (nhóm), `primaryId`, `accountIds`, `copies` (bản + tài khoản), `accountOf`. `ConversationResponse.accountIds`.
+    - `InboxIds` (interface mới, gói gốc `conversation`), cài đặt ở `InboxService`; `RealtimeEvents` đổi mã của mọi `conversations.changed` qua nó (D-189).
+    - `MessageBodies`, `MessageFiles`, `ReplyService.discard`: tài khoản của bản trong đường dẫn (`accountOf`), thư vẫn tìm trong bản đó (BE-82 đổi).
+  - **Làm khác kế hoạch:**
+    - ~~D-186 (trả lời từ bản chính) ở BE-82~~ → làm ở BE-81. **LÝ DO:** từ BE-81 mã của dòng là mã nhóm (bản cũ nhất), còn tài khoản của dòng là của bản chính; không đổi `Replies`/`ReplyService` trong cùng commit thì một chuỗi gộp có thể gửi từ tài khoản này vào thread của tài khoản kia.
+    - Thêm: gửi lại cùng `clientMessageId` đi tiếp từ bản đã ghi thư (tìm trong mọi bản của nhóm, khóa mọi tài khoản theo thứ tự); thư đó ở bản của tài khoản đã ra khỏi Hộp thư thì `409 REPLY_NOT_ALLOWED` (`ACCOUNT_UNAVAILABLE`). **LÝ DO:** chỉ tìm trong bản chính thì gửi hai lần (D-131); tự review thấy cả trường hợp tài khoản bị tắt (test viết trước đỏ: `201`, thư thứ hai).
+    - Thêm D-188 (nhóm không tách khi tài khoản nối nó bị xóa/tắt) và D-189 (mã nhóm trong sự kiện, đổi ở `realtime`), agent chốt, để người dùng xem lại; spec `thread-merge` thêm 3 scenario.
+  - **Kiểm chứng (2026-10-14):** Docker Desktop đang tắt, agent bật lên để chạy Testcontainers. RED: `MergedThreadsApiTests` 19/19 + test realtime mới 1/1 đỏ đúng lý do (hai dòng, thiếu `accountIds`, mã của bản). GREEN 19/19, `RealtimeApiTests` 10/10; `ConversationsApiTests` đổi danh sách khóa của item (thêm `accountIds`). Hai test thêm sau review: gửi lại ở đúng bản (viết sau code, bằng chứng: hai lỗi gài "luôn bản chính", "chỉ tìm ở bản chính" đều làm nó đỏ), từ chối khi tài khoản đã ra khỏi Hộp thư (viết trước, đỏ `201`). Toàn bộ test `conversation` + `realtime` + `ModularityTests`: 330, 0 sai. `./mvnw -B -ntp verify` trên `dev` `fa496b7` + thay đổi: 1517 test, 0 sai, 0 lỗi, 4 bỏ qua, BUILD SUCCESS. `openspec validate f05b-merged-threads --strict` hợp lệ. **NOT VERIFIED:** tốc độ với dữ liệu thật (`EXPLAIN` ở BE-83).
   - **Acceptance criteria:** spec `thread-merge` *Một dòng cho một nhóm*, *Số đếm và bộ lọc theo nhóm*, *Mở và đổi một nhóm bằng mã của bất kỳ bản nào*.
 
 - [ ] 1.3 **BE-82 — Thư và trả lời theo nhóm (D-184, D-186)**
-  - **Thực hiện:** design mục Backend 4, 5: thư bỏ trùng và chọn bản, cursor; nội dung, tệp, xóa theo nhóm; `reply` và gửi trên bản chính.
+  - **Thực hiện:** design mục Backend 4, 5: thư bỏ trùng và chọn bản, cursor; nội dung, tệp, xóa theo nhóm; ~~`reply` và gửi trên bản chính~~ (làm ở BE-81, xem LÝ DO ở đó).
   - **Acceptance criteria:** spec `thread-merge` *Thư của một nhóm*, *Trả lời một nhóm*.
 
 - [ ] 1.4 **BE-83 — Chạy thật với hai tài khoản Gmail, README**

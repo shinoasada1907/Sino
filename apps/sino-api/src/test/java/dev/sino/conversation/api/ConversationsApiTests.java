@@ -168,9 +168,9 @@ class ConversationsApiTests {
 
         Map<String, Object> item = JsonPath.read(body, "$.items[0]");
         assertThat(item.keySet()).as("no message text beyond the snippet, no HTML").containsExactlyInAnyOrder("id",
-                "accountId", "provider", "kind", "title", "subject", "memberCount", "snippetFrom", "snippet",
-                "lastMessageAt", "unreadCount", "needsReply", "hasAttachments", "archived", "snooze", "scheduledSend",
-                "linked");
+                "accountId", "accountIds", "provider", "kind", "title", "subject", "memberCount", "snippetFrom",
+                "snippet", "lastMessageAt", "unreadCount", "needsReply", "hasAttachments", "archived", "snooze",
+                "scheduledSend", "linked");
     }
 
     @Test

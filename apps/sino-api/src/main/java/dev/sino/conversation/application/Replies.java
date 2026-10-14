@@ -34,21 +34,29 @@ public class Replies {
         this.providers = providers;
     }
 
-    /** For a conversation already found in the owner's inbox. */
+    /**
+     * For a conversation already found in the owner's inbox: from its primary copy, the one a reply goes from (F05b,
+     * D-186).
+     */
     public Reply of(UUID ownerId, InboxItem conversation) {
-        return new Reply(stateOf(ownerId, conversation), recipientsOf(conversation.id()));
+        return of(ownerId, conversation, conversation.primaryId());
+    }
+
+    /** From one copy of the conversation, and the account of that copy. */
+    Reply of(UUID ownerId, InboxItem conversation, UUID copy) {
+        return new Reply(stateOf(ownerId, conversation, conversation.accountOf(copy)), recipientsOf(copy));
     }
 
     // In this order: reconnecting cannot help a provider that never sends, and a reconnect also grants the scopes.
     // A paused sync does not matter.
-    private ReplyState stateOf(UUID ownerId, InboxItem conversation) {
+    private ReplyState stateOf(UUID ownerId, InboxItem conversation, UUID accountId) {
         boolean providerSends = providers.find(conversation.provider())
                 .map(connector -> connector.capabilities().supports(ProviderCapability.SEND_MESSAGES))
                 .orElse(false);
         if (!providerSends) {
             return ReplyState.NOT_SUPPORTED;
         }
-        Optional<AccountSummary> account = directory.find(ownerId, conversation.accountId());
+        Optional<AccountSummary> account = directory.find(ownerId, accountId);
         AccountStatus status = account.map(AccountSummary::status).orElse(AccountStatus.DISABLED);
         if (status == AccountStatus.AUTH_EXPIRED || status == AccountStatus.DISABLED) {
             return ReplyState.ACCOUNT_UNAVAILABLE;

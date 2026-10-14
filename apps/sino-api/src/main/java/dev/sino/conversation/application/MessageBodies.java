@@ -56,7 +56,7 @@ public class MessageBodies {
      *         message stored before cannot be read again now (it stays {@code UNCHECKED} for the next try)
      */
     public MessageBody body(UUID ownerId, UUID conversationId, UUID messageId) {
-        UUID accountId = inbox.requireInInbox(ownerId, conversationId).accountId();
+        UUID accountId = inbox.requireInInbox(ownerId, conversationId).accountOf(conversationId);
         Stored stored = find(conversationId, messageId).orElseThrow(ConversationErrorCode::messageNotFound);
         if (stored.format() == BodyFormat.UNCHECKED) {
             stored = readAgain(accountId, conversationId, messageId, stored.externalId());

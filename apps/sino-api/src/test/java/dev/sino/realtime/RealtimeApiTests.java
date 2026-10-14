@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -38,6 +39,7 @@ import dev.sino.Browser;
 import dev.sino.TestcontainersConfiguration;
 import dev.sino.account.application.AccountRegistrationService;
 import dev.sino.account.application.RegisterAccountCommand;
+import dev.sino.conversation.ConversationStore;
 import dev.sino.identity.infrastructure.AppUser;
 import dev.sino.identity.infrastructure.AppUserRepository;
 import dev.sino.provider.FakeMessageProvider;
@@ -45,7 +47,13 @@ import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.AccountProfile;
+import dev.sino.provider.spi.ConversationType;
+import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageProvider;
+import dev.sino.provider.spi.MessageStatus;
+import dev.sino.provider.spi.MessageType;
+import dev.sino.provider.spi.NormalizedConversation;
+import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -87,6 +95,9 @@ class RealtimeApiTests {
 
     @Autowired
     private SwitchableProvider connector;
+
+    @Autowired
+    private ConversationStore store;
 
     private final List<EventStream> opened = new ArrayList<>();
     private Browser browser;
@@ -145,6 +156,22 @@ class RealtimeApiTests {
         assertThat(event.name()).as("the other owner's event never came first").isEqualTo("conversations.changed");
         assertThat(event.data()).contains("\"type\":\"conversations.changed\"", "\"accountId\":\"" + mine + "\"",
                 "\"conversationIds\":[\"" + conversation + "\"]", "\"newInbound\":2", "\"source\":\"sync\"");
+    }
+
+    // D-189: the web shows a thread found in two accounts of the owner as one row, under the ID of its group (F05b).
+    @Test
+    void aCopyOfAThreadInTwoAccountsIsToldUnderTheIdOfItsGroup() throws Exception {
+        UUID first = connect(owner);
+        UUID second = connect(owner);
+        UUID group = stored(first, "t-1");
+        UUID copy = stored(second, "b-1");
+        EventStream stream = open();
+
+        transactions.executeWithoutResult(status -> events.publishEvent(
+                new MailStored(second, Set.of(copy), 1, true, Instant.now())));
+
+        assertThat(stream.nextEvent(WAIT).data()).contains("\"accountId\":\"" + second + "\"",
+                "\"conversationIds\":[\"" + group + "\"]");
     }
 
     @Test
@@ -247,6 +274,17 @@ class RealtimeApiTests {
                 .contains("\"conversationIds\":[\"" + conversation + "\"]");
         assertThat(jdbc.queryForObject("select count(*) from event_publication", Integer.class))
                 .as("the stream is told without the event publication registry").isZero();
+    }
+
+    // One mail with the same Message-ID in every account it is stored for: their copies are one group (BE-80).
+    private UUID stored(UUID account, String thread) {
+        NormalizedMessage hello = new NormalizedMessage(thread + "-m", thread, null, MessageDirection.INBOUND,
+                MessageType.TEXT, "xin chào", MessageStatus.UNKNOWN, false, null, Instant.now(), List.of(),
+                Map.of("rfcMessageId", "<hello@mail.test>"), null, null);
+        transactions.executeWithoutResult(status -> store.store(account, new SyncBatch(List.of(
+                new NormalizedConversation(thread, ConversationType.THREAD, "xin chào", null, List.of(), null)),
+                List.of(hello), List.of(), new SyncCursor("next"), false)));
+        return jdbc.queryForObject("select id from conversation where account_id = ?", UUID.class, account);
     }
 
     private EventStream open() throws Exception {

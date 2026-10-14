@@ -17,6 +17,7 @@ import dev.sino.account.AccountRemoved;
 import dev.sino.account.AccountStatusChanged;
 import dev.sino.account.AccountSummary;
 import dev.sino.conversation.ConversationChanged;
+import dev.sino.conversation.InboxIds;
 import dev.sino.sync.MailStored;
 import dev.sino.sync.SyncStateChanged;
 
@@ -25,7 +26,8 @@ import dev.sino.sync.SyncStateChanged;
  * committed: the owner is found when the event is published, the sending waits for the commit and is dropped on a
  * rollback; an event published outside a transaction is sent at once. Plain listeners, so Spring Modulith's event
  * publication registry, made for listeners that must run again after a failure, keeps nothing for these. The data is
- * IDs, counts and a source, never the content of mail; the web reads what it needs through the API.
+ * IDs, counts and a source, never the content of mail; the web reads what it needs through the API. A conversation is
+ * named by the ID the inbox shows for it, that of its group when the thread is in several accounts (F05b, D-189).
  */
 @Component
 class RealtimeEvents {
@@ -35,10 +37,12 @@ class RealtimeEvents {
 
     private final EventHub hub;
     private final AccountDirectory directory;
+    private final InboxIds inboxIds;
 
-    RealtimeEvents(EventHub hub, AccountDirectory directory) {
+    RealtimeEvents(EventHub hub, AccountDirectory directory, InboxIds inboxIds) {
         this.hub = hub;
         this.directory = directory;
+        this.inboxIds = inboxIds;
     }
 
     @EventListener
@@ -73,11 +77,14 @@ class RealtimeEvents {
         accountChanged(event.accountId(), Optional.of(event.ownerId()), event.occurredAt());
     }
 
+    // The IDs too are read in the publisher's transaction, which may just have joined two copies into one group.
     private void conversationsChanged(UUID accountId, Collection<UUID> conversationIds, int newInbound,
             String source, Instant at) {
-        ConversationsChange change = new ConversationsChange(accountId, List.copyOf(conversationIds), newInbound,
-                source, at);
-        ownerOf(accountId).ifPresent(owner -> afterCommit(() -> hub.publish(owner, CONVERSATIONS_CHANGED, change)));
+        ownerOf(accountId).ifPresent(owner -> {
+            ConversationsChange change = new ConversationsChange(accountId, inboxIds.of(owner, conversationIds),
+                    newInbound, source, at);
+            afterCommit(() -> hub.publish(owner, CONVERSATIONS_CHANGED, change));
+        });
     }
 
     private void accountChanged(UUID accountId, Optional<UUID> owner, Instant at) {

@@ -54,7 +54,7 @@ public class MessageFiles {
      *         give it now
      */
     public MessageFile file(UUID ownerId, UUID conversationId, UUID messageId, UUID attachmentId, boolean inline) {
-        UUID accountId = inbox.requireInInbox(ownerId, conversationId).accountId();
+        UUID accountId = inbox.requireInInbox(ownerId, conversationId).accountOf(conversationId);
         Stored file = find(conversationId, messageId, attachmentId)
                 .orElseThrow(ConversationErrorCode::attachmentNotFound);
         if (inline && !NormalizedAttachment.isPicture(file.mimeType())) {

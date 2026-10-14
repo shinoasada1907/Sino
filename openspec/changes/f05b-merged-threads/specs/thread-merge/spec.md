@@ -26,6 +26,10 @@ Hai cuộc trò chuyện MUST thuộc một nhóm khi chúng cùng chủ, cùng 
 - **WHEN** nhóm gồm bản của `tienct07` (thư "hello" 17:41 là thư đến) và bản của `bonzed2001` (thư đó là thư đi)
 - **THEN** danh sách có một item, `accountId` là `tienct07`, `accountIds` = [`tienct07`, `bonzed2001`], `title` là "Sinon sama", và `needsReply` là false vì bản của `bonzed2001` không cần trả lời
 
+#### Scenario: Tài khoản nối hai bản bị xóa
+- **WHEN** bản của A và bản của C chung nhóm chỉ nhờ thư chung với bản của B, rồi tài khoản B bị xóa
+- **THEN** danh sách vẫn có một item cho A và C, không có B trong `accountIds` (D-188)
+
 ### Requirement: Số đếm và bộ lọc theo nhóm
 `GET /api/conversations/counts` MUST đếm mỗi nhóm một lần theo các trường gộp của nhóm; `byProvider` MUST đếm theo nhà cung cấp của nhóm. Lọc `accountId` MUST giữ nhóm có một bản thuộc tài khoản đó; lọc `provider` MUST theo nhà cung cấp của nhóm.
 
@@ -57,3 +61,11 @@ Mã của nhóm MUST là mã của cuộc trò chuyện cũ nhất trong các b�
 #### Scenario: Trả lời chuỗi "xin chào" 17:41
 - **WHEN** người dùng trả lời nhóm có bản chính là bản của `tienct07`
 - **THEN** thư đi từ `tienct07@gmail.com` trong thread `1a12fae4…`
+
+#### Scenario: Gửi lại sau khi bản chính đổi
+- **WHEN** thư trả lời ghi ở bản của `tienct07` gửi lỗi, bản của `bonzed2001` có thư mới nên thành bản chính, rồi web gửi lại cùng `clientMessageId`
+- **THEN** thư được gửi lại từ `tienct07@gmail.com` trong thread của bản đó, và vẫn chỉ có một thư mang `clientMessageId` đó
+
+#### Scenario: Gửi lại khi tài khoản giữ thư đã ra khỏi Hộp thư
+- **WHEN** thư trả lời ở bản của `tienct07` chưa rõ đã gửi hay chưa, rồi tài khoản `tienct07` bị tắt, và web gửi lại cùng `clientMessageId`
+- **THEN** `409 REPLY_NOT_ALLOWED` với `state` `ACCOUNT_UNAVAILABLE`, và không có thư nào được gửi thêm

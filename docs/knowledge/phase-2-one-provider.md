@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive. F05b, `openspec/changes/f05b-merged-threads` (một chuỗi ở nhiều tài khoản là một dòng): xong BE-80 (nhóm); còn BE-81…BE-83.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive. F05b, `openspec/changes/f05b-merged-threads` (một chuỗi ở nhiều tài khoản là một dòng): xong BE-80 (nhóm), BE-81 (Hộp thư theo nhóm, trả lời từ bản chính); còn BE-82, BE-83.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -1971,6 +1971,131 @@ Spec vừa bắt nhóm bắc cầu, vừa cấm gộp hai thread của cùng m�
 
 ---
 
+## 25. Hộp thư theo nhóm: một dòng, bản chính, mã nhóm (BE-81, F05b)
+
+**Ở đâu:** `conversation/application/{InboxService,InboxItem,Replies,ReplyService}.java`, `conversation/api/ConversationResponse.java`, `conversation/InboxIds.java` (mới), `realtime/application/RealtimeEvents.java`; test `MergedThreadsApiTests` (mới), `RealtimeApiTests`.
+
+### 25.1 Từ "một dòng một cuộc trò chuyện" sang "một dòng một nhóm"
+BE-80 mới đánh dấu các bản của một chuỗi là một nhóm (`thread_group_id`). Hộp thư vẫn đọc từng dòng `conversation`, nên chuỗi "xin chào" của bạn vẫn hiện hai lần. BE-81 đổi cách đọc: mỗi **nhóm** là một dòng.
+
+```text
+  conversation (bảng)                       Hộp thư (API)
+  t-1  tienct07   group G  17:41:02  ----\
+                                          >--  một item: id = G, accountIds = [tienct07, bonzed2001]
+  b-1  bonzed2001 group G  17:41:00  ----/
+```
+
+Mỗi trường của dòng lấy từ đâu (D-182):
+
+| Trường | Lấy từ | Vì sao |
+|---|---|---|
+| `lastMessageAt` | lớn nhất của các bản | thư mới nhất của cả chuỗi |
+| `unreadCount` | lớn nhất của các bản | cộng lại thì một thư bị đếm hai lần |
+| `needsReply` | đúng khi **mọi** bản cần trả lời | bản kia mà bạn viết cuối thì bạn đã trả lời rồi |
+| `hasAttachments` | đúng khi **một** bản có tệp | |
+| `archived` | đúng khi **mọi** bản đã lưu trữ | một bản quay lại Hộp thư thì cả chuỗi quay lại |
+| `title`, `subject`, `snippet`, `accountId` | bản chính | xem 25.3 |
+
+### 25.2 SQL: `GROUP BY` rồi lọc, và vì sao điều kiện cũ vẫn dùng được
+Câu thứ nhất gom các cuộc trò chuyện trong phạm vi (tài khoản chưa xóa, không tắt) theo `thread_group_id`, tính các trường ở bảng trên bằng hàm gộp (`max`, `bool_and`, `bool_or`), và đặt tên kết quả **giống hệt tên cột** của bảng `conversation`:
+
+```sql
+SELECT array_agg(c.id ORDER BY c.created_at, c.id) AS copies,
+       (array_agg(c.id ORDER BY c.created_at, c.id))[1] AS id,      -- mã nhóm (D-183)
+       max(c.last_message_at) AS last_message_at,
+       max(c.unread_count) AS unread_count,
+       bool_and(c.needs_reply) AS needs_reply,
+       bool_or(c.has_attachments) AS has_attachments,
+       bool_and(c.archived) AS archived
+FROM conversation c WHERE c.account_id IN (:accounts)
+GROUP BY c.thread_group_id
+```
+
+Nhờ đặt tên như vậy, điều kiện của từng chế độ xem (`InboxView`, ví dụ `NOT c.archived AND c.unread_count > 0`) áp thẳng lên nhóm mà không phải viết lại. Phân trang keyset vẫn như cũ, chỉ là trên `(giờ của nhóm, mã nhóm)`.
+
+**Đánh đổi:** trước đây mỗi trang dùng index `(account_id, last_message_at, id)` để chỉ đọc đầu danh sách của từng tài khoản (mục 15.4). Giờ giờ của một nhóm là giờ của bản mới nhất, nên không index nào của một bản cho đúng thứ tự: mỗi trang phải gom **mọi** cuộc trò chuyện của bạn. Với một người dùng và vài nghìn cuộc trò chuyện thì nhanh; BE-83 đo trên dữ liệu thật. Nếu sau này chậm, cách sửa là lưu sẵn tóm tắt theo nhóm.
+
+Câu thứ hai chỉ đọc các bản của những nhóm **trong trang**: các trường cần để chọn bản chính, và thư mới nhất của mỗi bản (`Message-ID`, đến hay đi). Danh sách bản của nhóm lấy từ câu thứ nhất (`copies`), không tìm lại theo `thread_group_id`. Lý do: giữa hai câu, một lượt đồng bộ có thể vừa gộp nhóm; tìm lại theo nhóm có thể ra rỗng. Đọc PostgreSQL `uuid[]` qua JDBC: `row.getArray("copies").getArray()` cho ra `UUID[]`.
+
+### 25.3 Bản chính (D-181): vì sao phải so `Message-ID`, không chỉ so giờ
+Bản chính là bản giữ thư mới nhất. Nghe như chỉ cần lấy bản có `last_message_at` lớn nhất. Nhưng Gmail ghi giờ của một thư là lúc thư **vào hộp thư đó** (`internalDate`): thư "hello" của `bonzed2001` lúc 17:41:00 (đi), sang hộp thư của `tienct07` là 17:41:02 (đến). Hai bản của cùng một thư có thể lệch vài giây, theo chiều nào cũng được.
+
+Nên cách chọn (bằng Java, trong `primaryOf`) là:
+
+```text
+  1. bản có giờ mới nhất -> thư mới nhất của nó có Message-ID là M
+  2. "giữ thư mới nhất" = bản cùng giờ đó, hoặc bản có thư mới nhất cũng là M
+  3. trong những bản ấy: bản mà thư đó là thư ĐẾN; vẫn ngang thì bản cũ nhất
+```
+
+Thư đến được ưu tiên vì trả lời từ địa chỉ vừa nhận thư là điều người gửi chờ (D-181). Test `theCopyItCameInWinsEvenWhenTheOtherMailboxDatesItLater` dựng đúng trường hợp hộp thư "đi" ghi giờ muộn hơn hộp thư "đến".
+
+Chọn bằng Java chứ không bằng SQL (window function) vì quy tắc ba bước này đọc thẳng được, và chỉ chạy cho vài chục nhóm của một trang.
+
+### 25.4 Mã nhóm và mã của bản bất kỳ (D-183)
+Mã của nhóm là mã của bản **cũ nhất còn trong phạm vi**, tính khi đọc. Nó không phải `thread_group_id` trong bảng: nếu bản cũ nhất thuộc một tài khoản đã tắt, mã nhóm thành bản cũ kế tiếp (test `aCopyInAnAccountOutOfTheInboxIsLeftOut`).
+
+`GET` và `PATCH /api/conversations/{id}` nhận mã của **bất kỳ** bản nào: câu SQL tìm `thread_group_id` của bản đó (chỉ khi bản đó trong phạm vi), rồi gom cả nhóm. Item trả về luôn mang mã nhóm; web thấy mã khác thì thay đường dẫn (FE-81).
+
+`InboxItem` giờ mang cả ba loại mã: `id` (nhóm), `primaryId` (bản chính) và `copies` (mọi bản, kèm tài khoản). Các chỗ khác chọn đúng loại mình cần: trả lời dùng `primaryId`, tải tệp dùng tài khoản của bản ghi trong đường dẫn (`accountOf`).
+
+### 25.5 `PATCH` một nhóm: khóa mọi tài khoản theo một thứ tự
+Đánh dấu đã đọc hay lưu trữ phải đổi **mọi** bản (D-185), mà mỗi bản thuộc một tài khoản có khóa riêng (mục 13.2b). `change` lấy khóa của từng tài khoản trong nhóm, **sắp theo mã** (`sorted()`):
+
+```text
+  PATCH 1: khóa A -> khóa B          PATCH 2: khóa A (chờ PATCH 1) ...
+  Không có cảnh: PATCH 1 giữ A chờ B, PATCH 2 giữ B chờ A
+```
+
+Cùng một thứ tự thì không bao giờ có vòng chờ giữa hai `PATCH`. Với lượt đồng bộ cũng không: lượt đồng bộ chỉ giữ một khóa tài khoản, rồi khóa của chủ (mục 24.4), không bao giờ chờ khóa tài khoản thứ hai.
+
+"Chưa đọc lại" (`read: false`) chỉ đánh dấu thư mới nhất của **bản chính**, để số chưa đọc của dòng là 1 chứ không phải 2.
+
+### 25.6 Người tham gia gộp: `array_agg ... FILTER`
+Mỗi địa chỉ xuất hiện một lần, mọi tài khoản của bạn là `self`:
+
+```sql
+SELECT external_participant_id,
+       (array_agg(display_name ORDER BY id) FILTER (WHERE display_name IS NOT NULL))[1],
+       bool_or(is_self)
+FROM conversation_participant WHERE conversation_id IN (:copies)
+GROUP BY external_participant_id
+ORDER BY (array_agg(id ORDER BY id))[1]
+```
+
+`FILTER (WHERE ...)` cho hàm gộp chỉ nhận các dòng thỏa điều kiện: tên đầu tiên **có giá trị**, không phải dòng đầu tiên (có thể rỗng). `bool_or(is_self)`: trong hộp thư của `tienct07`, `bonzed2001` là người lạ; trong hộp thư của chính nó thì là `self`; gộp lại thì là `self`. Thứ tự "lưu trước hiện trước" dùng mã UUIDv7 nhỏ nhất của mỗi địa chỉ.
+
+### 25.7 Sự kiện realtime mang mã nhóm (D-189): interface ở ranh giới module
+Web chỉ biết mã nhóm. Sự kiện `conversations.changed` đến từ ba nơi: lượt đồng bộ (module `sync`, mang mã bản vừa lưu), lượt nhập, và thay đổi của bạn. Thay vì sửa cả ba, module `realtime` đổi mã ở **một** chỗ, qua interface mới `InboxIds` của module `conversation`:
+
+```text
+  sync ----MailStored(mã bản)-----\
+  conversation --ConversationChanged-> RealtimeEvents --InboxIds.of(chủ, mã)--> mã nhóm --> trình duyệt
+```
+
+`InboxIds` nằm ở gói gốc của module `conversation` (như `ConversationStats`), còn cài đặt nằm trong `InboxService`, nơi đã có quy tắc D-183. Module `realtime` không đọc bảng của `conversation` (Spring Modulith kiểm điều này trong `ModularityTests`).
+
+Việc đổi mã chạy **ngay khi sự kiện được phát**, trong transaction của bên phát. Vì vậy nó thấy cả lần gộp vừa xảy ra trong lượt lưu đó, kể cả khi transaction chưa commit.
+
+### 25.8 Trả lời từ bản chính, và gửi lại (D-186, D-131)
+Trả lời đi từ tài khoản của bản chính, trong thread của bản chính, và thư được lưu vào bản đó. Phần này vốn của BE-82, nhưng phải làm cùng BE-81: từ BE-81, mã trong đường dẫn là mã nhóm (bản cũ nhất), còn tài khoản của item là tài khoản bản chính. Không đổi cùng lúc thì một chuỗi gộp có thể gửi từ tài khoản này vào thread của tài khoản kia.
+
+Có một bẫy với "không bao giờ gửi hai lần" (D-131): thư gửi lỗi ở bản của `tienct07`, rồi `bonzed2001` có thư mới nên thành bản chính. Web gửi lại cùng `clientMessageId`. Nếu chỉ tìm `clientMessageId` trong bản chính, Sino không thấy thư cũ và tạo thư thứ hai. Vì vậy `begin` tìm trong **mọi** bản; thấy thì đi tiếp từ đúng bản đó (tài khoản, thread của nó). Trước khi tìm, nó khóa mọi tài khoản của nhóm theo cùng thứ tự như `PATCH`.
+
+Lúc tự review mình thấy thêm một lỗ: thư "chưa rõ đã gửi chưa" nằm ở bản của `tienct07`, rồi bạn tắt `tienct07`. Bản đó ra khỏi nhóm (D-66), nên tìm trong "mọi bản của Hộp thư" vẫn không thấy, và Sino gửi lần nữa từ `bonzed2001`. Test viết trước cho đúng cảnh này đỏ (`201`, thư thứ hai). Sửa: tìm theo `thread_group_id` trong **mọi** cuộc trò chuyện của nhóm, kể cả của tài khoản đã ra khỏi Hộp thư; thấy ở đó thì từ chối (`409 REPLY_NOT_ALLOWED`, `ACCOUNT_UNAVAILABLE`), vì gửi từ tài khoản khác có thể thành hai thư.
+
+### 25.9 Nhóm không tách (D-188)
+A chung thư với B, B chung thư với C, rồi bạn xóa tài khoản B. Bản của B ra khỏi dòng, còn A và C vẫn là một dòng. Chúng vẫn là một chuỗi; tách ra thì phải gom lại cả nhóm mỗi khi một tài khoản đổi trạng thái, và đường dẫn đang mở có thể đổi mã.
+
+### 25.10 Kiểm chứng (BE-81)
+- **Đỏ trước:** 19 test mới của `MergedThreadsApiTests` và một test của `RealtimeApiTests`, viết trước code, đều đỏ đúng lý do: hai dòng thay vì một, thiếu `accountIds`, mã của bản thay vì mã nhóm. Test cho lỗ gửi hai lần (25.8) cũng viết trước, đỏ với `201`.
+- **Chỗ lệch TDD:** test "gửi lại ở đúng bản" viết sau code. Bằng chứng nó bắt được lỗi: gài "luôn dùng bản chính" và "chỉ tìm ở bản chính", cả hai làm nó đỏ.
+- **Kiểm tra ngược:** 19 lỗi gài trên code cuối (đổi `bool_and` thành `bool_or` và ngược lại, cộng thay vì lấy lớn nhất, bỏ ưu tiên thư đến, bỏ so `Message-ID`, sai thứ tự `accountIds`, đọc hay lưu trữ một bản, `self` sai, mã sự kiện không đổi, mở được bản ngoài phạm vi, mã nhóm là bản mới nhất, trả lời theo bản chính khi gửi lại, bỏ lời từ chối, trả lời từ mã nhóm, một `accountIds`): cả 19 bị bắt. Không gài thứ tự khóa (`sorted()`): bỏ nó không làm test nào đỏ, vì vòng chờ chỉ xảy ra khi hai request chen nhau đúng lúc.
+- **Toàn bộ:** `./mvnw -B -ntp verify`: 1517 test, 0 sai, 0 lỗi, 4 bỏ qua.
+- **Chưa kiểm:** tốc độ trên dữ liệu thật của bạn (BE-83 đo bằng `EXPLAIN ANALYZE`).
+
+---
+
 ## Tự kiểm tra
 
 1. Vì sao Sino không cần biết mật khẩu Gmail của bạn?
@@ -2089,3 +2214,7 @@ Spec vừa bắt nhóm bắc cầu, vừa cấm gộp hai thread của cùng m�
 114. Vì sao ảnh SVG không bao giờ được hiện `inline`, dù nó là ảnh?
 115. Một ảnh PNG có `Content-ID` trong một thư chỉ có chữ: Sino coi nó là ảnh nhúng hay tệp, và vì sao?
 116. Khi giới hạn số tệp tải cùng lúc, vì sao Sino đếm theo byte chứ không theo số request, và vì sao `release` phải nằm trong `finally`?
+117. Một chuỗi ở hai tài khoản có 1 thư chưa đọc ở mỗi bản: vì sao dòng ghi 1 chứ không phải 2, và vì sao "cần trả lời" phải đúng ở **mọi** bản?
+118. Vì sao chọn bản chính chỉ bằng "giờ mới nhất" có thể sai với Gmail, và `Message-ID` giúp gì?
+119. Vì sao `PATCH` một nhóm phải khóa các tài khoản theo một thứ tự cố định? Bỏ `sorted()` thì hai request có thể làm gì nhau?
+120. Thư gửi lỗi ở bản A, rồi bản B thành bản chính: nếu chỉ tìm `clientMessageId` trong bản chính thì chuyện gì xảy ra khi web gửi lại?

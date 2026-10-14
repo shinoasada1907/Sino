@@ -69,7 +69,9 @@ public class ReplyService implements SentMessages {
     }
 
     /**
-     * Sends {@code text} to whom {@link Replies} says a reply goes, never to addressees from the request.
+     * Sends {@code text} to whom {@link Replies} says a reply goes, never to addressees from the request. A thread found
+     * in several accounts of the owner replies from its primary copy, in its thread, and keeps the message there (F05b,
+     * D-186).
      *
      * @return the message; {@code created} is false when this {@code clientMessageId} was already sent
      * @throws SinoException {@code CONVERSATION_NOT_FOUND}, {@code SEND_IN_PROGRESS}, {@code SEND_OUTCOME_UNKNOWN}
@@ -80,11 +82,11 @@ public class ReplyService implements SentMessages {
         InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
         Attempt attempt = transactions.execute(status -> begin(ownerId, conversation, text, clientMessageId));
         if (attempt.alreadySent()) {
-            return new Sent(read(conversationId, attempt.messageId()), false);
+            return new Sent(read(attempt.conversationId(), attempt.messageId()), false);
         }
         SendMessageResult result;
         try {
-            result = access.call(conversation.accountId(),
+            result = access.call(attempt.accountId(),
                     (connector, context) -> connector.sendMessage(context, attempt.command()));
         } catch (ProviderException failure) {
             throw failed(attempt, failure);
@@ -98,7 +100,7 @@ public class ReplyService implements SentMessages {
             throw failure;
         }
         UUID messageId = transactions.execute(status -> sent(attempt, result.externalMessageId()));
-        return new Sent(read(conversationId, messageId), true);
+        return new Sent(read(attempt.conversationId(), messageId), true);
     }
 
     /**
@@ -107,9 +109,9 @@ public class ReplyService implements SentMessages {
      * @throws SinoException {@code CONVERSATION_NOT_FOUND}, {@code MESSAGE_NOT_FOUND} or {@code MESSAGE_NOT_DELETABLE}
      */
     public void discard(UUID ownerId, UUID conversationId, UUID messageId) {
-        InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
+        UUID accountId = inbox.requireInInbox(ownerId, conversationId).accountOf(conversationId);
         transactions.executeWithoutResult(status -> {
-            summaries.lock(conversation.accountId());
+            summaries.lock(accountId);
             Optional<Boolean> failedFromSino = jdbc.sql("""
                     SELECT client_message_id IS NOT NULL AND status = 'FAILED' FROM message
                     WHERE id = :message AND conversation_id = :conversation
@@ -122,7 +124,7 @@ public class ReplyService implements SentMessages {
                 throw ConversationErrorCode.messageNotDeletable();
             }
             jdbc.sql("DELETE FROM message WHERE id = :message").param("message", messageId).update();
-            changed(conversation.accountId(), conversationId);
+            changed(accountId, conversationId);
         });
     }
 
@@ -233,15 +235,28 @@ public class ReplyService implements SentMessages {
                 .map(address -> new NormalizedRecipients.Address(address.name(), address.address())).toList();
     }
 
-    // Transaction 1: what this clientMessageId already is decides; a new or failed message is written PENDING.
+    // Transaction 1: what this clientMessageId already is decides; a new or failed message is written PENDING. A new
+    // one goes in the primary copy (D-186). One sent before with it stays in the copy it was written to, even when
+    // another copy has become the primary one since, so it is never sent twice nor from two accounts (D-131).
     private Attempt begin(UUID ownerId, InboxItem conversation, String text, UUID clientMessageId) {
-        summaries.lock(conversation.accountId());
+        // Every account of the thread, in one order, as a change of the inbox takes them.
+        conversation.copies().stream().map(InboxItem.Copy::accountId).distinct().sorted().forEach(summaries::lock);
+        // Every copy of the group, those of accounts out of the inbox too.
         Optional<Existing> existing = jdbc.sql("""
-                SELECT id, status FROM message WHERE conversation_id = :conversation AND client_message_id = :client
-                """).param("conversation", conversation.id()).param("client", clientMessageId)
+                SELECT m.id, m.conversation_id, m.status FROM message m
+                JOIN conversation c ON c.id = m.conversation_id
+                WHERE c.thread_group_id = (SELECT thread_group_id FROM conversation WHERE id = :primary)
+                  AND m.client_message_id = :client
+                """).param("primary", conversation.primaryId()).param("client", clientMessageId)
                 .query((row, n) -> new Existing(row.getObject("id", UUID.class),
-                        MessageStatus.valueOf(row.getString("status"))))
+                        row.getObject("conversation_id", UUID.class), MessageStatus.valueOf(row.getString("status"))))
                 .optional();
+        if (existing.isPresent() && !conversation.conversationIds().contains(existing.get().conversationId())) {
+            // Its account left the inbox: sent from another account, it could go twice.
+            throw ConversationErrorCode.replyNotAllowed(ReplyState.ACCOUNT_UNAVAILABLE);
+        }
+        UUID copy = existing.map(Existing::conversationId).orElse(conversation.primaryId());
+        UUID accountId = conversation.accountOf(copy);
         if (existing.isPresent()) {
             switch (existing.get().status()) {
                 case PENDING -> throw ConversationErrorCode.sendInProgress();
@@ -250,11 +265,11 @@ public class ReplyService implements SentMessages {
                     // Certainly not sent before: send it again, below.
                 }
                 default -> {
-                    return Attempt.done(existing.get().id());
+                    return Attempt.done(existing.get().id(), copy);
                 }
             }
         }
-        Reply reply = replies.of(ownerId, conversation);
+        Reply reply = replies.of(ownerId, conversation, copy);
         if (reply.state() != ReplyState.READY) {
             throw ConversationErrorCode.replyNotAllowed(reply.state());
         }
@@ -262,13 +277,13 @@ public class ReplyService implements SentMessages {
             throw ConversationErrorCode.noRecipient();
         }
         String externalConversationId = jdbc.sql("SELECT external_conversation_id FROM conversation WHERE id = :id")
-                .param("id", conversation.id()).query(String.class).single();
+                .param("id", copy).query(String.class).single();
         // The message it answers is the newest the provider has: not one Sino has yet to send.
         String answered = jdbc.sql("""
                 SELECT external_message_id FROM message
                 WHERE conversation_id = :conversation AND external_message_id NOT LIKE 'sino:%'
                 ORDER BY sent_at DESC, id DESC LIMIT 1
-                """).param("conversation", conversation.id()).query(String.class).optional().orElse(null);
+                """).param("conversation", copy).query(String.class).optional().orElse(null);
         // The name the account wrote in the latest mail it sent itself; Sino writes none of its own (BE-62).
         String senderName = jdbc.sql("""
                 SELECT p.display_name FROM message m
@@ -277,14 +292,14 @@ public class ReplyService implements SentMessages {
                 WHERE c.account_id = :account AND m.direction = 'OUTBOUND' AND m.client_message_id IS NULL
                   AND btrim(p.display_name) <> ''
                 ORDER BY m.sent_at DESC, m.id DESC LIMIT 1
-                """).param("account", conversation.accountId()).query(String.class).optional().orElse(null);
+                """).param("account", accountId).query(String.class).optional().orElse(null);
         List<NormalizedRecipients.Address> to = reply.to().stream()
                 .map(address -> new NormalizedRecipients.Address(address.name(), address.address())).toList();
         String recipients = JSON.writeValueAsString(new NormalizedRecipients(to, List.of(), List.of()));
         UUID messageId = existing.isPresent() ? resend(existing.get().id(), text, answered, recipients)
-                : write(conversation.id(), clientMessageId, text, answered, recipients);
-        changed(conversation.accountId(), conversation.id());
-        return new Attempt(messageId, conversation.accountId(), conversation.id(), clientMessageId,
+                : write(copy, clientMessageId, text, answered, recipients);
+        changed(accountId, copy);
+        return new Attempt(messageId, accountId, copy, clientMessageId,
                 new SendMessageCommand(externalConversationId, text, answered, to, clientMessageId, senderName),
                 false);
     }
@@ -395,7 +410,7 @@ public class ReplyService implements SentMessages {
     public record Sent(InboxMessage message, boolean created) {
     }
 
-    private record Existing(UUID id, MessageStatus status) {
+    private record Existing(UUID id, UUID conversationId, MessageStatus status) {
     }
 
     private record Uncertain(UUID id, UUID conversationId, UUID clientMessageId, boolean givenUp,
@@ -405,8 +420,8 @@ public class ReplyService implements SentMessages {
     private record Attempt(UUID messageId, UUID accountId, UUID conversationId, UUID clientMessageId,
             SendMessageCommand command, boolean alreadySent) {
 
-        static Attempt done(UUID messageId) {
-            return new Attempt(messageId, null, null, null, null, true);
+        static Attempt done(UUID messageId, UUID conversationId) {
+            return new Attempt(messageId, null, conversationId, null, null, true);
         }
 
     }
