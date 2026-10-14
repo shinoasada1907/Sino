@@ -37,6 +37,17 @@ Khi lần kết nối đang chờ có `accountId`, server MUST so `externalAccou
 - **WHEN** người dùng kết nối lại account của nick A nhưng quét bằng nick B
 - **THEN** `state` = `FAILED`, `code` = `CONNECT_WRONG_ACCOUNT`, và không account nào thay đổi
 
+### Requirement: Một tài khoản kết nối QR chỉ thuộc một owner
+Khi connector báo `DONE`, trước khi đăng ký, server MUST kiểm tra xem có account chưa xóa nào của owner khác cùng `provider` và `externalAccountId` không, kể cả account đang tắt. Có thì server MUST NOT tạo hay sửa account nào, MUST bỏ credential vừa nhận, và MUST trả `state` = `FAILED` với `code` = `CONNECT_ACCOUNT_IN_USE`. Account đã xóa MUST NOT chặn.
+
+#### Scenario: Nick đã thuộc người khác
+- **WHEN** owner B quét QR bằng nick Zalo mà owner A đang có trong Sino
+- **THEN** response có `state` = `FAILED`, `code` = `CONNECT_ACCOUNT_IN_USE`, owner B không có account mới và account của owner A không đổi
+
+#### Scenario: Owner cũ đã xóa account
+- **WHEN** owner A đã xóa account Zalo của nick đó và owner B quét QR bằng nick đó
+- **THEN** owner B có account Zalo mới với `status` = `CONNECTED`
+
 ### Requirement: Hủy kết nối QR
 `DELETE /api/accounts/connect/{provider}/qr/{loginId}` MUST gọi `qrLogin().cancel(loginId)`, xóa lần kết nối đang chờ khỏi session và trả `204`, kể cả khi lần kết nối đã hết hạn.
 

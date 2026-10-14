@@ -34,7 +34,7 @@ Mọi endpoint của `sino-zalo` trừ `GET /health` MUST đòi `Authorization: 
 - **THEN** `state` = `EXPIRED`
 
 ### Requirement: Vòng đời phiên và listener
-`PUT /accounts/{accountId}/session` với `session` MUST đăng nhập bằng cookie và bật đúng một listener cho account đó; gọi lại khi phiên đang sống MUST NOT làm gì và MUST trả `204`. Cookie bị từ chối MUST trả `410 SESSION_ENDED`. Listener đóng với mã `3000` hoặc `3003` MUST đánh dấu phiên `ENDED`, dừng listener, gọi webhook ngay, và từ đó mọi request cho account đó MUST trả `410 SESSION_ENDED` cho tới `PUT session` mới. Các mã đóng khác MUST được nối lại với độ trễ tăng dần. `DELETE /accounts/{accountId}/session` MUST dừng listener, xóa phiên và bộ đệm của account khỏi bộ nhớ.
+`sino-zalo` MUST giữ cho mỗi account dấu vân tay SHA-256 của phiên nhận qua `PUT` (chỉ trong bộ nhớ, không ra log). `PUT /accounts/{accountId}/session` với `session` MUST đăng nhập bằng cookie và bật đúng một listener cho account đó. Gọi lại với phiên cùng dấu vân tay khi phiên đang sống MUST NOT làm gì và MUST trả `204`. Gọi với phiên cùng dấu vân tay với phiên đã `ENDED` MUST trả `410 SESSION_ENDED` mà MUST NOT gọi Zalo. Gọi với phiên khác dấu vân tay MUST đăng nhập bằng phiên mới, dừng listener cũ nếu có, rồi thay phiên. Cookie bị từ chối MUST dừng listener cũ nếu có, đánh dấu phiên mới `ENDED` và trả `410 SESSION_ENDED`. Listener đóng với mã `3000` hoặc `3003` MUST đánh dấu phiên `ENDED`, dừng listener, gọi webhook ngay, và từ đó mọi request cho account đó MUST trả `410 SESSION_ENDED` cho tới `PUT session` mới. Các mã đóng khác MUST được nối lại với độ trễ tăng dần. `DELETE /accounts/{accountId}/session` MUST dừng listener, xóa phiên và bộ đệm của account khỏi bộ nhớ.
 
 #### Scenario: Bị đá vì mở Zalo Web
 - **WHEN** listener của account `a1` đóng với mã `3003`
@@ -44,12 +44,24 @@ Mọi endpoint của `sino-zalo` trừ `GET /health` MUST đòi `Authorization: 
 - **WHEN** `PUT /accounts/a1/session` được gọi khi listener của `a1` đang chạy
 - **THEN** response là `204`, vẫn chỉ có một listener và không có đăng nhập mới
 
+#### Scenario: Gửi lại phiên đã bị đá
+- **WHEN** phiên của `a1` đã `ENDED` vì mã `3003` và `sino-api` gọi `PUT /accounts/a1/session` với đúng phiên đó
+- **THEN** response là `410 SESSION_ENDED` và không có lời gọi nào tới Zalo
+
+#### Scenario: Phiên mới sau khi quét lại
+- **WHEN** phiên của `a1` đã `ENDED` và `sino-api` gọi `PUT /accounts/a1/session` với một phiên khác mà Zalo nhận
+- **THEN** response là `204`, `a1` có đúng một listener chạy bằng phiên mới, và `GET /accounts/a1/messages` trả `200`
+
+#### Scenario: Phiên mới khi phiên cũ còn sống
+- **WHEN** listener của `a1` đang chạy và `sino-api` gọi `PUT /accounts/a1/session` với một phiên khác mà Zalo nhận
+- **THEN** listener cũ dừng, chỉ còn một listener chạy bằng phiên mới, và response là `204`
+
 #### Scenario: Account không có trong bộ nhớ
 - **WHEN** `sino-zalo` vừa khởi động lại và nhận `GET /accounts/a1/messages`
 - **THEN** response là `404 UNKNOWN_ACCOUNT`
 
 ### Requirement: Bộ đệm tin và cursor
-Mỗi account MUST có một bộ đệm trong bộ nhớ chứa tối đa 1.000 tin và không tin nào cũ hơn 24 giờ, sắp theo `msgId` (so sánh số nguyên lớn). `GET /accounts/{accountId}/messages?after=X&limit=N` MUST trả tối đa N tin có `msgId` > X (không có `after` thì từ tin đầu bộ đệm), các cuộc trò chuyện của những tin đó, `nextCursor` = `msgId` lớn nhất đã trả (hoặc X nếu không có tin), và `hasMore`. Bộ đệm MUST giữ cả tin `isSelf`.
+Mỗi account MUST có một bộ đệm trong bộ nhớ chứa tối đa 1.000 tin và không tin nào cũ hơn 24 giờ, sắp theo `msgId` (so sánh số nguyên lớn). `GET /accounts/{accountId}/messages?after=X&limit=N` MUST trả tối đa N tin có `msgId` > X (không có `after` thì từ tin đầu bộ đệm), các cuộc trò chuyện của những tin đó, `nextCursor` = `msgId` lớn nhất đã trả (hoặc X nếu không có tin; `null` nếu không có cả `after` lẫn tin), và `hasMore`. Bộ đệm MUST giữ cả tin `isSelf`.
 
 #### Scenario: Kéo tiếp từ cursor
 - **WHEN** bộ đệm có tin `100`, `101`, `102` và `sino-api` gọi `after=100&limit=1`
@@ -60,11 +72,19 @@ Mỗi account MUST có một bộ đệm trong bộ nhớ chứa tối đa 1.000
 - **THEN** response có tin `1000`
 
 ### Requirement: Bù tin lỡ ở lần kéo
-Khi `GET /accounts/{accountId}/messages?after=X` tới mà phiên chưa bù từ một mốc ≤ X kể từ lúc bật, và X nhỏ hơn `msgId` nhỏ nhất trong bộ đệm hoặc bộ đệm rỗng, `sino-zalo` MUST gọi `requestOldMessages` cho tin 1-1 và tin nhóm với `lastId` = X, chờ cả hai kết quả tối đa 5 giây, đưa vào bộ đệm, rồi mới trả lời. Mỗi phiên MUST NOT bù lại từ cùng một mốc hai lần.
+Khi `GET /accounts/{accountId}/messages?after=X` tới mà phiên chưa bù từ một mốc ≤ X kể từ lúc bật, và X nhỏ hơn `msgId` nhỏ nhất trong bộ đệm hoặc bộ đệm rỗng, `sino-zalo` MUST gọi `requestOldMessages` cho tin 1-1 và cho tin nhóm, bắt đầu với `lastId` = X, rồi gọi tiếp với `lastId` = `msgId` lớn nhất của trang vừa nhận, cho tới khi gặp trang rỗng hoặc trang có tin đã nằm trong bộ đệm. Mỗi loại MUST NOT vượt 10 trang, và cả lần bù MUST NOT chờ quá 5 giây. Kết quả MUST được đưa vào bộ đệm trước khi trả lời. Dừng vì giới hạn trang hoặc thời gian mà chưa nối liền MUST ghi một log WARN có ID account, số trang và số tin, không có nội dung tin. Mỗi phiên MUST NOT bù lại từ cùng một mốc hai lần.
 
 #### Scenario: sino-zalo khởi động lại trong lúc có tin mới
 - **WHEN** phiên vừa bật lại, bộ đệm rỗng, và `sino-api` gọi `after=500`, trong khi Zalo còn giữ tin `501`, `502`
 - **THEN** response có tin `501` và `502`
+
+#### Scenario: Tin lỡ dài hơn một trang
+- **WHEN** bộ đệm có tin `900` trở đi, `sino-api` gọi `after=500`, và mỗi trang `requestOldMessages` trả 2 tin: `501`–`502`, `503`–`504`, …, rồi một trang có `900`
+- **THEN** `sino-zalo` đọc từng trang với `lastId` = `502`, `504`, … cho tới trang có `900`, và response có mọi tin từ `501`
+
+#### Scenario: Bù tin chưa hết
+- **WHEN** Zalo vẫn còn trang sau trang thứ 10 của một loại
+- **THEN** `sino-zalo` dừng ở trang 10, trả những tin đã có, và ghi một log WARN không có nội dung tin
 
 #### Scenario: Không bù khi bộ đệm đã đủ
 - **WHEN** bộ đệm có tin từ `400` tới `600` và `sino-api` gọi `after=500`
@@ -89,7 +109,7 @@ Khi có tin mới vào bộ đệm, `sino-zalo` MUST gọi `POST <SINO_API>/api/
 - **THEN** tin thứ hai nhận `429 RATE_LIMITED`
 
 ### Requirement: Tra tin đã gửi
-`POST /accounts/{accountId}/sent/lookup` với `threadId`, `clientMessageId`, `text`, `after` MUST trả `msgIds`: trước hết `msgId` đã nhớ của `clientMessageId`, sau đó các tin `isSelf` trong bộ đệm của thread đó có `sentAt` sau `after` và cùng `text`. Khi phiên được bật sau `after` và không tìm thấy gì, MUST trả `409 CANNOT_TELL` thay vì danh sách rỗng.
+`POST /accounts/{accountId}/sent/lookup` với `threadId`, `clientMessageId`, `text`, `after` MUST trả `msgIds`: trước hết `msgId` đã nhớ của `clientMessageId`, sau đó các tin `isSelf` trong bộ đệm của thread đó có `sentAt` sau `after` và cùng `text`. Khi phiên được bật sau `after` và không tìm thấy gì, MUST trả `409 CANNOT_TELL` thay vì danh sách rỗng. Account không có trong bộ nhớ MUST trả `404 UNKNOWN_ACCOUNT`; phiên `ENDED` MUST trả `410 SESSION_ENDED`.
 
 #### Scenario: Tin đã đi nhưng sino-api hết giờ chờ
 - **WHEN** zca-js gửi xong nhưng `sino-api` không nhận được trả lời, rồi `sino-api` tra với cùng `clientMessageId`

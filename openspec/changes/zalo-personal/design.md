@@ -2,7 +2,8 @@
 
 > Mode: **HYBRID**, change này **TRAINING**: người dùng code toàn bộ ("Toàn bộ", 2026-10-14; `project-mode.yaml` `zalo-personal`, `new_features: TRAINING`). Claude lên kế hoạch, hướng dẫn từng task theo D-287, review, chạy test.
 > Thiết kế duyệt trong chat ngày 2026-10-14, theo 5 phần: tổng thể, kết nối QR, nhận tin, trả lời và lỗi, test và thứ tự task. Mỗi phần người dùng trả lời "oke". Quyết định do người dùng chốt ghi **Người dùng chốt**. Chi tiết agent thêm khi viết hồ sơ ghi **Agent chốt khi viết hồ sơ, cần xem lại**.
-> Số quyết định: D-270…D-289. Mã task: ZL-00…ZL-13.
+> Review đối chiếu với code ngày 2026-10-14 (session sino-api-dc) tìm ra một lỗi ở luồng quét lại và vài chỗ hở; người dùng: "làm đi". Phần sửa ghi **Agent chốt theo ủy quyền, cần xem lại**, và chỗ đổi trong quyết định cũ ghi "Đã sửa sau review" kèm **LÝ DO**.
+> Số quyết định: D-270…D-290. Mã task: ZL-00…ZL-13.
 > Nguồn: zca-js 2.2.0 (README, `src/apis/listen.ts`, `loginQR.ts`, `getGroupChatHistory.ts`, `sendMessage.d.ts`), issue zca-js #331 và #344 (mã `3003`), spike `spikes/zalo-zca/` (2026-10-14), contract F03 (`MessageProvider`), F07 (`PushWatches`, `PushNotices`, `LiveSyncSchedule`), F10 (`ReplyService`, D-131…D-138).
 
 ## Context
@@ -133,7 +134,8 @@ QrLogin.cancel(loginId)
 - Một endpoint riêng cho Zalo: một provider QR khác về sau (Telegram QR) sẽ phải làm lại từ đầu.
 
 ### D-276 — Bị đá thì account thành "Cần đăng nhập lại"; rớt mạng thì tự nối lại · **Người dùng chốt** (phần 2)
-- **Bị đá:** listener đóng với `3000` hoặc `3003`, hoặc đăng nhập bằng cookie bị từ chối. `sino-zalo` đánh dấu phiên `ENDED` (kèm lý do), dừng listener, gọi webhook ngay (D-277). Lần gọi kế tiếp tới account đó nhận `410 SESSION_ENDED`. `ZaloProvider` ném `AUTH_EXPIRED`, `ProviderAccessService` sẵn có chuyển account sang `AUTH_EXPIRED`, web hiện "Quét QR lại" (kết nối lại, D-275).
+- **Bị đá:** listener đóng với `3000` hoặc `3003`, hoặc đăng nhập bằng cookie bị từ chối. `sino-zalo` đánh dấu phiên `ENDED` (kèm lý do), dừng listener, gọi webhook ngay (D-277). Lần gọi kế tiếp tới account đó nhận `410 SESSION_ENDED`. ~~`ZaloProvider` ném `AUTH_EXPIRED`~~ `ZaloProvider` gửi lại phiên đang lưu bằng `PUT session` một lần (D-289); đó vẫn là phiên đã bị đá nên `sino-zalo` trả `410` ngay mà không gọi Zalo, và `ZaloProvider` ném `AUTH_EXPIRED`. `ProviderAccessService` sẵn có chuyển account sang `AUTH_EXPIRED`, web hiện "Quét QR lại" (kết nối lại, D-275).
+  - **Đã sửa sau review:** **LÝ DO:** nếu `410` thành `AUTH_EXPIRED` ngay thì sau khi người dùng quét lại, phiên mới không bao giờ tới `sino-zalo` và account bị đẩy về "Cần đăng nhập lại" ở lượt đồng bộ kế tiếp (D-289).
 - **Rớt mạng thoáng qua** (`1006` và các mã khác): zca-js tự nối lại với độ trễ tăng dần (`retryOnClose`). Không coi là bị đá.
 
 **Phương án bị loại:** tự đăng nhập lại bằng cookie sau khi bị đá (phiên đã bị Zalo hủy, spike đã thấy; thử mãi dễ bị coi là bot).
@@ -149,10 +151,10 @@ QrLogin.cancel(loginId)
 
 - **Cursor** là `msgId` Zalo của tin cuối Sino đã nhận (`SyncCursor.value`); spike thấy `msgId` tăng theo thời gian. `sino-zalo` so sánh bằng `BigInt`.
 - **Bộ đệm** trong RAM, theo account: tối đa 1.000 tin hoặc 24 giờ. Trùng tin không sao, vì `sino-api` chống trùng theo `externalMessageId` (F05).
-- **`registerPush`** gọi `PUT /accounts/{id}/session` (bảo đảm phiên đang chạy, idempotent) và trả `PushRegistration(address = ownId, expiresAt = bây giờ + 1 ngày)`. Vì hạn còn dưới 2 ngày, `PushWatches` gọi lại mỗi giờ. Nhờ vậy:
-  - sau khi `sino-api` khởi động, mọi listener chạy lại trong khoảng một phút;
-  - nếu `sino-zalo` khởi động lại, listener chạy lại chậm nhất sau một giờ, hoặc sớm hơn nhờ bước dưới.
-- **`fetchUpdates` và `sendMessage` gặp `404 UNKNOWN_ACCOUNT`** (service vừa khởi động lại): `ZaloProvider` gọi `PUT session` bằng phiên trong `ProviderContext`, rồi thử lại **một lần**. Đồng bộ dự phòng 5 phút một lần của F07 nên sau khi `sino-zalo` khởi động lại, phiên sống lại trong vòng 5 phút.
+- **`registerPush`** gọi `PUT /accounts/{id}/session` (bảo đảm phiên đang chạy, idempotent theo D-289) và trả `PushRegistration(address = ownId, expiresAt = bây giờ + 3 ngày)`. `PushWatches` gia hạn khi hạn còn dưới 2 ngày, tức khoảng một lần mỗi ngày: đây chỉ là lưới an toàn, việc bật lại listener nằm ở bước dưới.
+  - **Đã sửa sau review:** ~~`expiresAt` = bây giờ + 1 ngày, nên `PushWatches` gọi lại mỗi giờ; nếu `sino-zalo` khởi động lại thì listener chạy lại chậm nhất sau một giờ~~. **LÝ DO:** hạn 1 ngày luôn nằm trong cửa sổ gia hạn 2 ngày, nên mỗi giờ mỗi account Zalo bị ghi watch lại, phát một `SyncStateChanged` và một dòng log INFO mà không được gì: bước dưới đã bật lại listener ở lượt đồng bộ kế tiếp.
+- **`fetchUpdates`, `sendMessage` và `findSentMessages` gặp `404 UNKNOWN_ACCOUNT`** (service vừa khởi động lại) **hoặc `410 SESSION_ENDED`** (D-289): `ZaloProvider` gọi `PUT session` bằng phiên trong `ProviderContext`, rồi thử lại **một lần**. `PUT` trả `410` thì ném `AUTH_EXPIRED` luôn, không thử lại. Có watch thì F07 vẫn đồng bộ dự phòng 5 phút một lần, nên sau khi `sino-zalo` (hay cả hai service) khởi động lại, listener sống lại chậm nhất sau 5 phút. Cả hai lỗi đều có nghĩa là chưa gửi gì, nên thử lại `sendMessage` không gửi trùng.
+  - **Đã sửa sau review:** thêm `410` và `findSentMessages`. **LÝ DO:** xem D-289; tra tin đã gửi sau khi `sino-zalo` khởi động lại cũng gặp `404`.
 - **Webhook** `POST /api/webhooks/zalo` `{ "ownId": "..." }` với `Authorization: Bearer <SINO_ZALO_SECRET>`. Gọi khi có tin mới (gom trong 0,5 giây) và khi phiên `ENDED`.
 
 **Phương án bị loại:**
@@ -162,9 +164,12 @@ QrLogin.cancel(loginId)
 ### D-278 — Không nhập lịch sử cũ; bù tin lỡ ngay ở lần kéo đầu tiên · **Người dùng chốt** (phần 3); thời điểm bù do **agent chốt khi viết hồ sơ, cần xem lại**
 - **Không nhập lịch sử:** account Zalo mới có hộp thư trống, đầy dần theo tin mới. Lần nhập đầu (D-64) của Zalo xong ngay: `fetchUpdates(initial)` trả những gì đang có trong bộ đệm. `estimateMessages` rỗng, và web không hỏi khoảng thời gian (D-288).
 - **Bù tin:** khi `GET /messages?after=X` mà phiên chưa bù từ một mốc ≤ X kể từ lúc khởi động, **và** X cũ hơn tin cũ nhất trong bộ đệm (hoặc bộ đệm rỗng), thì `sino-zalo`:
-  1. gọi `requestOldMessages(User, X)` và `(Group, X)`;
-  2. chờ cả hai trả về (tối đa 5 giây);
-  3. đổ kết quả vào bộ đệm, rồi mới trả lời.
+  1. ~~gọi `requestOldMessages(User, X)` và `(Group, X)`;~~ với mỗi loại (`User`, `Group`), gọi `requestOldMessages(loại, X)`, rồi gọi tiếp với `lastId` = `msgId` lớn nhất của trang vừa nhận, cho tới khi gặp trang rỗng hoặc trang có tin đã nằm trong bộ đệm (tức là đã nối liền với listener), tối đa 10 trang mỗi loại;
+  2. chờ ~~cả hai trả về~~ (tối đa 5 giây cho cả lần bù);
+  3. đổ kết quả vào bộ đệm, rồi mới trả lời;
+  4. dừng vì hết 10 trang hoặc hết 5 giây mà chưa nối liền thì ghi log WARN (ID account, số trang, số tin; không có nội dung) và trả những gì đã có: phần còn lại bị mất, và log cho biết điều đó.
+  - **Đã sửa sau review:** đọc nhiều trang. **LÝ DO:** mỗi lần gọi `requestOldMessages` chỉ trả một trang. Nếu số tin lỡ dài hơn một trang thì phần giữa mất, và lần kéo sau không bù nữa vì bộ đệm đã có tin nhỏ hơn cursor, nên chỗ mất không ai thấy. Độ dài một trang đo ở ZL-00.
+- **Giới hạn đã chấp nhận** (agent chốt theo ủy quyền, cần xem lại): trước tin đầu tiên của account, cursor còn rỗng (`nextCursor` rỗng, `ImportRunner` gọi lại bằng cursor đầu). Nếu `sino-zalo` khởi động lại trong khoảng đó thì tin đến lúc nó tắt không được bù, vì không có mốc để bù. Khoảng này chỉ kéo dài từ lúc kết nối tới tin đầu tiên. **Phương án bị loại:** lấy mốc bằng `requestOldMessages(loại, null)` (trả cả tin của buổi trước, trái "không nhập lịch sử", và chưa đo).
 - **Đã sửa so với phần 3 lúc trình bày:** ~~`PUT session` gửi kèm cursor để bù tin khi kết nối~~. **LÝ DO:** `registerPush` (D-277) không có cursor; chỉ lần kéo mới biết Sino đang ở đâu, nên bù ở đó là đúng một chỗ.
 - Zalo giữ tin bao lâu để bù thì đo ở ZL-00 (DN-1).
 
@@ -209,13 +214,15 @@ Spike mới thấy hai loại `webchat` và `chat.photo`. Tên `chat.sticker`, `
 | không kết nối được, 5xx, hết giờ (đọc) | service sập hoặc chậm | `PROVIDER_UNAVAILABLE` |
 | hết giờ, 5xx, `504 OUTCOME_UNKNOWN` (gửi) | có thể đã gửi | `OUTCOME_UNKNOWN` (D-135 của F10) |
 | `404 UNKNOWN_ACCOUNT` | service vừa khởi động lại | `PUT session` rồi thử lại một lần (D-277) |
-| `410 SESSION_ENDED` | bị đá, cookie bị từ chối | `AUTH_EXPIRED` |
+| `410 SESSION_ENDED` | bị đá, cookie bị từ chối, hoặc `sino-zalo` còn giữ phiên cũ trong khi `sino-api` đã có phiên mới | ~~`AUTH_EXPIRED`~~ `PUT session` rồi thử lại một lần (D-289) |
+| `410 SESSION_ENDED` cho chính `PUT session` | phiên đang lưu đã bị đá hoặc bị từ chối | `AUTH_EXPIRED` |
 | `429 RATE_LIMITED` | vượt 1 tin/giây | `RATE_LIMITED` |
 | `422 REJECTED` | Zalo từ chối gửi | `REQUEST_REJECTED` |
 | `409 CANNOT_TELL` (tra tin đã gửi) | không biết | `PROVIDER_UNAVAILABLE` |
 | `401` | sai khóa bí mật | `PROVIDER_UNAVAILABLE` + log ERROR (lỗi cấu hình) |
 
 **Đã sửa so với phần 4 lúc trình bày:** ~~hết giờ khi gửi → `PROVIDER_UNAVAILABLE`~~ → `OUTCOME_UNKNOWN`. **LÝ DO:** F10 đã có mã này cho "có thể đã gửi" (D-135). `PROVIDER_UNAVAILABLE` sẽ cho phép gửi lại mù.
+**Đã sửa sau review:** ~~`410` → `AUTH_EXPIRED`~~ → `PUT session` rồi thử lại; chỉ `410` của chính `PUT` mới là `AUTH_EXPIRED`. **LÝ DO:** D-289.
 
 ### D-282 — Bảo mật nội bộ · **Người dùng chốt** (phần 2)
 - **Mạng:** `sino-zalo` chỉ nghe ở `127.0.0.1` (máy dev) hoặc trong mạng Docker, không mở ra ngoài.
@@ -270,7 +277,53 @@ Contract F03 thêm `default void disconnect(ProviderContext context) {}`. Module
 - `tasks.md` chỉ có gợi ý Level 1–2; code đầy đủ nằm trong chat của từng task.
 
 ### D-288 — Web: Zalo bỏ bước chọn khoảng nhập · **Agent chốt khi viết hồ sơ, cần xem lại**
-Sau khi kết nối Zalo xong, web gọi `POST /api/accounts/{id}/initial-sync` ngay, không hỏi khoảng thời gian, rồi đóng hộp thoại với dòng "Sino nhận tin Zalo từ bây giờ". Gmail giữ bước cũ.
+Sau khi kết nối Zalo xong, web gọi `POST /api/accounts/{id}/initial-sync` ngay ~~, không hỏi khoảng thời gian~~ với `{ "range": "ALL" }` mà không hỏi người dùng, rồi đóng hộp thoại với dòng "Sino nhận tin Zalo từ bây giờ". Gmail giữ bước cũ. Kết nối lại (quét QR lại) thì không gọi `initial-sync`: lần nhập đầu đã xong.
+- **Đã sửa sau review:** ghi rõ `range`. **LÝ DO:** `InitialSyncController` bắt buộc có `range` (`@NotNull`). `ALL` cho `since` = null, đúng với Zalo: bộ đệm chỉ có tin từ lúc kết nối. Thêm một giá trị "không áp dụng" thì phải sửa F05 cho một trường hợp không cần.
+
+### D-289 — `PUT session` thay phiên khi phiên khác; `410` cũng gửi lại phiên một lần · **Agent chốt theo ủy quyền, cần xem lại** (review 2026-10-14)
+**Vấn đề:**
+1. Người dùng bị đá; `sino-zalo` giữ phiên `ENDED` và trả `410` cho tới một `PUT session` mới.
+2. Người dùng quét lại; `sino-api` lưu credential mới, nhưng không có gì gửi phiên mới sang `sino-zalo`. `registerPush` chỉ chạy khi watch tới hạn.
+3. Lượt đồng bộ kế tiếp nhận `410` và ném `AUTH_EXPIRED`. Credential mới là credential hiện hành, nên `ProviderAccessService.expire` đánh dấu account `AUTH_EXPIRED` lại.
+
+Người dùng quét mãi cũng không thoát ra được.
+
+**Quyết định:**
+- **Dấu vân tay:** `sino-zalo` giữ cho mỗi account SHA-256 của phiên nhận qua `PUT` (`JSON.stringify(session)`). Dấu vân tay chỉ nằm trong RAM và không ra log.
+- **`PUT session`:**
+
+  | Đang giữ | Phiên gửi tới | Kết quả |
+  |---|---|---|
+  | `LIVE`, cùng dấu vân tay | | `204`, không làm gì |
+  | `ENDED`, cùng dấu vân tay | | `410` ngay, **không gọi Zalo**: cookie đó đã bị hủy (D-276) |
+  | không có, hoặc dấu vân tay khác | được Zalo nhận | đăng nhập bằng cookie mới, dừng listener cũ nếu có, thay phiên, `LIVE`, `204` |
+  | không có, hoặc dấu vân tay khác | bị Zalo từ chối | dừng listener cũ nếu có, `ENDED` với dấu vân tay mới, `410` |
+
+- **`ZaloProvider`:** `404` và `410` của `fetchUpdates`, `sendMessage`, `findSentMessages` cùng một cách xử lý: `PUT session` bằng phiên trong `ProviderContext`, rồi thử lại một lần. `PUT` trả `410` thì ném `AUTH_EXPIRED`.
+- **Kết quả:**
+  - **Bị đá, chưa quét lại:** thêm một lời gọi nội bộ, không thêm lời gọi nào tới Zalo, account thành `AUTH_EXPIRED` như cũ.
+  - **Đã quét lại:** lượt đồng bộ kế tiếp đưa phiên mới vào và đọc tiếp.
+  - **Quét lại khi phiên cũ còn sống:** phiên mới vào ở lần `registerPush` kế tiếp; nếu Zalo hủy phiên cũ trước đó thì đi đường `410` ở trên.
+
+**Phương án bị loại:**
+- Luồng QR tự gọi `PUT session` ngay sau `register`: chỉ vá một đường, phải thêm lời gọi provider sau commit trong `account`, và vẫn hở khi lần gọi đó lỗi. Dấu vân tay tự sửa ở mọi lần credential của `sino-api` khác phiên ở `sino-zalo`.
+- `PUT session` luôn đăng nhập lại: đăng nhập bằng cookie mỗi ngày (và mỗi lần thử lại) mà không cần, dễ bị coi là bot.
+- `410` luôn đăng nhập lại bằng cookie đang lưu: lặp lại đăng nhập bằng cookie Zalo đã hủy, trái D-276.
+
+### D-290 — Một nick Zalo chỉ thuộc một owner Sino · **Agent chốt theo ủy quyền, cần xem lại** (review 2026-10-14)
+**Vấn đề:** F02 tách account theo `(owner, provider, externalAccountId)`. Hai người dùng Sino kết nối cùng một nick sẽ có hai account và hai phiên web, trong khi Zalo chỉ giữ một kết nối web cho mỗi tài khoản (`3000 DuplicateConnection`). Hai phiên đá nhau, cả hai người phải quét lại liên tục, và kiểu đăng nhập lặp đó dễ bị Zalo coi là bot.
+
+**Quyết định:**
+- Khi lần kết nối QR tới `DONE`, trước khi gọi `register`, `QrConnectService` kiểm tra xem có account chưa xóa nào của owner khác cùng `(provider, externalAccountId)` không. Account đang tắt cũng tính, vì bật lại là nó cần phiên.
+- Có thì trả `FAILED` với `CONNECT_ACCOUNT_IN_USE`, không tạo hay sửa account nào. Phiên vừa nhận bị bỏ: `sino-zalo` đã quên nó sau `DONE`, và `sino-api` không gửi nó đi đâu.
+- Luật này áp cho mọi provider kết nối bằng QR, vì provider QR duy nhất hiện có (Zalo) chỉ có một phiên web. Provider QR nào cho nhiều phiên thì thêm một cờ trong `QrLogin` lúc đó. Gmail (OAuth2) không đổi.
+- **Quyền riêng tư:** lời báo cho biết nick đã nối với một tài khoản Sino khác, nhưng chỉ người xác nhận được đăng nhập trên điện thoại của nick đó mới thấy, tức là chính chủ nick.
+- **Giới hạn:** không khóa. Hai owner quét cùng một nick tới `DONE` trong cùng một khoảnh khắc thì có thể lọt; ở quy mô D-40 coi như không xảy ra.
+
+**Phương án bị loại:**
+- Chấp nhận hai account: hai phiên đá nhau liên tục (xem Vấn đề).
+- Một listener dùng chung cho mọi account cùng `ownId`: `sino-zalo` phải tách phiên khỏi account và đổi contract, nhiều việc cho một trường hợp hiếm.
+- Kiểm ở `AccountRegistrationService`: luồng OAuth2 cũng dùng nó, và Gmail không cần luật này.
 
 ## Contract API của `sino-zalo` (nội bộ)
 
@@ -282,11 +335,11 @@ Mọi request (trừ `/health`) có `Authorization: Bearer <SINO_ZALO_SECRET>`. 
 | `POST /logins` | `201 { loginId, qrImage, expiresAt }` | `502` Zalo không trả QR |
 | `GET /logins/{loginId}` | `200 { state, displayName?, profile?, session? }`; `profile` (`ownId`, `displayName`, `avatarUrl`) và `session` chỉ có ở response `DONE` **đầu tiên**, sau đó lần đăng nhập bị quên | `404` |
 | `DELETE /logins/{loginId}` | `204` | — |
-| `PUT /accounts/{accountId}/session` `{ session }` | `204`; idempotent: phiên đang sống thì không làm gì | `410 SESSION_ENDED` (cookie bị từ chối) |
+| `PUT /accounts/{accountId}/session` `{ session }` | `204`; cùng dấu vân tay với phiên đang sống thì không làm gì; dấu vân tay khác thì thay phiên (D-289) | `410 SESSION_ENDED` (cookie bị từ chối, hoặc đúng phiên đã `ENDED`: trả ngay, không gọi Zalo) |
 | `DELETE /accounts/{accountId}/session` | `204` (kể cả khi không có) | — |
 | `GET /accounts/{accountId}/messages?after=&limit=` | `200 { conversations, messages, nextCursor, hasMore }`; `after` rỗng = mọi tin trong bộ đệm | `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED` |
 | `POST /accounts/{accountId}/messages` `{ threadId, threadType, text, clientMessageId }` | `201 { msgId, sentAt }`; trùng `clientMessageId` → `200` cùng kết quả | `404`, `410`, `422 REJECTED`, `429`, `504 OUTCOME_UNKNOWN` |
-| `POST /accounts/{accountId}/sent/lookup` `{ threadId, clientMessageId, text, after }` | `200 { msgIds }` | `404`, `409 CANNOT_TELL` |
+| `POST /accounts/{accountId}/sent/lookup` `{ threadId, clientMessageId, text, after }` | `200 { msgIds }` | `404`, `409 CANNOT_TELL`, `410` |
 
 `ZaloMessage` (JSON): `{ msgId, threadId, threadType: "USER"|"GROUP", fromId, isSelf, zaloType, text, sentAt }`. `text` là `null` khi không phải tin chữ.
 `ZaloConversation`: `{ threadId, threadType, title, avatarUrl, participants: [{ id, name }] }`.
@@ -295,12 +348,13 @@ Mọi request (trừ `/health`) có `Authorization: Bearer <SINO_ZALO_SECRET>`. 
 
 - **`sino-zalo`** (Vitest):
   - Route test bằng `app.inject`, zca-js thay bằng `FakeZaloGateway`.
-  - Kiểm: khóa bí mật (thiếu, sai, đúng); vòng đời đăng nhập QR (từng trạng thái, phiên chỉ trả một lần); `PUT session` idempotent; bị đá → `410` + webhook; bộ đệm (`after`, `limit`, `hasMore`, giới hạn 1.000 / 24 giờ, so sánh `BigInt`); bù tin (khi nào gọi, chờ tối đa 5 giây, không gọi lại); webhook gom 0,5 giây; gửi (chống trùng, 1 tin/giây, lỗi); tra tin đã gửi (`CANNOT_TELL`); log không có nội dung tin.
+  - Kiểm: khóa bí mật (thiếu, sai, đúng); vòng đời đăng nhập QR (từng trạng thái, phiên chỉ trả một lần); `PUT session` theo bốn hàng của D-289 (cùng phiên đang sống, cùng phiên đã `ENDED` không gọi Zalo, phiên khác thay phiên cũ, phiên khác bị từ chối); bị đá → `410` + webhook; bộ đệm (`after`, `limit`, `hasMore`, giới hạn 1.000 / 24 giờ, so sánh `BigInt`); bù tin (khi nào gọi, nhiều trang tới khi nối liền, dừng ở 10 trang hoặc 5 giây kèm log WARN, không gọi lại); webhook gom 0,5 giây; gửi (chống trùng, 1 tin/giây, lỗi); tra tin đã gửi (`CANNOT_TELL`); log không có nội dung tin.
 - **`sino-api`:**
   - `ZaloProvider` chạy bộ test contract F03 (`MessageProviderContractTest`), với `sino-zalo` giả bằng WireMock.
   - `ZaloMessageNormalizerTests` (từng hàng của D-279).
-  - `ZaloErrorMappingTests` (từng hàng của D-281).
-  - API kết nối QR và webhook test bằng MockMvc trên PostgreSQL thật (`QrConnectApiTests`, `ZaloWebhookTests`): bắt đầu, từng trạng thái, `DONE` tạo account, kết nối lại đúng/sai `ownId`, thiếu `acceptRisk`, provider tắt.
+  - `ZaloErrorMappingTests` (từng hàng của D-281, gồm `410` → `PUT` → thử lại, và `PUT` trả `410` → `AUTH_EXPIRED`).
+  - API kết nối QR và webhook test bằng MockMvc trên PostgreSQL thật (`QrConnectApiTests`, `ZaloWebhookTests`): bắt đầu, từng trạng thái, `DONE` tạo account, kết nối lại đúng/sai `ownId`, nick đã thuộc owner khác → `CONNECT_ACCOUNT_IN_USE` (D-290), thiếu `acceptRisk`, provider tắt.
+  - Quét lại sau khi bị đá (D-289): account `AUTH_EXPIRED`, quét lại, lượt đồng bộ kế tiếp gặp `410` → `PUT` phiên mới → đọc được, account vẫn `CONNECTED`.
   - `ModularityTests` vẫn xanh.
 - **`sino-web`:** Vitest + MSW cho bước Zalo: cảnh báo (nút khóa tới khi tick), QR, `SCANNED` hiện tên, `DONE`, `EXPIRED` → "Tạo mã mới", `DECLINED`, đóng hộp thoại → `DELETE`, kết nối lại.
 - **Zalo thật:** chỉ ZL-00 (script spike) và ZL-13 (nghiệm thu), bằng nick phụ.
@@ -310,7 +364,8 @@ Mọi request (trừ `/health`) có `Authorization: Bearer <SINO_ZALO_SECRET>`. 
 - **Bị khóa nick:** cảnh báo và đồng ý (D-272), giới hạn 1 tin/giây (D-280), không tự đăng nhập lại sau khi bị đá (D-276), có công tắc tắt (D-286).
 - **Zalo đổi giao thức, zca-js hỏng:** zca-js ghim phiên bản; account thành "Cần đăng nhập lại" hoặc lỗi đồng bộ, nhìn thấy được; nâng zca-js là một task riêng.
 - **Người dùng mở Zalo Web bằng cùng nick:** Sino bị đăng xuất. Cảnh báo nói trước; trạng thái account nói sau.
-- **Mất tin khi `sino-zalo` tắt lâu hơn cửa sổ Zalo giữ tin:** đo ở ZL-00 (DN-1).
+- **Mất tin khi `sino-zalo` tắt lâu hơn cửa sổ Zalo giữ tin:** đo ở ZL-00 (DN-1). Bù tin dừng ở 10 trang hoặc 5 giây thì phần còn lại mất, có log WARN (D-278); `sino-zalo` khởi động lại trước tin đầu tiên của account thì không bù được (D-278, giới hạn đã chấp nhận).
+- **Cùng một nick ở hai owner:** bị chặn lúc kết nối (D-290).
 - **Thêm một service phải chạy:** `/health`, README, job CI (ZL-12).
 
 ## Decision Needed

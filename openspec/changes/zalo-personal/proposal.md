@@ -7,11 +7,11 @@ zca-js là thư viện **không chính thức**: nó giả làm Zalo Web, và t�
 ## What Changes
 
 - **Service mới `apps/sino-zalo`** (Node + TypeScript + zca-js): đăng nhập QR, giữ một listener cho mỗi tài khoản Zalo, gom tin mới vào bộ đệm, báo `sino-api` khi có tin, gửi tin chữ. Service không lưu gì xuống đĩa; chỉ `sino-api` gọi được nó, bằng khóa bí mật dùng chung (D-273, D-282).
-- **Kết nối bằng mã QR** trong `sino-api`, dùng chung cho mọi provider kết nối kiểu này: bắt đầu, hỏi trạng thái, kết nối lại đúng tài khoản cũ. Phiên Zalo được lưu mã hóa như token Gmail (D-274, D-275).
+- **Kết nối bằng mã QR** trong `sino-api`, dùng chung cho mọi provider kết nối kiểu này: bắt đầu, hỏi trạng thái, kết nối lại đúng tài khoản cũ. Một tài khoản kết nối bằng QR chỉ thuộc một người dùng Sino (D-290). Phiên Zalo được lưu mã hóa như token Gmail (D-274, D-275).
 - **Connector `ZaloProvider`** theo contract F03:
   - `fetchUpdates` kéo tin từ bộ đệm theo cursor `msgId`; `registerPush` cùng webhook `/api/webhooks/zalo` báo có tin mới (D-277).
   - `sendMessage` + `findSentMessages` để trả lời bằng chữ (D-280).
-  - Bảng đổi lỗi: bị đá hay bị Zalo từ chối phiên thì account thành "Cần đăng nhập lại" (D-276, D-281).
+  - Bảng đổi lỗi: bị đá hay bị Zalo từ chối phiên thì account thành "Cần đăng nhập lại"; quét lại xong thì phiên mới tự vào `sino-zalo` ở lượt đồng bộ kế tiếp (D-276, D-281, D-289).
 - **Không nhập lịch sử cũ:** account Zalo nhận tin từ lúc kết nối; tin lỡ lúc mất kết nối được bù bằng `requestOldMessages(lastId)` (D-278).
 - **Công tắc `sino.zalo.enabled`:** tắt thì Zalo quay về "Sắp có" và mọi phiên dừng; dữ liệu đã lưu giữ nguyên (D-272).
 - **`GET /api/providers`** cho biết mỗi provider kết nối bằng cách nào (`OAUTH2`, `QR`) và hiện có kết nối được không, thay cho `connectable: true` mà web đang tự gán (D-50).

@@ -15,14 +15,22 @@ Phiên Zalo (`cookie`, `imei`, `userAgent`) MUST được lưu dưới dạng `T
 - **THEN** account có `provider` = `zalo`, `externalAccountId` = `100000000000000001`, và cột credential chỉ chứa ciphertext
 
 ### Requirement: Bảo đảm listener đang chạy
-`ZaloProvider.registerPush` MUST gọi `PUT /accounts/{accountId}/session` của `sino-zalo` với phiên trong `ProviderContext`, và MUST trả `PushRegistration` với `address` = `ownId` và `expiresAt` = thời điểm gọi + 1 ngày. Khi `fetchUpdates` hoặc `sendMessage` nhận `404 UNKNOWN_ACCOUNT`, connector MUST gọi `PUT session` rồi thử lại đúng một lần.
+`ZaloProvider.registerPush` MUST gọi `PUT /accounts/{accountId}/session` của `sino-zalo` với phiên trong `ProviderContext`, và MUST trả `PushRegistration` với `address` = `ownId` và `expiresAt` = thời điểm gọi + 3 ngày. Khi `fetchUpdates`, `sendMessage` hoặc `findSentMessages` nhận `404 UNKNOWN_ACCOUNT` hoặc `410 SESSION_ENDED`, connector MUST gọi `PUT session` với phiên trong `ProviderContext` rồi thử lại đúng một lần. `PUT session` trả `410` MUST thành `AUTH_EXPIRED` mà không thử lại.
 
 #### Scenario: sino-zalo vừa khởi động lại
 - **WHEN** lượt đồng bộ dự phòng gọi `fetchUpdates` và `sino-zalo` trả `404 UNKNOWN_ACCOUNT`
 - **THEN** connector gọi `PUT session`, gọi lại `GET /messages` và trả batch của lần gọi sau
 
+#### Scenario: Quét lại sau khi bị đá
+- **WHEN** account Zalo vừa được kết nối lại bằng QR với phiên mới, và lượt đồng bộ kế tiếp nhận `410 SESSION_ENDED` vì `sino-zalo` còn giữ phiên đã bị đá
+- **THEN** connector gọi `PUT session` với phiên mới, gọi lại `GET /messages`, trả batch, và account vẫn `CONNECTED`
+
+#### Scenario: Vẫn là phiên đã bị đá
+- **WHEN** `fetchUpdates` nhận `410` và `PUT session` với phiên đang lưu cũng trả `410`
+- **THEN** connector ném `AUTH_EXPIRED`, không gọi lại `GET /messages`, và account chuyển sang `AUTH_EXPIRED`
+
 ### Requirement: Lấy tin Zalo theo cursor
-`fetchUpdates(context, cursor)` MUST gọi `GET /accounts/{accountId}/messages` với `after` = `cursor.value` (bỏ trống khi cursor là initial) và `limit` = 100, rồi trả `SyncBatch` với các cuộc trò chuyện và tin đã chuẩn hóa, `nextCursor` = `nextCursor` của `sino-zalo`, `hasMore` theo `sino-zalo`. `estimateMessages` MUST trả rỗng.
+`fetchUpdates(context, cursor)` MUST gọi `GET /accounts/{accountId}/messages` với `after` = `cursor.value` (bỏ trống khi cursor là initial) và `limit` = 100, rồi trả `SyncBatch` với các cuộc trò chuyện và tin đã chuẩn hóa, `nextCursor` = `nextCursor` của `sino-zalo` (cursor đầu khi `sino-zalo` trả `null`), `hasMore` theo `sino-zalo`. `estimateMessages` MUST trả rỗng.
 
 #### Scenario: Có một tin mới
 - **WHEN** cursor là `8372251986275` và `sino-zalo` trả một tin nhóm `8372265733130`
@@ -58,10 +66,10 @@ Connector MUST đổi cuộc trò chuyện `USER` thành `DIRECT` và `GROUP` th
 - **THEN** `sino-zalo` nhận `threadType` = `GROUP` và `text` = "Ok mình tới", và tin lưu có `status` = `SENT` với `msgId` của Zalo
 
 ### Requirement: Đổi lỗi sino-zalo sang lỗi provider
-Connector MUST đổi lỗi theo bảng D-281: không kết nối được, `5xx` hoặc hết giờ khi đọc → `PROVIDER_UNAVAILABLE`; hết giờ, `5xx` hoặc `504` khi gửi → `OUTCOME_UNKNOWN`; `410` → `AUTH_EXPIRED`; `429` → `RATE_LIMITED`; `422` → `REQUEST_REJECTED`; `409 CANNOT_TELL` → `PROVIDER_UNAVAILABLE`; `401` → `PROVIDER_UNAVAILABLE` kèm log ERROR.
+Connector MUST đổi lỗi theo bảng D-281: không kết nối được, `5xx` hoặc hết giờ khi đọc → `PROVIDER_UNAVAILABLE`; hết giờ, `5xx` hoặc `504` khi gửi → `OUTCOME_UNKNOWN`; `404` hoặc `410` → `PUT session` rồi thử lại một lần; `410` của chính `PUT session` → `AUTH_EXPIRED`; `429` → `RATE_LIMITED`; `422` → `REQUEST_REJECTED`; `409 CANNOT_TELL` → `PROVIDER_UNAVAILABLE`; `401` → `PROVIDER_UNAVAILABLE` kèm log ERROR.
 
 #### Scenario: Bị đá
-- **WHEN** `sino-zalo` trả `410 SESSION_ENDED` cho `fetchUpdates`
+- **WHEN** `sino-zalo` trả `410 SESSION_ENDED` cho `fetchUpdates`, rồi `410` cho `PUT session` với phiên đang lưu
 - **THEN** connector ném `AUTH_EXPIRED` và account chuyển sang `AUTH_EXPIRED`
 
 #### Scenario: Hết giờ khi gửi

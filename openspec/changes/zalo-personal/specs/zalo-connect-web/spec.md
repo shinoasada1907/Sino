@@ -19,11 +19,15 @@ Bước đầu của luồng QR Zalo MUST hiện chữ cảnh báo (DN-2) và m�
 - **THEN** nút "Hiện mã QR" bị khóa và không có request nào
 
 ### Requirement: Mã QR và trạng thái quét
-Sau khi bắt đầu, web MUST hiện ảnh QR cùng dòng hướng dẫn mở Zalo trên điện thoại để quét, và MUST hỏi trạng thái mỗi 2 giây cho tới khi trạng thái không còn là `WAITING` hay `SCANNED`. `SCANNED` MUST hiện "Đã quét: <tên>, xác nhận trên điện thoại". `EXPIRED` MUST thay mã bằng "Mã đã hết hạn" và nút "Tạo mã mới". `DECLINED` MUST hiện "Bạn đã từ chối trên điện thoại" và nút "Thử lại". `FAILED` với `CONNECT_WRONG_ACCOUNT` MUST nói rõ đã quét nhầm tài khoản. `DONE` MUST bắt đầu lần nhập đầu ngay, không hỏi khoảng thời gian (D-288), và đóng hộp thoại với dòng "Sino nhận tin Zalo từ bây giờ".
+Sau khi bắt đầu, web MUST hiện ảnh QR cùng dòng hướng dẫn mở Zalo trên điện thoại để quét, và MUST hỏi trạng thái mỗi 2 giây cho tới khi trạng thái không còn là `WAITING` hay `SCANNED`. `SCANNED` MUST hiện "Đã quét: <tên>, xác nhận trên điện thoại". `EXPIRED` MUST thay mã bằng "Mã đã hết hạn" và nút "Tạo mã mới". `DECLINED` MUST hiện "Bạn đã từ chối trên điện thoại" và nút "Thử lại". `FAILED` với `CONNECT_WRONG_ACCOUNT` MUST nói rõ đã quét nhầm tài khoản. `FAILED` với `CONNECT_ACCOUNT_IN_USE` MUST nói tài khoản Zalo này đã được kết nối với một tài khoản Sino khác. `DONE` của một kết nối mới (`reconnected` = false) MUST bắt đầu lần nhập đầu ngay bằng `POST /api/accounts/{id}/initial-sync` với `{ "range": "ALL" }`, không hỏi khoảng thời gian (D-288), và đóng hộp thoại với dòng "Sino nhận tin Zalo từ bây giờ". `DONE` của một lần kết nối lại MUST NOT gọi `initial-sync`.
 
 #### Scenario: Quét xong
-- **WHEN** trạng thái chuyển `WAITING` → `SCANNED` → `DONE`
-- **THEN** web hiện tên ở bước `SCANNED`, rồi gọi `POST /api/accounts/{id}/initial-sync` và đóng hộp thoại với dòng "Sino nhận tin Zalo từ bây giờ"
+- **WHEN** trạng thái chuyển `WAITING` → `SCANNED` → `DONE` với `reconnected` = false
+- **THEN** web hiện tên ở bước `SCANNED`, rồi gọi `POST /api/accounts/{id}/initial-sync` với `range` = `ALL` và đóng hộp thoại với dòng "Sino nhận tin Zalo từ bây giờ"
+
+#### Scenario: Nick đã nối với tài khoản Sino khác
+- **WHEN** trạng thái là `FAILED` với `code` = `CONNECT_ACCOUNT_IN_USE`
+- **THEN** web ngừng hỏi trạng thái, nói tài khoản Zalo này đã được kết nối với một tài khoản Sino khác, và không gọi `initial-sync`
 
 #### Scenario: Mã hết hạn
 - **WHEN** trạng thái là `EXPIRED`
@@ -41,4 +45,4 @@ Account Zalo `AUTH_EXPIRED` MUST có nút "Quét QR lại", mở luồng QR (bư
 
 #### Scenario: Bị đá rồi quét lại
 - **WHEN** người dùng bấm "Quét QR lại" ở account Zalo `AUTH_EXPIRED`
-- **THEN** request bắt đầu gửi `accountId` của account đó và, khi `DONE`, account hiện lại trạng thái đã kết nối
+- **THEN** request bắt đầu gửi `accountId` của account đó và, khi `DONE`, account hiện lại trạng thái đã kết nối mà không có request `initial-sync` nào
