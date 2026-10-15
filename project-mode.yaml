@@ -19,7 +19,7 @@ new_features: TRAINING
 # Task-level override: when the user says they will code a task themselves ("để tôi làm BE-xx"),
 # that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
 task_overrides:
-  zalo-personal: TRAINING   # 2026-10-14: personal Zalo via zca-js; the user codes all of it ("Toàn bộ")
+  zalo-personal: AUTO       # 2026-10-15: AUTO from ZL-02 on ("chuyển sang mode AUTO tiếp tục phần tích hợp zalo"); 2026-10-14: TRAINING, the user coded ZL-01 ("Toàn bộ")
   # 2026-10-03: BE-11 started in TRAINING ("tôi muốn code tay BE-11"); the user typed the entity mapping and V3, then
   # handed it back ("thôi bạn auto luôn đi") to relearn Java and Spring first. BE-11 finished in AUTO.
   # 2026-10-01: F03 (BE-19..BE-26) started in TRAINING (the user coded BE-19 to learn Java), then the user

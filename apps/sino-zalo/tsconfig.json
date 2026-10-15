@@ -13,7 +13,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noUncheckedIndexedAccess": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "zca-js": ["./node_modules/zca-js/dist/index.d.ts"]
+    }
   },
   "include": ["src", "test", "vitest.config.ts"]
 }

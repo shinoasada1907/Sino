@@ -1,6 +1,8 @@
 # F09 — Zalo cá nhân (zca-js) · Implementation Plan
 
-> **TRAINING:** người dùng code mọi task từ ZL-01 ("Toàn bộ", 2026-10-14; `project-mode.yaml` `zalo-personal`). Claude hướng dẫn theo D-287:
+> **AUTO từ ZL-02** (người dùng, 2026-10-15: "chuyển sang mode AUTO tiếp tục phần tích hợp zalo"; `project-mode.yaml` `zalo-personal: AUTO`): Claude làm từng task, kiểm chứng, viết tài liệu, commit, rồi báo lại và dừng. Phần TRAINING dưới đây áp cho ZL-01. **LÝ DO:** người dùng tự gõ ZL-01, rồi chọn AUTO cho phần còn lại.
+>
+> ~~**TRAINING:** người dùng code mọi task từ ZL-01~~ (áp cho ZL-01) ("Toàn bộ", 2026-10-14; `project-mode.yaml` `zalo-personal`). Claude hướng dẫn theo D-287:
 > - mỗi bước chỉ đưa đoạn code mới hoặc đổi, kèm chỗ chèn chính xác, không in lại cả file;
 > - giải thích: làm gì, vì sao, giải quyết gì, scale ra sao;
 > - review code người dùng gõ, chạy test.
@@ -36,7 +38,7 @@
   - **Bằng chứng:** đỏ trước: 3 file `Cannot find module`; xanh: `pnpm test` 13/13, `pnpm lint` 0, `pnpm typecheck` 0; chạy thật ở cổng 8099: `/health` 200 không khóa, 401 không khóa, 404 có khóa, khóa không có trong log, thiếu khóa thì thoát mã 1 kèm tên biến; người dùng chạy `pnpm dev` ở cổng 8090: "ok". Kiến thức: mục 5 của `phase-5-multi-provider-send.md` + `.docx` (`genoffice docs check`: 0 lỗi).
   - **Còn mở:** learning gate (D-287): 3 câu tự kiểm chưa trả lời; tick task này khi người dùng trả lời hoặc nói bỏ qua.
 
-- [ ] 1.2 **ZL-02 — `ZaloGateway` và đăng nhập QR**
+- [x] 1.2 **ZL-02 — `ZaloGateway` và đăng nhập QR**
   - **Goal:** `sino-api` mở được một lần đăng nhập QR và nhận phiên khi người dùng quét xong (D-275).
   - **Files:** `src/gateway/{ZaloGateway.ts,ZcaGateway.ts,FakeZaloGateway.ts}`, `src/logins/{LoginStore.ts,routes.ts}`, `test/logins.test.ts`.
   - **Acceptance criteria:** spec `zalo-gateway` (Đăng nhập bằng mã QR): đủ 6 trạng thái; phiên chỉ trả một lần rồi `404`; `DELETE` hủy được.
@@ -44,6 +46,8 @@
   - **Depends on:** ZL-01
   - **Bạn sẽ học:** interface làm ranh giới với thư viện ngoài (cách đổi zca-js mà không sửa code khác), callback thành trạng thái (state machine nhỏ), `Map` có hạn.
   - **Hints:** Level 1: "nếu `GET /logins/{id}` trả phiên mỗi lần được hỏi, kẻ nào đoán được `loginId` sẽ lấy được gì?"
+  - **Thực hiện (2026-10-15):** chia 12 phase nhỏ; Phase 1–2 (cài `zca-js@2.2.0` ghim cứng, `paths`, `ZaloGateway.ts`) Claude làm theo lời người dùng, rồi người dùng chuyển sang AUTO. Ngoài danh sách file đã tính: `src/app.ts` (`buildApp(config, gateway, logger)`), `src/server.ts` (`new ZcaGateway()`), `test/{auth,health}.test.ts` (truyền `FakeZaloGateway`), `tsconfig.json` (`paths` → `zca-js/dist/index.d.ts`: `index.d.ts` của zca-js re-export một thư mục mà `nodenext` không đọc được). Thêm hai giới hạn không có trong danh sách test: chờ mã QR tối đa 15 giây rồi `502`; lần đăng nhập bị quên sau 5 phút (đồng hồ truyền vào để test). `ZcaGateway` gọi `abort()` sau `QRCodeExpired` / `QRCodeDeclined`, vì zca-js chờ mãi nếu không ai gọi `abort` hay `retry`.
+  - **Bằng chứng:** đỏ trước: 3 file `Cannot find module '../src/gateway/FakeZaloGateway.ts'`; xanh: `pnpm test` 27/27, `pnpm lint` 0, `pnpm typecheck` 0; chạy thật với `ZcaGateway` (cổng 8097): `/health` 200, `POST /logins` không khóa 401, `GET /logins/nope` 404 `UNKNOWN_LOGIN`, `DELETE /logins/nope` 204, khóa không có trong log. **NOT VERIFIED:** `POST /logins` với Zalo thật (mã QR, quét, phiên, hết hạn 100 giây) chờ ZL-13. Kiến thức: mục 6 của `phase-5-multi-provider-send.md` + `.docx` (`genoffice docs check`: 0 lỗi).
 
 - [ ] 1.3 **ZL-03 — Phiên và listener: bật, tắt, bị đá, nối lại**
   - **Goal:** mỗi account có đúng một listener; bị đá thì báo ngay (D-276).

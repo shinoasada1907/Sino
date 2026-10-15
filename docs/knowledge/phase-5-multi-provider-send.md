@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai: Zalo cá nhân, `openspec/changes/zalo-personal`) mở 2026-10-14, bạn tự code: đã có ZL-01 (khung service `sino-zalo`, mục 5).
+> **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai: Zalo cá nhân, `openspec/changes/zalo-personal`) mở 2026-10-14, bạn tự code ZL-01 (khung service `sino-zalo`, mục 5); từ ZL-02 (đăng nhập QR, mục 6) bạn chuyển change này sang AUTO.
 > **Cập nhật:** 2026-10-15. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
 
 ---
@@ -448,3 +448,66 @@ Bạn sửa chỗ thứ ba bằng `${error as Error}` (bỏ `.message`): chạy 
 - **Đỏ trước:** ba file test đỏ với `Cannot find module '../src/config.ts'` / `'../src/app.ts'` khi `src/` chưa có.
 - **Xanh:** `pnpm test` 13/13 (3 file), `pnpm lint` 0 cảnh báo 0 lỗi, `pnpm typecheck` 0 lỗi.
 - **Chạy thật** (code của bạn, Claude chạy ở cổng 8099): `/health` không khóa trả `200 UP`; `/accounts/a1/messages` không khóa trả `401`, có khóa trả `404`; tìm khóa trong log: 0 lần; thiếu khóa hoặc khóa 10 byte: một dòng nêu tên biến, thoát mã 1. Bạn chạy `pnpm dev` ở cổng 8090 và báo "ok".
+
+---
+
+## 6. Đăng nhập Zalo bằng mã QR trong `sino-zalo` (ZL-02)
+
+**Ở đâu:** `src/gateway/{ZaloGateway,ZcaGateway,FakeZaloGateway}.ts`, `src/logins/{LoginStore,routes}.ts` (mới), `src/app.ts` (`buildApp` nhận thêm `gateway`), `src/server.ts` (dùng `ZcaGateway`), `tsconfig.json` (`paths` cho zca-js), `test/logins.test.ts` (mới), `test/{auth,health}.test.ts` (truyền bản giả). Task chia thành 12 phase nhỏ. Phase 1–2 (cài zca-js, `paths`, `ZaloGateway.ts`) Claude làm theo lời bạn nhờ, rồi bạn chuyển change sang AUTO và Claude làm phần còn lại.
+
+### 6.1 Ba route và luồng
+```text
+ sino-api                    sino-zalo                                     Zalo (qua zca-js)
+ POST /logins  ----------->  LoginStore.start() --> ZaloGateway.startQrLogin --> tạo mã QR
+               <-- 201 { loginId, qrImage, expiresAt } <-- qrReady(image) <--------+
+ GET /logins/{id}, 2 giây một lần --> trạng thái    <-- scanned / done / expired / declined / failed
+ DELETE /logins/{id} --> hủy, cả bên Zalo
+```
+
+`POST` chỉ trả lời khi Zalo đã đưa mã QR, vì web cần hiện ảnh ngay. Zalo báo lỗi trước khi có mã, hoặc im lặng quá 15 giây, thì trả `502 QR_UNAVAILABLE` thay vì treo.
+
+### 6.2 Interface làm ranh giới với thư viện ngoài (`ZaloGateway`)
+**Là gì:** một interface chứa mọi điều `sino-zalo` cần ở Zalo. Hiện chỉ có `startQrLogin(events): handle`; ZL-03…ZL-05 thêm đăng nhập bằng cookie, nghe tin, gửi tin. Chỉ `ZcaGateway.ts` import zca-js.
+
+**Để làm gì:**
+- zca-js không chính thức, có thể hỏng hoặc phải thay. Thay thư viện thì chỉ viết lại `ZcaGateway`.
+- Test dùng `FakeZaloGateway`, nên không bao giờ chạm Zalo thật. Bên Java giống viết interface rồi mock trong test, ở đây bản giả viết tay.
+
+**Kiểu "sự kiện" (callback):** đăng nhập QR kéo dài tới 100 giây và Zalo báo từng bước. Bên gọi đưa một object có 6 hàm (`qrReady`, `scanned`, `done`, `expired`, `declined`, `failed`), bên Zalo gọi lại đúng hàm khi bước đó xảy ra, giống một listener bên Java. Trong test, chính test gọi các hàm đó (`gateway.latest().events.scanned(...)`), tức là test đóng vai Zalo, nên kiểm được mọi trạng thái mà không cần điện thoại.
+
+**Bẫy:** bản giả gọi `qrReady` **sau** khi `startQrLogin` trả về (`queueMicrotask`), không gọi ngay bên trong, vì Zalo thật cũng trả lời sau. Gọi ngay bên trong có thể che một lỗi thứ tự mà Zalo thật sẽ lộ ra.
+
+### 6.3 Biến callback thành trạng thái (`LoginStore`)
+```text
+ WAITING --scanned--> SCANNED --done--> DONE   (đọc đúng 1 lần rồi bị quên)
+    |                    |
+    +---- expired -------+--> EXPIRED   (mã sống 100 giây)
+    +---- declined ------+--> DECLINED  (bấm "Từ chối" trên điện thoại)
+    +---- failed --------+--> FAILED
+ Đã tới một trạng thái cuối thì mọi sự kiện đến sau đều bị bỏ qua.
+```
+
+- **Một chỗ đổi trạng thái** (`move`): chỉ đổi khi đang `WAITING` hoặc `SCANNED`. Tình huống có thật: mã hết hạn ở giây 100 nhưng điện thoại xác nhận ở giây 100,2. Không chặn thì một phiên "từ trên trời rơi xuống" sau khi web đã báo hết hạn. Test "ignores what Zalo says after the login has ended" giữ điều này; khi chỉ có các hàm xử lý mà chưa có lệnh chặn, đúng test đó đỏ (`expected DONE … to equal EXPIRED`).
+- **Phiên rời đi đúng một lần:** `GET` đầu tiên thấy `DONE` trả hồ sơ + phiên rồi xóa lần đăng nhập; lần sau `404`. Phiên Zalo là chìa khóa của cả nick: nếu `GET` trả phiên mỗi lần hỏi, ai biết `loginId` cũng lấy được phiên bất cứ lúc nào. `loginId` là UUID ngẫu nhiên (`randomUUID`), không đoán được.
+- **`LoginView` là union có nhãn** (`state` quyết định có những trường nào): `SCANNED` mới có `displayName`, `DONE` mới có `profile` và `session`. TypeScript biết điều đó: sau `if (view.state === "DONE")` mới đọc được `view.session`.
+
+### 6.4 Map có hạn và đồng hồ giả
+- **Quên sau 5 phút:** mỗi lần `start` và `get`, `forgetOld()` xóa (và hủy bên Zalo) mọi lần đăng nhập bắt đầu quá 5 phút, đọc rồi hay chưa. Một lần đăng nhập bỏ dở (`sino-api` sập giữa chừng) không nằm mãi trong bộ nhớ, và không có phiên nào nằm chờ vô hạn.
+- **Đồng hồ giả:** `LoginStore` nhận `now: () => number` (mặc định `Date.now`). Test truyền một hàm trả biến `now` do test đặt, nên kiểm "sau 5 phút" mà không phải chờ 5 phút. Bên Java là truyền `Clock` vào constructor thay vì gọi `Instant.now()`.
+- **Hết giờ chờ QR:** một `setTimeout` (`qrWaitMs`, mặc định 15 giây) từ chối promise nếu chưa có mã; có mã thì `clearTimeout`. Test truyền 20 ms. Trước khi có hẹn giờ, test này treo đúng 5 giây rồi Vitest báo `Test timed out in 5000ms`: đó chính là lỗi nó sửa.
+
+### 6.5 Đọc zca-js trước khi tin nó
+`ZcaGateway` dựa trên mã nguồn `loginQR` của zca-js 2.2.0, không phải README:
+- **Sau `QRCodeExpired` và `QRCodeDeclined`, zca-js chờ mãi** nếu không ai gọi `abort()` hoặc `retry()`. Vì vậy `ZcaGateway` gọi `abort()` ngay rồi báo `expired` / `declined`. Sinh mã mới là việc của web ("Tạo mã mới" gọi lại `POST`), không tự `retry`.
+- **100 giây** là hẹn giờ trong `loginQR` (`setTimeout(..., 100000)`), nên `QR_LIFETIME_MS = 100_000` và `expiresAt` = lúc có mã + 100 giây.
+- **Phiên lấy sau khi đăng nhập xong:** `loginQR` trả về đối tượng `API` sau khi tự đăng nhập bằng cookie; `api.getContext()` cho cookie, imei, userAgent, `api.getOwnId()` cho `ownId`, giống cách spike lưu phiên dùng lại được. Tên và ảnh lấy từ sự kiện `QRCodeScanned`.
+- **Hủy trước khi có mã:** khi đó chưa có `abort`; `ZcaGateway` nhớ là đã hủy và `abort()` ngay lúc mã tới, không báo `qrReady`.
+- **Lỗi chỉ ghi tên và dòng đầu:** zca-js đặt cả JSON trả về của Zalo sau dòng đầu thông báo lỗi, nên `reasonOf` chỉ giữ `error.name: dòng đầu` để log không có gì nhạy cảm (D-282).
+
+**Bẫy kiểu dữ liệu:** file kiểu `index.d.ts` của zca-js chỉ có `export * from "./dist"`, import một **thư mục**. `"module": "nodenext"` theo đúng luật của Node, không cho import thư mục, nên TypeScript thấy zca-js rỗng: `Module '"zca-js"' has no exported member 'Zalo'`. Lúc chạy Node vẫn đọc `dist/index.js` bình thường. Sửa bằng `paths` trong `tsconfig.json` trỏ `zca-js` tới `dist/index.d.ts`. **Phương án đã bỏ:** đổi cả project sang `"moduleResolution": "bundler"`: hết lỗi, nhưng TypeScript thôi bắt lỗi quên đuôi `.ts` trong import của chính mình, mà Node thì cần đuôi đó.
+
+### 6.6 Kiểm chứng (ZL-02)
+- **Đỏ trước:** sau khi thêm test, 3 file đỏ với `Cannot find module '../src/gateway/FakeZaloGateway.ts'`, chỉ `config.test.ts` (6 test) xanh.
+- **Xanh:** `pnpm test` 27/27 (4 file), `pnpm lint` 0 cảnh báo 0 lỗi, `pnpm typecheck` 0 lỗi.
+- **Chạy thật** với `ZcaGateway` (cổng 8097): `/health` `200`; `POST /logins` không khóa `401`; `GET /logins/nope` có khóa `404 UNKNOWN_LOGIN`; `DELETE /logins/nope` `204`; khóa không có trong log.
+- **Chưa kiểm:** `POST /logins` có khóa gọi Zalo thật để lấy mã QR; theo kế hoạch Zalo thật chỉ chạy ở ZL-13 bằng nick phụ, nên đường đi thật qua zca-js (mã QR, quét, phiên, hết hạn sau 100 giây) chưa chạy lần nào trong `sino-zalo`.

@@ -1,6 +1,6 @@
 # Phase 5 · F09 — Zalo cá nhân (zca-js) · Technical Design
 
-> Mode: **HYBRID**, change này **TRAINING**: người dùng code toàn bộ ("Toàn bộ", 2026-10-14; `project-mode.yaml` `zalo-personal`, `new_features: TRAINING`). Claude lên kế hoạch, hướng dẫn từng task theo D-287, review, chạy test.
+> Mode: ~~**HYBRID**, change này **TRAINING**: người dùng code toàn bộ~~ ZL-01 **TRAINING** (người dùng gõ; "Toàn bộ", 2026-10-14; `project-mode.yaml` `zalo-personal`, `new_features: TRAINING`), Claude lên kế hoạch, hướng dẫn theo D-287. **Từ ZL-02: AUTO** (người dùng, 2026-10-15: "chuyển sang mode AUTO tiếp tục phần tích hợp zalo"; `zalo-personal: AUTO`): Claude làm, kiểm chứng, viết tài liệu, commit từng task.
 > Thiết kế duyệt trong chat ngày 2026-10-14, theo 5 phần: tổng thể, kết nối QR, nhận tin, trả lời và lỗi, test và thứ tự task. Mỗi phần người dùng trả lời "oke". Quyết định do người dùng chốt ghi **Người dùng chốt**. Chi tiết agent thêm khi viết hồ sơ ghi **Agent chốt khi viết hồ sơ, cần xem lại**.
 > Review đối chiếu với code ngày 2026-10-14 (session sino-api-dc) tìm ra một lỗi ở luồng quét lại và vài chỗ hở; người dùng: "làm đi". Phần sửa ghi **Agent chốt theo ủy quyền, cần xem lại**, và chỗ đổi trong quyết định cũ ghi "Đã sửa sau review" kèm **LÝ DO**.
 > Số quyết định: D-270…D-290. Mã task: ZL-00…ZL-13 (ZL-00 gộp vào ZL-13 theo người dùng, D-270).

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { buildApp } from '../src/app.ts'
+import { FakeZaloGateway } from '../src/gateway/FakeZaloGateway.ts'
 
 const SECRET = 'k'.repeat(32)
 
@@ -12,7 +13,7 @@ describe('shared secret', () => {
   })
 
   async function get(headers: Record<string, string>) {
-    app = buildApp({ host: '127.0.0.1', port: 0, secret: SECRET })
+    app = buildApp({ host: '127.0.0.1', port: 0, secret: SECRET }, new FakeZaloGateway())
     return app.inject({ method: 'GET', url: '/accounts/a1/messages', headers })
   }
 

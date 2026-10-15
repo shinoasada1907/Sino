@@ -1,5 +1,6 @@
 import { buildApp } from "./app.ts";
 import { loadConfig, type Config } from "./config.ts";
+import { ZcaGateway } from "./gateway/ZcaGateway.ts";
 
 let config: Config;
 try {
@@ -9,7 +10,7 @@ try {
   process.exit(1);
 }
 
-const app = buildApp(config, true);
+const app = buildApp(config, new ZcaGateway(), true);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {

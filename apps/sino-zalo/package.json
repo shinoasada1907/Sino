@@ -15,7 +15,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "fastify": "^5.12.7"
+    "fastify": "^5.12.7",
+    "zca-js": "2.2.0"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

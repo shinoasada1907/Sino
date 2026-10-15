@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { buildApp } from '../src/app.ts'
+import { FakeZaloGateway } from '../src/gateway/FakeZaloGateway.ts'
 
 describe('GET /health', () => {
   let app: FastifyInstance
@@ -10,7 +11,7 @@ describe('GET /health', () => {
   })
 
   it('answers without the key and gives only counts', async () => {
-    app = buildApp({ host: '127.0.0.1', port: 0, secret: 'k'.repeat(32) })
+    app = buildApp({ host: '127.0.0.1', port: 0, secret: 'k'.repeat(32) }, new FakeZaloGateway())
 
     const response = await app.inject({ method: 'GET', url: '/health' })
 
@@ -19,7 +20,7 @@ describe('GET /health', () => {
   })
 
   it('still answers without the key when the URL has a query string', async () => {
-    app = buildApp({ host: '127.0.0.1', port: 0, secret: 'k'.repeat(32) })
+    app = buildApp({ host: '127.0.0.1', port: 0, secret: 'k'.repeat(32) }, new FakeZaloGateway())
 
     const response = await app.inject({ method: 'GET', url: '/health?probe=1' })
 
