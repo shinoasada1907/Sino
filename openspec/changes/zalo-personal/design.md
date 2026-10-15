@@ -244,7 +244,8 @@ Spike mới thấy hai loại `webchat` và `chat.photo`. Tên `chat.sticker`, `
 - `/health` không cần khóa và chỉ trả số đếm.
 
 ### D-283 — Stack `sino-zalo` · **Người dùng chốt** (phần 1)
-- **Nền:** Node 24 LTS (`engines`), TypeScript ở chế độ `strict`, Fastify 5 (route có schema JSON), Vitest, ESLint, pnpm (như `sino-web`).
+- **Nền:** Node 24 LTS (`engines`), TypeScript ở chế độ `strict`, Fastify 5 (route có schema JSON), Vitest, ~~ESLint~~ oxlint, pnpm (như `sino-web`).
+  - **Đã sửa ở ZL-01** (2026-10-15): ESLint → oxlint. **LÝ DO:** `sino-web` và `sino-site` lint bằng oxlint; ý của quyết định là "như sino-web". Node chạy thẳng `src/server.ts` (bỏ kiểu khi chạy), không có bước build.
 - **zca-js:** ghim đúng `2.2.0`; nâng cấp là một task có test lại.
 - **`ZaloGateway`:** interface bọc zca-js, gồm đăng nhập QR, đăng nhập bằng cookie, listener, `requestOldMessages`, `sendMessage`, thông tin người dùng và nhóm. Test dùng bản giả, không bao giờ gọi Zalo thật.
 - **Cấu trúc thư mục:** `src/server.ts` (khởi động), `src/app.ts` (dựng Fastify, để test bằng `inject`), `src/config.ts`, `src/auth.ts`, `src/gateway/` (interface + bản thật + bản giả), `src/logins/`, `src/sessions/` (vòng đời phiên, listener, bộ đệm, bù tin), `src/messages/` (đọc, gửi, chống trùng, giới hạn tốc độ), `src/notify.ts` (webhook).

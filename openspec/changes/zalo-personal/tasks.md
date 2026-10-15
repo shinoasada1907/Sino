@@ -26,12 +26,15 @@
 
 - [ ] 1.1 **ZL-01 — Khung service: Fastify, cấu hình, khóa bí mật, `/health`**
   - **Goal:** một service chạy được, chỉ `sino-api` gọi được (D-282, D-283).
-  - **Files:** `apps/sino-zalo/{package.json,tsconfig.json,eslint.config.js,vitest.config.ts,.env.example,.gitignore,README.md}`, `src/{server.ts,app.ts,config.ts,auth.ts}`, `test/{auth.test.ts,health.test.ts,config.test.ts}`.
+  - **Files:** `apps/sino-zalo/{package.json,tsconfig.json,~~eslint.config.js~~ .oxlintrc.json,vitest.config.ts,.env.example,.gitignore,README.md}`, `src/{server.ts,app.ts,config.ts,auth.ts}`, `test/{auth.test.ts,health.test.ts,config.test.ts}`. **LÝ DO** (2026-10-15, sino-api-67): `sino-web` và `sino-site` dùng oxlint (`pnpm lint` = `oxlint`), không dùng ESLint; D-283 muốn stack "như sino-web". Node 24+ chạy thẳng file `.ts` (bỏ kiểu khi chạy), nên `pnpm dev` / `pnpm start` là `node src/server.ts`, không cần `tsx` hay bước build; `tsc` chỉ kiểm kiểu.
   - **Acceptance criteria:** spec `zalo-gateway` (Chỉ sino-api gọi được sino-zalo); `pnpm lint`, `pnpm typecheck`, `pnpm test` xanh; `pnpm dev` chạy và `curl /health` trả `UP`.
   - **Test:** thiếu khóa / sai khóa / đúng khóa; khóa ngắn hơn 32 byte làm `loadConfig` ném lỗi; `/health` không cần khóa.
   - **Depends on:** — ~~(làm được trong lúc ZL-00 đang đo)~~ (ZL-00 gộp vào ZL-13, D-270)
   - **Bạn sẽ học:** cấu trúc một service Node + TypeScript, `app.ts` tách khỏi `server.ts` để test bằng `inject`, hook `onRequest` của Fastify, vì sao so khóa phải dùng `timingSafeEqual`.
   - **Hints:** Level 2: hàm `buildApp(config)` trả `FastifyInstance`, `server.ts` chỉ gọi `listen`. Kiểm khóa ở một hook, bỏ qua đúng `/health`.
+  - **Thực hiện (2026-10-15):** người dùng gõ cấu hình và `src/`; ba file test do Claude viết theo lời người dùng ("bạn viết test giúp tôi đi"). Review trước khi chạy test tìm 4 chỗ, người dùng sửa cả 4: `400` → `401`, chữ "Wrong" trong lỗi, `.message` nằm ngoài `${}` ở `server.ts`, `process.on` → `once`.
+  - **Bằng chứng:** đỏ trước: 3 file `Cannot find module`; xanh: `pnpm test` 13/13, `pnpm lint` 0, `pnpm typecheck` 0; chạy thật ở cổng 8099: `/health` 200 không khóa, 401 không khóa, 404 có khóa, khóa không có trong log, thiếu khóa thì thoát mã 1 kèm tên biến; người dùng chạy `pnpm dev` ở cổng 8090: "ok". Kiến thức: mục 5 của `phase-5-multi-provider-send.md` + `.docx` (`genoffice docs check`: 0 lỗi).
+  - **Còn mở:** learning gate (D-287): 3 câu tự kiểm chưa trả lời; tick task này khi người dùng trả lời hoặc nói bỏ qua.
 
 - [ ] 1.2 **ZL-02 — `ZaloGateway` và đăng nhập QR**
   - **Goal:** `sino-api` mở được một lần đăng nhập QR và nhận phiên khi người dùng quét xong (D-275).

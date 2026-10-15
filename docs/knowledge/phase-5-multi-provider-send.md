@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai) chưa mở.
-> **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
+> **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai: Zalo cá nhân, `openspec/changes/zalo-personal`) mở 2026-10-14, bạn tự code: đã có ZL-01 (khung service `sino-zalo`, mục 5).
+> **Cập nhật:** 2026-10-15. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
 
 ---
 
@@ -349,3 +349,102 @@ Bản đầu lọc cả `m.direction = 'OUTBOUND'` lẫn `p.is_self`. Thư đi t
 - **Bẫy khi chạy:** một lượt kiểm tra ngược có JVM sập vì máy thiếu bộ nhớ (file `hs_err_pid*.log`). Script đếm "test thất bại" là "lỗi bị bắt", nên một lần sập có thể làm một lỗi gài sống sót trông như bị bắt. Thấy log sập thì chạy lại cả đợt.
 - **Dữ liệu thật:** câu truy vấn cho "Nguyễn Tiến" và "Sinon sama", khớp Gmail web. Chưa gửi thư thật nào mang tên: bạn sẽ thấy ở lần trả lời tới từ web, sau khi chạy backend mới.
 - **Toàn bộ:** `./mvnw -B -ntp verify` trên `dev` mới nhất: 1434 test, 0 sai, 0 lỗi, 4 bỏ qua.
+
+---
+
+## 5. Zalo cá nhân: khung service `sino-zalo` (ZL-01)
+
+**Ở đâu:** `apps/sino-zalo/` (mới): `package.json`, `tsconfig.json`, `.oxlintrc.json`, `vitest.config.ts`, `.env.example`, `README.md`, `src/{server,app,config,auth}.ts`, `test/{config,auth,health}.test.ts`. Bạn tự gõ phần cấu hình và `src/`; ba file test do Claude viết theo lời bạn nhờ.
+
+### 5.1 Vì sao một service Node riêng (D-273)
+Zalo cá nhân không có API chính thức. Cách duy nhất chạy được là thư viện không chính thức zca-js, giả làm Zalo Web, và nó chỉ chạy trên Node. `sino-api` là Java nên không gọi thẳng được. Vì vậy Sino có thêm một service nhỏ đứng giữa:
+
+```text
+ sino-web  -->  sino-api (Java, cổng 8080)  -- HTTP nội bộ + khóa bí mật -->  sino-zalo (Node, cổng 8090)  -->  Zalo
+                       ^                                                              |
+                       +--------------- "có tin mới" (webhook) -----------------------+
+```
+
+`sino-zalo` không có database và không ghi gì xuống đĩa. Phiên Zalo được lưu mã hóa ở `sino-api` (D-274), và mọi dữ liệu nghiệp vụ vẫn nằm ở `sino-api` cùng PostgreSQL. **Phương án đã bỏ:** viết lại giao thức Zalo bằng Java (phải tự chép mã hóa, websocket, định dạng gói tin, và tự dò lại mỗi lần Zalo đổi); cho Node ghi thẳng vào PostgreSQL (đi vòng qua `conversation` và `sync`, mất chống trùng và checkpoint).
+
+### 5.2 Một project Node + TypeScript, đọc theo kiểu Java
+| `sino-zalo` | Bên `sino-api` | Ghi chú |
+|---|---|---|
+| `package.json` | `pom.xml` | tên, thư viện (`dependencies` lúc chạy, `devDependencies` lúc phát triển), lệnh (`scripts`) |
+| `pnpm install` | `./mvnw` tải thư viện | `pnpm-lock.yaml` ghi đúng bản đã cài, có commit |
+| Fastify | Spring MVC | web framework: route, hook |
+| Vitest, `app.inject` | JUnit, `MockMvc` | test gửi request giả, không mở cổng |
+| `pnpm typecheck` (`tsc`) | `javac` | kiểm kiểu |
+| `pnpm lint` (oxlint) | inspection của IntelliJ | bắt chỗ cẩu thả |
+
+**Node chạy thẳng file `.ts`**: nó chỉ xóa phần kiểu rồi chạy, không có bước build. Hai hệ quả:
+- **Node không kiểm kiểu.** Code sai kiểu vẫn chạy, rồi sập giữa chừng (`Cannot read properties of undefined`). Với service này, `pnpm typecheck` đóng vai `javac`; bỏ qua nó thì lỗi kiểu chỉ lộ ra lúc chạy thật.
+- **Chỉ dùng cú pháp Node xóa được.** `tsconfig.json` bật `erasableSyntaxOnly`, nên `enum`, `namespace`, `constructor(private x)` bị `tsc` báo lỗi ngay, thay vì Node hỏng lúc chạy. `allowImportingTsExtensions` cho phép import kèm đuôi file (`./config.ts`), vì đó là file thật Node sẽ mở.
+
+**Bẫy:** tạo file bằng cách copy tên dễ dính dấu cách cuối tên. Windows không cho tên file kết thúc bằng dấu cách, VS Code báo "is not valid as a file or folder name" mà không chỉ ra dấu cách. Gõ tay tên file, và tắt bộ gõ tiếng Việt khi gõ tên file và code.
+
+### 5.3 Ba lớp kiểm tra
+| Lệnh | Hỏi | Ví dụ lỗi nó bắt |
+|---|---|---|
+| `pnpm typecheck` | đúng kiểu chưa? | dùng `process.env.X.length` khi `X` có thể `undefined` |
+| `pnpm lint` | có chỗ cẩu thả không? | biến không dùng, `debugger` quên xóa, `it.only` làm mọi test khác bị bỏ qua trong im lặng |
+| `pnpm test` | chạy ra đúng kết quả không? | so khóa sai, trả sai mã HTTP |
+
+Hai lệnh đầu không chạy chương trình nên không bắt được lỗi logic; mục 5.7 có hai lỗi mà cả ba lớp đều không bắt, chỉ review và chạy thật mới thấy.
+
+### 5.4 Cấu hình: dừng ngay khi sai (`src/config.ts`)
+**Là gì:** `loadConfig(env)` đọc `SINO_ZALO_SECRET`, `SINO_ZALO_HOST` (mặc định `127.0.0.1`), `SINO_ZALO_PORT` (mặc định `8090`) **một lần** lúc khởi động, và ném lỗi nêu tên biến khi thiếu khóa, khóa ngắn hơn 32 byte, hoặc cổng không phải số nguyên từ 1 tới 65535. `server.ts` bắt lỗi đó, in một dòng và thoát với mã 1.
+
+**Vì sao:** khóa rỗng nghĩa là ai cũng gọi được service, tức là ai cũng đọc được tin Zalo. Dừng ngay lúc khởi động (*fail fast*) an toàn hơn chạy với cấu hình hỏng.
+
+**Vì sao nhận `env` làm tham số:** test chỉ cần truyền một object, không phải sửa biến môi trường thật của máy. Cùng ý với constructor injection bên Spring.
+
+**Bẫy:**
+- Spec ghi 32 **byte**: `secret.length` đếm ký tự, chữ có dấu tốn 2–3 byte mỗi chữ. Dùng `Buffer.byteLength`.
+- `process.env.X` có kiểu `string | undefined`; chính kiểu này buộc kiểm "thiếu khóa" trước khi dùng.
+- `Number('')` là `0` và `Number('abc')` là `NaN`; `Number.isInteger` cùng điều kiện `< 1` chặn cả hai.
+
+### 5.5 Người gác cổng (`src/auth.ts`)
+**Là gì:** một hook `onRequest` gắn cho cả app: mọi request đi qua nó trước khi tới route. Thiếu hoặc sai `Authorization: Bearer <khóa>` thì trả `401 { code: "UNAUTHORIZED", message: "Missing or wrong secret" }` và route không chạy. Chỉ `/health` được miễn.
+
+```text
+ request --> onRequest: route khớp là /health ? --có--> route /health
+                          | không (kể cả đường chưa có route)
+                          v
+               SHA-256("Bearer <khóa>") == SHA-256(header) ?  (so bằng timingSafeEqual)
+                  | đúng                      | sai
+                  v                           v
+               route (hoặc 404)            401
+```
+
+**Chặn mặc định:** đường không có route nào khớp vẫn bị đòi khóa. Khóa đúng mới tới 404. Route thêm ở ZL-02…ZL-05 tự được bảo vệ, không thể quên. **Phương án đã bỏ:** kiểm khóa trong từng route (thêm route mà quên là thủng); gói `@fastify/bearer-auth` (một phụ thuộc cho khoảng 20 dòng, và không thấy cơ chế).
+
+**`request.routeOptions.url`** là mẫu route Fastify khớp được (`/health`), không phải URL thô (`/health?probe=1`). So bằng URL thô thì `/health` có query string bị chặn nhầm; test `?probe=1` giữ chỗ này.
+
+**Vì sao không so bằng `===`:** `===` dừng ở ký tự sai đầu tiên, nên khóa sai ở ký tự 1 trả lời nhanh hơn khóa sai ở ký tự 20. Đo thời gian thật nhiều lần có thể đoán khóa từng ký tự (*timing attack*). `timingSafeEqual` luôn so hết mọi byte. Bên Java là `MessageDigest.isEqual`, thứ `sino-api` sẽ dùng ở chiều ngược lại (D-282).
+
+**Vì sao băm SHA-256 trước khi so:** `timingSafeEqual` ném lỗi khi hai bên dài khác nhau, kẻ gửi khóa ngắn sẽ nhận `500` thay vì `401`. Băm xong thì hai bên đều 32 byte; độ dài thật của khóa cũng không lộ. Băm cả chuỗi `Bearer <khóa>` nên header `Basic <khóa>` tự bị chặn mà không cần `if` riêng.
+
+**Closure:** `requireSecret(secret)` trả về hàm `checkSecret`, hàm này nhớ biến `expected` của hàm ngoài, nên khóa được băm một lần lúc dựng app. Bên Java giống một lớp có field gán trong constructor.
+
+### 5.6 `app.ts` tách khỏi `server.ts`
+- **`buildApp(config)`** dựng Fastify, gắn hook và route, nhưng **không mở cổng**. Test gọi nó rồi dùng `app.inject`. Bên Spring, framework làm việc này thay bạn (`@SpringBootTest` + `MockMvc`); ở Node bạn tự tách.
+- **`server.ts`** là điểm khởi động (như `SinoApiApplication.main`): đọc cấu hình, `buildApp(config, true)` bật log, `listen`. Log của Fastify là JSON, có method, URL, mã trả về, thời gian, **không có header**, nên khóa không vào log.
+- **Tắt gọn:** `process.once('SIGINT' | 'SIGTERM', …)` gọi `app.close()`, trả lời nốt request đang dở rồi thoát. Từ ZL-03 đây cũng là chỗ đóng kết nối Zalo. `once` chỉ bắt lần Ctrl+C đầu; lần hai rơi về mặc định của Node và tắt ngay, nên `close()` có treo thì vẫn thoát được.
+
+### 5.7 Review trước khi chạy test tìm ra
+Bạn nhờ review bốn file `src/` trước khi chạy test. Bốn chỗ, bạn sửa cả bốn:
+
+| Chỗ | Vì sao sai | Ai bắt được |
+|---|---|---|
+| `auth.ts` trả `400` | `400` là "request viết sai", `401` là "thiếu hoặc sai xác thực"; D-281 bên `sino-api` dựa vào `401` để nhận ra sai khóa | test (4 test mong `401`) |
+| chữ `Missing or Wrong secret` | chuỗi lỗi là contract; test so từng ký tự | test |
+| `` `${error as Error}.message` `` | chỉ phần trong `${ }` được tính; `.message` in ra nguyên chữ: `Error: SINO_ZALO_SECRET is missing.message` | chỉ review và chạy thật (`server.ts` không có test) |
+| `process.on` thay vì `once` | Ctrl+C lần hai không thoát được nếu `close()` treo | chỉ review |
+
+Bạn sửa chỗ thứ ba bằng `${error as Error}` (bỏ `.message`): chạy đúng, in `Error: …` vì JavaScript gọi `toString()` của object lỗi. Ở dạng này `as Error` không còn tác dụng, `${error}` cho cùng kết quả; muốn bỏ chữ `Error:` thì dùng `${(error as Error).message}`.
+
+### 5.8 Kiểm chứng (ZL-01)
+- **Đỏ trước:** ba file test đỏ với `Cannot find module '../src/config.ts'` / `'../src/app.ts'` khi `src/` chưa có.
+- **Xanh:** `pnpm test` 13/13 (3 file), `pnpm lint` 0 cảnh báo 0 lỗi, `pnpm typecheck` 0 lỗi.
+- **Chạy thật** (code của bạn, Claude chạy ở cổng 8099): `/health` không khóa trả `200 UP`; `/accounts/a1/messages` không khóa trả `401`, có khóa trả `404`; tìm khóa trong log: 0 lần; thiếu khóa hoặc khóa 10 byte: một dòng nêu tên biến, thoát mã 1. Bạn chạy `pnpm dev` ở cổng 8090 và báo "ok".
