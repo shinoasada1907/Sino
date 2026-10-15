@@ -198,8 +198,7 @@ public class InboxService implements InboxIds {
         Map<UUID, ProviderType> accounts = accountsOf(ownerId);
         InboxItem conversation = find(accounts, conversationId)
                 .orElseThrow(ConversationErrorCode::conversationNotFound);
-        // In one order, so two changes of the same group never wait for each other.
-        conversation.copies().stream().map(InboxItem.Copy::accountId).distinct().sorted().forEach(summaries::lock);
+        summaries.lockAll(conversation.accountIds());
         List<UUID> copies = conversation.conversationIds();
         if (Boolean.TRUE.equals(read)) {
             jdbc.sql("""

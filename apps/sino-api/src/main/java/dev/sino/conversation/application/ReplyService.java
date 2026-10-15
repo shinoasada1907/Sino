@@ -104,27 +104,29 @@ public class ReplyService implements SentMessages {
     }
 
     /**
-     * Removes a message Sino failed to send; any other message stays.
+     * Removes a message Sino failed to send, in any copy of the thread (F05b); any other message stays.
      *
      * @throws SinoException {@code CONVERSATION_NOT_FOUND}, {@code MESSAGE_NOT_FOUND} or {@code MESSAGE_NOT_DELETABLE}
      */
     public void discard(UUID ownerId, UUID conversationId, UUID messageId) {
-        UUID accountId = inbox.requireInInbox(ownerId, conversationId).accountOf(conversationId);
+        InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
         transactions.executeWithoutResult(status -> {
-            summaries.lock(accountId);
-            Optional<Boolean> failedFromSino = jdbc.sql("""
-                    SELECT client_message_id IS NOT NULL AND status = 'FAILED' FROM message
-                    WHERE id = :message AND conversation_id = :conversation
-                    """).param("message", messageId).param("conversation", conversationId)
-                    .query(Boolean.class).optional();
-            if (failedFromSino.isEmpty()) {
+            summaries.lockAll(conversation.accountIds());
+            Optional<Discardable> found = jdbc.sql("""
+                    SELECT conversation_id, client_message_id IS NOT NULL AND status = 'FAILED' AS failed_from_sino
+                    FROM message WHERE id = :message AND conversation_id IN (:copies)
+                    """).param("message", messageId).param("copies", conversation.conversationIds())
+                    .query((row, n) -> new Discardable(row.getObject("conversation_id", UUID.class),
+                            row.getBoolean("failed_from_sino")))
+                    .optional();
+            if (found.isEmpty()) {
                 throw ConversationErrorCode.messageNotFound();
             }
-            if (!failedFromSino.get()) {
+            if (!found.get().failedFromSino()) {
                 throw ConversationErrorCode.messageNotDeletable();
             }
             jdbc.sql("DELETE FROM message WHERE id = :message").param("message", messageId).update();
-            changed(accountId, conversationId);
+            changed(conversation.accountOf(found.get().copy()), found.get().copy());
         });
     }
 
@@ -239,8 +241,7 @@ public class ReplyService implements SentMessages {
     // one goes in the primary copy (D-186). One sent before with it stays in the copy it was written to, even when
     // another copy has become the primary one since, so it is never sent twice nor from two accounts (D-131).
     private Attempt begin(UUID ownerId, InboxItem conversation, String text, UUID clientMessageId) {
-        // Every account of the thread, in one order, as a change of the inbox takes them.
-        conversation.copies().stream().map(InboxItem.Copy::accountId).distinct().sorted().forEach(summaries::lock);
+        summaries.lockAll(conversation.accountIds());
         // Every copy of the group, those of accounts out of the inbox too.
         Optional<Existing> existing = jdbc.sql("""
                 SELECT m.id, m.conversation_id, m.status FROM message m
@@ -411,6 +412,9 @@ public class ReplyService implements SentMessages {
     }
 
     private record Existing(UUID id, UUID conversationId, MessageStatus status) {
+    }
+
+    private record Discardable(UUID copy, boolean failedFromSino) {
     }
 
     private record Uncertain(UUID id, UUID conversationId, UUID clientMessageId, boolean givenUp,

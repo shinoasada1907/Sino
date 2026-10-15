@@ -1,5 +1,6 @@
 package dev.sino.conversation.application;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
@@ -45,6 +46,8 @@ public class MessageFiles {
     }
 
     /**
+     * The message may be of any copy of the thread (F05b); the file is read for the account of its copy.
+     *
      * @param inline shown inside the mail: only a PNG, JPEG, GIF or WebP picture
      * @throws SinoException with {@code CONVERSATION_NOT_FOUND} when the conversation is not in the inbox,
      *         {@code ATTACHMENT_NOT_FOUND} when the attachment is not one of that message,
@@ -54,9 +57,10 @@ public class MessageFiles {
      *         give it now
      */
     public MessageFile file(UUID ownerId, UUID conversationId, UUID messageId, UUID attachmentId, boolean inline) {
-        UUID accountId = inbox.requireInInbox(ownerId, conversationId).accountOf(conversationId);
-        Stored file = find(conversationId, messageId, attachmentId)
+        InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
+        Stored file = find(conversation.conversationIds(), messageId, attachmentId)
                 .orElseThrow(ConversationErrorCode::attachmentNotFound);
+        UUID accountId = conversation.accountOf(file.copy());
         if (inline && !NormalizedAttachment.isPicture(file.mimeType())) {
             throw ConversationErrorCode.attachmentNotInline();
         }
@@ -88,20 +92,20 @@ public class MessageFiles {
                 file.fileName(), inline);
     }
 
-    private Optional<Stored> find(UUID conversationId, UUID messageId, UUID attachmentId) {
+    private Optional<Stored> find(List<UUID> copies, UUID messageId, UUID attachmentId) {
         return jdbc.sql("""
-                SELECT m.external_message_id, a.external_attachment_id, a.file_name, a.mime_type, a.size_bytes
+                SELECT m.conversation_id, m.external_message_id, a.external_attachment_id, a.file_name, a.mime_type,
+                       a.size_bytes
                 FROM attachment a JOIN message m ON m.id = a.message_id
-                WHERE a.id = :attachment AND m.id = :message AND m.conversation_id = :conversation
-                """).param("attachment", attachmentId).param("message", messageId)
-                .param("conversation", conversationId)
-                .query((row, n) -> new Stored(row.getString(1), row.getString(2), row.getString(3), row.getString(4),
-                        row.getObject(5, Long.class)))
+                WHERE a.id = :attachment AND m.id = :message AND m.conversation_id IN (:copies)
+                """).param("attachment", attachmentId).param("message", messageId).param("copies", copies)
+                .query((row, n) -> new Stored(row.getObject(1, UUID.class), row.getString(2), row.getString(3),
+                        row.getString(4), row.getString(5), row.getObject(6, Long.class)))
                 .optional();
     }
 
-    private record Stored(String externalMessageId, String externalAttachmentId, String fileName, String mimeType,
-            Long sizeBytes) {
+    private record Stored(UUID copy, String externalMessageId, String externalAttachmentId, String fileName,
+            String mimeType, Long sizeBytes) {
     }
 
 }
