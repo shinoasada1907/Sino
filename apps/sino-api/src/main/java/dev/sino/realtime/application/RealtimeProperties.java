@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties("sino.realtime")
 public record RealtimeProperties(Duration streamTimeout, Duration heartbeat, Duration reconnect,
-        Integer maxStreamsPerUser) {
+                                 Integer maxStreamsPerUser) {
 
     public RealtimeProperties {
         streamTimeout = streamTimeout == null ? Duration.ofMinutes(20) : streamTimeout;
