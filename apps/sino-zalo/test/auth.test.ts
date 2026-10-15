@@ -13,7 +13,7 @@ describe('shared secret', () => {
   })
 
   async function get(headers: Record<string, string>) {
-    app = buildApp({ host: '127.0.0.1', port: 0, secret: SECRET }, new FakeZaloGateway())
+    app = buildApp({ host: '127.0.0.1', port: 0, secret: SECRET, apiUrl: 'http://127.0.0.1:8080' }, new FakeZaloGateway())
     return app.inject({ method: 'GET', url: '/accounts/a1/messages', headers })
   }
 

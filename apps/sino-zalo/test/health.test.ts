@@ -11,7 +11,7 @@ describe('GET /health', () => {
   })
 
   it('answers without the key and gives only counts', async () => {
-    app = buildApp({ host: '127.0.0.1', port: 0, secret: 'k'.repeat(32) }, new FakeZaloGateway())
+    app = buildApp({ host: '127.0.0.1', port: 0, secret: 'k'.repeat(32), apiUrl: 'http://127.0.0.1:8080' }, new FakeZaloGateway())
 
     const response = await app.inject({ method: 'GET', url: '/health' })
 
@@ -20,7 +20,7 @@ describe('GET /health', () => {
   })
 
   it('still answers without the key when the URL has a query string', async () => {
-    app = buildApp({ host: '127.0.0.1', port: 0, secret: 'k'.repeat(32) }, new FakeZaloGateway())
+    app = buildApp({ host: '127.0.0.1', port: 0, secret: 'k'.repeat(32), apiUrl: 'http://127.0.0.1:8080' }, new FakeZaloGateway())
 
     const response = await app.inject({ method: 'GET', url: '/health?probe=1' })
 

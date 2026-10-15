@@ -4,10 +4,21 @@ import { loadConfig } from '../src/config.ts'
 const SECRET = 'a'.repeat(32)
 
 describe('loadConfig', () => {
-  it('reads the secret and falls back to localhost:8090', () => {
+  it('reads the secret and falls back to localhost:8090, with sino-api on localhost:8080', () => {
     const config = loadConfig({ SINO_ZALO_SECRET: SECRET })
 
-    expect(config).toEqual({ host: '127.0.0.1', port: 8090, secret: SECRET })
+    expect(config).toEqual({ host: '127.0.0.1', port: 8090, secret: SECRET, apiUrl: 'http://127.0.0.1:8080' })
+  })
+
+  it('reads where sino-api listens, without a trailing slash', () => {
+    const config = loadConfig({ SINO_ZALO_SECRET: SECRET, SINO_API_URL: 'http://sino-api:8080/' })
+
+    expect(config.apiUrl).toBe('http://sino-api:8080')
+  })
+
+  it('stops when SINO_API_URL is not an http address', () => {
+    expect(() => loadConfig({ SINO_ZALO_SECRET: SECRET, SINO_API_URL: 'not a url' })).toThrow('SINO_API_URL')
+    expect(() => loadConfig({ SINO_ZALO_SECRET: SECRET, SINO_API_URL: 'sino-api:8080' })).toThrow('SINO_API_URL')
   })
 
   it('reads host and port when they are set', () => {

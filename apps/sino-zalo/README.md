@@ -4,9 +4,9 @@ Node service that will sit between `sino-api` and Zalo for personal Zalo account
 zca-js (F09, D-273). Only `sino-api` may call it, with a shared secret (D-282). It keeps nothing on disk: Zalo sessions
 are stored encrypted by `sino-api` (D-274). The plan is `openspec/changes/zalo-personal` at the repository root.
 
-**Status (ZL-02):** configuration, the shared-secret check, `GET /health` and the QR login. Sessions and listeners,
-the message buffer and sending come in ZL-03…ZL-05. The QR login has run only against the fake gateway so far; the
-first run against Zalo itself is ZL-13.
+**Status (ZL-03):** configuration, the shared-secret check, `GET /health`, the QR login, and sessions with their
+listeners (start, stop, kick, reconnect). The message buffer and sending come in ZL-04 and ZL-05. All of it has run
+only against the fake gateway so far; the first run against Zalo itself is ZL-13.
 
 Run every command below from `apps/sino-zalo`.
 
@@ -30,8 +30,10 @@ Copy `.env.example` to `.env` (ignored by git) and fill in the secret. `pnpm dev
 | `SINO_ZALO_SECRET` | none, required | Shared secret, at least 32 bytes, the same value on the `sino-api` side (ZL-06). Generate one with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"` |
 | `SINO_ZALO_HOST` | `127.0.0.1` | Address to listen on. Keep it on this machine (D-282) |
 | `SINO_ZALO_PORT` | `8090` | Port, a whole number from 1 to 65535 |
+| `SINO_API_URL` | `http://127.0.0.1:8080` | Where `sino-api` listens; sino-zalo calls `POST <SINO_API_URL>/api/webhooks/zalo` there |
 
-A missing or short secret, or a bad port, stops the service at start with exit code 1 and a line naming the variable.
+A missing or short secret, a bad port or an address that is not http(s) stops the service at start with exit code 1
+and a line naming the variable.
 
 ## Commands
 
@@ -49,22 +51,29 @@ A missing or short secret, or a bad port, stops the service at start with exit c
 
 | Request | Answer |
 |---|---|
-| `GET /health` | `200 { "status": "UP", "sessions": { "live": 0, "ended": 0 } }`, no secret needed, counts only |
+| `GET /health` | `200 { "status": "UP", "sessions": { "live", "ended" } }`, no secret needed, counts only |
 | Any other request without `Authorization: Bearer <SINO_ZALO_SECRET>` | `401 { "code": "UNAUTHORIZED", "message": "Missing or wrong secret" }` |
 | `POST /logins` | `201 { "loginId", "qrImage" (PNG, base64), "expiresAt" }` once Zalo has given the QR code (it lives 100 seconds); `502 QR_UNAVAILABLE` when Zalo fails first or gives none within 15 seconds |
 | `GET /logins/{loginId}` | `200 { "state" }`, `state` one of `WAITING`, `SCANNED` (with `displayName`), `DONE`, `EXPIRED`, `DECLINED`, `FAILED`. The first `DONE` answer carries `profile` (`ownId`, `displayName`, `avatarUrl`) and `session` (`cookie`, `imei`, `userAgent`); the login is then forgotten. `404 UNKNOWN_LOGIN` for a login it does not know |
 | `DELETE /logins/{loginId}` | `204`, also when the login is unknown; stops the login at Zalo too |
+| `PUT /accounts/{accountId}/session` `{ "session": { "cookie", "imei", "userAgent" } }` | `204` once the account runs one listener on this session; the same session while it lives changes nothing. `410 SESSION_ENDED` when Zalo refuses the session, or for the very session that was kicked (Zalo is not asked again). `502 ZALO_UNAVAILABLE` when Zalo does not answer (the session held so far stays). `400` for a body without a usable session |
+| `DELETE /accounts/{accountId}/session` | `204`, also when the account is unknown; stops the listener and forgets the account |
 
 The secret is checked for every request, also on paths no route serves yet, so a route added later is protected
-without extra code. A login is kept in memory only and forgotten five minutes after it started, read or not. The whole
-contract with `sino-api` is in the design of the change.
+without extra code. A login is kept in memory only and forgotten five minutes after it started, read or not.
+
+Sessions are kept in memory only, one per account, with a SHA-256 fingerprint to tell a new session from the same one
+(D-289). When Zalo closes the listener with `3000` (another web connection) or `3003` (kick), the session ends and
+sino-zalo calls the `sino-api` webhook with the `ownId`; any other close is reconnected after 1, 2, 4… up to 60 seconds,
+back to 1 second once connected. sino-zalo reconnects itself (zca-js `retryOnClose` is off): zca-js would also reconnect
+after a kick and then report `1006`. The whole contract with `sino-api` is in the design of the change.
 
 ## Layout
 
 | Path | Role |
 |---|---|
 | `src/server.ts` | Entry point: reads the configuration, builds the app, listens, closes on Ctrl+C or `SIGTERM` |
-| `src/app.ts` | `buildApp(config, gateway)`: the Fastify app without listening, so tests call it with `app.inject` and a fake gateway |
+| `src/app.ts` | `buildApp(config, gateway, { logger, notifier })`: the Fastify app without listening, so tests call it with `app.inject`, a fake gateway and a recording notifier |
 | `src/config.ts` | `loadConfig(env)`: reads and checks the environment variables |
 | `src/auth.ts` | The `onRequest` hook that checks the shared secret in constant time |
 | `src/gateway/ZaloGateway.ts` | The interface for everything asked of Zalo; nothing else imports zca-js |
@@ -72,4 +81,7 @@ contract with `sino-api` is in the design of the change.
 | `src/gateway/FakeZaloGateway.ts` | `ZaloGateway` for tests: the test plays Zalo by calling the events of a login |
 | `src/logins/LoginStore.ts` | QR logins in progress: their states, the session handed over once, forgetting old ones |
 | `src/logins/routes.ts` | `POST`, `GET`, `DELETE /logins` |
+| `src/sessions/SessionManager.ts` | One session and one listener per account: fingerprints, kicks, reconnects, one task at a time per account |
+| `src/sessions/routes.ts` | `PUT`, `DELETE /accounts/{accountId}/session`, and the `404` / `410` / `502` answers shared by account routes |
+| `src/notify.ts` | The webhook to `sino-api`; a failure is logged, never thrown |
 | `test/` | Vitest tests, one file per part |

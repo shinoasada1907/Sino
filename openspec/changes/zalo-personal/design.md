@@ -144,7 +144,9 @@ QrLogin.cancel(loginId)
 ### D-276 — Bị đá thì account thành "Cần đăng nhập lại"; rớt mạng thì tự nối lại · **Người dùng chốt** (phần 2)
 - **Bị đá:** listener đóng với `3000` hoặc `3003`, hoặc đăng nhập bằng cookie bị từ chối. `sino-zalo` đánh dấu phiên `ENDED` (kèm lý do), dừng listener, gọi webhook ngay (D-277). Lần gọi kế tiếp tới account đó nhận `410 SESSION_ENDED`. ~~`ZaloProvider` ném `AUTH_EXPIRED`~~ `ZaloProvider` gửi lại phiên đang lưu bằng `PUT session` một lần (D-289); đó vẫn là phiên đã bị đá nên `sino-zalo` trả `410` ngay mà không gọi Zalo, và `ZaloProvider` ném `AUTH_EXPIRED`. `ProviderAccessService` sẵn có chuyển account sang `AUTH_EXPIRED`, web hiện "Quét QR lại" (kết nối lại, D-275).
   - **Đã sửa sau review:** **LÝ DO:** nếu `410` thành `AUTH_EXPIRED` ngay thì sau khi người dùng quét lại, phiên mới không bao giờ tới `sino-zalo` và account bị đẩy về "Cần đăng nhập lại" ở lượt đồng bộ kế tiếp (D-289).
-- **Rớt mạng thoáng qua** (`1006` và các mã khác): zca-js tự nối lại với độ trễ tăng dần (`retryOnClose`). Không coi là bị đá.
+- **Rớt mạng thoáng qua** (`1006` và các mã khác): ~~zca-js tự nối lại với độ trễ tăng dần (`retryOnClose`)~~ `SessionManager` tự nối lại sau 1, 2, 4 … tối đa 60 giây, về lại 1 giây khi đã nối được; listener của zca-js chạy với `retryOnClose: false`. Không coi là bị đá.
+  - **Đã sửa ở ZL-03** (2026-10-15, **agent chốt, cần xem lại**): **LÝ DO:** log spike (`spikes/zalo-zca/logs/listen.jsonl`) cho thấy khi bị đá, zca-js nối lại cả sau `3003` (mã nối lại do máy chủ Zalo gửi trong `close_and_retry_codes`) rồi báo `closed 1006`; dựa vào `retryOnClose` thì lần bị đá trông như rớt mạng và `sino-zalo` nối lại mãi bằng cookie đã hủy. Thêm nữa, zca-js 2.2.0 không hủy được lần nối lại đã hẹn, và số lần thử của mỗi mã không đặt lại sau khi nối được. Tự nối lại thì mỗi lần đóng đều có mã thật, và test được bằng đồng hồ giả.
+  - Cookie bị từ chối lúc `PUT session` không gọi webhook: `sino-api` đang là bên gọi và nhận `410` ngay (spec `zalo-gateway`, Vòng đời phiên và listener).
 
 **Phương án bị loại:** tự đăng nhập lại bằng cookie sau khi bị đá (phiên đã bị Zalo hủy, spike đã thấy; thử mãi dễ bị coi là bot).
 
@@ -344,7 +346,7 @@ Mọi request (trừ `/health`) có `Authorization: Bearer <SINO_ZALO_SECRET>`. 
 | `POST /logins` | `201 { loginId, qrImage, expiresAt }` | `502` Zalo không trả QR |
 | `GET /logins/{loginId}` | `200 { state, displayName?, profile?, session? }`; `profile` (`ownId`, `displayName`, `avatarUrl`) và `session` chỉ có ở response `DONE` **đầu tiên**, sau đó lần đăng nhập bị quên | `404` |
 | `DELETE /logins/{loginId}` | `204` | — |
-| `PUT /accounts/{accountId}/session` `{ session }` | `204`; cùng dấu vân tay với phiên đang sống thì không làm gì; dấu vân tay khác thì thay phiên (D-289) | `410 SESSION_ENDED` (cookie bị từ chối, hoặc đúng phiên đã `ENDED`: trả ngay, không gọi Zalo) |
+| `PUT /accounts/{accountId}/session` `{ session }` | `204`; cùng dấu vân tay với phiên đang sống thì không làm gì; dấu vân tay khác thì thay phiên (D-289) | `410 SESSION_ENDED` (cookie bị từ chối, hoặc đúng phiên đã `ENDED`: trả ngay, không gọi Zalo); `502 ZALO_UNAVAILABLE` (Zalo không trả lời; phiên đang giữ không đổi; thêm ở ZL-03, D-281 hàng 5xx); `400` (body không có phiên dùng được) |
 | `DELETE /accounts/{accountId}/session` | `204` (kể cả khi không có) | — |
 | `GET /accounts/{accountId}/messages?after=&limit=` | `200 { conversations, messages, nextCursor, hasMore }`; `after` rỗng = mọi tin trong bộ đệm | `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED` |
 | `POST /accounts/{accountId}/messages` `{ threadId, threadType, text, clientMessageId }` | `201 { msgId, sentAt }`; trùng `clientMessageId` → `200` cùng kết quả | `404`, `410`, `422 REJECTED`, `429`, `504 OUTCOME_UNKNOWN` |

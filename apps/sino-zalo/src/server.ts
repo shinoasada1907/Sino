@@ -10,7 +10,7 @@ try {
   process.exit(1);
 }
 
-const app = buildApp(config, new ZcaGateway(), true);
+const app = buildApp(config, new ZcaGateway(), { logger: true });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, async () => {

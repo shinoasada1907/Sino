@@ -511,3 +511,89 @@ Bạn sửa chỗ thứ ba bằng `${error as Error}` (bỏ `.message`): chạy 
 - **Xanh:** `pnpm test` 27/27 (4 file), `pnpm lint` 0 cảnh báo 0 lỗi, `pnpm typecheck` 0 lỗi.
 - **Chạy thật** với `ZcaGateway` (cổng 8097): `/health` `200`; `POST /logins` không khóa `401`; `GET /logins/nope` có khóa `404 UNKNOWN_LOGIN`; `DELETE /logins/nope` `204`; khóa không có trong log.
 - **Chưa kiểm:** `POST /logins` có khóa gọi Zalo thật để lấy mã QR; theo kế hoạch Zalo thật chỉ chạy ở ZL-13 bằng nick phụ, nên đường đi thật qua zca-js (mã QR, quét, phiên, hết hạn sau 100 giây) chưa chạy lần nào trong `sino-zalo`.
+
+## 7. Phiên và listener: bật, tắt, bị đá, nối lại (ZL-03)
+
+**Ở đâu:** `src/sessions/{SessionManager,routes}.ts` và `src/notify.ts` (mới); `src/gateway/{ZaloGateway,ZcaGateway,FakeZaloGateway}.ts` (đăng nhập bằng phiên đã lưu, listener); `src/app.ts` (`buildApp(config, gateway, { logger, notifier })`, `/health` đếm phiên thật); `src/config.ts` (`SINO_API_URL`); `test/{sessions,notify}.test.ts` (mới). Claude làm ở chế độ AUTO.
+
+### 7.1 Việc của task: giữ một websocket sống cho mỗi account
+Listener là một **websocket** mở tới Zalo, sống nhiều ngày, qua đó Zalo đẩy tin mới. Đây là tài nguyên dài hạn: phải mở đúng một cái cho mỗi account, dừng khi không cần, mở lại khi rớt mạng, và biết lúc nào **không được** mở lại.
+
+```text
+ sino-api                          sino-zalo (SessionManager)                     Zalo
+ PUT /accounts/a1/session {session} --> đăng nhập bằng cookie ------------------> chấp nhận / từ chối
+                                        listener.start() ------- websocket -----> đẩy sự kiện
+                                        đóng 3000/3003 (bị đá) -> ENDED + webhook
+ POST /api/webhooks/zalo {ownId}  <---- (sino-api đồng bộ, gặp 410, báo "Quét QR lại")
+                                        đóng mã khác (rớt mạng) -> nối lại sau 1, 2, 4 ... 60 giây
+ DELETE /accounts/a1/session ---------> dừng listener, quên account
+```
+
+### 7.2 `PUT session`: bốn hàng của D-289
+`sino-zalo` nhớ cho mỗi account một **dấu vân tay** của phiên: SHA-256 của chuỗi JSON phiên mà `sino-api` gửi. Mỗi `PUT` so dấu vân tay mới với cái đang giữ:
+
+| Đang giữ | Phiên gửi tới | Kết quả |
+|---|---|---|
+| `LIVE`, cùng dấu vân tay | | `204`, không làm gì (gọi bao nhiêu lần cũng vậy: **idempotent**) |
+| `ENDED`, cùng dấu vân tay | | `410` ngay, không gọi Zalo: cookie đó đã bị hủy |
+| không có, hoặc khác | Zalo nhận | đăng nhập, dừng listener cũ, chạy listener mới, `204` |
+| không có, hoặc khác | Zalo từ chối | dừng listener cũ, ghi `ENDED`, `410` |
+
+**Câu gợi ý của task:** "nếu `PUT` thấy phiên đang sống là bỏ qua, thì người dùng quét lại xong, phiên mới đi vào `sino-zalo` bằng đường nào?". Trả lời: nếu chỉ hỏi "đang sống không" thì **không có đường nào**: phiên mới bị bỏ qua, phiên cũ bị Zalo hủy, và người dùng quét mãi vẫn "Cần đăng nhập lại". So dấu vân tay thì phiên mới luôn khác phiên cũ, nên nó đi vào ngay ở lần `PUT` kế tiếp (lượt đồng bộ, hoặc `registerPush`).
+
+**Vì sao băm mà không giữ cả phiên để so:** dấu vân tay đủ để biết "cùng hay khác", mà không giữ thêm một bản cookie trong bộ nhớ chỉ để so. Nó không bao giờ ra log hay response.
+
+### 7.3 Lỗi tạm thời và lỗi vĩnh viễn
+Đây là bài học chính của task. Cùng là "không đăng nhập được", nhưng hai nguyên nhân cần hai cách xử lý ngược nhau:
+
+| Chuyện xảy ra | Loại | `sino-zalo` làm | `sino-api` sẽ làm (ZL-06…) |
+|---|---|---|---|
+| Zalo trả "Đăng nhập thất bại" cho cookie | vĩnh viễn: cookie đã bị hủy | `ENDED`, `410 SESSION_ENDED` | `AUTH_EXPIRED`, người dùng quét lại |
+| Mạng lỗi, Zalo không trả lời | tạm thời | giữ nguyên phiên đang có, `502 ZALO_UNAVAILABLE` | `PROVIDER_UNAVAILABLE`, thử lại ở lượt sau |
+| Websocket đóng `3000` / `3003` | vĩnh viễn: bị đá | `ENDED`, gọi webhook | đồng bộ, gặp `410` |
+| Websocket đóng mã khác (`1006`…) | tạm thời: rớt mạng | nối lại, chờ lâu dần | không biết gì, không cần biết |
+
+Coi nhầm lỗi tạm thời là vĩnh viễn thì người dùng phải quét QR lại chỉ vì wifi chập chờn. Coi nhầm lỗi vĩnh viễn là tạm thời thì `sino-zalo` đăng nhập lại mãi bằng cookie chết, dễ bị Zalo coi là bot (D-276). Vì vậy `ZcaGateway` đổi lỗi của zca-js thành hai lớp riêng, `SessionRejectedError` và `ZaloUnavailableError`, và chỉ đúng câu "Đăng nhập thất bại" (thứ spike đã thấy khi cookie bị hủy, `spikes/zalo-zca/logs/login.jsonl`) mới là từ chối. Câu đó là chữ tiếng Việt của zca-js, nên đây là một chỗ dễ vỡ khi nâng zca-js; ZL-13 kiểm lại trên Zalo thật.
+
+### 7.4 Đọc log spike trước khi tin `retryOnClose`
+Kế hoạch (D-276) định để zca-js tự nối lại (`retryOnClose: true`). Log spike cho thấy điều khác:
+
+```text
+ 03:09:42  disconnected 3003 KickConnection      <- bị đá vì mở chat.zalo.me
+           (zca-js tự nối lại, với cookie đã bị hủy)
+ 03:09:44  disconnected 1006 AbnormalClosure
+ 03:09:44  closed       1006 AbnormalClosure     <- mã cuối cùng báo ra là 1006, không phải 3003
+```
+
+Đọc mã `listen.js` của zca-js 2.2.0 thì thấy thêm:
+- Mã nào được nối lại là do **máy chủ Zalo** gửi trong cấu hình (`close_and_retry_codes`); lúc spike chạy, danh sách đó có cả `3003`, vì thư viện đã nối lại sau `3003`.
+- Lần nối lại được hẹn bằng `setTimeout` mà không có cách nào hủy.
+- Số lần thử của mỗi mã **không bao giờ đặt lại**, kể cả sau khi đã nối lại được, nên sau đủ nhiều lần rớt mạng trong đời một listener, nó thôi nối lại.
+
+Nếu tin `closed`, `sino-zalo` sẽ coi lần bị đá là rớt mạng. Vì vậy `ZcaGateway` chạy listener với `retryOnClose: false` (mỗi lần đóng đều báo `closed` với mã thật), còn `SessionManager` tự quyết: `3000`/`3003` là `ENDED`; mã khác thì nối lại sau 1, 2, 4, 8, 16, 32, rồi 60 giây mỗi lần, và quay về 1 giây khi đã nối lại được (`connected`). Bên Java, đây là **exponential backoff**, như `ExponentialBackOff` của Spring Retry. Test dùng đồng hồ giả của Vitest (`vi.useFakeTimers()`, `vi.advanceTimersByTime`), nên kiểm cả dãy 1…60 giây mà không phải chờ.
+
+### 7.5 Một account, một hàng đợi
+Hai `PUT` cùng phiên tới gần như cùng lúc là chuyện có thật: `registerPush` và lượt đồng bộ của `sino-api` chạy song song. Đăng nhập bằng cookie mất vài trăm mili giây, và trong lúc chờ (`await`), Node xử lý request kia. Nếu không làm gì thì cả hai đều thấy "chưa có phiên" và mở **hai** listener; Zalo chỉ cho một kết nối web, nên chúng đá nhau (`3000`).
+
+Node chạy một luồng, nên không cần `synchronized`; cái cần là **không cho hai việc của cùng một account xen nhau qua `await`**. `serial(accountId, task)` nối mỗi việc vào sau promise của việc trước cùng account:
+
+```text
+ queues: a1 -> [PUT phiên X] -> [PUT phiên X] -> [DELETE]     (lần lượt)
+         a2 -> [PUT phiên Y]                                  (song song với a1)
+```
+
+Bên Java, cách tương tự là một khóa cho mỗi khóa (`ConcurrentHashMap<String, Lock>`) hoặc một hàng đợi một luồng cho mỗi account. Test "logs in once when the same session comes twice at the same time" giữ điều này.
+
+### 7.6 Tiếng "đóng" của listener đã dừng
+`listener.stop()` của zca-js đóng websocket với mã `1000`, và sự kiện `closed` tới **sau đó** (bất đồng bộ). Nếu xử lý nó như một lần rớt mạng, `DELETE session` sẽ bị nối lại ngay sau một giây. Cách chặn: mỗi listener mang theo object phiên của nó, và `closed` chỉ được xử lý khi object đó **vẫn là** phiên hiện hành của account (`this.sessions.get(accountId) === session`). Một kiểm tra phủ được bốn trường hợp: đã `DELETE`, đã thay phiên khác, đã bị đá, và đang tắt service. Bản giả `FakeListener.stop()` cũng báo `closed(1000)` sau một microtask y như zca-js, để test "does not reconnect a listener it stopped itself" thấy đúng chuyện này.
+
+**Bẫy:** listener của zca-js là một `EventEmitter`. Phát sự kiện `error` mà không ai nghe thì Node **ném lỗi và tắt cả tiến trình**, kéo theo listener của mọi account khác. `ZcaGateway` luôn gắn một hàm nghe `error` (chỉ ghi log lý do).
+
+### 7.7 Báo `sino-api` (`notify.ts`)
+`WebhookNotifier` gọi `POST <SINO_API_URL>/api/webhooks/zalo` `{ "ownId" }` với khóa bí mật, hết giờ sau 5 giây, và **không bao giờ ném lỗi**: lỗi chỉ thành một dòng log WARN. Webhook chỉ là lời nhắc "đồng bộ đi"; nếu nó lỡ thì lượt đồng bộ dự phòng 5 phút một lần của `sino-api` vẫn gặp `410`. `SessionManager` nhận một `Notifier` (interface) qua constructor, nên test truyền bản ghi lại lời gọi; còn chính `WebhookNotifier` được test bằng một Fastify nhỏ đóng vai `sino-api`, chạy thật trên cổng ngẫu nhiên. ZL-04 thêm phần gom tin mới trong 0,5 giây vào đây.
+
+### 7.8 Kiểm chứng (ZL-03)
+- **Đỏ trước:** `sessions.test.ts` đỏ với `Cannot find module '../src/sessions/SessionManager.ts'`, `notify.test.ts` với `Cannot find module '../src/notify.ts'`, 3 test mới của `config.test.ts` đỏ vì chưa có `apiUrl`.
+- **Xanh:** `pnpm test` 54/54 (6 file), oxlint 0 chẩn đoán trên 19 file, `tsc` 0 lỗi.
+- **Chạy thật** với `ZcaGateway` (cổng 8096, không gọi Zalo): `/health` `200 {live 0, ended 0}`; `PUT session` không khóa `401`; thiếu cookie `400`; `DELETE` account lạ `204`; khóa và imei không có trong log; `SINO_API_URL=sino-api:8080` thì dừng với mã 1 và lời báo nêu tên biến.
+- **Chưa kiểm:** đăng nhập bằng cookie thật, listener thật, bị đá và rớt mạng thật với Zalo: ZL-13, bằng nick phụ.

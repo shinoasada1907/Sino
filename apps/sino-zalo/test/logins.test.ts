@@ -23,7 +23,7 @@ describe("QR login routes", () => {
 
   beforeEach(() => {
     gateway = new FakeZaloGateway();
-    app = buildApp({ host: "127.0.0.1", port: 0, secret: SECRET }, gateway);
+    app = buildApp({ host: "127.0.0.1", port: 0, secret: SECRET, apiUrl: "http://127.0.0.1:8080" }, gateway);
   });
 
   afterEach(async () => {

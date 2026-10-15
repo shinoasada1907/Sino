@@ -1,8 +1,18 @@
-import { LoginQRCallbackEventType, Zalo } from "zca-js";
-import type {
-  QrLoginEvents,
-  QrLoginHandle,
-  ZaloGateway,
+import {
+  type API,
+  type Credentials,
+  LoginQRCallbackEventType,
+  Zalo,
+  ZaloApiError,
+} from "zca-js";
+import {
+  type QrLoginEvents,
+  type QrLoginHandle,
+  SessionRejectedError,
+  type ZaloConnection,
+  type ZaloGateway,
+  type ZaloSession,
+  ZaloUnavailableError,
 } from "./ZaloGateway.ts";
 
 /** ZaloGateway over zca-js, the unofficial Zalo Web client (D-283). */
@@ -68,6 +78,44 @@ export class ZcaGateway implements ZaloGateway {
       },
     };
   }
+
+  async loginWithSession(session: ZaloSession): Promise<ZaloConnection> {
+    const zalo = new Zalo({ checkUpdate: false, logging: false });
+    let api: API;
+    try {
+      api = await zalo.login({
+        cookie: session.cookie as Credentials["cookie"],
+        imei: session.imei,
+        userAgent: session.userAgent,
+      });
+    } catch (error) {
+      throw isRefusal(error)
+        ? new SessionRejectedError(reasonOf(error))
+        : new ZaloUnavailableError(reasonOf(error));
+    }
+
+    return {
+      ownId: api.getOwnId(),
+      listener: (events) => {
+        const listener = api.listener;
+        listener.on("connected", () => events.connected());
+        listener.on("closed", (code, reason) => events.closed(code, reason));
+        // An "error" event nobody listens to would crash the process.
+        listener.on("error", (error) => events.error(reasonOf(error)));
+        return {
+          // zca-js would reconnect after a kick too and then report 1006 (spike log),
+          // so SessionManager decides when to reconnect (D-276).
+          start: () => listener.start({ retryOnClose: false }),
+          stop: () => listener.stop(),
+        };
+      },
+    };
+  }
+}
+
+/** How Zalo answers a revoked cookie, as the spike saw it (spikes/zalo-zca/logs/login.jsonl). */
+function isRefusal(error: unknown): boolean {
+  return error instanceof ZaloApiError && error.message === "Đăng nhập thất bại";
 }
 
 /** The error's name and first line: zca-js puts whole Zalo responses after the first line. */
