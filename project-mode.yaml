@@ -1,14 +1,22 @@
 # Operating mode for the Sino project.
 # 2026-09-30: TRAINING (initial choice). 2026-10-01: switched to HYBRID at the user's request.
 # Operating modes: AUTO | TRAINING | HYBRID
-mode: HYBRID
+mode: AUTO
+# 2026-10-15, afternoon (user: "chuyển về mode AUTO"): AUTO again. The agent implements, verifies, documents and
+# commits each task, then reports and stops. Architecture decisions stay with the user; `new_features` and
+# `task_overrides` below still hold until the user changes them.
+# 2026-10-15, morning (user): the agent implements only when the user sets `mode: AUTO`. In TRAINING and HYBRID the user
+# codes, tests and debugs every task. The agent splits the work into small steps and gives, for each step, the code
+# to type (only the new code, with its exact insertion point, explained) and a detailed step-by-step test and debug
+# guide. It does not run the code first in a sandbox, build, run tests, write docs, update PROJECT_STATE/tasks.md
+# or commit, unless the user asks for that one action. In AUTO it does the work itself and follows the full process.
 # Areas not listed below follow `default`.
 default: AUTO
 areas:
-  backend: AUTO           # Claude implements one small task at a time, verifies, reports, then waits
-  frontend: AUTO
-  config-devops: AUTO     # yaml, compose, env files, pom configuration, CI
-  docs: AUTO              # OpenSpec tasks/spec upkeep, PROJECT_STATE
+  backend: AUTO           # TRAINING on the morning of 2026-10-15
+  frontend: AUTO          # TRAINING on the morning of 2026-10-15
+  config-devops: AUTO     # TRAINING on the morning of 2026-10-15; yaml, compose, env files, pom configuration, CI
+  docs: AUTO              # TRAINING on the morning of 2026-10-15; OpenSpec tasks/spec upkeep, PROJECT_STATE
   architecture: TRAINING  # "Decision Needed" items: Claude proposes options + recommendation, the user decides
 # 2026-10-14 (user): new features are coded by the user from now on. Claude plans them (OpenSpec change,
 # small tasks) and guides each step: only the new code with its exact insertion point (never a whole file

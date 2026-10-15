@@ -27,13 +27,18 @@ Vị trí hiện tại chỉ ghi trong `PROJECT_STATE.md`; file này không lặ
 
 ## Quy ước làm việc
 
-- Mode HYBRID: mặc định agent làm từng task nhỏ, kiểm chứng, báo lại rồi dừng. Task nào người dùng nhận tự code (TRAINING) thì agent **không viết code thay**: giải thích, gợi ý, review, chạy test.
+- **Chỉ ở mode AUTO agent mới tự làm** (người dùng, 2026-10-15). Ở TRAINING và HYBRID, người dùng tự code, tự test, tự debug; agent chỉ hướng dẫn:
+  - chia việc thành các bước nhỏ; mỗi bước đưa code cần gõ (chỉ phần mới, kèm chỗ chèn chính xác) và giải thích nó làm gì, vì sao;
+  - kèm hướng dẫn test chi tiết từng bước: lệnh chạy, kết quả đúng trông ra sao, lỗi hay gặp và cách đọc lỗi;
+  - **không** chạy thử code trước trong scratchpad/sandbox, không build, không chạy test, không viết tài liệu, không cập nhật `PROJECT_STATE.md` / `tasks.md`, không commit, trừ khi người dùng yêu cầu đúng việc đó.
+
+  Khi người dùng bật AUTO (`mode: AUTO` trong `project-mode.yaml`), agent tự làm từng task nhỏ theo đủ quy trình (kiểm chứng, tài liệu, commit) rồi báo lại và dừng.
 - Quyết định kiến trúc ("Decision Needed") do người dùng chốt; agent đưa phương án và đề xuất.
-- Người dùng đang học Java qua dự án (vai trò intern; agent là senior engineer): agent làm task rồi giải thích cái đã dùng và vì sao; người dùng quyết bước tiếp theo. Mỗi phase có một file kiến thức trong `docs/knowledge/`; xong mỗi task thì bổ sung phần của task đó vào file của phase. File `.md` là bản gốc; bản Word `.docx` cạnh nó được sinh lại sau mỗi lần sửa (máy này dùng GenOffice: `genoffice create --type docx --from <file>.md --out <file>.docx --force`), không sửa tay `.docx`. Sơ đồ trong file kiến thức vẽ bằng ký tự trong khối `text`, không dùng Mermaid, vì Word không hiển thị được Mermaid. Không dùng emoji trong file kiến thức: bản Word render bằng GenOffice mất toàn bộ chữ thường khi gặp emoji.
-- Nhánh làm việc `dev`. Không commit thẳng `main`. Agent commit lên `dev` sau mỗi task đã kiểm chứng; **push, merge, mở PR chỉ khi người dùng yêu cầu**.
+- Người dùng đang học Java qua dự án (vai trò intern; agent là senior engineer): ở AUTO agent làm task rồi giải thích cái đã dùng và vì sao, ở TRAINING/HYBRID agent hướng dẫn như trên; người dùng quyết bước tiếp theo. Mỗi phase có một file kiến thức trong `docs/knowledge/`; ở AUTO xong mỗi task thì agent bổ sung phần của task đó vào file của phase, ở TRAINING/HYBRID chỉ khi người dùng yêu cầu. File `.md` là bản gốc; bản Word `.docx` cạnh nó được sinh lại sau mỗi lần sửa (máy này dùng GenOffice: `genoffice create --type docx --from <file>.md --out <file>.docx --force`), không sửa tay `.docx`. Sơ đồ trong file kiến thức vẽ bằng ký tự trong khối `text`, không dùng Mermaid, vì Word không hiển thị được Mermaid. Không dùng emoji trong file kiến thức: bản Word render bằng GenOffice mất toàn bộ chữ thường khi gặp emoji.
+- Nhánh làm việc `dev`. Không commit thẳng `main`. Ở AUTO agent commit lên `dev` sau mỗi task đã kiểm chứng; ở TRAINING/HYBRID agent chỉ commit khi người dùng yêu cầu. **Push, merge, mở PR chỉ khi người dùng yêu cầu**.
 - Làm khác kế hoạch thì gạch task cũ trong `tasks.md` và ghi **LÝ DO** ngay tại đó. Xong feature thì `openspec archive <change> -y`.
 - Không chạy thêm bước kiểm tra chậm ngoài phạm vi được giao mà chưa hỏi.
-- Kiểm chứng mỗi task **frontend** (người dùng chọn 2026-10-09 để làm nhanh hơn):
+- Kiểm chứng mỗi task **frontend** khi agent tự làm ở AUTO (người dùng chọn 2026-10-09 để làm nhanh hơn):
   - Giữ: test viết trước (đỏ rồi xanh); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build` trước khi commit; đối chiếu canvas.
   - Chrome thật: một lượt mỗi task, chỉ ở các cỡ màn task đó đụng tới. Đủ các cỡ × 2 theme để dành cho task nghiệm thu của màn.
   - Kiểm tra bằng lỗi gài (mutation): không chạy ở mỗi task; chỉ một lần cho hàm logic thuần của màn (như `format.ts`), ở task cuối trước nghiệm thu.
