@@ -1,5 +1,5 @@
 import { clockFrom } from '@/shared/time/canvasClock'
-import type { NoteAnchor, NotesData } from './notes.types'
+import type { DiagramBlock, NoteAnchor, NoteItem, NotesData } from './notes.types'
 
 const anchor = (extra: Partial<NoteAnchor> & Pick<NoteAnchor, 'kind' | 'label'>): NoteAnchor => ({
   provider: 'gmail',
@@ -19,6 +19,7 @@ export function createNotesSample(now: Date): NotesData {
   return {
     generatedAt: now.toISOString(),
     notes: [
+      ...[
       {
         id: 'note-gran',
         title: 'Danh sách mua cho bà',
@@ -93,6 +94,44 @@ export function createNotesSample(now: Date): NotesData {
         quote: null,
         linked: [],
       },
+      ].map((note) => ({ ...note, kind: 'TEXT' as const, diagram: null })),
+      tripPlan(at),
     ],
+  }
+}
+
+/** The diagram of the prototype the user approved (fe-ui-diagram-notes): a trip plan, 7 blocks, 6 links. */
+function tripPlan(at: (canvasTime: string) => string): NoteItem {
+  const block = (id: string, x: number, y: number, text: string, color: DiagramBlock['color'] = 'DEFAULT', main = false): DiagramBlock => ({ id, x, y, text, color, main })
+  return {
+    id: 'note-plan',
+    kind: 'DIAGRAM',
+    title: 'Kế hoạch chuyến đi Đà Lạt',
+    body: '',
+    pinned: false,
+    createdAt: at('2026-09-24T20:30:00+07:00'),
+    updatedAt: at('2026-09-24T21:30:00+07:00'),
+    anchor: null,
+    quote: null,
+    linked: [],
+    diagram: {
+      blocks: [
+        block('plan-trip', 360, 230, 'Chuyến đi Đà Lạt\ntháng 12', 'YELLOW', true),
+        block('plan-stay', 640, 90, 'Thuê homestay gần hồ Tuyền Lâm'),
+        block('plan-crew', 640, 330, 'Rủ cả nhóm chạy bộ', 'GREEN'),
+        block('plan-bus', 930, 330, 'Đặt xe 16 chỗ'),
+        block('plan-budget', 930, 90, 'Ngân sách khoảng 3 triệu / người', 'RED'),
+        block('plan-photos', 360, 40, 'Hỏi Thu Trang ảnh chuyến trước', 'BLUE'),
+        block('plan-date', 640, 470, 'Chốt ngày trước 15/11'),
+      ],
+      links: [
+        { id: 'plan-l1', from: 'plan-trip', fromSide: 'RIGHT', to: 'plan-stay', toSide: 'LEFT', label: 'chỗ ở' },
+        { id: 'plan-l2', from: 'plan-trip', fromSide: 'RIGHT', to: 'plan-crew', toSide: 'LEFT', label: 'ai đi' },
+        { id: 'plan-l3', from: 'plan-crew', fromSide: 'RIGHT', to: 'plan-bus', toSide: 'LEFT', label: 'đủ người thì' },
+        { id: 'plan-l4', from: 'plan-stay', fromSide: 'RIGHT', to: 'plan-budget', toSide: 'LEFT', label: 'tính vào' },
+        { id: 'plan-l5', from: 'plan-crew', fromSide: 'BOTTOM', to: 'plan-date', toSide: 'TOP', label: null },
+        { id: 'plan-l6', from: 'plan-photos', fromSide: 'RIGHT', to: 'plan-stay', toSide: 'LEFT', label: 'chọn chỗ' },
+      ],
+    },
   }
 }

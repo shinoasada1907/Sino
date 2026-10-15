@@ -11,12 +11,18 @@ export interface NotesData {
   notes: NoteItem[]
 }
 
+/** A note of text, or a diagram of blocks linked by arrows (fe-ui-diagram-notes, D-206). */
+export type NoteKind = 'TEXT' | 'DIAGRAM'
+
 export interface NoteItem {
   id: string
-  /** At most 200 characters; null: the first line of `body` names the note (D-202). */
+  kind: NoteKind
+  /** At most 200 characters; null: the first line of `body` (a diagram: its main block) names the note (D-202). */
   title: string | null
-  /** 1 to 20 000 characters. */
+  /** A text note: 1 to 20 000 characters; a diagram: empty. */
   body: string
+  /** A diagram's blocks and links; null for a text note (D-211). */
+  diagram: Diagram | null
   pinned: boolean
   createdAt: Instant
   updatedAt: Instant
@@ -51,11 +57,45 @@ export interface LinkedTask {
   dueDate: LocalDate | null
 }
 
-export type NotesFilter = 'all' | 'linked' | 'pinned'
+export type Side = 'TOP' | 'RIGHT' | 'BOTTOM' | 'LEFT'
+export type BlockColor = 'DEFAULT' | 'YELLOW' | 'GREEN' | 'RED' | 'BLUE'
+
+/** The blocks and links of a diagram, saved as one (D-211). */
+export interface Diagram {
+  blocks: DiagramBlock[]
+  links: DiagramLink[]
+}
+
+export interface DiagramBlock {
+  /** Made by the web, so that a link can point at it before anything is saved. */
+  id: string
+  /** The top-left corner on the canvas, in px at 100 %. */
+  x: number
+  y: number
+  /** 0 to 2 000 characters. */
+  text: string
+  color: BlockColor
+  /** A main block: bold. */
+  main: boolean
+}
+
+/** An arrow from one side of a block to one side of another. */
+export interface DiagramLink {
+  id: string
+  from: string
+  fromSide: Side
+  to: string
+  toSide: Side
+  /** At most 80 characters. */
+  label: string | null
+}
+
+export type NotesFilter = 'all' | 'linked' | 'pinned' | 'diagram'
 
 /** What an edit changes; a title of only spaces is none. */
 export interface NoteChange {
   title?: string
   body?: string
   pinned?: boolean
+  diagram?: Diagram
 }

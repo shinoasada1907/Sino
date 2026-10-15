@@ -1,15 +1,38 @@
 // Turns the notes data (instants, anchors, lengths) into the Vietnamese text of the Ghi chú screens.
 import { calendarDaysBetween, formatClock, formatDayMonth, localParts, weekdayShort } from '@/shared/time/local'
 import type { LocalDate } from '@/shared/domain'
-import type { NoteAnchor, NoteItem, NotesFilter } from './notes.types'
+import { diagramSummary } from './diagram/diagram'
+import type { Diagram, NoteAnchor, NoteItem, NotesFilter } from './notes.types'
 
 /** At most this many characters in the text of a note (spec `notes`). */
 export const NOTE_MAX_LENGTH = 20_000
 
-/** The name of a note: its title, else the first line of its text (D-202). */
-export function noteTitle(note: Pick<NoteItem, 'title' | 'body'>): string {
+/**
+ * The name of a note: its title, else the first line of its text (D-202); a diagram's, else its main block, else its first
+ * block, else "Sơ đồ mới" (fe-ui-diagram-notes, D-206).
+ */
+export function noteTitle(note: Pick<NoteItem, 'title' | 'body'> & Partial<Pick<NoteItem, 'kind' | 'diagram'>>): string {
   const title = note.title?.trim()
-  return title || (note.body.split('\n').find((line) => line.trim() !== '')?.trim() ?? '')
+  if (title) {
+    return title
+  }
+  if (note.kind === 'DIAGRAM') {
+    const first = mainFirst(note.diagram)[0]
+    return first ? firstLine(first.text) || 'Sơ đồ mới' : 'Sơ đồ mới'
+  }
+  return firstLine(note.body)
+}
+
+/** The start of a note on its card: its text, or a diagram's blocks on one line, the main one first. */
+export function notePreview(note: Pick<NoteItem, 'body'> & Partial<Pick<NoteItem, 'kind' | 'diagram'>>): string {
+  if (note.kind !== 'DIAGRAM') {
+    return note.body
+  }
+  return mainFirst(note.diagram)
+    .slice(0, 3)
+    .map((block) => block.text.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(' · ')
 }
 
 /** When a note was edited, on its card: "09:52" today, "Hôm qua", "29/09", "29/12/2025" another year (D-205). */
@@ -27,9 +50,14 @@ export function noteTime(at: string, now: Date, timeZone?: string): string {
     : `${formatDayMonth(date, timeZone)}/${localParts(date, timeZone).year}`
 }
 
-/** Where a note comes from, at the foot of its card (D-204). */
-export function noteSource(note: Pick<NoteItem, 'anchor'>): { tone: 'anchor' | 'missing' | 'standalone'; text: string } {
+/** Where a note comes from, at the foot of its card (D-204); a diagram says how big it is (D-206). */
+export function noteSource(
+  note: Pick<NoteItem, 'anchor'> & Partial<Pick<NoteItem, 'kind' | 'diagram'>>,
+): { tone: 'anchor' | 'missing' | 'standalone' | 'diagram'; text: string } {
   const { anchor } = note
+  if (note.kind === 'DIAGRAM' && !anchor) {
+    return { tone: 'diagram', text: `Sơ đồ · ${diagramSummary(note.diagram ?? { blocks: [], links: [] })}` }
+  }
   if (!anchor) {
     return { tone: 'standalone', text: 'Ghi chú độc lập' }
   }
@@ -46,19 +74,42 @@ export function groupNotes(notes: NoteItem[]): { pinned: NoteItem[]; recent: Not
   return { pinned: sorted.filter((note) => note.pinned), recent: sorted.filter((note) => !note.pinned) }
 }
 
-/** The notes of a filter whose title or text holds the query, whatever its case and accents (D-205). */
+/**
+ * The notes of a filter whose title or text holds the query, whatever its case and accents (D-205); a diagram is found
+ * by the words of its blocks and links too (D-206).
+ */
 export function filterNotes(notes: NoteItem[], filter: NotesFilter, query: string): NoteItem[] {
   const wanted = plain(query.trim())
-  return notes.filter(
-    (note) =>
-      (filter === 'all' || (filter === 'linked' ? note.anchor !== null : note.pinned)) &&
-      (wanted === '' || plain(`${note.title ?? ''}\n${note.body}`).includes(wanted)),
-  )
+  return notes.filter((note) => inFilter(note, filter) && (wanted === '' || plain(searchText(note)).includes(wanted)))
 }
 
 /** How many notes each chip holds, over every note (D-205). */
 export function noteCounts(notes: NoteItem[]): Record<NotesFilter, number> {
-  return { all: notes.length, linked: notes.filter((note) => note.anchor !== null).length, pinned: notes.filter((note) => note.pinned).length }
+  return {
+    all: notes.length,
+    linked: notes.filter((note) => inFilter(note, 'linked')).length,
+    pinned: notes.filter((note) => inFilter(note, 'pinned')).length,
+    diagram: notes.filter((note) => inFilter(note, 'diagram')).length,
+  }
+}
+
+function inFilter(note: NoteItem, filter: NotesFilter): boolean {
+  return { all: true, linked: note.anchor !== null, pinned: note.pinned, diagram: note.kind === 'DIAGRAM' }[filter]
+}
+
+function searchText(note: NoteItem): string {
+  const diagram = note.diagram ? [...note.diagram.blocks.map((block) => block.text), ...note.diagram.links.map((link) => link.label ?? '')] : []
+  return [note.title ?? '', note.body, ...diagram].join('\n')
+}
+
+// The main blocks first, then the others in their order.
+function mainFirst(diagram: Diagram | null | undefined) {
+  const blocks = diagram?.blocks ?? []
+  return [...blocks.filter((block) => block.main), ...blocks.filter((block) => !block.main)]
+}
+
+function firstLine(text: string): string {
+  return text.split('\n').find((line) => line.trim() !== '')?.trim() ?? ''
 }
 
 /** "Gắn với thư", above the chip of the editor (D-204). */
