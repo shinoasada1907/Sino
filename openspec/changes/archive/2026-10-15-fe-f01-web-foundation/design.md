@@ -203,11 +203,13 @@ mở web -> useMe() = GET /api/auth/me
 
 ## Definition of Done — Change 1
 
-- [ ] Đăng nhập/đăng xuất/`me` chạy đúng các scenario của spec `web-authentication`; HTTP Basic không còn; `401` không có `WWW-Authenticate`.
-- [ ] App không khởi động khi thiếu/sai `SINO_OWNER_PASSWORD` hoặc `SINO_REMEMBER_ME_KEY`, thông báo không lộ giá trị.
-- [ ] Mọi test backend cũ đã chuyển sang session; `./mvnw verify` xanh; `ModularityTests` xanh.
-- [ ] Web: `pnpm lint`, `pnpm test`, `pnpm build` xanh; CI frontend xanh.
-- [ ] Chạy thật trên trình duyệt: các tình huống ở mục Testing đều đúng, có ảnh chụp màn hình.
-- [ ] README (backend: biến env mới, lệnh curl đăng nhập; web: cách chạy dev) và `.env.example` cập nhật; error catalog cập nhật.
-- [ ] Kiến thức Phase 1 trong `docs/knowledge/phase-1-frontend-foundation.md` + bản `.docx`.
-- [ ] `tasks.md` tick đủ, chỗ lệch kế hoạch có lý do; `PROJECT_STATE.md` cập nhật; change archive.
+Nghiệm thu 2026-10-15 (FE-05); bằng chứng chi tiết ở từng task trong `tasks.md`.
+
+- [x] Đăng nhập/đăng xuất/`me` chạy đúng các scenario của spec `web-authentication`; HTTP Basic không còn; `401` không có `WWW-Authenticate`. — Test MockMvc của BE-28/BE-29 (`AuthApiTests`, `RememberMeAcrossRestartsTests`, `SecurityConfigTests`); chạy thật ở FE-05: mọi `401` không có `WWW-Authenticate`.
+- [x] App không khởi động khi thiếu/sai `SINO_OWNER_PASSWORD` hoặc `SINO_REMEMBER_ME_KEY`, thông báo không lộ giá trị. — BE-27 (`LoginSettingsTests`).
+- [x] Mọi test backend cũ đã chuyển sang session; `./mvnw verify` xanh; `ModularityTests` xanh. — BE-28, BE-29 (`./mvnw -B -ntp verify` BUILD SUCCESS, `ModularityTests` 2/2).
+- [x] Web: `pnpm lint`, `pnpm test`, `pnpm build` xanh; CI frontend xanh. — FE-05 trên `d074b5c` (`pnpm test` 643/643 ở lần chạy thứ hai, lần đầu một test notes chập chờn); CI frontend xanh trên `dev` `42f8908`.
+- [x] Chạy thật trên trình duyệt: các tình huống ở mục Testing đều đúng, có ảnh chụp màn hình. — FE-05, ảnh ở `evidence/fe-05/`; đăng nhập bằng owner thật và Gmail thật ở BE-34.
+- [x] README (backend: biến env mới, lệnh curl đăng nhập; web: cách chạy dev) và `.env.example` cập nhật; error catalog cập nhật. — BE-27…BE-29, FE-05 (tiến độ 2026-10-08); catalog ở mục *Error code catalog — bổ sung* phía trên.
+- [x] Kiến thức Phase 1 trong `docs/knowledge/phase-1-frontend-foundation.md` + bản `.docx`. — Mục 9 (FE-02…FE-04, AC-06, FE-30).
+- [x] `tasks.md` tick đủ, chỗ lệch kế hoạch có lý do; `PROJECT_STATE.md` cập nhật; change archive.

@@ -11,19 +11,19 @@ Mọi endpoint nghiệp vụ MUST nằm dưới `/api/` và nhận/trả `applic
 - **THEN** response thành công có `Content-Type: application/json`
 
 ### Requirement: `/api/**` yêu cầu xác thực
-Mọi request tới `/api/**` MUST được xác thực theo cơ chế chốt ở Decision D-02 (đề xuất: HTTP Basic với một user cấu hình qua environment). Đường dẫn không được cho phép tường minh MUST bị từ chối (deny by default). Server MUST NOT tạo HTTP session cho API.
+Mọi request tới `/api/**`, trừ `GET /api/auth/me` và `POST /api/auth/login`, MUST được xác thực bằng phiên đăng nhập của trình duyệt theo Decision D-22 = A: session cookie, hoặc cookie ghi nhớ hợp lệ (chi tiết ở capability `web-authentication`). Đường dẫn không được cho phép tường minh MUST bị từ chối (deny by default). Response `401` MUST là Problem Details với `code` = `UNAUTHORIZED` và MUST NOT có header `WWW-Authenticate`. HTTP Basic (D-02) không còn được chấp nhận (D-32).
 
-#### Scenario: Không có thông tin xác thực
-- **WHEN** client gọi `/api/...` không kèm thông tin xác thực
-- **THEN** response là `401` dạng Problem Details với `code` = `UNAUTHORIZED`
+#### Scenario: Chưa đăng nhập
+- **WHEN** client gọi `/api/...` không có session và không có cookie ghi nhớ
+- **THEN** response là `401` dạng Problem Details với `code` = `UNAUTHORIZED` và không có header `WWW-Authenticate`
 
-#### Scenario: Thông tin xác thực sai
-- **WHEN** client gọi `/api/...` với mật khẩu sai
-- **THEN** response là `401` dạng Problem Details với `code` = `UNAUTHORIZED` và không tiết lộ username có tồn tại hay không
+#### Scenario: Session đã hết hạn
+- **WHEN** client gọi `/api/...` với cookie session đã hết hạn hoặc đã bị hủy khi đăng xuất, và không có cookie ghi nhớ
+- **THEN** response là `401` với `code` = `UNAUTHORIZED`
 
-#### Scenario: Thông tin xác thực đúng
-- **WHEN** client gọi `/api/...` với thông tin xác thực đúng
-- **THEN** request được chuyển tới handler và response không có header `Set-Cookie` tạo session
+#### Scenario: Đã đăng nhập
+- **WHEN** client gọi `/api/...` với session hợp lệ
+- **THEN** request được chuyển tới handler
 
 ### Requirement: Lỗi theo RFC 9457 Problem Details
 Mọi lỗi từ API MUST có body Problem Details gồm `title`, `status`, `detail`, `instance` và extension `code` (UPPER_SNAKE_CASE, ổn định, dùng được cho frontend). `type` được bỏ qua khi bằng `about:blank`; RFC 9457 §3.1.1 quy định thiếu `type` nghĩa là `about:blank`, và đây là hành vi mặc định của Spring Framework 7. Body lỗi MUST NOT chứa stack trace, tên class exception, câu SQL hay giá trị secret.

@@ -1,7 +1,9 @@
 # sino-web
 
 Web app of Sino Messages: React 19 + TypeScript 6 on Vite 8. Plans and specs live in `openspec/` at the repository
-root; the current change is `openspec/changes/fe-f01-web-foundation`.
+root; the foundation (API client, sign-in, app shell) is specified in `openspec/specs/web-app-foundation` and
+`openspec/specs/web-authentication`, and its archived change is
+`openspec/changes/archive/2026-10-15-fe-f01-web-foundation`.
 
 Run every command below from `apps/sino-web`.
 
