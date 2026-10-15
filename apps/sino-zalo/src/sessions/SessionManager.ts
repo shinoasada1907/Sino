@@ -1,12 +1,17 @@
 import { createHash } from "node:crypto";
 import {
   SessionRejectedError,
+  type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
   type ZaloListener,
+  type ZaloMessage,
   type ZaloSession,
 } from "../gateway/ZaloGateway.ts";
 import type { Notifier } from "../notify.ts";
+import { catchUp } from "./CatchUp.ts";
+import { Conversations, type ZaloConversation } from "./Conversations.ts";
+import { MessageBuffer } from "./MessageBuffer.ts";
 
 /** sino-zalo holds no session for the account, for instance just after a restart (404). */
 export class UnknownAccountError extends Error {}
@@ -19,6 +24,15 @@ export interface SessionManagerOptions {
     info(details: object, message: string): void;
     warn(details: object, message: string): void;
   };
+  readonly catchUpTimeoutMs?: number;
+}
+
+/** One answer of `GET /accounts/{accountId}/messages` (design, Contract API). */
+export interface MessagePage {
+  readonly conversations: ZaloConversation[];
+  readonly messages: ZaloMessage[];
+  readonly nextCursor: string | null;
+  readonly hasMore: boolean;
 }
 
 interface LiveSession {
@@ -26,9 +40,19 @@ interface LiveSession {
   readonly fingerprint: string;
   readonly ownId: string;
   readonly listener: ZaloListener;
+  readonly buffer: MessageBuffer;
+  readonly conversations: Conversations;
   /** Closes since the listener last connected; sets the next reconnect delay. */
   failures: number;
   retry: ReturnType<typeof setTimeout> | null;
+  /** Whether Zalo's messages can be read, so old messages may be asked for. */
+  ready: boolean;
+  readonly whenReady: (() => void)[];
+  /** The catch-up waiting for a page of each thread type. */
+  readonly pages: Map<ThreadType, (messages: ZaloMessage[]) => void>;
+  /** The lowest cursor this session has caught up from (D-278). */
+  caughtUpFrom: bigint | null;
+  catchingUp: Promise<void> | null;
 }
 
 interface EndedSession {
@@ -43,7 +67,7 @@ const KICK_CODES = new Set([3000, 3003]);
 const RETRY_FIRST_MS = 1_000;
 const RETRY_MAX_MS = 60_000;
 
-/** One Zalo session and one listener per account, in memory only (D-274, D-276, D-289). */
+/** One Zalo session, listener and message buffer per account, in memory only (D-274, D-276, D-277, D-289). */
 export class SessionManager {
   private readonly sessions = new Map<string, Session>();
   /** The last task queued per account: puts and removes of one account run one after another. */
@@ -51,6 +75,7 @@ export class SessionManager {
   private readonly gateway: ZaloGateway;
   private readonly notifier: Notifier;
   private readonly log: SessionManagerOptions["log"];
+  private readonly catchUpTimeoutMs: number;
 
   constructor(
     gateway: ZaloGateway,
@@ -60,6 +85,7 @@ export class SessionManager {
     this.gateway = gateway;
     this.notifier = notifier;
     this.log = options.log;
+    this.catchUpTimeoutMs = options.catchUpTimeoutMs ?? 5_000;
   }
 
   /**
@@ -97,7 +123,7 @@ export class SessionManager {
     });
   }
 
-  /** Stops the listener and forgets the account. */
+  /** Stops the listener and forgets the account with its buffer. */
   remove(accountId: string): Promise<void> {
     return this.serial(accountId, async () => {
       this.stop(this.sessions.get(accountId));
@@ -107,14 +133,26 @@ export class SessionManager {
 
   /** The live session of an account; throws UnknownAccountError (404) or SessionEndedError (410). */
   requireLive(accountId: string): { ownId: string } {
-    const session = this.sessions.get(accountId);
-    if (session === undefined) {
-      throw new UnknownAccountError("No session for this account");
+    return { ownId: this.liveSession(accountId).ownId };
+  }
+
+  /**
+   * Up to `limit` buffered messages after the cursor, with their conversations. A cursor older than
+   * the buffer first brings in what Zalo kept since then (D-278).
+   */
+  async readMessages(accountId: string, after: string | null, limit: number): Promise<MessagePage> {
+    const session = this.liveSession(accountId);
+    const cursor = after === null ? null : BigInt(after);
+    if (cursor !== null) {
+      await this.catchUpIfNeeded(accountId, session, cursor);
     }
-    if (session.state === "ENDED") {
-      throw new SessionEndedError("The Zalo session has ended");
-    }
-    return { ownId: session.ownId };
+    const { messages, hasMore } = session.buffer.after(cursor, limit);
+    return {
+      conversations: await session.conversations.of(messages),
+      messages,
+      nextCursor: messages.at(-1)?.msgId ?? after,
+      hasMore,
+    };
   }
 
   counts(): { live: number; ended: number } {
@@ -133,6 +171,17 @@ export class SessionManager {
     this.sessions.clear();
   }
 
+  private liveSession(accountId: string): LiveSession {
+    const session = this.sessions.get(accountId);
+    if (session === undefined) {
+      throw new UnknownAccountError("No session for this account");
+    }
+    if (session.state === "ENDED") {
+      throw new SessionEndedError("The Zalo session has ended");
+    }
+    return session;
+  }
+
   private listen(
     accountId: string,
     fingerprint: string,
@@ -147,14 +196,112 @@ export class SessionManager {
           session.failures = 0;
           this.log.info({ accountId }, "Zalo listener connected");
         },
-        closed: (code) => this.closed(accountId, session, code),
+        ready: () => {
+          session.ready = true;
+          for (const resolve of session.whenReady.splice(0)) resolve();
+        },
+        message: (message) => this.received(accountId, session, message),
+        oldMessages: (messages, threadType) => {
+          const resolve = session.pages.get(threadType);
+          session.pages.delete(threadType);
+          resolve?.(messages);
+        },
+        closed: (code) => {
+          session.ready = false;
+          this.closed(accountId, session, code);
+        },
         error: (reason) => this.log.warn({ accountId, reason }, "Zalo listener error"),
       }),
+      buffer: new MessageBuffer(),
+      conversations: new Conversations(connection, { accountId, log: this.log }),
       failures: 0,
       retry: null,
+      ready: false,
+      whenReady: [],
+      pages: new Map(),
+      caughtUpFrom: null,
+      catchingUp: null,
     };
     session.listener.start();
     return session;
+  }
+
+  private received(accountId: string, session: LiveSession, message: ZaloMessage): void {
+    if (this.sessions.get(accountId) !== session) {
+      return;
+    }
+    // IDs, type and length only: never the text (D-282).
+    this.log.info(
+      {
+        accountId,
+        msgId: message.msgId,
+        threadId: message.threadId,
+        zaloType: message.zaloType,
+        length: message.text?.length ?? 0,
+      },
+      "Zalo message",
+    );
+    // Into the buffer first: whatever happens to the webhook, sino-api finds the message at its next pull.
+    if (session.buffer.add([message]).length > 0) {
+      this.notifier.messagesArrived(session.ownId);
+    }
+  }
+
+  private async catchUpIfNeeded(accountId: string, session: LiveSession, cursor: bigint): Promise<void> {
+    while (session.catchingUp !== null) {
+      await session.catchingUp;
+    }
+    if (session.caughtUpFrom !== null && session.caughtUpFrom <= cursor) {
+      return;
+    }
+    const oldest = session.buffer.oldest();
+    if (oldest !== null && cursor >= oldest) {
+      return;
+    }
+    session.caughtUpFrom = cursor;
+    const run = async () => {
+      const reports = await catchUp(
+        (threadType, lastId) => this.requestPage(session, threadType, lastId),
+        session.buffer,
+        cursor.toString(),
+        { timeoutMs: this.catchUpTimeoutMs },
+      );
+      for (const report of reports) {
+        if (!report.joined) {
+          this.log.warn(
+            { accountId, threadType: report.threadType, pages: report.pages, messages: report.messages },
+            "Catch-up stopped before it joined the buffer",
+          );
+        }
+      }
+    };
+    session.catchingUp = run().finally(() => {
+      session.catchingUp = null;
+    });
+    await session.catchingUp;
+  }
+
+  private async requestPage(
+    session: LiveSession,
+    threadType: ThreadType,
+    lastId: string,
+  ): Promise<ZaloMessage[]> {
+    if (!session.ready) {
+      // Bounded like the catch-up, so a catch-up that gave up never asks Zalo later.
+      const ready = await new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), this.catchUpTimeoutMs);
+        session.whenReady.push(() => {
+          clearTimeout(timer);
+          resolve(true);
+        });
+      });
+      if (!ready) {
+        throw new Error("The Zalo listener is not ready");
+      }
+    }
+    const page = new Promise<ZaloMessage[]>((resolve) => session.pages.set(threadType, resolve));
+    session.listener.requestOldMessages(threadType, lastId);
+    return page;
   }
 
   private closed(accountId: string, session: LiveSession, code: number): void {

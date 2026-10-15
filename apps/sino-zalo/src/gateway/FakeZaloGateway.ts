@@ -3,9 +3,12 @@ import {
   type QrLoginEvents,
   type QrLoginHandle,
   SessionRejectedError,
+  type ThreadInfo,
+  type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
   type ZaloListener,
+  type ZaloMessage,
   type ZaloSession,
   ZaloUnavailableError,
 } from "./ZaloGateway.ts";
@@ -26,14 +29,37 @@ export class FakeQrLogin implements QrLoginHandle {
   }
 }
 
+/** What Zalo answers to old-message requests: queued pages per type, then empty pages, or nothing at all. */
+export interface FakeOldMessages {
+  readonly oldPages: Record<ThreadType, ZaloMessage[][]>;
+  silentOldMessages: boolean;
+}
+
 /** A listener the test closes the way Zalo would; stopping it reports a 1000 close later, as zca-js does. */
 export class FakeListener implements ZaloListener {
   readonly events: ListenerEvents;
+  readonly requests: { threadType: ThreadType; lastId: string }[] = [];
+  private readonly zalo: FakeOldMessages;
   starts = 0;
   running = false;
 
-  constructor(events: ListenerEvents) {
+  constructor(events: ListenerEvents, zalo: FakeOldMessages) {
     this.events = events;
+    this.zalo = zalo;
+  }
+
+  requestOldMessages(threadType: ThreadType, lastId: string): void {
+    this.requests.push({ threadType, lastId });
+    if (this.zalo.silentOldMessages) {
+      return;
+    }
+    const page = this.zalo.oldPages[threadType].shift() ?? [];
+    queueMicrotask(() => this.events.oldMessages(page, threadType));
+  }
+
+  /** Zalo pushes a new message. */
+  receive(message: ZaloMessage): void {
+    this.events.message(message);
   }
 
   start(): void {
@@ -61,15 +87,25 @@ export class FakeListener implements ZaloListener {
 export class FakeConnection implements ZaloConnection {
   readonly ownId: string;
   readonly listeners: FakeListener[] = [];
+  private readonly zalo: FakeZaloGateway;
 
-  constructor(ownId: string) {
+  constructor(ownId: string, zalo: FakeZaloGateway) {
     this.ownId = ownId;
+    this.zalo = zalo;
   }
 
   listener(events: ListenerEvents): ZaloListener {
-    const listener = new FakeListener(events);
+    const listener = new FakeListener(events, this.zalo);
     this.listeners.push(listener);
     return listener;
+  }
+
+  async threadInfo(threadId: string, threadType: ThreadType): Promise<ThreadInfo> {
+    this.zalo.threadInfoCalls.push(`${threadType}:${threadId}`);
+    if (this.zalo.threadInfoFails) {
+      throw new ZaloUnavailableError("TypeError: fetch failed");
+    }
+    return this.zalo.threadInfos.get(threadId) ?? { title: null, avatarUrl: null };
   }
 }
 
@@ -83,6 +119,12 @@ export class FakeZaloGateway implements ZaloGateway {
   readonly connections: FakeConnection[] = [];
   /** What Zalo does with the next cookie login. */
   nextSession: "accept" | "reject" | "unavailable" = "accept";
+  readonly oldPages: Record<ThreadType, ZaloMessage[][]> = { USER: [], GROUP: [] };
+  silentOldMessages = false;
+  /** Names Zalo gives threads, by thread id; any other thread has none. */
+  readonly threadInfos = new Map<string, ThreadInfo>();
+  readonly threadInfoCalls: string[] = [];
+  threadInfoFails = false;
 
   async loginWithSession(session: ZaloSession): Promise<ZaloConnection> {
     this.sessionLogins.push(session);
@@ -96,7 +138,7 @@ export class FakeZaloGateway implements ZaloGateway {
     if (outcome === "unavailable") {
       throw new ZaloUnavailableError("TypeError: fetch failed");
     }
-    const connection = new FakeConnection("7001");
+    const connection = new FakeConnection("7001", this);
     this.connections.push(connection);
     return connection;
   }

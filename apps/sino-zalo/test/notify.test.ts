@@ -4,6 +4,8 @@ import { WebhookNotifier } from "../src/notify.ts";
 
 const SECRET = "k".repeat(32);
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 interface Call {
   readonly authorization: string | undefined;
   readonly body: unknown;
@@ -56,6 +58,37 @@ describe("WebhookNotifier", () => {
     await new WebhookNotifier({ apiUrl: url, secret: SECRET }, log).sessionEnded("7001");
 
     expect(warnings).toEqual([{ ownId: "7001", status: 500 }]);
+  });
+
+  it("makes one call for three messages of an account within 0.3 seconds", async () => {
+    const { calls, url } = await startSinoApi(204);
+    const notifier = new WebhookNotifier({ apiUrl: url, secret: SECRET }, recordingLog().log);
+
+    notifier.messagesArrived("7001");
+    await sleep(150);
+    notifier.messagesArrived("7001");
+    await sleep(150);
+    notifier.messagesArrived("7001");
+    await sleep(500);
+
+    expect(calls.map((call) => call.body)).toEqual([{ ownId: "7001" }]);
+  });
+
+  it("calls once per account, and again for messages after the window", async () => {
+    const { calls, url } = await startSinoApi(204);
+    const notifier = new WebhookNotifier({ apiUrl: url, secret: SECRET }, recordingLog().log, { batchMs: 20 });
+
+    notifier.messagesArrived("7001");
+    notifier.messagesArrived("7002");
+    await sleep(150);
+    notifier.messagesArrived("7001");
+    await sleep(150);
+
+    expect(calls.map((call) => call.body)).toEqual([
+      { ownId: "7001" },
+      { ownId: "7002" },
+      { ownId: "7001" },
+    ]);
   });
 
   it("logs a warning instead of failing when sino-api cannot be reached", async () => {

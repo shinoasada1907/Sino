@@ -65,7 +65,7 @@
     - **`404 UNKNOWN_ACCOUNT` / `410` cho các route đọc, gửi:** `SessionManager.requireLive` và `sendSessionError` đã có và có test; route `GET /accounts/{id}/messages` dùng chúng ở ZL-04.
   - **Bằng chứng:** đỏ trước: `Cannot find module '../src/sessions/SessionManager.ts'`, `Cannot find module '../src/notify.ts'`, 3 test `apiUrl` của `config.test.ts`; xanh: `pnpm test` 54/54 (6 file), oxlint 0 chẩn đoán (19 file), `tsc` 0; chạy thật với `ZcaGateway` (cổng 8096, không gọi Zalo): `/health` 200 `{live 0, ended 0}`, `PUT session` không khóa 401, thiếu cookie 400, `DELETE` account lạ 204, khóa và imei không có trong log, `SINO_API_URL` sai → thoát mã 1 kèm tên biến. **NOT VERIFIED:** đăng nhập bằng cookie, listener, bị đá và rớt mạng với Zalo thật (ZL-13). Kiến thức: mục 7 của `phase-5-multi-provider-send.md` + `.docx` (`genoffice docs check`: 0 lỗi).
 
-- [ ] 1.4 **ZL-04 — Bộ đệm, cursor, bù tin, báo có tin**
+- [x] 1.4 **ZL-04 — Bộ đệm, cursor, bù tin, báo có tin**
   - **Goal:** `sino-api` kéo được tin theo cursor, không mất tin khi service khởi động lại (D-277, D-278).
   - **Files:** `src/sessions/{MessageBuffer.ts,CatchUp.ts}`, `src/messages/readRoutes.ts`, `src/notify.ts` (gom 0,5 giây), `test/{buffer.test.ts,catchup.test.ts,notify.test.ts}`.
   - **Acceptance criteria:** spec `zalo-gateway` (Bộ đệm tin và cursor, Bù tin lỡ ở lần kéo, Báo có tin mới).
@@ -73,6 +73,12 @@
   - **Depends on:** ZL-03
   - **Bạn sẽ học:** cursor (keyset) thay cho phân trang theo trang; vì sao so `msgId` bằng `BigInt`; debounce; vì sao "báo rồi kéo" giữ được một đường lưu dữ liệu duy nhất.
   - **Hints:** Level 1: "nếu webhook lỗi mà tin vẫn còn trong bộ đệm, thì lúc nào `sino-api` sẽ lấy được nó?"
+  - **Thực hiện (2026-10-15, AUTO, sino-zalo-f4; người dùng: "oke làm đi"):**
+    - **Agent chốt, cần xem lại** (ghi trong design): 24 giờ của bộ đệm tính từ lúc tin vào bộ đệm (D-277); bù tin chờ listener nhận khóa giải mã `cipher_key`, trong cùng 5 giây (D-278); `ZaloMessage` thêm `fromName`, `participants` là người gửi các tin đi kèm, `title` có thể `null` (Contract API).
+    - **Ngoài danh sách file đã tính:** `src/sessions/Conversations.ts` (tên thread qua `getUserInfo`/`getGroupInfo`, cache 1 giờ, chờ tối đa 2 giây; D-279 đặt việc này ở `sino-zalo` mà không task nào nhận); `src/gateway/*` (`ZaloMessage`, `ThreadInfo`, `ready`/`message`/`oldMessages`, `requestOldMessages`, `threadInfo`, `toZaloMessage`, `selfListen: true`); `src/app.ts` (route đọc); `test/{messages,zca}.test.ts`; `test/auth.test.ts` (route đọc tin giờ trả `404 UNKNOWN_ACCOUNT`). `notify.test.ts` đã có từ ZL-03.
+    - **Thêm ngoài danh sách test:** `after` không phải số → `400`; tin tự gửi được giữ; tin trùng không báo webhook lần hai; bù tin chờ listener sẵn sàng; tên thread lỗi hoặc im lặng không giữ tin lại (review tìm ra: thiếu hẹn giờ thì một Zalo treo giữ cả lần kéo tin); `toZaloMessage` trên đối tượng tin của chính zca-js (1-1, tự gửi, nhóm, không phải chữ, `ts` hỏng).
+    - **Giới hạn đã biết:** rớt mạng ngắn (`1006`) rồi nối lại thì tin đến trong lúc rớt chỉ về nếu Zalo tự gửi lại; bù tin chỉ chạy khi cursor cũ hơn bộ đệm (spec, D-278). Đo ở ZL-13 (thêm vào mục Đo, số 8).
+  - **Bằng chứng:** đỏ trước: 3 file `Cannot find module` (`MessageBuffer`, `CatchUp`, `Conversations`), `messagesArrived is not a function`, `toZaloMessage is not a function`, `auth.test.ts` (route chưa có); test hẹn giờ tên thread đỏ với `Test timed out in 5000ms`; xanh: `pnpm test` 94/94 (10 file, 4 lần liền), oxlint 0 chẩn đoán (27 file), `tsc` 0; chạy thật với `ZcaGateway` (cổng 8095, không gọi Zalo): `GET` tin không khóa 401, account lạ 404 `UNKNOWN_ACCOUNT`, `after=abc` 400, `limit=5000` 400, khóa không có trong log. **NOT VERIFIED:** tin thật qua listener, `requestOldMessages`/`old_messages` thật, khóa trả về của `getUserInfo` (`<id>` hay `<id>_0`), độ dài trang bù tin (ZL-13). Kiến thức: mục 8 của `phase-5-multi-provider-send.md` + `.docx` (`genoffice docs check`: 0 lỗi).
 
 - [ ] 1.5 **ZL-05 — Gửi tin, chống trùng, giới hạn tốc độ, tra tin đã gửi**
   - **Goal:** trả lời từ Sino không bao giờ gửi trùng và không gửi dồn dập (D-280).
@@ -176,6 +182,7 @@
       5. Mở lại Sino sau 24 giờ và 72 giờ không quét lại: phiên còn dùng được không.
       6. Mở Zalo PC bằng nick phụ: Sino có bị đăng xuất không.
       7. Quét lại trong Sino khi phiên cũ còn sống: phiên cũ có bị Zalo đá không, và account có ở trạng thái đã kết nối sau lượt đồng bộ kế tiếp không (D-289).
+      8. Rớt mạng ngắn (tắt mạng máy chạy `sino-zalo` 1–2 phút, nhắn vào trong lúc đó, bật lại): tin trong lúc rớt có về qua listener sau khi nối lại không. Không về thì cần bù tin khi nối lại (thêm sau ZL-04, xem giới hạn đã biết ở ZL-04).
     - **Sau khi đo:**
       - điền bảng kết quả trong `spikes/zalo-zca/README.md` và mục Kết quả spike của design;
       - người dùng trả lời DN-1 nếu cửa sổ bù tin ngắn;

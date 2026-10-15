@@ -36,6 +36,8 @@ class RecordingNotifier implements Notifier {
   async sessionEnded(ownId: string): Promise<void> {
     this.ended.push(ownId);
   }
+
+  messagesArrived(): void {}
 }
 
 describe("session routes", () => {

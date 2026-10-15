@@ -4,10 +4,16 @@ import type { Config } from "./config.ts";
 export interface Notifier {
   /** The session ended (kick): sino-api syncs, meets 410 and asks the user to scan again. Never rejects. */
   sessionEnded(ownId: string): Promise<void>;
+  /** New messages wait in the buffer; the calls of one account within the batch window make one webhook. Never throws. */
+  messagesArrived(ownId: string): void;
 }
 
 export interface NotifierLog {
   warn(details: object, message: string): void;
+}
+
+export interface WebhookNotifierOptions {
+  readonly batchMs?: number;
 }
 
 const TIMEOUT_MS = 5_000;
@@ -17,15 +23,37 @@ export class WebhookNotifier implements Notifier {
   private readonly url: string;
   private readonly secret: string;
   private readonly log: NotifierLog;
+  private readonly batchMs: number;
+  /** Accounts with a webhook due at the end of their batch window. */
+  private readonly due = new Map<string, ReturnType<typeof setTimeout>>();
 
-  constructor(config: Pick<Config, "apiUrl" | "secret">, log: NotifierLog) {
+  constructor(
+    config: Pick<Config, "apiUrl" | "secret">,
+    log: NotifierLog,
+    options: WebhookNotifierOptions = {},
+  ) {
     this.url = `${config.apiUrl}/api/webhooks/zalo`;
     this.secret = config.secret;
     this.log = log;
+    this.batchMs = options.batchMs ?? 500;
   }
 
   async sessionEnded(ownId: string): Promise<void> {
     await this.post(ownId);
+  }
+
+  messagesArrived(ownId: string): void {
+    if (this.due.has(ownId)) {
+      return;
+    }
+    // A fixed window from the first message: a steady stream still makes one call per window.
+    const timer = setTimeout(() => {
+      this.due.delete(ownId);
+      void this.post(ownId);
+    }, this.batchMs);
+    // A webhook still due must not keep the process alive at shutdown.
+    timer.unref();
+    this.due.set(ownId, timer);
   }
 
   private async post(ownId: string): Promise<void> {

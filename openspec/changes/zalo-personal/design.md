@@ -161,6 +161,7 @@ QrLogin.cancel(loginId)
 
 - **Cursor** là `msgId` Zalo của tin cuối Sino đã nhận (`SyncCursor.value`); spike thấy `msgId` tăng theo thời gian. `sino-zalo` so sánh bằng `BigInt`.
 - **Bộ đệm** trong RAM, theo account: tối đa 1.000 tin hoặc 24 giờ. Trùng tin không sao, vì `sino-api` chống trùng theo `externalMessageId` (F05).
+  - **Chốt ở ZL-04** (2026-10-15, **agent chốt, cần xem lại**): 24 giờ tính từ lúc tin **vào bộ đệm**, không theo giờ gửi. **LÝ DO:** tin bù về sau một đêm `sino-zalo` tắt có giờ gửi cũ hơn 24 giờ; tính theo giờ gửi thì nó bị xóa ngay lúc vào, và lần bù thành vô ích.
 - **`registerPush`** gọi `PUT /accounts/{id}/session` (bảo đảm phiên đang chạy, idempotent theo D-289) và trả `PushRegistration(address = ownId, expiresAt = bây giờ + 3 ngày)`. `PushWatches` gia hạn khi hạn còn dưới 2 ngày, tức khoảng một lần mỗi ngày: đây chỉ là lưới an toàn, việc bật lại listener nằm ở bước dưới.
   - **Đã sửa sau review:** ~~`expiresAt` = bây giờ + 1 ngày, nên `PushWatches` gọi lại mỗi giờ; nếu `sino-zalo` khởi động lại thì listener chạy lại chậm nhất sau một giờ~~. **LÝ DO:** hạn 1 ngày luôn nằm trong cửa sổ gia hạn 2 ngày, nên mỗi giờ mỗi account Zalo bị ghi watch lại, phát một `SyncStateChanged` và một dòng log INFO mà không được gì: bước dưới đã bật lại listener ở lượt đồng bộ kế tiếp.
 - **`fetchUpdates`, `sendMessage` và `findSentMessages` gặp `404 UNKNOWN_ACCOUNT`** (service vừa khởi động lại) **hoặc `410 SESSION_ENDED`** (D-289): `ZaloProvider` gọi `PUT session` bằng phiên trong `ProviderContext`, rồi thử lại **một lần**. `PUT` trả `410` thì ném `AUTH_EXPIRED` luôn, không thử lại. Có watch thì F07 vẫn đồng bộ dự phòng 5 phút một lần, nên sau khi `sino-zalo` (hay cả hai service) khởi động lại, listener sống lại chậm nhất sau 5 phút. Cả hai lỗi đều có nghĩa là chưa gửi gì, nên thử lại `sendMessage` không gửi trùng.
@@ -177,6 +178,7 @@ QrLogin.cancel(loginId)
   1. ~~gọi `requestOldMessages(User, X)` và `(Group, X)`;~~ với mỗi loại (`User`, `Group`), gọi `requestOldMessages(loại, X)`, rồi gọi tiếp với `lastId` = `msgId` lớn nhất của trang vừa nhận, cho tới khi gặp trang rỗng hoặc trang có tin đã nằm trong bộ đệm (tức là đã nối liền với listener), tối đa 10 trang mỗi loại;
   2. chờ ~~cả hai trả về~~ (tối đa 5 giây cho cả lần bù);
   3. đổ kết quả vào bộ đệm, rồi mới trả lời;
+     - **Thêm ở ZL-04** (agent chốt, cần xem lại): yêu cầu trang đầu chỉ gửi khi listener đã nhận khóa giải mã của Zalo (`cipher_key` của zca-js), và chờ việc đó cũng nằm trong 5 giây. **LÝ DO:** zca-js 2.2.0 gửi `requestOldMessages` thẳng lên websocket: lúc socket còn đang mở thì nó ném lỗi, và trước khi có khóa thì trang trả về không giải mã được. Ngay sau khi `sino-zalo` khởi động lại, lần kéo đầu tiên tới đúng lúc đó.
   4. dừng vì hết 10 trang hoặc hết 5 giây mà chưa nối liền thì ghi log WARN (ID account, số trang, số tin; không có nội dung) và trả những gì đã có: phần còn lại bị mất, và log cho biết điều đó.
   - **Đã sửa sau review:** đọc nhiều trang. **LÝ DO:** mỗi lần gọi `requestOldMessages` chỉ trả một trang. Nếu số tin lỡ dài hơn một trang thì phần giữa mất, và lần kéo sau không bù nữa vì bộ đệm đã có tin nhỏ hơn cursor, nên chỗ mất không ai thấy. Độ dài một trang đo ở ZL-13 (D-270).
 - **Giới hạn đã chấp nhận** (agent chốt theo ủy quyền, cần xem lại): trước tin đầu tiên của account, cursor còn rỗng (`nextCursor` rỗng, `ImportRunner` gọi lại bằng cursor đầu). Nếu `sino-zalo` khởi động lại trong khoảng đó thì tin đến lúc nó tắt không được bù, vì không có mốc để bù. Khoảng này chỉ kéo dài từ lúc kết nối tới tin đầu tiên. **Phương án bị loại:** lấy mốc bằng `requestOldMessages(loại, null)` (trả cả tin của buổi trước, trái "không nhập lịch sử", và chưa đo).
@@ -191,7 +193,7 @@ QrLogin.cancel(loginId)
 | Zalo | Sino |
 |---|---|
 | `threadId` + loại | `NormalizedConversation` `DIRECT` (1-1) hoặc `GROUP`, `externalConversationId` = `threadId` |
-| tên, ảnh đại diện | `getUserInfo` / `getGroupInfo`, `sino-zalo` cache 1 giờ |
+| tên, ảnh đại diện | `getUserInfo` / `getGroupInfo`, `sino-zalo` cache 1 giờ; chờ tối đa 2 giây, lỗi hay hết giờ thì `title` = tên người gửi (1-1) hoặc `null` (nhóm), không cache, tin vẫn trả về (ZL-04) |
 | `uidFrom` | `senderExternalParticipantId` |
 | `isSelf` | `OUTBOUND`, `read` = true; tin gửi từ điện thoại cũng hiện (`selfListen: true`) |
 | `webchat` | `TEXT`, `textContent` = nội dung |
@@ -352,8 +354,9 @@ Mọi request (trừ `/health`) có `Authorization: Bearer <SINO_ZALO_SECRET>`. 
 | `POST /accounts/{accountId}/messages` `{ threadId, threadType, text, clientMessageId }` | `201 { msgId, sentAt }`; trùng `clientMessageId` → `200` cùng kết quả | `404`, `410`, `422 REJECTED`, `429`, `504 OUTCOME_UNKNOWN` |
 | `POST /accounts/{accountId}/sent/lookup` `{ threadId, clientMessageId, text, after }` | `200 { msgIds }` | `404`, `409 CANNOT_TELL`, `410` |
 
-`ZaloMessage` (JSON): `{ msgId, threadId, threadType: "USER"|"GROUP", fromId, isSelf, zaloType, text, sentAt }`. `text` là `null` khi không phải tin chữ.
-`ZaloConversation`: `{ threadId, threadType, title, avatarUrl, participants: [{ id, name }] }`.
+`ZaloMessage` (JSON): `{ msgId, threadId, threadType: "USER"|"GROUP", fromId, fromName, isSelf, zaloType, text, sentAt }`. `text` là `null` khi không phải tin chữ. `fromName` (thêm ở ZL-04) là tên người gửi Zalo ghi trong tin (`dName`).
+`ZaloConversation`: `{ threadId, threadType, title, avatarUrl, participants: [{ id, name }] }`. `participants` (chốt ở ZL-04) là những người gửi các tin đi kèm trong response, không phải mọi thành viên nhóm; `title` có thể `null` khi Zalo không trả tên.
+- **Đã sửa ở ZL-04** (agent chốt, cần xem lại): thêm `fromName`, `participants` lấy từ người gửi. **LÝ DO:** `getGroupInfo` chỉ trả một phần thành viên của nhóm lớn (`hasMoreMember`), nên người gửi có thể không có trong đó; tên trong chính tin thì luôn có, và đó là những người `sino-api` cần đặt tên.
 
 ## Testing
 

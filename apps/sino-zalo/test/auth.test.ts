@@ -45,7 +45,8 @@ describe('shared secret', () => {
   it('lets the right key through', async () => {
     const response = await get({ authorization: `Bearer ${SECRET}` })
 
-    // Past the key check; no route serves this path yet, so Fastify answers 404.
+    // Past the key check; sino-zalo holds no session for a1, so the route answers 404.
     expect(response.statusCode).toBe(404)
+    expect(response.json().code).toBe('UNKNOWN_ACCOUNT')
   })
 })

@@ -7,6 +7,7 @@ import type { Config } from "./config.ts";
 import type { ZaloGateway } from "./gateway/ZaloGateway.ts";
 import { LoginStore } from "./logins/LoginStore.ts";
 import { registerLoginRoutes } from "./logins/routes.ts";
+import { registerReadRoutes } from "./messages/readRoutes.ts";
 import { type Notifier, WebhookNotifier } from "./notify.ts";
 import { SessionManager } from "./sessions/SessionManager.ts";
 import { registerSessionRoutes } from "./sessions/routes.ts";
@@ -37,6 +38,7 @@ export function buildApp(
 
   registerLoginRoutes(app, new LoginStore(gateway, { log: app.log }));
   registerSessionRoutes(app, sessions);
+  registerReadRoutes(app, sessions);
 
   return app;
 }

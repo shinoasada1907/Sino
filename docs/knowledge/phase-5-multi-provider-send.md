@@ -597,3 +597,65 @@ Bên Java, cách tương tự là một khóa cho mỗi khóa (`ConcurrentHashMa
 - **Xanh:** `pnpm test` 54/54 (6 file), oxlint 0 chẩn đoán trên 19 file, `tsc` 0 lỗi.
 - **Chạy thật** với `ZcaGateway` (cổng 8096, không gọi Zalo): `/health` `200 {live 0, ended 0}`; `PUT session` không khóa `401`; thiếu cookie `400`; `DELETE` account lạ `204`; khóa và imei không có trong log; `SINO_API_URL=sino-api:8080` thì dừng với mã 1 và lời báo nêu tên biến.
 - **Chưa kiểm:** đăng nhập bằng cookie thật, listener thật, bị đá và rớt mạng thật với Zalo: ZL-13, bằng nick phụ.
+
+## 8. Bộ đệm, cursor, bù tin, báo có tin (ZL-04)
+
+**Ở đâu:** `src/sessions/{MessageBuffer,CatchUp,Conversations}.ts` và `src/messages/readRoutes.ts` (mới); `src/sessions/SessionManager.ts` (`readMessages`, nhận tin, bù tin); `src/notify.ts` (`messagesArrived`, gom 0,5 giây); `src/gateway/*` (`ZaloMessage`, `requestOldMessages`, `threadInfo`, `toZaloMessage`); `test/{buffer,catchup,messages,zca}.test.ts` (mới). Claude làm ở chế độ AUTO.
+
+### 8.1 "Báo rồi kéo"
+```text
+ Zalo --websocket--> listener --> bộ đệm của account [100, 101, 102 ...]  (sắp theo msgId)
+                                     |
+                                     +--(gom 0,5 giây)--> POST /api/webhooks/zalo {ownId}   "có tin, kéo đi"
+ sino-api: đồng bộ --> GET /accounts/a1/messages?after=<cursor>&limit=100
+           <-- { messages, conversations, nextCursor, hasMore }  --> lưu, cursor = nextCursor
+```
+
+`sino-zalo` không đẩy nội dung tin sang `sino-api`; nó chỉ báo "có tin", rồi `sino-api` tự kéo bằng đúng đường `fetchUpdates` mà Gmail dùng. Nhờ vậy tin Zalo đi qua **một đường lưu duy nhất** của `sino-api`, với chống trùng và checkpoint sẵn có (D-277).
+
+**Câu gợi ý của task:** "nếu webhook lỗi mà tin vẫn còn trong bộ đệm, thì lúc nào `sino-api` sẽ lấy được nó?". Trả lời: ở lần kéo kế tiếp, tức là lần webhook sau (tin mới khác), hoặc lượt đồng bộ dự phòng 5 phút một lần của `sino-api`. Webhook chỉ làm tin tới **sớm hơn**; nó không phải nơi giữ tin. Vì thế `SessionManager` cho tin vào bộ đệm **trước**, rồi mới báo. Test "loses no message" chạy thật: `sino-api` giả đã tắt, webhook lỗi, mà lần `GET` sau vẫn có tin.
+
+### 8.2 Cursor kiểu keyset, không phải số trang
+Phân trang kiểu "trang 3, mỗi trang 100" (`OFFSET`) hỏng khi dữ liệu đổi giữa hai lần hỏi: tin mới chen vào thì trang sau lặp lại hoặc bỏ sót tin. Cursor kiểu **keyset** hỏi "cho tôi các tin có `msgId` lớn hơn X": tin mới chen vào đâu cũng không làm lệch. `nextCursor` là `msgId` lớn nhất vừa trả; không có tin mới thì vẫn là X; lần đầu tiên (không có `after`, bộ đệm rỗng) thì là `null`. `hasMore` = còn tin sau trang này, `sino-api` kéo tiếp ngay. Bên Java, `sino-api` đã dùng đúng ý này cho Gmail (`historyId`).
+
+### 8.3 Vì sao so `msgId` bằng `BigInt`
+`msgId` của Zalo là một số nguyên lớn, gửi dạng **chuỗi**. Có hai cái bẫy:
+- So chuỗi: `"1000" < "999"` là **đúng**, vì so từng ký tự (`"1"` < `"9"`). Test "after=999 gives 1000" giữ chỗ này.
+- Đổi sang `Number`: số nguyên chỉ chính xác tới 2^53 (khoảng 9 triệu tỷ); vượt quá thì hai `msgId` khác nhau có thể thành cùng một số.
+
+`BigInt("1000")` là số nguyên không giới hạn độ dài, so `<` đúng như số. Bên Java tương đương là `BigInteger` (hoặc `long`, nếu chắc chắn số vừa 64 bit). Bộ đệm giữ mảng đã sắp theo `BigInt` và chèn bằng **tìm kiếm nhị phân**, nên tìm vị trí "sau X" chỉ mất khoảng 10 bước với 1.000 tin.
+
+### 8.4 Bộ đệm có hạn
+Tối đa 1.000 tin cho mỗi account (đầy thì bỏ tin `msgId` nhỏ nhất), và mỗi tin ở tối đa 24 giờ. **Agent chốt, cần xem lại:** 24 giờ tính từ lúc tin **vào bộ đệm**, không theo giờ gửi. Tin bù về sau một đêm tắt máy có giờ gửi cũ hơn 24 giờ; tính theo giờ gửi thì nó bị xóa ngay khi vừa vào. Test dùng đồng hồ giả (`now`) như `LoginStore` ở mục 6.4.
+
+### 8.5 Bù tin: hỏi một câu, chờ câu trả lời trên một kênh khác
+`requestOldMessages(loại, lastId)` của zca-js **không trả về** trang tin. Nó chỉ gửi một gói lên websocket; trang tin về sau đó, dưới dạng sự kiện `old_messages`. `SessionManager` nối hai đầu lại bằng một promise: trước khi gửi, nó cất hàm `resolve` vào `pages` theo loại (`USER`, `GROUP`); khi `old_messages` của loại đó tới, nó gọi hàm đã cất. Bên Java, cách này giống `CompletableFuture` được `complete` từ một luồng nhận tin.
+
+`catchUp` (D-278) đọc hai loại song song (`Promise.all`), mỗi loại theo vòng:
+
+```text
+ lastId = cursor
+ lặp tối đa 10 trang:
+   trang = hỏi Zalo các tin sau lastId           (đua với hẹn giờ 5 giây cho cả lần bù)
+   trang rỗng, hoặc có tin đã nằm trong bộ đệm   -> đã nối liền, dừng
+   đổ trang vào bộ đệm; lastId = msgId lớn nhất của trang
+ chưa nối liền -> log WARN (account, loại, số trang, số tin; không có nội dung)
+```
+
+- **Khi nào bù:** có `after`, phiên chưa bù từ một mốc nhỏ hơn hoặc bằng nó, và `after` cũ hơn tin cũ nhất trong bộ đệm (hoặc bộ đệm rỗng). Mốc được ghi **trước** khi bù, nên lần bù hết giờ cũng không lặp lại; và hai `GET` cùng lúc thì lần sau chờ lần trước (`catchingUp`).
+- **Chờ listener sẵn sàng** (agent chốt, cần xem lại): sau khi nối, Zalo gửi khóa giải mã (`cipher_key`) rồi mới đọc được tin. Gửi yêu cầu lúc socket còn đang mở thì zca-js ném lỗi; gửi trước khi có khóa thì trang về không giải mã được. Ngay sau khi `sino-zalo` khởi động lại, lần kéo đầu tiên tới đúng lúc đó, nên `requestPage` chờ sự kiện `ready`, và việc chờ cũng tính trong 5 giây.
+- **`Promise.race`** là "lấy cái nào xong trước": trang tin hay hẹn giờ. Hẹn giờ thắng thì vòng dừng; promise của trang vẫn còn đó nhưng không ai chờ nữa.
+
+### 8.6 Gom webhook trong 0,5 giây
+Tin đầu tiên của một account mở một "cửa sổ" 0,5 giây (`setTimeout`); tin đến trong cửa sổ không làm gì thêm; hết cửa sổ thì gọi webhook một lần. Ba tin trong 0,3 giây thành **một** lần gọi (test chạy giờ thật với 0,5 giây). Đây là cửa sổ **cố định** tính từ tin đầu, không phải debounce trượt (mỗi tin mới đẩy hẹn giờ lùi lại): với debounce trượt, một nhóm chat sôi nổi nhắn liên tục sẽ làm webhook **không bao giờ** được gọi. Cửa sổ cố định thì nhiều nhất 2 lần gọi mỗi giây cho mỗi account. `timer.unref()` báo Node đừng giữ tiến trình sống chỉ vì một webhook đang chờ.
+
+### 8.7 Đặt tên cuộc trò chuyện (`Conversations`)
+`title` và ảnh lấy từ `getUserInfo` (1-1) hoặc `getGroupInfo` (nhóm), cache 1 giờ cho mỗi thread (D-279). `participants` là những người gửi các tin đi kèm, lấy từ chính tin (`fromName`), vì nhóm lớn thì `getGroupInfo` chỉ trả một phần thành viên. Tên là thứ **phụ**: Zalo lỗi thì `title` lấy tên người gửi (1-1) hoặc `null` (nhóm), không cache, tin vẫn trả về; Zalo **im lặng** thì sau 2 giây cũng vậy. Thiếu hẹn giờ này, một Zalo treo sẽ giữ cả lần kéo tin lại, và tin không bao giờ tới `sino-api`; review tìm ra điều này, test viết trước đỏ đúng như vậy (`Test timed out in 5000ms`).
+
+**Bẫy `return` trong `try`:** trong hàm `async`, `return somePromise` bên trong `try { } catch { }` **không** bắt được lỗi của `somePromise`: hàm trả promise đó ra ngoài trước khi nó lỗi. Phải viết `return await somePromise`. `ZcaGateway.threadInfo` có đúng chỗ này; không có `await` thì lỗi của zca-js lọt ra ngoài mà không thành `ZaloUnavailableError`.
+
+### 8.8 Kiểm chứng (ZL-04)
+- **Đỏ trước:** 3 file `Cannot find module` (`MessageBuffer`, `CatchUp`, `Conversations`), `notifier.messagesArrived is not a function`, `toZaloMessage is not a function`, và `auth.test.ts` (route đọc tin chưa có). Test hẹn giờ tên thread: `Test timed out in 5000ms`.
+- **Xanh:** `pnpm test` 94/94 (10 file, chạy 4 lần đều xanh), oxlint 0 chẩn đoán trên 27 file, `tsc` 0 lỗi.
+- **Chạy thật** với `ZcaGateway` (cổng 8095, không gọi Zalo): `GET` tin không khóa `401`; account lạ `404 UNKNOWN_ACCOUNT`; `after=abc` `400`; `limit=5000` `400`; khóa không có trong log.
+- **Chưa kiểm:** tin thật qua listener, `requestOldMessages` và `old_messages` thật, khóa của `getUserInfo` (`<id>` hay `<id>_0`), độ dài một trang bù tin: ZL-13, bằng nick phụ. `toZaloMessage` đã có test trên đối tượng tin của chính zca-js.
