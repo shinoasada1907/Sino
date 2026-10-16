@@ -9,6 +9,7 @@ import {
   type ZaloGateway,
   type ZaloListener,
   type ZaloMessage,
+  ZaloRejectedError,
   type ZaloSession,
   ZaloUnavailableError,
 } from "./ZaloGateway.ts";
@@ -107,6 +108,23 @@ export class FakeConnection implements ZaloConnection {
     }
     return this.zalo.threadInfos.get(threadId) ?? { title: null, avatarUrl: null };
   }
+
+  async sendText(threadId: string, threadType: ThreadType, text: string): Promise<string> {
+    this.zalo.sent.push({ threadId, threadType, text });
+    let outcome = this.zalo.nextSend;
+    this.zalo.nextSend = "accept";
+    await Promise.resolve();
+    if (outcome === "hold") {
+      outcome = await new Promise<"accept" | "reject">((release) => this.zalo.heldSends.push(release));
+    }
+    if (outcome === "reject") {
+      throw new ZaloRejectedError("ZcaApiError: Tham số không hợp lệ");
+    }
+    if (outcome === "fail") {
+      throw new TypeError("fetch failed");
+    }
+    return String(this.zalo.nextMsgId++);
+  }
 }
 
 /** ZaloGateway for tests: the test plays Zalo by calling the events of a login. */
@@ -125,6 +143,17 @@ export class FakeZaloGateway implements ZaloGateway {
   readonly threadInfos = new Map<string, ThreadInfo>();
   readonly threadInfoCalls: string[] = [];
   threadInfoFails = false;
+  /** Every text sent, refused or not, in order. */
+  readonly sent: { threadId: string; threadType: ThreadType; text: string }[] = [];
+  /** What Zalo does with the next send: take it, refuse it, break midway, or hold it until released. */
+  nextSend: "accept" | "reject" | "fail" | "hold" = "accept";
+  nextMsgId = 9000;
+  readonly heldSends: ((outcome: "accept" | "reject") => void)[] = [];
+
+  /** Zalo answers the sends it held: takes them, or refuses them. */
+  releaseHeldSends(outcome: "accept" | "reject" = "accept"): void {
+    for (const release of this.heldSends.splice(0)) release(outcome);
+  }
 
   async loginWithSession(session: ZaloSession): Promise<ZaloConnection> {
     this.sessionLogins.push(session);

@@ -4,10 +4,11 @@ Node service that will sit between `sino-api` and Zalo for personal Zalo account
 zca-js (F09, D-273). Only `sino-api` may call it, with a shared secret (D-282). It keeps nothing on disk: Zalo sessions
 are stored encrypted by `sino-api` (D-274). The plan is `openspec/changes/zalo-personal` at the repository root.
 
-**Status (ZL-04):** configuration, the shared-secret check, `GET /health`, the QR login, sessions with their
-listeners (start, stop, kick, reconnect), and reading: the message buffer, the cursor, the catch-up after a restart and
-the batched webhook. Sending comes in ZL-05. All of it has run only against the fake gateway so far; the first run
-against Zalo itself is ZL-13.
+**Status (ZL-05):** configuration, the shared-secret check, `GET /health`, the QR login, sessions with their
+listeners (start, stop, kick, reconnect), reading (the message buffer, the cursor, the catch-up after a restart and
+the batched webhook), and sending text: one send per `clientMessageId`, one message per second per account, and the
+lookup of sent messages. All of it has run only against the fake gateway so far; the first run against Zalo itself is
+ZL-13.
 
 Run every command below from `apps/sino-zalo`.
 
@@ -60,6 +61,8 @@ and a line naming the variable.
 | `PUT /accounts/{accountId}/session` `{ "session": { "cookie", "imei", "userAgent" } }` | `204` once the account runs one listener on this session; the same session while it lives changes nothing. `410 SESSION_ENDED` when Zalo refuses the session, or for the very session that was kicked (Zalo is not asked again). `502 ZALO_UNAVAILABLE` when Zalo does not answer (the session held so far stays). `400` for a body without a usable session |
 | `DELETE /accounts/{accountId}/session` | `204`, also when the account is unknown; stops the listener and forgets the account |
 | `GET /accounts/{accountId}/messages?after=<msgId>&limit=<n>` | `200 { "conversations", "messages", "nextCursor", "hasMore" }`: up to `limit` (1–1000, default 100) buffered messages with a `msgId` above `after` (all of them without `after`), their conversations, the last `msgId` given (or `after`; `null` with neither), and whether more wait. `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` for a cursor that is not a whole number |
+| `POST /accounts/{accountId}/messages` `{ "threadId", "threadType" (USER or GROUP), "text", "clientMessageId" }` | `201 { "msgId", "sentAt" }` once Zalo took the text. The same `clientMessageId` within 24 hours: `200` with the first result, nothing sent, also once the session has ended. `429 RATE_LIMITED` for a second message within a second (nothing sent); `422 REJECTED` when Zalo refused it; `504 OUTCOME_UNKNOWN` when Zalo gave no answer within 10 seconds or the send broke midway, also for a repeat of such a send (never sent twice); `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` |
+| `POST /accounts/{accountId}/sent/lookup` `{ "threadId", "clientMessageId", "text", "after" (date-time with a zone) }` | `200 { "msgIds" }`: the `msgId` remembered for `clientMessageId`, then the account's own buffered messages in that thread with the same text sent after `after`. `409 CANNOT_TELL` instead of an empty list when the session started after `after`, when `after` is more than 24 hours ago, or when the send of that `clientMessageId` has no known outcome yet. `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` |
 
 The secret is checked for every request, also on paths no route serves yet, so a route added later is protected
 without extra code. A login is kept in memory only and forgotten five minutes after it started, read or not.
@@ -80,12 +83,17 @@ message text. Conversation names come from Zalo, cached for an hour; a name that
 out, never the messages. The log carries message ids, types and lengths, never their text. The whole contract with
 `sino-api` is in the design of the change.
 
+Sends are remembered by `clientMessageId` for 24 hours, in memory: the `msgId` is written the moment Zalo gives it,
+before the `201` and even after a `504`, so a send `sino-api` stopped waiting for is found by the lookup. Only an error
+code in Zalo's answer counts as a refusal; any other failure may come after Zalo took the message, so it stays unknown.
+After a restart sino-zalo knows no earlier send, and the lookup answers `409 CANNOT_TELL` rather than "nothing".
+
 ## Layout
 
 | Path | Role |
 |---|---|
 | `src/server.ts` | Entry point: reads the configuration, builds the app, listens, closes on Ctrl+C or `SIGTERM` |
-| `src/app.ts` | `buildApp(config, gateway, { logger, notifier })`: the Fastify app without listening, so tests call it with `app.inject`, a fake gateway and a recording notifier |
+| `src/app.ts` | `buildApp(config, gateway, { logger, notifier, now, sendTimeoutMs })`: the Fastify app without listening, so tests call it with `app.inject`, a fake gateway, a recording notifier and a clock they move by hand |
 | `src/config.ts` | `loadConfig(env)`: reads and checks the environment variables |
 | `src/auth.ts` | The `onRequest` hook that checks the shared secret in constant time |
 | `src/gateway/ZaloGateway.ts` | The interface for everything asked of Zalo; nothing else imports zca-js |
@@ -99,5 +107,8 @@ out, never the messages. The log carries message ids, types and lengths, never t
 | `src/sessions/Conversations.ts` | Names the conversations of a page of messages, one Zalo lookup per thread per hour |
 | `src/sessions/routes.ts` | `PUT`, `DELETE /accounts/{accountId}/session`, and the `404` / `410` / `502` answers shared by account routes |
 | `src/messages/readRoutes.ts` | `GET /accounts/{accountId}/messages` |
+| `src/messages/sendRoutes.ts` | `POST /accounts/{accountId}/messages` (send) and `POST /accounts/{accountId}/sent/lookup` |
+| `src/messages/SentLog.ts` | Sends by `clientMessageId` for 24 hours: on their way, sent with their `msgId`, or unknown |
+| `src/messages/RateLimiter.ts` | One message per second per account, on a monotonic clock |
 | `src/notify.ts` | The webhook to `sino-api`, batched per account; a failure is logged, never thrown |
 | `test/` | Vitest tests, one file per part |

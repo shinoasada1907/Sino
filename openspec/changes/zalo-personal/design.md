@@ -218,6 +218,17 @@ Spike mới thấy hai loại `webchat` và `chat.photo`. Tên `chat.sticker`, `
 - **Không trích dẫn** (`replyToExternalMessageId` bỏ qua): trích dẫn trên Zalo cần cả object tin gốc.
 - **Giới hạn tốc độ:** tối đa 1 tin mỗi giây cho mỗi account, vượt thì `429`.
 - **Capability của Zalo:** `READ_MESSAGES`, `SEND_MESSAGES`, `PUSH_WEBHOOK`.
+- **Chốt ở ZL-05** (2026-10-16, **agent chốt, cần xem lại**; spec `zalo-gateway` ghi theo):
+  - `SentLog` ghi `PENDING` khi bắt đầu gửi và ghi `msgId` ngay khi zca-js trả, kể cả khi route đã trả `504` vì hết giờ. **LÝ DO:** kịch bản "tin đã đi nhưng `sino-api` hết giờ chờ" chỉ tra ra được nếu kết quả muộn vẫn được ghi.
+  - Gọi lặp khi lần gửi trước còn `PENDING` hoặc `UNKNOWN` (hỏng giữa chừng) → `504 OUTCOME_UNKNOWN`, không chờ, không gửi. Tra tin trong trường hợp đó mà không thấy gì → `409 CANNOT_TELL`. **LÝ DO:** chưa có "kết quả cũ" để trả `200`, và gửi lại có thể gửi trùng; danh sách rỗng lúc đó là khẳng định sai "chưa đi".
+  - Tra tin còn trả `409` khi `after` cũ hơn 24 giờ mà không thấy gì: `SentLog` chỉ nhớ 24 giờ, nên mốc "biết từ lúc nào" là cái muộn hơn trong hai, lúc phiên bật và 24 giờ trước. **LÝ DO** (review trước commit): thiếu mốc này thì một tin `504` mà `sino-api` không hỏi lại trong hơn 24 giờ sẽ nhận `[]`, bị ghi thất bại, và người dùng gửi lại thành hai tin.
+  - Zalo từ chối (`422`) thì quên `clientMessageId`: chưa có gì đi, nên gửi lại cùng ID được. Lần bị từ chối vẫn tính vào 1 tin/giây, vì lệnh đã tới Zalo.
+  - Chỉ `ZaloApiError` mang mã lỗi của Zalo là từ chối; lỗi HTTP, lỗi đọc câu trả lời, lỗi mạng là "không biết". **LÝ DO:** mã `sendMessage.js`/`utils.js` của zca-js 2.2.0: chỉ lỗi trong JSON của Zalo có `code`; 5xx có thể đến sau khi Zalo đã nhận tin.
+  - Hạn chờ gửi 10 giây ở `sino-zalo` (zca-js không có hạn chờ). ZL-06 đặt hạn chờ đọc của `sino-api` cho lệnh gửi dài hơn 10 giây, để `sino-zalo` trả `504` trước.
+  - Route gửi đọc `SentLog` **trước** khi kiểm phiên: ID đã `SENT` trả `200` kể cả khi phiên đã `ENDED`. **LÝ DO** (review trước commit): tin đã đi là sự thật về quá khứ; trả `410` thì `sino-api` gửi lại phiên, nhận `410`, ném `AUTH_EXPIRED` và có thể ghi thất bại một tin đã đi. Route tra tin vẫn kiểm phiên trước (`404`/`410`), như requirement ghi. `SentLog` theo `(accountId, clientMessageId)`, nằm ngoài phiên: quét lại không làm quên tin đã gửi; khởi động lại thì quên hết (tra tin trả `409`).
+  - Lần gửi treo: zca-js gửi bằng `fetch` của Node, không có hạn chờ riêng, nên lần gửi nằm `PENDING` tới khi undici bỏ (mặc định khoảng 300 giây) rồi thành `UNKNOWN`. Trong lúc đó gọi lặp trả `504`, tra tin trả `409`.
+  - **Để ZL-09 xử lý** (review trước commit): `ReplyService.reconcile` dừng cả lượt ở lỗi provider đầu tiên khác `CAPABILITY_NOT_SUPPORTED`. Đổi `409 CANNOT_TELL` thành `PROVIDER_UNAVAILABLE` (bảng D-281) thì sau khi `sino-zalo` khởi động lại, một tin cũ trả `409` mãi sẽ chặn đối chiếu mọi tin sau nó của account. ZL-09 phải cho `CANNOT_TELL` đi đường "không biết" (giữ `UNKNOWN`, sang tin kế).
+  - Giới hạn tốc độ đo bằng đồng hồ đơn điệu (`performance.now()`): chỉnh giờ máy lùi không chặn gửi.
 
 ### D-281 — Bảng đổi lỗi `sino-zalo` → `ProviderErrorCode` · **Người dùng chốt** (phần 4); hàng gửi hết giờ do **agent chỉnh khi viết hồ sơ, cần xem lại**
 
@@ -351,8 +362,8 @@ Mọi request (trừ `/health`) có `Authorization: Bearer <SINO_ZALO_SECRET>`. 
 | `PUT /accounts/{accountId}/session` `{ session }` | `204`; cùng dấu vân tay với phiên đang sống thì không làm gì; dấu vân tay khác thì thay phiên (D-289) | `410 SESSION_ENDED` (cookie bị từ chối, hoặc đúng phiên đã `ENDED`: trả ngay, không gọi Zalo); `502 ZALO_UNAVAILABLE` (Zalo không trả lời; phiên đang giữ không đổi; thêm ở ZL-03, D-281 hàng 5xx); `400` (body không có phiên dùng được) |
 | `DELETE /accounts/{accountId}/session` | `204` (kể cả khi không có) | — |
 | `GET /accounts/{accountId}/messages?after=&limit=` | `200 { conversations, messages, nextCursor, hasMore }`; `after` rỗng = mọi tin trong bộ đệm | `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED` |
-| `POST /accounts/{accountId}/messages` `{ threadId, threadType, text, clientMessageId }` | `201 { msgId, sentAt }`; trùng `clientMessageId` → `200` cùng kết quả | `404`, `410`, `422 REJECTED`, `429`, `504 OUTCOME_UNKNOWN` |
-| `POST /accounts/{accountId}/sent/lookup` `{ threadId, clientMessageId, text, after }` | `200 { msgIds }` | `404`, `409 CANNOT_TELL`, `410` |
+| `POST /accounts/{accountId}/messages` `{ threadId, threadType, text, clientMessageId }` | `201 { msgId, sentAt }`; trùng `clientMessageId` → `200` cùng kết quả | `404`, `410`, `422 REJECTED`, `429`, `504 OUTCOME_UNKNOWN` (cả khi gọi lặp một lần gửi chưa rõ kết quả, ZL-05), `400` |
+| `POST /accounts/{accountId}/sent/lookup` `{ threadId, clientMessageId, text, after }` (`after`: giờ ISO-8601 có múi giờ) | `200 { msgIds }` | `404`, `409 CANNOT_TELL`, `410`, `400` |
 
 `ZaloMessage` (JSON): `{ msgId, threadId, threadType: "USER"|"GROUP", fromId, fromName, isSelf, zaloType, text, sentAt }`. `text` là `null` khi không phải tin chữ. `fromName` (thêm ở ZL-04) là tên người gửi Zalo ghi trong tin (`dName`).
 `ZaloConversation`: `{ threadId, threadType, title, avatarUrl, participants: [{ id, name }] }`. `participants` (chốt ở ZL-04) là những người gửi các tin đi kèm trong response, không phải mọi thành viên nhóm; `title` có thể `null` khi Zalo không trả tên.

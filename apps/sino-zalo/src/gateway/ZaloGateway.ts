@@ -31,6 +31,9 @@ export class SessionRejectedError extends Error {}
 /** Zalo could not be reached, or failed in a way that says nothing about the session. */
 export class ZaloUnavailableError extends Error {}
 
+/** Zalo answered a send with an error: the message did not go out (D-280). */
+export class ZaloRejectedError extends Error {}
+
 export type ThreadType = "USER" | "GROUP";
 
 /** A Zalo message in the shape sino-zalo hands to sino-api (design, Contract API). */
@@ -80,6 +83,11 @@ export interface ZaloConnection {
   listener(events: ListenerEvents): ZaloListener;
   /** Throws ZaloUnavailableError when Zalo does not answer. */
   threadInfo(threadId: string, threadType: ThreadType): Promise<ThreadInfo>;
+  /**
+   * Sends a text and resolves with Zalo's msgId. Throws ZaloRejectedError when Zalo refused it;
+   * any other failure leaves it unknown whether the message went out.
+   */
+  sendText(threadId: string, threadType: ThreadType, text: string): Promise<string>;
 }
 
 /** Everything sino-zalo asks of Zalo. Tests use FakeZaloGateway and never reach Zalo. */
