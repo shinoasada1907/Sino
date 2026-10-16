@@ -1,0 +1,82 @@
+# Mở rộng F05 — Tách "Tin nhắn" và "Hộp thư" · Implementation Plan
+
+> **AUTO mode** (người dùng, 2026-10-16: "Đây là sửa Hộp thư, chạy AUTO"). Agent làm từng task đủ quy trình, commit riêng trên `dev`, rồi báo và dừng. D-300…D-308 người dùng duyệt; D-309 agent chốt.
+> Thứ tự: canvas (mục 1) trước phần web (mục 3); backend (mục 2) không chờ canvas nhưng chờ BE-82 của `f05b-merged-threads`; FE-114 sau BE-111.
+
+## 1. Canvas
+
+- [ ] 1.1 **CV-01 — Vẽ lại canvas "Sino UI" (D-302)**
+  - **Goal:** canvas có hai mục Tin nhắn, Hộp thư và các màn của Tin nhắn trước khi code web.
+  - **Thực hiện:** đọc bản mới nhất của https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB, sửa các frame trong bảng "Canvas" của `design.md` (bản tối và sáng), thêm `Messages`, `TabletMessages`, `MobileMessages`, publish lên cùng link (artifact giữ phiên bản cũ).
+  - **Acceptance criteria:** người dùng duyệt trên link; chữ, icon, vị trí trong canvas khớp D-300…D-305 (chỗ canvas chốt khác spec thì sửa spec và ghi **LÝ DO** ở đây).
+  - **Depends on:** —
+
+- [ ] 1.2 **CV-02 — Bản sao trong repo khớp link**
+  - **Files:** `design/sino-ui/project/` (các frame đã đổi, frame mới, `canvas.json`).
+  - **Acceptance criteria:** từng frame đã đổi trong repo giống bản đã duyệt; `PROJECT_STATE.md` ghi mã phiên bản đã khớp.
+  - **Depends on:** CV-01
+
+## 2. Backend
+
+> Mỗi task: test đỏ trước rồi xanh, `./mvnw -B -ntp verify` xanh trong worktree riêng (người dùng chạy backend từ IntelliJ), file kiến thức `docs/knowledge/phase-2-one-provider.md` + `.docx`, commit riêng trên `dev`.
+
+- [ ] 2.1 **BE-110 — Provider khai loại (D-306)**
+  - **Goal:** mỗi connector nói mình là email hay chat; web đọc được trên `/api/providers`.
+  - **Files:** `provider/ProviderKind.java` (mới), `provider/spi/MessageProvider.java`, `provider/ProviderDescriptor.java`, `provider/application/DefaultProviderRegistry.java`, `provider/api/ProviderResponse.java`, `provider/infrastructure/gmail/GmailProvider.java`, các provider giả trong `src/test`.
+  - **Acceptance criteria:** spec `provider-contract` *Connector khai báo loại*; `provider-registry` *Mô tả provider cho bên dùng*; `provider-catalog-api` *Loại của provider trên REST*.
+  - **Test:** descriptor mang loại của connector giả `EMAIL` và `CHAT`; `GET /api/providers` có `kind`; Gmail là `EMAIL`.
+  - **Depends on:** —
+
+- [ ] 2.2 **BE-111 — API theo loại (D-307, D-308)**
+  - **Goal:** danh sách và số đếm lọc được theo loại; điều hướng có số của từng loại; `kind` của dòng theo provider.
+  - **Files:** `conversation/api/ConversationsController.java`, `conversation/api/CountsResponse.java`, `conversation/api/ConversationResponse.java`, `conversation/application/InboxService.java`, `conversation/application/InboxItem.java`, helper loại mới trong `conversation/application`, `apps/sino-api/README.md`.
+  - **Acceptance criteria:** spec `inbox-api` *Lọc danh sách theo loại*, *Số đếm theo loại*, *Loại của provider không có connector*, *Nội dung một conversation trong danh sách*; `provider-registry` *Connector có công tắc tắt vẫn ở trong registry* (ghi chú cho ZL-06/ZL-10, Gmail không thuộc trường hợp này).
+  - **Test:** design mục Testing (Backend); kiểm bằng lỗi gài cho lọc theo loại và `unreadByKind`.
+  - **Depends on:** BE-110; BE-82 của `f05b-merged-threads` đã vào `dev` (cùng sửa `InboxService`)
+
+## 3. Web
+
+> Mỗi task: test viết trước (đỏ rồi xanh); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build`; đối chiếu canvas; Chrome một lượt ở các cỡ task đụng tới; file kiến thức `docs/knowledge/phase-1-frontend-foundation.md` + `.docx`, `genoffice docs check`; commit riêng trên `dev`. Làm theo hợp đồng trong `design.md`, test bằng MSW.
+
+- [ ] 3.1 **FE-110 — Hợp đồng dữ liệu theo loại**
+  - **Goal:** web biết loại của provider và số chưa đọc của từng loại.
+  - **Files:** `shared/domain` (`ProviderInfo.kind`), `features/inbox/inbox.api.ts`, `inbox.types.ts`, `inbox.sample.ts`, `useInbox.ts` (query key có `kind`), handler MSW.
+  - **Acceptance criteria:** request có `kind=email`/`kind=chat`; provider thiếu `kind` tính là `EMAIL`; counts thiếu `unreadByKind` theo spec `web-app-shell` *Tin nhắn và Hộp thư trên điều hướng*.
+  - **Test:** ánh xạ API (có và không có trường mới); MSW lọc theo `kind`; dữ liệu mẫu tách chat và email.
+  - **Depends on:** CV-02
+
+- [ ] 3.2 **FE-111 — Điều hướng Tin nhắn và Hộp thư (D-300, D-301)**
+  - **Files:** `app/shell/navItems.ts`, `shell.types.ts`, `shell.sample.ts`, `AppShell.tsx`, `MorePage.tsx`, test của shell.
+  - **Acceptance criteria:** spec `web-app-shell` *Điều hướng chính*, *Tab Thêm trên mobile*, *Tin nhắn và Hộp thư trên điều hướng*; `inbox-live` *Số Hộp thư trên điều hướng*.
+  - **Test:** thứ tự mục, số theo loại, tab bar năm ô, "Thêm" sáng ở `/calendar`, Lịch trong trang Thêm, tên đọc được của mục chỉ có icon.
+  - **Depends on:** FE-110
+
+- [ ] 3.3 **FE-112 — Hai màn, routes, tự chuyển (D-303, D-304)**
+  - **Files:** `app/router.tsx`, `features/inbox/InboxPage.tsx` (cấu hình màn theo loại), `useInboxFilter.ts`, `components/ConversationList.tsx`, `ChatThread.tsx`, `EmailThread.tsx`, `NewMail.tsx`, `SourcePane.tsx`, `useNewMailNotice.ts`, `useInbox.ts`.
+  - **Acceptance criteria:** spec `messages-screen` *Màn Tin nhắn*, *Hội thoại chat ở Tin nhắn*, *Hai màn dùng chung hành vi của một cuộc trò chuyện*, *Chuyển tới màn đúng loại*; `inbox-screen` *Danh sách hợp nhất*, *Dòng ghi tài khoản khi một nguồn có nhiều tài khoản*, *Lọc hộp thư*, *Danh sách trên API Hộp thư (F05)*; `inbox-live` *Hàng mới và dòng báo*.
+  - **Test:** design mục Testing (Web): hai màn, tự chuyển hai chiều bằng `replace`, nguồn theo loại, không có Thư mới ở Tin nhắn, dòng báo đúng màn, link quay lại.
+  - **Depends on:** FE-111
+
+- [ ] 3.4 **FE-113 — Trạng thái trống, hộp thoại kết nối, Tổng quan (D-305)**
+  - **Files:** `features/inbox/components/InboxStates.tsx`, `features/accounts/components/ConnectWizard.tsx`, `features/overview/cards/InboxCard.tsx`.
+  - **Acceptance criteria:** spec `messages-screen` *Trạng thái trống của Tin nhắn*; `inbox-screen` *Trạng thái hộp thư*; `connect-wizard` *Kết quả quay về*; `overview-screen` *Các thẻ của màn Tổng quan*, *Nút trên màn Tổng quan*.
+  - **Test:** trạng thái trống có và không có provider chat trong danh mục; nút bước 5 theo loại; hai nút ở Tổng quan; kiểm bằng lỗi gài cho hàm thuần của change (chọn màn theo loại, lọc nguồn theo loại).
+  - **Depends on:** FE-112
+
+- [ ] 3.5 **FE-114 — Chạy với backend thật**
+  - **Test:** backend từ `dev` có BE-111: thư Gmail thật ở Hộp thư, số "Hộp thư" khớp `unreadByKind.EMAIL`, Tin nhắn hiện trạng thái trống; mở một link cũ `/inbox/<id>` từ Việc vẫn đúng; Chrome 1440 / 1024 / 390.
+  - **Depends on:** BE-111, FE-113
+
+## 4. Ghi chú sang change khác
+
+- [ ] 4.1 **`zalo-personal`:** thêm vào ZL-06 "khai `kind()` = `CHAT` (D-306)" và vào ZL-11 "nút cuối là 'Mở Tin nhắn' (D-305)". Làm sau khi phiên ZL-05 commit, vì phiên đó đang sửa `zalo-personal/tasks.md`.
+- [x] 4.2 **`f10-new-mail`:** BE-84 kiểm tài khoản gửi có provider `EMAIL`, không thì `422` (D-307).
+  - **Đã làm (2026-10-16):** ghi chú vào BE-84 trong `openspec/changes/f10-new-mail/tasks.md`, cùng commit với hồ sơ này.
+
+## 5. Nghiệm thu
+
+- [ ] 5.1 **ACC — Nghiệm thu, tài liệu**
+  - **Test:** Definition of Done của `design.md`; Chrome đủ cỡ (1440, 1280, 1024, 768, 390) × 2 theme cho Tin nhắn, Hộp thư, điều hướng, Tổng quan, bước 5 hộp thoại kết nối; ảnh so với canvas.
+  - **Depends on:** FE-114
+
+- [ ] 5.2 **Archive** (D-309): sau `f05-unified-inbox`, `f07-f08-realtime-inbox`, `fe-ui-overview`, `fe-ui-accounts`, `fe-ui-connect`, `fe-ui-inbox`, vì delta sửa requirement của các change đó. `openspec archive f05c-messages-inbox-split -y`.
