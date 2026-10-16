@@ -13,18 +13,21 @@ class ProviderDescriptorTests {
 
     @Test
     void needsEveryPart() {
-        assertThatThrownBy(() -> new ProviderDescriptor(null, "Gmail", READ_ONLY))
+        assertThatThrownBy(() -> new ProviderDescriptor(null, "Gmail", ProviderKind.EMAIL, READ_ONLY))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ProviderDescriptor(GMAIL, null, READ_ONLY))
+        assertThatThrownBy(() -> new ProviderDescriptor(GMAIL, null, ProviderKind.EMAIL, READ_ONLY))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ProviderDescriptor(GMAIL, "Gmail", null))
+        assertThatThrownBy(() -> new ProviderDescriptor(GMAIL, "Gmail", null, READ_ONLY))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("kind must not be null");
+        assertThatThrownBy(() -> new ProviderDescriptor(GMAIL, "Gmail", ProviderKind.EMAIL, null))
                 .isInstanceOf(NullPointerException.class);
     }
 
     @ParameterizedTest
     @ValueSource(strings = { "", "   " })
     void needsADisplayName(String displayName) {
-        assertThatThrownBy(() -> new ProviderDescriptor(GMAIL, displayName, READ_ONLY))
+        assertThatThrownBy(() -> new ProviderDescriptor(GMAIL, displayName, ProviderKind.EMAIL, READ_ONLY))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

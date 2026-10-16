@@ -121,6 +121,11 @@ public final class FakeMessageProvider implements MessageProvider {
     }
 
     @Override
+    public ProviderKind kind() {
+        return ProviderKind.EMAIL;
+    }
+
+    @Override
     public ProviderCapabilities capabilities() {
         return capabilities;
     }

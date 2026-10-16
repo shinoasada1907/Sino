@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import dev.sino.common.error.SinoException;
 import dev.sino.provider.ProviderDescriptor;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.ProviderRegistryErrorCode;
 import dev.sino.provider.ProviderType;
@@ -34,12 +35,14 @@ class DefaultProviderRegistry implements ProviderRegistry {
         for (MessageProvider provider : providers) {
             ProviderType type = Objects.requireNonNull(provider.type(),
                     () -> provider.getClass().getName() + " returned no provider type");
+            ProviderKind kind = Objects.requireNonNull(provider.kind(),
+                    () -> provider.getClass().getName() + " returned no provider kind");
             MessageProvider previous = byType.putIfAbsent(type, provider);
             if (previous != null) {
                 throw new IllegalStateException("Duplicate provider type '" + type + "': "
                         + previous.getClass().getName() + " and " + provider.getClass().getName());
             }
-            found.add(new ProviderDescriptor(type, provider.displayName(), provider.capabilities()));
+            found.add(new ProviderDescriptor(type, provider.displayName(), kind, provider.capabilities()));
         }
         found.sort(Comparator.comparing(descriptor -> descriptor.type().value()));
         this.providers = Map.copyOf(byType);

@@ -17,6 +17,7 @@ import dev.sino.common.error.SinoException;
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderDescriptor;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.ProviderRegistryErrorCode;
 import dev.sino.provider.ProviderType;
@@ -91,6 +92,23 @@ class DefaultProviderRegistryTests {
     }
 
     @Test
+    void refusesAConnectorWithoutAKind() {
+        MessageProvider broken = new StubProvider("gmail") {
+
+            @Override
+            public ProviderKind kind() {
+                return null;
+            }
+
+        };
+
+        assertThatThrownBy(() -> new DefaultProviderRegistry(List.of(broken)))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining(broken.getClass().getName())
+                .hasMessageContaining("returned no provider kind");
+    }
+
+    @Test
     void anUnknownTypeIsNotFound() {
         DefaultProviderRegistry registry = new DefaultProviderRegistry(List.of(new StubProvider("gmail")));
 
@@ -117,8 +135,26 @@ class DefaultProviderRegistryTests {
                 new NamedStubProvider("gmail", "Gmail", READ_MESSAGES, SEND_MESSAGES)));
 
         assertThat(registry.descriptors()).containsExactly(
-                new ProviderDescriptor(GMAIL, "Gmail", ProviderCapabilities.of(READ_MESSAGES, SEND_MESSAGES)),
-                new ProviderDescriptor(TELEGRAM, "telegram", ProviderCapabilities.of(READ_MESSAGES)));
+                new ProviderDescriptor(GMAIL, "Gmail", ProviderKind.EMAIL,
+                        ProviderCapabilities.of(READ_MESSAGES, SEND_MESSAGES)),
+                new ProviderDescriptor(TELEGRAM, "telegram", ProviderKind.EMAIL,
+                        ProviderCapabilities.of(READ_MESSAGES)));
+    }
+
+    @Test
+    void aDescriptorCarriesTheKindItsConnectorDeclares() {
+        MessageProvider zalo = new StubProvider("zalo") {
+
+            @Override
+            public ProviderKind kind() {
+                return ProviderKind.CHAT;
+            }
+
+        };
+        DefaultProviderRegistry registry = new DefaultProviderRegistry(List.of(zalo, new StubProvider("gmail")));
+
+        assertThat(registry.descriptors()).extracting(ProviderDescriptor::kind)
+                .containsExactly(ProviderKind.EMAIL, ProviderKind.CHAT);
     }
 
     @Test
@@ -178,6 +214,11 @@ class DefaultProviderRegistryTests {
         @Override
         public ProviderType type() {
             return type;
+        }
+
+        @Override
+        public ProviderKind kind() {
+            return ProviderKind.EMAIL;
         }
 
         @Override

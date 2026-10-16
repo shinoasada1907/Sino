@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import dev.sino.provider.FakeMessageProvider;
 import dev.sino.provider.ProviderCapabilities;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.MessageProvider;
@@ -88,6 +89,11 @@ final class ScriptedProvider implements MessageProvider {
     @Override
     public ProviderType type() {
         return TYPE;
+    }
+
+    @Override
+    public ProviderKind kind() {
+        return ProviderKind.EMAIL;
     }
 
     // What the provider in use declares, so a test can give it push.

@@ -24,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import dev.sino.provider.ProviderKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -675,6 +676,11 @@ class MessageBodyApiTests {
         @Override
         public ProviderType type() {
             return TYPE;
+        }
+
+        @Override
+        public ProviderKind kind() {
+            return ProviderKind.EMAIL;
         }
 
         @Override

@@ -28,12 +28,22 @@
 
 > Mỗi task: test đỏ trước rồi xanh, `./mvnw -B -ntp verify` xanh trong worktree riêng (người dùng chạy backend từ IntelliJ), file kiến thức `docs/knowledge/phase-2-one-provider.md` + `.docx`, commit riêng trên `dev`.
 
-- [ ] 2.1 **BE-110 — Provider khai loại (D-306)**
+- [x] 2.1 **BE-110 — Provider khai loại (D-306)**
   - **Goal:** mỗi connector nói mình là email hay chat; web đọc được trên `/api/providers`.
   - **Files:** `provider/ProviderKind.java` (mới), `provider/spi/MessageProvider.java`, `provider/ProviderDescriptor.java`, `provider/application/DefaultProviderRegistry.java`, `provider/api/ProviderResponse.java`, `provider/infrastructure/gmail/GmailProvider.java`, các provider giả trong `src/test`.
   - **Acceptance criteria:** spec `provider-contract` *Connector khai báo loại*; `provider-registry` *Mô tả provider cho bên dùng*; `provider-catalog-api` *Loại của provider trên REST*.
   - **Test:** descriptor mang loại của connector giả `EMAIL` và `CHAT`; `GET /api/providers` có `kind`; Gmail là `EMAIL`.
   - **Depends on:** —
+  - **Đã làm (2026-10-16, TRAINING):** người dùng gõ code chạy thật theo 8 bước nhỏ; Claude hướng dẫn, viết test từ bước 5, xem lại sau mỗi bước, rồi theo yêu cầu của người dùng ("giúp tôi làm task này đi") sửa các lưu ý cuối, chạy lại test, ghi hồ sơ và commit.
+    - `ProviderKind { EMAIL, CHAT }` ở gói gốc `dev.sino.provider` (module `conversation` cần đọc ở BE-111).
+    - `MessageProvider.kind()` abstract, không có mặc định (spec: connector quên khai thì không build được); `GmailProvider` trả `EMAIL`; 10 connector giả trong `src/test` trả `EMAIL`.
+    - `ProviderDescriptor(type, displayName, kind, capabilities)`, `kind` không được `null`; `DefaultProviderRegistry` lấy `kind()` của connector và báo tên class khi nó trả `null` (như với `type`).
+    - `ProviderResponse` có `kind` (tên enum); README dòng `GET /api/providers` ghi `kind`.
+  - **Làm khác kế hoạch:**
+    - Thêm `refusesAConnectorWithoutAKind` và `requireNonNull` có tên class trong `DefaultProviderRegistry`. **LÝ DO:** không có nó, connector trả `kind() = null` làm app dừng với "kind must not be null" mà không nói connector nào; ZL-06 sắp cắm Zalo vào đúng chỗ này.
+    - Sửa `apps/sino-api/README.md` (không có trong danh sách file). **LÝ DO:** bảng API của README liệt kê các trường của `GET /api/providers`; thêm `kind` mà không sửa thì tài liệu sai.
+    - ~~File kiến thức `docs/knowledge/phase-2-one-provider.md` + `.docx`~~ chưa viết. **LÝ DO:** BE-110 chạy TRAINING; theo `CLAUDE.md`, ở TRAINING file kiến thức chỉ viết khi người dùng yêu cầu.
+  - **Bằng chứng (2026-10-16):** đỏ trước từng bước: bước 2 `isAnEmailProvider` không biên dịch (chưa có `kind()`); bước 3 lỗi chuyển sang 10 connector giả "does not override abstract method kind()"; bước 5 `ProviderDescriptor::kind` không biên dịch; bước 6 constructor 3 tham số không khớp; bước 7 `$[0].*` 3 thay vì 4 trường; bước 8 thông báo `kind must not be null` không có tên class. Người dùng chạy trong IntelliJ: từng test xanh sau mỗi bước, toàn bộ test backend xanh sau bước 7. Sau khi sửa các lưu ý cuối (import `*` ở 6 file test, import thừa và Javadoc của `ProviderResponse`, Javadoc `ProviderKind`, ba dòng quá 120 ký tự, thứ tự kiểm `null`, import và dấu cách trong `GmailProviderTests`, README), Claude chạy `./mvnw -B -ntp test` trong worktree riêng: 1520 test, 0 failure, 0 error, `BUILD SUCCESS` (5 phút 21 giây); `ProvidersControllerTests` 3, `DefaultProviderRegistryTests` 14, `GmailProviderTests` 12, `ProviderDescriptorTests` 3, đều xanh; `-DskipTests verify` đóng gói được jar. Worktree đã xóa.
 
 - [ ] 2.2 **BE-111 — API theo loại (D-307, D-308)**
   - **Goal:** danh sách và số đếm lọc được theo loại; điều hướng có số của từng loại; `kind` của dòng theo provider.

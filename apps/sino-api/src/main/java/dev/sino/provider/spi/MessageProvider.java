@@ -7,6 +7,7 @@ import java.util.OptionalLong;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 
 /**
@@ -21,6 +22,12 @@ public interface MessageProvider {
     default String displayName() {
         return type().value();
     }
+
+    /**
+     * Email or chat, for every conversation of the provider whatever its {@code ConversationType} (D-306). No
+     * default: a connector that forgets to declare it does not build.
+     */
+    ProviderKind kind();
 
     /** Only what the connector really supports. */
     ProviderCapabilities capabilities();
