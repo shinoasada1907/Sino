@@ -10,7 +10,7 @@ import type { ConversationItem, ConversationPage, InboxData, Message, MessagePag
 import {
   conversationKey,
   conversationsKey,
-  INBOX_QUERY_KEY,
+  inboxKey,
   messagesKey,
   outboxKey,
   useConversation,
@@ -40,16 +40,16 @@ const problem = (body: object, status: number) => HttpResponse.json(body, { stat
 
 function setup({ list = [first, second] }: { list?: ConversationItem[] | null } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  queryClient.setQueryData(INBOX_QUERY_KEY, FRAME)
+  queryClient.setQueryData(inboxKey('EMAIL'), FRAME)
   if (list) {
-    queryClient.setQueryData(conversationsKey(ALL), { pages: [{ items: list, nextCursor: null }], pageParams: [null] })
+    queryClient.setQueryData(conversationsKey('EMAIL', ALL), { pages: [{ items: list, nextCursor: null }], pageParams: [null] })
   }
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   return { queryClient, wrapper }
 }
 
 const rowsOf = (queryClient: QueryClient) =>
-  queryClient.getQueryData<{ pages: ConversationPage[] }>(conversationsKey(ALL))!.pages.flatMap((page) => page.items)
+  queryClient.getQueryData<{ pages: ConversationPage[] }>(conversationsKey('EMAIL', ALL))!.pages.flatMap((page) => page.items)
 
 describe('useConversationList', () => {
   it('loads the first page of a view, then the next one with its cursor, until there is none', async () => {
@@ -64,7 +64,7 @@ describe('useConversationList', () => {
       }),
     )
     const { wrapper } = setup({ list: null })
-    const { result } = renderHook(() => useConversationList(ALL, now), { wrapper })
+    const { result } = renderHook(() => useConversationList('EMAIL', ALL, now), { wrapper })
 
     expect(result.current.conversations).toBeUndefined()
     await waitFor(() => expect(result.current.conversations?.map((item) => item.id)).toEqual(['c-1']))
@@ -74,7 +74,7 @@ describe('useConversationList', () => {
 
     await waitFor(() => expect(result.current.conversations?.map((item) => item.id)).toEqual(['c-1', 'c-2']))
     expect(result.current.more.hasMore).toBe(false)
-    expect(asked).toEqual(['?view=all', '?view=all&cursor=p2'])
+    expect(asked).toEqual(['?view=all&kind=email', '?view=all&kind=email&cursor=p2'])
   })
 
   it('says when the next page cannot load, and loads it on retry', async () => {
@@ -88,7 +88,7 @@ describe('useConversationList', () => {
       }),
     )
     const { wrapper } = setup({ list: null })
-    const { result } = renderHook(() => useConversationList(ALL, now), { wrapper })
+    const { result } = renderHook(() => useConversationList('EMAIL', ALL, now), { wrapper })
     await waitFor(() => expect(result.current.more.hasMore).toBe(true))
 
     act(() => result.current.more.load())
@@ -114,7 +114,7 @@ describe('useConversationList, when the list changed between two pages', () => {
       ),
     )
     const { wrapper } = setup({ list: null })
-    const { result } = renderHook(() => useConversationList(ALL, now), { wrapper })
+    const { result } = renderHook(() => useConversationList('EMAIL', ALL, now), { wrapper })
     await waitFor(() => expect(result.current.more.hasMore).toBe(true))
 
     act(() => result.current.more.load())
@@ -184,7 +184,7 @@ describe('useUpdateConversation', () => {
 
     await waitFor(() => expect(rowsOf(queryClient)[0].unreadCount).toBe(0))
     expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.item.unreadCount).toBe(0)
-    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)?.counts).toMatchObject({ unread: 0, byProvider: [{ provider: 'gmail', unread: 0 }], needsReply: 1 })
+    expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts).toMatchObject({ unread: 0, byProvider: [{ provider: 'gmail', unread: 0 }], needsReply: 1 })
 
     await waitFor(() => expect(answer).toBeDefined())
     answer!()
@@ -193,22 +193,22 @@ describe('useUpdateConversation', () => {
     // The server knows better (here it also cleared "needs reply"): its row and the counts follow it.
     expect(rowsOf(queryClient)[0].needsReply).toBe(false)
     expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.item.needsReply).toBe(false)
-    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)?.counts.needsReply).toBe(0)
+    expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts.needsReply).toBe(0)
     // Reading moves no conversation to another view, so no list has to load again.
-    expect(queryClient.getQueryState(conversationsKey(ALL))?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryState(conversationsKey('EMAIL', ALL))?.isInvalidated).toBe(false)
   })
 
   it('archives: the row leaves the inbox at once, the counts drop, and every list loads again when it is next shown', async () => {
     server.use(http.patch('/api/conversations/:id', () => HttpResponse.json({ ...API_CONVERSATIONS[0], archived: true })))
     const { queryClient, wrapper } = setup()
-    const { result } = renderHook(() => ({ list: useConversationList(ALL, now), update: useUpdateConversation() }), { wrapper })
+    const { result } = renderHook(() => ({ list: useConversationList('EMAIL', ALL, now), update: useUpdateConversation() }), { wrapper })
 
     act(() => result.current.update.mutate({ id: 'c-1', change: { archived: true } }))
 
     await waitFor(() => expect(result.current.list.conversations?.map((item) => item.id)).toEqual(['c-2']))
-    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)?.counts).toMatchObject({ unread: 0, needsReply: 0, withAttachments: 0 })
+    expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts).toMatchObject({ unread: 0, needsReply: 0, withAttachments: 0 })
     await waitFor(() => expect(result.current.update.isSuccess).toBe(true))
-    expect(queryClient.getQueryState(conversationsKey(ALL))?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(conversationsKey('EMAIL', ALL))?.isInvalidated).toBe(true)
   })
 
   it('puts the row and the counts back when the server refuses', async () => {
@@ -220,7 +220,7 @@ describe('useUpdateConversation', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(rowsOf(queryClient)[0]).toEqual(first)
-    expect(queryClient.getQueryData<InboxData>(INBOX_QUERY_KEY)?.counts).toEqual(FRAME.counts)
+    expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts).toEqual(FRAME.counts)
   })
 })
 

@@ -116,6 +116,8 @@ describe('the flag line of a row', () => {
       tone: 'err',
       text: 'Thư hẹn giờ không gửi được',
     })
+    // A chat sends a message, not a mail (f05c, canvas Messages).
+    expect(rowFlag(item({ kind: 'CHAT', scheduledSend: { at: vn('2026-10-01T21:00'), failed: true } }), now, TZ)?.text).toBe('Tin hẹn giờ không gửi được')
   })
 
   it('says when a snoozed conversation came back, then a scheduled reply', () => {
@@ -445,6 +447,7 @@ describe('conversations that arrive while the list is open (FE-54, MotionSpec C)
   it('says how many new emails came', () => {
     expect(newMailText(1)).toBe('1 thư mới')
     expect(newMailText(1200)).toBe('1.200 thư mới')
+    expect(newMailText(2, 'CHAT')).toBe('2 tin mới')
   })
 })
 

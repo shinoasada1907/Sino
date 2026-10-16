@@ -89,7 +89,7 @@ describe('states of the inbox', () => {
   })
 
   it('keeps the saved inbox while offline, and sends what was written once back online', async () => {
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const user = userEvent.setup()
     const box = await chat('Gia đình').findByRole('textbox', { name: 'Nhắn tin tới Gia đình' })
     await chat('Gia đình').findByText('Để con mang thêm trái cây nữa nhé.')
@@ -99,7 +99,8 @@ describe('states of the inbox', () => {
     const banner = screen.getByText('Bạn đang ngoại tuyến.').closest('[role="status"]')!
     expect(banner).toHaveTextContent('Đang hiện dữ liệu đã lưu lúc 14:05. Thư bạn soạn sẽ gửi khi có mạng.')
     expect(within(banner as HTMLElement).getByRole('button', { name: 'Thử kết nối lại' })).toBeInTheDocument()
-    expect(list().getByText('11 chưa đọc · đã lưu')).toBeInTheDocument()
+    // Tin nhắn: 5 chats unread, less the one just opened.
+    expect(list().getByText('4 chưa đọc · đã lưu')).toBeInTheDocument()
     expect(chat('Gia đình').getByText('Sẽ gửi khi có mạng')).toBeInTheDocument()
 
     await user.type(box, 'Con về lúc 6 giờ')
@@ -118,7 +119,7 @@ describe('states of the inbox', () => {
   })
 
   it('replaces the message box with a way to sign in again when the account access expired', async () => {
-    open('/inbox/conv-4')
+    open('/messages/conv-4')
 
     const alert = await chat('Lê Hoàng').findByRole('alert')
     expect(alert).toHaveTextContent('Cần đăng nhập lại Messenger để nhận và gửi tin')

@@ -17,7 +17,9 @@ import { UnderConstructionPage } from './UnderConstructionPage'
 /** Screens already built, with what they ask of the shell; every other page shows the under-construction page (D-42). */
 const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellHandle }> = {
   '/overview': { element: <OverviewPage /> },
-  '/inbox': { element: <InboxPage />, handle: { mobilePageHeader: true } },
+  // Keyed by kind: going from one screen to the other starts afresh (its notice, its read guard), as two screens should.
+  '/messages': { element: <InboxPage key="CHAT" kind="CHAT" />, handle: { mobilePageHeader: true } },
+  '/inbox': { element: <InboxPage key="EMAIL" kind="EMAIL" />, handle: { mobilePageHeader: true } },
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
   '/tasks': { element: <TasksPage />, handle: { mobilePageHeader: true } },
   '/notes': { element: <NotesPage />, handle: { mobilePageHeader: true } },
@@ -42,12 +44,17 @@ export const routes: RouteObject[] = [
           })),
           {
             path: 'inbox/new',
-            element: <InboxPage compose />,
+            element: <InboxPage key="EMAIL" kind="EMAIL" compose />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
+            path: 'messages/:conversationId',
+            element: <InboxPage key="CHAT" kind="CHAT" />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
           },
           {
             path: 'inbox/:conversationId',
-            element: <InboxPage />,
+            element: <InboxPage key="EMAIL" kind="EMAIL" />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
           },
           {

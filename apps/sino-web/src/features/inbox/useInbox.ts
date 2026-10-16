@@ -2,19 +2,24 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
+import type { ProviderKind } from '@/shared/domain'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, withOutbox, type InboxFilter } from './format'
 import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, sendMessage, updateConversation } from './inbox.api'
 import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation, UnreadByKind } from './inbox.types'
 import { LEAVE_FREELY, rememberSender, type NewMailDraft } from './newMail'
+import { SCREENS } from './screen'
 
-/** Accounts, providers and counts of the inbox. */
+/** Everything of Tin nhắn and Hộp thư: frames, lists, open conversations; what the stream reads again. */
 export const INBOX_QUERY_KEY = ['inbox'] as const
+const FRAMES_KEY = ['inbox', 'frame'] as const
+/** Accounts, providers and the counts of one screen (f05c): each kind has its own counts. */
+export const inboxKey = (kind: ProviderKind) => [...FRAMES_KEY, kind] as const
 /** Apart from `['inbox']`: the shell keeps it on every page, and it is one light request (D-93). */
 export const INBOX_UNREAD_QUERY_KEY = ['inbox-unread'] as const
 const LISTS_KEY = ['inbox', 'list'] as const
-/** The pages of one view and source. */
-export const conversationsKey = ({ view, source }: InboxFilter) => [...LISTS_KEY, view, source] as const
+/** The pages of one kind, view and source. */
+export const conversationsKey = (kind: ProviderKind, { view, source }: InboxFilter) => [...LISTS_KEY, kind, view, source] as const
 export const conversationKey = (conversationId: string) => ['inbox', 'conversation', conversationId] as const
 /** Under the conversation, so that a change the stream reports reads them again too (D-126). */
 export const messagesKey = (conversationId: string) => [...conversationKey(conversationId), 'messages'] as const
@@ -43,9 +48,8 @@ export function useUnreadByKind(): UnreadByKind | undefined {
   return data
 }
 
-export function useInbox(): InboxQuery {
-  // Not `queryFn: fetchInbox`: the query context it would get is not a kind.
-  const { data, dataUpdatedAt, error, errorUpdatedAt, refetch } = useQuery({ queryKey: INBOX_QUERY_KEY, queryFn: () => fetchInbox(), staleTime: Infinity })
+export function useInbox(kind: ProviderKind): InboxQuery {
+  const { data, dataUpdatedAt, error, errorUpdatedAt, refetch } = useQuery({ queryKey: inboxKey(kind), queryFn: () => fetchInbox(kind), staleTime: Infinity })
   return { inbox: data, receivedAt: dataUpdatedAt, error, failedAt: errorUpdatedAt, retry: () => void refetch() }
 }
 
@@ -75,10 +79,10 @@ export interface ConversationListQuery {
  * are filtered again here so that a change (read, archived) shows at once, and the rows of the view shown before stay
  * while the new one loads.
  */
-export function useConversationList(filter: InboxFilter, now: Date): ConversationListQuery {
+export function useConversationList(kind: ProviderKind, filter: InboxFilter, now: Date): ConversationListQuery {
   const query = useInfiniteQuery({
-    queryKey: conversationsKey(filter),
-    queryFn: ({ pageParam }) => fetchConversations(filter, pageParam),
+    queryKey: conversationsKey(kind, filter),
+    queryFn: ({ pageParam }) => fetchConversations(filter, pageParam, kind),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: Infinity,
@@ -224,8 +228,17 @@ function updateItem(queryClient: QueryClient, conversationId: string, change: (i
   queryClient.setQueryData<OpenConversation>(conversationKey(conversationId), (open) => open && { ...open, item: change(open.item) })
 }
 
+// Every counts of a frame moves with the row; the frame of the other kind keeps its own numbers but both of `unreadByKind`.
 function moveCounts(queryClient: QueryClient, before: ConversationItem, after: ConversationItem) {
-  queryClient.setQueryData<InboxData>(INBOX_QUERY_KEY, (inbox) => inbox && { ...inbox, counts: countsAfter(inbox.counts, before, after) })
+  for (const kind of ['EMAIL', 'CHAT'] as const) {
+    queryClient.setQueryData<InboxData>(inboxKey(kind), (inbox) => {
+      if (!inbox) {
+        return inbox
+      }
+      const moved = countsAfter(inbox.counts, before, after)
+      return { ...inbox, counts: kind === after.kind ? moved : { ...inbox.counts, unreadByKind: moved.unreadByKind } }
+    })
+  }
 }
 
 /**
@@ -273,7 +286,7 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
   const navigate = useNavigate()
   const change = (change: ConversationChange) => {
     mutate({ id: item.id, change })
-    void navigate({ pathname: '/inbox', search: backSearch })
+    void navigate({ pathname: SCREENS[item.kind].path, search: backSearch })
   }
   return { markUnread: () => change({ read: false }), toggleArchive: () => change({ archived: !item.archived }) }
 }
@@ -458,7 +471,7 @@ export function useCreateConversation(backSearch: string): NewMailSend {
       } else if (problem?.code === 'VALIDATION_FAILED') {
         setOutcome({ ...NO_OUTCOME, fieldErrors: fieldErrorsOf(problem.errors.map((entry) => entry.field)) })
       } else if (problem?.code === 'SEND_NOT_ALLOWED' || problem?.code === 'ACCOUNT_NOT_FOUND') {
-        void queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY, exact: true })
+        void queryClient.invalidateQueries({ queryKey: FRAMES_KEY })
         setOutcome({ ...NO_OUTCOME, fieldErrors: { from: 'Tài khoản này không gửi được thư nữa' } })
       } else if (problem?.status === 404 || problem?.status === 405) {
         setOutcome({ ...NO_OUTCOME, notice: 'Sino chưa gửi được thư mới. Bạn gửi trong Gmail.' })
@@ -507,7 +520,7 @@ function fieldErrorsOf(fields: string[]): NewMailSend['fieldErrors'] {
 
 /** The frame, the lists and the count of the navigation: after a conversation came or went. */
 function refreshInbox(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY, exact: true })
+  void queryClient.invalidateQueries({ queryKey: FRAMES_KEY })
   void queryClient.invalidateQueries({ queryKey: LISTS_KEY })
   void queryClient.invalidateQueries({ queryKey: INBOX_UNREAD_QUERY_KEY })
 }

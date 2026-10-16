@@ -77,9 +77,9 @@ export function ChatThread({
       <header className="hidden items-start justify-between gap-4 border-b md:flex md:px-5 md:py-4 xl:px-6 xl:py-5">
         <div className="flex min-w-0 flex-col gap-3">
           <Button asChild variant="ghost" size="sm" className="-ml-3 hidden self-start xl:inline-flex">
-            <Link to={{ pathname: '/inbox', search: backSearch }}>
+            <Link to={{ pathname: '/messages', search: backSearch }}>
               <ChevronLeft strokeWidth={1.6} />
-              Hộp thư
+              Tin nhắn
             </Link>
           </Button>
           <div className="flex items-center gap-3.5">

@@ -35,36 +35,44 @@ describe('Hộp thư on desktop', () => {
     vi.useRealTimers()
   })
 
-  it('lists the conversations by day, each with its source, preview, flag and time', async () => {
+  it('lists the emails by day, each with its source, preview, flag and time', async () => {
     open('/inbox')
 
     expect(await list().findByRole('heading', { level: 1, name: 'Hộp thư' })).toBeInTheDocument()
-    expect(list().getByText('12 chưa đọc')).toBeInTheDocument()
+    expect(list().getByText('7 chưa đọc')).toBeInTheDocument()
     expect(list().getByText('HÔM NAY')).toBeInTheDocument()
     expect(list().getByText('HÔM QUA')).toBeInTheDocument()
     expect(list().getByText('TUẦN NÀY')).toBeInTheDocument()
-    expect(rowTitles()).toEqual([
-      'Nhóm chạy bộ Hồ Tây',
-      'Trần Minh Anh',
-      'Gia đình',
-      'Phòng khám Ánh Dương',
-      'Lê Hoàng',
-      'Thu Trang',
-      'Điện lực Hà Nội',
-    ])
+    expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương', 'Thu Trang', 'Điện lực Hà Nội'])
 
     const contract = within(row(/Trần Minh Anh/))
     expect(contract.getByText('Hợp đồng thuê văn phòng — bản sửa lần 2')).toBeInTheDocument()
     expect(contract.getByText('09:41')).toBeInTheDocument()
     expect(contract.getByText('Task · hạn T4 07/10')).toBeInTheDocument()
+    expect(within(row(/Điện lực/)).getByText('Thứ 3')).toBeInTheDocument()
+  })
+
+  it('lists the chats of Tin nhắn the same way, with their sources, counts and accounts (f05c)', async () => {
+    open('/messages')
+
+    expect(await list().findByText('5 chưa đọc')).toBeInTheDocument()
     const family = within(row(/Gia đình/))
-    expect(family.getByText('Zalo · nhóm 6 người')).toBeInTheDocument()
+    expect(family.getByText('Zalo · nhóm 6 người')).toHaveClass('hidden', 'xl:inline')
     expect(family.getByText('Hà: Con mua bánh bông lan trứng muối được không mẹ?')).toBeInTheDocument()
     expect(family.getByText('3')).toBeInTheDocument()
     expect(within(row(/Nhóm chạy bộ/)).getByText('Hiện lại theo hẹn · 14:00')).toBeInTheDocument()
     expect(within(row(/Nhóm chạy bộ/)).getByText('Hôm qua')).toBeInTheDocument()
-    expect(within(row(/Lê Hoàng/)).getByText('Thư hẹn giờ không gửi được')).toBeInTheDocument()
-    expect(within(row(/Điện lực/)).getByText('Thứ 3')).toBeInTheDocument()
+    // A chat sends a message, not a mail (canvas Messages).
+    expect(within(row(/Lê Hoàng/)).getByText('Tin hẹn giờ không gửi được')).toBeInTheDocument()
+    expect(within(row(/Nhóm sửa nhà/)).getByText('Kiến trúc sư: Em gửi lại bản vẽ tầng 2 đã chỉnh cầu thang.')).toBeInTheDocument()
+
+    expect(sources().getByRole('link', { name: /Tất cả/ })).toHaveTextContent('5')
+    expect(sources().getByRole('link', { name: /Zalo/ })).toHaveTextContent('4')
+    expect(sources().getByRole('link', { name: /Messenger/ })).toHaveTextContent('cần đăng nhập lại')
+    expect(sources().getByRole('link', { name: /Cần trả lời/ })).toHaveTextContent('1')
+    expect(sources().getByRole('link', { name: /Có tệp/ })).toHaveTextContent('2')
+    expect(sources().getByRole('link', { name: /\+84 9•• ••• 218/ })).toHaveTextContent('64%')
+    expect(sources().queryByRole('link', { name: /an\.nguyen@gmail\.com/ })).toBeNull()
   })
 
   it('names the account of each row when a source has more than one, at every width', async () => {
@@ -83,7 +91,6 @@ describe('Hộp thư on desktop', () => {
     const home = within(row(/Trần Minh Anh/)).getByText('an.nguyen@gmail.com')
     expect(home).toHaveTextContent('Gmail · an.nguyen@gmail.com')
     expect(home).not.toHaveClass('hidden')
-    expect(within(row(/Gia đình/)).getByText('Zalo · nhóm 6 người')).toHaveClass('hidden', 'xl:inline')
   })
 
   it('names every account of a thread found in two accounts, in its row and its header (f05b, D-182)', async () => {
@@ -97,20 +104,19 @@ describe('Hộp thư on desktop', () => {
     expect(await thread().findByText('Gmail · an.nguyen@gmail.com, an@congty.vn')).toBeInTheDocument()
   })
 
-  it('counts each source and quick filter, and lists the accounts', async () => {
+  it('counts each source and quick filter of Hộp thư, and lists its accounts', async () => {
     open('/inbox')
 
     expect(await sources().findByRole('link', { name: /Tất cả/ })).toHaveAttribute('aria-current', 'page')
-    expect(sources().getByRole('link', { name: /Tất cả/ })).toHaveTextContent('12')
+    expect(sources().getByRole('link', { name: /Tất cả/ })).toHaveTextContent('7')
     expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('7')
-    expect(sources().getByRole('link', { name: /Zalo/ })).toHaveTextContent('4')
-    expect(sources().getByRole('link', { name: /Messenger/ })).toHaveTextContent('cần đăng nhập lại')
-    expect(sources().getByRole('link', { name: /Cần trả lời/ })).toHaveTextContent('3')
-    expect(sources().getByRole('link', { name: /Có tệp/ })).toHaveTextContent('5')
+    expect(sources().queryByRole('link', { name: /Zalo|Messenger/ })).toBeNull()
+    expect(sources().getByRole('link', { name: /Cần trả lời/ })).toHaveTextContent('2')
+    expect(sources().getByRole('link', { name: /Có tệp/ })).toHaveTextContent('3')
     expect(sources().getByRole('link', { name: /Đã hẹn giờ/ })).toHaveTextContent('1')
     expect(sources().getByRole('link', { name: /Đang tạm ẩn/ })).toHaveTextContent('1')
     expect(sources().getByRole('link', { name: /an\.nguyen@gmail\.com/ })).toHaveAttribute('href', '/accounts/acc-gmail')
-    expect(sources().getByRole('link', { name: /\+84 9•• ••• 218/ })).toHaveTextContent('64%')
+    expect(sources().queryByRole('link', { name: /\+84 9•• ••• 218/ })).toBeNull()
     expect(sources().getByRole('link', { name: 'Thêm nguồn' })).toHaveAttribute('href', '/accounts?connect=new')
   })
 
@@ -118,22 +124,22 @@ describe('Hộp thư on desktop', () => {
     const { router } = open('/inbox')
     const user = userEvent.setup()
 
-    await user.click(await sources().findByRole('link', { name: /Zalo/ }))
-    expect(router.state.location.search).toBe('?source=zalo')
-    expect(rowTitles()).toEqual(['Nhóm chạy bộ Hồ Tây', 'Gia đình'])
-    expect(list().getByText('4 chưa đọc')).toBeInTheDocument()
-    expect(sources().getByRole('link', { name: /Zalo/ })).toHaveAttribute('aria-current', 'page')
+    await user.click(await sources().findByRole('link', { name: /Gmail/ }))
+    expect(router.state.location.search).toBe('?source=gmail')
+    expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương', 'Thu Trang', 'Điện lực Hà Nội'])
+    expect(list().getByText('7 chưa đọc')).toBeInTheDocument()
+    expect(sources().getByRole('link', { name: /Gmail/ })).toHaveAttribute('aria-current', 'page')
 
     const views = within(list().getByRole('group', { name: 'Lọc danh sách' }))
     await user.click(views.getByRole('button', { name: 'Chưa đọc' }))
-    expect(router.state.location.search).toBe('?source=zalo&view=unread')
-    expect(rowTitles()).toEqual(['Gia đình'])
+    expect(router.state.location.search).toBe('?source=gmail&view=unread')
+    expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương'])
     expect(views.getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
     expect(sources().getByRole('link', { name: /Chưa đọc/ })).toHaveAttribute('aria-current', 'page')
 
     await user.click(sources().getByRole('link', { name: /Đã hẹn giờ/ }))
-    expect(router.state.location.search).toBe('?source=zalo&view=scheduled')
-    expect(list().getByText('Không có cuộc trò chuyện nào')).toBeInTheDocument()
+    expect(router.state.location.search).toBe('?source=gmail&view=scheduled')
+    expect(rowTitles()).toEqual(['Thu Trang'])
 
     await user.click(sources().getByRole('link', { name: /Tất cả/ }))
     await user.click(sources().getByRole('link', { name: /Đang tạm ẩn/ }))
@@ -191,7 +197,7 @@ describe('Hộp thư on desktop', () => {
 
     await user.click(row(/Phòng khám/))
 
-    expect(await list().findByText('11 chưa đọc')).toBeInTheDocument()
+    expect(await list().findByText('6 chưa đọc')).toBeInTheDocument()
     expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('6')
     expect(within(row(/Phòng khám/)).queryByLabelText('Chưa đọc')).toBeNull()
   })
@@ -223,6 +229,6 @@ describe('Hộp thư on desktop', () => {
     }
 
     expect(router.state.location.pathname).toBe('/inbox/conv-1')
-    expect(rowTitles()).toHaveLength(7)
+    expect(rowTitles()).toHaveLength(4)
   })
 })

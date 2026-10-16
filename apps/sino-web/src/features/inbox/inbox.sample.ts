@@ -1,8 +1,12 @@
+import type { ProviderKind } from '@/shared/domain'
 import { clockFrom } from '@/shared/time/canvasClock'
-import type { ConversationDetail, ConversationItem, InboxData, Message } from './inbox.types'
+import type { ConversationDetail, ConversationItem, InboxCounts, InboxData, Message } from './inbox.types'
 
-/** The whole inbox at once: the frame and every conversation, as the server holds them before any paging or filter. */
-export type InboxSample = InboxData & { conversations: ConversationItem[] }
+/**
+ * The whole inbox at once: the frame and every conversation, as the server holds them before any paging or filter.
+ * `counts` covers both kinds; `countsByKind` is what `counts?kind=` answers for Tin nhắn and Hộp thư (f05c).
+ */
+export type InboxSample = InboxData & { conversations: ConversationItem[]; countsByKind: Record<ProviderKind, InboxCounts> }
 
 const base = {
   memberCount: null,
@@ -103,6 +107,34 @@ export function createInboxSample(now: Date): InboxSample {
       needsReply: true,
       scheduledSend: { at: at('2026-10-02T08:00:00+07:00'), failed: true },
     },
+    // The two chats the canvas added with Tin nhắn (f05c, CV-01).
+    {
+      ...base,
+      id: 'conv-10',
+      accountId: 'acc-zalo',
+      provider: 'zalo',
+      kind: 'CHAT',
+      title: 'Hà',
+      subject: null,
+      snippet: 'Chị ơi tối nay em qua lấy đồ nhé.',
+      lastMessageAt: at('2026-10-02T07:52:00+07:00'),
+      unreadCount: 1,
+    },
+    {
+      ...base,
+      id: 'conv-11',
+      accountId: 'acc-zalo',
+      provider: 'zalo',
+      kind: 'CHAT',
+      title: 'Nhóm sửa nhà',
+      subject: null,
+      memberCount: 4,
+      snippetFrom: 'Kiến trúc sư',
+      snippet: 'Em gửi lại bản vẽ tầng 2 đã chỉnh cầu thang.',
+      lastMessageAt: at('2026-10-01T19:30:00+07:00'),
+      unreadCount: 2,
+      hasAttachments: true,
+    },
     {
       ...base,
       id: 'conv-6',
@@ -177,21 +209,45 @@ export function createInboxSample(now: Date): InboxSample {
         sending: 'NOT_SUPPORTED',
       },
     ],
-    counts: {
-      unread: 12,
-      byProvider: [
-        { provider: 'gmail', unread: 7 },
-        { provider: 'zalo', unread: 4 },
-        { provider: 'messenger', unread: 1 },
-      ],
-      needsReply: 3,
-      withAttachments: 5,
-      scheduled: 1,
-      snoozed: 1,
-      // Hộp thư and Tin nhắn on the canvas navigation (f05c).
-      unreadByKind: { EMAIL: 7, CHAT: 5 },
-    },
+    counts: bothKinds(countsByKind),
+    countsByKind,
     conversations,
+  }
+}
+
+// Hộp thư and Tin nhắn as the canvas counts them (f05c, CV-01); the snoozed email is "Nhà sách Lumen".
+const unreadByKind = { EMAIL: 7, CHAT: 5 }
+const countsByKind: Record<ProviderKind, InboxCounts> = {
+  EMAIL: { unread: 7, byProvider: [{ provider: 'gmail', unread: 7 }], needsReply: 2, withAttachments: 3, scheduled: 1, snoozed: 1, unreadByKind },
+  CHAT: {
+    unread: 5,
+    byProvider: [
+      { provider: 'zalo', unread: 4 },
+      { provider: 'messenger', unread: 1 },
+    ],
+    needsReply: 1,
+    withAttachments: 2,
+    scheduled: 1,
+    snoozed: 0,
+    unreadByKind,
+  },
+}
+
+/** What `fetchInbox(kind)` answers from a sample: the counts of that kind, or of both without one. */
+export function frameOf({ generatedAt, providers, accounts, counts, countsByKind }: InboxSample, kind?: ProviderKind): InboxData {
+  return { generatedAt, providers, accounts, counts: kind ? countsByKind[kind] : counts }
+}
+
+/** The counts without `kind`: both screens added up, as the backend answers them. */
+function bothKinds({ EMAIL, CHAT }: Record<ProviderKind, InboxCounts>): InboxCounts {
+  return {
+    unread: EMAIL.unread + CHAT.unread,
+    byProvider: [...EMAIL.byProvider, ...CHAT.byProvider],
+    needsReply: EMAIL.needsReply + CHAT.needsReply,
+    withAttachments: EMAIL.withAttachments + CHAT.withAttachments,
+    scheduled: EMAIL.scheduled + CHAT.scheduled,
+    snoozed: EMAIL.snoozed + CHAT.snoozed,
+    unreadByKind,
   }
 }
 

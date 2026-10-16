@@ -2,6 +2,7 @@ import { Clock, Info } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
+import type { ProviderKind } from '@/shared/domain'
 import { providerNameOf } from '@/shared/format'
 import { useOnline } from '@/shared/lib/useOnline'
 import { useRealtimeDown } from '@/shared/realtime/useRealtimeDown'
@@ -20,32 +21,41 @@ import { failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unrea
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
 import { useNewMailNotice } from './useNewMailNotice'
+import { SCREENS, screenFrame } from './screen'
 
 /**
- * The Hộp thư screen (canvas `Inbox`): sources and filters, the conversation list, and an open email in the right
- * column. A chat is a page of its own from 1280px (canvas `Conversation`: chat and info column) and sits in the right
- * column on tablet. `/inbox/:conversationId` opens a conversation and marks it as read. Below 768px the list and an
- * open conversation are two screens (canvas `MobileInbox`, `MobileConversation`), each with its own header. The states
- * of `InboxState` (D-55): loading, first sync, cannot load, offline (above everything), no source yet (instead of it).
- * On the F05 API the server filters and pages the list; the frame (accounts, providers, counts) loads beside it.
- * `compose` (`/inbox/new`): the form of a new mail takes the place of an open conversation (f10-new-mail, D-191).
+ * Tin nhắn (`/messages`, chats; canvas `Messages`) and Hộp thư (`/inbox`, emails; canvas `Inbox`), one screen per kind
+ * of provider (f05c, D-300): sources and filters, the conversation list, and an open email in the right column. A chat
+ * is a page of its own from 1280px (canvas `Conversation`: chat and info column) and sits in the right column on tablet.
+ * `${path}/:conversationId` opens a conversation and marks it as read; one of the other kind moves to its own screen
+ * first (D-303). Below 768px the list and an open conversation are two screens (canvas `MobileMessages`, `MobileInbox`,
+ * `MobileConversation`), each with its own header. The states of `InboxState` (D-55): loading, first sync, cannot load,
+ * offline (above everything), no source yet (instead of it). On the F05 API the server filters and pages the list; the
+ * frame (accounts, providers, counts of the kind) loads beside it. `compose` (`/inbox/new`): the form of a new mail takes
+ * the place of an open conversation (f10-new-mail, D-191).
  */
-export function InboxPage({ compose = false }: { compose?: boolean }) {
+export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compose?: boolean }) {
+  const screen = SCREENS[kind]
   const { conversationId } = useParams()
-  const { inbox, receivedAt, error: frameError, failedAt: frameFailedAt, retry: retryFrame } = useInbox()
+  const { inbox: whole, receivedAt, error: frameError, failedAt: frameFailedAt, retry: retryFrame } = useInbox(kind)
+  // The providers and accounts of this screen's kind; the counts of the frame are already those of the kind.
+  const inbox = whole && screenFrame(whole, kind)
   const clock = useNow()
   // Data that arrives between two clock ticks is measured from its arrival, as in the top bar.
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const navigate = useNavigate()
   const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null)
-  const list = useConversationList(filter, now)
-  const notice = useNewMailNotice()
+  const list = useConversationList(kind, filter, now)
+  const notice = useNewMailNotice(inbox?.accounts.map((account) => account.id) ?? [])
   const opened = useConversation(
     conversationId,
     list.loaded.find((conversation) => conversation.id === conversationId),
   )
-  const { item, detail, notFound } = opened
+  const { item: found, detail, notFound } = opened
   const { mutate: update } = useUpdateConversation()
+  // A conversation of the other kind (an old link, D-303) moves to its screen before anything of it shows or is read.
+  const elsewhere = found && found.kind !== kind ? found : undefined
+  const item = elsewhere ? undefined : found
   // The address of another copy of a thread opens the thread under its own ID (f05b, D-183); it is read there.
   const canonicalId = item && item.id !== conversationId ? item.id : null
   const unreadOpen = item !== undefined && canonicalId === null && item.unreadCount > 0
@@ -66,12 +76,19 @@ export function InboxPage({ compose = false }: { compose?: boolean }) {
 
   useEffect(() => {
     if (canonicalId) {
-      navigate({ pathname: `/inbox/${canonicalId}`, search }, { replace: true })
+      navigate({ pathname: `${screen.path}/${canonicalId}`, search }, { replace: true })
     }
-  }, [canonicalId, search, navigate])
+  }, [canonicalId, screen.path, search, navigate])
 
-  if (inbox && inbox.accounts.length === 0) {
-    return <NoSources providers={inbox.providers} />
+  // The filter of this screen means nothing on the other one, so it is left behind.
+  useEffect(() => {
+    if (elsewhere) {
+      navigate({ pathname: `${SCREENS[elsewhere.kind].path}/${elsewhere.id}` }, { replace: true })
+    }
+  }, [elsewhere, navigate])
+
+  if (whole && whole.accounts.length === 0) {
+    return <NoSources providers={whole.providers} />
   }
 
   const nameOf = providerNameOf(inbox?.providers ?? [])
@@ -100,9 +117,10 @@ export function InboxPage({ compose = false }: { compose?: boolean }) {
   // Every account holding the open thread, the primary copy first (f05b, D-182).
   const threadAccounts = item && inbox ? item.accountIds.flatMap((id) => inbox.accounts.filter((entry) => entry.id === id)) : []
   const chat = item?.kind === 'CHAT' && account !== undefined
+  const back = { to: `${screen.path}${search}`, label: `Quay lại ${screen.title}` }
   const mobileHeader = item && (
     <MobilePageHeader
-      back={{ to: `/inbox${search}`, label: 'Quay lại Hộp thư' }}
+      back={back}
       title={item.title}
       subtitle={mobileThreadSubtitle(item, nameOf)}
       media={item.kind === 'CHAT' ? <ConversationAvatars item={item} members={detail?.members ?? null} /> : undefined}
@@ -159,6 +177,7 @@ export function InboxPage({ compose = false }: { compose?: boolean }) {
           <SourcesSkeleton loading={loading} className="hidden xl:block" />
         )}
         <ConversationList
+          screen={screen}
           conversations={conversations ?? []}
           unread={listMeta}
           total={inbox?.counts.unread ?? null}
@@ -186,7 +205,7 @@ export function InboxPage({ compose = false }: { compose?: boolean }) {
           </>
         ) : compose ? (
           <div className="flex min-h-0 min-w-0 flex-col">
-            <MobilePageHeader back={{ to: `/inbox${search}`, label: 'Quay lại Hộp thư' }} title="Thư mới" />
+            <MobilePageHeader back={back} title="Thư mới" />
             {inbox ? <NewMail accounts={inbox.accounts} search={search} /> : <ThreadSkeleton />}
           </div>
         ) : (
@@ -211,7 +230,7 @@ export function InboxPage({ compose = false }: { compose?: boolean }) {
                 <div className="flex flex-col items-center gap-3">
                   <p className="text-base">Không tìm thấy cuộc trò chuyện này.</p>
                   <Button asChild variant="secondary" size="sm">
-                    <Link to="/inbox">Về hộp thư</Link>
+                    <Link to={screen.path}>{`Về ${screen.title.toLowerCase()}`}</Link>
                   </Button>
                 </div>
               )}

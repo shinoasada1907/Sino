@@ -1,5 +1,5 @@
 // Turns the raw inbox data (instants, counts, codes) into the Vietnamese text of the Hộp thư screens.
-import type { AccountStatus } from '@/shared/domain'
+import type { AccountStatus, ProviderKind } from '@/shared/domain'
 import { formatCount, type ProviderNameOf } from '@/shared/format'
 import {
   calendarDaysBetween,
@@ -91,7 +91,7 @@ const LINKED_NAMES: Record<LinkedKind, string> = { TASK: 'Task', EVENT: 'Lịch 
  */
 export function rowFlag(item: ConversationItem, now: Date, timeZone?: string): RowFlag | null {
   if (item.scheduledSend?.failed) {
-    return { kind: 'SCHEDULE_FAILED', tone: 'err', text: 'Thư hẹn giờ không gửi được' }
+    return { kind: 'SCHEDULE_FAILED', tone: 'err', text: `${item.kind === 'CHAT' ? 'Tin' : 'Thư'} hẹn giờ không gửi được` }
   }
   if (item.snooze?.resurfacedAt) {
     return { kind: 'RESURFACED', tone: 'muted', text: `Hiện lại theo hẹn · ${dayTime(new Date(item.snooze.resurfacedAt), now, timeZone)}` }
@@ -500,7 +500,7 @@ export function arrivedRows(before: ReadonlySet<string> | null, ids: readonly st
   return { ids: fresh, slide: fresh.size > 0 && fresh.size <= MAX_SLIDE }
 }
 
-/** "2 thư mới" */
-export function newMailText(count: number): string {
-  return `${formatCount(count)} thư mới`
+/** "2 thư mới" on Hộp thư, "2 tin mới" on Tin nhắn (f05c). */
+export function newMailText(count: number, kind: ProviderKind = 'EMAIL'): string {
+  return `${formatCount(count)} ${kind === 'CHAT' ? 'tin' : 'thư'} mới`
 }

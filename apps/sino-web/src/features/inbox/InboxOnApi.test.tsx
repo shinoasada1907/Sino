@@ -114,7 +114,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     expect(list().getByText('1 chưa đọc')).toBeInTheDocument()
     expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('1')
     expect(within(list().getByRole('link', { name: /Trần Minh Anh/ })).getByLabelText('Chưa đọc')).toBeInTheDocument()
-    expect(asked).toEqual(['view=all'])
+    expect(asked).toEqual(['view=all&kind=email'])
   })
 
   it('asks the server for the view and the source the user picks', async () => {
@@ -127,7 +127,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
 
     expect(router.state.location.search).toBe('?source=gmail&view=unread')
     await vi.waitFor(() => expect(rowTitles()).toEqual(['Trần Minh Anh']))
-    expect(asked).toEqual(['view=all&provider=gmail', 'view=unread&provider=gmail'])
+    expect(asked).toEqual(['view=all&kind=email&provider=gmail', 'view=unread&kind=email&provider=gmail'])
   })
 
   it('keeps the filters and the rows that still match while another view loads', async () => {
@@ -191,7 +191,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     expect(await list().findByRole('link', { name: /Điện lực Hà Nội/ })).toBeInTheDocument()
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Ngân hàng ACB', 'Điện lực Hà Nội'])
     expect(list().queryByRole('button', { name: 'Tải thêm' })).toBeNull()
-    expect(asked).toEqual(['view=all', 'view=all&cursor=2'])
+    expect(asked).toEqual(['view=all&kind=email', 'view=all&kind=email&cursor=2'])
   })
 
   it('opens a conversation: reads it once, shows the start of its newest email, and says replying comes later', async () => {
@@ -242,7 +242,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     await user.click(sources().getByRole('link', { name: /Đã lưu trữ/ }))
     expect(await list().findByRole('link', { name: /Ngân hàng ACB/ })).toBeInTheDocument()
     // The list on screen did not load again; the archive view loaded when it was shown.
-    expect(asked).toEqual(['view=all', 'view=archived'])
+    expect(asked).toEqual(['view=all&kind=email', 'view=archived&kind=email'])
 
     await user.click(list().getByRole('link', { name: /Ngân hàng ACB/ }))
     await user.click(await thread().findByRole('button', { name: 'Bỏ lưu trữ' }))

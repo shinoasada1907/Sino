@@ -29,18 +29,18 @@ describe('a chat conversation', () => {
     vi.useRealTimers()
   })
 
-  it('heads the page with the group and a way back to the inbox', async () => {
-    open('/inbox/conv-2?view=unread')
+  it('heads the page with the group and a way back to Tin nhắn (f05c)', async () => {
+    open('/messages/conv-2?view=unread')
     const family = chat('Gia đình')
 
     expect(await family.findByRole('heading', { level: 1, name: 'Gia đình' })).toBeInTheDocument()
     expect(family.getByText('Zalo · nhóm 6 người · qua +84 9•• ••• 218')).toBeInTheDocument()
-    expect(family.getByRole('link', { name: 'Hộp thư' })).toHaveAttribute('href', '/inbox?view=unread')
+    expect(family.getByRole('link', { name: 'Tin nhắn' })).toHaveAttribute('href', '/messages?view=unread')
     expect(family.getByRole('button', { name: 'Mở trong Zalo' })).toBeInTheDocument()
   })
 
   it('shows the messages by day, the system line, the unread line and the state of own messages', async () => {
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const family = chat('Gia đình')
 
     expect(await family.findByText('Tuần sau ông bà lên chơi, mấy đứa sắp xếp về nhé.')).toBeInTheDocument()
@@ -63,7 +63,7 @@ describe('a chat conversation', () => {
   })
 
   it('lists the linked items, members, files and account in the info column', async () => {
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const user = userEvent.setup()
 
     expect(await info().findByRole('link', { name: /Mua bánh bông lan trứng muối cho bà/ })).toHaveTextContent(
@@ -85,7 +85,7 @@ describe('a chat conversation', () => {
   })
 
   it('counts the sections it has, and leaves out the ones the backend has nothing for', async () => {
-    open('/inbox/conv-4')
+    open('/messages/conv-4')
 
     expect(await chat('Lê Hoàng').findByText('Bản thiết kế cuối cậu xem chưa?')).toBeInTheDocument()
     expect(chat('Lê Hoàng').queryByText('Lê Hoàng', { selector: '[data-slot="bubble-name"]' })).toBeNull()
@@ -94,15 +94,15 @@ describe('a chat conversation', () => {
     expect(info().getByText('Tài khoản dùng')).toBeInTheDocument()
   })
 
-  it('reads the conversation, so the inbox counts one unread conversation less (D-70)', async () => {
-    open('/inbox')
+  it('reads the conversation, so Tin nhắn counts one unread conversation less (D-70)', async () => {
+    open('/messages')
     const user = userEvent.setup()
 
     await user.click(await list().findByRole('link', { name: /Gia đình/ }))
     expect(await chat('Gia đình').findByText('3 tin chưa đọc')).toBeInTheDocument()
-    await user.click(chat('Gia đình').getByRole('link', { name: 'Hộp thư' }))
+    await user.click(chat('Gia đình').getByRole('link', { name: 'Tin nhắn' }))
 
-    expect(await list().findByText('11 chưa đọc')).toBeInTheDocument()
+    expect(await list().findByText('4 chưa đọc')).toBeInTheDocument()
     expect(within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' })).getByRole('link', { name: /Zalo/ })).toHaveTextContent('3')
     expect(within(list().getByRole('link', { name: /Gia đình/ })).queryByText('tin chưa đọc', { exact: false })).toBeNull()
   })

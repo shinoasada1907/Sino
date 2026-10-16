@@ -1486,6 +1486,22 @@ Kiểm trên trình duyệt thật cần đăng nhập, nên lượt Chrome ch�
 - File cấu hình Vite phải nằm trong dự án. Đặt ngoài `apps/sino-web` thì Vite không tìm thấy `vite` và `@tailwindcss/vite`, vì Node tìm `node_modules` bắt đầu từ thư mục chứa file.
 - Nạp file env bằng `set -a; . file` hỏng với giá trị có dấu cách ("An Nguyễn"): shell tách thành một biến và một lệnh. Đọc từng dòng rồi `export "$line"` thì giữ nguyên giá trị.
 
+### 22.6 Hai màn, một component, khóa cache theo loại (FE-112)
+`InboxPage` vẫn là một component cho cả hai màn. Nó nhận `kind` (`CHAT` hoặc `EMAIL`) và lấy phần còn lại từ `SCREENS[kind]` trong `screen.ts`: đường gốc, tiêu đề, chữ của link quay lại. Router gắn `/messages` với `<InboxPage key="CHAT" kind="CHAT" />` và `/inbox` với `kind="EMAIL"`.
+
+```text
+/messages, /messages/:id -> InboxPage kind=CHAT  -> frame ['inbox','frame','CHAT']                counts?kind=chat
+                                                 -> list  ['inbox','list','CHAT',view,source]      ?kind=chat
+/inbox, /inbox/:id       -> InboxPage kind=EMAIL -> frame ['inbox','frame','EMAIL'], list ...EMAIL  ?kind=email
+/inbox/new               -> InboxPage kind=EMAIL compose
+```
+
+- **`key` trên element của route.** Hai route cùng vẽ `<InboxPage>` ở cùng chỗ, nên React giữ nguyên component và state khi chuyển từ màn này sang màn kia (bộ đếm "N thư mới", ref nhớ đã đọc). `key` khác nhau buộc React dựng lại từ đầu.
+- **Khóa cache có `kind`.** Frame và danh sách của hai màn không bao giờ lẫn nhau. Tiền tố `['inbox']` vẫn đứng đầu mọi khóa, nên realtime và màn Tài khoản đọc lại cả hai màn bằng một lời gọi `invalidateQueries({ queryKey: ['inbox'] })` như trước. Khi đọc một thư, `moveCounts` sửa số đếm của frame cùng loại; frame kia chỉ đổi `unreadByKind`.
+- **Tự chuyển màn.** Mở `/inbox/:id` mà dòng là chat thì `navigate(..., { replace: true })` sang `/messages/:id`. `replace` thay mục hiện tại trong lịch sử thay vì thêm một mục, nên Back quay về trang trước link, không bị kẹt giữa hai địa chỉ. Trong lúc chờ chuyển, trang không vẽ cuộc trò chuyện và không đánh dấu đã đọc; màn đúng làm việc đó một lần.
+
+Kiểm Chrome cần chat, mà backend chưa có provider chat nào. Vì vậy sau khi đăng nhập, một `window.fetch` tạm trong trang trả dữ liệu cho `/api/providers`, `/api/accounts`, `/api/conversations*`, giống `Fetch.fulfillRequest` qua CDP ở các lượt trước. Bản tạm được cài ngay trên trang đăng nhập: app chuyển trang phía client nên nó còn sống sau khi đăng nhập; tải lại trang là mất.
+
 ## 23. Ghi chú dạng sơ đồ (`fe-ui-diagram-notes`)
 
 ### 23.0 Bức tranh
@@ -1713,3 +1729,6 @@ Khối mới có chữ rỗng; vùng vẽ hiện chữ mờ "Khối mới". Tên
 140. Thêm mục "Tin nhắn" vào điều hướng phải sửa những file nào? Vì sao `Sidebar`, `Rail`, `TabBar` không phải sửa?
 141. Vì sao `useUnreadByKind` dùng lại khóa `['inbox-unread']` thay vì đặt một khóa mới?
 142. Vì sao file cấu hình Vite tạm phải nằm trong `apps/sino-web` mới chạy được?
+143. Vì sao route `/messages` và `/inbox` cần `key` khác nhau dù cùng vẽ `InboxPage`?
+144. Vì sao khóa cache vẫn bắt đầu bằng `['inbox']` sau khi có `kind`? Bỏ tiền tố đó thì realtime hỏng ở đâu?
+145. Tự chuyển từ `/inbox/:id` sang `/messages/:id` dùng `replace`. Nếu dùng `push` thì bấm Back sẽ ra sao?

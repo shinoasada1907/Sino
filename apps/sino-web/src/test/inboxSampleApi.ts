@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 import { applyChange, type ConversationChange } from '@/features/inbox/conversationChange'
 import { filterConversations, type InboxFilter } from '@/features/inbox/format'
 import type * as InboxApi from '@/features/inbox/inbox.api'
-import { createConversationSample, createInboxSample, type InboxSample } from '@/features/inbox/inbox.sample'
+import { createConversationSample, createInboxSample, frameOf, type InboxSample } from '@/features/inbox/inbox.sample'
 import { ApiError } from '@/shared/api/problem'
 import type { ProviderKind } from '@/shared/domain'
 
@@ -26,10 +26,7 @@ export function sampleInboxApi(api: typeof InboxApi): typeof InboxApi {
   return {
     ...api,
     fetchUnreadByKind: vi.fn(async () => api.unreadByKindOf(served().counts)),
-    fetchInbox: vi.fn(async (_kind?: ProviderKind) => {
-      const { generatedAt, providers, accounts, counts } = served()
-      return { generatedAt, providers, accounts, counts }
-    }),
+    fetchInbox: vi.fn(async (kind?: ProviderKind) => frameOf(served(), kind)),
     fetchConversations: vi.fn(async (filter: InboxFilter, _cursor: string | null, kind?: ProviderKind) => ({
       items: filterConversations(served().conversations, filter, new Date()).filter((item) => !kind || item.kind === kind),
       nextCursor: null,
