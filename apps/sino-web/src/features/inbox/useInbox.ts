@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router'
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, withOutbox, type InboxFilter } from './format'
-import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
-import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation } from './inbox.types'
+import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, sendMessage, updateConversation } from './inbox.api'
+import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation, UnreadByKind } from './inbox.types'
 import { LEAVE_FREELY, rememberSender, type NewMailDraft } from './newMail'
 
 /** Accounts, providers and counts of the inbox. */
@@ -37,9 +37,9 @@ export interface InboxQuery {
   retry: () => void
 }
 
-/** The unread conversations for the count of the navigation; undefined until it arrives. */
-export function useInboxUnread(): number | undefined {
-  const { data } = useQuery({ queryKey: INBOX_UNREAD_QUERY_KEY, queryFn: fetchUnreadCount, staleTime: Infinity })
+/** The unread conversations of Tin nhắn and Hộp thư for the navigation (f05c); undefined until they arrive. */
+export function useUnreadByKind(): UnreadByKind | undefined {
+  const { data } = useQuery({ queryKey: INBOX_UNREAD_QUERY_KEY, queryFn: fetchUnreadByKind, staleTime: Infinity })
   return data
 }
 

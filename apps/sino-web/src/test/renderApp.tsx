@@ -13,6 +13,7 @@ import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
 import type { Me } from '@/features/auth/auth.api'
 import { ME_QUERY_KEY } from '@/features/auth/useAuth'
 import { filterConversations } from '@/features/inbox/format'
+import { unreadByKindOf } from '@/features/inbox/inbox.api'
 import { createInboxSample, type InboxSample } from '@/features/inbox/inbox.sample'
 import { conversationsKey, INBOX_QUERY_KEY, INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
 import { VIEWS } from '@/features/inbox/useInboxFilter'
@@ -78,7 +79,7 @@ export function renderApp(
 
 function seedInbox(queryClient: QueryClient, { conversations, ...frame }: InboxSample) {
   queryClient.setQueryData(INBOX_QUERY_KEY, frame)
-  queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, frame.counts.unread)
+  queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, unreadByKindOf(frame.counts))
   for (const source of [null, ...frame.providers.map((provider) => provider.type)]) {
     for (const view of VIEWS) {
       const items = filterConversations(conversations, { view, source }, new Date())

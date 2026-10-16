@@ -1,4 +1,4 @@
-import { act, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
@@ -9,10 +9,10 @@ import { createShellSample } from './shell.sample'
 import type { ShellData } from './shell.types'
 import { SHELL_QUERY_KEY } from './useShellData'
 
-// The inbox count of the navigation comes from the inbox (D-93), not from the shell data.
-function inboxWithUnread(unread: number) {
+// The counts of Tin nhắn and Hộp thư come from the inbox counts (D-93, f05c), not from the shell data.
+function inboxWithUnread(email: number, chat: number) {
   const inbox = createInboxSample(new Date())
-  return { ...inbox, counts: { ...inbox.counts, unread } }
+  return { ...inbox, counts: { ...inbox.counts, unread: email + chat, unreadByKind: { EMAIL: email, CHAT: chat } } }
 }
 
 function shellWith(change: (shell: ShellData) => void): ShellData {
@@ -29,6 +29,7 @@ describe('sidebar (desktop)', () => {
 
     const expected: [string | RegExp, string][] = [
       [/^Tổng quan/, '/overview'],
+      [/^Tin nhắn/, '/messages'],
       [/^Hộp thư/, '/inbox'],
       ['Lịch', '/calendar'],
       [/^Việc cần làm/, '/tasks'],
@@ -43,6 +44,8 @@ describe('sidebar (desktop)', () => {
     }
     expect(sidebar.getByText('KẾ HOẠCH')).toBeInTheDocument()
     expect(sidebar.getByText('DANH TÍNH')).toBeInTheDocument()
+    // Tin nhắn comes before Hộp thư, right after Tổng quan (f05c, D-300).
+    expect(sidebar.getAllByRole('link').slice(0, 3).map((link) => link.getAttribute('href'))).toEqual(['/overview', '/messages', '/inbox'])
   })
 
   it('marks only the open screen as current', async () => {
@@ -61,10 +64,11 @@ describe('sidebar (desktop)', () => {
       vi.setSystemTime(CANVAS_NOW)
       const tasks = createTasksSample(new Date())
       renderApp('/overview', {
-        inbox: inboxWithUnread(5),
+        inbox: inboxWithUnread(5, 3),
         tasks: { ...tasks, tasks: tasks.tasks.filter((task) => task.id !== 'task-bill') },
         shell: shellWith((s) => {
           s.navCounts.inboxUnread = 99
+          s.navCounts.messagesUnread = 99
           s.navCounts.tasksDue = 7
           s.owner.displayName = 'Bình Trần'
           s.accountCount = 2
@@ -73,6 +77,7 @@ describe('sidebar (desktop)', () => {
       const sidebar = within(shellPart('sidebar'))
 
       expect(await sidebar.findByRole('link', { name: 'Hộp thư, 5 chưa đọc' })).toBeInTheDocument()
+      expect(sidebar.getByRole('link', { name: 'Tin nhắn, 3 chưa đọc' })).toBeInTheDocument()
       // The sample has three due tasks, one of them the late bill.
       expect(sidebar.getByRole('link', { name: 'Việc cần làm, 2 tới hạn' })).toBeInTheDocument()
       expect(sidebar.getByText('Bình Trần')).toBeInTheDocument()
@@ -83,9 +88,20 @@ describe('sidebar (desktop)', () => {
   })
 
   it('shows no count when it is zero', async () => {
-    renderApp('/overview', { inbox: inboxWithUnread(0), shell: shellWith((s) => (s.navCounts.inboxUnread = 0)) })
+    renderApp('/overview', { inbox: inboxWithUnread(0, 0), shell: shellWith((s) => (s.navCounts.inboxUnread = 0)) })
+    const sidebar = within(shellPart('sidebar'))
 
-    expect(await within(shellPart('sidebar')).findByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
+    expect(await sidebar.findByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
+    expect(sidebar.getByRole('link', { name: 'Tin nhắn' })).toBeInTheDocument()
+  })
+
+  it('gives Hộp thư every unread and Tin nhắn no number when the backend does not count by kind (spec web-app-shell)', async () => {
+    const inbox = createInboxSample(new Date())
+    renderApp('/overview', { inbox: { ...inbox, counts: { ...inbox.counts, unread: 12, unreadByKind: null } } })
+    const sidebar = within(shellPart('sidebar'))
+
+    expect(await sidebar.findByRole('link', { name: 'Hộp thư, 12 chưa đọc' })).toBeInTheDocument()
+    expect(sidebar.getByRole('link', { name: 'Tin nhắn' })).toBeInTheDocument()
   })
 })
 
@@ -94,7 +110,8 @@ describe('rail (tablet)', () => {
     renderApp('/overview')
     const rail = within(shellPart('rail'))
 
-    expect(await rail.findByRole('link', { name: 'Hộp thư, 12 chưa đọc' })).toHaveAttribute('href', '/inbox')
+    expect(await rail.findByRole('link', { name: 'Hộp thư, 7 chưa đọc' })).toHaveAttribute('href', '/inbox')
+    expect(rail.getByRole('link', { name: 'Tin nhắn, 5 chưa đọc' })).toHaveAttribute('href', '/messages')
     expect(rail.getByRole('link', { name: 'Việc cần làm, 1 quá hạn' })).toHaveAttribute('href', '/tasks')
     expect(rail.getByRole('link', { name: 'Tài khoản, 1 cần xử lý' })).toHaveAttribute('href', '/accounts')
     expect(rail.getByRole('link', { name: 'Lịch' })).toHaveAttribute('href', '/calendar')
@@ -103,31 +120,43 @@ describe('rail (tablet)', () => {
 
   it('says nothing extra when nothing needs attention', async () => {
     renderApp('/overview', {
-      inbox: inboxWithUnread(0),
+      inbox: inboxWithUnread(0, 0),
       tasks: { ...createTasksSample(new Date()), tasks: [] },
-      shell: shellWith((s) => (s.navCounts = { inboxUnread: 0, tasksDue: 0, tasksOverdue: 0, accountsNeedingAction: 0, registrationsNew: 0 })),
+      shell: shellWith(
+        (s) => (s.navCounts = { messagesUnread: 0, inboxUnread: 0, tasksDue: 0, tasksOverdue: 0, accountsNeedingAction: 0, registrationsNew: 0 }),
+      ),
     })
     const rail = within(shellPart('rail'))
     const tabbar = within(shellPart('tabbar'))
 
     expect(await rail.findByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
+    expect(rail.getByRole('link', { name: 'Tin nhắn' })).toBeInTheDocument()
     expect(rail.getByRole('link', { name: 'Việc cần làm' })).toBeInTheDocument()
     expect(tabbar.getByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
+    expect(tabbar.getByRole('link', { name: 'Tin nhắn' })).toBeInTheDocument()
     expect(tabbar.getByRole('link', { name: 'Việc' })).toBeInTheDocument()
   })
 })
 
 describe('tab bar (mobile)', () => {
-  it('has the five mobile tabs, with the unread count on Hộp thư', async () => {
+  it('has the five mobile tabs of the canvas, with the unread of Tin nhắn and Hộp thư (f05c, D-301)', async () => {
     renderApp('/overview')
     const tabbar = within(shellPart('tabbar'))
 
-    expect(await tabbar.findByRole('link', { name: 'Hộp thư, 12 chưa đọc' })).toHaveAttribute('href', '/inbox')
+    expect(await tabbar.findByRole('link', { name: 'Hộp thư, 7 chưa đọc' })).toHaveAttribute('href', '/inbox')
+    expect(tabbar.getByRole('link', { name: 'Tin nhắn, 5 chưa đọc' })).toHaveAttribute('href', '/messages')
     expect(tabbar.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page')
-    expect(tabbar.getByRole('link', { name: 'Lịch' })).toHaveAttribute('href', '/calendar')
     expect(tabbar.getByRole('link', { name: 'Việc, 1 quá hạn' })).toHaveAttribute('href', '/tasks')
     expect(tabbar.getByRole('link', { name: 'Thêm' })).toHaveAttribute('href', '/more')
-    expect(tabbar.getAllByRole('link')).toHaveLength(5)
+    expect(tabbar.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/overview', '/messages', '/inbox', '/tasks', '/more'])
+  })
+
+  it('lists Lịch first among the screens behind Thêm', async () => {
+    renderApp('/more')
+    const others = within(await screen.findByRole('navigation', { name: 'Mục khác' }))
+
+    expect(others.getAllByRole('link')[0]).toHaveAttribute('href', '/calendar')
+    expect(others.getAllByRole('link')[0]).toHaveAccessibleName('Lịch')
   })
 })
 

@@ -16,7 +16,8 @@ describe('inbox sample data', () => {
     expect(inbox.counts.byProvider.map(({ provider, unread }) => [provider, unread])).toEqual(
       overview.bySource.map(({ provider, unreadCount }) => [provider, unreadCount]),
     )
-    expect(createShellSample(now).navCounts.inboxUnread).toBe(inbox.counts.unread)
+    expect(createShellSample(now).navCounts.inboxUnread).toBe(inbox.counts.unreadByKind?.EMAIL)
+    expect(createShellSample(now).navCounts.messagesUnread).toBe(inbox.counts.unreadByKind?.CHAT)
     expect(inbox.counts.needsReply).toBe(overview.awaitingReplyCount)
   })
 

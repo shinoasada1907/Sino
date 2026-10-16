@@ -100,6 +100,7 @@ describe('the owner menu and the end of a session', () => {
     expect(screen.getByText('3 tài khoản · 1 cần xử lý')).toBeInTheDocument()
     const others = within(screen.getByRole('navigation', { name: 'Mục khác' }))
     expect(others.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
+      '/calendar',
       '/notes',
       '/accounts',
       '/services',

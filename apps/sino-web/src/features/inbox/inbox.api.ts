@@ -224,15 +224,14 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
   }
 }
 
-/** `GET /api/conversations/counts`, the unread conversations only: the count of the navigation (D-93). */
-export async function fetchUnreadCount(): Promise<number> {
-  return (await api.get<CountsResponse>('/api/conversations/counts')).unread
+/** The numbers of the navigation from the counts: a backend before f05c tells only the total (spec web-app-shell). */
+export function unreadByKindOf({ unread, unreadByKind }: { unread: number; unreadByKind?: Record<ProviderKind, number> | null }): UnreadByKind {
+  return unreadByKind ?? { EMAIL: unread, CHAT: null }
 }
 
-/** `GET /api/conversations/counts`: the unread of Tin nhắn and Hộp thư for the navigation (f05c, spec web-app-shell). */
+/** `GET /api/conversations/counts`: the unread of Tin nhắn and Hộp thư for the navigation (D-93, f05c). */
 export async function fetchUnreadByKind(): Promise<UnreadByKind> {
-  const { unread, unreadByKind } = await api.get<CountsResponse>('/api/conversations/counts')
-  return unreadByKind ?? { EMAIL: unread, CHAT: null }
+  return unreadByKindOf(await api.get<CountsResponse>('/api/conversations/counts'))
 }
 
 /** `GET /api/accounts`, `GET /api/providers` and `GET /api/conversations/counts`, the counts of one kind or of both. */

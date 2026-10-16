@@ -3,6 +3,8 @@ import type { Instant } from '@/shared/domain'
 export type { Instant } from '@/shared/domain'
 
 export interface NavCounts {
+  /** Unread chats; null when the backend cannot count them apart from email (f05c). */
+  messagesUnread: number | null
   inboxUnread: number
   /** Tasks that are due: late, or due today (D-83). */
   tasksDue: number

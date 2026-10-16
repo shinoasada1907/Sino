@@ -1467,6 +1467,25 @@ Bẫy: `useQuery({ queryFn: fetchInbox })` truyền cho hàm một đối tượ
 ### 22.4 Cập nhật trước khi server trả lời phải giữ mọi số khớp nhau
 Đọc một thư thì `countsAfter` trừ ngay số chưa đọc, số theo nguồn, số cần trả lời, trước khi server trả lời (optimistic update). Thêm `unreadByKind` mà không sửa hàm này thì sau khi đọc, tổng giảm còn số của loại vẫn như cũ. Test viết trước bắt đúng lỗi đó (đỏ: `{ EMAIL: 3, CHAT: 2 }` thay vì `{ EMAIL: 2, CHAT: 2 }`). Loại của một dòng không bao giờ đổi, nên chỉ cần cộng trừ vào `unreadByKind[after.kind]`.
 
+### 22.5 Điều hướng: một bảng dữ liệu, ba cách vẽ (FE-111)
+Thanh bên, rail và tab bar không viết cứng từng mục: cả ba đọc `NAV_ITEMS` và `TAB_ITEMS` trong `navItems.ts`. Thêm "Tin nhắn" là thêm một dòng vào bảng. Thanh bên hiện chữ và số; rail chỉ có icon, nên tên đọc được của link thành "Tin nhắn, 5 chưa đọc" (`aria-label`); tab bar hiện số nhỏ trên icon. Lịch rời tab bar bằng cách bỏ khỏi `TAB_ITEMS` và thêm `/calendar` vào `MORE_PATHS`, nhờ đó tab "Thêm" sáng khi đang ở Lịch.
+
+```text
+navItems.ts  NAV_ITEMS --+--> Sidebar (>= 1280px)   chữ + số
+                         +--> Rail (768-1279px)     icon + aria-label "Tin nhắn, 5 chưa đọc"
+             TAB_ITEMS -----> TabBar (< 768px)      icon + chữ + số nhỏ
+             MORE_PATHS ----> tab "Thêm" sáng ở /calendar, /notes, /accounts...
+```
+
+Số của hai mục đến từ một request: `useUnreadByKind` đọc `GET /api/conversations/counts` một lần, lấy `CHAT` cho Tin nhắn và `EMAIL` cho Hộp thư. Hook giữ nguyên khóa cache `['inbox-unread']` của số Hộp thư cũ, nên sự kiện realtime vẫn làm mới số mà không phải sửa `useEventStream`.
+
+Số `null` (backend chưa đếm theo loại) và số 0 cùng không hiện: `badgeOf` viết `(badge && counts?.[badge.key]) ?? 0`. `??` chỉ thay `null` và `undefined`, nên số 0 vẫn là 0.
+
+Kiểm trên trình duyệt thật cần đăng nhập, nên lượt Chrome chạy jar backend của một worktree tạm ở cổng 8091 với PostgreSQL 18 dùng một lần trong Docker, và Vite ở cổng 5174 với proxy trỏ vào 8091 (một file cấu hình tạm gộp cấu hình gốc bằng `mergeConfig`). Database thật và backend IntelliJ ở 8080 không bị đụng. Hai bài học nhỏ:
+
+- File cấu hình Vite phải nằm trong dự án. Đặt ngoài `apps/sino-web` thì Vite không tìm thấy `vite` và `@tailwindcss/vite`, vì Node tìm `node_modules` bắt đầu từ thư mục chứa file.
+- Nạp file env bằng `set -a; . file` hỏng với giá trị có dấu cách ("An Nguyễn"): shell tách thành một biến và một lệnh. Đọc từng dòng rồi `export "$line"` thì giữ nguyên giá trị.
+
 ## 23. Ghi chú dạng sơ đồ (`fe-ui-diagram-notes`)
 
 ### 23.0 Bức tranh
@@ -1691,3 +1710,6 @@ Khối mới có chữ rỗng; vùng vẽ hiện chữ mờ "Khối mới". Tên
 137. Vì sao Tin nhắn nhận `null` chứ không nhận `0` khi backend chưa có `unreadByKind`?
 138. Vì sao `[...].map(...)` làm `kind: 'TASK'` thành `string`, còn khi mảng đứng thẳng trong `notes: NoteItem[]` thì không? Sửa thế nào mà không phải viết `as const` ở từng chỗ?
 139. Vì sao các quy tắc của sơ đồ (không tự nối, một cặp một đường, xóa khối thì xóa đường của nó) nằm trong hàm thuần `diagram.ts` chứ không nằm trong component vẽ? Vì sao hàm trả lại đúng đối tượng cũ khi không đổi gì?
+140. Thêm mục "Tin nhắn" vào điều hướng phải sửa những file nào? Vì sao `Sidebar`, `Rail`, `TabBar` không phải sửa?
+141. Vì sao `useUnreadByKind` dùng lại khóa `['inbox-unread']` thay vì đặt một khóa mới?
+142. Vì sao file cấu hình Vite tạm phải nằm trong `apps/sino-web` mới chạy được?

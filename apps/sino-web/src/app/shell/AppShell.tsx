@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useMatches } from 'react-router'
-import { useInboxUnread } from '@/features/inbox/useInbox'
+import { useUnreadByKind } from '@/features/inbox/useInbox'
 import { navCountsOf } from '@/features/tasks/format'
 import { useTasks } from '@/features/tasks/useTasks'
 import { useNow } from '@/shared/time/useNow'
@@ -23,15 +23,15 @@ export interface ShellHandle {
 export function AppShell() {
   useEventStream()
   const { shell: sample, receivedAt } = useShellData()
-  // The inbox count is the real one (D-93), so that new mail changes it; the task counts come from the task list
-  // (D-83, FE-70), so every change of a task shows on the navigation; the other counts are still sample data.
-  const inboxUnread = useInboxUnread()
+  // The counts of Tin nhắn and Hộp thư are the real ones (D-93, f05c), so that new mail changes them; the task counts come
+  // from the task list (D-83, FE-70), so every change of a task shows on the navigation; the other counts are still sample data.
+  const unread = useUnreadByKind()
   const { tasks } = useTasks()
   // Ticks every minute, so a task due at noon counts as late once noon has passed.
   const now = useNow()
   const navCounts = sample && {
     ...sample.navCounts,
-    ...(inboxUnread === undefined ? {} : { inboxUnread }),
+    ...(unread === undefined ? {} : { messagesUnread: unread.CHAT, inboxUnread: unread.EMAIL }),
     ...(tasks === undefined ? {} : navCountsOf(tasks, now)),
   }
   const shell = sample && navCounts && { ...sample, navCounts }
