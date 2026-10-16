@@ -1,8 +1,8 @@
 import { onlineManager } from '@tanstack/react-query'
-import { Inbox, RotateCw, TriangleAlert, Unplug, WifiOff } from 'lucide-react'
+import { Inbox, MessagesSquare, RotateCw, TriangleAlert, Unplug, WifiOff, type LucideIcon } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router'
-import type { ProviderInfo } from '@/shared/domain'
+import type { ProviderInfo, ProviderKind } from '@/shared/domain'
 import { providerDescription } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { formatClock } from '@/shared/time/local'
@@ -11,6 +11,7 @@ import { Progress } from '@/shared/ui/progress'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
+import type { InboxScreen } from '../screen'
 
 // The states of the canvas `InboxState` (D-55): loading, first sync, cannot load, offline, no source yet.
 
@@ -178,43 +179,68 @@ export function RealtimeBanner({ state }: { state: 'connecting' | 'closed' }) {
   )
 }
 
-/** Canvas `.empty-hero` "Hộp thư đang trống.": one line per provider, each opening the connect wizard. */
-export function NoSources({ providers }: { providers: ProviderInfo[] }) {
+const EMPTY: Record<ProviderKind, { label: string; text: string; icon: LucideIcon }> = {
+  EMAIL: {
+    label: 'HỘP THƯ · CHƯA CÓ NGUỒN',
+    text: 'Kết nối một tài khoản email để thư bắt đầu về đây. Sino chỉ đọc qua quyền bạn cấp, và bạn ngắt kết nối được bất cứ lúc nào.',
+    icon: Inbox,
+  },
+  CHAT: {
+    label: 'TIN NHẮN · CHƯA CÓ NGUỒN',
+    text: 'Kết nối một tài khoản nhắn tin để các cuộc trò chuyện bắt đầu về đây. Sino chỉ đọc qua quyền bạn cấp, và bạn ngắt kết nối được bất cứ lúc nào.',
+    icon: MessagesSquare,
+  },
+}
+
+/**
+ * Canvas `.empty-hero` of `InboxState` for a screen with no account of its kind (D-305): one line per provider of the
+ * kind, each opening the connect wizard, or a single "Kết nối tài khoản" while the catalog has none.
+ */
+export function NoSources({ screen, providers }: { screen: InboxScreen; providers: ProviderInfo[] }) {
+  const empty = EMPTY[screen.kind]
+  const Icon = empty.icon
+  // Without a provider to list, the one button sits under the text, in a single column as wide as the text column.
+  const none = providers.length === 0
   return (
     <div className="grid h-full min-h-0 place-items-center overflow-auto">
-      <div className="grid max-w-260 items-center gap-10 px-4 py-12 md:px-16 md:py-18 lg:grid-cols-2 lg:gap-16">
+      <div className={cn('grid items-center gap-10 px-4 py-12 md:px-16 md:py-18', none ? 'max-w-154' : 'max-w-260 lg:grid-cols-2 lg:gap-16')}>
         <div className="flex flex-col gap-5">
           <div aria-hidden="true" className="relative h-26 w-33">
             <span className="absolute inset-[0_24px_16px_0] rounded-[18px] border border-dashed border-border-strong" />
             <span className="absolute top-4.5 right-0 bottom-0 left-5 rounded-2xl border bg-raised" />
             <span className="absolute top-10 left-13 grid size-11 place-items-center rounded-xl border border-border-strong bg-surface text-foreground">
-              <Inbox className="size-5" strokeWidth={1.6} />
+              <Icon className="size-5" strokeWidth={1.6} />
             </span>
           </div>
-          <Spec>HỘP THƯ · CHƯA CÓ NGUỒN</Spec>
-          <h1 className="text-[32px] leading-10 font-bold tracking-[-0.028em] md:text-[40px] md:leading-12">Hộp thư đang trống.</h1>
-          <p className="text-base text-muted-foreground">
-            Kết nối một tài khoản để thư và tin nhắn bắt đầu về đây. Sino chỉ đọc qua quyền bạn cấp, và bạn ngắt kết nối được bất cứ lúc nào.
-          </p>
+          <Spec>{empty.label}</Spec>
+          <h1 className="text-[32px] leading-10 font-bold tracking-[-0.028em] md:text-[40px] md:leading-12">{screen.title} đang trống.</h1>
+          <p className="text-base text-muted-foreground">{empty.text}</p>
+          {none && (
+            <Button asChild variant="primary" className="self-start">
+              <Link to="/accounts?connect=new">Kết nối tài khoản</Link>
+            </Button>
+          )}
         </div>
-        <ul className="flex flex-col gap-2.5">
-          {providers.map((provider, index) => (
-            <li key={provider.type} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-md border bg-surface px-4 py-3.5">
-              <span className="grid size-10 place-items-center rounded-xl border bg-raised text-foreground">
-                <ProviderIcon provider={provider.type} className="size-5" />
-              </span>
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-sm font-semibold">{provider.displayName}</span>
-                <span className="text-sm text-muted-foreground">{providerDescription(provider.type)}</span>
-              </span>
-              <Button asChild variant={index === 0 ? 'primary' : 'secondary'} size="sm">
-                <Link to="/accounts?connect=new" aria-label={`Kết nối ${provider.displayName}`}>
-                  Kết nối
-                </Link>
-              </Button>
-            </li>
-          ))}
-        </ul>
+        {!none && (
+          <ul className="flex flex-col gap-2.5">
+            {providers.map((provider, index) => (
+              <li key={provider.type} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-md border bg-surface px-4 py-3.5">
+                <span className="grid size-10 place-items-center rounded-xl border bg-raised text-foreground">
+                  <ProviderIcon provider={provider.type} className="size-5" />
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-sm font-semibold">{provider.displayName}</span>
+                  <span className="text-sm text-muted-foreground">{providerDescription(provider.type)}</span>
+                </span>
+                <Button asChild variant={index === 0 ? 'primary' : 'secondary'} size="sm">
+                  <Link to="/accounts?connect=new" aria-label={`Kết nối ${provider.displayName}`}>
+                    Kết nối
+                  </Link>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )

@@ -95,6 +95,21 @@ describe('the first import after connecting, on the backend API (FE-51)', () => 
     expect(wizard().getByRole('link', { name: 'Mở hộp thư' })).toHaveAttribute('href', '/inbox')
   })
 
+  it('sends a chat account to Tin nhắn once its import is done (f05c, D-305)', async () => {
+    backend()
+    server.use(
+      http.get('/api/accounts', () => HttpResponse.json([{ ...API_ACCOUNTS[0], provider: 'zalo', address: 'An Nguyễn · Zalo' }])),
+      http.get('/api/providers', () => HttpResponse.json([...API_PROVIDERS, { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: ['READ_MESSAGES'] }])),
+    )
+    backFromGoogle()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Bắt đầu đồng bộ' }))
+
+    expect(await wizard().findByText('Sino đã nhập xong tin nhắn của tài khoản này. Mở Tin nhắn để đọc.', {}, { timeout: 4000 })).toBeInTheDocument()
+    expect(wizard().getByRole('link', { name: 'Mở Tin nhắn' })).toHaveAttribute('href', '/messages')
+  })
+
   it('says why an import stopped, and goes on with it on "Thử lại"', async () => {
     const asked = backend({ statuses: [failed('RATE_LIMITED'), RUNNING] })
     backFromGoogle()

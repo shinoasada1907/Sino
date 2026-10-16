@@ -72,6 +72,17 @@ describe('coming back from the provider', () => {
     expect(wizard().getByText('Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.')).toBeInTheDocument()
   })
 
+  it('opens Tin nhắn from step 5 of a chat account (f05c, D-305)', async () => {
+    open('/accounts?connected=acc-zalo')
+    const user = userEvent.setup()
+    await screen.findByRole('dialog', { name: 'Tùy chọn đồng bộ' })
+    await user.click(wizard().getByRole('button', { name: 'Bắt đầu đồng bộ' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Hoàn tất' })).toBeInTheDocument()
+    expect(wizard().getByRole('link', { name: 'Mở Tin nhắn' })).toHaveAttribute('href', '/messages')
+    expect(wizard().queryByRole('link', { name: 'Mở hộp thư' })).toBeNull()
+  })
+
   it('goes back to the provider step to connect one more account', async () => {
     open('/accounts?connected=acc-gmail')
     const user = userEvent.setup()

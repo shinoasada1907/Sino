@@ -1,6 +1,8 @@
 import { Check, ChevronDown, Lock, Plus, TriangleAlert } from 'lucide-react'
 import { useId } from 'react'
 import { Link } from 'react-router'
+import { kindOfProvider, SCREENS } from '@/features/inbox/screen'
+import type { ProviderKind } from '@/shared/domain'
 import { providerDescription, type ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { AccountAvatar } from '@/shared/ui/account-avatar'
@@ -28,6 +30,9 @@ import {
 import { DEFAULT_SYNC_OPTIONS, type ConnectableProvider, type InitialSyncStatus, type SyncEstimate, type SyncOptions, type SyncRange } from '../connect.types'
 import { isMail, scopeLabel } from '../format'
 import { useConnectProviders, useStartConnect, useStartInitialSync, useSyncEstimate } from '../useConnect'
+
+// The button of step 5 opens the screen of the account's kind (f05c, D-305).
+const OPEN_SCREEN: Record<ProviderKind, string> = { EMAIL: 'Mở hộp thư', CHAT: 'Mở Tin nhắn' }
 
 /**
  * Where the wizard is. Steps 1-3 happen before leaving for the provider (`accountId` is set when an expired account
@@ -80,6 +85,7 @@ export function ConnectWizard({
     const wanted = beforeSignIn ? state.provider : (account?.provider ?? null)
     const provider = providers.find((item) => item.type === wanted) ?? (beforeSignIn ? providers.find((item) => item.connectable) : undefined)
     const type = provider?.type ?? wanted ?? ''
+    const kind = kindOfProvider(providers, type)
     const identity = identityName(type, provider?.displayName ?? nameOf(type))
     const meta = wizardStep(state.step, identity)
     const canBack = state.step === 3 || (state.step === 2 && state.accountId === null)
@@ -147,6 +153,7 @@ export function ConnectWizard({
               account={account}
               status={account.firstImport ?? undefined}
               providerName={nameOf(account.provider)}
+              openLabel={OPEN_SCREEN[kind]}
               startFailure={startFailure}
               busy={startSync.isPending}
               onRetry={() =>
@@ -175,7 +182,7 @@ export function ConnectWizard({
             )}
             {state.step === 5 && (
               <Button asChild variant="primary">
-                <Link to="/inbox">Mở hộp thư</Link>
+                <Link to={SCREENS[kind].path}>{OPEN_SCREEN[kind]}</Link>
               </Button>
             )}
           </div>
@@ -422,6 +429,7 @@ function Done({
   account,
   status,
   providerName,
+  openLabel,
   startFailure,
   busy,
   onRetry,
@@ -431,6 +439,8 @@ function Done({
   account: AccountItem
   status: InitialSyncStatus | undefined
   providerName: string
+  /** The button that opens the screen of the account's kind. */
+  openLabel: string
   /** Why trying again could not start. */
   startFailure: string | null
   busy: boolean
@@ -454,7 +464,7 @@ function Done({
         <h3 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">Đã kết nối {account.address}</h3>
         <p className="text-sm text-muted-foreground">
           {done
-            ? `Sino đã nhập xong ${noun} của tài khoản này. Mở hộp thư để đọc.`
+            ? `Sino đã nhập xong ${noun} của tài khoản này. ${openLabel} để đọc.`
             : stopped
               ? `Lần nhập ${noun} đầu tiên đã dừng.`
               : 'Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.'}

@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router'
+import { SCREENS } from '@/features/inbox/screen'
 import { cn } from '@/shared/lib/utils'
 import { formatWhen } from '@/shared/time/local'
 import { Button } from '@/shared/ui/button'
@@ -8,7 +9,10 @@ import { awaitingText, conversationContext, sourceShares, type ProviderNameOf } 
 import type { InboxConversation, InboxSummary } from '../overview.types'
 import { Card, Hairline, NoData, Spec } from './Card'
 
-// Canvas `Dashboard` "Hộp thư hợp nhất"; on mobile two conversations and a full-width button (`MobileDashboard`).
+// Canvas `Dashboard` "Hộp thư hợp nhất"; on mobile two conversations and two buttons side by side (`MobileDashboard`).
+// The card counts both kinds; its buttons open each screen (f05c, D-305).
+const OPEN = [SCREENS.CHAT, SCREENS.EMAIL]
+
 export function InboxCard({
   inbox,
   now,
@@ -70,16 +74,24 @@ export function InboxCard({
             </div>
           ))}
         </div>
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/inbox">
-            Mở hộp thư
-            <ChevronRight strokeWidth={1.6} />
-          </Link>
-        </Button>
+        <div className="flex flex-col items-end gap-0.5">
+          {OPEN.map((screen) => (
+            <Button key={screen.kind} asChild variant="ghost" size="sm">
+              <Link to={screen.path}>
+                {screen.title}
+                <ChevronRight strokeWidth={1.6} />
+              </Link>
+            </Button>
+          ))}
+        </div>
       </div>
-      <Button asChild variant="secondary" size="sm" className="md:hidden">
-        <Link to="/inbox">Mở hộp thư</Link>
-      </Button>
+      <div className="grid grid-cols-2 gap-2 md:hidden">
+        {OPEN.map((screen) => (
+          <Button key={screen.kind} asChild variant="secondary" size="sm">
+            <Link to={screen.path}>{screen.title}</Link>
+          </Button>
+        ))}
+      </div>
     </Card>
   )
 }

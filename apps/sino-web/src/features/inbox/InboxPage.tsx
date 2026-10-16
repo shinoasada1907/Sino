@@ -87,8 +87,9 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
     }
   }, [elsewhere, navigate])
 
-  if (whole && whole.accounts.length === 0) {
-    return <NoSources providers={whole.providers} />
+  // Empty by the screen's own kind: chats connected do not fill Hộp thư, nor emails Tin nhắn (D-305).
+  if (inbox && inbox.accounts.length === 0) {
+    return <NoSources screen={screen} providers={inbox.providers} />
   }
 
   const nameOf = providerNameOf(inbox?.providers ?? [])

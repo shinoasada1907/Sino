@@ -97,6 +97,39 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
     expect(router.state.location.pathname).toBe('/overview')
   })
 
+  it('asks to connect a chat account while Tin nhắn has none, one line per chat provider (D-305)', async () => {
+    const sample = createInboxSample(NOW)
+    open('/messages', { ...sample, accounts: sample.accounts.filter((account) => account.provider === 'gmail'), conversations: [] })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tin nhắn đang trống.' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Kết nối Zalo' })).toHaveAttribute('href', '/accounts?connect=new')
+    expect(screen.getByRole('link', { name: 'Kết nối Messenger' })).toHaveAttribute('href', '/accounts?connect=new')
+    expect(screen.queryByRole('link', { name: 'Kết nối Gmail' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Danh sách cuộc trò chuyện' })).toBeNull()
+  })
+
+  it('offers one way to connect when the catalog has no chat provider yet', async () => {
+    const sample = createInboxSample(NOW)
+    open('/messages', {
+      ...sample,
+      providers: sample.providers.filter((provider) => provider.kind === 'EMAIL'),
+      accounts: sample.accounts.filter((account) => account.provider === 'gmail'),
+      conversations: [],
+    })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tin nhắn đang trống.' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Kết nối tài khoản' })).toHaveAttribute('href', '/accounts?connect=new')
+  })
+
+  it('asks for an email account on Hộp thư even when chats are connected', async () => {
+    const sample = createInboxSample(NOW)
+    open('/inbox', { ...sample, accounts: sample.accounts.filter((account) => account.provider !== 'gmail'), conversations: [] })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Hộp thư đang trống.' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Kết nối Gmail' })).toHaveAttribute('href', '/accounts?connect=new')
+    expect(screen.queryByRole('link', { name: 'Kết nối Zalo' })).toBeNull()
+  })
+
   it('moves an email opened under /messages to Hộp thư, dropping the filter of Tin nhắn', async () => {
     const { router } = open('/messages/conv-1?view=unread')
 

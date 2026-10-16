@@ -64,9 +64,9 @@ describe('states of the inbox', () => {
     open('/inbox', { ...sample, accounts: [], conversations: [], counts: NO_COUNTS })
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Hộp thư đang trống.' })).toBeInTheDocument()
-    for (const provider of ['Gmail', 'Zalo', 'Messenger']) {
-      expect(screen.getByRole('link', { name: `Kết nối ${provider}` })).toHaveAttribute('href', '/accounts?connect=new')
-    }
+    // Only the email providers: chats are connected from Tin nhắn (f05c, D-305).
+    expect(screen.getByRole('link', { name: 'Kết nối Gmail' })).toHaveAttribute('href', '/accounts?connect=new')
+    expect(screen.queryByRole('link', { name: /Kết nối (Zalo|Messenger)/ })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Danh sách cuộc trò chuyện' })).toBeNull()
   })
 

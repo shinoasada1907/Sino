@@ -1502,6 +1502,21 @@ Kiểm trên trình duyệt thật cần đăng nhập, nên lượt Chrome ch�
 
 Kiểm Chrome cần chat, mà backend chưa có provider chat nào. Vì vậy sau khi đăng nhập, một `window.fetch` tạm trong trang trả dữ liệu cho `/api/providers`, `/api/accounts`, `/api/conversations*`, giống `Fetch.fulfillRequest` qua CDP ở các lượt trước. Bản tạm được cài ngay trên trang đăng nhập: app chuyển trang phía client nên nó còn sống sau khi đăng nhập; tải lại trang là mất.
 
+### 22.7 Trạng thái trống, nút cuối hộp thoại, Tổng quan (FE-113)
+Ba lối vào hai màn đều đọc cùng một nguồn: `SCREENS[kind]` (đường dẫn, tên màn) và `kindOfProvider` (loại của provider, thiếu thì là email theo D-308).
+
+```text
+trạng thái trống   InboxPage: frame CỦA MÀN không có tài khoản -> NoSources(screen, provider cùng loại)
+bước 5 hộp thoại   kindOfProvider(providers, provider của tài khoản) -> SCREENS[kind].path + OPEN_SCREEN[kind]
+thẻ Tổng quan      OPEN = [SCREENS.CHAT, SCREENS.EMAIL] -> hai nút "Tin nhắn", "Hộp thư"
+```
+
+- **Trống theo loại của màn.** Trước FE-113, `InboxPage` kiểm `whole.accounts.length === 0`, tức frame thô có cả tài khoản của loại kia. Chỉ nối Zalo thì Hộp thư không bao giờ "trống": nó hiện một danh sách rỗng, không có nút kết nối Gmail. Giờ điều kiện đọc `inbox`, là frame đã lọc theo màn (`screenFrame`). Chỉ đổi một biến, nhưng đổi từ dữ liệu thô sang dữ liệu đúng nghĩa của màn.
+- **Nội dung theo loại nằm trong một bảng.** `EMPTY: Record<ProviderKind, { label, text, icon }>` giữ chữ và icon của từng màn, tiêu đề lấy từ `screen.title` ("Tin nhắn đang trống.", "Hộp thư đang trống."). Kiểu `Record<ProviderKind, ...>` bắt buộc đủ mọi loại: thêm loại thứ ba vào `ProviderKind` thì `tsc` báo thiếu ngay, còn một chuỗi `if (kind === 'CHAT')` sẽ lặng lẽ rơi vào nhánh `else`. Danh mục chưa có provider nào của loại đó thì thay danh sách bằng một nút "Kết nối tài khoản".
+- **Nút và câu cùng một nguồn.** Bước 5 ghép câu "Sino đã nhập xong tin nhắn của tài khoản này. Mở Tin nhắn để đọc." từ đúng chữ của nút (`OPEN_SCREEN[kind]`), nên câu và nút không thể nói hai màn khác nhau.
+- **Test trên dữ liệu mẫu có giới hạn.** Câu "đã nhập xong" chỉ hiện khi lần nhập đầu `DONE`, mà lúc đó hộp thoại đọc lại danh sách tài khoản từ server. Trên dữ liệu mẫu (`ConnectReturn.test.tsx`) request đó không có handler MSW nào và test hỏng vì "Requests without an MSW handler". Vì vậy phần nút ở lại test dữ liệu mẫu, còn câu `DONE` của tài khoản chat chạy trong `InitialSyncOnApi.test.tsx`, nơi cả `GET /api/accounts` và `GET /api/providers` đều có handler.
+- **Lỗi gài tìm ra quy tắc chưa ai test.** Cuối change, 17 lỗi được gài vào các hàm của f05c (chọn màn, lọc nguồn và tài khoản theo loại, số theo loại, chữ "tin"/"thư"...), mỗi lần chạy lại các test liên quan. 16 lỗi làm test đỏ. Lỗi sống sót: đổi `kindOfProvider` để provider thiếu trong danh mục thành `CHAT` thay vì `EMAIL`. Mọi test đều dùng provider có trong danh mục, nên không test nào chạm tới quy tắc D-308. `screen.test.ts` thêm hai ca cho đúng quy tắc đó, và lỗi gài cũ giờ làm cả hai đỏ. Bài học: một nhánh "mặc định" (`?? 'EMAIL'`) rất dễ bị bỏ sót, vì dữ liệu mẫu hiếm khi thiếu.
+
 ## 23. Ghi chú dạng sơ đồ (`fe-ui-diagram-notes`)
 
 ### 23.0 Bức tranh
@@ -1732,3 +1747,8 @@ Khối mới có chữ rỗng; vùng vẽ hiện chữ mờ "Khối mới". Tên
 143. Vì sao route `/messages` và `/inbox` cần `key` khác nhau dù cùng vẽ `InboxPage`?
 144. Vì sao khóa cache vẫn bắt đầu bằng `['inbox']` sau khi có `kind`? Bỏ tiền tố đó thì realtime hỏng ở đâu?
 145. Tự chuyển từ `/inbox/:id` sang `/messages/:id` dùng `replace`. Nếu dùng `push` thì bấm Back sẽ ra sao?
+146. Trước FE-113 trang kiểm `whole.accounts.length === 0`. Chủ chỉ nối Zalo thì Hộp thư hiện gì? Vì sao kiểm trên frame của màn mới đúng?
+147. Vì sao nội dung trạng thái trống nằm trong `Record<ProviderKind, ...>` thay vì `if (kind === 'CHAT')`? Thêm loại thứ ba vào `ProviderKind` thì mỗi cách phản ứng ra sao?
+148. Câu "Mở Tin nhắn để đọc." và nút "Mở Tin nhắn" cùng lấy chữ từ `OPEN_SCREEN`. Viết cứng hai chỗ thì rủi ro gì?
+149. Vì sao câu "đã nhập xong" của tài khoản chat được test trên API (MSW) chứ không trên dữ liệu mẫu?
+150. Lỗi gài "provider lạ thành CHAT" sống sót qua cả bộ test. Vì sao? Viết một test nhỏ nhất làm nó đỏ.
