@@ -39,6 +39,7 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
       'Hoàng thích nhận file qua Drive',
       'Số hợp đồng bảo hiểm',
       'Ý tưởng chuyến đi Đà Lạt tháng 12',
+      'Kế hoạch chuyến đi Đà Lạt',
     ])
     const clause = within(card(/Điều khoản 4/))
     expect(clause.getByText('09:52')).toBeInTheDocument()
@@ -46,7 +47,9 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     expect(within(card(/Mã khách hàng/)).getByRole('img', { name: 'Đã ghim' })).toBeInTheDocument()
     expect(within(card(/Mã khách hàng/)).getByText('Hôm qua')).toBeInTheDocument()
     expect(within(card(/Số hợp đồng/)).getByText('Tin nhắn gốc không còn')).toBeInTheDocument()
-    expect(within(card(/Đà Lạt/)).getByText('Ghi chú độc lập')).toBeInTheDocument()
+    expect(within(card(/Ý tưởng chuyến đi/)).getByText('Ghi chú độc lập')).toBeInTheDocument()
+    // The sample diagram (spec diagram-notes); its own card comes with DG-02.
+    expect(within(card(/Kế hoạch chuyến đi/)).getByText('Sơ đồ · 7 khối · 6 nối')).toBeInTheDocument()
     expect(screen.getByText('Chọn một ghi chú để xem')).toBeInTheDocument()
   })
 
@@ -59,7 +62,7 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     expect(router.state.location.search).toBe('?filter=pinned')
     expect(cardTitles()).toEqual(['Danh sách mua cho bà', 'Mã khách hàng phòng khám'])
 
-    await user.click(list().getByRole('button', { name: 'Tất cả · 6' }))
+    await user.click(list().getByRole('button', { name: 'Tất cả · 7' }))
     await user.type(list().getByRole('searchbox', { name: 'Tìm trong ghi chú' }), 'thanh toan')
     expect(router.state.location.search).toBe('?q=thanh+toan')
     expect(cardTitles()).toEqual(['Điều khoản 4 — thời hạn thanh toán'])
@@ -98,8 +101,8 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     await user.type(body, 'Đi tháng 11 thay vì 12.')
 
     // The save waits 600 ms after the typing; a busy test run needs more than the default second.
-    await vi.waitFor(() => expect(within(card(/Đà Lạt/)).getByText('Đi tháng 11 thay vì 12.')).toBeInTheDocument(), { timeout: 3000 })
-    expect(within(card(/Đà Lạt/)).getByText('14:05')).toBeInTheDocument()
+    await vi.waitFor(() => expect(within(card(/Ý tưởng chuyến đi/)).getByText('Đi tháng 11 thay vì 12.')).toBeInTheDocument(), { timeout: 3000 })
+    expect(within(card(/Ý tưởng chuyến đi/)).getByText('14:05')).toBeInTheDocument()
     // The newest edit tops its group.
     expect(cardTitles()[2]).toBe('Ý tưởng chuyến đi Đà Lạt tháng 12')
     expect(editor().getByText('Sửa lúc 14:05 hôm nay · tự lưu')).toBeInTheDocument()
@@ -107,7 +110,7 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     await user.clear(body)
     expect(editor().getByText('Ghi chú cần có nội dung')).toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 800))
-    expect(within(card(/Đà Lạt/)).getByText('Đi tháng 11 thay vì 12.')).toBeInTheDocument()
+    expect(within(card(/Ý tưởng chuyến đi/)).getByText('Đi tháng 11 thay vì 12.')).toBeInTheDocument()
   })
 
   it('makes a new note once it has text, under its own address, keeping the typing going (D-203)', async () => {
@@ -124,7 +127,7 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     expect(router.state.historyAction).toBe('REPLACE')
     expect(within(card(/Gọi lại cho phòng khám/)).getByText('Ghi chú độc lập')).toBeInTheDocument()
     expect(editor().getByRole('textbox', { name: 'Nội dung ghi chú' })).toHaveFocus()
-    expect(list().getByRole('button', { name: 'Tất cả · 7' })).toBeInTheDocument()
+    expect(list().getByRole('button', { name: 'Tất cả · 8' })).toBeInTheDocument()
   })
 
   it('leaves nothing behind when a new note is left empty', async () => {
@@ -132,9 +135,9 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     open('/notes/new')
     await ready()
 
-    await user.click(await list().findByRole('link', { name: /Đà Lạt/ }))
+    await user.click(await list().findByRole('link', { name: /Ý tưởng chuyến đi/ }))
 
-    expect(list().getByRole('button', { name: 'Tất cả · 6' })).toBeInTheDocument()
+    expect(list().getByRole('button', { name: 'Tất cả · 7' })).toBeInTheDocument()
   })
 
   it('pins and unpins, moving the card between the groups', async () => {

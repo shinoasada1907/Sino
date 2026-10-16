@@ -36,7 +36,7 @@ describe('Ghi chú on a phone and a tablet, and its states (NT-03, fe-ui-notes)'
     await ready()
 
     expect(phoneHeader('Quay lại Thêm').getByRole('link', { name: 'Quay lại Thêm' })).toHaveAttribute('href', '/more')
-    expect(phoneHeader('Quay lại Thêm').getByText('6 ghi chú')).toBeInTheDocument()
+    expect(phoneHeader('Quay lại Thêm').getByText('7 ghi chú')).toBeInTheDocument()
     expect(phoneHeader('Quay lại Thêm').getByRole('link', { name: 'Ghi chú mới' })).toHaveAttribute('href', '/notes/new?filter=pinned')
 
     // The search stays out of the way on a phone until asked for.

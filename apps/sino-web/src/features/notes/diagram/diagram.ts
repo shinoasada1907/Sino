@@ -38,10 +38,14 @@ export function removeBlock(diagram: Diagram, id: string): Diagram {
   return { blocks: diagram.blocks.filter((block) => block.id !== id), links: diagram.links.filter((link) => link.from !== id && link.to !== id) }
 }
 
-/** A link from a side of one block to a side of another; never a block to itself, never twice the same way (D-207). */
+/**
+ * A link from a side of one block to a side of another of the diagram; never a block to itself, never twice the same way
+ * (D-207), since the server refuses such a diagram (D-211).
+ */
 export function connect(diagram: Diagram, from: string, fromSide: Side, to: string, toSide: Side): Diagram {
+  const has = (id: string) => diagram.blocks.some((block) => block.id === id)
   const taken = diagram.links.some((link) => link.from === from && link.to === to)
-  if (from === to || taken || diagram.links.length >= DIAGRAM_LIMITS.links) {
+  if (from === to || !has(from) || !has(to) || taken || diagram.links.length >= DIAGRAM_LIMITS.links) {
     return diagram
   }
   return { ...diagram, links: [...diagram.links, { id: crypto.randomUUID(), from, fromSide, to, toSide, label: null }] }

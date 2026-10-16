@@ -1467,6 +1467,61 @@ Bẫy: `useQuery({ queryFn: fetchInbox })` truyền cho hàm một đối tượ
 ### 22.4 Cập nhật trước khi server trả lời phải giữ mọi số khớp nhau
 Đọc một thư thì `countsAfter` trừ ngay số chưa đọc, số theo nguồn, số cần trả lời, trước khi server trả lời (optimistic update). Thêm `unreadByKind` mà không sửa hàm này thì sau khi đọc, tổng giảm còn số của loại vẫn như cũ. Test viết trước bắt đúng lỗi đó (đỏ: `{ EMAIL: 3, CHAT: 2 }` thay vì `{ EMAIL: 2, CHAT: 2 }`). Loại của một dòng không bao giờ đổi, nên chỉ cần cộng trừ vào `unreadByKind[after.kind]`.
 
+## 23. Ghi chú dạng sơ đồ (`fe-ui-diagram-notes`)
+
+### 23.0 Bức tranh
+Sơ đồ là một loại ghi chú (D-206): `NoteItem.kind` là `TEXT` hoặc `DIAGRAM`. Một sơ đồ gồm các khối chữ nối nhau bằng mũi tên một chiều; nó được ghim, tìm, xóa như mọi ghi chú. DG-01 chỉ làm phần dữ liệu; danh sách và nút tạo ở DG-02, vùng vẽ bằng React Flow ở DG-03.
+
+```text
+notes.types.ts       + NoteKind, Diagram, DiagramBlock, DiagramLink, Side, BlockColor
+notes.sample.ts      + sơ đồ "Kế hoạch chuyến đi Đà Lạt" (7 khối, 6 nối)
+notes.api.ts         createNote / saveNote nhận sơ đồ, lưu cả sơ đồ một lần (D-211)
+diagram/diagram.ts   hàm thuần: thêm, di chuyển, sửa chữ, đổi màu, xóa khối;
+                     nối, chữ trên đường, xóa nối; cạnh gần nhất; giới hạn
+format.ts            tên mặc định, đầu nội dung, "Sơ đồ · N khối · M nối",
+                     lọc "Sơ đồ", tìm cả chữ trong khối và trên đường nối
+```
+
+### 23.1 Quy tắc nằm trong hàm thuần, vùng vẽ chỉ gọi
+Kéo, nối, thu phóng chỉ đo được trong trình duyệt thật: jsdom không tính bố cục. Vì thế mọi quy tắc của sơ đồ nằm trong `diagram.ts`. Mỗi hàm nhận một sơ đồ và trả một sơ đồ mới, không sửa sơ đồ cũ (bất biến, immutable). Ở DG-03, React Flow chỉ báo "khối được thả ở đây" hay "nối từ chấm này sang khối kia", rồi gọi hàm. Unit test kiểm đủ quy tắc mà không phải vẽ gì.
+
+```text
+connect(sơ đồ, from, fromSide, to, toSide)
+  from == to                      -> giữ nguyên  (không tự nối)
+  from hoặc to không có trong sơ đồ -> giữ nguyên  (máy chủ sẽ trả 400)
+  đã có đường from -> to          -> giữ nguyên  (to -> from là một đường khác)
+  đã đủ 600 đường                 -> giữ nguyên
+  còn lại                         -> thêm đường, mã do web tạo (UUID)
+removeBlock(sơ đồ, id)            -> bỏ khối và mọi đường đi ra / đi vào nó
+nearestSide(khung khối, điểm thả) -> cạnh có điểm giữa gần điểm thả nhất
+```
+
+Khi không có gì đổi, hàm trả lại đúng đối tượng cũ (test kiểm bằng `toBe`, không phải `toEqual`). React so sánh theo tham chiếu, nên cùng một đối tượng nghĩa là không cần vẽ lại và không cần lưu.
+
+### 23.2 Mã do web tạo, cả sơ đồ lưu một lần
+Khối và đường nối có mã từ `crypto.randomUUID()` ngay khi tạo, nên nối được trước khi máy chủ biết khối đó (D-211). Cả sơ đồ được gửi trong một lần lưu, nên máy chủ phải kiểm tính nhất quán: đường nối trỏ tới khối có thật, không tự nối, không trùng cặp, đủ giới hạn. Web giữ đúng các quy tắc đó ngay từ đầu. DG-01 thêm một quy tắc mà bản WIP còn thiếu: `connect` từ chối khối không có trong sơ đồ, vì một sơ đồ như vậy sẽ bị máy chủ trả `400 VALIDATION_FAILED` và cả lần lưu mất theo.
+
+### 23.3 Kiểu ngữ cảnh: vì sao `'TASK'` thành `string`
+Bản WIP để `tsc -b` báo `Type 'string' is not assignable to type '"TASK"'` ở dữ liệu mẫu. Nguyên nhân là cách TypeScript suy kiểu chữ:
+
+```text
+const notes: NoteItem[] = [{ ..., linked: [{ kind: 'TASK', ... }] }]
+  -> có kiểu ngữ cảnh NoteItem: 'TASK' giữ kiểu chữ cố định "TASK"
+
+[ { ..., linked: [{ kind: 'TASK', ... }] } ].map((note) => ({ ...note, kind: 'TEXT' as const }))
+  -> mảng được suy kiểu trước khi biết nó đi đâu: 'TASK' bị nới thành string
+```
+
+Kiểu ngữ cảnh (contextual type) là kiểu mà chỗ đứng của một biểu thức đòi hỏi. Có nó, TypeScript giữ `'TASK'` là kiểu chữ cố định. Không có nó, chữ trong một thuộc tính của đối tượng bị nới thành `string`, vì đối tượng có thể bị sửa sau này. `as const` ở `kind: 'TEXT'` chỉ cứu đúng chỗ đó, không cứu `linked`. Lỗi thứ hai (dòng 98) là cùng lỗi ấy, báo lại cho cả mảng.
+
+Cách sửa: hàm `text(note: Omit<NoteItem, 'kind' | 'diagram'>): NoteItem` bọc từng ghi chú chữ, giống hàm `anchor(...)` có sẵn trong file. Tham số có kiểu, nên mỗi đối tượng được kiểm theo kiểu đó ngay tại chỗ viết, và lỗi (nếu có) chỉ đúng dòng sai.
+
+### 23.4 Thêm dữ liệu mẫu làm đỏ test cũ
+Sơ đồ mẫu làm mẫu có 7 ghi chú, và thêm một tiêu đề thứ hai có chữ "Đà Lạt". Bảy test của NT-01…NT-03 đỏ: chúng còn đếm 6 ghi chú, và tìm thẻ bằng `/Đà Lạt/`, nay khớp hai thẻ (Testing Library báo `Found multiple elements`). Code không sai; test bám vào dữ liệu mẫu. Sửa test theo mẫu mới, và tìm thẻ bằng cụm riêng hơn (`/Ý tưởng chuyến đi/`). Bài học: test tìm theo tên nên dùng tên đủ riêng; thêm dữ liệu mẫu thì chạy cả test của các màn dùng mẫu đó trước khi commit.
+
+### 23.5 Khối chưa có chữ
+Khối mới có chữ rỗng; vùng vẽ hiện chữ mờ "Khối mới". Tên và đầu nội dung trên thẻ bỏ qua khối không có chữ. Tên là khối có chữ đầu tiên, khối chính trước. Đầu nội dung là ba khối có chữ đầu tiên, nối bằng " · ". Không khối nào có chữ thì tên là "Sơ đồ mới". Test viết trước đỏ đúng chỗ: tên ra "Sơ đồ mới" dù sơ đồ có ba khối có chữ, vì bản WIP chỉ nhìn khối chính.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1634,3 +1689,5 @@ Bẫy: `useQuery({ queryFn: fetchInbox })` truyền cho hàm một đối tượ
 135. Vì sao `kind` của provider là trường bắt buộc trong `ProviderInfo`, dù backend cũ không gửi nó? Quy tắc cho backend cũ nằm ở đâu?
 136. `useQuery({ queryFn: fetchInbox })` hỏng sau khi `fetchInbox` có tham số `kind`. Vì sao, và viết lại thế nào?
 137. Vì sao Tin nhắn nhận `null` chứ không nhận `0` khi backend chưa có `unreadByKind`?
+138. Vì sao `[...].map(...)` làm `kind: 'TASK'` thành `string`, còn khi mảng đứng thẳng trong `notes: NoteItem[]` thì không? Sửa thế nào mà không phải viết `as const` ở từng chỗ?
+139. Vì sao các quy tắc của sơ đồ (không tự nối, một cặp một đường, xóa khối thì xóa đường của nó) nằm trong hàm thuần `diagram.ts` chứ không nằm trong component vẽ? Vì sao hàm trả lại đúng đối tượng cũ khi không đổi gì?
