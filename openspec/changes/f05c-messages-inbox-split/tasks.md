@@ -116,9 +116,17 @@
   - **Test:** trạng thái trống có và không có provider chat trong danh mục; nút bước 5 theo loại; hai nút ở Tổng quan; kiểm bằng lỗi gài cho hàm thuần của change (chọn màn theo loại, lọc nguồn theo loại).
   - **Depends on:** FE-112
 
-- [ ] 3.5 **FE-114 — Chạy với backend thật**
-  - **Test:** backend từ `dev` có BE-111: thư Gmail thật ở Hộp thư, số "Hộp thư" khớp `unreadByKind.EMAIL`, Tin nhắn hiện trạng thái trống; mở một link cũ `/inbox/<id>` từ Việc vẫn đúng; Chrome 1440 / 1024 / 390.
-  - **Depends on:** BE-111, FE-113
+- [x] 3.5 **FE-114 — Chạy với backend thật**
+  - **Test:** ~~backend từ `dev` có BE-111: thư Gmail thật ở Hộp thư, số "Hộp thư" khớp `unreadByKind.EMAIL`, Tin nhắn hiện trạng thái trống; mở một link cũ `/inbox/<id>` từ Việc vẫn đúng; Chrome 1440 / 1024 / 390.~~
+    **LÝ DO:** người dùng (2026-10-16): "đang task FE thì làm FE luôn đi, cái nào chưa có API thì mình ném dữ liệu mẫu vào". FE-114 chạy **trước** BE-110 và BE-111, trên backend `dev` hôm nay; thư Gmail mẫu nạp vào database thay cho Gmail thật; phần chưa có API (provider chat, `kind`, `unreadByKind`, nguồn của Việc) kiểm trên dữ liệu mẫu. Số "Hộp thư" khớp `unreadByKind.EMAIL` để lại cho ACC, sau BE-111.
+  - **Depends on:** ~~BE-111,~~ FE-113
+  - **Đã làm (2026-10-16, AUTO):**
+    - `BeforeKindsOnApi.test.tsx` (mới): MSW trả đúng backend hôm nay (provider không có `kind`, counts không có `unreadByKind`, danh sách bỏ qua `kind`): Hộp thư có mọi thư Gmail và "1 chưa đọc", hỏi `kind=email`; Tin nhắn "Tin nhắn đang trống." với một nút "Kết nối tài khoản"; `/messages/c-1` tự chuyển `/inbox/c-1`, link cũ `/inbox/c-2` mở tại chỗ.
+    - `MessagesScreen.test.tsx`: link nguồn "Gia đình · Zalo" của một việc (dữ liệu mẫu, API Việc chưa có nguồn, D-150) → `/inbox/conv-2` → `/messages/conv-2`.
+    - Không sửa code sản phẩm: web chạy đúng trên backend hôm nay nhờ D-308 và các nhánh dự phòng của FE-110.
+  - **Làm khác kế hoạch:**
+    - Các bước chờ của luồng tự chuyển màn trong hai file test có hạn 8 s (`MOVE`). **LÝ DO:** luồng dựng cả app hai lần, khoảng 1 s khi chạy riêng nhưng quá 3 s (`asyncUtilTimeout`) khi 80 file chạy song song; một lượt cả bộ đã đỏ 2 test vì vậy (một test cũ của FE-112, một test mới). Hạn chung không đổi.
+  - **Bằng chứng (2026-10-16):** 4 test mới xanh ngay (hành vi đã có); gài lỗi để chứng minh chúng bắt lỗi: provider thiếu `kind` thành CHAT → 3 test mới đỏ; bỏ tự chuyển màn → 4 test đỏ (2 mới); không gửi `kind` → 1 đỏ; khôi phục file sau mỗi lần. `pnpm lint` 0; `tsc -b` 0; `pnpm build` 0; `pnpm test` 697/697 (80 file) hai lượt liền sau khi thêm `MOVE` (lượt trước đó 695/697, hai test tự chuyển màn quá hạn 3 s). Backend tạm từ `dev` `88e44a3` (worktree, cổng 8091, PostgreSQL 18 tạm, Google client giả để Gmail có trong danh mục) với 4 thư Gmail mẫu nạp bằng SQL (2 chưa đọc, `sync_enabled = false`), web ở 5174: backend trả `/api/providers` không có `kind`, counts không có `unreadByKind` (`unread 2`), `?kind=chat` trả cả 4 thư; trên web: 1440 Hộp thư 4 thư, nguồn chỉ Gmail, "2 chưa đọc", điều hướng "Hộp thư 2" và Tin nhắn không số; `/messages` "Tin nhắn đang trống." với "Kết nối tài khoản", không có danh sách; `/messages/<thư 1>` tự chuyển `/inbox/<thư 1>`, mở thư thì backend còn `unread 1`, trang và điều hướng còn 1; Back về trang trước link; 1024 rail + danh sách, cùng số, không cuộn ngang; 390 tab bar "Hộp thư 1" sáng ở Hộp thư, "Tin nhắn" sáng ở Tin nhắn, mở thư Thu Trang có "Quay lại Hộp thư" → `/inbox`, không cuộn ngang. Ảnh chụp được ở 1440; 1024 và 390 đo bằng script (cửa sổ app bị che). Log backend không có ERROR/WARN. Dọn xong: dừng backend và Vite, xóa container, worktree, file cấu hình tạm, tài khoản thử. File kiến thức phase 1 mục 22.8 + câu 151–154, `.docx` sinh lại, `genoffice docs check` không lỗi.
 
 ## 4. Ghi chú sang change khác
 
@@ -130,7 +138,7 @@
 ## 5. Nghiệm thu
 
 - [ ] 5.1 **ACC — Nghiệm thu, tài liệu**
-  - **Test:** Definition of Done của `design.md`; Chrome đủ cỡ (1440, 1280, 1024, 768, 390) × 2 theme cho Tin nhắn, Hộp thư, điều hướng, Tổng quan, bước 5 hộp thoại kết nối; ảnh so với canvas.
-  - **Depends on:** FE-114
+  - **Test:** Definition of Done của `design.md`; Chrome đủ cỡ (1440, 1280, 1024, 768, 390) × 2 theme cho Tin nhắn, Hộp thư, điều hướng, Tổng quan, bước 5 hộp thoại kết nối; ảnh so với canvas; trên backend có BE-111: số "Hộp thư" khớp `unreadByKind.EMAIL` và `?kind=chat` không còn trả thư (chuyển từ FE-114, chạy trước BE-111).
+  - **Depends on:** FE-114, BE-111
 
 - [ ] 5.2 **Archive** (D-309): sau `f05-unified-inbox`, `f07-f08-realtime-inbox`, `fe-ui-overview`, `fe-ui-accounts`, `fe-ui-connect`, `fe-ui-inbox`, vì delta sửa requirement của các change đó. `openspec archive f05c-messages-inbox-split -y`.

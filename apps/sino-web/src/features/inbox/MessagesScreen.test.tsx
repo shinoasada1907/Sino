@@ -1,15 +1,21 @@
 import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { renderApp } from '@/test/renderApp'
+import { createTasksSample } from '../tasks/tasks.sample'
 import * as api from './inbox.api'
 import { createInboxSample } from './inbox.sample'
 
 // Tin nhắn and Hộp thư (f05c, D-300…D-304) on the sample contract.
 vi.mock('./inbox.api', async (importOriginal) => (await import('@/test/inboxSampleApi')).sampleInboxApi(await importOriginal()))
+vi.mock('../tasks/tasks.api', async (importOriginal) => (await import('@/test/tasksSampleApi')).sampleTasksApi(await importOriginal()))
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
+// Moving to the screen of the other kind builds the whole app twice: about 1 s alone, past the 3 s of `asyncUtilTimeout`
+// when every test file runs at once.
+const MOVE = { timeout: 8000 }
 
 function open(path: string, inbox: ReturnType<typeof createInboxSample> | null = createInboxSample(NOW)) {
   return renderApp(path, { shell: createShellSample(NOW), inbox })
@@ -88,8 +94,8 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
     const { router } = open('/overview')
     await router.navigate('/inbox/conv-2')
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/messages/conv-2'))
-    expect(await screen.findByRole('region', { name: 'Cuộc trò chuyện Gia đình' })).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.pathname).toBe('/messages/conv-2'), MOVE)
+    expect(await screen.findByRole('region', { name: 'Cuộc trò chuyện Gia đình' }, MOVE)).toBeInTheDocument()
     await waitFor(() => expect(api.updateConversation).toHaveBeenCalledWith('conv-2', { read: true }))
     expect(api.updateConversation).toHaveBeenCalledTimes(1)
 
@@ -130,11 +136,24 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
     expect(screen.queryByRole('link', { name: 'Kết nối Zalo' })).toBeNull()
   })
 
+  // Việc has no source on the API yet (D-150): its link to a chat is checked on the sample data.
+  it('follows the chat source of a task from Việc to Tin nhắn (FE-114)', async () => {
+    const user = userEvent.setup()
+    const { router } = renderApp('/tasks/task-cake', { shell: createShellSample(NOW), inbox: createInboxSample(NOW), tasks: createTasksSample(NOW) })
+    const source = await screen.findByRole('link', { name: /Gia đình · Zalo/ })
+    expect(source).toHaveAttribute('href', '/inbox/conv-2')
+
+    await user.click(source)
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/messages/conv-2'), MOVE)
+    expect(await screen.findByRole('region', { name: 'Cuộc trò chuyện Gia đình' }, MOVE)).toBeInTheDocument()
+  })
+
   it('moves an email opened under /messages to Hộp thư, dropping the filter of Tin nhắn', async () => {
     const { router } = open('/messages/conv-1?view=unread')
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/inbox/conv-1'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/inbox/conv-1'), MOVE)
     expect(router.state.location.search).toBe('')
-    expect(await screen.findByRole('heading', { name: 'Hợp đồng thuê văn phòng — bản sửa lần 2' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Hợp đồng thuê văn phòng — bản sửa lần 2' }, MOVE)).toBeInTheDocument()
   })
 })

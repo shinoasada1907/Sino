@@ -1517,6 +1517,22 @@ thẻ Tổng quan      OPEN = [SCREENS.CHAT, SCREENS.EMAIL] -> hai nút "Tin nh�
 - **Test trên dữ liệu mẫu có giới hạn.** Câu "đã nhập xong" chỉ hiện khi lần nhập đầu `DONE`, mà lúc đó hộp thoại đọc lại danh sách tài khoản từ server. Trên dữ liệu mẫu (`ConnectReturn.test.tsx`) request đó không có handler MSW nào và test hỏng vì "Requests without an MSW handler". Vì vậy phần nút ở lại test dữ liệu mẫu, còn câu `DONE` của tài khoản chat chạy trong `InitialSyncOnApi.test.tsx`, nơi cả `GET /api/accounts` và `GET /api/providers` đều có handler.
 - **Lỗi gài tìm ra quy tắc chưa ai test.** Cuối change, 17 lỗi được gài vào các hàm của f05c (chọn màn, lọc nguồn và tài khoản theo loại, số theo loại, chữ "tin"/"thư"...), mỗi lần chạy lại các test liên quan. 16 lỗi làm test đỏ. Lỗi sống sót: đổi `kindOfProvider` để provider thiếu trong danh mục thành `CHAT` thay vì `EMAIL`. Mọi test đều dùng provider có trong danh mục, nên không test nào chạm tới quy tắc D-308. `screen.test.ts` thêm hai ca cho đúng quy tắc đó, và lỗi gài cũ giờ làm cả hai đỏ. Bài học: một nhánh "mặc định" (`?? 'EMAIL'`) rất dễ bị bỏ sót, vì dữ liệu mẫu hiếm khi thiếu.
 
+### 22.8 Chạy với backend trước khi backend xong (FE-114)
+Web làm xong trước BE-110 và BE-111. Người dùng chọn không chờ: phần backend đã có thì chạy thật, phần chưa có API thì dùng dữ liệu mẫu. Backend trên `dev` hôm nay khác hợp đồng của f05c ở ba chỗ, và web phải chạy đúng với cả ba:
+
+```text
+web hỏi                                   backend hôm nay trả             web xử lý
+GET /api/providers                        không có kind                   thiếu -> EMAIL (D-308)
+GET /api/conversations/counts?kind=email  không có unreadByKind           Hộp thư = unread, Tin nhắn = null (không hiện số)
+GET /api/conversations?kind=chat          bỏ qua kind, trả mọi thư        Tin nhắn không có tài khoản CHAT -> trạng thái trống,
+                                                                          danh sách đó không được vẽ
+```
+
+- **Test trên đúng hợp đồng hôm nay.** `BeforeKindsOnApi.test.tsx` dựng MSW trả đúng ba câu trả lời trên. Ba test xanh ngay vì code đã có từ FE-110…FE-113: đây là test khóa hành vi, không phải test dẫn đường. Test xanh ngay chưa chứng minh được gì, nên mỗi test được gài một lỗi đúng quy tắc nó canh (provider thiếu `kind` thành CHAT, bỏ tự chuyển màn, không gửi `kind`) và phải đỏ.
+- **Dữ liệu mẫu nạp vào database, không giả API.** Backend tạm không có cấu hình Google thật, nên không có thư Gmail thật. Thay vì giả câu trả lời trong trình duyệt, 4 thư mẫu được `INSERT` thẳng vào database tạm (tài khoản Gmail với `sync_enabled = false` để lịch đồng bộ không chạm tới nó). Như vậy mọi câu trả lời đều do backend thật dựng: đúng tên trường, đúng cách đếm, và lộ ra việc `?kind=chat` bị bỏ qua. Đặt `SINO_GOOGLE_CLIENT_ID`/`SECRET` giả cho Gmail có trong danh mục; không gọi Google vì không ai bấm kết nối.
+- **Chỗ không có API thì test trên dữ liệu mẫu.** Việc trên API chưa có nguồn (D-150), nên link "Gia đình · Zalo" của một việc chỉ có trên dữ liệu mẫu: test bấm nó và thấy `/inbox/conv-2` tự chuyển tới `/messages/conv-2`.
+- **Test chậm khi cả bộ chạy song song.** Luồng tự chuyển màn dựng cả app hai lần: khoảng 1 giây khi chạy riêng, quá 3 giây (`asyncUtilTimeout`) khi 80 file chạy cùng lúc. Chỉ các bước chờ tự chuyển màn được hạn dài hơn (`MOVE = { timeout: 8000 }`), có ghi lý do; hạn chung giữ nguyên để các test khác vẫn báo nhanh khi hỏng.
+
 ## 23. Ghi chú dạng sơ đồ (`fe-ui-diagram-notes`)
 
 ### 23.0 Bức tranh
@@ -1752,3 +1768,7 @@ Khối mới có chữ rỗng; vùng vẽ hiện chữ mờ "Khối mới". Tên
 148. Câu "Mở Tin nhắn để đọc." và nút "Mở Tin nhắn" cùng lấy chữ từ `OPEN_SCREEN`. Viết cứng hai chỗ thì rủi ro gì?
 149. Vì sao câu "đã nhập xong" của tài khoản chat được test trên API (MSW) chứ không trên dữ liệu mẫu?
 150. Lỗi gài "provider lạ thành CHAT" sống sót qua cả bộ test. Vì sao? Viết một test nhỏ nhất làm nó đỏ.
+151. Backend hôm nay bỏ qua `?kind=chat` và trả mọi thư. Vì sao Tin nhắn vẫn không hiện thư Gmail nào?
+152. Một test xanh ngay lần chạy đầu thì chưa chứng minh gì. Làm sao biết nó có bắt được lỗi?
+153. Vì sao nạp thư mẫu vào database tạm tốt hơn giả câu trả lời bằng `fetch` trong trình duyệt, khi muốn kiểm "chạy với backend"?
+154. Vì sao chỉ nới hạn chờ của luồng tự chuyển màn, không tăng `asyncUtilTimeout` cho mọi test?
