@@ -106,6 +106,7 @@
   - **Depends on:** ZL-05
   - **Bạn sẽ học:** `@ConfigurationProperties` + `record`, `RestClient`, đổi lỗi HTTP thành lỗi miền, contract test (abstract test class).
   - **Hints:** Level 1: "tại sao hết giờ khi gửi phải là `OUTCOME_UNKNOWN` mà không phải `PROVIDER_UNAVAILABLE`?" (xem F10 D-135).
+  - **Thêm từ `f05c-messages-inbox-split` (D-306, 2026-10-16):** `ZaloProvider.kind()` = `CHAT`. `MessageProvider.kind()` không có default (BE-110 của f05c): nếu BE-110 vào `dev` trước thì ZL-06 khai luôn; nếu ZL-06 xong trước thì BE-110 thêm `kind()` cho Zalo. Spec `provider-registry` *Connector có công tắc tắt vẫn ở trong registry* của f05c trùng với D-286: tắt công tắc thì `ZaloProvider` vẫn đăng ký.
 
 - [ ] 2.2 **ZL-07 — Kết nối QR: SPI `qrLogin()`, API connect/poll/hủy, kết nối lại; `GET /api/providers` có `connectMethod`**
   - **Goal:** người dùng kết nối và kết nối lại Zalo bằng QR (D-275, D-285).
@@ -123,7 +124,7 @@
   - **Hints:** Level 2: đặt `QrConnectService` cạnh `ConnectService`, dùng lại ~~`AccountRegistration.register`~~ `AccountRegistrationService.register` (**LÝ DO:** review 2026-10-14: lớp trong code tên là `AccountRegistrationService`). Kiểm D-290 trong `QrConnectService` trước khi gọi `register`, không đặt trong `register`, vì luồng OAuth2 của Gmail cũng đi qua `register`.
 
 - [ ] 2.3 **ZL-08 — Nhận tin: webhook, `registerPush`, `fetchUpdates`, chuẩn hóa**
-  - **Goal:** tin Zalo hiện trong Hộp thư vài giây sau khi đến (D-277, D-279).
+  - **Goal:** tin Zalo hiện trong Hộp thư vài giây sau khi đến (D-277, D-279). Sau `f05c-messages-inbox-split` (D-300) tin Zalo hiện ở màn Tin nhắn (`/messages`), không ở Hộp thư.
   - **Files:** `provider/infrastructure/zalo/{ZaloWebhookController,ZaloMessageNormalizer,ZaloMessages}.java`, `ZaloProvider.{registerPush,fetchUpdates}`, cấu hình bảo mật cho `/api/webhooks/zalo`, test `ZaloWebhookTests`, `ZaloMessageNormalizerTests`, `ZaloFetchUpdatesTests`.
   - **Acceptance criteria:** spec `zalo-provider` (Bảo đảm listener đang chạy; Lấy tin Zalo theo cursor; Chuẩn hóa tin Zalo; Webhook báo có tin Zalo).
   - **Test:** từng hàng của bảng D-279 ~~(đã sửa theo ZL-00)~~ (tên `zaloType` ngoài `webchat`, `chat.photo` là giả định tới ZL-13; test thêm ca tên lạ → `[Tin Zalo chưa hỗ trợ]` + `metadata.zaloType`, D-270); `registerPush` trả `expiresAt` = bây giờ + 3 ngày; `404` → `PUT session` → thử lại một lần; `410` → `PUT session` với phiên mới → thử lại → batch, account vẫn `CONNECTED` (quét lại sau khi bị đá, D-289); `410` rồi `PUT` cũng `410` → `AUTH_EXPIRED`; `nextCursor` = `null` của `sino-zalo` → cursor đầu; webhook đúng/sai khóa; body quá 1 KB bị từ chối. (Phần `410`, `expiresAt` và `nextCursor` = `null` thêm sau review 2026-10-14.)
@@ -160,6 +161,7 @@
   - **Depends on:** ZL-07 (contract API; dùng MSW nên làm song song với ZL-08…ZL-10 được)
   - **Bạn sẽ học:** polling bằng TanStack Query (`refetchInterval` dừng theo trạng thái), dọn dẹp khi đóng hộp thoại, vì sao web không tự đoán `connectable`.
   - **Hints:** Level 2: `refetchInterval` là hàm nhận dữ liệu hiện tại và trả `false` khi trạng thái không còn `WAITING`/`SCANNED`.
+  - **Thêm từ `f05c-messages-inbox-split` (D-305, 2026-10-16):** bước cuối "Hoàn tất" của một tài khoản Zalo có nút "Mở Tin nhắn" (`/messages`), không phải "Mở hộp thư" (spec `connect-wizard` *Kết quả quay về* của f05c; FE-113 làm phần chọn nút theo `kind`).
 
 ## 4. Chạy, CI, nghiệm thu
 

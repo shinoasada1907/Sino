@@ -10,6 +10,12 @@
   - **Thực hiện:** đọc bản mới nhất của https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB, sửa các frame trong bảng "Canvas" của `design.md` (bản tối và sáng), thêm `Messages`, `TabletMessages`, `MobileMessages`, publish lên cùng link (artifact giữ phiên bản cũ).
   - **Acceptance criteria:** người dùng duyệt trên link; chữ, icon, vị trí trong canvas khớp D-300…D-305 (chỗ canvas chốt khác spec thì sửa spec và ghi **LÝ DO** ở đây).
   - **Depends on:** —
+  - **Đã vẽ (2026-10-16, chờ người dùng duyệt):** publish phiên bản `1792119157-a180` ("Tách Tin nhắn và Hộp thư (CV-01)"), sửa từ bản `1790948862-287a` (bản repo đang khớp).
+    - Mục "Tin nhắn" trong `Sidebar`, `Rail`, `TabBar` (icon hai bong bóng, `MessagesSquare`; số 5, Hộp thư 7); tab bar mất Lịch, `TabBar` coi `active="calendar"` là "Thêm"; `MobileMore` có Lịch ở đầu.
+    - Mới: `Messages`, `TabletMessages`, `MobileMessages`, `MessagesState` (`InboxState` với `screen="messages"`) và bản Light của từng frame; hai cuộc chat mẫu mới "Hà", "Nhóm sửa nhà".
+    - `Inbox`, `TabletInbox`, `MobileInbox`, trạng thái của `InboxState` chỉ còn Gmail; `Conversation`, `MobileConversation`, trạng thái "Cần kết nối lại" của `ThreadState` quay về Tin nhắn; ba frame Tổng quan có hai nút, thẻ mobile đổi tên thành "Hộp thư hợp nhất"; thẻ nguồn Zalo trong `Calendar` dẫn tới Tin nhắn.
+    - `ConnectWizardStep5` không đổi: canvas vẽ luồng Gmail, nút "Mở hộp thư" vẫn đúng.
+    - `canvas.json`: 8 frame mới; Tin nhắn đứng sau Tổng quan nên các frame sau nó ở trang Desktop và Responsive dời sang phải.
 
 - [ ] 1.2 **CV-02 — Bản sao trong repo khớp link**
   - **Files:** `design/sino-ui/project/` (các frame đã đổi, frame mới, `canvas.json`).
@@ -69,7 +75,8 @@
 
 ## 4. Ghi chú sang change khác
 
-- [ ] 4.1 **`zalo-personal`:** thêm vào ZL-06 "khai `kind()` = `CHAT` (D-306)" và vào ZL-11 "nút cuối là 'Mở Tin nhắn' (D-305)". Làm sau khi phiên ZL-05 commit, vì phiên đó đang sửa `zalo-personal/tasks.md`.
+- [x] 4.1 **`zalo-personal`:** thêm vào ZL-06 "khai `kind()` = `CHAT` (D-306)" và vào ZL-11 "nút cuối là 'Mở Tin nhắn' (D-305)". Làm sau khi phiên ZL-05 commit, vì phiên đó đang sửa `zalo-personal/tasks.md`.
+  - **Đã làm (2026-10-16, sau commit ZL-05 `98be86e`):** ghi chú ở ZL-06 (`kind()` = `CHAT`, thứ tự với BE-110), ZL-08 (tin Zalo hiện ở Tin nhắn) và ZL-11 (nút "Mở Tin nhắn").
 - [x] 4.2 **`f10-new-mail`:** BE-84 kiểm tài khoản gửi có provider `EMAIL`, không thì `422` (D-307).
   - **Đã làm (2026-10-16):** ghi chú vào BE-84 trong `openspec/changes/f10-new-mail/tasks.md`, cùng commit với hồ sơ này.
 
