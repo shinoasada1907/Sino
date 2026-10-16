@@ -44,7 +44,8 @@ export function useInboxUnread(): number | undefined {
 }
 
 export function useInbox(): InboxQuery {
-  const { data, dataUpdatedAt, error, errorUpdatedAt, refetch } = useQuery({ queryKey: INBOX_QUERY_KEY, queryFn: fetchInbox, staleTime: Infinity })
+  // Not `queryFn: fetchInbox`: the query context it would get is not a kind.
+  const { data, dataUpdatedAt, error, errorUpdatedAt, refetch } = useQuery({ queryKey: INBOX_QUERY_KEY, queryFn: () => fetchInbox(), staleTime: Infinity })
   return { inbox: data, receivedAt: dataUpdatedAt, error, failedAt: errorUpdatedAt, retry: () => void refetch() }
 }
 

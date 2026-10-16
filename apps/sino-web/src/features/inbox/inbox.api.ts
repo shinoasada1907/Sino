@@ -1,5 +1,6 @@
 import { api } from '@/shared/api/client'
-import type { AccountStatus, Instant, ProviderInfo } from '@/shared/domain'
+import { toProviderInfo, type ProviderEntry } from '@/shared/api/providers'
+import type { AccountStatus, Instant, ProviderKind } from '@/shared/domain'
 import type { InboxFilter } from './format'
 import type {
   Attachment,
@@ -13,6 +14,7 @@ import type {
   MessageBody,
   MessagePage,
   OpenConversation,
+  UnreadByKind,
 } from './inbox.types'
 import type { NewMailDraft } from './newMail'
 
@@ -34,9 +36,7 @@ interface AccountResponse {
 }
 
 /** One provider of `GET /api/providers` (F03). */
-interface ProviderResponse {
-  type: string
-  displayName: string
+interface ProviderResponse extends ProviderEntry {
   capabilities?: string[]
 }
 
@@ -48,6 +48,13 @@ interface CountsResponse {
   withAttachments: number
   scheduled: number
   snoozed: number
+  /** Absent on a backend before f05c (D-307). */
+  unreadByKind?: Record<ProviderKind, number>
+}
+
+/** The `kind` parameter of the inbox requests (f05c, D-307); none asks for both kinds. */
+function kindQuery(kind: ProviderKind | undefined): Record<string, string> {
+  return kind ? { kind: kind.toLowerCase() } : {}
 }
 
 /** One item of `GET /api/conversations`; snooze, scheduled sending and linked items are empty until those features. */
@@ -222,24 +229,35 @@ export async function fetchUnreadCount(): Promise<number> {
   return (await api.get<CountsResponse>('/api/conversations/counts')).unread
 }
 
-/** `GET /api/accounts`, `GET /api/providers` and `GET /api/conversations/counts`. */
-export async function fetchInbox(): Promise<InboxData> {
+/** `GET /api/conversations/counts`: the unread of Tin nhắn and Hộp thư for the navigation (f05c, spec web-app-shell). */
+export async function fetchUnreadByKind(): Promise<UnreadByKind> {
+  const { unread, unreadByKind } = await api.get<CountsResponse>('/api/conversations/counts')
+  return unreadByKind ?? { EMAIL: unread, CHAT: null }
+}
+
+/** `GET /api/accounts`, `GET /api/providers` and `GET /api/conversations/counts`, the counts of one kind or of both. */
+export async function fetchInbox(kind?: ProviderKind): Promise<InboxData> {
+  const query = new URLSearchParams(kindQuery(kind)).toString()
   const [accounts, providers, counts] = await Promise.all([
     api.get<AccountResponse[]>('/api/accounts'),
     api.get<ProviderResponse[]>('/api/providers'),
-    api.get<CountsResponse>('/api/conversations/counts'),
+    api.get<CountsResponse>(`/api/conversations/counts${query ? `?${query}` : ''}`),
   ])
   return {
     generatedAt: new Date().toISOString(),
-    providers: providers.map(({ type, displayName }): ProviderInfo => ({ type, displayName })),
+    providers: providers.map(toProviderInfo),
     accounts: accounts.map((account) => toAccount(account, providers)),
-    counts: { ...counts, byProvider: Object.entries(counts.byProvider).map(([provider, unread]) => ({ provider, unread })) },
+    counts: {
+      ...counts,
+      byProvider: Object.entries(counts.byProvider).map(([provider, unread]) => ({ provider, unread })),
+      unreadByKind: counts.unreadByKind ?? null,
+    },
   }
 }
 
-/** `GET /api/conversations`: one page of a view and a source; `cursor` is the `nextCursor` of the page before. */
-export async function fetchConversations({ view, source }: InboxFilter, cursor: string | null): Promise<ConversationPage> {
-  const params = new URLSearchParams({ view })
+/** `GET /api/conversations`: one page of a view, a source and a kind; `cursor` is the `nextCursor` of the page before. */
+export async function fetchConversations({ view, source }: InboxFilter, cursor: string | null, kind?: ProviderKind): Promise<ConversationPage> {
+  const params = new URLSearchParams({ view, ...kindQuery(kind) })
   if (source) {
     params.set('provider', source)
   }

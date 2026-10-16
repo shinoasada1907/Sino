@@ -27,6 +27,21 @@ describe('inbox sample data', () => {
     }
   })
 
+  it('says which providers are email and which are chat, as their conversations do (f05c, D-306)', () => {
+    const kindOf = Object.fromEntries(inbox.providers.map(({ type, kind }) => [type, kind]))
+    expect(kindOf).toEqual({ gmail: 'EMAIL', zalo: 'CHAT', messenger: 'CHAT' })
+    for (const item of inbox.conversations) {
+      expect(item.kind).toBe(kindOf[item.provider])
+    }
+  })
+
+  it('counts the unread of each kind from the sources, as the canvas shows them: 7 in Hộp thư, 5 in Tin nhắn', () => {
+    const kindOf = Object.fromEntries(inbox.providers.map(({ type, kind }) => [type, kind]))
+    const sum = (kind: string) => inbox.counts.byProvider.filter(({ provider }) => kindOf[provider] === kind).reduce((total, { unread }) => total + unread, 0)
+    expect(inbox.counts.unreadByKind).toEqual({ EMAIL: sum('EMAIL'), CHAT: sum('CHAT') })
+    expect(inbox.counts.unreadByKind).toEqual({ EMAIL: 7, CHAT: 5 })
+  })
+
   it('shares the ids and titles of the overview conversations', () => {
     const overview = createOverviewSample(now).inbox!.conversations
     for (const conversation of overview) {

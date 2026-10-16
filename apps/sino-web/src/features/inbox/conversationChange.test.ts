@@ -33,6 +33,7 @@ const counts: InboxCounts = {
   withAttachments: 6,
   scheduled: 1,
   snoozed: 2,
+  unreadByKind: null,
 }
 
 describe('applyChange', () => {
@@ -59,6 +60,14 @@ describe('countsAfter', () => {
         { provider: 'zalo', unread: 2 },
       ],
     })
+  })
+
+  it('moves the unread of the conversation kind with the others, and leaves it unknown when the backend did not tell (f05c)', () => {
+    const byKind = { ...counts, unreadByKind: { EMAIL: 3, CHAT: 2 } }
+    expect(countsAfter(byKind, item, { ...item, unreadCount: 0 }).unreadByKind).toEqual({ EMAIL: 2, CHAT: 2 })
+    const chat = { ...item, provider: 'zalo', kind: 'CHAT' as const, unreadCount: 0 }
+    expect(countsAfter(byKind, chat, { ...chat, unreadCount: 4 }).unreadByKind).toEqual({ EMAIL: 3, CHAT: 3 })
+    expect(countsAfter(counts, item, { ...item, unreadCount: 0 }).unreadByKind).toBeNull()
   })
 
   it('counts one conversation once, however many of its messages are unread', () => {

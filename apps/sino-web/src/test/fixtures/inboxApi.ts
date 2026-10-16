@@ -42,7 +42,16 @@ export const API_CONVERSATIONS = [
   },
 ]
 
-export const API_COUNTS = { unread: 1, byProvider: { gmail: 1 }, needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0 }
+export const API_COUNTS = {
+  unread: 1,
+  byProvider: { gmail: 1 },
+  needsReply: 1,
+  withAttachments: 1,
+  scheduled: 0,
+  snoozed: 0,
+  // Both kinds, whatever `kind` was asked for (f05c, D-307).
+  unreadByKind: { EMAIL: 1, CHAT: 0 },
+}
 
 export const API_PARTICIPANTS = [
   { externalId: 'minhanh@acme.vn', name: 'Trần Minh Anh', avatarUrl: null, self: false },

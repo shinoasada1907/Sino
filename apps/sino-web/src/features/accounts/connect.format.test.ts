@@ -16,7 +16,7 @@ import {
 } from './connect.format'
 
 function provider(extra: Partial<ConnectableProvider>): ConnectableProvider {
-  return { type: 'gmail', displayName: 'Gmail', capabilities: [], connectable: true, scopes: [], ...extra }
+  return { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL', capabilities: [], connectable: true, scopes: [], ...extra }
 }
 
 describe('providers of the wizard', () => {

@@ -158,9 +158,9 @@ export function createInboxSample(now: Date): InboxSample {
   return {
     generatedAt: now.toISOString(),
     providers: [
-      { type: 'gmail', displayName: 'Gmail' },
-      { type: 'zalo', displayName: 'Zalo' },
-      { type: 'messenger', displayName: 'Messenger' },
+      { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' },
+      { type: 'zalo', displayName: 'Zalo', kind: 'CHAT' },
+      { type: 'messenger', displayName: 'Messenger', kind: 'CHAT' },
     ],
     accounts: [
       { id: 'acc-gmail', provider: 'gmail', externalAccountId: 'an.nguyen@gmail.com', address: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null, sending: 'READY' },
@@ -188,6 +188,8 @@ export function createInboxSample(now: Date): InboxSample {
       withAttachments: 5,
       scheduled: 1,
       snoozed: 1,
+      // Hộp thư and Tin nhắn on the canvas navigation (f05c).
+      unreadByKind: { EMAIL: 7, CHAT: 5 },
     },
     conversations,
   }

@@ -1,10 +1,11 @@
-import type { AccountStatus, Instant, ProviderInfo, ProviderType } from '@/shared/domain'
+import type { AccountStatus, Instant, ProviderInfo, ProviderKind, ProviderType } from '@/shared/domain'
 
 /**
  * Data contract of the Hộp thư screens (D-42), handed to the backend for F05 and F06; see the change design.md.
  */
 
-export type ConversationKind = 'EMAIL' | 'CHAT'
+/** The kind of the conversation's provider, not of the conversation itself (f05c, D-306). */
+export type ConversationKind = ProviderKind
 export type LinkedKind = 'TASK' | 'EVENT' | 'NOTE'
 
 /** The frame of the list screen: `GET /api/accounts`, `GET /api/providers`, `GET /api/conversations/counts`. */
@@ -69,6 +70,14 @@ export interface InboxCounts {
   withAttachments: number
   scheduled: number
   snoozed: number
+  /** Unread conversations of both kinds, whatever kind the counts were asked for; null from a backend before f05c (D-307). */
+  unreadByKind: Record<ProviderKind, number> | null
+}
+
+/** The numbers of Tin nhắn and Hộp thư on the navigation; `CHAT` is null from a backend before f05c, which cannot tell. */
+export interface UnreadByKind {
+  EMAIL: number
+  CHAT: number | null
 }
 
 export interface ConversationItem {

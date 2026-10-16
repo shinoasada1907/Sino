@@ -29,11 +29,11 @@ const ALL = { view: 'all', source: null } as const
 const [first, second] = API_CONVERSATIONS.map((item) => ({ ...item, snippet: item.snippet ?? '', linked: [] })) as ConversationItem[]
 const FRAME: InboxData = {
   generatedAt: now.toISOString(),
-  providers: [{ type: 'gmail', displayName: 'Gmail' }],
+  providers: [{ type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' }],
   accounts: [
     { id: 'acc-1', provider: 'gmail', externalAccountId: '115758365451560723981', address: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null, sending: 'READY' },
   ],
-  counts: { unread: 1, byProvider: [{ provider: 'gmail', unread: 1 }], needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0 },
+  counts: { unread: 1, byProvider: [{ provider: 'gmail', unread: 1 }], needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0, unreadByKind: null },
 }
 const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOUND' }
 const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })

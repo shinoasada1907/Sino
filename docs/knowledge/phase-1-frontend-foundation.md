@@ -1439,6 +1439,34 @@ Vài kỹ thuật dùng ở trang này:
 - **Ngày viết tay, không dùng `Intl`:** `formatDate` tự ghép `01/11/2026` và `1 November 2026`. `Intl.DateTimeFormat` có thể in khác nhau giữa Node (lúc prerender) và trình duyệt, làm hydrate lệch.
 - **Mục lục dính (`position: sticky`)** từ 768 px, và thành hàng chip trên điện thoại. `scroll-margin-top` giữ cho tiêu đề mục không bị thanh trên che khi bấm `#google`.
 
+## 22. Tin nhắn và Hộp thư (`f05c-messages-inbox-split`)
+
+### 22.0 Bức tranh
+Hộp thư tách thành hai màn: Tin nhắn (`/messages`, chat) và Hộp thư (`/inbox`, email). Loại không thuộc về từng cuộc trò chuyện mà thuộc về nhà cung cấp: Gmail là `EMAIL`, Zalo và Messenger là `CHAT` (D-306). FE-110 chỉ đổi lớp dữ liệu; các màn đổi ở FE-111…FE-113.
+
+```text
+GET /api/providers                   -> ProviderInfo.kind   (thiếu -> EMAIL, D-308)
+GET /api/conversations?kind=chat     -> chỉ một loại        (không có kind -> cả hai, như cũ)
+GET /api/conversations/counts?kind=  -> các số của loại đó
+                                        + unreadByKind { EMAIL, CHAT }, luôn đủ hai loại
+```
+
+### 22.1 Một hàm cho quy tắc "thiếu loại thì là email" (FE-110)
+Ba màn đọc `GET /api/providers`: Hộp thư, Tài khoản, Việc cần làm. Trước đây mỗi màn tự viết `({ type, displayName }) => ...`. Giờ cả ba gọi `toProviderInfo` trong `shared/api/providers.ts`, nên quy tắc "backend cũ không gửi `kind` thì coi là email" chỉ nằm ở một chỗ, giống cách backend coi một provider không có connector là email. Quy tắc đổi thì chỉ sửa một hàm.
+
+`kind` trong `ProviderInfo` là bắt buộc, không phải `kind?`. Nếu để tùy chọn, mỗi màn dùng nó lại phải tự viết `?? 'EMAIL'`, và màn nào quên thì lặng lẽ sai. Bắt buộc thì TypeScript chỉ ra mọi chỗ dựng provider mà thiếu loại: lần này `tsc -b` liệt kê 28 chỗ (API, dữ liệu mẫu, test), sửa hết là xong.
+
+### 22.2 Tham số tùy chọn và cái bẫy `queryFn: fetchInbox`
+`fetchInbox(kind?)` và `fetchConversations(filter, cursor, kind?)` nhận loại không bắt buộc: không truyền thì hỏi cả hai loại, nên màn Hộp thư hiện tại chạy y như cũ cho tới FE-112.
+
+Bẫy: `useQuery({ queryFn: fetchInbox })` truyền cho hàm một đối tượng ngữ cảnh của TanStack Query (`queryKey`, `signal`…). Khi `fetchInbox()` chưa có tham số thì không sao; giờ tham số đầu là `kind`, đối tượng đó sẽ bị coi là loại và `kind.toLowerCase()` hỏng. Vì vậy `useInbox` viết `queryFn: () => fetchInbox()`. Quy tắc chung: chỉ đưa thẳng tên hàm cho `queryFn` khi hàm không nhận tham số nào.
+
+### 22.3 "Không biết" khác "không có"
+`fetchUnreadByKind()` trả `{ EMAIL, CHAT }` cho thanh điều hướng. Backend trước f05c không có `unreadByKind`: Hộp thư lấy tổng `unread` (hôm nay chỉ email chạy thật, nên tổng đó đúng là của email), còn Tin nhắn là `null`, nghĩa là "không biết", và điều hướng không hiện số. Trả `0` thì sai: nó nói "không có tin chưa đọc" trong khi sự thật là không biết.
+
+### 22.4 Cập nhật trước khi server trả lời phải giữ mọi số khớp nhau
+Đọc một thư thì `countsAfter` trừ ngay số chưa đọc, số theo nguồn, số cần trả lời, trước khi server trả lời (optimistic update). Thêm `unreadByKind` mà không sửa hàm này thì sau khi đọc, tổng giảm còn số của loại vẫn như cũ. Test viết trước bắt đúng lỗi đó (đỏ: `{ EMAIL: 3, CHAT: 2 }` thay vì `{ EMAIL: 2, CHAT: 2 }`). Loại của một dòng không bao giờ đổi, nên chỉ cần cộng trừ vào `unreadByKind[after.kind]`.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1603,3 +1631,6 @@ Vài kỹ thuật dùng ở trang này:
 132. Kể ba câu trong Privacy của Sino và chỗ trong code chứng minh từng câu. Vì sao phải dò code thay vì viết theo thiết kế?
 133. Hai bản VI và EN được giữ "cùng nội dung" bằng cách nào? Nếu thêm một mục chỉ ở bản tiếng Việt thì chuyện gì xảy ra?
 134. Vì sao ngày hiệu lực được định dạng bằng tay chứ không bằng `Intl.DateTimeFormat`?
+135. Vì sao `kind` của provider là trường bắt buộc trong `ProviderInfo`, dù backend cũ không gửi nó? Quy tắc cho backend cũ nằm ở đâu?
+136. `useQuery({ queryFn: fetchInbox })` hỏng sau khi `fetchInbox` có tham số `kind`. Vì sao, và viết lại thế nào?
+137. Vì sao Tin nhắn nhận `null` chứ không nhận `0` khi backend chưa có `unreadByKind`?

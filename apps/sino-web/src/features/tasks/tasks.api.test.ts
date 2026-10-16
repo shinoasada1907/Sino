@@ -19,7 +19,7 @@ describe('the Việc cần làm requests on the F16 API (BE-72)', () => {
 
     expect(data.generatedAt).toBe('2026-10-02T07:05:00Z')
     expect(data.tasks).toEqual(API_TASKS)
-    expect(data.providers).toEqual([{ type: 'gmail', displayName: 'Gmail' }])
+    expect(data.providers).toEqual([{ type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' }])
   })
 
   it('adds a task by its title', async () => {

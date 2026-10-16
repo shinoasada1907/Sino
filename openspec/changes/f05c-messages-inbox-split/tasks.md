@@ -46,12 +46,23 @@
 
 > Mỗi task: test viết trước (đỏ rồi xanh); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build`; đối chiếu canvas; Chrome một lượt ở các cỡ task đụng tới; file kiến thức `docs/knowledge/phase-1-frontend-foundation.md` + `.docx`, `genoffice docs check`; commit riêng trên `dev`. Làm theo hợp đồng trong `design.md`, test bằng MSW.
 
-- [ ] 3.1 **FE-110 — Hợp đồng dữ liệu theo loại**
+- [x] 3.1 **FE-110 — Hợp đồng dữ liệu theo loại**
   - **Goal:** web biết loại của provider và số chưa đọc của từng loại.
-  - **Files:** `shared/domain` (`ProviderInfo.kind`), `features/inbox/inbox.api.ts`, `inbox.types.ts`, `inbox.sample.ts`, `useInbox.ts` (query key có `kind`), handler MSW.
+  - **Files:** `shared/domain` (`ProviderInfo.kind`), `features/inbox/inbox.api.ts`, `inbox.types.ts`, `inbox.sample.ts`, ~~`useInbox.ts` (query key có `kind`)~~, handler MSW.
   - **Acceptance criteria:** request có `kind=email`/`kind=chat`; provider thiếu `kind` tính là `EMAIL`; counts thiếu `unreadByKind` theo spec `web-app-shell` *Tin nhắn và Hộp thư trên điều hướng*.
   - **Test:** ánh xạ API (có và không có trường mới); MSW lọc theo `kind`; dữ liệu mẫu tách chat và email.
   - **Depends on:** CV-02
+  - **Đã làm (2026-10-16, AUTO):**
+    - `shared/domain`: `ProviderKind`, `ProviderInfo.kind` bắt buộc; `shared/api/providers.ts`: `toProviderInfo` (thiếu `kind` → `EMAIL`, D-308), dùng ở `inbox.api`, `accounts.api` (cả `fetchConnectProviders`), `tasks.api`.
+    - `inbox.types`: `ConversationKind = ProviderKind`, `InboxCounts.unreadByKind` (null khi backend chưa có), `UnreadByKind` cho điều hướng.
+    - `inbox.api`: `fetchInbox(kind?)` → `counts?kind=`, `fetchConversations(filter, cursor, kind?)` → `kind=` sau `view`, `fetchUnreadByKind()` (thiếu `unreadByKind` → `{ EMAIL: unread, CHAT: null }`); `useInbox` gọi `() => fetchInbox()` (TanStack truyền ngữ cảnh vào `queryFn`).
+    - `conversationChange.countsAfter` cập nhật cả `unreadByKind` theo `kind` của dòng.
+    - Dữ liệu mẫu: provider có `kind` (Gmail `EMAIL`, Zalo, Messenger, Telegram `CHAT`; "Google" của Đăng ký `EMAIL` theo D-308), `unreadByKind` = `{ EMAIL: 7, CHAT: 5 }` như canvas; fixture API (`API_PROVIDERS`, `API_COUNTS`) theo hợp đồng mới; `test/inboxSampleApi` lọc theo `kind` và có `fetchUnreadByKind`.
+  - **Làm khác kế hoạch:**
+    - ~~Query key có `kind` ở FE-110~~ → FE-112. **LÝ DO:** cache Hộp thư được sửa thẳng bằng khóa `INBOX_QUERY_KEY` (đặt số đếm sau khi đọc, đọc lại `exact: true`); đổi khóa mà màn chưa truyền `kind` thì không màn nào kiểm được các chỗ đó. FE-112 đổi khóa cùng lúc với hai màn.
+    - Hai cuộc chat mẫu mới của canvas ("Hà", "Nhóm sửa nhà") để FE-112. **LÝ DO:** hôm nay `/inbox` còn hiện cả chat; thêm dòng bây giờ làm đổi các test danh sách gộp rồi phải sửa lại lần nữa khi tách màn. Số `unreadByKind` của mẫu đã khớp canvas mà không cần hai dòng đó.
+    - Không có handler MSW chung cho Hộp thư: mỗi test tự khai handler; phần "MSW lọc theo `kind`" là test hỏi đúng `?kind=` và API mẫu `test/inboxSampleApi` lọc theo `kind`.
+  - **Bằng chứng (2026-10-16):** đỏ trước: 9 test (`inbox.api.test` 7, `inbox.sample.test` 2) đúng lý do (thiếu `kind`, thiếu `?kind=`, `fetchUnreadByKind is not a function`), rồi 1 test `countsAfter` đỏ (`{ EMAIL: 3, CHAT: 2 }` thay vì `{ EMAIL: 2, … }`); xanh 36/36 ở ba file. `tsc -b` chỉ ra 28 chỗ dựng provider thiếu `kind` (API, mẫu, test), sửa hết; 3 test API của Tài khoản và Việc đổi mong đợi thêm `kind: 'EMAIL'`. Toàn bộ: `pnpm lint` 0; `pnpm test` 658/665, 7 đỏ đều ở `features/notes` và đỏ y như vậy trên `dev` khi cất tạm thay đổi của task (`git stash`); `tsc -b` chỉ còn 2 lỗi ở `features/notes/notes.sample.ts`, cũng có sẵn trên `dev` (WIP `b23f5b3` của `fe-ui-diagram-notes`, ghi "chưa chạy tsc"), nên `pnpm build` dừng ở `tsc`; `vite build` riêng xanh. Không chạy Chrome: task không đổi màn nào. File kiến thức phase 1 mục 22.0–22.4 + câu 135–137, `.docx` sinh lại, `genoffice docs check` không lỗi.
 
 - [ ] 3.2 **FE-111 — Điều hướng Tin nhắn và Hộp thư (D-300, D-301)**
   - **Files:** `app/shell/navItems.ts`, `shell.types.ts`, `shell.sample.ts`, `AppShell.tsx`, `MorePage.tsx`, test của shell.

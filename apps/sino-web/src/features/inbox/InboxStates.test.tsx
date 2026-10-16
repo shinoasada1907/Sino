@@ -13,7 +13,7 @@ vi.mock('./inbox.api', async (importOriginal) => (await import('@/test/inboxSamp
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
-const NO_COUNTS: InboxData['counts'] = { unread: 0, byProvider: [], needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0 }
+const NO_COUNTS: InboxData['counts'] = { unread: 0, byProvider: [], needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0, unreadByKind: null }
 
 function open(path: string, inbox: InboxSample | null = createInboxSample(NOW)) {
   return renderApp(path, { shell: createShellSample(NOW), inbox })

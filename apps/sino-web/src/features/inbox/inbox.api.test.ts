@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
 import { API_CONVERSATIONS, API_COUNTS, API_MESSAGES, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
 import { server } from '@/test/msw/server'
-import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, updateConversation } from './inbox.api'
+import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, fetchUnreadByKind, updateConversation } from './inbox.api'
 
 const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOUND' }
 const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })
@@ -29,7 +29,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
     const inbox = await fetchInbox()
 
     expect(Date.parse(inbox.generatedAt)).not.toBeNaN()
-    expect(inbox.providers).toEqual([{ type: 'gmail', displayName: 'Gmail' }])
+    expect(inbox.providers).toEqual([{ type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' }])
     expect(inbox.accounts).toEqual([
       {
         id: 'acc-1',
@@ -62,6 +62,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       withAttachments: 1,
       scheduled: 0,
       snoozed: 0,
+      unreadByKind: { EMAIL: 1, CHAT: 0 },
     })
   })
 
@@ -114,6 +115,93 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
 
     expect(asked).toEqual(['?view=all&cursor=a%2Fb%2Bc'])
     expect(page).toEqual({ items: [], nextCursor: null })
+  })
+
+  describe('email and chat (f05c, D-306…D-308)', () => {
+    const noAccounts = () => http.get('/api/accounts', () => HttpResponse.json([]))
+
+    it('gives each provider its kind, and counts a provider without one as email', async () => {
+      server.use(
+        noAccounts(),
+        http.get('/api/providers', () =>
+          HttpResponse.json([
+            { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' },
+            { type: 'zalo', displayName: 'Zalo', kind: 'CHAT' },
+            { type: 'outlook', displayName: 'Outlook' },
+          ]),
+        ),
+        http.get('/api/conversations/counts', () => HttpResponse.json(API_COUNTS)),
+      )
+
+      expect((await fetchInbox()).providers).toEqual([
+        { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' },
+        { type: 'zalo', displayName: 'Zalo', kind: 'CHAT' },
+        { type: 'outlook', displayName: 'Outlook', kind: 'EMAIL' },
+      ])
+    })
+
+    it('asks for the counts of one kind and keeps the unread of both kinds', async () => {
+      const asked: string[] = []
+      server.use(
+        noAccounts(),
+        http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+        http.get('/api/conversations/counts', ({ request }) => {
+          asked.push(new URL(request.url).search)
+          return HttpResponse.json({ ...API_COUNTS, unreadByKind: { EMAIL: 1, CHAT: 4 } })
+        }),
+      )
+
+      const inbox = await fetchInbox('CHAT')
+
+      expect(asked).toEqual(['?kind=chat'])
+      expect(inbox.counts.unreadByKind).toEqual({ EMAIL: 1, CHAT: 4 })
+    })
+
+    it('asks for the counts of every kind without a kind, and has no unread by kind from a backend before f05c', async () => {
+      const asked: string[] = []
+      const { unreadByKind: _, ...before } = API_COUNTS
+      server.use(
+        noAccounts(),
+        http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+        http.get('/api/conversations/counts', ({ request }) => {
+          asked.push(new URL(request.url).search)
+          return HttpResponse.json(before)
+        }),
+      )
+
+      const inbox = await fetchInbox()
+
+      expect(asked).toEqual([''])
+      expect(inbox.counts.unreadByKind).toBeNull()
+    })
+
+    it('asks for one page of one kind', async () => {
+      const asked: string[] = []
+      server.use(
+        http.get('/api/conversations', ({ request }) => {
+          asked.push(new URL(request.url).search)
+          return HttpResponse.json({ items: [], nextCursor: null })
+        }),
+      )
+
+      await fetchConversations({ view: 'unread', source: 'gmail' }, null, 'EMAIL')
+      await fetchConversations({ view: 'all', source: null }, null, 'CHAT')
+
+      expect(asked).toEqual(['?view=unread&kind=email&provider=gmail', '?view=all&kind=chat'])
+    })
+
+    it('gives the navigation the unread of each kind', async () => {
+      server.use(http.get('/api/conversations/counts', () => HttpResponse.json({ ...API_COUNTS, unread: 12, unreadByKind: { EMAIL: 7, CHAT: 5 } })))
+
+      expect(await fetchUnreadByKind()).toEqual({ EMAIL: 7, CHAT: 5 })
+    })
+
+    it('gives Hộp thư every unread and Tin nhắn no number on a backend before f05c', async () => {
+      const { unreadByKind: _, ...before } = API_COUNTS
+      server.use(http.get('/api/conversations/counts', () => HttpResponse.json({ ...before, unread: 12 })))
+
+      expect(await fetchUnreadByKind()).toEqual({ EMAIL: 12, CHAT: null })
+    })
   })
 
   it('opens one conversation: its item, and its people as members; messages and sending wait for F06 and F10', async () => {
