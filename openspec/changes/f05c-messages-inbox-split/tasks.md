@@ -5,22 +5,24 @@
 
 ## 1. Canvas
 
-- [ ] 1.1 **CV-01 — Vẽ lại canvas "Sino UI" (D-302)**
+- [x] 1.1 **CV-01 — Vẽ lại canvas "Sino UI" (D-302)**
   - **Goal:** canvas có hai mục Tin nhắn, Hộp thư và các màn của Tin nhắn trước khi code web.
   - **Thực hiện:** đọc bản mới nhất của https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB, sửa các frame trong bảng "Canvas" của `design.md` (bản tối và sáng), thêm `Messages`, `TabletMessages`, `MobileMessages`, publish lên cùng link (artifact giữ phiên bản cũ).
   - **Acceptance criteria:** người dùng duyệt trên link; chữ, icon, vị trí trong canvas khớp D-300…D-305 (chỗ canvas chốt khác spec thì sửa spec và ghi **LÝ DO** ở đây).
   - **Depends on:** —
-  - **Đã vẽ (2026-10-16, chờ người dùng duyệt):** publish phiên bản `1792119157-a180` ("Tách Tin nhắn và Hộp thư (CV-01)"), sửa từ bản `1790948862-287a` (bản repo đang khớp).
+  - **Duyệt (2026-10-16):** người dùng: "Duyệt canvas, kể cả hai cuộc chat mẫu mới."
+  - **Đã vẽ (2026-10-16):** publish phiên bản `1792119157-a180` ("Tách Tin nhắn và Hộp thư (CV-01)"), sửa từ bản `1790948862-287a` (bản repo đang khớp).
     - Mục "Tin nhắn" trong `Sidebar`, `Rail`, `TabBar` (icon hai bong bóng, `MessagesSquare`; số 5, Hộp thư 7); tab bar mất Lịch, `TabBar` coi `active="calendar"` là "Thêm"; `MobileMore` có Lịch ở đầu.
     - Mới: `Messages`, `TabletMessages`, `MobileMessages`, `MessagesState` (`InboxState` với `screen="messages"`) và bản Light của từng frame; hai cuộc chat mẫu mới "Hà", "Nhóm sửa nhà".
     - `Inbox`, `TabletInbox`, `MobileInbox`, trạng thái của `InboxState` chỉ còn Gmail; `Conversation`, `MobileConversation`, trạng thái "Cần kết nối lại" của `ThreadState` quay về Tin nhắn; ba frame Tổng quan có hai nút, thẻ mobile đổi tên thành "Hộp thư hợp nhất"; thẻ nguồn Zalo trong `Calendar` dẫn tới Tin nhắn.
     - `ConnectWizardStep5` không đổi: canvas vẽ luồng Gmail, nút "Mở hộp thư" vẫn đúng.
     - `canvas.json`: 8 frame mới; Tin nhắn đứng sau Tổng quan nên các frame sau nó ở trang Desktop và Responsive dời sang phải.
 
-- [ ] 1.2 **CV-02 — Bản sao trong repo khớp link**
+- [x] 1.2 **CV-02 — Bản sao trong repo khớp link**
   - **Files:** `design/sino-ui/project/` (các frame đã đổi, frame mới, `canvas.json`).
   - **Acceptance criteria:** từng frame đã đổi trong repo giống bản đã duyệt; `PROJECT_STATE.md` ghi mã phiên bản đã khớp.
   - **Depends on:** CV-01
+  - **Bằng chứng (2026-10-16):** link vẫn ở `1792119157-a180` (danh sách file của artifact); chép 24 file (15 frame đã sửa, 8 frame mới, `canvas.json`); kích thước từng file bằng danh sách của link; SHA-256 của `canvas.json`, `Inbox`, `Messages`, `InboxState` bằng mã link trả về; `cmp` bản chép với bản đã publish không lệch byte nào; thư mục có 185 file như link (183 frame, `canvas.json`, `sino.css`). `PROJECT_STATE.md` ghi phiên bản đã khớp.
 
 ## 2. Backend
 
