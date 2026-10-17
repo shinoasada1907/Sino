@@ -1,4 +1,4 @@
-import { Navigate, type RouteObject } from 'react-router'
+import type { RouteObject } from 'react-router'
 import { AccountDetailPage } from '@/features/accounts/AccountDetailPage'
 import { AccountsPage } from '@/features/accounts/AccountsPage'
 import { CalendarPage } from '@/features/calendar/CalendarPage'
@@ -7,6 +7,7 @@ import { RequireAuth } from '@/features/auth/RequireAuth'
 import { InboxPage } from '@/features/inbox/InboxPage'
 import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotesPage } from '@/features/notes/NotesPage'
+import { HomeGate } from '@/features/public/HomeGate'
 import { TasksPage } from '@/features/tasks/TasksPage'
 import { NotFoundPage } from './NotFoundPage'
 import { MorePage } from './shell/MorePage'
@@ -27,17 +28,17 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
 }
 
-// Every page sits behind RequireAuth except sign-in and 404 (spec web-app-foundation).
+// Every page sits behind RequireAuth except sign-in, 404 and the public pages (spec web-app-foundation, web-public-pages).
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
+  // The Sino Messages page for a visitor, Tổng quan for the owner (D-310).
+  { path: '/', element: <HomeGate /> },
   {
-    path: '/',
     element: <RequireAuth />,
     children: [
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <Navigate to="/overview" replace /> },
           ...PAGES.map(({ to, title }) => ({
             path: to.slice(1),
             ...(SCREENS[to] ?? { element: <UnderConstructionPage title={title} /> }),

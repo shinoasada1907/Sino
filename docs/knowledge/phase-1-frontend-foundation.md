@@ -1720,6 +1720,49 @@ freeSpot bước 1 px thay vì 64 px  -> giữ: vẫn không đè và vẫn ở 
 
 Lượt hai 30/31. Lỗi còn sống không phải test thiếu mà là một cách làm khác cũng đúng yêu cầu: nó còn tìm được chỗ trống gần hơn. Đổi thuật toán hay ghi thêm yêu cầu về khoảng cách là quyết định riêng, không làm lẳng lặng trong một task kiểm.
 
+## 24. Trang công khai trong sino-web (`web-public-pages`)
+
+### 24.0 Bức tranh
+Trang giới thiệu Sino Messages và Chính sách quyền riêng tư vốn chỉ có ở `apps/sino-site`, một site tĩnh riêng chưa có host. Người dùng muốn trước mắt chạy một app trên một domain: `sino-web` tự có trang chủ và trang privacy, đủ cho Google xác minh OAuth. Code được chép sang `src/features/public/`; `sino-site` để nguyên, mỗi file chép ghi nguồn ở dòng đầu.
+
+```text
+/              HomeGate: đang hỏi phiên -> dấu chờ; đã đăng nhập -> /overview (replace);
+               chưa đăng nhập hay máy chủ lỗi -> trang giới thiệu (tải riêng)
+/privacy       Chính sách quyền riêng tư (WP-03)
+/en/privacy    Privacy policy (WP-03)
+mọi trang khác như cũ: RequireAuth -> AppShell
+```
+
+### 24.1 Một route công khai cạnh cây cần đăng nhập (WP-01)
+Trước đây `/` là route cha của cả app, bọc `RequireAuth`, và route `index` của nó chuyển tới `/overview`. Muốn `/` hiện cho khách thì `/` không được nằm dưới `RequireAuth` nữa:
+
+```text
+routes = [
+  { path: '/login', element: <LoginPage /> },
+  { path: '/', element: <HomeGate /> },                 // công khai
+  { element: <RequireAuth />, children: [ AppShell ... ] }   // route bố cục không có path
+  { path: '*', element: <NotFoundPage /> },
+]
+```
+
+Route không có `path` (pathless layout route) chỉ bọc giao diện và chạy logic, không chiếm phần nào của đường dẫn. Nhờ vậy `/overview`, `/tasks`… vẫn khớp như cũ, còn `/` thuộc `HomeGate`. Cổng dùng lại `useMe()` (cùng khóa cache với `RequireAuth`), nên vào app từ trang giới thiệu không phải hỏi phiên lần nữa.
+
+Vì sao lúc đang hỏi phiên lại hiện dấu chờ chứ không hiện trang giới thiệu: người đã đăng nhập mở domain sẽ thấy trang giới thiệu chớp qua rồi mới tới Tổng quan. Còn khi máy chủ lỗi (`isError`), trang công khai vẫn hiện, vì nó không cần API; `RequireAuth` thì hiện "Không mở được Sino", vì trang app cần API.
+
+### 24.2 Thứ một site tĩnh có sẵn mà ứng dụng một trang phải tự làm
+`PublicFrame` làm ba việc trình duyệt tự làm với site tĩnh:
+
+```text
+tiêu đề tab    useEffect: đặt document.title, trả tiêu đề cũ khi rời trang
+lên đầu trang  sang trang khác thì cuộn về 0 (React Router giữ nguyên chỗ cuộn)
+#phần          địa chỉ có #cau-hoi thì cuộn tới phần tử id="cau-hoi" (React Router không cuộn theo hash)
+```
+
+Cuộn mượt khi bấm mục (`scroll-behavior: smooth`) chỉ áp lên trang công khai: `public.css` dùng `html:has([data-public-page])`. Đặt chung cho `html` thì mọi lần cuộn bằng code trong app cũng thành mượt. Lên đầu trang dùng `behavior: 'instant'` để không trượt cả trang mỗi lần đổi trang.
+
+### 24.3 Chép mà không nhân đôi
+Chỉ chép phần riêng của trang công khai: khung, thanh đầu, chân trang, chữ của trang, 5 component chuyển động React Bits và test của chúng. Những gì `sino-site` vốn chép từ `sino-web` (`Button`, `Badge`, `ProviderIcon`, `SinoMark`, `cn`, token màu) thì dùng thẳng bản của `sino-web`. Link vào app đổi từ `appUrl` + đường dẫn sang `<Link to="/login">`, đi qua router nên không tải lại trang. `gsap` (thư viện chuyển động) ghim đúng bản `sino-site` dùng, và chỉ nằm trong chunk công khai (kiểm ở bản build).
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1916,3 +1959,6 @@ Lượt hai 30/31. Lỗi còn sống không phải test thiếu mà là một c�
 164. Vì sao nhấn giữ trên vùng vẽ phải tự đo bằng hẹn giờ, dù Android Chrome có bắn `contextmenu` khi nhấn giữ? Ba trường hợp nào phải hủy hẹn giờ, và vì sao?
 165. Vì sao gợi ý "nhấn giữ" và cỡ chấm nối theo `pointer: coarse` chứ không theo bề rộng màn hình?
 166. Lỗi gài "freeSpot bước 1 px" sống sót. Đó là test thiếu hay một cách làm khác cũng đúng? Bạn quyết thế nào, và ai quyết nếu muốn đổi?
+167. Vì sao `/` phải ra khỏi route `RequireAuth`? Route bố cục không có `path` giúp gì để `/overview`, `/tasks` vẫn khớp như cũ?
+168. Lúc đang hỏi phiên, `HomeGate` hiện dấu chờ thay vì trang giới thiệu; lúc máy chủ lỗi thì hiện trang giới thiệu. Giải thích từng lựa chọn, và vì sao `RequireAuth` làm khác ở trường hợp lỗi.
+169. Kể ba việc site tĩnh có sẵn mà ứng dụng một trang phải tự làm, và chỗ trong `PublicFrame` làm từng việc.

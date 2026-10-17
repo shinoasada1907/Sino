@@ -5,8 +5,16 @@
 
 ## 1. Nền
 
-- [ ] 1.1 **WP-01 — Cổng `/`, khung trang công khai, `gsap`, chuyển động**
-  - **Thực hiện:** `HomeGate` (D-310), route `/`, `/privacy`, `/en/privacy` tải riêng (D-313); `PublicFrame`, `PublicHeader`, `PublicFooter`, `nav.ts`, `text.ts`, `public.css`, `animate-enter` trong `index.css`; cuộn tới `#…`; tiêu đề tab (D-315); `gsap` 3.15.0; 5 component chuyển động và test của chúng chép từ `sino-site`.
+- [x] 1.1 **WP-01 — Cổng `/`, khung trang công khai, `gsap`, chuyển động**
+  - **Thực hiện:** `HomeGate` (D-310), route `/`, ~~`/privacy`, `/en/privacy`~~ tải riêng (D-313); `PublicFrame`, `PublicHeader`, `PublicFooter`, `nav.ts`, ~~`text.ts`~~ `ui.ts`, `public.css`, `animate-enter` trong `index.css`; cuộn tới `#…`; tiêu đề tab (D-315); `gsap` 3.15.0; 5 component chuyển động và test của chúng chép từ `sino-site`.
+  - **Đã làm (2026-10-17, AUTO):**
+    - route `/` → `HomeGate`: đang hỏi phiên thì dấu chờ như `RequireAuth`; đã đăng nhập thì `Navigate /overview replace`; chưa đăng nhập hay máy chủ lỗi thì trang giới thiệu (`React.lazy`). Cây `RequireAuth` thành route bố cục không có `path`, bỏ route `index`.
+    - `PublicPages.tsx` (điểm vào chunk riêng; `Landing` = khung + tiêu đề tab); `PublicFrame` (tiêu đề tab đặt rồi trả lại, lên đầu trang khi đổi trang, cuộn tới `#…`); `PublicHeader` (link qua router `/login`, `/overview`, `/#…`; menu điện thoại `<details>` đóng khi bấm link); `PublicFooter` (chỉ link tới trang đã có, D-311); `nav.ts`; `ui.ts` (kiểu chữ + `ICON`); `public.css` (cuộn mượt và viền focus chỉ trên trang công khai, qua `html:has([data-public-page])`).
+    - `--animate-enter` + `@keyframes enter` trong `index.css`; `gsap` 3.15.0 ghim đúng bản; 5 component chuyển động + 4 file test chép từ `sino-site` (chỉ sửa hai chú thích nói về HTML dựng sẵn); `stubReducedMotion` trong `src/test/matchMedia.ts`.
+  - **Làm khác kế hoạch:**
+    - Route `/privacy`, `/en/privacy` chuyển sang WP-03. **LÝ DO:** WP-01 chưa có nội dung privacy; một route trỏ tới khung rỗng sẽ bị thay ngay ở WP-03.
+    - `text.ts` thành `ui.ts`. **LÝ DO:** gom cả `ICON` (vốn ở `icon.ts` của `sino-site`) vào cùng file kiểu dùng chung.
+  - **Kiểm chứng (2026-10-17):** đỏ trước: cả 5 file test không chạy được vì thiếu module (`./PublicPages`, `./AnimatedList`, `./motion-values`, `./FadeContent`, `./SpotlightCard`). Lần xanh đầu 23/24: test tiêu đề tab đợi `Sino` nhưng jsdom không có `<title>` của `index.html` (tiêu đề ban đầu rỗng) → test so với tiêu đề trước khi mở trang. `features/public` + `router.test` 24/24. `pnpm lint` 0; `pnpm build` 0 (`tsc -b` 0; chunk `PublicPages` 6.05 kB + CSS 0.26 kB; chưa trang nào dùng chuyển động nên `gsap` chưa vào bundle nào, kiểm lại ở WP-02); `pnpm test` 751/751. Chrome (Vite 5181, API giả trả `401`, iframe): 1440 thanh đầu (logo, 5 mục, Đăng nhập, Mở Sino Messages), chân trang 3 cột, tiêu đề tab đúng, theme tối của app, không cuộn ngang; 390 chỉ còn Mở Sino Messages và nút menu, menu thả 6 link, không cuộn ngang. File kiến thức mục 24.0–24.3 + câu 167–169, `.docx` sinh lại, `genoffice docs check` 0 lỗi.
   - **Acceptance criteria:** spec *Trang giới thiệu ở `/`* (cổng: chưa đăng nhập, đã đăng nhập, máy chủ lỗi), scenario *Trang công khai* của `web-app-foundation` với khung trang.
 
 ## 2. Nội dung
@@ -16,7 +24,7 @@
   - **Acceptance criteria:** *Trang giới thiệu ở `/`*, *Link của trang giới thiệu*.
 
 - [ ] 2.2 **WP-03 — Chính sách quyền riêng tư VI/EN, thông tin chủ sở hữu**
-  - **Thực hiện:** `PolicyPage`, `PrivacyPages`, `privacy.vi.tsx`, `privacy.en.tsx`, `privacy.shared.ts` chép từ `sino-site/src/pages/privacy`; `owner.ts`, `OwnerValue` (D-314); link đổi ngôn ngữ.
+  - **Thực hiện:** route `/privacy`, `/en/privacy` (chuyển từ WP-01); `PolicyPage`, `PrivacyPages`, `privacy.vi.tsx`, `privacy.en.tsx`, `privacy.shared.ts` chép từ `sino-site/src/pages/privacy`; `owner.ts`, `OwnerValue` (D-314); link đổi ngôn ngữ.
   - **Acceptance criteria:** *Chính sách quyền riêng tư trong app web*, *Trang công khai tải riêng*.
 
 ## 3. Nghiệm thu (để sau, như các màn khác)
