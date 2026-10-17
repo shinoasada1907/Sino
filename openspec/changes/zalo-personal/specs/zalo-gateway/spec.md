@@ -98,7 +98,7 @@ Khi có tin mới vào bộ đệm, `sino-zalo` MUST gọi `POST <SINO_API>/api/
 - **THEN** webhook được gọi đúng một lần cho account đó
 
 ### Requirement: Gửi tin chữ, không gửi trùng, có giới hạn tốc độ
-`POST /accounts/{accountId}/messages` với `threadId`, `threadType`, `text`, `clientMessageId` MUST gửi tin chữ qua zca-js và trả `201 { msgId, sentAt }`. Cùng `clientMessageId` trong 24 giờ MUST trả `200` với kết quả cũ và MUST NOT gửi lại. Mỗi account MUST gửi tối đa 1 tin mỗi giây; vượt MUST trả `429 RATE_LIMITED` mà không gửi. Zalo từ chối MUST trả `422 REJECTED`; không rõ kết quả (hết giờ) MUST trả `504 OUTCOME_UNKNOWN`.
+`POST /accounts/{accountId}/messages` với `threadId`, `threadType`, `text`, `clientMessageId` MUST gửi tin chữ qua zca-js và trả `201 { msgId, sentAt }`. `sino-zalo` MUST ghi `msgId` theo `clientMessageId` ngay khi zca-js trả, trước khi trả `201`, kể cả khi đã trả `504` vì hết giờ. Cùng `clientMessageId` trong 24 giờ MUST trả `200` với kết quả cũ, kể cả khi phiên đã `ENDED`, và MUST NOT gửi lại; khi lần gửi trước chưa rõ kết quả (đang chờ Zalo hoặc hỏng giữa chừng), MUST trả `504 OUTCOME_UNKNOWN` và MUST NOT gửi lại. Mỗi account MUST gửi tối đa 1 tin mỗi giây; vượt MUST trả `429 RATE_LIMITED` mà không gửi. Zalo từ chối MUST trả `422 REJECTED`, và `clientMessageId` đó MAY được gửi lại vì chưa có gì đi; không rõ kết quả (hết giờ) MUST trả `504 OUTCOME_UNKNOWN`.
 
 #### Scenario: Gửi lại cùng clientMessageId
 - **WHEN** `sino-api` gửi hai request cùng `clientMessageId` và request đầu đã gửi xong
@@ -108,8 +108,12 @@ Khi có tin mới vào bộ đệm, `sino-zalo` MUST gọi `POST <SINO_API>/api/
 - **WHEN** hai tin của cùng account được gửi cách nhau 0,2 giây
 - **THEN** tin thứ hai nhận `429 RATE_LIMITED`
 
+#### Scenario: Gửi lại một lần gửi chưa rõ kết quả
+- **WHEN** lần gửi đầu đã nhận `504 OUTCOME_UNKNOWN` vì Zalo chưa trả lời, và `sino-api` gửi lại cùng `clientMessageId`
+- **THEN** response là `504 OUTCOME_UNKNOWN` và zca-js không gửi lần hai
+
 ### Requirement: Tra tin đã gửi
-`POST /accounts/{accountId}/sent/lookup` với `threadId`, `clientMessageId`, `text`, `after` MUST trả `msgIds`: trước hết `msgId` đã nhớ của `clientMessageId`, sau đó các tin `isSelf` trong bộ đệm của thread đó có `sentAt` sau `after` và cùng `text`. Khi phiên được bật sau `after` và không tìm thấy gì, MUST trả `409 CANNOT_TELL` thay vì danh sách rỗng. Account không có trong bộ nhớ MUST trả `404 UNKNOWN_ACCOUNT`; phiên `ENDED` MUST trả `410 SESSION_ENDED`.
+`POST /accounts/{accountId}/sent/lookup` với `threadId`, `clientMessageId`, `text`, `after` MUST trả `msgIds`: trước hết `msgId` đã nhớ của `clientMessageId`, sau đó các tin `isSelf` trong bộ đệm của thread đó có `sentAt` sau `after` và cùng `text`. Khi phiên được bật sau `after`, khi `after` cũ hơn 24 giờ, hoặc khi lần gửi của `clientMessageId` chưa rõ kết quả, mà không tìm thấy gì, MUST trả `409 CANNOT_TELL` thay vì danh sách rỗng. Account không có trong bộ nhớ MUST trả `404 UNKNOWN_ACCOUNT`; phiên `ENDED` MUST trả `410 SESSION_ENDED`.
 
 #### Scenario: Tin đã đi nhưng sino-api hết giờ chờ
 - **WHEN** zca-js gửi xong nhưng `sino-api` không nhận được trả lời, rồi `sino-api` tra với cùng `clientMessageId`

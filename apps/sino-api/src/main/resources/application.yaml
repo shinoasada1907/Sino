@@ -88,6 +88,15 @@ sino:
       topic: ${SINO_GOOGLE_PUBSUB_TOPIC:}
       audience: ${SINO_GOOGLE_PUBSUB_AUDIENCE:}
       service-account: ${SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT:}
+  zalo:
+    # F09, D-272: personal Zalo accounts through the sino-zalo service (apps/sino-zalo), off unless true. On, the
+    # secret is required and the app stops without it.
+    enabled: ${SINO_ZALO_ENABLED:false}
+    # Where sino-zalo listens: this machine or the Docker network, never the internet (D-282).
+    url: ${SINO_ZALO_URL:http://127.0.0.1:8090}
+    # The secret both services share, at least 32 bytes: the same value as SINO_ZALO_SECRET of sino-zalo. It only
+    # comes from the environment.
+    secret: ${SINO_ZALO_SECRET:}
   planner:
     # D-157: the time zone of the user's days for tasks and the calendar (an IANA name such as Asia/Ho_Chi_Minh).
     # New repeat rules take it and keep it. An unknown name stops the app.

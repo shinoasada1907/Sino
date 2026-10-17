@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import dev.sino.common.security.ApiSecurityTestConfiguration;
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderDescriptor;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.ProviderType;
 
@@ -44,20 +45,23 @@ class ProvidersControllerTests {
     @Test
     void listsEveryProviderInTheRegistryOrder() throws Exception {
         given(registry.descriptors()).willReturn(List.of(
-                new ProviderDescriptor(ProviderType.of("fake"), "Fake", ProviderCapabilities.of(READ_MESSAGES)),
-                new ProviderDescriptor(ProviderType.of("fake-mail"), "Fake Mail",
+                new ProviderDescriptor(ProviderType.of("fake"), "Fake", ProviderKind.CHAT,
+                        ProviderCapabilities.of(READ_MESSAGES)),
+                new ProviderDescriptor(ProviderType.of("fake-mail"), "Fake Mail", ProviderKind.EMAIL,
                         ProviderCapabilities.of(SEND_MESSAGES, READ_MESSAGES))));
 
         mvc.perform(get("/api/providers").with(apiUser()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(APPLICATION_JSON))
                 .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].*", hasSize(3)))
+                .andExpect(jsonPath("$[0].*", hasSize(4)))
                 .andExpect(jsonPath("$[0].type").value("fake"))
                 .andExpect(jsonPath("$[0].displayName").value("Fake"))
+                .andExpect(jsonPath("$[0].kind").value("CHAT"))
                 .andExpect(jsonPath("$[0].capabilities", contains("READ_MESSAGES")))
                 .andExpect(jsonPath("$[1].type").value("fake-mail"))
                 .andExpect(jsonPath("$[1].displayName").value("Fake Mail"))
+                .andExpect(jsonPath("$[1].kind").value("EMAIL"))
                 .andExpect(jsonPath("$[1].capabilities", contains("READ_MESSAGES", "SEND_MESSAGES")));
     }
 

@@ -10,17 +10,19 @@ const anchor = (extra: Partial<NoteAnchor> & Pick<NoteAnchor, 'kind' | 'label'>)
   ...extra,
 })
 
+const text = (note: Omit<NoteItem, 'kind' | 'diagram'>): NoteItem => ({ ...note, kind: 'TEXT', diagram: null })
+
 /**
- * Sample data shaped like the "Sino UI" canvas (`Notes`, `MobileNotes`, `MobileNoteEditor`). The conversations and the
- * task are those of the inbox and tasks samples. Every time moves with `now`; at 14:05 it shows the canvas times.
+ * Sample data shaped like the "Sino UI" canvas (`Notes`, `MobileNotes`, `MobileNoteEditor`), and the diagram of the
+ * approved prototype (fe-ui-diagram-notes). The conversations and the task are those of the inbox and tasks samples.
+ * Every time moves with `now`; at 14:05 it shows the canvas times.
  */
 export function createNotesSample(now: Date): NotesData {
   const at = clockFrom(now)
   return {
     generatedAt: now.toISOString(),
     notes: [
-      ...[
-      {
+      text({
         id: 'note-gran',
         title: 'Danh sách mua cho bà',
         body: 'Bánh bông lan trứng muối (2 hộp), trà sen, một ít cam.',
@@ -30,8 +32,8 @@ export function createNotesSample(now: Date): NotesData {
         anchor: anchor({ kind: 'CONVERSATION', label: 'Gia đình', provider: 'zalo', conversationKind: 'CHAT', conversationId: 'conv-2' }),
         quote: null,
         linked: [],
-      },
-      {
+      }),
+      text({
         id: 'note-clinic',
         title: 'Mã khách hàng phòng khám',
         body: 'Mã KH: AD-55120. Mang theo CCCD và kết quả xét nghiệm lần trước.',
@@ -41,8 +43,8 @@ export function createNotesSample(now: Date): NotesData {
         anchor: anchor({ kind: 'CONVERSATION', label: 'Phòng khám Ánh Dương', subject: 'Nhắc lịch khám thứ Hai 05/10', conversationId: 'conv-3' }),
         quote: null,
         linked: [],
-      },
-      {
+      }),
+      text({
         id: 'note-clause',
         title: 'Điều khoản 4 — thời hạn thanh toán',
         body: [
@@ -60,8 +62,8 @@ export function createNotesSample(now: Date): NotesData {
           at: at('2026-10-02T09:41:00+07:00'),
         },
         linked: [{ kind: 'TASK', id: 'task-contract', title: 'Trả lời: Hợp đồng thuê văn phòng — bản sửa lần 2', dueAt: at('2026-10-07T17:00:00+07:00'), dueDate: null }],
-      },
-      {
+      }),
+      text({
         id: 'note-hoang',
         title: 'Hoàng thích nhận file qua Drive',
         body: 'Đừng gửi file nặng qua Messenger; gửi link Drive, đặt tên theo ngày.',
@@ -71,8 +73,8 @@ export function createNotesSample(now: Date): NotesData {
         anchor: anchor({ kind: 'PARTICIPANT', label: 'Lê Hoàng', provider: 'messenger', conversationKind: null }),
         quote: null,
         linked: [],
-      },
-      {
+      }),
+      text({
         id: 'note-insure',
         title: 'Số hợp đồng bảo hiểm',
         body: 'TA-2025-0418, hết hạn 15/10/2026. Phí năm nay 4.200.000 đ.',
@@ -82,8 +84,8 @@ export function createNotesSample(now: Date): NotesData {
         anchor: anchor({ kind: 'MESSAGE', label: 'Bảo hiểm Toàn An', missing: true }),
         quote: null,
         linked: [],
-      },
-      {
+      }),
+      text({
         id: 'note-trip',
         title: 'Ý tưởng chuyến đi Đà Lạt tháng 12',
         body: 'Thuê homestay gần hồ Tuyền Lâm, đi 3 ngày 2 đêm, rủ cả nhóm chạy bộ.',
@@ -93,8 +95,7 @@ export function createNotesSample(now: Date): NotesData {
         anchor: null,
         quote: null,
         linked: [],
-      },
-      ].map((note) => ({ ...note, kind: 'TEXT' as const, diagram: null })),
+      }),
       tripPlan(at),
     ],
   }

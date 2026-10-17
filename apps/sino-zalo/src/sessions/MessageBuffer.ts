@@ -75,6 +75,12 @@ export class MessageBuffer {
     return { messages, hasMore: start + limit < this.entries.length };
   }
 
+  /** The messages held that pass the test, in msgId order. */
+  filter(test: (message: ZaloMessage) => boolean): ZaloMessage[] {
+    this.forgetOld();
+    return this.entries.map((entry) => entry.message).filter(test);
+  }
+
   /** The first index whose msgId is above `id` (binary search). */
   private indexAfter(id: bigint): number {
     let low = 0;

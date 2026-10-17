@@ -16,8 +16,8 @@ import { badgeOf, NAV_ITEMS } from './navItems'
 import { syncStatus } from './syncStatus'
 import { useShellData } from './useShellData'
 
-/** The screens behind the "Thêm" tab, in the order of the canvas. */
-const OTHER_SCREENS = ['/notes', '/accounts', '/services', '/registrations', '/notifications', '/settings']
+/** The screens behind the "Thêm" tab, in the order of the canvas; Lịch first since it left the tab bar (f05c, D-301). */
+const OTHER_SCREENS = ['/calendar', '/notes', '/accounts', '/services', '/registrations', '/notifications', '/settings']
 
 const THEMES: { value: Theme; label: string }[] = [
   { value: 'light', label: 'Sáng' },

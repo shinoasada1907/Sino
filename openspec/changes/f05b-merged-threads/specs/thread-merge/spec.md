@@ -49,11 +49,15 @@ Mã của nhóm MUST là mã của cuộc trò chuyện cũ nhất trong các b�
 - **THEN** cả hai bản `archived = true`, và nhóm rời "Tất cả"
 
 ### Requirement: Thư của một nhóm
-`GET /api/conversations/{id}/messages` MUST trả thư của mọi bản trong phạm vi, mỗi `rfcMessageId` một lần; thư không có `rfcMessageId` MUST luôn có mặt. Khi một thư có ở nhiều bản, MUST lấy bản mà nó là thư đi, rồi bản chính, rồi bản cũ nhất. Trang và cursor MUST tính trên tập đã bỏ trùng. Nội dung, tệp đính kèm và xóa thư gửi lỗi MUST nhận thư của bất kỳ bản nào trong nhóm.
+`GET /api/conversations/{id}/messages` MUST trả thư của mọi bản trong phạm vi, mỗi `rfcMessageId` một lần; thư không có `rfcMessageId`, hoặc có `rfcMessageId` rỗng, MUST luôn có mặt. Khi một thư có ở nhiều bản, MUST lấy bản mà nó là thư đi, rồi bản cũ nhất; bản được chọn MUST NOT đổi khi bản chính đổi. Trang và cursor MUST tính trên tập đã bỏ trùng. Nội dung, tệp đính kèm và xóa thư gửi lỗi MUST nhận thư của bất kỳ bản nào trong nhóm.
 
 #### Scenario: Ba thư, không phải sáu
 - **WHEN** web mở nhóm "xin chào" 17:41 (mỗi bản 3 thư, chung 3 `Message-ID`)
 - **THEN** danh sách thư có 3 thư; thư "xin chào" 17:37 lấy từ bản của `tienct07`, có `clientMessageId`
+
+#### Scenario: Bản chính đổi giữa hai trang
+- **WHEN** web đã tải trang 1 của một nhóm, rồi bản kia có thư mới nên thành bản chính, rồi web tải trang 2 với cursor của trang 1
+- **THEN** hai trang có mỗi thư đúng một lần, không thiếu thư nào, kể cả thư mà hai hộp thư ghi giờ ở hai phía của cursor
 
 ### Requirement: Trả lời một nhóm
 `reply` của `GET /api/conversations/{id}` MUST tính trên bản chính. `POST /api/conversations/{id}/messages` MUST gửi từ tài khoản của bản chính, trong thread của bản chính, và lưu thư vào bản đó.

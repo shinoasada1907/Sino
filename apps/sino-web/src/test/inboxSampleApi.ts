@@ -2,8 +2,9 @@ import { vi } from 'vitest'
 import { applyChange, type ConversationChange } from '@/features/inbox/conversationChange'
 import { filterConversations, type InboxFilter } from '@/features/inbox/format'
 import type * as InboxApi from '@/features/inbox/inbox.api'
-import { createConversationSample, createInboxSample, type InboxSample } from '@/features/inbox/inbox.sample'
+import { createConversationSample, createInboxSample, frameOf, type InboxSample } from '@/features/inbox/inbox.sample'
 import { ApiError } from '@/shared/api/problem'
+import type { ProviderKind } from '@/shared/domain'
 
 // Kept apart from renderApp: the mock of inbox.api imports this file, so nothing here may import inbox.api itself.
 let current: InboxSample | null = null
@@ -24,13 +25,10 @@ const notFound = () => new ApiError(404, 'CONVERSATION_NOT_FOUND', null)
 export function sampleInboxApi(api: typeof InboxApi): typeof InboxApi {
   return {
     ...api,
-    fetchUnreadCount: vi.fn(async () => served().counts.unread),
-    fetchInbox: vi.fn(async () => {
-      const { generatedAt, providers, accounts, counts } = served()
-      return { generatedAt, providers, accounts, counts }
-    }),
-    fetchConversations: vi.fn(async (filter: InboxFilter, _cursor: string | null) => ({
-      items: filterConversations(served().conversations, filter, new Date()),
+    fetchUnreadByKind: vi.fn(async () => api.unreadByKindOf(served().counts)),
+    fetchInbox: vi.fn(async (kind?: ProviderKind) => frameOf(served(), kind)),
+    fetchConversations: vi.fn(async (filter: InboxFilter, _cursor: string | null, kind?: ProviderKind) => ({
+      items: filterConversations(served().conversations, filter, new Date()).filter((item) => !kind || item.kind === kind),
       nextCursor: null,
     })),
     fetchConversation: vi.fn(async (conversationId: string) => {

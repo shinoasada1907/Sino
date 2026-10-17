@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import dev.sino.provider.ProviderKind;
 import org.junit.jupiter.api.Test;
 
 import dev.sino.provider.ProviderCapabilities;
@@ -20,6 +21,11 @@ class MessageProviderTests {
         @Override
         public ProviderType type() {
             return ProviderType.of("read-only");
+        }
+
+        @Override
+        public ProviderKind kind() {
+            return ProviderKind.EMAIL;
         }
 
         @Override

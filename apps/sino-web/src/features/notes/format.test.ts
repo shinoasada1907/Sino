@@ -145,6 +145,19 @@ describe('diagram notes in the list (DG-01, fe-ui-diagram-notes)', () => {
     expect(notePreview(note({ body: 'Mã KH: AD-55120.' }))).toBe('Mã KH: AD-55120.')
   })
 
+  it('passes over blocks without words, which show "Khối mới" on the canvas', () => {
+    const blocks = [
+      { id: 'main', x: 0, y: 0, text: '  ', color: 'DEFAULT' as const, main: true },
+      { id: 'new', x: 0, y: 0, text: '', color: 'DEFAULT' as const, main: false },
+      ...['Thuê homestay', 'Đặt xe', 'Chốt ngày'].map((text, i) => ({ id: `b${i}`, x: 0, y: 0, text, color: 'DEFAULT' as const, main: false })),
+    ]
+    const sketch = diagramNote({ diagram: { blocks, links: [] } })
+
+    expect(noteTitle(sketch)).toBe('Thuê homestay')
+    expect(notePreview(sketch)).toBe('Thuê homestay · Đặt xe · Chốt ngày')
+    expect(noteTitle(diagramNote({ diagram: { blocks: blocks.slice(0, 2), links: [] } }))).toBe('Sơ đồ mới')
+  })
+
   it('says it is a diagram, with its blocks and links', () => {
     expect(noteSource(diagramNote())).toEqual({ tone: 'diagram', text: 'Sơ đồ · 3 khối · 1 nối' })
   })
@@ -157,6 +170,13 @@ describe('diagram notes in the list (DG-01, fe-ui-diagram-notes)', () => {
     expect(ids(filterNotes(notes, 'all', 'homestay'))).toEqual(['plan'])
     expect(ids(filterNotes(notes, 'all', 'cho o'))).toEqual(['plan'])
     expect(noteCounts(notes)).toEqual({ all: 2, linked: 0, pinned: 0, diagram: 1 })
+  })
+
+  it('counts one diagram in the sample, and finds it with the trip idea by "homestay" (spec diagram-notes)', () => {
+    const sample = createNotesSample(now).notes
+
+    expect(noteCounts(sample).diagram).toBe(1)
+    expect(filterNotes(sample, 'all', 'homestay').map(noteTitle)).toEqual(['Ý tưởng chuyến đi Đà Lạt tháng 12', 'Kế hoạch chuyến đi Đà Lạt'])
   })
 })
 

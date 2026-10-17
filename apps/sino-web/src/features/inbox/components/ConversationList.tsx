@@ -23,6 +23,7 @@ import {
   type SourceCount,
 } from '../format'
 import type { ConversationItem, InboxAccount } from '../inbox.types'
+import { SCREENS, type InboxScreen } from '../screen'
 import type { LoadMore } from '../useInbox'
 import { ListSkeleton } from './InboxStates'
 
@@ -52,6 +53,7 @@ const CHIP =
  * the rows while its first page loads (`switching`); the end of the list loads the next page (`more`).
  */
 export function ConversationList({
+  screen,
   conversations,
   unread,
   total,
@@ -69,6 +71,8 @@ export function ConversationList({
   notice,
   className,
 }: {
+  /** Tin nhắn or Hộp thư (f05c): the title, and whether a new mail can start here. */
+  screen: InboxScreen
   conversations: ConversationItem[]
   /** "12 chưa đọc" for the current source, or what the list is doing ("đang tải"). */
   unread: string
@@ -86,7 +90,7 @@ export function ConversationList({
   body?: ReactNode
   switching?: boolean
   more?: LoadMore
-  /** "N thư mới" while there is new mail from sync (D-92). */
+  /** "N thư mới" / "N tin mới" while there is new mail from sync (D-92). */
   notice?: { count: number; dismiss: () => void }
   className?: string
 }) {
@@ -95,18 +99,22 @@ export function ConversationList({
   const scroller = useRef<HTMLElement>(null)
   const label = (name: string, count: number | null) => (count ? `${name} · ${count}` : name)
   const filters = body === undefined
+  // Only email starts a new conversation from Sino (f10-new-mail); Tin nhắn has no "Thư mới" (D-304).
+  const compose = screen.kind === 'EMAIL'
 
   return (
     <div className={cn('min-h-0 flex-col md:border-r', className)}>
       <header className="flex min-h-15 items-center gap-1 py-2 pr-2 pl-4 md:hidden">
-        <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.018em]">Hộp thư</h1>
+        <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.018em]">{screen.title}</h1>
         <Spec className="ml-2.5 pt-1.5">{unread}</Spec>
-        <Button asChild variant="ghost" size="icon" className="ml-auto">
-          <Link to={{ pathname: '/inbox/new', search }} aria-label="Thư mới">
-            <SquarePen strokeWidth={1.6} />
-          </Link>
-        </Button>
-        <Button type="button" variant="ghost" size="icon" aria-label="Tìm kiếm">
+        {compose && (
+          <Button asChild variant="ghost" size="icon" className="ml-auto">
+            <Link to={{ pathname: '/inbox/new', search }} aria-label="Thư mới">
+              <SquarePen strokeWidth={1.6} />
+            </Link>
+          </Button>
+        )}
+        <Button type="button" variant="ghost" size="icon" aria-label="Tìm kiếm" className={compose ? undefined : 'ml-auto'}>
           <Search strokeWidth={1.6} />
         </Button>
         <Button type="button" variant="ghost" size="icon" aria-label="Bộ lọc">
@@ -137,7 +145,7 @@ export function ConversationList({
               }}
               className="pointer-events-auto h-8 cursor-pointer rounded-full bg-foreground px-3.5 text-xs leading-4 font-semibold text-background shadow-popover outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid motion-safe:animate-row-in"
             >
-              {newMailText(notice.count)}
+              {newMailText(notice.count, screen.kind)}
             </button>
           </div>
         )}
@@ -170,14 +178,14 @@ export function ConversationList({
                 {tab.label}
               </button>
             ))}
-            <NewMailLink search={search} className="ml-auto" />
+            {compose && <NewMailLink search={search} className="ml-auto" />}
           </div>
         )}
         <div className="sticky top-0 z-1 hidden flex-col gap-3.5 border-b bg-background px-4 pt-5 pb-3.5 xl:flex">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Hộp thư</h1>
+            <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{screen.title}</h1>
             <Spec className="ml-auto">{unread}</Spec>
-            <NewMailLink search={search} />
+            {compose && <NewMailLink search={search} />}
           </div>
           {filters && <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />}
         </div>
@@ -259,7 +267,7 @@ function ConversationRow({
 
   return (
     <Link
-      to={{ pathname: `/inbox/${item.id}`, search }}
+      to={{ pathname: `${SCREENS[item.kind].path}/${item.id}`, search }}
       aria-current={selected ? 'page' : undefined}
       data-arrived={arrived ?? undefined}
       className="grid grid-cols-[40px_minmax(0,1fr)_auto] data-[arrived=slide]:motion-safe:animate-row-in data-[arrived=slide]:motion-reduce:animate-fade-in items-start gap-x-3 border-b px-4 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3.5 md:rounded-xl md:border md:border-transparent md:p-3.5 md:aria-[current=page]:border-border-strong md:aria-[current=page]:bg-raised"

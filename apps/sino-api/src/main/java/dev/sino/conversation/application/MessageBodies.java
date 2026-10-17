@@ -51,15 +51,19 @@ public class MessageBodies {
     }
 
     /**
+     * The message may be of any copy of the thread (F05b); it is read again, when need be, for the account of its
+     * copy.
+     *
      * @throws SinoException with {@code CONVERSATION_NOT_FOUND} when the conversation is not in the inbox,
      *         {@code MESSAGE_NOT_FOUND} when the message is not one of it, {@code MESSAGE_CONTENT_UNAVAILABLE} when a
      *         message stored before cannot be read again now (it stays {@code UNCHECKED} for the next try)
      */
     public MessageBody body(UUID ownerId, UUID conversationId, UUID messageId) {
-        UUID accountId = inbox.requireInInbox(ownerId, conversationId).accountOf(conversationId);
-        Stored stored = find(conversationId, messageId).orElseThrow(ConversationErrorCode::messageNotFound);
+        InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
+        Stored stored = find(conversation.conversationIds(), messageId)
+                .orElseThrow(ConversationErrorCode::messageNotFound);
         if (stored.format() == BodyFormat.UNCHECKED) {
-            stored = readAgain(accountId, conversationId, messageId, stored.externalId());
+            stored = readAgain(conversation.accountOf(stored.copy()), stored.copy(), messageId, stored.externalId());
         }
         if (stored.html() == null) {
             return new MessageBody(BodyFormat.TEXT, null, false);
@@ -125,20 +129,20 @@ public class MessageBodies {
                 events.publishEvent(new ConversationChanged(accountId, conversationId, Instant.now()));
             }
         });
-        return find(conversationId, messageId).orElseThrow(ConversationErrorCode::messageNotFound);
+        return find(List.of(conversationId), messageId).orElseThrow(ConversationErrorCode::messageNotFound);
     }
 
-    private Optional<Stored> find(UUID conversationId, UUID messageId) {
+    private Optional<Stored> find(List<UUID> copies, UUID messageId) {
         return jdbc.sql("""
-                SELECT external_message_id, body_format, html_content FROM message
-                WHERE id = :id AND conversation_id = :conversation
-                """).param("id", messageId).param("conversation", conversationId)
-                .query((row, n) -> new Stored(row.getString(1), BodyFormat.valueOf(row.getString(2)),
-                        row.getString(3)))
+                SELECT conversation_id, external_message_id, body_format, html_content FROM message
+                WHERE id = :id AND conversation_id IN (:copies)
+                """).param("id", messageId).param("copies", copies)
+                .query((row, n) -> new Stored(row.getObject(1, UUID.class), row.getString(2),
+                        BodyFormat.valueOf(row.getString(3)), row.getString(4)))
                 .optional();
     }
 
-    private record Stored(String externalId, BodyFormat format, String html) {
+    private record Stored(UUID copy, String externalId, BodyFormat format, String html) {
     }
 
 }

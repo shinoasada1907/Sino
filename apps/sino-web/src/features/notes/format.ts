@@ -8,8 +8,8 @@ import type { Diagram, NoteAnchor, NoteItem, NotesFilter } from './notes.types'
 export const NOTE_MAX_LENGTH = 20_000
 
 /**
- * The name of a note: its title, else the first line of its text (D-202); a diagram's, else its main block, else its first
- * block, else "Sơ đồ mới" (fe-ui-diagram-notes, D-206).
+ * The name of a note: its title, else the first line of its text (D-202); a diagram's, else its first block with words,
+ * the main ones first, else "Sơ đồ mới" (fe-ui-diagram-notes, D-206).
  */
 export function noteTitle(note: Pick<NoteItem, 'title' | 'body'> & Partial<Pick<NoteItem, 'kind' | 'diagram'>>): string {
   const title = note.title?.trim()
@@ -17,21 +17,20 @@ export function noteTitle(note: Pick<NoteItem, 'title' | 'body'> & Partial<Pick<
     return title
   }
   if (note.kind === 'DIAGRAM') {
-    const first = mainFirst(note.diagram)[0]
-    return first ? firstLine(first.text) || 'Sơ đồ mới' : 'Sơ đồ mới'
+    const first = blockTexts(note.diagram)[0]
+    return first ? firstLine(first) : 'Sơ đồ mới'
   }
   return firstLine(note.body)
 }
 
-/** The start of a note on its card: its text, or a diagram's blocks on one line, the main one first. */
+/** The start of a note on its card: its text, or the words of a diagram's first three blocks on one line, the main ones first. */
 export function notePreview(note: Pick<NoteItem, 'body'> & Partial<Pick<NoteItem, 'kind' | 'diagram'>>): string {
   if (note.kind !== 'DIAGRAM') {
     return note.body
   }
-  return mainFirst(note.diagram)
+  return blockTexts(note.diagram)
     .slice(0, 3)
-    .map((block) => block.text.replace(/\s+/g, ' ').trim())
-    .filter(Boolean)
+    .map((text) => text.replace(/\s+/g, ' ').trim())
     .join(' · ')
 }
 
@@ -102,10 +101,10 @@ function searchText(note: NoteItem): string {
   return [note.title ?? '', note.body, ...diagram].join('\n')
 }
 
-// The main blocks first, then the others in their order.
-function mainFirst(diagram: Diagram | null | undefined) {
+// The words of the blocks, the main blocks first, then the others in their order; a block without words is left out.
+function blockTexts(diagram: Diagram | null | undefined): string[] {
   const blocks = diagram?.blocks ?? []
-  return [...blocks.filter((block) => block.main), ...blocks.filter((block) => !block.main)]
+  return [...blocks.filter((block) => block.main), ...blocks.filter((block) => !block.main)].map((block) => block.text).filter((text) => text.trim() !== '')
 }
 
 function firstLine(text: string): string {

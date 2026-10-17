@@ -156,8 +156,17 @@ describe('Tổng quan', () => {
     const { router } = openOverview()
     await screen.findByRole('heading', { level: 1 })
 
-    for (const link of card('Hộp thư hợp nhất').getAllByRole('link', { name: 'Mở hộp thư' })) {
-      expect(link).toHaveAttribute('href', '/inbox')
+    // The card counts both kinds; its buttons open each screen (f05c, D-305), once for desktop and once for mobile.
+    expect(card('Hộp thư hợp nhất').queryByRole('link', { name: 'Mở hộp thư' })).toBeNull()
+    for (const [name, href] of [
+      ['Tin nhắn', '/messages'],
+      ['Hộp thư', '/inbox'],
+    ]) {
+      const links = card('Hộp thư hợp nhất').getAllByRole('link', { name })
+      expect(links).toHaveLength(2)
+      for (const link of links) {
+        expect(link).toHaveAttribute('href', href)
+      }
     }
     expect(screen.getByRole('link', { name: 'Xem tất cả' })).toHaveAttribute('href', '/notifications')
     await user.click(screen.getByRole('link', { name: 'Mở lịch' }))

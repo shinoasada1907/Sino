@@ -9,7 +9,7 @@
       "page": "desktop",
       "title": "Chi tiết tài khoản · Dark",
       "w": 1440,
-      "x": 6080,
+      "x": 7600,
       "y": 0
     },
     "AccountDetailLight.dc.html": {
@@ -19,7 +19,7 @@
       "page": "desktop",
       "title": "Chi tiết tài khoản · Light",
       "w": 1440,
-      "x": 6080,
+      "x": 7600,
       "y": 3260
     },
     "Accounts.dc.html": {
@@ -29,7 +29,7 @@
       "page": "desktop",
       "title": "Tài khoản · Dark",
       "w": 1440,
-      "x": 4560,
+      "x": 6080,
       "y": 0
     },
     "AccountsLight.dc.html": {
@@ -39,7 +39,7 @@
       "page": "desktop",
       "title": "Tài khoản · Light",
       "w": 1440,
-      "x": 4560,
+      "x": 6080,
       "y": 3260
     },
     "Actions.dc.html": {
@@ -283,7 +283,7 @@
       "page": "desktop",
       "title": "Hộp thư · Dark",
       "w": 1440,
-      "x": 1520,
+      "x": 4560,
       "y": 0
     },
     "InboxEvent.dc.html": {
@@ -303,7 +303,7 @@
       "page": "desktop",
       "title": "Hộp thư · Light",
       "w": 1440,
-      "x": 1520,
+      "x": 4560,
       "y": 3260
     },
     "InboxLightEvent.dc.html": {
@@ -616,7 +616,7 @@
       "page": "responsive",
       "title": "Mobile · Lịch · Dark",
       "w": 390,
-      "x": 4410,
+      "x": 5794,
       "y": 1060
     },
     "MobileCalendarLight.dc.html": {
@@ -625,7 +625,7 @@
       "page": "responsive",
       "title": "Mobile · Lịch · Light",
       "w": 390,
-      "x": 4410,
+      "x": 5794,
       "y": 2654
     },
     "MobileConversation.dc.html": {
@@ -634,7 +634,7 @@
       "page": "responsive",
       "title": "Mobile · Hội thoại · Dark",
       "w": 390,
-      "x": 3000,
+      "x": 3914,
       "y": 1060
     },
     "MobileConversationActions.dc.html": {
@@ -661,7 +661,7 @@
       "page": "responsive",
       "title": "Mobile · Hội thoại · Light",
       "w": 390,
-      "x": 3000,
+      "x": 3914,
       "y": 2654
     },
     "MobileConversationLightActions.dc.html": {
@@ -760,7 +760,7 @@
       "page": "responsive",
       "title": "Mobile · Tổng quan · Dark",
       "w": 390,
-      "x": 2060,
+      "x": 2974,
       "y": 1060
     },
     "MobileDashboardLight.dc.html": {
@@ -769,7 +769,7 @@
       "page": "responsive",
       "title": "Mobile · Tổng quan · Light",
       "w": 390,
-      "x": 2060,
+      "x": 2974,
       "y": 2654
     },
     "MobileInbox.dc.html": {
@@ -778,7 +778,7 @@
       "page": "responsive",
       "title": "Mobile · Hộp thư · Dark",
       "w": 390,
-      "x": 2530,
+      "x": 4384,
       "y": 1060
     },
     "MobileInboxLight.dc.html": {
@@ -787,7 +787,7 @@
       "page": "responsive",
       "title": "Mobile · Hộp thư · Light",
       "w": 390,
-      "x": 2530,
+      "x": 4384,
       "y": 2654
     },
     "MobileMore.dc.html": {
@@ -796,7 +796,7 @@
       "page": "responsive",
       "title": "Mobile · Thêm · Dark",
       "w": 390,
-      "x": 3470,
+      "x": 4854,
       "y": 1060
     },
     "MobileMoreLight.dc.html": {
@@ -805,7 +805,7 @@
       "page": "responsive",
       "title": "Mobile · Thêm · Light",
       "w": 390,
-      "x": 3470,
+      "x": 4854,
       "y": 2654
     },
     "MobileNoteEditor.dc.html": {
@@ -922,7 +922,7 @@
       "page": "responsive",
       "title": "Mobile · Việc cần làm · Dark",
       "w": 390,
-      "x": 4880,
+      "x": 6264,
       "y": 1060
     },
     "MobileTasksLight.dc.html": {
@@ -931,7 +931,7 @@
       "page": "responsive",
       "title": "Mobile · Việc cần làm · Light",
       "w": 390,
-      "x": 4880,
+      "x": 6264,
       "y": 2654
     },
     "Motion.dc.html": {
@@ -1134,7 +1134,7 @@
       "page": "responsive",
       "title": "Rail",
       "w": 72,
-      "x": 1828,
+      "x": 2742,
       "y": 1060
     },
     "RegistrationDetail.dc.html": {
@@ -1144,7 +1144,7 @@
       "page": "desktop",
       "title": "Chi tiết đăng ký · Dark",
       "w": 1440,
-      "x": 10640,
+      "x": 12160,
       "y": 0
     },
     "RegistrationDetailLight.dc.html": {
@@ -1154,7 +1154,7 @@
       "page": "desktop",
       "title": "Chi tiết đăng ký · Light",
       "w": 1440,
-      "x": 10640,
+      "x": 12160,
       "y": 3260
     },
     "Registrations.dc.html": {
@@ -1164,7 +1164,7 @@
       "page": "desktop",
       "title": "Đăng ký · Dark",
       "w": 1440,
-      "x": 9120,
+      "x": 10640,
       "y": 0
     },
     "RegistrationsLight.dc.html": {
@@ -1174,7 +1174,7 @@
       "page": "desktop",
       "title": "Đăng ký · Light",
       "w": 1440,
-      "x": 9120,
+      "x": 10640,
       "y": 3260
     },
     "SearchEmpty.dc.html": {
@@ -1204,7 +1204,7 @@
       "page": "desktop",
       "title": "Dịch vụ · Dark",
       "w": 1440,
-      "x": 7600,
+      "x": 9120,
       "y": 0
     },
     "ServicesLight.dc.html": {
@@ -1214,7 +1214,7 @@
       "page": "desktop",
       "title": "Dịch vụ · Light",
       "w": 1440,
-      "x": 7600,
+      "x": 9120,
       "y": 3260
     },
     "Settings.dc.html": {
@@ -1224,7 +1224,7 @@
       "page": "desktop",
       "title": "Cài đặt · Dark",
       "w": 1440,
-      "x": 12160,
+      "x": 13680,
       "y": 0
     },
     "SettingsLight.dc.html": {
@@ -1234,7 +1234,7 @@
       "page": "desktop",
       "title": "Cài đặt · Light",
       "w": 1440,
-      "x": 12160,
+      "x": 13680,
       "y": 3260
     },
     "Sidebar.dc.html": {
@@ -1542,7 +1542,7 @@
       "page": "responsive",
       "title": "Thanh điều hướng dưới",
       "w": 390,
-      "x": 3940,
+      "x": 5324,
       "y": 1060
     },
     "TabletDashboard.dc.html": {
@@ -1569,7 +1569,7 @@
       "page": "responsive",
       "title": "Tablet · Hộp thư · Dark",
       "w": 834,
-      "x": 914,
+      "x": 1828,
       "y": 1060
     },
     "TabletInboxLight.dc.html": {
@@ -1578,7 +1578,7 @@
       "page": "responsive",
       "title": "Tablet · Hộp thư · Light",
       "w": 834,
-      "x": 914,
+      "x": 1828,
       "y": 2654
     },
     "Tasks.dc.html": {
@@ -1656,6 +1656,82 @@
       "w": 1440,
       "x": 1520,
       "y": 0
+    },
+    "Messages.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tin nhắn · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "MessagesLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tin nhắn · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 3260
+    },
+    "TabletMessages.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Tablet · Tin nhắn · Dark",
+      "w": 834,
+      "x": 914,
+      "y": 1060
+    },
+    "TabletMessagesLight.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Tablet · Tin nhắn · Light",
+      "w": 834,
+      "x": 914,
+      "y": 2654
+    },
+    "MobileMessages.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Tin nhắn · Dark",
+      "w": 390,
+      "x": 3444,
+      "y": 1060
+    },
+    "MobileMessagesLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "responsive",
+      "title": "Mobile · Tin nhắn · Light",
+      "w": 390,
+      "x": 3444,
+      "y": 2654
+    },
+    "MessagesState.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Tin nhắn trống · Dark",
+      "w": 1440,
+      "x": 10640,
+      "y": 0
+    },
+    "MessagesStateLight.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "page": "states",
+      "title": "Tin nhắn trống · Light",
+      "w": 1440,
+      "x": 10640,
+      "y": 1300
     }
   },
   "createdOnFiles": {
@@ -1823,7 +1899,7 @@
     },
     "rpDarkTitle": {
       "kind": "title1",
-      "maxW": 5270,
+      "maxW": 6654,
       "page": "responsive",
       "text": "Tablet & Mobile — Dark",
       "w": 240,
@@ -1832,7 +1908,7 @@
     },
     "rpLightTitle": {
       "kind": "title1",
-      "maxW": 5270,
+      "maxW": 6654,
       "page": "responsive",
       "text": "Tablet & Mobile — Light",
       "w": 240,
@@ -1841,7 +1917,7 @@
     },
     "rpTitle": {
       "kind": "title1",
-      "maxW": 5270,
+      "maxW": 6654,
       "page": "responsive",
       "text": "03 · Responsive",
       "w": 240,
@@ -2123,7 +2199,15 @@
     "SiteNotFoundMobile.dc.html",
     "SiteNotFoundMobileLight.dc.html",
     "Logo.dc.html",
-    "LogoLight.dc.html"
+    "LogoLight.dc.html",
+    "Messages.dc.html",
+    "MessagesLight.dc.html",
+    "TabletMessages.dc.html",
+    "TabletMessagesLight.dc.html",
+    "MobileMessages.dc.html",
+    "MobileMessagesLight.dc.html",
+    "MessagesState.dc.html",
+    "MessagesStateLight.dc.html"
   ],
   "pages": [
     {

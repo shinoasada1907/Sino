@@ -16,7 +16,8 @@ describe('inbox sample data', () => {
     expect(inbox.counts.byProvider.map(({ provider, unread }) => [provider, unread])).toEqual(
       overview.bySource.map(({ provider, unreadCount }) => [provider, unreadCount]),
     )
-    expect(createShellSample(now).navCounts.inboxUnread).toBe(inbox.counts.unread)
+    expect(createShellSample(now).navCounts.inboxUnread).toBe(inbox.counts.unreadByKind?.EMAIL)
+    expect(createShellSample(now).navCounts.messagesUnread).toBe(inbox.counts.unreadByKind?.CHAT)
     expect(inbox.counts.needsReply).toBe(overview.awaitingReplyCount)
   })
 
@@ -27,6 +28,21 @@ describe('inbox sample data', () => {
     }
   })
 
+  it('says which providers are email and which are chat, as their conversations do (f05c, D-306)', () => {
+    const kindOf = Object.fromEntries(inbox.providers.map(({ type, kind }) => [type, kind]))
+    expect(kindOf).toEqual({ gmail: 'EMAIL', zalo: 'CHAT', messenger: 'CHAT' })
+    for (const item of inbox.conversations) {
+      expect(item.kind).toBe(kindOf[item.provider])
+    }
+  })
+
+  it('counts the unread of each kind from the sources, as the canvas shows them: 7 in Hộp thư, 5 in Tin nhắn', () => {
+    const kindOf = Object.fromEntries(inbox.providers.map(({ type, kind }) => [type, kind]))
+    const sum = (kind: string) => inbox.counts.byProvider.filter(({ provider }) => kindOf[provider] === kind).reduce((total, { unread }) => total + unread, 0)
+    expect(inbox.counts.unreadByKind).toEqual({ EMAIL: sum('EMAIL'), CHAT: sum('CHAT') })
+    expect(inbox.counts.unreadByKind).toEqual({ EMAIL: 7, CHAT: 5 })
+  })
+
   it('shares the ids and titles of the overview conversations', () => {
     const overview = createOverviewSample(now).inbox!.conversations
     for (const conversation of overview) {
@@ -34,12 +50,25 @@ describe('inbox sample data', () => {
     }
   })
 
-  it('shows the conversations of the canvas, grouped as the canvas groups them', () => {
-    const groups = groupConversations(filterConversations(inbox.conversations, { source: null, view: 'all' }, now), now, TZ)
-    expect(groups.map((group) => [group.label, group.items.map((item) => item.title)])).toEqual([
-      ['HÔM NAY', ['Nhóm chạy bộ Hồ Tây', 'Trần Minh Anh', 'Gia đình', 'Phòng khám Ánh Dương']],
-      ['HÔM QUA', ['Lê Hoàng', 'Thu Trang']],
+  it('shows the conversations of the canvas, each screen grouped as the canvas groups it (f05c)', () => {
+    const titles = (kind: 'EMAIL' | 'CHAT') =>
+      groupConversations(
+        filterConversations(
+          inbox.conversations.filter((item) => item.kind === kind),
+          { source: null, view: 'all' },
+          now,
+        ),
+        now,
+        TZ,
+      ).map((group) => [group.label, group.items.map((item) => item.title)])
+    expect(titles('EMAIL')).toEqual([
+      ['HÔM NAY', ['Trần Minh Anh', 'Phòng khám Ánh Dương']],
+      ['HÔM QUA', ['Thu Trang']],
       ['TUẦN NÀY', ['Điện lực Hà Nội']],
+    ])
+    expect(titles('CHAT')).toEqual([
+      ['HÔM NAY', ['Nhóm chạy bộ Hồ Tây', 'Gia đình', 'Hà']],
+      ['HÔM QUA', ['Lê Hoàng', 'Nhóm sửa nhà']],
     ])
     expect(filterConversations(inbox.conversations, { source: null, view: 'snoozed' }, now)).toHaveLength(1)
     expect(filterConversations(inbox.conversations, { source: null, view: 'archived' }, now)).toHaveLength(1)

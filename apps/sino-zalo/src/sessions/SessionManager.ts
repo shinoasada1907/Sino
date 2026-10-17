@@ -25,6 +25,15 @@ export interface SessionManagerOptions {
     warn(details: object, message: string): void;
   };
   readonly catchUpTimeoutMs?: number;
+  readonly now?: () => number;
+}
+
+/** What a live session can tell about a message the account may have sent (D-280). */
+export interface OwnMessages {
+  /** The account's own messages in the thread with the text, sent after the given time. */
+  readonly msgIds: string[];
+  /** When the session started: the buffer knows nothing from before. */
+  readonly liveSince: number;
 }
 
 /** One answer of `GET /accounts/{accountId}/messages` (design, Contract API). */
@@ -39,6 +48,8 @@ interface LiveSession {
   readonly state: "LIVE";
   readonly fingerprint: string;
   readonly ownId: string;
+  readonly connection: ZaloConnection;
+  readonly liveSince: number;
   readonly listener: ZaloListener;
   readonly buffer: MessageBuffer;
   readonly conversations: Conversations;
@@ -76,6 +87,7 @@ export class SessionManager {
   private readonly notifier: Notifier;
   private readonly log: SessionManagerOptions["log"];
   private readonly catchUpTimeoutMs: number;
+  private readonly now: () => number;
 
   constructor(
     gateway: ZaloGateway,
@@ -86,6 +98,7 @@ export class SessionManager {
     this.notifier = notifier;
     this.log = options.log;
     this.catchUpTimeoutMs = options.catchUpTimeoutMs ?? 5_000;
+    this.now = options.now ?? Date.now;
   }
 
   /**
@@ -155,6 +168,24 @@ export class SessionManager {
     };
   }
 
+  /** Sends a text through the account's live session and resolves with Zalo's msgId. */
+  sendText(accountId: string, threadId: string, threadType: ThreadType, text: string): Promise<string> {
+    return this.liveSession(accountId).connection.sendText(threadId, threadType, text);
+  }
+
+  /** The account's own messages in a thread with this text, sent after `after` (epoch ms). */
+  ownMessages(accountId: string, threadId: string, text: string, after: number): OwnMessages {
+    const session = this.liveSession(accountId);
+    const messages = session.buffer.filter(
+      (message) =>
+        message.isSelf &&
+        message.threadId === threadId &&
+        message.text === text &&
+        Date.parse(message.sentAt) > after,
+    );
+    return { msgIds: messages.map((message) => message.msgId), liveSince: session.liveSince };
+  }
+
   counts(): { live: number; ended: number } {
     let live = 0;
     for (const session of this.sessions.values()) {
@@ -191,6 +222,8 @@ export class SessionManager {
       state: "LIVE",
       fingerprint,
       ownId: connection.ownId,
+      connection,
+      liveSince: this.now(),
       listener: connection.listener({
         connected: () => {
           session.failures = 0;

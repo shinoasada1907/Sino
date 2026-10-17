@@ -1,0 +1,19 @@
+/*
+ * What sino-site/src/index.css gives every public page, kept to the public pages of sino-web (web-public-pages): a jump
+ * to a section glides (not with less motion), and links and FAQ questions show the focus ring.
+ */
+html:has([data-public-page]) {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has([data-public-page]) {
+    scroll-behavior: auto;
+  }
+}
+
+[data-public-page] a:focus-visible,
+[data-public-page] summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

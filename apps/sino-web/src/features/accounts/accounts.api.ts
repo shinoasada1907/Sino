@@ -1,5 +1,6 @@
 import { api } from '@/shared/api/client'
-import type { AccountStatus, Instant, ProviderInfo } from '@/shared/domain'
+import { toProviderInfo, type ProviderEntry } from '@/shared/api/providers'
+import type { AccountStatus, Instant } from '@/shared/domain'
 import type { AccountExtras, AccountItem, AccountsData, ChannelKind, SyncStatus } from './accounts.types'
 import { initialSyncView } from './connect.format'
 import type { ConnectableProvider, InitialSyncState, InitialSyncStatus, SyncEstimate, SyncOptions, SyncRange } from './connect.types'
@@ -23,9 +24,7 @@ interface AccountResponse {
 }
 
 /** One provider of `GET /api/providers` (F03). */
-interface ProviderResponse {
-  type: string
-  displayName: string
+interface ProviderResponse extends ProviderEntry {
   capabilities: string[]
 }
 
@@ -68,7 +67,7 @@ export async function fetchAccounts(): Promise<AccountsData> {
   const imports = await Promise.all(accounts.map((account) => fetchInitialSync(account.id).catch(() => null)))
   return {
     generatedAt: new Date().toISOString(),
-    providers: providers.map(({ type, displayName }): ProviderInfo => ({ type, displayName })),
+    providers: providers.map(toProviderInfo),
     accounts: accounts.map((account, index) => withFirstImport(toAccountItem(account), imports[index])),
     storedMessages: null,
   }
@@ -99,7 +98,7 @@ export async function deleteAccount({ accountId }: { accountId: string }): Promi
  */
 export async function fetchConnectProviders(): Promise<ConnectableProvider[]> {
   const providers = await api.get<ProviderResponse[]>('/api/providers')
-  return providers.map(({ type, displayName, capabilities }) => ({ type, displayName, capabilities, connectable: true, scopes: null }))
+  return providers.map((provider) => ({ ...toProviderInfo(provider), capabilities: provider.capabilities, connectable: true, scopes: null }))
 }
 
 /**

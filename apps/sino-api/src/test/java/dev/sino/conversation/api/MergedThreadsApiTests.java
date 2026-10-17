@@ -2,9 +2,11 @@ package dev.sino.conversation.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -470,6 +472,207 @@ class MergedThreadsApiTests {
                 clientMessageId)).isEqualTo(1);
     }
 
+    // D-184: the thread "xin chào" holds the same three mails in each copy: three, not six, each taken from the copy
+    // it went from, which keeps what Sino knows of a mail it sent.
+    @Test
+    void theMessagesOfAGroupAreEachThereOnce() throws Exception {
+        xinChao(tien, "t-1", false);
+        xinChao(sinon, "b-1", true);
+        UUID sentFromSino = UUID.randomUUID();
+        jdbc.update("update message set client_message_id = ? where external_message_id = 't-1-xin-chao'",
+                sentFromSino);
+
+        messages(get("/api/conversations/{id}/messages", idOf(sinon, "b-1")))
+                .andExpect(jsonPath("$.items[*].id", contains(messageId("b-1-hello").toString(),
+                        messageId("t-1-xin-chao").toString(), messageId("b-1-helllo").toString())))
+                .andExpect(jsonPath("$.items[*].direction", contains("OUTBOUND", "OUTBOUND", "OUTBOUND")))
+                .andExpect(jsonPath("$.items[1].clientMessageId").value(sentFromSino.toString()))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    // D-184: a mail only one copy holds is there too, and so is every mail without a Message-ID, such as a reply Sino
+    // has just sent: nothing says two of those are one. A mail that came in to both copies is taken from the oldest
+    // one, the copy of Tiến, though the copy of Sinon holds the newest mail and is the primary one (D-184 = B).
+    @Test
+    void aMessageOfOneCopyOnlyAndMessagesWithoutAMessageIdAreThere() throws Exception {
+        store(tien, "t-1", inbound("t-1", "t-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
+                withoutMessageId("t-1", "same", HELLO));
+        store(sinon, "b-1", inbound("b-1", "b-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
+                withoutMessageId("b-1", "same", HELLO), inbound("b-1", "b-cc", ALICE, "<cc@mail.test>",
+                        HELLO.plusSeconds(600), false));
+
+        List<String> ids = JsonPath.read(messages(get("/api/conversations/{id}/messages", idOf(tien, "t-1")))
+                .andReturn().getResponse().getContentAsString(), "$.items[*].id");
+
+        assertThat(ids).containsExactly(messageId("b-cc").toString(),
+                maxOf(messageIdIn(tien, "same"), messageIdIn(sinon, "same")),
+                minOf(messageIdIn(tien, "same"), messageIdIn(sinon, "same")), messageId("t-a").toString());
+    }
+
+    // A Message-ID header left empty is stored empty: two such mails are not one either, even in a thread of one copy.
+    @Test
+    void mailsWithAnEmptyMessageIdAreEachThere() throws Exception {
+        UUID conversation = store(tien, "t-1", inbound("t-1", "t-x", ALICE, "", XIN_CHAO, false),
+                inbound("t-1", "t-y", ALICE, "", HELLO, false));
+
+        messages(get("/api/conversations/{id}/messages", conversation))
+                .andExpect(jsonPath("$.items[*].id", contains(messageId("t-y").toString(),
+                        messageId("t-x").toString())));
+    }
+
+    // D-184 = B with three copies: a mail every copy received is taken from the oldest, not the primary one (the copy
+    // of Ba, which holds the newest mail), and so is a mail two of them received.
+    @Test
+    void aMessageOfManyCopiesIsTakenFromTheOldestCopy() throws Exception {
+        UUID third = connect("ba@gmail.test", "Ba");
+        UUID group = store(tien, "t-1", inbound("t-1", "t-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
+                inbound("t-1", "t-m", ALICE, "<m@mail.test>", HELLLO, false));
+        store(sinon, "b-1", inbound("b-1", "b-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
+                inbound("b-1", "b-m", ALICE, "<m@mail.test>", HELLLO, false));
+        store(third, "c-1", inbound("c-1", "c-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
+                inbound("c-1", "c-z", ALICE, "<z@mail.test>", HELLO, false));
+
+        messages(get("/api/conversations/{id}/messages", group))
+                .andExpect(jsonPath("$.items[*].id", contains(messageId("c-z").toString(),
+                        messageId("t-a").toString(), messageId("t-m").toString())));
+    }
+
+    // D-184 = B: a new mail in the other copy makes it the primary one between two pages, and the next page still
+    // brings each mail once. Each mailbox dates a mail when it came in: M is later in Sinon's copy than where page 1
+    // stopped, K earlier, so a copy picked by the primary one would skip M and bring K again.
+    @Test
+    void anotherPrimaryCopyBetweenTwoPagesLeavesNoMailOutNorTwice() throws Exception {
+        Instant at = Instant.parse("2026-10-12T10:00:00Z");
+        UUID group = store(tien, "t-1", inbound("t-1", "t-n", ALICE, "<n@mail.test>", at.plusSeconds(10), false),
+                inbound("t-1", "t-k", ALICE, "<k@mail.test>", at.plusSeconds(2), false),
+                inbound("t-1", "t-m", ALICE, "<m@mail.test>", at, false));
+        store(sinon, "b-1", inbound("b-1", "b-k", ALICE, "<k@mail.test>", at.plusSeconds(1), false),
+                inbound("b-1", "b-m", ALICE, "<m@mail.test>", at.plusSeconds(5), false));
+        String first = messages(get("/api/conversations/{id}/messages", group).param("limit", "2"))
+                .andReturn().getResponse().getContentAsString();
+        store(sinon, "b-1", inbound("b-1", "b-p", ALICE, "<p@mail.test>", at.plusSeconds(20), false));
+
+        String second = messages(get("/api/conversations/{id}/messages", group).param("limit", "2")
+                .param("cursor", JsonPath.<String>read(first, "$.nextCursor")))
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> seen = new ArrayList<>(JsonPath.<List<String>>read(first, "$.items[*].id"));
+        seen.addAll(JsonPath.read(second, "$.items[*].id"));
+        assertThat(seen).containsExactly(messageId("t-n").toString(), messageId("t-k").toString(),
+                messageId("t-m").toString());
+    }
+
+    // D-184: the copy a message is taken from may date it later than the other copy; cut from the messages once each,
+    // a page never brings the other copy back.
+    @Test
+    void pagesThroughTheMessagesOfAGroupEachOnce() throws Exception {
+        store(sinon, "b-1", outbound("b-1", "b-hello", SINON_ADDRESS, "<hello@mail.test>", HELLO.plusSeconds(3)),
+                outbound("b-1", "b-helllo", SINON_ADDRESS, "<helllo@mail.test>", HELLLO.plusSeconds(3)));
+        store(tien, "t-1", inbound("t-1", "t-hello", SINON, "<hello@mail.test>", HELLO, false),
+                inbound("t-1", "t-helllo", SINON, "<helllo@mail.test>", HELLLO, true));
+
+        List<String> seen = new ArrayList<>();
+        String cursor = null;
+        do {
+            MockHttpServletRequestBuilder request = get("/api/conversations/{id}/messages", idOf(tien, "t-1"))
+                    .param("limit", "1");
+            if (cursor != null) {
+                request.param("cursor", cursor);
+            }
+            String body = messages(request).andReturn().getResponse().getContentAsString();
+            seen.addAll(JsonPath.<List<String>>read(body, "$.items[*].id"));
+            cursor = JsonPath.read(body, "$.nextCursor");
+        } while (cursor != null && seen.size() < 10);
+
+        assertThat(seen).containsExactly(messageId("b-hello").toString(), messageId("b-helllo").toString());
+    }
+
+    // The content of a message of any copy, through the ID of any copy; a message of another thread is not one.
+    @Test
+    void theContentOfAMessageOfAnyCopyIsThere() throws Exception {
+        UUID group = store(tien, "t-1", inbound("t-1", "t-a", ALICE, "<a@mail.test>", XIN_CHAO, false));
+        store(sinon, "b-1", inbound("b-1", "b-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
+                withHtml(inbound("b-1", "b-b", ALICE, "<b@mail.test>", HELLO, false), "<p>Chào em</p>"));
+        store(tien, "t-9", inbound("t-9", "t-other", ALICE, "<other@mail.test>", HELLO, false));
+
+        mvc.perform(get("/api/conversations/{id}/messages/{messageId}/body", group, messageId("b-b"))
+                .with(user("owner@sino.test")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.html").value("<p>Chào em</p>"));
+        mvc.perform(get("/api/conversations/{id}/messages/{messageId}/body", group, messageId("t-other"))
+                .with(user("owner@sino.test")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MESSAGE_NOT_FOUND"));
+    }
+
+    // A mail stored before Sino kept HTML is read again from the mailbox of its own copy, whatever the copy the web
+    // opened the thread with: the other mailbox does not know it under that ID.
+    @Test
+    void aMessageOfAnotherCopyIsReadAgainFromItsOwnMailbox() throws Exception {
+        UUID group = store(tien, "t-1", inbound("t-1", "t-a", ALICE, "<a@mail.test>", XIN_CHAO, false));
+        store(sinon, "b-1", inbound("b-1", "b-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
+                inbound("b-1", "b-b", ALICE, "<b@mail.test>", HELLO, false));
+        jdbc.update("update message set body_format = 'UNCHECKED' where external_message_id = 'b-b'");
+        int asked = mail.contentCalls();
+        long changes = events.stream(ConversationChanged.class).count();
+
+        mvc.perform(get("/api/conversations/{id}/messages/{messageId}/body", group, messageId("b-b"))
+                .with(user("owner@sino.test")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.format").value("TEXT"));
+
+        assertThat(mail.contentCalls()).isEqualTo(asked + 1);
+        assertThat(mail.lastReadAccount()).isEqualTo(sinon);
+        assertThat(events.stream(ConversationChanged.class).skip(changes)
+                .map(change -> List.of(change.accountId(), change.conversationId())))
+                .containsExactly(List.of(sinon, idOf(sinon, "b-1")));
+    }
+
+    // A file of a message of any copy is asked of the provider for the account of that copy, which, being a fake,
+    // has no such file.
+    @Test
+    void aFileOfAMessageOfAnyCopyIsAskedForIt() throws Exception {
+        UUID group = store(tien, "t-1", inbound("t-1", "t-a", ALICE, "<a@mail.test>", XIN_CHAO, false));
+        store(sinon, "b-1", inbound("b-1", "b-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
+                inbound("b-1", "b-b", ALICE, "<b@mail.test>", HELLO, false, file()));
+        UUID attachment = jdbc.queryForObject("""
+                select a.id from attachment a join message m on m.id = a.message_id where m.external_message_id = 'b-b'
+                """, UUID.class);
+        int asked = mail.fileCalls();
+
+        mvc.perform(get("/api/conversations/{id}/messages/{messageId}/attachments/{attachmentId}", group,
+                messageId("b-b"), attachment).with(user("owner@sino.test")))
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_UNAVAILABLE"));
+        assertThat(mail.fileCalls()).isEqualTo(asked + 1);
+        assertThat(mail.lastReadAccount()).isEqualTo(sinon);
+    }
+
+    // A send that failed in the primary copy, the one of Tiến, where the mail came in, is discarded through the ID of
+    // the group, the oldest copy; the copy that held it is the one told as changed.
+    @Test
+    void aFailedSendInAnyCopyIsDiscarded() throws Exception {
+        UUID group = store(sinon, "b-1", outbound("b-1", "b-hello", SINON_ADDRESS, "<hello@mail.test>", HELLO));
+        store(tien, "t-1", inbound("t-1", "t-hello", SINON, "<hello@mail.test>", HELLO, false));
+        UUID clientMessageId = UUID.randomUUID();
+        mail.failNextSends(new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "refused"));
+        reply(group, clientMessageId).andExpect(status().isBadGateway());
+        UUID failed = jdbc.queryForObject("select id from message where client_message_id = ?", UUID.class,
+                clientMessageId);
+        assertThat(jdbc.queryForObject("select conversation_id from message where id = ?", UUID.class, failed))
+                .isEqualTo(idOf(tien, "t-1"));
+        long changes = events.stream(ConversationChanged.class).count();
+
+        mvc.perform(delete("/api/conversations/{id}/messages/{messageId}", group, failed)
+                .with(user("owner@sino.test")).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        assertThat(jdbc.queryForObject("select count(*) from message where client_message_id = ?", Long.class,
+                clientMessageId)).isZero();
+        assertThat(events.stream(ConversationChanged.class).skip(changes)
+                .map(change -> List.of(change.accountId(), change.conversationId())))
+                .containsExactly(List.of(tien, idOf(tien, "t-1")));
+    }
+
     // D-189: what changed is told under the ID the inbox shows; an ID it does not know stays as it is.
     @Test
     void theInboxNamesEachCopyByItsGroup() throws Exception {
@@ -515,6 +718,35 @@ class MergedThreadsApiTests {
 
     private List<String> ids(MockHttpServletRequestBuilder request) throws Exception {
         return JsonPath.read(list(request).andReturn().getResponse().getContentAsString(), "$.items[*].id");
+    }
+
+    private ResultActions messages(MockHttpServletRequestBuilder request) throws Exception {
+        return list(request);
+    }
+
+    // The external IDs of these tests are unique across accounts, but for the ones messageIdIn names.
+    private UUID messageId(String externalId) {
+        return jdbc.queryForObject("select id from message where external_message_id = ?", UUID.class, externalId);
+    }
+
+    private UUID messageIdIn(UUID account, String externalId) {
+        return jdbc.queryForObject("""
+                select m.id from message m join conversation c on c.id = m.conversation_id
+                where c.account_id = ? and m.external_message_id = ?
+                """, UUID.class, account, externalId);
+    }
+
+    private static NormalizedMessage withoutMessageId(String thread, String id, Instant at) {
+        return new NormalizedMessage(id, thread, ALICE.externalParticipantId(), MessageDirection.INBOUND,
+                MessageType.TEXT, "Thư " + id, MessageStatus.UNKNOWN, false, null, at, List.of(), Map.of(), null,
+                null);
+    }
+
+    private static NormalizedMessage withHtml(NormalizedMessage message, String html) {
+        return new NormalizedMessage(message.externalMessageId(), message.externalConversationId(),
+                message.senderExternalParticipantId(), message.direction(), message.type(), message.textContent(),
+                message.status(), message.read(), message.replyToExternalMessageId(), message.sentAt(),
+                message.attachments(), message.metadata(), message.recipients(), html);
     }
 
     private ResultActions reply(UUID id, UUID clientMessageId) throws Exception {

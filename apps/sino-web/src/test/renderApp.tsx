@@ -13,8 +13,9 @@ import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
 import type { Me } from '@/features/auth/auth.api'
 import { ME_QUERY_KEY } from '@/features/auth/useAuth'
 import { filterConversations } from '@/features/inbox/format'
-import { createInboxSample, type InboxSample } from '@/features/inbox/inbox.sample'
-import { conversationsKey, INBOX_QUERY_KEY, INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
+import { unreadByKindOf } from '@/features/inbox/inbox.api'
+import { createInboxSample, frameOf, type InboxSample } from '@/features/inbox/inbox.sample'
+import { conversationsKey, INBOX_UNREAD_QUERY_KEY, inboxKey } from '@/features/inbox/useInbox'
 import { VIEWS } from '@/features/inbox/useInboxFilter'
 import { createOverviewSample } from '@/features/overview/overview.sample'
 import type { OverviewData } from '@/features/overview/overview.types'
@@ -76,13 +77,17 @@ export function renderApp(
   return { ...view, router, queryClient }
 }
 
-function seedInbox(queryClient: QueryClient, { conversations, ...frame }: InboxSample) {
-  queryClient.setQueryData(INBOX_QUERY_KEY, frame)
-  queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, frame.counts.unread)
-  for (const source of [null, ...frame.providers.map((provider) => provider.type)]) {
-    for (const view of VIEWS) {
-      const items = filterConversations(conversations, { view, source }, new Date())
-      queryClient.setQueryData(conversationsKey({ view, source }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
+// Each screen has its frame and its lists, of its kind only (f05c).
+function seedInbox(queryClient: QueryClient, sample: InboxSample) {
+  queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, unreadByKindOf(sample.counts))
+  for (const kind of ['EMAIL', 'CHAT'] as const) {
+    queryClient.setQueryData(inboxKey(kind), frameOf(sample, kind))
+    const conversations = sample.conversations.filter((item) => item.kind === kind)
+    for (const source of [null, ...sample.providers.filter((provider) => provider.kind === kind).map((provider) => provider.type)]) {
+      for (const view of VIEWS) {
+        const items = filterConversations(conversations, { view, source }, new Date())
+        queryClient.setQueryData(conversationsKey(kind, { view, source }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
+      }
     }
   }
 }

@@ -20,9 +20,9 @@ export function createOverviewSample(now: Date): OverviewData {
   return {
     generatedAt: now.toISOString(),
     providers: [
-      { type: 'gmail', displayName: 'Gmail' },
-      { type: 'zalo', displayName: 'Zalo' },
-      { type: 'messenger', displayName: 'Messenger' },
+      { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' },
+      { type: 'zalo', displayName: 'Zalo', kind: 'CHAT' },
+      { type: 'messenger', displayName: 'Messenger', kind: 'CHAT' },
     ],
     accounts: [
       {

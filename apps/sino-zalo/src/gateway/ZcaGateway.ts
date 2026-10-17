@@ -16,6 +16,7 @@ import {
   type ZaloConnection,
   type ZaloGateway,
   type ZaloMessage,
+  ZaloRejectedError,
   type ZaloSession,
   ZaloUnavailableError,
 } from "./ZaloGateway.ts";
@@ -120,12 +121,10 @@ export class ZcaGateway implements ZaloGateway {
           start: () => listener.start({ retryOnClose: false }),
           stop: () => listener.stop(),
           requestOldMessages: (threadType, lastId) =>
-            listener.requestOldMessages(
-              threadType === "USER" ? ZcaThreadType.User : ZcaThreadType.Group,
-              lastId,
-            ),
+            listener.requestOldMessages(zcaThreadType(threadType), lastId),
         };
       },
+      sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
       threadInfo: async (threadId, threadType) => {
         try {
           // `await` here, or a rejection would pass the catch below.
@@ -157,8 +156,38 @@ export function toZaloMessage(message: Message): ZaloMessage {
   };
 }
 
+/**
+ * Sends a text through zca-js. Only a Zalo error code is a refusal (ZaloRejectedError); any other failure
+ * (no answer, a 5xx, an answer it cannot read) may come after Zalo took the message, so it stays unknown (D-280).
+ */
+export async function sendText(
+  send: API["sendMessage"],
+  threadId: string,
+  threadType: ThreadType,
+  text: string,
+): Promise<string> {
+  let response: Awaited<ReturnType<API["sendMessage"]>>;
+  try {
+    response = await send(text, threadId, zcaThreadType(threadType));
+  } catch (error) {
+    if (error instanceof ZaloApiError && error.code !== null) {
+      throw new ZaloRejectedError(reasonOf(error));
+    }
+    throw error;
+  }
+  const msgId = response.message?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
+}
+
 function threadTypeOf(type: ZcaThreadType): ThreadType {
   return type === ZcaThreadType.User ? "USER" : "GROUP";
+}
+
+function zcaThreadType(threadType: ThreadType): ZcaThreadType {
+  return threadType === "USER" ? ZcaThreadType.User : ZcaThreadType.Group;
 }
 
 async function userInfo(api: API, userId: string): Promise<ThreadInfo> {

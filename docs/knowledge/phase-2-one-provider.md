@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive. F05b, `openspec/changes/f05b-merged-threads` (một chuỗi ở nhiều tài khoản là một dòng): xong BE-80 (nhóm), BE-81 (Hộp thư theo nhóm, trả lời từ bản chính); còn BE-82, BE-83.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive. F05b, `openspec/changes/f05b-merged-threads` (một chuỗi ở nhiều tài khoản là một dòng): xong BE-80 (nhóm), BE-81 (Hộp thư theo nhóm, trả lời từ bản chính), BE-82 (thư của nhóm, mỗi thư một lần), BE-83 (chạy thật trên ba hộp thư của bạn); còn phần web chạy thật, nghiệm thu và archive.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -2037,7 +2037,7 @@ Mã của nhóm là mã của bản **cũ nhất còn trong phạm vi**, tính k
 
 `GET` và `PATCH /api/conversations/{id}` nhận mã của **bất kỳ** bản nào: câu SQL tìm `thread_group_id` của bản đó (chỉ khi bản đó trong phạm vi), rồi gom cả nhóm. Item trả về luôn mang mã nhóm; web thấy mã khác thì thay đường dẫn (FE-81).
 
-`InboxItem` giờ mang cả ba loại mã: `id` (nhóm), `primaryId` (bản chính) và `copies` (mọi bản, kèm tài khoản). Các chỗ khác chọn đúng loại mình cần: trả lời dùng `primaryId`, tải tệp dùng tài khoản của bản ghi trong đường dẫn (`accountOf`).
+`InboxItem` giờ mang cả ba loại mã: `id` (nhóm), `primaryId` (bản chính) và `copies` (mọi bản, kèm tài khoản). Các chỗ khác chọn đúng loại mình cần: trả lời dùng `primaryId`, tải tệp dùng tài khoản của bản ghi trong đường dẫn (`accountOf`; từ BE-82 là tài khoản của bản giữ thư, mục 26.4).
 
 ### 25.5 `PATCH` một nhóm: khóa mọi tài khoản theo một thứ tự
 Đánh dấu đã đọc hay lưu trữ phải đổi **mọi** bản (D-185), mà mỗi bản thuộc một tài khoản có khóa riêng (mục 13.2b). `change` lấy khóa của từng tài khoản trong nhóm, **sắp theo mã** (`sorted()`):
@@ -2093,6 +2093,147 @@ A chung thư với B, B chung thư với C, rồi bạn xóa tài khoản B. B�
 - **Kiểm tra ngược:** 19 lỗi gài trên code cuối (đổi `bool_and` thành `bool_or` và ngược lại, cộng thay vì lấy lớn nhất, bỏ ưu tiên thư đến, bỏ so `Message-ID`, sai thứ tự `accountIds`, đọc hay lưu trữ một bản, `self` sai, mã sự kiện không đổi, mở được bản ngoài phạm vi, mã nhóm là bản mới nhất, trả lời theo bản chính khi gửi lại, bỏ lời từ chối, trả lời từ mã nhóm, một `accountIds`): cả 19 bị bắt. Không gài thứ tự khóa (`sorted()`): bỏ nó không làm test nào đỏ, vì vòng chờ chỉ xảy ra khi hai request chen nhau đúng lúc.
 - **Toàn bộ:** `./mvnw -B -ntp verify`: 1517 test, 0 sai, 0 lỗi, 4 bỏ qua.
 - **Chưa kiểm:** tốc độ trên dữ liệu thật của bạn (BE-83 đo bằng `EXPLAIN ANALYZE`).
+
+## 26. Thư của một nhóm: mỗi thư một lần, đọc đúng hộp thư (BE-82, F05b)
+
+**Ở đâu:** `conversation/application/{MessageHistory,MessageBodies,MessageFiles,ReplyService,InboxService}.java`, `conversation/infrastructure/ConversationSummaries.java` (`lockAll`); test `MergedThreadsApiTests` (9 test mới), `FakeMessageProvider.lastReadAccount()`.
+
+### 26.1 Ba thư, không phải sáu
+Sau BE-81, chuỗi "xin chào" là một dòng, nhưng mở ra thì `GET /api/conversations/{id}/messages` vẫn chỉ đọc thư của **một** bản (bản trong đường dẫn). Mỗi hộp thư lại giữ một bản của cả ba thư. Đọc thư của mọi bản mà không bỏ trùng thì ra sáu thư: mỗi thư hai lần, một "đi", một "đến". D-184 giữ mỗi `Message-ID` một lần:
+
+```text
+  bản tienct07 (t-1)             bản bonzed2001 (b-1)            mở nhóm
+  Helllo    đến  10:35:02        Helllo    đi   10:35:00   -->   Helllo    (từ b-1: thư đi)
+  xin chào  đi   10:37:00        xin chào  đến  10:37:02   -->   xin chào  (từ t-1: thư đi, có clientMessageId)
+  hello     đến  10:41:02        hello     đi   10:41:00   -->   hello     (từ b-1: thư đi)
+```
+
+Một thư có ở nhiều bản thì lấy theo thứ tự: bản mà nó là thư **đi** (bản đó giữ `clientMessageId` và trạng thái gửi của Sino), rồi bản cũ nhất (từ D-184 = B, không xét bản chính nữa, mục 26.6). Thư chưa có `Message-ID` (ví dụ trả lời vừa gửi từ Sino, chưa đồng bộ về) hay có header `Message-ID` để trống thì luôn hiện: không có gì nói hai thư như vậy là một.
+
+### 26.2 `DISTINCT ON`: giữ dòng đầu của mỗi khóa
+PostgreSQL có `SELECT DISTINCT ON (biểu thức)`: trong các dòng cùng giá trị biểu thức, chỉ giữ dòng **đầu tiên** theo `ORDER BY`. `ORDER BY` phải bắt đầu bằng đúng biểu thức đó; phần sau của `ORDER BY` quyết dòng nào là "đầu tiên":
+
+```sql
+WITH shown AS (
+    SELECT DISTINCT ON (COALESCE('rfc:' || NULLIF(m.metadata ->> 'rfcMessageId', ''), 'id:' || m.id))
+           m.id, m.sent_at
+    FROM unnest(ARRAY[:copies]::uuid[]) WITH ORDINALITY AS copy(id, rank)
+    JOIN message m ON m.conversation_id = copy.id
+    ORDER BY COALESCE('rfc:' || NULLIF(m.metadata ->> 'rfcMessageId', ''), 'id:' || m.id),
+             m.direction = 'OUTBOUND' DESC, copy.rank, m.id
+)
+```
+
+Từng mảnh:
+
+| Mảnh | Làm gì |
+|---|---|
+| `'rfc:'` nối với `Message-ID` | khóa của thư có `Message-ID`; nối với `NULL` cho ra `NULL` |
+| `NULLIF(..., '')` | header `Message-ID:` để trống được lưu thành chuỗi rỗng; coi nó như không có, nếu không mọi thư như vậy chung khóa `rfc:` và chỉ còn một (review tìm ra) |
+| `COALESCE(...)` với `'id:'` nối với `m.id` | thư không có `Message-ID` lấy khóa riêng là mã của nó, nên không bao giờ trùng thư khác; hai tiền tố giữ cho một `Message-ID` không bao giờ bằng mã của một thư |
+| `unnest(...) WITH ORDINALITY` | biến danh sách Java `[bản cũ nhất, ..., bản mới nhất]` thành các dòng có số thứ tự `rank`: thứ tự ưu tiên tính ở Java đi thẳng vào SQL |
+| `m.direction = 'OUTBOUND' DESC` | `boolean` sắp `false` trước `true`; `DESC` đưa thư đi lên đầu |
+| `m.id` ở cuối | mọi thứ khác ngang nhau thì kết quả vẫn luôn như nhau; thiếu nó, `DISTINCT ON` được phép lấy dòng nào cũng được |
+
+Khóa được viết thẳng vào câu SQL (`formatted` với hằng `NormalizedMessage.RFC_MESSAGE_ID`), không truyền bằng tham số. Lý do: hai chỗ `:key` là hai tham số, tức hai biểu thức khác nhau với PostgreSQL, và nó báo lỗi "SELECT DISTINCT ON expressions must match initial ORDER BY expressions". Viết hằng vào SQL không mở đường cho SQL injection vì giá trị là hằng của code, không đến từ người dùng.
+
+### 26.3 Bỏ trùng trước, cắt trang sau
+Thứ tự hai việc này quyết đúng sai. Gmail ghi giờ của một thư theo lúc nó vào **từng** hộp thư, nên hai bản của "hello" lệch hai giây. Nếu cắt trang trên thư của cả hai bản rồi mới bỏ trùng, cursor `(sent_at, id)` của một trang có thể rơi vào giữa hai bản, và trang sau mang bản kia về: người dùng thấy "hello" hai lần, ở hai trang. Test `pagesThroughTheMessagesOfAGroupEachOnce` đọc từng trang một thư để bắt đúng cảnh này.
+
+```text
+  shown: mọi thư của mọi bản, mỗi thư một dòng, chỉ (id, sent_at)
+     -> WHERE (sent_at, id) < cursor  ORDER BY sent_at DESC, id DESC  LIMIT 21
+     -> đọc đủ cột (chữ, người gửi, người nhận) cho đúng 21 thư đó
+```
+
+**Đánh đổi:** F06 đọc mỗi trang bằng index `(conversation_id, sent_at)`, chỉ chạm 21 dòng. Giờ mỗi trang đọc mã, giờ, `Message-ID`, chiều của **mọi** thư trong nhóm rồi sắp. Vì vậy `shown` chỉ giữ cột hẹp; bản nháp đầu mang cả `text_content` qua phép sắp, với chuỗi email dài là vài MB mỗi trang, có thể tràn ra đĩa (`work_mem` mặc định 4 MB). Chuỗi email vài chục thư thì không đáng kể. Một cuộc chat rất dài (Zalo, Telegram: luôn một bản) cũng bị đọc cả cuộc mỗi trang; BE-83 đo, chậm thì cho nhóm một bản đi đường cũ (ghi ở Risks của design).
+
+### 26.4 Nội dung, tệp, xóa: tìm ở mọi bản, gọi bằng tài khoản của bản giữ thư
+Đường dẫn mang mã nhóm (bản cũ nhất của `tienct07`), còn thư có thể thuộc bản của `bonzed2001`. Trước BE-82, `MessageBodies`, `MessageFiles` và `ReplyService.discard` chỉ tìm thư trong bản của đường dẫn, nên trả `404 MESSAGE_NOT_FOUND`. Giờ cả ba tìm trong mọi bản của nhóm (`conversation_id IN (:copies)`) và trả về luôn bản giữ thư (`Stored.copy`).
+
+Điểm dễ sai là tài khoản dùng để gọi Gmail. Mã thư của Gmail chỉ có nghĩa trong **một** hộp thư: hỏi hộp thư của `tienct07` về mã thư của hộp thư `bonzed2001` thì Gmail trả 404, và bạn thấy "không đọc được nội dung". Nên đọc lại thư cũ (`UNCHECKED`) và tải tệp dùng `accountOf(bản giữ thư)`, không dùng `accountOf(bản trong đường dẫn)`. Test không có Gmail thật để trả 404, nên connector giả ghi lại tài khoản của lần đọc cuối (`lastReadAccount()`); test so nó với tài khoản `bonzed2001`.
+
+Xóa thư gửi lỗi cũng vậy: thư nằm ở bản đã ghi nó (bản chính lúc gửi). Sino xóa ở đó, tính lại tóm tắt **của bản đó**, và phát `ConversationChanged` cho bản đó; module `realtime` đổi nó sang mã nhóm (D-189).
+
+### 26.5 `lockAll`: một chỗ cho thứ tự khóa
+BE-81 viết `copies().stream().map(Copy::accountId).distinct().sorted().forEach(summaries::lock)` ở hai nơi (`PATCH` và trả lời). Xóa thư gửi lỗi là nơi thứ ba. Thay vì chép lần ba, quy tắc "khóa mọi tài khoản theo một thứ tự" (mục 25.5) chuyển vào `ConversationSummaries.lockAll(accountIds)`, và cả ba nơi gọi nó. Quy tắc chống deadlock nằm ở một chỗ thì không có nơi nào quên `sorted()`.
+
+### 26.6 Bản chính đổi giữa hai trang (D-184 = B, bạn chốt)
+Review chỉ ra một chỗ mà quy tắc D-184 ban đầu ("thư đi, rồi bản chính, rồi bản cũ nhất") tự nó gây ra. Thư Alice gửi tới cả hai tài khoản là thư **đến** ở cả hai bản, nên bản được chọn là bản chính. Bản chính lại đổi mỗi khi bản kia có thư mới (D-181), và hai bản ghi giờ của thư đó lệch nhau vài giây:
+
+```text
+  trang 1 dừng ở cursor 10:00:02
+  thư M: bản A 10:00:00, bản B 10:00:05
+  bản chính A: trang 2 lấy M của A (10:00:00 < cursor) -> có M
+  bản chính đổi sang B trước khi tải trang 2: lấy M của B (10:00:05 > cursor) -> mất M
+```
+
+Ngược lại thì M hiện hai lần, và mã của M cũng đổi giữa hai lần tải. Chỉ xảy ra khi có thư mới đến đúng lúc bạn đang cuộn lên đọc chuỗi, và tải lại thì đúng.
+
+Bạn chọn B (2026-10-17): "thư đi, rồi bản cũ nhất", không xét bản chính. Bản cũ nhất chỉ đổi khi một tài khoản ra khỏi Hộp thư, nên bản được chọn cho một thư đứng yên giữa hai lần tải trang. Code chỉ đổi một dòng: `page` truyền `conversationIds()` (cũ → mới) thay vì đưa `primaryId` lên đầu. Test `anotherPrimaryCopyBetweenTwoPagesLeavesNoMailOutNorTwice` dựng đúng cảnh trên: tải trang 1, lưu một thư mới vào bản kia cho nó thành bản chính, tải trang 2. Với quy tắc cũ, test đỏ vì trang 2 mang lại K từ bản kia và làm mất M.
+
+Bài học chung: một quy tắc chọn dữ liệu cho phân trang keyset phải **ổn định** giữa các lần gọi. Nếu thứ tự hay giá trị dùng làm cursor phụ thuộc vào thứ có thể đổi giữa hai trang (ở đây là bản chính), cursor của trang trước không còn chỉ đúng chỗ.
+
+### 26.7 Kiểm chứng (BE-82)
+- **Nhận lại từ bản nháp:** phiên sino-api-84 dừng giữa task (2026-10-14), để lại code và test chưa chạy, chưa commit. Bản nháp áp được lên `dev` mà không lệch. Phiên này soát lại, rồi đổi phép sắp sang cột hẹp, thêm `m.id` vào thứ tự, và thêm test cho tài khoản dùng để gọi Gmail.
+- **Đỏ trước:** 7 test mới, chạy trên code của `dev`, đỏ đúng lý do: `404 MESSAGE_NOT_FOUND` / `ATTACHMENT_NOT_FOUND` vì thư nằm ở bản kia, danh sách chỉ có thư của một bản. 21 test cũ vẫn xanh. Sau review thêm test `Message-ID` trống, đỏ đúng lý do (hai thư còn một), rồi sửa bằng `NULLIF`.
+- **Kiểm tra ngược (trước D-184 = B):** 7 lỗi gài, cả 7 làm test đỏ: bỏ ưu tiên thư đi, xếp bản chính cuối, xếp bản mới trước bản cũ (test ba bản, test này xanh ngay khi viết vì hành vi đã có), cắt trang trước khi bỏ trùng, đọc lại thư bằng tài khoản của bản trong đường dẫn, tải tệp bằng tài khoản đó, xóa thư nhưng báo bản trong đường dẫn.
+- **Review (`senior-reviewer`):** không có lỗi CRITICAL hay HIGH. `Message-ID` trống: đã sửa. Thiếu test bậc "bản cũ nhất": đã thêm. Bản chính đổi giữa hai trang (mục 26.6): để bạn chốt. Ngoài BE-82, đã ghi vào `tasks.md`: `ThreadGroups` (BE-80) có thể gộp nhầm hai chuỗi có `Message-ID` trống; thư lấy từ bản của tài khoản `AUTH_EXPIRED` thì không đọc lại được.
+- **Toàn bộ:** `./mvnw -B -ntp verify`: 1529 test, 0 sai, 0 lỗi, 4 bỏ qua.
+- **Chưa kiểm:** dữ liệu thật của bạn, và `EXPLAIN ANALYZE` của câu đọc thư (BE-83).
+
+## 27. Chạy thật: nhóm trên dữ liệu của bạn (BE-83, F05b)
+
+**Ở đâu:** test `conversation/RealMergedThreadsTests` (mới, tag `real-gmail`), `conversation/RealGmailMessagesTests`; README mục *A thread in several real mailboxes (F05b)*.
+
+### 27.1 Một test thật không gọi Gmail
+Phần của F05b nằm sau Gmail: gom khi lưu, đọc theo nhóm, đổi theo nhóm. Vì vậy `RealMergedThreadsTests` đọc những gì Sino đã lưu từ ba hộp thư thật của bạn và đi qua API như web, nhưng không đồng bộ và không gửi gì. Chạy lại bao nhiêu lần cũng ra cùng kết quả, không tốn quota Gmail, và không có nguy cơ gửi nhầm. Phần đồng bộ thật vẫn do `RealGmailMessagesTests` làm.
+
+Như mọi test `real-gmail`, nó dùng profile `local` (file `.env`, database Compose), chỉ chạy tay, và tự bỏ qua khi có backend ở cổng 8080: hai backend trên một database sẽ cùng đồng bộ và cùng gom.
+
+### 27.2 Kiểm bằng một cách tính thứ hai
+Danh sách thư của một nhóm được so với một cách tính khác, viết bằng Java ngay trong test (`expectedMessages`): đọc mọi thư của các bản, rồi giữ mỗi khóa một thư theo quy tắc D-184 = B (thư đi, rồi bản cũ nhất, rồi mã nhỏ hơn). Nếu test chạy lại đúng câu SQL của `MessageHistory` thì nó luôn đồng ý với chính nó. Hai cách viết khác nhau mà ra cùng kết quả trên 52 thư thật mới là bằng chứng.
+
+Số đếm cũng vậy: `unread`, `needsReply`, `withAttachments` của `/counts` được so với số dòng của view tương ứng (`view=unread`, `reply`, `attachments`). Một bên là `count(*) FILTER (...)`, bên kia là danh sách đọc từng trang; hai đường code phải khớp.
+
+### 27.3 Đổi dữ liệu thật mà để lại như cũ
+Lưu trữ và đã đọc chỉ nằm trong Sino (D-67), nhưng vẫn là dữ liệu của bạn. Test chỉ thử trên một nhóm **không lưu trữ, không có thư chưa đọc**, vì từ trạng thái đó có đường quay về chính xác:
+
+```text
+  ban đầu: mọi bản không lưu trữ, mọi thư đã đọc
+  archived: true   -> mọi bản lưu trữ      (kiểm)
+  archived: false  -> về như cũ            (kiểm)
+  read: false      -> 1 thư chưa đọc       (thư mới nhất của bản chính)
+  read: true       -> mọi thư đã đọc: về như cũ
+```
+
+Một nhóm đang có hai thư chưa đọc thì không quay về được: `read: true` rồi `read: false` chỉ làm lại **một** thư chưa đọc. Lệnh trả lại nằm trong `finally`, để test đỏ giữa chừng vẫn trả dữ liệu về.
+
+### 27.4 Đọc `EXPLAIN ANALYZE`
+`EXPLAIN ANALYZE` chạy câu SQL thật và in ra PostgreSQL đã làm từng bước thế nào, mất bao lâu. Trên database của bạn (2339 cuộc trò chuyện):
+
+```text
+  Trang đầu Hộp thư (3,5 ms)
+    Seq Scan conversation          2338 dòng   mọi cuộc trò chuyện của bạn
+    GroupAggregate                 2317 nhóm
+    Sort: top-N heapsort           31 dòng     chỉ giữ 31 dòng đầu, không sắp cả 2317
+  Trang đầu thư của một nhóm (2,6 ms)
+    Index Scan message_conversation_sent_idx   thư của từng bản
+    Sort + bỏ trùng                            trên cột hẹp (id, sent_at)
+    Index Scan message_pk          21 lần      đọc đủ cột cho thư của trang
+```
+
+`Seq Scan` (đọc thẳng cả bảng) không phải lúc nào cũng xấu. Khi gần như mọi dòng đều cần, như ở đây (mọi cuộc trò chuyện của ba tài khoản), đọc thẳng bảng rẻ hơn đi qua index rồi nhảy vào bảng từng dòng. `top-N heapsort` nghĩa là PostgreSQL thấy `LIMIT 31` và chỉ giữ 31 dòng tốt nhất trong lúc đọc. Đổi lại, trang Hộp thư tốn thời gian theo số cuộc trò chuyện của bạn, vì mỗi trang gom lại tất cả (mục 25.2). Hôm nay đó là vài ms; nếu sau này chậm, cách sửa đã ghi ở design: lưu sẵn tóm tắt theo nhóm.
+
+Review của BE-82 còn nghi một chỗ: `m.id IN (SELECT ... LIMIT 21)` có làm PostgreSQL quét cả bảng `message` không. Kế hoạch cho thấy không: nó tra 21 lần theo khóa chính.
+
+### 27.5 Test thật cũ cũng phải đổi theo
+`RealGmailMessagesTests` (BE-57) so số thư qua API với `count(*)` của **một** bản. Từ BE-82, chuỗi gộp trả ít thư hơn con số đó (đã bỏ trùng), nên test này sẽ đỏ trên dữ liệu của bạn. `verify` không chạy test gắn tag `real-gmail`, nên chỉ có đọc lại code mới thấy. Giờ nó so với số thư đã bỏ trùng của cả nhóm. Bài học: đổi hành vi thì tìm cả những test không chạy tự động.
+
+### 27.6 Kiểm chứng (BE-83)
+- **Dữ liệu trước khi chạy** (psql, chỉ đọc): V19 đã áp; 2338 cuộc trò chuyện, 2317 nhóm, 21 nhóm hai bản (17 `tienct07` + `bonzed2001`, 4 `tienct07` + `tien.ntt1907`); 0 thư `Message-ID` trống hay thiếu, nên lỗi gộp nhầm ghi ở mục 26.7 không xảy ra trên dữ liệu của bạn.
+- **Test thật:** bạn dừng backend; `./mvnw test -Preal-gmail -Dtest=RealMergedThreadsTests,RealGmailMessagesTests`: 6 test, 0 sai, hai lượt. 21 dòng hai tài khoản; 52 thư đã lưu hiện thành 26; gom lại 78 ms không đổi gì; số đếm khớp view; nhóm thử được trả lại như cũ (kiểm lại bằng psql sau đó). Trang Hộp thư chậm nhất 76 ms, trang thư chậm nhất 17 ms (qua MockMvc, gồm cả JSON).
+- **Không gửi thư nào** (bạn không cho gửi). Trả lời từ bản chính (D-186) chỉ được kiểm bằng test tự động.
 
 ---
 
@@ -2218,3 +2359,11 @@ A chung thư với B, B chung thư với C, rồi bạn xóa tài khoản B. B�
 118. Vì sao chọn bản chính chỉ bằng "giờ mới nhất" có thể sai với Gmail, và `Message-ID` giúp gì?
 119. Vì sao `PATCH` một nhóm phải khóa các tài khoản theo một thứ tự cố định? Bỏ `sorted()` thì hai request có thể làm gì nhau?
 120. Thư gửi lỗi ở bản A, rồi bản B thành bản chính: nếu chỉ tìm `clientMessageId` trong bản chính thì chuyện gì xảy ra khi web gửi lại?
+121. Hai bản của một thư lệch nhau hai giây: vì sao phải bỏ trùng trước rồi mới cắt trang, và làm ngược lại thì người dùng thấy gì?
+122. `DISTINCT ON` giữ dòng nào trong các dòng cùng khóa? Vì sao cuối `ORDER BY` có `m.id`, dù không test nào cần nó?
+123. Vì sao thư không có `Message-ID` luôn hiện, dù hai thư như vậy có thể là một?
+124. Mở thư của bản `bonzed2001` qua mã nhóm (bản `tienct07`): nếu gọi Gmail bằng tài khoản của bản trong đường dẫn thì chuyện gì xảy ra, và vì sao test phải nhờ connector giả ghi lại tài khoản mới bắt được?
+125. Test thật của F05b không đồng bộ, không gọi Gmail: vì sao nó vẫn là chạy thật, và nó được gì nhờ không gọi Gmail?
+126. Vì sao so danh sách thư với một cách tính viết bằng Java, thay vì chạy lại câu SQL của `MessageHistory`?
+127. Vì sao test chỉ thử lưu trữ và đọc trên một nhóm "không lưu trữ, không có thư chưa đọc"?
+128. Trang Hộp thư có `Seq Scan` trên `conversation`: đó có phải lỗi không, và khi nào thì nó thành vấn đề?

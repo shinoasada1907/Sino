@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { addBlock, newBlock, newDiagram } from './diagram/diagram'
 import { createNotesSample } from './notes.sample'
+import type { NoteItem } from './notes.types'
 import { NOTES_QUERY_KEY, useCreateNote, useDeleteNote, useNote, useNotes, useSaveNote } from './useNotes'
 
 // Friday 2 October 2026, 14:05 in Vietnam.
@@ -44,7 +46,26 @@ describe('the notes hooks on sample data (NT-01)', () => {
 
     // The cache tells the component on the next tick.
     await waitFor(() => expect(notes()[0]).toMatchObject({ id: created?.id, title: null, body: 'Gọi lại cho phòng khám', pinned: false, anchor: null, updatedAt: NOW.toISOString() }))
-    expect(notes()).toHaveLength(7)
+    expect(notes()[0]).toMatchObject({ kind: 'TEXT', diagram: null })
+    expect(notes()).toHaveLength(8)
+  })
+
+  it('creates a diagram, then saves its blocks and links as one, as the newest edit (DG-01, D-211)', async () => {
+    const { result, notes } = setup()
+    const start = newDiagram()
+
+    let created: NoteItem | undefined
+    await act(async () => {
+      created = await result.current.create.mutateAsync({ title: ' ', body: '', diagram: start })
+    })
+    await waitFor(() => expect(notes()[0]).toMatchObject({ id: created?.id, kind: 'DIAGRAM', title: null, body: '', diagram: start }))
+
+    vi.setSystemTime(new Date(NOW.getTime() + 60_000))
+    const grown = addBlock(start, newBlock(300, 200))
+    await act(async () => {
+      await result.current.save.mutateAsync({ note: created!, change: { diagram: grown } })
+    })
+    await waitFor(() => expect(notes()[0]).toMatchObject({ kind: 'DIAGRAM', diagram: grown, updatedAt: new Date(NOW.getTime() + 60_000).toISOString() }))
   })
 
   it('saves an edit as the newest one, and a pin without changing when it was edited', async () => {

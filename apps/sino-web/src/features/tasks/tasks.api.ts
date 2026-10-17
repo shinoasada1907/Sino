@@ -1,5 +1,6 @@
 import { api } from '@/shared/api/client'
-import type { Instant, ProviderInfo } from '@/shared/domain'
+import { toProviderInfo, type ProviderEntry } from '@/shared/api/providers'
+import type { Instant } from '@/shared/domain'
 import type { CompletedTask, TaskItem, TasksData } from './tasks.types'
 
 /*
@@ -8,23 +9,18 @@ import type { CompletedTask, TaskItem, TasksData } from './tasks.types'
  * whole task, as the sample did; the API needs only its id.
  */
 
-/** One provider of `GET /api/providers` (F03): the name shown next to the source of a task. */
-interface ProviderResponse {
-  type: string
-  displayName: string
-}
-
 const path = (task: TaskItem, action = '') => `/api/tasks/${encodeURIComponent(task.id)}${action}`
 
 /** `GET /api/tasks` (open tasks and those done in the last 7 days) and `GET /api/providers`. */
 export async function fetchTasks(): Promise<TasksData> {
   const [list, providers] = await Promise.all([
     api.get<{ generatedAt: Instant; tasks: TaskItem[] }>('/api/tasks'),
-    api.get<ProviderResponse[]>('/api/providers'),
+    // The name shown next to the source of a task.
+    api.get<ProviderEntry[]>('/api/providers'),
   ])
   return {
     generatedAt: list.generatedAt,
-    providers: providers.map(({ type, displayName }): ProviderInfo => ({ type, displayName })),
+    providers: providers.map(toProviderInfo),
     tasks: list.tasks,
   }
 }

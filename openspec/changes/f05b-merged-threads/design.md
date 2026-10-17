@@ -49,7 +49,8 @@ Mã của nhóm trong API là mã của cuộc trò chuyện **cũ nhất** (`cr
 **Phương án bị loại:** mã nhóm mới hoàn toàn (đổi mọi đường dẫn đã có, thêm một loại mã); mã của bản chính (đổi mỗi khi có thư mới ở bản khác).
 
 ### D-184 — Thư của chuỗi gộp · **Người dùng duyệt**
-`GET /api/conversations/{id}/messages` trả thư của mọi bản, mỗi `rfcMessageId` một lần; thư chưa có `rfcMessageId` (vừa gửi từ Sino) luôn có mặt. Một thư có ở nhiều bản thì lấy bản mà nó là thư **đi** (để còn `clientMessageId`, trạng thái gửi của Sino), không có thì bản chính, rồi bản cũ nhất. Web: thư của bạn ghi "Bạn · {địa chỉ gửi}" khi chuỗi có nhiều tài khoản.
+`GET /api/conversations/{id}/messages` trả thư của mọi bản, mỗi `rfcMessageId` một lần; thư chưa có `rfcMessageId` (vừa gửi từ Sino) luôn có mặt. Một thư có ở nhiều bản thì lấy bản mà nó là thư **đi** (để còn `clientMessageId`, trạng thái gửi của Sino), không có thì ~~bản chính, rồi~~ bản cũ nhất. Web: thư của bạn ghi "Bạn · {địa chỉ gửi}" khi chuỗi có nhiều tài khoản.
+**Đổi (người dùng chọn B, 2026-10-17):** bỏ bậc "bản chính". **LÝ DO:** review của BE-82 chỉ ra bản chính đổi mỗi khi bản kia có thư mới (D-181), còn hai bản ghi giờ của một thư lệch vài giây; bản được chọn đổi giữa hai lần tải trang thì một thư có thể mất (giờ của bản mới nằm trên cursor) hoặc hiện hai lần. Bản cũ nhất chỉ đổi khi một tài khoản ra khỏi Hộp thư. Phương án A (giữ bản chính) bị loại.
 **LÝ DO:** cùng một thư hiện hai lần (một "đi", một "đến") là điều người dùng đang phàn nàn.
 **Phương án bị loại:** chỉ hiện thư của bản chính (thiếu thư mà chỉ bản kia có, ví dụ tài khoản được CC sau).
 
@@ -138,6 +139,7 @@ Module `realtime` đổi mỗi mã cuộc trò chuyện của sự kiện (đồ
 - **Gộp không phát sự kiện cho tài khoản kia** (BE-80): khi lưu thư của một tài khoản gộp nhóm với cuộc trò chuyện của tài khoản khác, sự kiện của lượt lưu chỉ nói về cuộc trò chuyện của tài khoản đang lưu. BE-81 phát `conversations.changed` theo mã của nhóm. **→ D-189:** sự kiện mang mã nhóm, đổi ở module `realtime`.
 - **Gom lại mỗi lần khởi động** (BE-80): quét mọi thư có `Message-ID` của từng tài khoản, mỗi tài khoản một transaction ngắn; hộp thư rất lớn làm lần khởi động lâu hơn (đo ở BE-83).
 - **V19 ghi lại toàn bảng `conversation`** (cột tự tính `STORED`, khóa `ACCESS EXCLUSIVE` trong lúc chạy): chấp nhận với một người dùng; PostgreSQL 18 không index được cột tự tính `VIRTUAL`.
+- **Mỗi trang thư đọc cả nhóm** (BE-82): bỏ trùng phải xong trước khi cắt trang (hai bản của một thư lệch giờ), nên mỗi trang đọc mã, giờ, `Message-ID`, chiều của **mọi** thư của nhóm rồi sắp, thay vì chỉ đọc đầu index `(conversation_id, sent_at)` như F06. Chỉ các cột hẹp đó được sắp; chữ, người gửi, người nhận chỉ đọc cho thư của trang. Chuỗi email vài chục thư thì không đáng kể; một cuộc chat rất dài (Zalo, Telegram: luôn một bản, không có `Message-ID`) đọc cả cuộc mỗi trang. Đo ở BE-83; chậm thì cho nhóm một bản đi đường cũ.
 
 ## Migration Plan
 

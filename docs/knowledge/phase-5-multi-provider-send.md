@@ -3,7 +3,7 @@
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
 > **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai: Zalo cá nhân, `openspec/changes/zalo-personal`) mở 2026-10-14, bạn tự code ZL-01 (khung service `sino-zalo`, mục 5); từ ZL-02 (đăng nhập QR, mục 6) bạn chuyển change này sang AUTO.
-> **Cập nhật:** 2026-10-15. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
+> **Cập nhật:** 2026-10-16. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
 
 ---
 
@@ -659,3 +659,229 @@ Tin đầu tiên của một account mở một "cửa sổ" 0,5 giây (`setTime
 - **Xanh:** `pnpm test` 94/94 (10 file, chạy 4 lần đều xanh), oxlint 0 chẩn đoán trên 27 file, `tsc` 0 lỗi.
 - **Chạy thật** với `ZcaGateway` (cổng 8095, không gọi Zalo): `GET` tin không khóa `401`; account lạ `404 UNKNOWN_ACCOUNT`; `after=abc` `400`; `limit=5000` `400`; khóa không có trong log.
 - **Chưa kiểm:** tin thật qua listener, `requestOldMessages` và `old_messages` thật, khóa của `getUserInfo` (`<id>` hay `<id>_0`), độ dài một trang bù tin: ZL-13, bằng nick phụ. `toZaloMessage` đã có test trên đối tượng tin của chính zca-js.
+
+## 9. Gửi tin, chống gửi trùng, giới hạn tốc độ, tra tin đã gửi (ZL-05)
+
+**Ở đâu:** `src/messages/{sendRoutes,SentLog,RateLimiter}.ts` (mới); `src/gateway/*` (`sendText`, `ZaloRejectedError`); `src/sessions/SessionManager.ts` (`sendText`, `ownMessages`, giờ bật phiên `liveSince`); `src/sessions/MessageBuffer.ts` (`filter`); `src/app.ts` (`now`, `sendTimeoutMs`); `test/{send,lookup}.test.ts` (mới). Claude làm ở chế độ AUTO.
+
+### 9.1 Luồng gửi: thứ tự các câu hỏi
+Đây là phía `sino-zalo` của việc F10 đã làm cho Gmail ở mục 2. `sino-api` (ZL-09) gọi `POST /accounts/{id}/messages` `{ threadId, threadType, text, clientMessageId }`, và route hỏi lần lượt:
+
+```text
+ 1. body đủ và đúng kiểu?                      không -> 400
+ 2. SentLog đã có clientMessageId này?
+      SENT                                      -> 200 { msgId, sentAt } cũ, không gửi
+      PENDING (đang chờ Zalo) / UNKNOWN         -> 504 OUTCOME_UNKNOWN, không gửi
+ 3. account có phiên đang sống?                 không -> 404 UNKNOWN_ACCOUNT / 410 SESSION_ENDED
+ 4. account đã gửi trong 1 giây qua?             có -> 429 RATE_LIMITED, không gửi
+ 5. ghi PENDING vào SentLog, gửi qua zca-js     (chờ tối đa 10 giây)
+      Zalo trả msgId                            -> SentLog: SENT -> 201 { msgId, sentAt }
+      Zalo trả mã lỗi                           -> SentLog: quên  -> 422 REJECTED
+      hết giờ, mạng đứt, 5xx                    -> SentLog: UNKNOWN (hoặc vẫn PENDING) -> 504 OUTCOME_UNKNOWN
+```
+
+Thứ tự là có chủ ý:
+- **2 trước 4:** một lần gọi lặp không gửi gì, nên không được tính vào giới hạn tốc độ (test "does not count a repeated clientMessageId against the rate").
+- **2 trước 3** (sửa sau review): "tin này đã đi" là sự thật về quá khứ, đúng bất kể phiên bây giờ ra sao. Kiểm phiên trước thì một tin đã đi, gọi lặp sau khi bị đá, sẽ nhận `410`; `sino-api` gửi lại phiên, nhận `410` nữa, rồi có thể ghi tin đó là thất bại, và người dùng bấm gửi lại (test "answers 200 for a message already sent, even once the session has ended").
+
+### 9.2 Idempotency key và câu gợi ý của task
+`clientMessageId` là **idempotency key** (mục 2.2): `sino-api` tạo một ID cho mỗi lần trả lời và gửi lại đúng ID đó khi thử lại; `sino-zalo` nhớ ID trong 24 giờ (`SentLog`, một `Map` trong bộ nhớ) và biến các lần gọi lặp thành một.
+
+**Câu gợi ý của task:** "`SentLog` ghi **trước** khi trả `201`". Vì sao? Giả sử ghi sau: Zalo gửi xong, `sino-zalo` trả `201`, nhưng câu trả lời không tới được `sino-api` (hết giờ chờ, mạng chập). `sino-api` không biết tin đã đi, nên hỏi lại bằng tra tin, hoặc gửi lại với cùng ID. Nếu `SentLog` chưa ghi thì cả hai đường đều thấy "chưa có gì", và tin đi lần hai. Vì vậy `SentLog.track` ghi `PENDING` ngay khi bắt đầu gửi, và ghi `msgId` **ngay khi Zalo trả**, trong chính `then` của lần gửi, trước khi route kịp trả lời; kể cả khi route đã trả `504` vì hết giờ mà Zalo trả muộn, `msgId` vẫn được ghi. Test "finds the message once Zalo answers a send that sino-api stopped waiting for" giữ đúng kịch bản trong spec: gửi bị giữ, `504`, Zalo trả muộn, tra tin ra `msgId`.
+
+Hai request cùng ID tới cùng lúc thì sao? Ở `sino-api` cần khóa database (mục 2.2). Ở đây không cần: Node chạy một luồng, và giữa lúc đọc `SentLog` (bước 2) và lúc ghi `PENDING` (bước 5) không có `await` nào, nên không request nào chen vào được. Đây là cùng ý với mục 7.5: chỗ nguy hiểm trong Node là chỗ có `await`. Điều này dễ vỡ (ai đó thêm một `await` vào giữa là xong), nên test "sends once when the same clientMessageId comes twice at the same time" gửi hai request **cùng lúc** (`Promise.all`) và đòi request sau nhận `504`, không phải `429` hay một lần gửi thứ hai.
+
+**Bộ nhớ:** mỗi account gửi tối đa 1 tin mỗi giây, nên `SentLog` có nhiều nhất khoảng 86.400 dòng mỗi account mỗi ngày. Dòng được thêm theo thứ tự thời gian, và `Map` của JavaScript giữ thứ tự thêm, nên dòng hết hạn luôn nằm đầu: `forgetExpired` xóa từ đầu tới dòng đầu tiên còn hạn rồi dừng, không phải duyệt cả `Map`.
+
+### 9.3 Ba kết quả của một lần gửi
+Như Gmail (mục 2.3), một lần gửi có ba kết cục, và chỉ hai kết cục là chắc chắn:
+
+| zca-js trả về | Tin đã đi chưa | `sino-zalo` |
+|---|---|---|
+| `{ message: { msgId } }` | đã đi | ghi `SENT`, `201` |
+| `ZaloApiError` có mã lỗi của Zalo (`error_code` khác 0) | chưa: Zalo đã đọc lệnh và từ chối | quên ID (gửi lại được), `422 REJECTED` |
+| `ZaloApiError` không có mã ("Request failed with status code 502", "Failed to parse response data"), lỗi mạng, hết 10 giây | không biết: Zalo có thể đã nhận rồi mới lỗi | ghi `UNKNOWN`, `504 OUTCOME_UNKNOWN` |
+
+`sendText` trong `ZcaGateway.ts` là chỗ duy nhất phân loại, và mặc định là "không biết", vì đó là phía an toàn: một tin "không biết" chỉ chờ tra lại, còn một tin bị coi nhầm là "chưa đi" thì sẽ bị gửi lần hai. Đọc mã `sendMessage.js` và `utils.js` của zca-js 2.2.0 mới biết điều này: lỗi trả về từ JSON của Zalo mang `code`, còn lỗi HTTP và lỗi đọc câu trả lời thì không. zca-js cũng **không có hạn chờ** cho lệnh gửi, nên hạn 10 giây là của `sino-zalo`.
+
+### 9.4 Giới hạn tốc độ: token bucket một token
+**Token bucket** là cách giới hạn tốc độ phổ biến: một cái xô chứa tối đa N token, mỗi khoảng thời gian thêm một token; mỗi lần gửi lấy một token, xô rỗng thì từ chối. N lớn cho phép **gửi dồn** (N tin liền rồi mới chậm lại). Với Zalo, gửi dồn chính là thứ dễ bị coi là bot, nên `RateLimiter` dùng xô **một token**, thêm lại sau 1 giây; khi đó nó chỉ còn là "nhớ lần gửi cuối của mỗi account, chưa đủ 1 giây thì từ chối". Lần thử bị từ chối không lấy gì, nên không đẩy lùi lượt sau (test "does not count a refused attempt as a turn"). Lần gửi bị Zalo từ chối thì vẫn tính, vì lệnh đã tới Zalo.
+
+**Bẫy đồng hồ:** `Date.now()` là đồng hồ treo tường: máy chỉnh giờ (NTP, người dùng sửa giờ) thì nó có thể lùi. Nếu đồng hồ lùi một tiếng, "đã qua bao lâu từ lần gửi cuối" thành số âm, và account không gửi được trong một tiếng. Vì vậy `RateLimiter` mặc định dùng `performance.now()`, đồng hồ **đơn điệu** (chỉ tăng). Bên Java đây là khác biệt giữa `System.currentTimeMillis()` và `System.nanoTime()`: đo khoảng thời gian thì dùng cái sau. `SentLog` và giờ bật phiên vẫn dùng `Date.now()`, vì chúng cần giờ thật để so với `after` của `sino-api`.
+
+### 9.5 Tra tin đã gửi: "không biết" khác "không có"
+`POST /accounts/{id}/sent/lookup` `{ threadId, clientMessageId, text, after }` là thứ `findSentMessages` của `sino-api` gọi khi một lần gửi kết thúc "không biết" (D-280). `sino-zalo` tìm theo thứ tự:
+1. `msgId` đã nhớ của `clientMessageId` trong `SentLog`;
+2. tin `isSelf` trong bộ đệm của thread đó, cùng chữ, gửi sau `after` (đây là tin vọng lại qua listener, vì `selfListen: true`); một `msgId` có ở cả hai chỉ được kể một lần.
+
+Không tìm thấy gì thì có hai câu trả lời rất khác nhau:
+
+| Điều kiện | Trả | `sino-api` hiểu |
+|---|---|---|
+| phiên bật **trước** `after`, `SentLog` không có gì về ID này | `200 { msgIds: [] }` | chắc chắn chưa đi |
+| phiên bật **sau** `after` (`sino-zalo` khởi động lại, hoặc phiên mới), `after` cũ hơn 24 giờ (`SentLog` đã quên), hoặc lần gửi của ID này còn `PENDING`/`UNKNOWN` | `409 CANNOT_TELL` | không biết, thư giữ `UNKNOWN` |
+
+Đây là bài học "Bạn sẽ học" của task: một danh sách rỗng là một **khẳng định** ("tôi đã nhìn và không có"), chỉ được trả khi `sino-zalo` thật sự đã nhìn suốt khoảng thời gian đó. Mốc "nhìn được từ lúc nào" là cái **muộn hơn** trong hai: lúc phiên bật, và 24 giờ trước (`SentLog.knowsSince()`). Bản đầu quên mốc thứ hai, và review tìm ra: một tin `504` mà `sino-api` không hỏi lại trong hơn 24 giờ (`sino-api` tắt), `sino-zalo` vẫn chạy, thì lần tra sau trả `[]`, `sino-api` ghi tin thất bại, người dùng gửi lại, và người nhận nhận hai lần. Sau khi khởi động lại, `SentLog` và bộ đệm đều trống; trả `[]` lúc đó là nói dối, và `sino-api` sẽ coi tin là chưa đi rồi để người dùng gửi lại. F10 có đúng luật này ở phía Java (mục 2.4: connector không tìm được thì thư ở `UNKNOWN` mãi, không bao giờ `FAILED`).
+
+`after` phải là giờ có múi giờ (schema `format: "date-time"`): `2026-10-16T08:00:00.123456789Z` (cách `Instant.toString()` của Java viết, tới 9 chữ số phần giây) được nhận; `2026-10-16T08:00:00` thì `400`, vì không múi giờ thì không biết là giờ nào.
+
+### 9.6 Hẹn giờ mà không bỏ rơi lần gửi
+`within(sending, 10 giây)` đua lần gửi với một hẹn giờ bằng `Promise.race` (mục 8.5). Hẹn giờ thắng thì route trả `504`, nhưng lần gửi **vẫn chạy tiếp** trong zca-js, và `then` của `SentLog.track` vẫn ghi kết quả khi nó tới; route còn ghi thêm một dòng log, "Zalo message sent after the timeout" hoặc "Zalo send failed after the timeout" (kèm `refused`), để ZL-13 thấy chuyện này có xảy ra không, và để lần sau ai hỏi "tin đó cuối cùng ra sao" còn có dấu vết. zca-js gửi bằng `fetch` của Node mà không có hạn chờ riêng, nên một lần gửi treo có thể nằm `PENDING` tới khoảng 300 giây (hạn mặc định của undici) rồi mới thành `UNKNOWN`.
+
+**Bẫy unhandled rejection:** một promise bị reject mà không ai gắn hàm xử lý thì Node coi là lỗi chưa bắt và **tắt cả tiến trình** (giống `error` không ai nghe ở mục 7.6). Ở đây lần gửi luôn có người nghe: `Promise.race` gắn hàm xử lý vào nó ngay khi đua, nên dù hẹn giờ thắng trước, lần gửi lỗi muộn vẫn được "bắt" (rồi bỏ qua). `finally { clearTimeout(timer) }` dọn hẹn giờ khi lần gửi xong trước, để không còn hẹn giờ treo sau mỗi request.
+
+### 9.7 Agent chốt, cần xem lại
+Spec và design để ngỏ mấy chỗ dưới; Claude chọn và ghi vào D-280 và spec `zalo-gateway`:
+- Lần gọi lặp của một lần gửi còn `PENDING` hoặc `UNKNOWN` trả `504 OUTCOME_UNKNOWN`, không chờ, không gửi.
+- Tra tin cũng trả `409 CANNOT_TELL` khi lần gửi của ID đó còn `PENDING`/`UNKNOWN`, hoặc `after` cũ hơn 24 giờ, mà không tìm thấy gì.
+- Zalo từ chối thì quên ID: chưa có gì đi, nên gửi lại với cùng ID được; lần bị từ chối vẫn tính vào giới hạn 1 tin/giây.
+- Route gửi đọc `SentLog` trước khi kiểm phiên (mục 9.1); route tra tin kiểm phiên (`404`/`410`) trước, như spec ghi. `SentLog` nằm ngoài phiên, theo `(accountId, clientMessageId)`, nên quét lại (phiên mới) không làm quên tin đã gửi.
+- Hạn chờ gửi 10 giây. ZL-06 đặt hạn chờ đọc của `sino-api` cho lệnh gửi **dài hơn** 10 giây, để `sino-zalo` luôn trả `504` trước khi `sino-api` tự bỏ.
+
+### 9.8 Review tìm ra
+Một reviewer độc lập đọc code trước khi commit:
+- **Sửa ở đây:** mốc 24 giờ của tra tin (mục 9.5); thứ tự `SentLog` trước kiểm phiên ở route gửi (mục 9.1); log cho lần gửi lỗi sau khi đã hết giờ (mục 9.6); thêm test gửi đồng thời (cùng ID, khác ID), log của nhánh `422`/`504`, `409` khi hỏng giữa chừng, gửi lại sau khi Zalo từ chối muộn.
+- **Để cho ZL-09 (phía `sino-api`):** `ReplyService.reconcile` đi qua các tin "chưa rõ" của account theo thứ tự cũ trước, và gặp lỗi provider nào khác `CAPABILITY_NOT_SUPPORTED` là **dừng cả lượt**. D-281 đổi `409 CANNOT_TELL` thành `PROVIDER_UNAVAILABLE`, mà sau khi `sino-zalo` khởi động lại, tin cũ trả `409` mãi; vậy một tin như thế sẽ chặn việc đối chiếu mọi tin sau nó. ZL-09 phải cho `CANNOT_TELL` đi đường "không biết" (giữ `UNKNOWN`, sang tin kế), có test hai tin. Ghi trong `tasks.md` ZL-09.
+
+### 9.9 Kiểm chứng (ZL-05)
+- **Đỏ trước:** `send.test.ts` đỏ với `Cannot find module '../src/messages/RateLimiter.ts'`; `lookup.test.ts` đỏ cả 11 test vì route chưa có (`expected 404 to be 200`). Sau review: 3 test mới đỏ đúng chỗ (`expected 200 to be 409` cho mốc 24 giờ, `expected 410 to be 200` cho tin đã đi sau khi bị đá, không có log lỗi muộn); 4 test còn lại xanh ngay vì chúng giữ hành vi đã có.
+- **Xanh:** `pnpm test` 137/137 (12 file, chạy 4 lần đều xanh), oxlint 0 chẩn đoán trên 32 file, `tsc` 0 lỗi.
+- **Chạy thật** với `ZcaGateway` (cổng 8094, không gọi Zalo): gửi và tra tin không khóa `401`; account lạ `404 UNKNOWN_ACCOUNT` cho cả hai; `threadType: "PAGE"` `400`; `after` không múi giờ `400`; log 17 dòng, không có khóa bí mật và chữ của tin.
+- **Chưa kiểm:** gửi thật qua Zalo (`msgId` trả về, tin vọng lại qua listener có cùng `msgId` không, mã lỗi khi Zalo từ chối): ZL-13, bằng nick phụ.
+
+## 10. Connector `zalo` trong `sino-api`: cấu hình, client HTTP, bảng đổi lỗi (ZL-06)
+
+**Ở đâu:** `apps/sino-api/src/main/java/dev/sino/provider/infrastructure/zalo/{ZaloProperties,ZaloConfiguration,ZaloClient,ZaloProvider}.java` (mới); `application.yaml` (`sino.zalo.*`); `.env.example` (khối Zalo); test `ZaloErrorMappingTests` (WireMock), `ZaloConfigurationTests`, `ZaloProviderTests`, `ZaloProviderContractTest`, `ZaloWiringTests`. Claude làm ở chế độ AUTO. Đây là task Java đầu tiên của F09: từ đây `sino-api` nói chuyện được với `sino-zalo`.
+
+### 10.1 Việc của task: lớp nối hai service
+```text
+ sino-api (Java)                                               sino-zalo (Node)
+ ---------------                                               ----------------
+ ImportRunner / ReplyService (ZL-08, ZL-09)
+        |
+        v
+ ZaloProvider  (type zalo, kind CHAT, chưa khai capability nào)
+        |
+        v
+ ZaloClient ---- HTTP, Authorization: Bearer <SINO_ZALO_SECRET> ---->  PUT  /accounts/{id}/session
+   |  hạn chờ đọc 10 s, gửi 15 s                                      GET  /accounts/{id}/messages
+   |  lỗi HTTP -> ProviderException (bảng D-281)                       POST /accounts/{id}/messages
+   |  404/410 -> PUT session -> gọi lại đúng 1 lần (D-289)             POST /accounts/{id}/sent/lookup
+   v
+ ProviderException(code) cho lõi Sino xử lý như mọi provider khác
+```
+Lõi Sino (`sync`, `conversation`) không biết `sino-zalo` tồn tại: nó chỉ thấy một `MessageProvider` ném `ProviderException` với các mã quen thuộc. Mọi chi tiết của `sino-zalo` (đường dẫn, mã lỗi riêng như `UNKNOWN_ACCOUNT`, cách gửi lại phiên) nằm gọn trong `ZaloClient`. Đây là **anti-corruption layer**: lớp đứng ở biên, dịch "ngôn ngữ" của hệ thống ngoài sang mô hình của mình, để hệ thống ngoài có đổi thì chỉ sửa một chỗ.
+
+Task này chỉ dựng đường đi. Đọc tin (`fetchUpdates`, ZL-08) và trả lời (`sendMessage`, ZL-09) sẽ gọi các hàm đã có của `ZaloClient`.
+
+### 10.2 Bật tắt bằng cấu hình, và lựa chọn của bạn
+Ba biến môi trường, cùng tên với bên `sino-zalo` để một file `.env` dùng chung được:
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `SINO_ZALO_ENABLED` | `false` | công tắc Zalo (D-272) |
+| `SINO_ZALO_URL` | `http://127.0.0.1:8090` | chỗ `sino-zalo` nghe, trên máy này (D-282) |
+| `SINO_ZALO_SECRET` | trống | khóa chung, ít nhất 32 byte, cùng giá trị với `SINO_ZALO_SECRET` của `sino-zalo` |
+
+**Vấn đề trước khi code:** D-286 muốn connector luôn có trong registry, kể cả khi tắt, để account Zalo cũ vẫn đọc được tin đã lưu. Nhưng web hiện tự gán `connectable: true` cho mọi provider API trả về (`accounts.api.ts`), vì tới giờ provider duy nhất là Gmail và nó kết nối bằng OAuth2. Nếu Zalo vào registry ngay, hộp thoại kết nối sẽ hiện Zalo như kết nối được, bấm vào thì nhận lỗi `CONNECT_NOT_SUPPORTED`, và tình trạng này kéo dài tới khi ZL-07 (API trả `connectable`) và ZL-11 (web đọc nó) xong.
+
+**Bạn chọn:** "Chỉ đăng ký khi bật". Tới ZL-07, connector chỉ có trong registry khi `SINO_ZALO_ENABLED=true`; mặc định là tắt, nên web trên `dev` không đổi gì. ZL-07, lúc API đã nói được provider kết nối bằng cách nào, sẽ chuyển về đúng D-286. Đây là một ví dụ của việc **xếp thứ tự task theo cái người dùng nhìn thấy**: mỗi commit trên `dev` phải để app ở trạng thái dùng được, không chỉ "build xanh".
+
+### 10.3 `@ConfigurationProperties` với record, và kiểm lúc khởi động
+`ZaloProperties` là một `record` gắn `@ConfigurationProperties("sino.zalo")`: Spring đọc `sino.zalo.enabled`, `sino.zalo.url`, `sino.zalo.secret` rồi gọi constructor của record. Constructor gọn (compact constructor) điền giá trị mặc định (`url` trống thì `http://127.0.0.1:8090`) và coi khóa toàn khoảng trắng là không có. `toString()` viết lại để in `secret=****`: record tự sinh `toString()` in mọi thành phần, nên không viết lại thì khóa sẽ lọt vào log ngay lần đầu ai đó in cấu hình.
+
+`ZaloConfiguration` có hai lớp con, `On` và `Off`, mỗi lớp gắn một `@Conditional` đọc `sino.zalo.enabled`, như cách `GmailConfiguration` tách bật và tắt. `On` gọi `check(properties)` trước khi tạo `ZaloProvider`:
+- thiếu khóa, khóa có ký tự ngoài ASCII hay khoảng trắng, hoặc khóa ngắn hơn 32 byte: app **dừng ngay** khi khởi động, lời báo nêu tên biến chứ không nêu giá trị;
+- `SINO_ZALO_URL` không phải `http`/`https` hoặc không có host (`localhost:8090` thiếu `http://`, `ftp://...`): dừng, nêu tên biến.
+
+**Fail fast:** sai cấu hình thì hỏng lúc khởi động, không phải lúc lượt đồng bộ đầu tiên chạy ba tiếng sau. Lỗi lúc khởi động người chạy app thấy ngay; lỗi lúc chạy thì chìm trong log.
+
+**Bẫy byte và ký tự, và bẫy header (review tìm ra):** `sino-zalo` đếm khóa bằng `Buffer.byteLength` (byte UTF-8), còn `String.length()` của Java đếm đơn vị UTF-16; chữ "đ" là 1 ký tự nhưng 2 byte. Bản đầu của `check` đếm byte như `sino-zalo` và nhận 16 chữ "đ" là đủ 32 byte. Reviewer chỉ ra cái sai lớn hơn: khóa đi trong header `Authorization`, mà `HttpClient` của JDK **từ chối** header có ký tự ngoài ASCII hay ký tự điều khiển, và ném `IllegalArgumentException("invalid header value: \"Bearer <khóa>\"")`, tức là **in nguyên khóa** vào lời lỗi. Lỗi đó không phải `RestClientException`, nên lọt khỏi `ZaloClient`, và từ ZL-08 sẽ vào log ERROR của mỗi lượt đồng bộ. Một dấu `\r` thừa ở cuối dòng (file `.env` lưu kiểu Windows) cũng gây đúng chuyện này. Sửa hai lớp:
+- `check` chỉ nhận ký tự ASCII nhìn thấy được, không khoảng trắng (đúng kiểu base64url mà `.env.example` chỉ cách tạo), rồi mới đếm đủ 32 byte; sai thì app dừng, lời báo không có khóa.
+- `ZaloClient.call` bắt `IllegalArgumentException` và ném `ProviderException` với một lời cố định, không kèm lỗi gốc (`cause`), phòng khi ai đó tạo client mà không qua `check`.
+
+Bài học: **hỏi xem giá trị sẽ đi đâu**, không chỉ hỏi nó dài bao nhiêu. Khóa đi qua header thì luật của header là luật của khóa. Và một exception của thư viện có thể mang dữ liệu mình đưa vào nó.
+
+**Công tắc đọc như Spring đọc boolean.** Bản đầu dùng `@ConditionalOnProperty(havingValue = "true")`, so **chuỗi**: `SINO_ZALO_ENABLED=1` hay `yes` không khớp `On`, không khớp cả `Off` (`havingValue = "false"`), nên Zalo tắt mà không có dòng log nào; trong khi `ZaloProperties.enabled` (kiểu `boolean`) lại đọc `yes` là `true`. Giờ cả hai điều kiện dùng `Binder` của Spring Boot, cùng cách đọc với `ZaloProperties`: `true`, `on`, `yes`, `1` (hoa thường gì cũng được) là bật; `false`, `off`, `no`, `0` là tắt; giá trị khác (`maybe`) làm app dừng với lời nêu `sino.zalo.enabled`.
+
+### 10.4 `RestClient` với hai hạn chờ
+`ZaloClient` dựng hai `RestClient` dùng chung một `HttpClient` của JDK, giống `GmailApi`:
+- **đọc** (`PUT session`, `GET messages`, tra tin): chờ tối đa 10 giây; lần đọc đầu sau khi `sino-zalo` khởi động lại có thể phải chờ nó bù tin, mà nó tự giới hạn ở 5 giây (D-278);
+- **gửi**: chờ tối đa 15 giây, **dài hơn** 10 giây `sino-zalo` chờ Zalo (D-280, ZL-05). Nếu `sino-api` chờ ngắn hơn, nó sẽ bỏ trước khi `sino-zalo` kịp trả `504 OUTCOME_UNKNOWN`, và mất câu trả lời rõ ràng đó. Test `aSendWaitsLongerThanARead` chứng minh lệnh gửi có hạn chờ riêng; `waitsForASendLongerThanSinoZaloWaitsForZalo` giữ con số.
+
+Hai chi tiết nhỏ:
+- `Authorization: Bearer <khóa>` đặt một lần bằng `defaultHeaders`, nên không lời gọi nào quên được nó.
+- `HttpClient` đặt `HTTP_1_1`: với địa chỉ `http://`, client của JDK mặc định thử nâng lên HTTP/2 (h2c), mà `sino-zalo` (server `http` của Node) không dùng tới. Nói thẳng phiên bản thì bỏ được một bước thương lượng vô ích.
+
+### 10.5 Bảng đổi lỗi D-281
+Mỗi lỗi của `sino-zalo` thành đúng một `ProviderErrorCode`, và mỗi mã đã có sẵn cách xử lý trong lõi (thử lại sau, ghi "Cần đăng nhập lại", hay hỏi lại sau khi gửi):
+
+| `sino-zalo` trả | Khi đọc / tra tin | Khi gửi |
+|---|---|---|
+| không kết nối được (chưa chạy) | `PROVIDER_UNAVAILABLE` | `PROVIDER_UNAVAILABLE`: chưa có gì đi |
+| hết giờ, đứt kết nối giữa chừng | `PROVIDER_UNAVAILABLE` | `OUTCOME_UNKNOWN`: có thể đã đi |
+| `5xx` (kể cả `504 OUTCOME_UNKNOWN`) | `PROVIDER_UNAVAILABLE` | `OUTCOME_UNKNOWN` |
+| `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED` | `PUT session` rồi gọi lại một lần (mục 10.6) | như bên trái: chưa có gì đi |
+| `410` hoặc `400` của chính `PUT session` | `AUTH_EXPIRED` (`400` có thêm log WARN kèm `code` của `sino-zalo`) | |
+| `429` | `RATE_LIMITED` | `RATE_LIMITED` |
+| `422 REJECTED` | | `REQUEST_REJECTED` |
+| `409 CANNOT_TELL` | `PROVIDER_UNAVAILABLE` | |
+| `401` | `PROVIDER_UNAVAILABLE` + log ERROR | như bên trái |
+| `4xx` khác (kể cả `404` không có mã `UNKNOWN_ACCOUNT`) | `REQUEST_REJECTED` | `REQUEST_REJECTED` |
+| `200` mà body đọc không được | `PAYLOAD_NORMALIZATION_FAILED` | `OUTCOME_UNKNOWN` |
+
+Ba hàng đáng nhớ:
+- **Gửi khác đọc ở chỗ "không biết".** Đọc mà hết giờ thì đọc lại là xong. Gửi mà hết giờ thì tin có thể đã tới Zalo; gửi lại là có thể gửi hai lần. Vì vậy gửi dùng `OUTCOME_UNKNOWN` (D-135, như Gmail ở mục 2.3), và `ZaloClient` **không bao giờ tự gửi lại** sau một lỗi như thế (các test đếm đúng một `POST`). Chỉ khi chắc chắn chưa có kết nối nào (`ConnectException`, hết giờ lúc kết nối) mới là `PROVIDER_UNAVAILABLE`.
+- **`404` phải đúng là của `sino-zalo`.** Route không tồn tại (ví dụ hai service lệch phiên bản) cũng trả `404`, nhưng body của Fastify không có `code: "UNKNOWN_ACCOUNT"`. `ZaloClient` đọc `code` trong body, và chỉ `404` có mã đó mới là "chưa có phiên"; gửi lại phiên không chữa được một route không có.
+- **`401` là lỗi cấu hình**, không phải lỗi của account: hai service được cho hai khóa khác nhau. Mã `PROVIDER_UNAVAILABLE` để lượt sau thử lại (sửa khóa xong là chạy), còn log ERROR để người chạy app thấy. `AUTH_EXPIRED` ở đây sẽ sai: nó bắt người dùng quét lại QR, mà quét bao nhiêu lần cũng không sửa được khóa.
+
+Lời của mọi `ProviderException` chỉ nói lỗi gì ("sino-zalo answered 503"), không bao giờ có khóa, phiên hay body `sino-zalo` gửi về, vì lời này có thể vào log và vào các mục bị bỏ qua của lượt đồng bộ. Mọi test lỗi đều kiểm thêm điều này (`assertFails`).
+
+### 10.6 Gửi lại phiên rồi gọi lại đúng một lần (D-289)
+```text
+ gọi (đọc / gửi / tra tin)
+   |-- thành công ----------------------------------------------> kết quả
+   |-- 404 UNKNOWN_ACCOUNT (sino-zalo vừa khởi động lại)
+   |-- 410 SESSION_ENDED   (sino-zalo giữ phiên cũ, Sino có phiên mới)
+          |
+          v
+   PUT session với phiên đang lưu
+          |-- 410 / 400 ------------------------------------------> AUTH_EXPIRED ("Cần đăng nhập lại")
+          |-- 204
+                 v
+          gọi lại lần hai
+                 |-- thành công ----------------------------------> kết quả
+                 |-- 410 lần nữa ---------------------------------> AUTH_EXPIRED
+                 |-- 404 lần nữa ---------------------------------> PROVIDER_UNAVAILABLE (lượt sau thử lại)
+```
+Vì sao chỉ một lần: lần hai vẫn lỗi thì vấn đề không phải "thiếu phiên" nữa; lặp tiếp chỉ đẩy thêm request vào một `sino-zalo` đang có chuyện. Vì sao gửi lại được với lệnh gửi: `404`/`410` của route gửi đến **trước** khi `sino-zalo` gọi Zalo (route kiểm phiên trước, mục 9.1), nên chưa có gì đi.
+
+**Exception làm tín hiệu nội bộ.** Hàm gọi thấp nhất (`call`) gặp `404`/`410` thì ném `NoSession`, một exception `private` của `ZaloClient`; `inSession` bắt nó, gửi phiên, gọi lại. `NoSession` không bao giờ ra khỏi lớp: lời gọi `PUT session` dùng loại lời gọi `SESSION`, loại này không sinh `NoSession`, và lần gọi lại biến `NoSession` thứ hai thành `ProviderException`. Constructor `super(null, null, false, false)` tắt ghi stack trace: tạo stack trace là phần đắt nhất của một exception, mà tín hiệu này không bao giờ được in.
+
+**Phiên đi như JSON.** Phiên nằm trong `TokenCredentials` dưới dạng một chuỗi JSON (D-274). `ZaloClient` đọc chuỗi đó thành cây JSON (`JsonMapper.readTree`) rồi gửi `{ "session": <cây> }`, chứ không ghép chuỗi bằng tay. Chuỗi không phải object JSON (lỗi không đáng có) thì là `AUTH_EXPIRED` mà không gọi `sino-zalo`: quét lại sẽ cho một phiên đúng.
+
+### 10.7 Capability theo task, và bộ test contract F03
+`ZaloProvider` của task này **chưa khai capability nào** (agent chốt, cần xem lại). ZL-08 thêm `READ_MESSAGES` và `PUSH_WEBHOOK` khi `fetchUpdates` và `registerPush` có thật, ZL-09 thêm `SEND_MESSAGES`. Lý do:
+- nơi gọi tin vào capability trước khi gọi (FR-06): khai `SEND_MESSAGES` mà `sendMessage` chưa có thì màn hình sẽ cho bấm Gửi;
+- bộ test contract F03 (`MessageProviderContractTest`) đọc capability để biết phải kiểm gì.
+
+Bộ test contract là một **abstract test class**: connector nào cũng viết một lớp con, đưa vào connector và dữ liệu mẫu, và nhận về cả bộ kiểm tra chung. Các test của nó dùng `assumeTrue(capability)` / `assumeFalse(capability)`: với Zalo hôm nay, 6 test chạy (khai báo định danh, che khóa trong `toString()`, và các test "không có capability thì từ chối, không gọi provider"), 7 test của các capability chưa khai bị bỏ qua (JUnit báo "skipped", không phải "failed"). Tới ZL-08, chỉ cần khai capability là các test đọc tin tự chạy trên Zalo; không ai phải nhớ thêm chúng vào.
+
+### 10.8 Bản ghi dây giữ dạng chữ
+Các record nhận JSON của `sino-zalo` (`MessagePage`, `Message`, `Conversation`) giữ `threadType` và `sentAt` ở dạng `String`, không phải `enum` hay `Instant`. Nếu là `enum`, một tin có `threadType` lạ sẽ làm Jackson ném lỗi cho **cả trang**, và cả trang bị bỏ. Giữ dạng chữ thì việc "tin này dùng được không" để cho bước chuẩn hóa (ZL-08) quyết **từng tin một**: tin hỏng vào danh sách bỏ qua, các tin khác vẫn vào Hộp thư (bộ contract đòi đúng điều này: `aBrokenMessageIsSkippedAndTheOthersAreKept`). Chiều gửi đi thì ngược lại: `ThreadType` là `enum` (`USER`, `GROUP`), vì Sino tự viết nó và không được viết sai.
+
+Tra tin đã gửi mà câu trả lời thiếu `msgIds` thì là lỗi, không phải danh sách rỗng: rỗng nghĩa là "chắc chắn chưa đi" (mục 9.5), và Sino sẽ cho người dùng gửi lại.
+
+### 10.9 Review tìm ra
+Một reviewer độc lập đọc bản chụp của code trước khi commit (đọc cả mã nguồn của Spring 7 và JDK 25 để kiểm):
+- **Sửa ở đây (HIGH):** khóa có ký tự ngoài ASCII hay khoảng trắng lọt vào lời lỗi của JDK (mục 10.3). Thêm luật "ASCII nhìn thấy được" cho khóa và lớp chặn `IllegalArgumentException`; test cũ "16 chữ đ là đủ" đổi thành test "bị từ chối".
+- **Sửa ở đây (LOW):** công tắc đọc như boolean của Spring (mục 10.3); log WARN kèm `code` khi `PUT session` trả `400`; contract test trỏ tới một cổng đóng thay vì `8090`, nơi `sino-zalo` của máy dev có thể đang chạy; test gọi thẳng `sendFailure`, vì trên Windows một cổng đóng không trả "từ chối" ngay mà làm hết giờ kết nối, nên nhánh `ConnectException` không bao giờ chạy qua mạng thật; thêm ca gửi gặp `410` rồi `PUT` cũng `410` (hoặc `502`), và ca gửi bị `400` / `401`, mỗi ca đếm đúng một `POST`; đổi tên một test hứa nhiều hơn điều nó kiểm.
+- **Không sửa, ghi lại:** spec `provider-registry` của f05c nói connector có công tắc vẫn ở trong registry khi tắt; với Zalo điều đó đúng trở lại ở ZL-07 (ghi trong `tasks.md` ZL-07). `sendFailure` và `brokeOff` chép từ `GmailApi`: gom chúng vào một chỗ chung là việc riêng, vì phải sửa cả code của Gmail; đáng làm khi có connector thứ ba.
+- **Reviewer nghi, kiểm rồi, không phải lỗi:** `after` của tra tin có tới 9 chữ số lẻ (giờ lấy từ PostgreSQL); `Date.parse` của Node đọc đúng (`2026-10-17T08:00:00.123456789Z` ra `...000123`).
+
+### 10.10 Kiểm chứng (ZL-06)
+- **Đỏ trước:** 5 file test, biên dịch đỏ vì chưa có `ZaloClient`, `ZaloProvider`, `ZaloProperties`, `ZaloConfiguration`. Sau review: 8 test mới đỏ đúng chỗ (khóa ngoài ASCII được nhận ×2, `SINO_ZALO_ENABLED=maybe` không dừng app, `1`/`yes`/`on` để Zalo tắt ×3, không có log WARN cho `PUT 400`, `IllegalArgumentException` lọt ra); các test bổ sung cho `sendFailure` và các ca gửi xanh ngay vì chúng giữ hành vi đã có.
+- **Xanh:** `./mvnw -B -ntp test -Dtest='Zalo*'` 83 test của `ZaloErrorMappingTests`, `ZaloConfigurationTests`, `ZaloProviderTests`, `ZaloProviderContractTest` (7 bỏ qua: capability chưa khai), cộng `ZaloWiringTests` (cả app khi bật Zalo: `GET /api/providers` có `zalo`, "Zalo", `CHAT`, capability rỗng). `./mvnw -B -ntp verify` trong worktree riêng, trên `dev` mới nhất (`9f8af03`, sau BE-82): 1613 test, 0 lỗi, 0 hỏng, 11 bỏ qua, `ModularityTests` xanh.
+- **Gài lỗi (mutation), trên bản trước review:** 16 lỗi gài vào `ZaloClient` và `ZaloConfiguration` (bỏ lần thử lại, đổi mã của `PUT 410`/`400`, `5xx` khi gửi, công tắc tắt vẫn gọi, `409`, hạn chờ gửi bằng hạn chờ đọc, đảo lần lỗi thứ hai, tra tin thiếu `msgIds`, `401` không log ERROR, mọi `404` đều gửi phiên, đảo kết quả gửi không có câu trả lời, `429`, khóa đếm bằng ký tự, khóa 31 byte, địa chỉ không có host): 16/16 bị bắt. Lượt chạy đầu báo "16/16" nhưng sai: `mvnw.cmd` không chạy được, nên lỗi gài nào cũng bị tính là bị bắt; script sửa lại để chạy `./mvnw` và đòi đường chạy gốc xanh trước.
+- **Chạy thật với `sino-zalo`** (cổng 8093, không gọi Zalo): sai khóa -> `401` -> `PROVIDER_UNAVAILABLE` + log ERROR; đọc, gửi, tra tin cho một account lạ -> `404` thật -> `PUT session` (Fastify kiểm body tới `body/session/imei`, tức dạng `{ session: {...} }` đúng) -> `400` vì `imei` rỗng -> `AUTH_EXPIRED` + log WARN `FST_ERR_VALIDATION`; body gửi và body tra tin (`after` 9 chữ số lẻ) qua schema; cookie và khóa không có trong log nào.
+- **Chưa kiểm:** `PUT session` với phiên thật (đăng nhập bằng cookie vào Zalo), đọc và gửi tin thật: ZL-08, ZL-09, rồi ZL-13 bằng nick phụ.

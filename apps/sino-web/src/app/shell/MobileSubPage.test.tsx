@@ -4,6 +4,7 @@ import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-rout
 import { describe, expect, it } from 'vitest'
 import { AppProviders } from '@/app/providers'
 import { ME_QUERY_KEY } from '@/features/auth/useAuth'
+import { unreadByKindOf } from '@/features/inbox/inbox.api'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
 import { INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
 import { createTasksSample } from '@/features/tasks/tasks.sample'
@@ -49,7 +50,7 @@ function renderAt(path: string) {
   // The owner menu of the shell asks who is signed in, its inbox count comes from the inbox (D-93) and its task count
   // from the tasks (D-83).
   queryClient.setQueryData(ME_QUERY_KEY, { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' })
-  queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, createInboxSample(new Date()).counts.unread)
+  queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, unreadByKindOf(createInboxSample(new Date()).counts))
   queryClient.setQueryData(TASKS_QUERY_KEY, createTasksSample(new Date()))
   const router = createMemoryRouter(routes, { initialEntries: [path] })
   render(
@@ -100,7 +101,8 @@ describe('mobile sub-pages', () => {
 
 describe('tab bar "Thêm"', () => {
   it('is the current tab on the screens that live under Thêm', async () => {
-    for (const path of ['/settings', '/accounts', '/notes', '/more']) {
+    // Lịch moved behind Thêm when Tin nhắn took its tab (f05c, D-301).
+    for (const path of ['/calendar', '/settings', '/accounts', '/notes', '/more']) {
       const view = renderApp(path)
       const tabbar = within(shellPart('tabbar'))
 
@@ -118,7 +120,7 @@ describe('tab bar "Thêm"', () => {
   })
 
   it('is not current on a screen that has its own tab', async () => {
-    renderApp('/calendar')
+    renderApp('/tasks')
 
     expect(await within(shellPart('tabbar')).findByRole('link', { name: 'Thêm' })).not.toHaveAttribute('aria-current')
   })

@@ -17,6 +17,24 @@ export function newBlock(x: number, y: number, { color = 'DEFAULT', main = false
   return { id: crypto.randomUUID(), x: Math.round(x - NEW_BLOCK.width / 2), y: Math.round(y - NEW_BLOCK.height / 2), text: '', color, main }
 }
 
+/**
+ * Where a block added by "+ Khối" goes: the point asked for (the middle of the view), or lower down until it covers no
+ * block of about the size of a new one, so that it never lands on the main block of a new diagram.
+ */
+export function freeSpot(diagram: Diagram, x: number, y: number): { x: number; y: number } {
+  const gap = 16
+  const covers = (spotY: number) =>
+    diagram.blocks.some(
+      (block) =>
+        Math.abs(block.x + NEW_BLOCK.width / 2 - x) < NEW_BLOCK.width && Math.abs(block.y + NEW_BLOCK.height / 2 - spotY) < NEW_BLOCK.height + gap,
+    )
+  let spotY = y
+  while (covers(spotY)) {
+    spotY += NEW_BLOCK.height + gap
+  }
+  return { x, y: spotY }
+}
+
 export function addBlock(diagram: Diagram, block: DiagramBlock): Diagram {
   return diagram.blocks.length >= DIAGRAM_LIMITS.blocks ? diagram : { ...diagram, blocks: [...diagram.blocks, block] }
 }
@@ -38,10 +56,14 @@ export function removeBlock(diagram: Diagram, id: string): Diagram {
   return { blocks: diagram.blocks.filter((block) => block.id !== id), links: diagram.links.filter((link) => link.from !== id && link.to !== id) }
 }
 
-/** A link from a side of one block to a side of another; never a block to itself, never twice the same way (D-207). */
+/**
+ * A link from a side of one block to a side of another of the diagram; never a block to itself, never twice the same way
+ * (D-207), since the server refuses such a diagram (D-211).
+ */
 export function connect(diagram: Diagram, from: string, fromSide: Side, to: string, toSide: Side): Diagram {
+  const has = (id: string) => diagram.blocks.some((block) => block.id === id)
   const taken = diagram.links.some((link) => link.from === from && link.to === to)
-  if (from === to || taken || diagram.links.length >= DIAGRAM_LIMITS.links) {
+  if (from === to || !has(from) || !has(to) || taken || diagram.links.length >= DIAGRAM_LIMITS.links) {
     return diagram
   }
   return { ...diagram, links: [...diagram.links, { id: crypto.randomUUID(), from, fromSide, to, toSide, label: null }] }
@@ -71,6 +93,11 @@ export function nearestSide(box: { x: number; y: number; width: number; height: 
 /** "7 khối · 6 nối" */
 export function diagramSummary(diagram: Diagram): string {
   return `${diagram.blocks.length} khối · ${diagram.links.length} nối`
+}
+
+/** "7 khối · 6 đường nối", at the foot of the canvas (D-207). */
+export function diagramFootLine(diagram: Diagram): string {
+  return `${diagram.blocks.length} khối · ${diagram.links.length} đường nối`
 }
 
 function changeBlock(diagram: Diagram, id: string, change: Partial<DiagramBlock>): Diagram {

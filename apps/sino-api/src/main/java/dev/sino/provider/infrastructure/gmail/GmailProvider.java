@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.infrastructure.gmail.GmailApi.HistoryPage;
 import dev.sino.provider.infrastructure.gmail.GmailApi.MessageList;
@@ -117,6 +118,11 @@ class GmailProvider implements MessageProvider {
     @Override
     public String displayName() {
         return "Gmail";
+    }
+
+    @Override
+    public ProviderKind kind() {
+        return ProviderKind.EMAIL;
     }
 
     @Override

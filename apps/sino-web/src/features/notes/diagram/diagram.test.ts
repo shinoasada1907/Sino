@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { createNotesSample } from '../notes.sample'
 import type { Diagram, DiagramBlock } from '../notes.types'
 import {
   addBlock,
   connect,
   DIAGRAM_LIMITS,
+  diagramFootLine,
   diagramSummary,
+  freeSpot,
   moveBlock,
   nearestSide,
   newBlock,
@@ -53,6 +56,8 @@ describe('a diagram (DG-01, fe-ui-diagram-notes)', () => {
     expect(setBlockText(diagram(), 'b', 'Đặt xe 16 chỗ').blocks[1].text).toBe('Đặt xe 16 chỗ')
     expect(setBlockText(diagram(), 'b', 'x'.repeat(DIAGRAM_LIMITS.text + 5)).blocks[1].text).toHaveLength(DIAGRAM_LIMITS.text)
     expect(setBlockColor(diagram(), 'c', 'GREEN').blocks[2].color).toBe('GREEN')
+    // The other blocks stay as they were (DG-04: a mutant changing every block lived).
+    expect(setBlockColor(diagram(), 'c', 'GREEN').blocks.slice(0, 2)).toEqual(diagram().blocks.slice(0, 2))
   })
 
   it('removes a block with every link of it', () => {
@@ -70,6 +75,13 @@ describe('a diagram (DG-01, fe-ui-diagram-notes)', () => {
     // The other way round is another link; the same way again is not.
     expect(connect(diagram(), 'a', 'TOP', 'b', 'TOP')).toEqual(diagram())
     expect(connect(diagram(), 'b', 'LEFT', 'a', 'RIGHT').links).toHaveLength(3)
+  })
+
+  it('links only blocks of the diagram, and stops at the limit (D-211)', () => {
+    expect(connect(diagram(), 'a', 'RIGHT', 'gone', 'LEFT')).toEqual(diagram())
+    expect(connect(diagram(), 'gone', 'RIGHT', 'a', 'LEFT')).toEqual(diagram())
+    const full: Diagram = { ...diagram(), links: Array.from({ length: DIAGRAM_LIMITS.links }, (_, i) => ({ id: `l${i}`, from: 'x', fromSide: 'TOP', to: 'y', toSide: 'TOP', label: null })) }
+    expect(connect(full, 'c', 'RIGHT', 'a', 'LEFT')).toBe(full)
   })
 
   it('labels a link, an empty label being none, and removes a link', () => {
@@ -91,5 +103,46 @@ describe('a diagram (DG-01, fe-ui-diagram-notes)', () => {
 
   it('counts its blocks and links', () => {
     expect(diagramSummary(diagram())).toBe('3 khối · 2 nối')
+  })
+
+  it('finds a free spot for a block added by "+ Khối": the point asked for, or lower down past the blocks there (DG-02)', () => {
+    const one: Diagram = { blocks: [block('a', { x: -80, y: -24 })], links: [] }
+
+    expect(freeSpot(one, 400, 300)).toEqual({ x: 400, y: 300 })
+    const below = freeSpot(one, 0, 0)
+    expect(below.x).toBe(0)
+    expect(below.y).toBeGreaterThanOrEqual(24 + 24 + 16)
+    // Two blocks down the middle: past both.
+    const two: Diagram = { blocks: [...one.blocks, block('b', { x: -80, y: below.y - 24 })], links: [] }
+    expect(freeSpot(two, 0, 0).y).toBeGreaterThan(below.y + 48)
+    // DG-04 (mutants that lived): a block beside the spot is no reason to move; one just above it, nearer than a
+    // block and a gap, is.
+    expect(freeSpot(one, 400, 0)).toEqual({ x: 400, y: 0 })
+    expect(freeSpot(one, 0, 50).y).toBeGreaterThan(50)
+  })
+
+  it('counts them in words at the foot of the canvas (DG-02)', () => {
+    expect(diagramFootLine(diagram())).toBe('3 khối · 2 đường nối')
+  })
+})
+
+describe('the sample diagram, as the spec diagram-notes tells it (DG-01)', () => {
+  const plan = () => createNotesSample(new Date('2026-10-02T07:05:00Z')).notes.find((note) => note.kind === 'DIAGRAM')!.diagram!
+  const named = (text: string) => plan().blocks.find((entry) => entry.text === text)!
+
+  it('gets a second block on a new diagram', () => {
+    expect(addBlock(newDiagram(), newBlock(200, 120)).blocks).toHaveLength(2)
+  })
+
+  it('loses "Rủ cả nhóm chạy bộ" with its three links', () => {
+    const left = removeBlock(plan(), named('Rủ cả nhóm chạy bộ').id)
+    expect(diagramSummary(left)).toBe('6 khối · 3 nối')
+  })
+
+  it('links the right side of "Đặt xe 16 chỗ" to the top of "Chốt ngày trước 15/11", dropped near that top', () => {
+    const bus = named('Đặt xe 16 chỗ')
+    const date = named('Chốt ngày trước 15/11')
+    const toSide = nearestSide({ x: date.x, y: date.y, width: 160, height: 48 }, { x: date.x + 70, y: date.y - 10 })
+    expect(connect(plan(), bus.id, 'RIGHT', date.id, toSide).links.at(-1)).toMatchObject({ from: bus.id, fromSide: 'RIGHT', to: date.id, toSide: 'TOP' })
   })
 })

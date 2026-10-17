@@ -1439,6 +1439,353 @@ Vài kỹ thuật dùng ở trang này:
 - **Ngày viết tay, không dùng `Intl`:** `formatDate` tự ghép `01/11/2026` và `1 November 2026`. `Intl.DateTimeFormat` có thể in khác nhau giữa Node (lúc prerender) và trình duyệt, làm hydrate lệch.
 - **Mục lục dính (`position: sticky`)** từ 768 px, và thành hàng chip trên điện thoại. `scroll-margin-top` giữ cho tiêu đề mục không bị thanh trên che khi bấm `#google`.
 
+## 22. Tin nhắn và Hộp thư (`f05c-messages-inbox-split`)
+
+### 22.0 Bức tranh
+Hộp thư tách thành hai màn: Tin nhắn (`/messages`, chat) và Hộp thư (`/inbox`, email). Loại không thuộc về từng cuộc trò chuyện mà thuộc về nhà cung cấp: Gmail là `EMAIL`, Zalo và Messenger là `CHAT` (D-306). FE-110 chỉ đổi lớp dữ liệu; các màn đổi ở FE-111…FE-113.
+
+```text
+GET /api/providers                   -> ProviderInfo.kind   (thiếu -> EMAIL, D-308)
+GET /api/conversations?kind=chat     -> chỉ một loại        (không có kind -> cả hai, như cũ)
+GET /api/conversations/counts?kind=  -> các số của loại đó
+                                        + unreadByKind { EMAIL, CHAT }, luôn đủ hai loại
+```
+
+### 22.1 Một hàm cho quy tắc "thiếu loại thì là email" (FE-110)
+Ba màn đọc `GET /api/providers`: Hộp thư, Tài khoản, Việc cần làm. Trước đây mỗi màn tự viết `({ type, displayName }) => ...`. Giờ cả ba gọi `toProviderInfo` trong `shared/api/providers.ts`, nên quy tắc "backend cũ không gửi `kind` thì coi là email" chỉ nằm ở một chỗ, giống cách backend coi một provider không có connector là email. Quy tắc đổi thì chỉ sửa một hàm.
+
+`kind` trong `ProviderInfo` là bắt buộc, không phải `kind?`. Nếu để tùy chọn, mỗi màn dùng nó lại phải tự viết `?? 'EMAIL'`, và màn nào quên thì lặng lẽ sai. Bắt buộc thì TypeScript chỉ ra mọi chỗ dựng provider mà thiếu loại: lần này `tsc -b` liệt kê 28 chỗ (API, dữ liệu mẫu, test), sửa hết là xong.
+
+### 22.2 Tham số tùy chọn và cái bẫy `queryFn: fetchInbox`
+`fetchInbox(kind?)` và `fetchConversations(filter, cursor, kind?)` nhận loại không bắt buộc: không truyền thì hỏi cả hai loại, nên màn Hộp thư hiện tại chạy y như cũ cho tới FE-112.
+
+Bẫy: `useQuery({ queryFn: fetchInbox })` truyền cho hàm một đối tượng ngữ cảnh của TanStack Query (`queryKey`, `signal`…). Khi `fetchInbox()` chưa có tham số thì không sao; giờ tham số đầu là `kind`, đối tượng đó sẽ bị coi là loại và `kind.toLowerCase()` hỏng. Vì vậy `useInbox` viết `queryFn: () => fetchInbox()`. Quy tắc chung: chỉ đưa thẳng tên hàm cho `queryFn` khi hàm không nhận tham số nào.
+
+### 22.3 "Không biết" khác "không có"
+`fetchUnreadByKind()` trả `{ EMAIL, CHAT }` cho thanh điều hướng. Backend trước f05c không có `unreadByKind`: Hộp thư lấy tổng `unread` (hôm nay chỉ email chạy thật, nên tổng đó đúng là của email), còn Tin nhắn là `null`, nghĩa là "không biết", và điều hướng không hiện số. Trả `0` thì sai: nó nói "không có tin chưa đọc" trong khi sự thật là không biết.
+
+### 22.4 Cập nhật trước khi server trả lời phải giữ mọi số khớp nhau
+Đọc một thư thì `countsAfter` trừ ngay số chưa đọc, số theo nguồn, số cần trả lời, trước khi server trả lời (optimistic update). Thêm `unreadByKind` mà không sửa hàm này thì sau khi đọc, tổng giảm còn số của loại vẫn như cũ. Test viết trước bắt đúng lỗi đó (đỏ: `{ EMAIL: 3, CHAT: 2 }` thay vì `{ EMAIL: 2, CHAT: 2 }`). Loại của một dòng không bao giờ đổi, nên chỉ cần cộng trừ vào `unreadByKind[after.kind]`.
+
+### 22.5 Điều hướng: một bảng dữ liệu, ba cách vẽ (FE-111)
+Thanh bên, rail và tab bar không viết cứng từng mục: cả ba đọc `NAV_ITEMS` và `TAB_ITEMS` trong `navItems.ts`. Thêm "Tin nhắn" là thêm một dòng vào bảng. Thanh bên hiện chữ và số; rail chỉ có icon, nên tên đọc được của link thành "Tin nhắn, 5 chưa đọc" (`aria-label`); tab bar hiện số nhỏ trên icon. Lịch rời tab bar bằng cách bỏ khỏi `TAB_ITEMS` và thêm `/calendar` vào `MORE_PATHS`, nhờ đó tab "Thêm" sáng khi đang ở Lịch.
+
+```text
+navItems.ts  NAV_ITEMS --+--> Sidebar (>= 1280px)   chữ + số
+                         +--> Rail (768-1279px)     icon + aria-label "Tin nhắn, 5 chưa đọc"
+             TAB_ITEMS -----> TabBar (< 768px)      icon + chữ + số nhỏ
+             MORE_PATHS ----> tab "Thêm" sáng ở /calendar, /notes, /accounts...
+```
+
+Số của hai mục đến từ một request: `useUnreadByKind` đọc `GET /api/conversations/counts` một lần, lấy `CHAT` cho Tin nhắn và `EMAIL` cho Hộp thư. Hook giữ nguyên khóa cache `['inbox-unread']` của số Hộp thư cũ, nên sự kiện realtime vẫn làm mới số mà không phải sửa `useEventStream`.
+
+Số `null` (backend chưa đếm theo loại) và số 0 cùng không hiện: `badgeOf` viết `(badge && counts?.[badge.key]) ?? 0`. `??` chỉ thay `null` và `undefined`, nên số 0 vẫn là 0.
+
+Kiểm trên trình duyệt thật cần đăng nhập, nên lượt Chrome chạy jar backend của một worktree tạm ở cổng 8091 với PostgreSQL 18 dùng một lần trong Docker, và Vite ở cổng 5174 với proxy trỏ vào 8091 (một file cấu hình tạm gộp cấu hình gốc bằng `mergeConfig`). Database thật và backend IntelliJ ở 8080 không bị đụng. Hai bài học nhỏ:
+
+- File cấu hình Vite phải nằm trong dự án. Đặt ngoài `apps/sino-web` thì Vite không tìm thấy `vite` và `@tailwindcss/vite`, vì Node tìm `node_modules` bắt đầu từ thư mục chứa file.
+- Nạp file env bằng `set -a; . file` hỏng với giá trị có dấu cách ("An Nguyễn"): shell tách thành một biến và một lệnh. Đọc từng dòng rồi `export "$line"` thì giữ nguyên giá trị.
+
+### 22.6 Hai màn, một component, khóa cache theo loại (FE-112)
+`InboxPage` vẫn là một component cho cả hai màn. Nó nhận `kind` (`CHAT` hoặc `EMAIL`) và lấy phần còn lại từ `SCREENS[kind]` trong `screen.ts`: đường gốc, tiêu đề, chữ của link quay lại. Router gắn `/messages` với `<InboxPage key="CHAT" kind="CHAT" />` và `/inbox` với `kind="EMAIL"`.
+
+```text
+/messages, /messages/:id -> InboxPage kind=CHAT  -> frame ['inbox','frame','CHAT']                counts?kind=chat
+                                                 -> list  ['inbox','list','CHAT',view,source]      ?kind=chat
+/inbox, /inbox/:id       -> InboxPage kind=EMAIL -> frame ['inbox','frame','EMAIL'], list ...EMAIL  ?kind=email
+/inbox/new               -> InboxPage kind=EMAIL compose
+```
+
+- **`key` trên element của route.** Hai route cùng vẽ `<InboxPage>` ở cùng chỗ, nên React giữ nguyên component và state khi chuyển từ màn này sang màn kia (bộ đếm "N thư mới", ref nhớ đã đọc). `key` khác nhau buộc React dựng lại từ đầu.
+- **Khóa cache có `kind`.** Frame và danh sách của hai màn không bao giờ lẫn nhau. Tiền tố `['inbox']` vẫn đứng đầu mọi khóa, nên realtime và màn Tài khoản đọc lại cả hai màn bằng một lời gọi `invalidateQueries({ queryKey: ['inbox'] })` như trước. Khi đọc một thư, `moveCounts` sửa số đếm của frame cùng loại; frame kia chỉ đổi `unreadByKind`.
+- **Tự chuyển màn.** Mở `/inbox/:id` mà dòng là chat thì `navigate(..., { replace: true })` sang `/messages/:id`. `replace` thay mục hiện tại trong lịch sử thay vì thêm một mục, nên Back quay về trang trước link, không bị kẹt giữa hai địa chỉ. Trong lúc chờ chuyển, trang không vẽ cuộc trò chuyện và không đánh dấu đã đọc; màn đúng làm việc đó một lần.
+
+Kiểm Chrome cần chat, mà backend chưa có provider chat nào. Vì vậy sau khi đăng nhập, một `window.fetch` tạm trong trang trả dữ liệu cho `/api/providers`, `/api/accounts`, `/api/conversations*`, giống `Fetch.fulfillRequest` qua CDP ở các lượt trước. Bản tạm được cài ngay trên trang đăng nhập: app chuyển trang phía client nên nó còn sống sau khi đăng nhập; tải lại trang là mất.
+
+### 22.7 Trạng thái trống, nút cuối hộp thoại, Tổng quan (FE-113)
+Ba lối vào hai màn đều đọc cùng một nguồn: `SCREENS[kind]` (đường dẫn, tên màn) và `kindOfProvider` (loại của provider, thiếu thì là email theo D-308).
+
+```text
+trạng thái trống   InboxPage: frame CỦA MÀN không có tài khoản -> NoSources(screen, provider cùng loại)
+bước 5 hộp thoại   kindOfProvider(providers, provider của tài khoản) -> SCREENS[kind].path + OPEN_SCREEN[kind]
+thẻ Tổng quan      OPEN = [SCREENS.CHAT, SCREENS.EMAIL] -> hai nút "Tin nhắn", "Hộp thư"
+```
+
+- **Trống theo loại của màn.** Trước FE-113, `InboxPage` kiểm `whole.accounts.length === 0`, tức frame thô có cả tài khoản của loại kia. Chỉ nối Zalo thì Hộp thư không bao giờ "trống": nó hiện một danh sách rỗng, không có nút kết nối Gmail. Giờ điều kiện đọc `inbox`, là frame đã lọc theo màn (`screenFrame`). Chỉ đổi một biến, nhưng đổi từ dữ liệu thô sang dữ liệu đúng nghĩa của màn.
+- **Nội dung theo loại nằm trong một bảng.** `EMPTY: Record<ProviderKind, { label, text, icon }>` giữ chữ và icon của từng màn, tiêu đề lấy từ `screen.title` ("Tin nhắn đang trống.", "Hộp thư đang trống."). Kiểu `Record<ProviderKind, ...>` bắt buộc đủ mọi loại: thêm loại thứ ba vào `ProviderKind` thì `tsc` báo thiếu ngay, còn một chuỗi `if (kind === 'CHAT')` sẽ lặng lẽ rơi vào nhánh `else`. Danh mục chưa có provider nào của loại đó thì thay danh sách bằng một nút "Kết nối tài khoản".
+- **Nút và câu cùng một nguồn.** Bước 5 ghép câu "Sino đã nhập xong tin nhắn của tài khoản này. Mở Tin nhắn để đọc." từ đúng chữ của nút (`OPEN_SCREEN[kind]`), nên câu và nút không thể nói hai màn khác nhau.
+- **Test trên dữ liệu mẫu có giới hạn.** Câu "đã nhập xong" chỉ hiện khi lần nhập đầu `DONE`, mà lúc đó hộp thoại đọc lại danh sách tài khoản từ server. Trên dữ liệu mẫu (`ConnectReturn.test.tsx`) request đó không có handler MSW nào và test hỏng vì "Requests without an MSW handler". Vì vậy phần nút ở lại test dữ liệu mẫu, còn câu `DONE` của tài khoản chat chạy trong `InitialSyncOnApi.test.tsx`, nơi cả `GET /api/accounts` và `GET /api/providers` đều có handler.
+- **Lỗi gài tìm ra quy tắc chưa ai test.** Cuối change, 17 lỗi được gài vào các hàm của f05c (chọn màn, lọc nguồn và tài khoản theo loại, số theo loại, chữ "tin"/"thư"...), mỗi lần chạy lại các test liên quan. 16 lỗi làm test đỏ. Lỗi sống sót: đổi `kindOfProvider` để provider thiếu trong danh mục thành `CHAT` thay vì `EMAIL`. Mọi test đều dùng provider có trong danh mục, nên không test nào chạm tới quy tắc D-308. `screen.test.ts` thêm hai ca cho đúng quy tắc đó, và lỗi gài cũ giờ làm cả hai đỏ. Bài học: một nhánh "mặc định" (`?? 'EMAIL'`) rất dễ bị bỏ sót, vì dữ liệu mẫu hiếm khi thiếu.
+
+### 22.8 Chạy với backend trước khi backend xong (FE-114)
+Web làm xong trước BE-110 và BE-111. Người dùng chọn không chờ: phần backend đã có thì chạy thật, phần chưa có API thì dùng dữ liệu mẫu. Backend trên `dev` hôm nay khác hợp đồng của f05c ở ba chỗ, và web phải chạy đúng với cả ba:
+
+```text
+web hỏi                                   backend hôm nay trả             web xử lý
+GET /api/providers                        không có kind                   thiếu -> EMAIL (D-308)
+GET /api/conversations/counts?kind=email  không có unreadByKind           Hộp thư = unread, Tin nhắn = null (không hiện số)
+GET /api/conversations?kind=chat          bỏ qua kind, trả mọi thư        Tin nhắn không có tài khoản CHAT -> trạng thái trống,
+                                                                          danh sách đó không được vẽ
+```
+
+- **Test trên đúng hợp đồng hôm nay.** `BeforeKindsOnApi.test.tsx` dựng MSW trả đúng ba câu trả lời trên. Ba test xanh ngay vì code đã có từ FE-110…FE-113: đây là test khóa hành vi, không phải test dẫn đường. Test xanh ngay chưa chứng minh được gì, nên mỗi test được gài một lỗi đúng quy tắc nó canh (provider thiếu `kind` thành CHAT, bỏ tự chuyển màn, không gửi `kind`) và phải đỏ.
+- **Dữ liệu mẫu nạp vào database, không giả API.** Backend tạm không có cấu hình Google thật, nên không có thư Gmail thật. Thay vì giả câu trả lời trong trình duyệt, 4 thư mẫu được `INSERT` thẳng vào database tạm (tài khoản Gmail với `sync_enabled = false` để lịch đồng bộ không chạm tới nó). Như vậy mọi câu trả lời đều do backend thật dựng: đúng tên trường, đúng cách đếm, và lộ ra việc `?kind=chat` bị bỏ qua. Đặt `SINO_GOOGLE_CLIENT_ID`/`SECRET` giả cho Gmail có trong danh mục; không gọi Google vì không ai bấm kết nối.
+- **Chỗ không có API thì test trên dữ liệu mẫu.** Việc trên API chưa có nguồn (D-150), nên link "Gia đình · Zalo" của một việc chỉ có trên dữ liệu mẫu: test bấm nó và thấy `/inbox/conv-2` tự chuyển tới `/messages/conv-2`.
+- **Test chậm khi cả bộ chạy song song.** Luồng tự chuyển màn dựng cả app hai lần: khoảng 1 giây khi chạy riêng, quá 3 giây (`asyncUtilTimeout`) khi 80 file chạy cùng lúc. Chỉ các bước chờ tự chuyển màn được hạn dài hơn (`MOVE = { timeout: 8000 }`), có ghi lý do; hạn chung giữ nguyên để các test khác vẫn báo nhanh khi hỏng.
+
+## 23. Ghi chú dạng sơ đồ (`fe-ui-diagram-notes`)
+
+### 23.0 Bức tranh
+Sơ đồ là một loại ghi chú (D-206): `NoteItem.kind` là `TEXT` hoặc `DIAGRAM`. Một sơ đồ gồm các khối chữ nối nhau bằng mũi tên một chiều; nó được ghim, tìm, xóa như mọi ghi chú. DG-01 chỉ làm phần dữ liệu; danh sách và nút tạo ở DG-02, vùng vẽ bằng React Flow ở DG-03.
+
+```text
+notes.types.ts       + NoteKind, Diagram, DiagramBlock, DiagramLink, Side, BlockColor
+notes.sample.ts      + sơ đồ "Kế hoạch chuyến đi Đà Lạt" (7 khối, 6 nối)
+notes.api.ts         createNote / saveNote nhận sơ đồ, lưu cả sơ đồ một lần (D-211)
+diagram/diagram.ts   hàm thuần: thêm, di chuyển, sửa chữ, đổi màu, xóa khối;
+                     nối, chữ trên đường, xóa nối; cạnh gần nhất; giới hạn
+format.ts            tên mặc định, đầu nội dung, "Sơ đồ · N khối · M nối",
+                     lọc "Sơ đồ", tìm cả chữ trong khối và trên đường nối
+```
+
+### 23.1 Quy tắc nằm trong hàm thuần, vùng vẽ chỉ gọi
+Kéo, nối, thu phóng chỉ đo được trong trình duyệt thật: jsdom không tính bố cục. Vì thế mọi quy tắc của sơ đồ nằm trong `diagram.ts`. Mỗi hàm nhận một sơ đồ và trả một sơ đồ mới, không sửa sơ đồ cũ (bất biến, immutable). Ở DG-03, React Flow chỉ báo "khối được thả ở đây" hay "nối từ chấm này sang khối kia", rồi gọi hàm. Unit test kiểm đủ quy tắc mà không phải vẽ gì.
+
+```text
+connect(sơ đồ, from, fromSide, to, toSide)
+  from == to                      -> giữ nguyên  (không tự nối)
+  from hoặc to không có trong sơ đồ -> giữ nguyên  (máy chủ sẽ trả 400)
+  đã có đường from -> to          -> giữ nguyên  (to -> from là một đường khác)
+  đã đủ 600 đường                 -> giữ nguyên
+  còn lại                         -> thêm đường, mã do web tạo (UUID)
+removeBlock(sơ đồ, id)            -> bỏ khối và mọi đường đi ra / đi vào nó
+nearestSide(khung khối, điểm thả) -> cạnh có điểm giữa gần điểm thả nhất
+```
+
+Khi không có gì đổi, hàm trả lại đúng đối tượng cũ (test kiểm bằng `toBe`, không phải `toEqual`). React so sánh theo tham chiếu, nên cùng một đối tượng nghĩa là không cần vẽ lại và không cần lưu.
+
+### 23.2 Mã do web tạo, cả sơ đồ lưu một lần
+Khối và đường nối có mã từ `crypto.randomUUID()` ngay khi tạo, nên nối được trước khi máy chủ biết khối đó (D-211). Cả sơ đồ được gửi trong một lần lưu, nên máy chủ phải kiểm tính nhất quán: đường nối trỏ tới khối có thật, không tự nối, không trùng cặp, đủ giới hạn. Web giữ đúng các quy tắc đó ngay từ đầu. DG-01 thêm một quy tắc mà bản WIP còn thiếu: `connect` từ chối khối không có trong sơ đồ, vì một sơ đồ như vậy sẽ bị máy chủ trả `400 VALIDATION_FAILED` và cả lần lưu mất theo.
+
+### 23.3 Kiểu ngữ cảnh: vì sao `'TASK'` thành `string`
+Bản WIP để `tsc -b` báo `Type 'string' is not assignable to type '"TASK"'` ở dữ liệu mẫu. Nguyên nhân là cách TypeScript suy kiểu chữ:
+
+```text
+const notes: NoteItem[] = [{ ..., linked: [{ kind: 'TASK', ... }] }]
+  -> có kiểu ngữ cảnh NoteItem: 'TASK' giữ kiểu chữ cố định "TASK"
+
+[ { ..., linked: [{ kind: 'TASK', ... }] } ].map((note) => ({ ...note, kind: 'TEXT' as const }))
+  -> mảng được suy kiểu trước khi biết nó đi đâu: 'TASK' bị nới thành string
+```
+
+Kiểu ngữ cảnh (contextual type) là kiểu mà chỗ đứng của một biểu thức đòi hỏi. Có nó, TypeScript giữ `'TASK'` là kiểu chữ cố định. Không có nó, chữ trong một thuộc tính của đối tượng bị nới thành `string`, vì đối tượng có thể bị sửa sau này. `as const` ở `kind: 'TEXT'` chỉ cứu đúng chỗ đó, không cứu `linked`. Lỗi thứ hai (dòng 98) là cùng lỗi ấy, báo lại cho cả mảng.
+
+Cách sửa: hàm `text(note: Omit<NoteItem, 'kind' | 'diagram'>): NoteItem` bọc từng ghi chú chữ, giống hàm `anchor(...)` có sẵn trong file. Tham số có kiểu, nên mỗi đối tượng được kiểm theo kiểu đó ngay tại chỗ viết, và lỗi (nếu có) chỉ đúng dòng sai.
+
+### 23.4 Thêm dữ liệu mẫu làm đỏ test cũ
+Sơ đồ mẫu làm mẫu có 7 ghi chú, và thêm một tiêu đề thứ hai có chữ "Đà Lạt". Bảy test của NT-01…NT-03 đỏ: chúng còn đếm 6 ghi chú, và tìm thẻ bằng `/Đà Lạt/`, nay khớp hai thẻ (Testing Library báo `Found multiple elements`). Code không sai; test bám vào dữ liệu mẫu. Sửa test theo mẫu mới, và tìm thẻ bằng cụm riêng hơn (`/Ý tưởng chuyến đi/`). Bài học: test tìm theo tên nên dùng tên đủ riêng; thêm dữ liệu mẫu thì chạy cả test của các màn dùng mẫu đó trước khi commit.
+
+### 23.5 Khối chưa có chữ
+Khối mới có chữ rỗng; vùng vẽ hiện chữ mờ "Khối mới". Tên và đầu nội dung trên thẻ bỏ qua khối không có chữ. Tên là khối có chữ đầu tiên, khối chính trước. Đầu nội dung là ba khối có chữ đầu tiên, nối bằng " · ". Không khối nào có chữ thì tên là "Sơ đồ mới". Test viết trước đỏ đúng chỗ: tên ra "Sơ đồ mới" dù sơ đồ có ba khối có chữ, vì bản WIP chỉ nhìn khối chính.
+
+### 23.6 "+ Ghi chú" hỏi loại, địa chỉ giữ `kind` (DG-02)
+"+ Ghi chú" (đầu danh sách, trạng thái trống, nút "+" trên điện thoại) nay mở một menu: "Ghi chú chữ" đi `/notes/new`, "Sơ đồ" đi `/notes/new?kind=diagram`. Mỗi mục là một `Link` bọc trong `DropdownMenuItem asChild`, nên nó vẫn là một đường dẫn thật (có `href`, mở được ở thẻ mới) và vẫn có vai trò `menuitem` cho trình đọc màn hình.
+
+Địa chỉ của một sơ đồ mới có hai loại tham số, dùng vào hai việc:
+
+```text
+/notes/new?filter=pinned&kind=diagram
+           ^^^^^^^^^^^^^ bộ lọc của danh sách: đi theo mọi link (search)
+                         ^^^^^^^^^^^^ loại của ghi chú mới: chỉ của trang này
+```
+
+`useNotesFilter` trả `search` chỉ gồm bộ lọc và từ khóa, để link của thẻ và nút quay lại không mang `kind` đi. Nhưng khi đổi chip hay gõ tìm, nó giữ `kind` có sẵn. Không giữ thì bấm "Đã ghim" trong lúc vẽ sơ đồ mới làm địa chỉ mất `kind`, và cột phải đổi thành ô soạn chữ.
+
+### 23.7 React Flow tải riêng (D-208)
+`NotesPage` không import vùng vẽ trực tiếp:
+
+```text
+const DiagramEditor = lazy(() => import('./diagram/DiagramEditor')
+  .then((module) => ({ default: module.DiagramEditor })))
+...
+<Suspense fallback={<p role="status">Đang mở sơ đồ…</p>}>
+  <DiagramEditor ... />
+</Suspense>
+```
+
+`import()` động báo cho Vite tách file đó và mọi thứ chỉ nó dùng (React Flow, d3) thành một chunk riêng. Trình duyệt chỉ tải chunk này khi một sơ đồ mở. `lazy` đòi một `default` export; `.then(...)` đổi export có tên thành `default`, để file vẫn theo quy ước export có tên như cả dự án. Bằng chứng ở bản build: `DiagramEditor-….js` 185 kB (60 kB gzip) và một file CSS 11 kB; chunk chính không chứa chữ `react-flow__` nào.
+
+CSS của React Flow được import vào một layer:
+
+```text
+@import "@xyflow/react/dist/base.css" layer(base);
+```
+
+Tailwind 4 đặt class tiện ích trong `@layer utilities`. Theo luật cascade layer, CSS không thuộc layer nào luôn thắng CSS trong layer, bất kể độ đặc hiệu. Để `base.css` ngoài layer thì `.react-flow__handle { background-color: … }` của nó thắng `bg-foreground` trên chấm nối. Đặt nó vào layer `base` thì class Tailwind thắng như mọi nơi khác.
+
+### 23.8 Sơ đồ là gốc, React Flow chỉ vẽ
+Có hai cách giữ dữ liệu khi dùng React Flow: để node của React Flow là gốc rồi suy ra sơ đồ, hoặc ngược lại. Sino chọn sơ đồ làm gốc, vì cái được lưu là sơ đồ và mọi quy tắc nằm trong `diagram.ts`:
+
+```text
+DiagramPane: diagram (state)
+   | nodesOf / edgesOf (flow.ts)
+   v
+DiagramCanvas: nodes, edges (React Flow vẽ; tự giữ cỡ đo được, khối đang chọn, vị trí lúc kéo)
+   | thả khối: moveBlock(diagram, ...)      "+ Khối": addBlock(diagram, ...)
+   v
+onChange(sơ đồ mới) -> DiagramPane lưu sau 600 ms (D-210) -> nodes theo sơ đồ mới
+```
+
+React Flow ghi cỡ đo được của mỗi khối vào node (`measured`). Khối chưa có cỡ bị ẩn và đường nối chưa được vẽ. Nếu mỗi lần sơ đồ đổi ta dựng node mới hoàn toàn, mọi khối mất cỡ và nhấp nháy ẩn hiện. Vì vậy `nodesOf(diagram, nodes cũ)` chép lại các trường cũ của node rồi mới ghi vị trí và chữ từ sơ đồ. Khi sơ đồ (prop) đổi, `DiagramCanvas` cập nhật node ngay trong lúc render (`if (shown !== diagram) { setShown(...); setNodes(...) }`), cách React khuyên cho "state đi theo prop", thay vì `useEffect` vốn vẽ một khung hình sai trước rồi mới sửa.
+
+### 23.9 Sơ đồ mới: tạo ở thay đổi đầu tiên (D-209)
+Giống ghi chú chữ (D-203): mở `/notes/new?kind=diagram` chưa tạo gì; thêm khối hay đặt tên thì tạo, rồi `navigate(..., { replace: true, state: FROM_NEW })`. Nhờ `FROM_NEW`, `NotesPage` giữ `key="new"` cho vùng vẽ, nên React không dựng lại nó: khối vừa thêm vẫn đang chọn, con trỏ vẫn ở ô tên.
+
+Chrome bắt một lỗi mà jsdom không thấy: "+ Khối" đặt khối mới đúng giữa màn hình, đè lên khối "Ý chính" cũng nằm giữa. Hàm thuần `freeSpot` dời chỗ thêm xuống dưới cho tới khi không đè khối nào (test viết trước, đỏ vì hàm chưa có).
+
+### 23.10 Test React Flow trong jsdom
+jsdom không có bố cục: mọi phần tử cỡ 0, nên React Flow ẩn hết khối và không vẽ đường nối. `src/test/reactFlow.ts` giả những gì nó cần: `ResizeObserver` báo cỡ ngay khi được gọi, `DOMMatrixReadOnly`, và `offsetWidth` / `offsetHeight` cho vùng vẽ (1000 × 600) và khối (160 × 48). Lần chạy đầu đỏ với `Cannot read properties of undefined (reading 'width')`: stack chỉ vào `XYPanZoom`, nơi React Flow 12.12 đọc `entry.contentRect.width`; bản giả thiếu `contentRect`. Kéo và nối vẫn chỉ kiểm được ở Chrome.
+
+Chạy cả bộ, một test tạo sơ đồ thỉnh thoảng đỏ: "không tìm thấy thẻ" ngay sau khi địa chỉ đã đổi. TanStack Query báo cho danh sách rằng cache có ghi chú mới qua `setTimeout(0)`, còn router đổi địa chỉ ngay. Máy bận thì lần kiểm thẻ chạy trước lần vẽ lại. Sửa bằng `await list().findByRole(...)` (chờ thẻ) thay vì `getByRole` (tìm ngay). Test NT "makes a new note…" chập chờn từ trước cũng cùng gốc này và được sửa cùng cách.
+
+### 23.11 Khối và đường nối hỏi vùng vẽ qua một context (DG-03)
+React Flow tự vẽ `BlockNode` và `LinkEdge` từ `nodeTypes` / `edgeTypes`, và chỉ đưa cho chúng `id`, `data`, `selected`. Ta không truyền được prop riêng như "đang sửa khối nào" hay "xóa khối này". Vì vậy `DiagramCanvas` đặt một context `DiagramActions`:
+
+```text
+DiagramCanvas
+  actions = { editing, editingLink, writeBlock, finishBlock, colorBlock, removeBlock,
+              chooseLink, writeLink, finishLink, removeLink }
+  <DiagramActionsContext value={actions}>
+     <ReactFlow ...>  ->  BlockNode: useDiagramActions().finishBlock(id, chữ)
+                      ->  LinkEdge:  useDiagramActions().removeLink(id)
+  mỗi thao tác = onChange(hàm thuần của diagram.ts)   (vẫn một đường đi duy nhất, 23.8)
+```
+
+Context nằm trong file `.ts` riêng (`actions.ts`): oxlint cảnh báo file `.tsx` vừa export component vừa export thứ khác, vì Fast Refresh khi đó không giữ được state. Khi gõ xong chữ mà chữ không đổi, `finishBlock` không gọi `onChange`, nên không có lần lưu thừa.
+
+### 23.12 Thả đường nối ở bất kỳ đâu trên khối
+React Flow chỉ biết khối đích (`connection.toNode`) khi chuột thả gần một chấm (trong 20 px). Trang mẫu cho thả lên bất kỳ chỗ nào của khối, nên `onConnectEnd` tự tìm:
+
+```text
+điểm thả (px của màn hình) --screenToFlowPosition--> điểm trên sơ đồ
+khối đích = toNode, nếu không có thì khối đè lên điểm đó (getIntersectingNodes)
+cạnh đích = chấm được thả lên, nếu không có thì nearestSide(khung khối, điểm thả)
+onChange(connect(sơ đồ, từ, cạnh từ, tới, cạnh tới))   -> quy tắc không tự nối, không trùng
+```
+
+`connection.pointer` tính theo góc của vùng vẽ chứ không theo tọa độ sơ đồ; đọc mã `XYHandle` mới thấy, nên điểm thả lấy từ chính sự kiện chuột. `getIntersectingNodes` tính bằng hình học trên dữ liệu của React Flow, không hỏi DOM.
+
+### 23.13 Con trỏ: khối còn ẩn, và menu giữ focus
+Khối mới phải mở sẵn ô gõ chữ có con trỏ. Hai thứ cản:
+
+```text
+1. React Flow ẩn khối (visibility: hidden) tới khi đo xong cỡ; phần tử ẩn không nhận focus.
+   -> BlockNode chờ useInternalNode(id).measured rồi mới focus() + select().
+2. Menu "THÊM Ô" là menu modal của Radix: nó giữ focus bên trong tới khi đóng hẳn.
+   Thêm khối ngay trong onSelect: ô chữ xin focus, menu kéo về, menu đóng, focus rơi về <body>.
+   -> onSelect chỉ ghi lại việc cần làm; onCloseAutoFocus (menu đã nhả focus) mới thêm khối.
+```
+
+Test bắt được lỗi thứ hai (`document.activeElement` là `BODY`). Menu còn một chỗ: Radix đặt tên menu theo nút mở nó (`aria-labelledby`), ở đây là một điểm vô hình không tên. `aria-labelledby={undefined}` đặt sau props của Radix nên đè được, và `aria-label="Thêm ô"` có hiệu lực. Ô màu và chữ "B" trong mục menu có `aria-hidden`, để tên mục là "Khối chính" chứ không phải "BKhối chính".
+
+### 23.14 jsdom: d3 cần `event.view`
+React Flow kéo khối bằng d3-drag và kéo nền bằng d3-zoom. Cả hai đọc `event.view.document` khi nhấn chuột. user-event tạo sự kiện chuột với `view` là thuộc tính riêng của từng sự kiện, trả `null`, nên vá ở prototype không ăn. Test bấm khối, đường nối và nền bằng `fireEvent.click` / `fireEvent.doubleClick`: chỉ có sự kiện click, không có mousedown, nên d3 không chạy. Nút trên thanh chọn có class `nodrag nopan`. d3 bỏ qua sự kiện từ đó, nên user-event dùng được; trên trình duyệt thật, nhấn nút trên thanh cũng không kéo nền nữa.
+
+### 23.15 Test sơ đồ đầu tiên của file chậm khi chạy cả bộ
+Chạy cả bộ (82 file song song, gần 2 phút), test đầu tiên của mỗi file sơ đồ có lúc không thấy vùng vẽ sau 3 s. Hai phần làm chậm: tải module `DiagramEditor` + React Flow lần đầu (`import()` động), và lần vẽ đầu của cả app. Cách sửa giống `MOVE` của FE-114 (câu 154): `beforeAll(() => import('./diagram/DiagramEditor'))` đưa việc tải module ra khỏi test, và chỉ lần chờ mở vùng vẽ được `OPEN = { timeout: 8000 }`. Các lần chờ khác vẫn 3 s, nên test treo thật vẫn bị bắt sớm.
+
+### 23.16 Điện thoại và tablet (DG-04, D-212)
+Bố cục như ghi chú chữ: từ 768 px vùng vẽ ở cột phải, dưới 768 px là trang riêng (đầu trang: quay lại "Ghi chú", "TỰ LƯU · giờ", Ghim; thanh đáy "Sơ đồ này": "N khối · M nối" và "Xóa"). Ba điểm riêng của sơ đồ:
+
+```text
+nhấn giữ chỗ trống 500 ms     -> menu "THÊM Ô" (iOS không có contextmenu khi nhấn giữ)
+  nhấc ngón sớm               -> hủy (chạm thường)
+  trượt quá 8 px              -> hủy (đang kéo nền)
+  ngón thứ hai chạm xuống     -> hủy (đang chụm để thu phóng)
+màn cảm ứng (pointer: coarse) -> chấm nối, chấm màu, nút thanh chọn to hơn; gợi ý nói "nhấn giữ"
+cột hẹp (768 px)              -> "+ Khối", thu phóng, Ghim, Xóa xuống hàng cùng nhau, không bỏ Ghim lẻ một hàng
+```
+
+Gợi ý và cỡ chạm dựa vào loại con trỏ (`pointer-coarse:` của Tailwind, tức `@media (pointer: coarse)`), không dựa vào bề rộng: tablet cảm ứng rộng hơn 768 px vẫn là ngón tay. Test "không mở khi chạm ngắn" lúc đầu dồn ba trường hợp vào một lần chờ; lỗi gài "bỏ `onPointerUp`" vẫn sống, vì lần nhấn kế tiếp tình cờ hủy hẹn giờ thay cho nó. Tách mỗi trường hợp một lần chờ thì cả ba lỗi gài đều bị bắt.
+
+### 23.17 Kiểm bằng lỗi gài `diagram.ts`
+31 lỗi gài (giới hạn, căn giữa, không tự nối, không trùng, xóa khối kéo theo đường, cạnh gần nhất, chữ trên đường, `freeSpot`...). Lượt đầu 27 bị bắt, 4 sống, tức là 4 chỗ test chưa nói:
+
+```text
+changeBlock đổi mọi khối          -> thêm: đổi màu một khối, các khối khác giữ nguyên
+freeSpot bỏ kiểm trục x           -> thêm: khối nằm bên cạnh (cùng độ cao) không làm dời chỗ
+freeSpot bỏ khoảng 16 px          -> thêm: khối ở trên, gần hơn một khối + khoảng, vẫn làm dời
+freeSpot bước 1 px thay vì 64 px  -> giữ: vẫn không đè và vẫn ở dưới (yêu cầu), chỉ khác khoảng cách
+```
+
+Lượt hai 30/31. Lỗi còn sống không phải test thiếu mà là một cách làm khác cũng đúng yêu cầu: nó còn tìm được chỗ trống gần hơn. Đổi thuật toán hay ghi thêm yêu cầu về khoảng cách là quyết định riêng, không làm lẳng lặng trong một task kiểm.
+
+## 24. Trang công khai trong sino-web (`web-public-pages`)
+
+### 24.0 Bức tranh
+Trang giới thiệu Sino Messages và Chính sách quyền riêng tư vốn chỉ có ở `apps/sino-site`, một site tĩnh riêng chưa có host. Người dùng muốn trước mắt chạy một app trên một domain: `sino-web` tự có trang chủ và trang privacy, đủ cho Google xác minh OAuth. Code được chép sang `src/features/public/`; `sino-site` để nguyên, mỗi file chép ghi nguồn ở dòng đầu.
+
+```text
+/              HomeGate: đang hỏi phiên -> dấu chờ; đã đăng nhập -> /overview (replace);
+               chưa đăng nhập hay máy chủ lỗi -> trang giới thiệu (tải riêng)
+/privacy       Chính sách quyền riêng tư (WP-03)
+/en/privacy    Privacy policy (WP-03)
+mọi trang khác như cũ: RequireAuth -> AppShell
+```
+
+### 24.1 Một route công khai cạnh cây cần đăng nhập (WP-01)
+Trước đây `/` là route cha của cả app, bọc `RequireAuth`, và route `index` của nó chuyển tới `/overview`. Muốn `/` hiện cho khách thì `/` không được nằm dưới `RequireAuth` nữa:
+
+```text
+routes = [
+  { path: '/login', element: <LoginPage /> },
+  { path: '/', element: <HomeGate /> },                 // công khai
+  { element: <RequireAuth />, children: [ AppShell ... ] }   // route bố cục không có path
+  { path: '*', element: <NotFoundPage /> },
+]
+```
+
+Route không có `path` (pathless layout route) chỉ bọc giao diện và chạy logic, không chiếm phần nào của đường dẫn. Nhờ vậy `/overview`, `/tasks`… vẫn khớp như cũ, còn `/` thuộc `HomeGate`. Cổng dùng lại `useMe()` (cùng khóa cache với `RequireAuth`), nên vào app từ trang giới thiệu không phải hỏi phiên lần nữa.
+
+Vì sao lúc đang hỏi phiên lại hiện dấu chờ chứ không hiện trang giới thiệu: người đã đăng nhập mở domain sẽ thấy trang giới thiệu chớp qua rồi mới tới Tổng quan. Còn khi máy chủ lỗi (`isError`), trang công khai vẫn hiện, vì nó không cần API; `RequireAuth` thì hiện "Không mở được Sino", vì trang app cần API.
+
+### 24.2 Thứ một site tĩnh có sẵn mà ứng dụng một trang phải tự làm
+`PublicFrame` làm ba việc trình duyệt tự làm với site tĩnh:
+
+```text
+tiêu đề tab    useEffect: đặt document.title, trả tiêu đề cũ khi rời trang
+lên đầu trang  sang trang khác thì cuộn về 0 (React Router giữ nguyên chỗ cuộn)
+#phần          địa chỉ có #cau-hoi thì cuộn tới phần tử id="cau-hoi" (React Router không cuộn theo hash)
+```
+
+Cuộn mượt khi bấm mục (`scroll-behavior: smooth`) chỉ áp lên trang công khai: `public.css` dùng `html:has([data-public-page])`. Đặt chung cho `html` thì mọi lần cuộn bằng code trong app cũng thành mượt. Lên đầu trang dùng `behavior: 'instant'` để không trượt cả trang mỗi lần đổi trang.
+
+### 24.3 Chép mà không nhân đôi
+Chỉ chép phần riêng của trang công khai: khung, thanh đầu, chân trang, chữ của trang, 5 component chuyển động React Bits và test của chúng. Những gì `sino-site` vốn chép từ `sino-web` (`Button`, `Badge`, `ProviderIcon`, `SinoMark`, `cn`, token màu) thì dùng thẳng bản của `sino-web`. Link vào app đổi từ `appUrl` + đường dẫn sang `<Link to="/login">`, đi qua router nên không tải lại trang. `gsap` (thư viện chuyển động) ghim đúng bản `sino-site` dùng, và chỉ nằm trong chunk công khai (kiểm ở bản build).
+
+### 24.4 Trang giới thiệu: chép chữ, đổi link (WP-02)
+Mười một khối của trang Sino Messages được chép nguyên chữ và nguyên class. Chỗ duy nhất phải nghĩ là link: ở `sino-site`, mọi nút vào app là `<a href={appUrl + '/login'}>` vì app ở một domain khác. Trong `sino-web` chúng thành `<Button asChild><Link to="/login">`:
+
+```text
+asChild    Button không vẽ <button> của nó mà gắn class lên phần tử con (Radix Slot)
+Link       thẻ <a href="/login"> thật (mở tab mới, đọc màn hình đều đúng), nhưng bấm thì router đổi trang, không tải lại
+```
+
+Kết quả: nút trông như nút, là một link đúng nghĩa, và vào app không tải lại bundle. Test tìm thanh đầu qua link "Mở Sino Messages" đỏ khi trang có thêm hai nút cùng tên: Testing Library báo `Found multiple elements`. Tìm theo vai trò `banner` (chỉ có một thanh đầu) bền hơn tìm theo một chữ có thể lặp lại.
+
+### 24.5 Chính sách quyền riêng tư: chép chữ, nhưng chữ phải còn đúng (WP-03)
+Hai bản VI/EN được chép nguyên văn, kể cả câu Limited Use mà Google đòi đúng từng chữ. Ba chỗ phải đổi:
+
+```text
+thông tin chủ sở hữu   site.config.ts của sino-site  ->  features/public/owner.ts, đọc qua ownerDetails()
+link /security          trang Bảo mật chưa có (SI-05)  ->  giữ câu, bỏ link (D-311)
+"site này không dùng cookie"  đúng với site tĩnh, SAI trong app  ->  viết lại (D-316)
+```
+
+Câu cookie là bài học chính. Chép một văn bản sang chỗ mới thì từng câu phải được kiểm lại theo chỗ mới. Ở `sino-site` trang không gọi API nào, nên không có cookie. Ở `sino-web`, mở `/` thì `HomeGate` hỏi `GET /api/auth/me`, và máy chủ trả kèm cookie `XSRF-TOKEN` (Spring Security `csrf.spa()`, spec `web-authentication`). Test viết trước: trong mục *Phạm vi* không còn câu "không dùng cookie", có câu về cookie chống giả mạo yêu cầu, và có link về mục *Dữ liệu Sino lưu*, nơi chính sách vốn đã liệt kê cookie của ứng dụng.
+
+Thông tin chủ sở hữu đi qua hàm `ownerDetails()` chứ không phải một hằng số import thẳng, để test thay được nó bằng `vi.mock`: test vừa kiểm "[chưa điền: …]" khi còn trống, vừa kiểm email thành link `mailto:` và ngày viết kiểu Việt / Anh khi đã điền, mà không đỏ khi chủ sở hữu điền giá trị thật.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1603,3 +1950,41 @@ Vài kỹ thuật dùng ở trang này:
 132. Kể ba câu trong Privacy của Sino và chỗ trong code chứng minh từng câu. Vì sao phải dò code thay vì viết theo thiết kế?
 133. Hai bản VI và EN được giữ "cùng nội dung" bằng cách nào? Nếu thêm một mục chỉ ở bản tiếng Việt thì chuyện gì xảy ra?
 134. Vì sao ngày hiệu lực được định dạng bằng tay chứ không bằng `Intl.DateTimeFormat`?
+135. Vì sao `kind` của provider là trường bắt buộc trong `ProviderInfo`, dù backend cũ không gửi nó? Quy tắc cho backend cũ nằm ở đâu?
+136. `useQuery({ queryFn: fetchInbox })` hỏng sau khi `fetchInbox` có tham số `kind`. Vì sao, và viết lại thế nào?
+137. Vì sao Tin nhắn nhận `null` chứ không nhận `0` khi backend chưa có `unreadByKind`?
+138. Vì sao `[...].map(...)` làm `kind: 'TASK'` thành `string`, còn khi mảng đứng thẳng trong `notes: NoteItem[]` thì không? Sửa thế nào mà không phải viết `as const` ở từng chỗ?
+139. Vì sao các quy tắc của sơ đồ (không tự nối, một cặp một đường, xóa khối thì xóa đường của nó) nằm trong hàm thuần `diagram.ts` chứ không nằm trong component vẽ? Vì sao hàm trả lại đúng đối tượng cũ khi không đổi gì?
+140. Thêm mục "Tin nhắn" vào điều hướng phải sửa những file nào? Vì sao `Sidebar`, `Rail`, `TabBar` không phải sửa?
+141. Vì sao `useUnreadByKind` dùng lại khóa `['inbox-unread']` thay vì đặt một khóa mới?
+142. Vì sao file cấu hình Vite tạm phải nằm trong `apps/sino-web` mới chạy được?
+143. Vì sao route `/messages` và `/inbox` cần `key` khác nhau dù cùng vẽ `InboxPage`?
+144. Vì sao khóa cache vẫn bắt đầu bằng `['inbox']` sau khi có `kind`? Bỏ tiền tố đó thì realtime hỏng ở đâu?
+145. Tự chuyển từ `/inbox/:id` sang `/messages/:id` dùng `replace`. Nếu dùng `push` thì bấm Back sẽ ra sao?
+146. Trước FE-113 trang kiểm `whole.accounts.length === 0`. Chủ chỉ nối Zalo thì Hộp thư hiện gì? Vì sao kiểm trên frame của màn mới đúng?
+147. Vì sao nội dung trạng thái trống nằm trong `Record<ProviderKind, ...>` thay vì `if (kind === 'CHAT')`? Thêm loại thứ ba vào `ProviderKind` thì mỗi cách phản ứng ra sao?
+148. Câu "Mở Tin nhắn để đọc." và nút "Mở Tin nhắn" cùng lấy chữ từ `OPEN_SCREEN`. Viết cứng hai chỗ thì rủi ro gì?
+149. Vì sao câu "đã nhập xong" của tài khoản chat được test trên API (MSW) chứ không trên dữ liệu mẫu?
+150. Lỗi gài "provider lạ thành CHAT" sống sót qua cả bộ test. Vì sao? Viết một test nhỏ nhất làm nó đỏ.
+151. Backend hôm nay bỏ qua `?kind=chat` và trả mọi thư. Vì sao Tin nhắn vẫn không hiện thư Gmail nào?
+152. Một test xanh ngay lần chạy đầu thì chưa chứng minh gì. Làm sao biết nó có bắt được lỗi?
+153. Vì sao nạp thư mẫu vào database tạm tốt hơn giả câu trả lời bằng `fetch` trong trình duyệt, khi muốn kiểm "chạy với backend"?
+154. Vì sao chỉ nới hạn chờ của luồng tự chuyển màn, không tăng `asyncUtilTimeout` cho mọi test?
+155. Vì sao đổi chip lọc trên `/notes/new?kind=diagram` phải giữ `kind`, còn link của các thẻ thì không mang `kind` theo?
+156. Vì sao `@xyflow/react/dist/base.css` được import vào `layer(base)`? Không làm vậy thì class Tailwind của chấm nối thua ở đâu, và vì sao độ đặc hiệu không cứu được?
+157. Vì sao `nodesOf` chép lại các trường cũ của node (như `measured`) thay vì dựng node mới từ sơ đồ? Bỏ đi thì vùng vẽ trông ra sao?
+158. Một test chờ địa chỉ đổi xong rồi tìm thẻ ngay, thỉnh thoảng đỏ khi chạy cả bộ. Vì sao, và sửa thế nào mà không tăng thời gian chờ?
+159. `BlockNode` được React Flow vẽ, không phải ta. Vậy nó biết "khối này đang được sửa" và xóa được chính nó bằng cách nào? Vì sao context nằm trong file `.ts` riêng?
+160. Người dùng thả đường nối lên giữa một khối, xa mọi chấm. `connection.toNode` khi đó là gì, và Sino tìm khối đích, cạnh đích ra sao?
+161. Chọn "Khối vàng" trong menu thì khối mới phải có con trỏ ngay. Kể hai lý do con trỏ có thể không tới, và cách Sino tránh từng cái.
+162. Vì sao test bấm khối bằng `fireEvent.click` mà không bằng `userEvent.click`? Vì sao thêm `nopan` cho thanh chọn lại có lợi cả ngoài test?
+163. Vì sao chỉ nới hạn chờ mở vùng vẽ lên 8 s, và nạp trước module trong `beforeAll`, thay vì tăng `asyncUtilTimeout` cho mọi test?
+164. Vì sao nhấn giữ trên vùng vẽ phải tự đo bằng hẹn giờ, dù Android Chrome có bắn `contextmenu` khi nhấn giữ? Ba trường hợp nào phải hủy hẹn giờ, và vì sao?
+165. Vì sao gợi ý "nhấn giữ" và cỡ chấm nối theo `pointer: coarse` chứ không theo bề rộng màn hình?
+166. Lỗi gài "freeSpot bước 1 px" sống sót. Đó là test thiếu hay một cách làm khác cũng đúng? Bạn quyết thế nào, và ai quyết nếu muốn đổi?
+167. Vì sao `/` phải ra khỏi route `RequireAuth`? Route bố cục không có `path` giúp gì để `/overview`, `/tasks` vẫn khớp như cũ?
+168. Lúc đang hỏi phiên, `HomeGate` hiện dấu chờ thay vì trang giới thiệu; lúc máy chủ lỗi thì hiện trang giới thiệu. Giải thích từng lựa chọn, và vì sao `RequireAuth` làm khác ở trường hợp lỗi.
+169. Kể ba việc site tĩnh có sẵn mà ứng dụng một trang phải tự làm, và chỗ trong `PublicFrame` làm từng việc.
+170. Vì sao nút "Đăng nhập" của trang giới thiệu là `<Button asChild><Link to="/login">` mà không phải `<Button onClick={() => navigate("/login")}>`? Kể hai điều người dùng mất với cách thứ hai.
+171. Câu "site này không dùng cookie" đúng ở sino-site mà sai ở sino-web. Cookie nào, từ đâu ra? Kể một câu khác trong một văn bản bạn từng chép mà có thể sai theo cùng cách.
+172. Vì sao thông tin chủ sở hữu đọc qua hàm `ownerDetails()` thay vì import thẳng một hằng số? Test sẽ ra sao nếu import thẳng và chủ sở hữu điền email thật?

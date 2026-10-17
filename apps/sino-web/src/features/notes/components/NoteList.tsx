@@ -1,18 +1,23 @@
-import { Link2Off, Pin, Plus, Search } from 'lucide-react'
+import { Link2Off, Pin, Plus, Search, Workflow } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { filterNotes, groupNotes, noteCounts, noteSource, noteTime, noteTitle } from '../format'
+import { filterNotes, groupNotes, noteCounts, notePreview, noteSource, noteTime, noteTitle } from '../format'
 import type { NoteItem, NotesFilter } from '../notes.types'
+import { NewNoteMenu } from './NewNoteMenu'
 
 const FILTERS: { value: NotesFilter; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
   { value: 'linked', label: 'Gắn tin nhắn' },
   { value: 'pinned', label: 'Đã ghim' },
+  { value: 'diagram', label: 'Sơ đồ' },
 ]
+
+const SOURCE_CHIP =
+  'inline-flex h-5.5 max-w-70 min-w-0 items-center gap-1.5 rounded-xs border bg-raised pr-2 pl-0.75 text-[11px] leading-4 font-medium text-muted-foreground'
 
 const CHIP =
   'inline-flex h-8.5 shrink-0 cursor-pointer items-center rounded-full border bg-surface px-3 text-[13px] leading-4.5 font-medium text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-pressed:border-foreground aria-pressed:bg-raised aria-pressed:text-foreground'
@@ -67,12 +72,15 @@ export function NoteList({
       <div className="z-1 flex flex-col gap-3.5 border-b bg-background px-4 pt-3 pb-3.5 md:sticky md:top-0 md:pt-5">
         <div className="flex items-center justify-between gap-3 max-md:hidden">
           <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Ghi chú</h1>
-          <Button asChild variant="primary" size="sm">
-            <Link to={{ pathname: '/notes/new', search }}>
-              <Plus strokeWidth={1.6} />
-              Ghi chú
-            </Link>
-          </Button>
+          <NewNoteMenu
+            search={search}
+            trigger={
+              <Button type="button" variant="primary" size="sm">
+                <Plus strokeWidth={1.6} />
+                Ghi chú
+              </Button>
+            }
+          />
         </div>
         <span data-slot="note-search" className={cn('relative flex items-center', !searchOpen && query === '' && 'max-md:hidden')}>
           <Search className="pointer-events-none absolute left-3.5 size-4 text-muted-foreground" strokeWidth={1.6} />
@@ -98,12 +106,15 @@ export function NoteList({
         <div className="flex flex-col items-start gap-3 px-4 py-8 md:px-5.5">
           <p className="text-base font-semibold">Chưa có ghi chú nào</p>
           <p className="text-sm text-muted-foreground">Ghi lại điều cần nhớ; ghi chú tạo từ một tin nhắn sẽ gắn với tin nhắn đó.</p>
-          <Button asChild variant="secondary" size="sm">
-            <Link to={{ pathname: '/notes/new', search }}>
-              <Plus strokeWidth={1.6} />
-              Ghi chú
-            </Link>
-          </Button>
+          <NewNoteMenu
+            search={search}
+            trigger={
+              <Button type="button" variant="secondary" size="sm">
+                <Plus strokeWidth={1.6} />
+                Ghi chú
+              </Button>
+            }
+          />
         </div>
       ) : (
         groups.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground">Không có ghi chú nào khớp</p>
@@ -120,7 +131,8 @@ export function NoteList({
   )
 }
 
-// Canvas `.ncard`: pin, title and time; two lines of the text; where it comes from.
+// Canvas `.ncard`: pin, title and time; two lines of the text (a diagram: its first blocks); where it comes from, a
+// diagram with its mark (D-206).
 function NoteCard({ note, search, selected, now }: { note: NoteItem; search: string; selected: boolean; now: Date }) {
   const source = noteSource(note)
   return (
@@ -136,12 +148,19 @@ function NoteCard({ note, search, selected, now }: { note: NoteItem; search: str
         </span>
         <Spec className="ml-auto shrink-0">{noteTime(note.updatedAt, now)}</Spec>
       </span>
-      <span className="line-clamp-2 text-[13px] leading-4.5 whitespace-pre-line text-muted-foreground">{note.body}</span>
+      <span className="line-clamp-2 text-[13px] leading-4.5 whitespace-pre-line text-muted-foreground">{notePreview(note)}</span>
       <span className="flex min-w-0 items-center">
         {source.tone === 'anchor' && note.anchor ? (
-          <span className="inline-flex h-5.5 max-w-70 min-w-0 items-center gap-1.5 rounded-xs border bg-raised pr-2 pl-0.75 text-[11px] leading-4 font-medium text-muted-foreground">
+          <span className={SOURCE_CHIP}>
             <span className="grid size-4 shrink-0 place-items-center rounded-[4px] bg-surface text-foreground">
               <ProviderIcon provider={note.anchor.provider ?? 'gmail'} className="size-2.75" />
+            </span>
+            <span className="truncate">{source.text}</span>
+          </span>
+        ) : source.tone === 'diagram' ? (
+          <span className={SOURCE_CHIP}>
+            <span data-slot="diagram-mark" className="grid size-4 shrink-0 place-items-center rounded-[4px] bg-surface text-foreground">
+              <Workflow aria-hidden="true" className="size-2.75" strokeWidth={1.8} />
             </span>
             <span className="truncate">{source.text}</span>
           </span>

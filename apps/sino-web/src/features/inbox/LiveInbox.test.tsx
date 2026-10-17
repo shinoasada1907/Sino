@@ -101,3 +101,46 @@ describe('the inbox while mail arrives (FE-54)', () => {
     }
   })
 })
+
+describe('the notice of each screen (f05c)', () => {
+  // A Zalo account beside the Gmail ones; the list answers by kind, as the API does since f05c.
+  function twoKinds() {
+    const chat = { ...API_CONVERSATIONS[0], id: 'z-1', accountId: 'acc-zalo', accountIds: ['acc-zalo'], provider: 'zalo', kind: 'CHAT', title: 'Gia đình', subject: null }
+    server.use(
+      http.get('/api/accounts', () => HttpResponse.json([...API_ACCOUNTS, { ...API_ACCOUNTS[0], id: 'acc-zalo', provider: 'zalo', address: '+84 9•• ••• 218' }])),
+      http.get('/api/providers', () => HttpResponse.json([...API_PROVIDERS, { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: ['READ_MESSAGES'] }])),
+      http.get('/api/conversations/counts', () =>
+        HttpResponse.json({ unread: 1, byProvider: {}, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0, unreadByKind: { EMAIL: 1, CHAT: 1 } }),
+      ),
+      http.get('/api/conversations', ({ request }) =>
+        HttpResponse.json({ items: new URL(request.url).searchParams.get('kind') === 'chat' ? [chat] : API_CONVERSATIONS, nextCursor: null }),
+      ),
+    )
+  }
+
+  it('says "N tin mới" on Tin nhắn for new chats, and nothing for new mail', async () => {
+    twoKinds()
+    renderApp('/messages', { inbox: null })
+    await list().findByRole('link', { name: /Gia đình/ })
+    lastStream().open()
+
+    lastStream().emit('conversations.changed', event('sync', 2))
+    lastStream().emit('conversations.changed', { ...event('sync', 1), accountId: 'acc-zalo' })
+
+    expect(await screen.findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /thư mới/ })).toBeNull()
+  })
+
+  it('says nothing on Hộp thư for new chats', async () => {
+    twoKinds()
+    renderApp('/inbox', { inbox: null })
+    await list().findByRole('link', { name: /Trần Minh Anh/ })
+    lastStream().open()
+
+    lastStream().emit('conversations.changed', { ...event('sync', 1), accountId: 'acc-zalo' })
+    lastStream().emit('conversations.changed', event('sync', 2))
+
+    expect(await screen.findByRole('button', { name: '2 thư mới' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /3 thư mới|tin mới/ })).toBeNull()
+  })
+})

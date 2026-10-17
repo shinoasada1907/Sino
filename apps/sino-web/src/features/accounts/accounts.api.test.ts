@@ -18,7 +18,7 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
 
     const data = await fetchAccounts()
 
-    expect(data.providers).toEqual([{ type: 'gmail', displayName: 'Gmail' }])
+    expect(data.providers).toEqual([{ type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' }])
     expect(data.storedMessages).toBeNull()
     expect(Date.parse(data.generatedAt)).not.toBeNaN()
     expect(data.accounts).toEqual([
@@ -103,7 +103,7 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
     server.use(http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)))
 
     expect(await fetchConnectProviders()).toEqual([
-      { type: 'gmail', displayName: 'Gmail', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'], connectable: true, scopes: null },
+      { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'], connectable: true, scopes: null },
     ])
   })
 

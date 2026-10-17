@@ -28,6 +28,9 @@ new_features: TRAINING
 # that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
 task_overrides:
   zalo-personal: AUTO       # 2026-10-15: AUTO from ZL-02 on ("chuyển sang mode AUTO tiếp tục phần tích hợp zalo"); 2026-10-14: TRAINING, the user coded ZL-01 ("Toàn bộ")
+  # 2026-10-16: BE-110 of f05c-messages-inbox-split ran in TRAINING ("phần này tôi làm được không" → "oke step by step
+  # nhé"): the user coded it in small steps, Claude wrote the tests from step 5 and, when asked, finished and committed it.
+  # BE-110 is done; f05c follows `backend: AUTO` again.
   # 2026-10-03: BE-11 started in TRAINING ("tôi muốn code tay BE-11"); the user typed the entity mapping and V3, then
   # handed it back ("thôi bạn auto luôn đi") to relearn Java and Spring first. BE-11 finished in AUTO.
   # 2026-10-01: F03 (BE-19..BE-26) started in TRAINING (the user coded BE-19 to learn Java), then the user

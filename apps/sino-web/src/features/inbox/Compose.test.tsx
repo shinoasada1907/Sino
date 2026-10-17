@@ -31,7 +31,7 @@ describe('writing and sending', () => {
   })
 
   it('sends a chat message with Enter: it shows as sending, then sent, and becomes the preview of the row', async () => {
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const user = userEvent.setup()
     const box = await chat('Gia đình').findByRole('textbox', { name: 'Nhắn tin tới Gia đình' })
 
@@ -45,7 +45,7 @@ describe('writing and sending', () => {
   })
 
   it('starts a new line with Shift Enter in a chat instead of sending', async () => {
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const user = userEvent.setup()
     const box = await chat('Gia đình').findByRole('textbox', { name: 'Nhắn tin tới Gia đình' })
 
@@ -56,7 +56,7 @@ describe('writing and sending', () => {
   })
 
   it('does not send while an input method is still composing a word', async () => {
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const box = await chat('Gia đình').findByRole('textbox', { name: 'Nhắn tin tới Gia đình' })
     const user = userEvent.setup()
     await user.type(box, 'Vie')
@@ -91,7 +91,7 @@ describe('writing and sending', () => {
   })
 
   it('does not send an empty message', async () => {
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const user = userEvent.setup()
     const box = await chat('Gia đình').findByRole('textbox', { name: 'Nhắn tin tới Gia đình' })
 
@@ -103,7 +103,7 @@ describe('writing and sending', () => {
 
   it('marks a message that could not be sent', async () => {
     vi.mocked(sendMessage).mockRejectedValueOnce(new Error('offline'))
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const user = userEvent.setup()
 
     await user.type(await chat('Gia đình').findByRole('textbox', { name: 'Nhắn tin tới Gia đình' }), 'Alo{Enter}')
