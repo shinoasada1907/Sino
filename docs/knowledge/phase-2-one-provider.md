@@ -2108,7 +2108,7 @@ Sau BE-81, chuỗi "xin chào" là một dòng, nhưng mở ra thì `GET /api/co
   hello     đến  10:41:02        hello     đi   10:41:00   -->   hello     (từ b-1: thư đi)
 ```
 
-Một thư có ở nhiều bản thì lấy theo thứ tự: bản mà nó là thư **đi** (bản đó giữ `clientMessageId` và trạng thái gửi của Sino), rồi bản chính, rồi bản cũ nhất. Thư chưa có `Message-ID` (ví dụ trả lời vừa gửi từ Sino, chưa đồng bộ về) hay có header `Message-ID` để trống thì luôn hiện: không có gì nói hai thư như vậy là một.
+Một thư có ở nhiều bản thì lấy theo thứ tự: bản mà nó là thư **đi** (bản đó giữ `clientMessageId` và trạng thái gửi của Sino), rồi bản cũ nhất (từ D-184 = B, không xét bản chính nữa, mục 26.6). Thư chưa có `Message-ID` (ví dụ trả lời vừa gửi từ Sino, chưa đồng bộ về) hay có header `Message-ID` để trống thì luôn hiện: không có gì nói hai thư như vậy là một.
 
 ### 26.2 `DISTINCT ON`: giữ dòng đầu của mỗi khóa
 PostgreSQL có `SELECT DISTINCT ON (biểu thức)`: trong các dòng cùng giá trị biểu thức, chỉ giữ dòng **đầu tiên** theo `ORDER BY`. `ORDER BY` phải bắt đầu bằng đúng biểu thức đó; phần sau của `ORDER BY` quyết dòng nào là "đầu tiên":
@@ -2131,7 +2131,7 @@ Từng mảnh:
 | `'rfc:'` nối với `Message-ID` | khóa của thư có `Message-ID`; nối với `NULL` cho ra `NULL` |
 | `NULLIF(..., '')` | header `Message-ID:` để trống được lưu thành chuỗi rỗng; coi nó như không có, nếu không mọi thư như vậy chung khóa `rfc:` và chỉ còn một (review tìm ra) |
 | `COALESCE(...)` với `'id:'` nối với `m.id` | thư không có `Message-ID` lấy khóa riêng là mã của nó, nên không bao giờ trùng thư khác; hai tiền tố giữ cho một `Message-ID` không bao giờ bằng mã của một thư |
-| `unnest(...) WITH ORDINALITY` | biến danh sách Java `[bản chính, bản cũ nhất, ...]` thành các dòng có số thứ tự `rank`: thứ tự ưu tiên tính ở Java đi thẳng vào SQL |
+| `unnest(...) WITH ORDINALITY` | biến danh sách Java `[bản cũ nhất, ..., bản mới nhất]` thành các dòng có số thứ tự `rank`: thứ tự ưu tiên tính ở Java đi thẳng vào SQL |
 | `m.direction = 'OUTBOUND' DESC` | `boolean` sắp `false` trước `true`; `DESC` đưa thư đi lên đầu |
 | `m.id` ở cuối | mọi thứ khác ngang nhau thì kết quả vẫn luôn như nhau; thiếu nó, `DISTINCT ON` được phép lấy dòng nào cũng được |
 
@@ -2158,8 +2158,8 @@ Xóa thư gửi lỗi cũng vậy: thư nằm ở bản đã ghi nó (bản chí
 ### 26.5 `lockAll`: một chỗ cho thứ tự khóa
 BE-81 viết `copies().stream().map(Copy::accountId).distinct().sorted().forEach(summaries::lock)` ở hai nơi (`PATCH` và trả lời). Xóa thư gửi lỗi là nơi thứ ba. Thay vì chép lần ba, quy tắc "khóa mọi tài khoản theo một thứ tự" (mục 25.5) chuyển vào `ConversationSummaries.lockAll(accountIds)`, và cả ba nơi gọi nó. Quy tắc chống deadlock nằm ở một chỗ thì không có nơi nào quên `sorted()`.
 
-### 26.6 Còn mở: bản chính đổi giữa hai trang
-Review chỉ ra một chỗ mà quy tắc D-184 tự nó gây ra. Thư Alice gửi tới cả hai tài khoản là thư **đến** ở cả hai bản, nên bản được chọn là bản chính. Bản chính lại đổi mỗi khi bản kia có thư mới (D-181), và hai bản ghi giờ của thư đó lệch nhau vài giây:
+### 26.6 Bản chính đổi giữa hai trang (D-184 = B, bạn chốt)
+Review chỉ ra một chỗ mà quy tắc D-184 ban đầu ("thư đi, rồi bản chính, rồi bản cũ nhất") tự nó gây ra. Thư Alice gửi tới cả hai tài khoản là thư **đến** ở cả hai bản, nên bản được chọn là bản chính. Bản chính lại đổi mỗi khi bản kia có thư mới (D-181), và hai bản ghi giờ của thư đó lệch nhau vài giây:
 
 ```text
   trang 1 dừng ở cursor 10:00:02
@@ -2168,12 +2168,16 @@ Review chỉ ra một chỗ mà quy tắc D-184 tự nó gây ra. Thư Alice g�
   bản chính đổi sang B trước khi tải trang 2: lấy M của B (10:00:05 > cursor) -> mất M
 ```
 
-Ngược lại thì M hiện hai lần, và mã của M cũng đổi giữa hai lần tải. Chỉ xảy ra khi có thư mới đến đúng lúc bạn đang cuộn lên đọc chuỗi, và tải lại thì đúng. Cách bỏ hẳn: chọn "thư đi, rồi bản cũ nhất", không xét bản chính, vì bản cũ nhất chỉ đổi khi một tài khoản ra khỏi Hộp thư. D-184 là quyết định bạn đã duyệt, nên việc này để bạn chốt.
+Ngược lại thì M hiện hai lần, và mã của M cũng đổi giữa hai lần tải. Chỉ xảy ra khi có thư mới đến đúng lúc bạn đang cuộn lên đọc chuỗi, và tải lại thì đúng.
+
+Bạn chọn B (2026-10-17): "thư đi, rồi bản cũ nhất", không xét bản chính. Bản cũ nhất chỉ đổi khi một tài khoản ra khỏi Hộp thư, nên bản được chọn cho một thư đứng yên giữa hai lần tải trang. Code chỉ đổi một dòng: `page` truyền `conversationIds()` (cũ → mới) thay vì đưa `primaryId` lên đầu. Test `anotherPrimaryCopyBetweenTwoPagesLeavesNoMailOutNorTwice` dựng đúng cảnh trên: tải trang 1, lưu một thư mới vào bản kia cho nó thành bản chính, tải trang 2. Với quy tắc cũ, test đỏ vì trang 2 mang lại K từ bản kia và làm mất M.
+
+Bài học chung: một quy tắc chọn dữ liệu cho phân trang keyset phải **ổn định** giữa các lần gọi. Nếu thứ tự hay giá trị dùng làm cursor phụ thuộc vào thứ có thể đổi giữa hai trang (ở đây là bản chính), cursor của trang trước không còn chỉ đúng chỗ.
 
 ### 26.7 Kiểm chứng (BE-82)
 - **Nhận lại từ bản nháp:** phiên sino-api-84 dừng giữa task (2026-10-14), để lại code và test chưa chạy, chưa commit. Bản nháp áp được lên `dev` mà không lệch. Phiên này soát lại, rồi đổi phép sắp sang cột hẹp, thêm `m.id` vào thứ tự, và thêm test cho tài khoản dùng để gọi Gmail.
 - **Đỏ trước:** 7 test mới, chạy trên code của `dev`, đỏ đúng lý do: `404 MESSAGE_NOT_FOUND` / `ATTACHMENT_NOT_FOUND` vì thư nằm ở bản kia, danh sách chỉ có thư của một bản. 21 test cũ vẫn xanh. Sau review thêm test `Message-ID` trống, đỏ đúng lý do (hai thư còn một), rồi sửa bằng `NULLIF`.
-- **Kiểm tra ngược:** 7 lỗi gài, cả 7 làm test đỏ: bỏ ưu tiên thư đi, xếp bản chính cuối, xếp bản mới trước bản cũ (test ba bản, test này xanh ngay khi viết vì hành vi đã có), cắt trang trước khi bỏ trùng, đọc lại thư bằng tài khoản của bản trong đường dẫn, tải tệp bằng tài khoản đó, xóa thư nhưng báo bản trong đường dẫn.
+- **Kiểm tra ngược (trước D-184 = B):** 7 lỗi gài, cả 7 làm test đỏ: bỏ ưu tiên thư đi, xếp bản chính cuối, xếp bản mới trước bản cũ (test ba bản, test này xanh ngay khi viết vì hành vi đã có), cắt trang trước khi bỏ trùng, đọc lại thư bằng tài khoản của bản trong đường dẫn, tải tệp bằng tài khoản đó, xóa thư nhưng báo bản trong đường dẫn.
 - **Review (`senior-reviewer`):** không có lỗi CRITICAL hay HIGH. `Message-ID` trống: đã sửa. Thiếu test bậc "bản cũ nhất": đã thêm. Bản chính đổi giữa hai trang (mục 26.6): để bạn chốt. Ngoài BE-82, đã ghi vào `tasks.md`: `ThreadGroups` (BE-80) có thể gộp nhầm hai chuỗi có `Message-ID` trống; thư lấy từ bản của tài khoản `AUTH_EXPIRED` thì không đọc lại được.
 - **Toàn bộ:** `./mvnw -B -ntp verify`: 1529 test, 0 sai, 0 lỗi, 4 bỏ qua.
 - **Chưa kiểm:** dữ liệu thật của bạn, và `EXPLAIN ANALYZE` của câu đọc thư (BE-83).

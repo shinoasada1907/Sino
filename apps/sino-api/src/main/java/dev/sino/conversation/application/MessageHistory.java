@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -41,12 +40,13 @@ public class MessageHistory {
     private static final String SELECT = COLUMNS + "WHERE m.conversation_id = :conversation\n";
 
     // The messages of every copy of a thread (F05b, D-184), each Message-ID once: from the copy it went from, which
-    // keeps what Sino knows of a message it sent, else the primary copy, else the oldest. A message without one is
-    // always there, and so is one whose Message-ID header was empty: nothing says two of those are one. Only IDs and
-    // times are sorted for that; the page is cut from what is left, so it never brings back the other copy of a
-    // message, which its own mailbox may date differently, and only the messages of the page are read whole. The key
-    // is written out, not a parameter: DISTINCT ON and ORDER BY must be the same expression, and two parameters are two
-    // expressions to PostgreSQL.
+    // keeps what Sino knows of a message it sent, else the oldest copy. Not the primary one: it changes when another
+    // copy gets a new message, and the copy picked must not, or a page would leave out or repeat what another copy
+    // dates on the other side of its cursor. A message without one is always there, and so is one whose Message-ID
+    // header was empty: nothing says two of those are one. Only IDs and times are sorted for that; the page is cut from
+    // what is left, so it never brings back the other copy of a message, which its own mailbox may date differently,
+    // and only the messages of the page are read whole. The key is written out, not a parameter: DISTINCT ON and
+    // ORDER BY must be the same expression, and two parameters are two expressions to PostgreSQL.
     private static final String EVERY_COPY = """
             WITH shown AS (
                 SELECT DISTINCT ON (COALESCE('rfc:' || NULLIF(m.metadata ->> '%1$s', ''), 'id:' || m.id))
@@ -73,10 +73,7 @@ public class MessageHistory {
      * @throws dev.sino.common.error.SinoException with {@code CONVERSATION_NOT_FOUND} when not in the inbox
      */
     public MessagePage page(UUID ownerId, UUID conversationId, MessageCursor cursor, int limit) {
-        InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
-        // The primary copy first, then the others from the oldest on: the order a message of many copies is taken in.
-        List<UUID> copies = Stream.concat(Stream.of(conversation.primaryId()), conversation.conversationIds().stream())
-                .distinct().toList();
+        List<UUID> copies = inbox.requireInInbox(ownerId, conversationId).conversationIds();
         // Keyset paging as for the inbox; one more row than asked tells whether there is a next page.
         JdbcClient.StatementSpec query = jdbc.sql(EVERY_COPY + COLUMNS + "WHERE m.id IN (SELECT id FROM shown"
                 + (cursor == null ? "" : " WHERE (sent_at, id) < (:before, :beforeId)")

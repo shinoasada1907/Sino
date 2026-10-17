@@ -491,8 +491,8 @@ class MergedThreadsApiTests {
     }
 
     // D-184: a mail only one copy holds is there too, and so is every mail without a Message-ID, such as a reply Sino
-    // has just sent: nothing says two of those are one. A mail that came in to both copies is taken from the primary
-    // one, here the copy of Sinon, which holds the newest mail.
+    // has just sent: nothing says two of those are one. A mail that came in to both copies is taken from the oldest
+    // one, the copy of Tiến, though the copy of Sinon holds the newest mail and is the primary one (D-184 = B).
     @Test
     void aMessageOfOneCopyOnlyAndMessagesWithoutAMessageIdAreThere() throws Exception {
         store(tien, "t-1", inbound("t-1", "t-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
@@ -506,7 +506,7 @@ class MergedThreadsApiTests {
 
         assertThat(ids).containsExactly(messageId("b-cc").toString(),
                 maxOf(messageIdIn(tien, "same"), messageIdIn(sinon, "same")),
-                minOf(messageIdIn(tien, "same"), messageIdIn(sinon, "same")), messageId("b-a").toString());
+                minOf(messageIdIn(tien, "same"), messageIdIn(sinon, "same")), messageId("t-a").toString());
     }
 
     // A Message-ID header left empty is stored empty: two such mails are not one either, even in a thread of one copy.
@@ -520,9 +520,10 @@ class MergedThreadsApiTests {
                         messageId("t-x").toString())));
     }
 
-    // D-184 with three copies: a mail two copies hold, neither of them the primary one, is taken from the oldest.
+    // D-184 = B with three copies: a mail every copy received is taken from the oldest, not the primary one (the copy
+    // of Ba, which holds the newest mail), and so is a mail two of them received.
     @Test
-    void aMessageNotInThePrimaryCopyIsTakenFromTheOldestCopy() throws Exception {
+    void aMessageOfManyCopiesIsTakenFromTheOldestCopy() throws Exception {
         UUID third = connect("ba@gmail.test", "Ba");
         UUID group = store(tien, "t-1", inbound("t-1", "t-a", ALICE, "<a@mail.test>", XIN_CHAO, false),
                 inbound("t-1", "t-m", ALICE, "<m@mail.test>", HELLLO, false));
@@ -533,7 +534,32 @@ class MergedThreadsApiTests {
 
         messages(get("/api/conversations/{id}/messages", group))
                 .andExpect(jsonPath("$.items[*].id", contains(messageId("c-z").toString(),
-                        messageId("c-a").toString(), messageId("t-m").toString())));
+                        messageId("t-a").toString(), messageId("t-m").toString())));
+    }
+
+    // D-184 = B: a new mail in the other copy makes it the primary one between two pages, and the next page still
+    // brings each mail once. Each mailbox dates a mail when it came in: M is later in Sinon's copy than where page 1
+    // stopped, K earlier, so a copy picked by the primary one would skip M and bring K again.
+    @Test
+    void anotherPrimaryCopyBetweenTwoPagesLeavesNoMailOutNorTwice() throws Exception {
+        Instant at = Instant.parse("2026-10-12T10:00:00Z");
+        UUID group = store(tien, "t-1", inbound("t-1", "t-n", ALICE, "<n@mail.test>", at.plusSeconds(10), false),
+                inbound("t-1", "t-k", ALICE, "<k@mail.test>", at.plusSeconds(2), false),
+                inbound("t-1", "t-m", ALICE, "<m@mail.test>", at, false));
+        store(sinon, "b-1", inbound("b-1", "b-k", ALICE, "<k@mail.test>", at.plusSeconds(1), false),
+                inbound("b-1", "b-m", ALICE, "<m@mail.test>", at.plusSeconds(5), false));
+        String first = messages(get("/api/conversations/{id}/messages", group).param("limit", "2"))
+                .andReturn().getResponse().getContentAsString();
+        store(sinon, "b-1", inbound("b-1", "b-p", ALICE, "<p@mail.test>", at.plusSeconds(20), false));
+
+        String second = messages(get("/api/conversations/{id}/messages", group).param("limit", "2")
+                .param("cursor", JsonPath.<String>read(first, "$.nextCursor")))
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> seen = new ArrayList<>(JsonPath.<List<String>>read(first, "$.items[*].id"));
+        seen.addAll(JsonPath.read(second, "$.items[*].id"));
+        assertThat(seen).containsExactly(messageId("t-n").toString(), messageId("t-k").toString(),
+                messageId("t-m").toString());
     }
 
     // D-184: the copy a message is taken from may date it later than the other copy; cut from the messages once each,

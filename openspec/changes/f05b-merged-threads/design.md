@@ -49,7 +49,8 @@ Mã của nhóm trong API là mã của cuộc trò chuyện **cũ nhất** (`cr
 **Phương án bị loại:** mã nhóm mới hoàn toàn (đổi mọi đường dẫn đã có, thêm một loại mã); mã của bản chính (đổi mỗi khi có thư mới ở bản khác).
 
 ### D-184 — Thư của chuỗi gộp · **Người dùng duyệt**
-`GET /api/conversations/{id}/messages` trả thư của mọi bản, mỗi `rfcMessageId` một lần; thư chưa có `rfcMessageId` (vừa gửi từ Sino) luôn có mặt. Một thư có ở nhiều bản thì lấy bản mà nó là thư **đi** (để còn `clientMessageId`, trạng thái gửi của Sino), không có thì bản chính, rồi bản cũ nhất. Web: thư của bạn ghi "Bạn · {địa chỉ gửi}" khi chuỗi có nhiều tài khoản.
+`GET /api/conversations/{id}/messages` trả thư của mọi bản, mỗi `rfcMessageId` một lần; thư chưa có `rfcMessageId` (vừa gửi từ Sino) luôn có mặt. Một thư có ở nhiều bản thì lấy bản mà nó là thư **đi** (để còn `clientMessageId`, trạng thái gửi của Sino), không có thì ~~bản chính, rồi~~ bản cũ nhất. Web: thư của bạn ghi "Bạn · {địa chỉ gửi}" khi chuỗi có nhiều tài khoản.
+**Đổi (người dùng chọn B, 2026-10-17):** bỏ bậc "bản chính". **LÝ DO:** review của BE-82 chỉ ra bản chính đổi mỗi khi bản kia có thư mới (D-181), còn hai bản ghi giờ của một thư lệch vài giây; bản được chọn đổi giữa hai lần tải trang thì một thư có thể mất (giờ của bản mới nằm trên cursor) hoặc hiện hai lần. Bản cũ nhất chỉ đổi khi một tài khoản ra khỏi Hộp thư. Phương án A (giữ bản chính) bị loại.
 **LÝ DO:** cùng một thư hiện hai lần (một "đi", một "đến") là điều người dùng đang phàn nàn.
 **Phương án bị loại:** chỉ hiện thư của bản chính (thiếu thư mà chỉ bản kia có, ví dụ tài khoản được CC sau).
 
