@@ -2,27 +2,36 @@ package dev.sino.provider.infrastructure.zalo;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.LookupRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.SendRequest;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.Sent;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.ThreadType;
 import dev.sino.provider.spi.AccountProfile;
+import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageProvider;
+import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
 import dev.sino.provider.spi.QrLogin;
+import dev.sino.provider.spi.SendMessageCommand;
+import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 
 /**
  * The personal Zalo connector (F09): Sino reaches Zalo through the sino-zalo service (D-273), every call through
  * {@link ZaloClient}. It connects by QR code, and is in the registry also while turned off (D-286). Reading buffered
- * messages and push registration are active (ZL-08); sending comes in ZL-09.
+ * messages, push registration and sending/reconciling text messages are active (ZL-08, ZL-09).
  */
 class ZaloProvider implements MessageProvider {
 
@@ -45,6 +54,7 @@ class ZaloProvider implements MessageProvider {
 
     private static final ProviderCapabilities CAPABILITIES = ProviderCapabilities.of(
             ProviderCapability.READ_MESSAGES,
+            ProviderCapability.SEND_MESSAGES,
             ProviderCapability.PUSH_WEBHOOK);
 
     private final boolean turnedOn;
@@ -107,6 +117,34 @@ class ZaloProvider implements MessageProvider {
     }
 
     @Override
+    public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
+        ThreadType threadType = command.conversationType() == ConversationType.GROUP
+                ? ThreadType.GROUP : ThreadType.USER;
+        Sent sent = client.send(context, new SendRequest(
+                command.externalConversationId(),
+                threadType,
+                command.textContent(),
+                command.clientMessageId().toString()));
+        return new SendMessageResult(sent.msgId(), MessageStatus.SENT, sent.sentAt());
+    }
+
+    @Override
+    public List<String> findSentMessages(ProviderContext context, SendMessageCommand command, Instant startedAt) {
+        try {
+            return client.lookup(context, new LookupRequest(
+                    command.externalConversationId(),
+                    command.clientMessageId().toString(),
+                    command.textContent(),
+                    startedAt));
+        } catch (ProviderException failure) {
+            if (ZaloClient.cannotTell(failure)) {
+                throw new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, failure.getMessage());
+            }
+            throw failure;
+        }
+    }
+
+    @Override
     public Optional<PushRegistration> registerPush(ProviderContext context) {
         String ownId = context.externalAccountId() == null ? null : context.externalAccountId().strip();
         if (ownId == null || ownId.isEmpty()) {
@@ -118,3 +156,4 @@ class ZaloProvider implements MessageProvider {
     }
 
 }
+

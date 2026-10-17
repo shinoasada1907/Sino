@@ -67,7 +67,8 @@ public class Replies {
 
     /**
      * D-133: the Reply-To, else the sender, of the newest incoming message; with no incoming message, whom the newest
-     * outgoing one went to. A message stored before Sino read addressees has no Reply-To, so it goes to the sender.
+     * outgoing one went to, or the chat thread itself ({@code DIRECT} / {@code GROUP}) when only self-sent messages
+     * without stored recipients exist.
      */
     private List<Address> recipientsOf(UUID conversationId) {
         Optional<Newest> incoming = newest(conversationId, MessageDirection.INBOUND);
@@ -80,10 +81,19 @@ public class Replies {
             return message.sender() == null ? List.of() : List.of(message.sender());
         }
         // A key missing from what the store kept reads as null, like unknown addressees.
-        return newest(conversationId, MessageDirection.OUTBOUND)
+        List<Address> outgoing = newest(conversationId, MessageDirection.OUTBOUND)
                 .map(message -> message.recipients() == null || message.recipients().to() == null ? List.<Address>of()
                         : message.recipients().to())
                 .orElse(List.of());
+        if (!outgoing.isEmpty()) {
+            return outgoing;
+        }
+        return jdbc.sql("""
+                SELECT title, external_conversation_id FROM conversation
+                WHERE id = :conversation AND type IN ('DIRECT', 'GROUP')
+                """).param("conversation", conversationId)
+                .query((row, n) -> new Address(row.getString("title"), row.getString("external_conversation_id")))
+                .list();
     }
 
     private Optional<Newest> newest(UUID conversationId, MessageDirection direction) {

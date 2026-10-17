@@ -20,6 +20,7 @@ import dev.sino.common.error.SinoException;
 import dev.sino.conversation.ConversationChanged;
 import dev.sino.conversation.SentMessages;
 import dev.sino.conversation.infrastructure.ConversationSummaries;
+import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.NormalizedRecipients;
 import dev.sino.provider.spi.ProviderErrorCode;
@@ -155,7 +156,7 @@ public class ReplyService implements SentMessages {
     @Override
     public void reconcile(UUID accountId) {
         List<Uncertain> uncertain = jdbc.sql("""
-                SELECT m.id, m.conversation_id, m.client_message_id, c.external_conversation_id, m.text_content,
+                SELECT m.id, m.conversation_id, m.client_message_id, c.external_conversation_id, c.type, m.text_content,
                        m.reply_to_external_message_id, m.recipients, m.sent_at,
                        m.sent_at < now() - interval '10 minutes' AS given_up
                 FROM message m JOIN conversation c ON c.id = m.conversation_id
@@ -167,6 +168,7 @@ public class ReplyService implements SentMessages {
                         row.getObject("conversation_id", UUID.class), row.getObject("client_message_id", UUID.class),
                         row.getBoolean("given_up"),
                         new SendMessageCommand(row.getString("external_conversation_id"),
+                                ConversationType.valueOf(row.getString("type")),
                                 row.getString("text_content"), row.getString("reply_to_external_message_id"),
                                 addresseesOf(row.getString("recipients")),
                                 row.getObject("client_message_id", UUID.class), null),
@@ -180,7 +182,8 @@ public class ReplyService implements SentMessages {
                         (connector, context) -> connector.findSentMessages(context, message.command(),
                                 message.startedAt()));
             } catch (ProviderException failure) {
-                if (failure.errorCode() != ProviderErrorCode.CAPABILITY_NOT_SUPPORTED) {
+                if (failure.errorCode() != ProviderErrorCode.CAPABILITY_NOT_SUPPORTED
+                        && failure.errorCode() != ProviderErrorCode.OUTCOME_UNKNOWN) {
                     log.warn("Messages of account {} were not checked: {}", accountId, failure.errorCode());
                     return;
                 }
@@ -277,8 +280,12 @@ public class ReplyService implements SentMessages {
         if (reply.to().isEmpty()) {
             throw ConversationErrorCode.noRecipient();
         }
-        String externalConversationId = jdbc.sql("SELECT external_conversation_id FROM conversation WHERE id = :id")
-                .param("id", copy).query(String.class).single();
+        ConversationTarget target = jdbc.sql("""
+                SELECT external_conversation_id, type FROM conversation WHERE id = :id
+                """).param("id", copy)
+                .query((row, n) -> new ConversationTarget(row.getString("external_conversation_id"),
+                        ConversationType.valueOf(row.getString("type"))))
+                .single();
         // The message it answers is the newest the provider has: not one Sino has yet to send.
         String answered = jdbc.sql("""
                 SELECT external_message_id FROM message
@@ -301,7 +308,8 @@ public class ReplyService implements SentMessages {
                 : write(copy, clientMessageId, text, answered, recipients);
         changed(accountId, copy);
         return new Attempt(messageId, accountId, copy, clientMessageId,
-                new SendMessageCommand(externalConversationId, text, answered, to, clientMessageId, senderName),
+                new SendMessageCommand(target.externalConversationId(), target.type(), text, answered, to,
+                        clientMessageId, senderName),
                 false);
     }
 
@@ -412,6 +420,9 @@ public class ReplyService implements SentMessages {
     }
 
     private record Existing(UUID id, UUID conversationId, MessageStatus status) {
+    }
+
+    private record ConversationTarget(String externalConversationId, ConversationType type) {
     }
 
     private record Discardable(UUID copy, boolean failedFromSino) {

@@ -224,6 +224,7 @@ Spike mới thấy hai loại `webchat` và `chat.photo`. Tên `chat.sticker`, `
   2. tin `isSelf` trong bộ đệm của thread đó, sau `after`, cùng nội dung.
 
   Nếu `sino-zalo` khởi động lại sau `after` (không biết gì) thì trả `409 CANNOT_TELL` và `ZaloProvider` ném lỗi, **không trả rỗng** (đúng contract F10). Thư giữ `UNKNOWN` theo D-136/D-138; ZL-09 kiểm hành vi này trên `ReplyService` thật.
+  - **Chốt ở ZL-09** (2026-10-17, AUTO): `ZaloProvider.findSentMessages` đổi `409 CANNOT_TELL` của `ZaloClient.lookup` thành `ProviderException(OUTCOME_UNKNOWN)`; `ReplyService.reconcile` coi `OUTCOME_UNKNOWN` từ `findSentMessages` như `CAPABILITY_NOT_SUPPORTED` (`canTell = false` cho tin đó nên giữ `UNKNOWN` cả sau 10 phút, và tiếp tục duyệt các tin `UNKNOWN` mới hơn phía sau). `SendMessageCommand` mang thêm `ConversationType` (`DIRECT` → `USER`, `GROUP` → `GROUP`), và `Replies.recipientsOf` lấy địa chỉ từ chính cuộc trò chuyện (`DIRECT` / `GROUP`) khi cuộc trò chuyện chỉ có tin tự gửi từ điện thoại (không có `recipients`).
 - **Không trích dẫn** (`replyToExternalMessageId` bỏ qua): trích dẫn trên Zalo cần cả object tin gốc.
 - **Giới hạn tốc độ:** tối đa 1 tin mỗi giây cho mỗi account, vượt thì `429`.
 - **Capability của Zalo:** `READ_MESSAGES`, `SEND_MESSAGES`, `PUSH_WEBHOOK`.

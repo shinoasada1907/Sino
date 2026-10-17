@@ -1104,3 +1104,40 @@ Một tin thiếu `msgId`, `threadId`, `threadType` hợp lệ (`USER`/`GROUP`),
 ### 13.5 Kiểm chứng (ZL-08)
 - **Đỏ trước:** 3 lớp test mới (`ZaloMessageNormalizerTests`, `ZaloFetchUpdatesTests`, `ZaloWebhookTests`) và `ZaloProviderContractTest` (phần `READ_MESSAGES` + `PUSH_WEBHOOK`) đỏ khi chưa có `ZaloMessageNormalizer`, `ZaloWebhookController` và `ZaloProvider.{fetchUpdates,registerPush}`.
 - **Xanh:** `ZaloMessageNormalizerTests`, `ZaloFetchUpdatesTests`, `ZaloWebhookTests`, `ZaloProviderContractTest`, `ZaloProviderTests`, `ZaloWiringTests`, `ModularityTests` xanh toàn bộ.
+
+---
+
+## 14. ZL-09 — Trả lời tin Zalo: `sendMessage`, `findSentMessages` và đối chiếu `409 CANNOT_TELL`
+
+### 14.1 Luồng gửi và đối chiếu tin Zalo từ `ReplyService` (D-280, D-289)
+Khi người dùng trả lời một cuộc trò chuyện Zalo trên màn Tin nhắn (`/messages`), `ReplyService.send` (F10) ghi bản nháp `PENDING` với `clientMessageId`, rồi gọi `ZaloProvider.sendMessage(context, command)`:
+```text
+ReplyService.begin (Transaction 1)
+  |  - đọc external_conversation_id + type (DIRECT / GROUP) từ bảng conversation
+  |  - Replies.recipientsOf: lấy người gửi tin INBOUND mới nhất, hoặc recipients.to() của tin OUTBOUND,
+  |    hoặc chính cuộc trò chuyện (DIRECT / GROUP) khi chỉ có tin tự gửi từ điện thoại
+  |  - ghi message(status='PENDING', external_message_id='sino:<clientMessageId>')
+  v
+ZaloProvider.sendMessage(context, command)
+  |  - đổi ConversationType.GROUP -> ThreadType.GROUP, còn lại -> ThreadType.USER
+  |  - POST /accounts/{accountId}/messages {threadId, threadType, text, clientMessageId}
+  |  - gặp 404 UNKNOWN_ACCOUNT / 410 SESSION_ENDED -> PUT /session -> gửi lại 1 lần (D-289)
+  v
+ReplyService.sent / failed (Transaction 2)
+  |  - 201 {msgId, sentAt} -> cập nhật external_message_id = msgId, status = 'SENT'
+  |  - 429 RATE_LIMITED / 422 REQUEST_REJECTED -> status = 'FAILED' (gửi lại được)
+  |  - 504 SEND_TIMEOUT / đứt mạng sau khi gửi -> status = 'UNKNOWN' (đợi reconcile)
+```
+
+### 14.2 Vì sao `409 CANNOT_TELL` ở `findSentMessages` ném `OUTCOME_UNKNOWN` thay vì dừng vòng đối chiếu
+Trong bảng D-281 của `ZaloClient`, mã HTTP `409 CANNOT_TELL` từ `POST /accounts/{accountId}/sent/lookup` ném `ProviderException(PROVIDER_UNAVAILABLE)` để báo rằng `sino-zalo` vừa khởi động lại sau mốc `startedAt` nên đã mất bộ đệm RAM và bảng `SentLog` của thời điểm gửi đó — tuyệt đối không được trả danh sách rỗng `[]` (vì danh sách rỗng nghĩa là chắc chắn chưa gửi, sau 10 phút `ReplyService` sẽ chuyển tin sang `FAILED` và cho phép gửi lại lần hai).
+
+Tuy nhiên, `ReplyService.reconcile(accountId)` duyệt các tin `UNKNOWN` của tài khoản từ cũ tới mới. Nếu một tin cũ nhận `PROVIDER_UNAVAILABLE`, `reconcile` hiểu là cả nhà cung cấp đang sập và `return` ngay, khiến mọi tin `UNKNOWN` mới hơn đứng sau nó bị kẹt mãi mãi dù `sino-zalo` đã sống lại và biết rõ kết quả của các tin mới.
+
+Giải pháp ở `ZL-09`:
+1. `ZaloProvider.findSentMessages` bắt `ProviderException` từ `client.lookup`; nếu là `409 CANNOT_TELL` (`ZaloClient.cannotTell(failure)`), nó ném lại `ProviderException(OUTCOME_UNKNOWN, failure.getMessage())` (trong khi `ZaloClient.lookup` vẫn giữ `PROVIDER_UNAVAILABLE` theo bảng D-281).
+2. Trong `ReplyService.reconcile`, khi `findSentMessages` ném `CAPABILITY_NOT_SUPPORTED` **hoặc** `OUTCOME_UNKNOWN`, vòng lặp đặt `canTell = false` cho riêng tin đó (nên `givenUp = canTell && message.givenUp()` là `false`, tin đó giữ nguyên `UNKNOWN` kể cả khi đã quá 10 phút) rồi **tiếp tục sang tin kế tiếp** thay vì `return`.
+
+### 14.3 Kiểm chứng (ZL-09)
+- **Đỏ trước:** `ZaloSendTests`, `ZaloProviderTests`, `ZaloWiringTests` và 2 test mới trong `ConversationSendApiTests` (`aMessageSinoZaloCannotTellAboutStaysUnknownWhileANewerOneSettles`, `aChatConversationWithOnlyAnOutboundMessageRepliesToItsThreadAndPassesItsType`) đỏ trước khi sửa `ZaloProvider`, `ReplyService` và `Replies`.
+- **Xanh:** `Zalo*`, `ConversationSendApiTests`, `ConversationReplyApiTests`, `ModularityTests` (208 test chạy, 0 lỗi).

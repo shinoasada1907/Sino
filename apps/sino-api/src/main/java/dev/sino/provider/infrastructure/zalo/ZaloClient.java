@@ -47,6 +47,7 @@ class ZaloClient {
     private static final Logger LOG = LoggerFactory.getLogger(ZaloClient.class);
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final String ACCOUNT = "/accounts/{accountId}";
+    static final String CANNOT_TELL_MESSAGE = "sino-zalo cannot tell whether the message went out (409)";
 
     private final boolean enabled;
     private final RestClient reading;
@@ -184,6 +185,11 @@ class ZaloClient {
         return ProviderErrorCode.OUTCOME_UNKNOWN;
     }
 
+    static boolean cannotTell(ProviderException failure) {
+        return failure.errorCode() == ProviderErrorCode.PROVIDER_UNAVAILABLE
+                && CANNOT_TELL_MESSAGE.equals(failure.getMessage());
+    }
+
     private <T> T inSession(ProviderContext context, Call kind, Supplier<T> request) {
         requireOn();
         try {
@@ -245,8 +251,7 @@ class ZaloClient {
                     null);
         }
         if (status == 409) {
-            return new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE,
-                    "sino-zalo cannot tell whether the message went out (409)");
+            return new ProviderException(ProviderErrorCode.PROVIDER_UNAVAILABLE, CANNOT_TELL_MESSAGE);
         }
         if (failure.getStatusCode().is5xxServerError()) {
             return kind == Call.SEND

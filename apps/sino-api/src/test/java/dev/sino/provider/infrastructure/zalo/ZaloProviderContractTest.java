@@ -3,6 +3,7 @@ package dev.sino.provider.infrastructure.zalo;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.put;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
@@ -24,8 +25,8 @@ import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.TokenCredentials;
 
 /**
- * The checks every connector passes (F03), on the Zalo connector against a fake sino-zalo (WireMock). Reading and push
- * are enabled in ZL-08; sending is still refused without calling sino-zalo until ZL-09.
+ * The checks every connector passes (F03), on the Zalo connector against a fake sino-zalo (WireMock). Reading, push
+ * and sending are enabled (ZL-08, ZL-09).
  */
 class ZaloProviderContractTest extends MessageProviderContractTest {
 
@@ -52,6 +53,9 @@ class ZaloProviderContractTest extends MessageProviderContractTest {
         sinoZalo.resetAll();
         sinoZalo.stubFor(put(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/session"))
                 .willReturn(aResponse().withStatus(204)));
+        sinoZalo.stubFor(post(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/messages"))
+                .willReturn(aResponse().withStatus(201).withHeader("Content-Type", "application/json")
+                        .withBody("{\"msgId\": \"1004\", \"sentAt\": \"2026-10-17T08:05:00Z\"}")));
         sinoZalo.stubFor(get(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/messages"))
                 .willReturn(okJson("""
                         {

@@ -41,11 +41,12 @@ class ZaloProviderTests {
         assertThat(off.turnedOn()).isFalse();
     }
 
-    // Reading and push are built in ZL-08; sending comes in ZL-09.
+    // Reading, sending and push are built in ZL-08 and ZL-09.
     @Test
-    void declaresReadingAndPushCapabilities() {
+    void declaresReadingSendingAndPushCapabilities() {
         assertThat(zalo.capabilities().values()).containsExactlyInAnyOrder(
                 dev.sino.provider.ProviderCapability.READ_MESSAGES,
+                dev.sino.provider.ProviderCapability.SEND_MESSAGES,
                 dev.sino.provider.ProviderCapability.PUSH_WEBHOOK);
     }
 

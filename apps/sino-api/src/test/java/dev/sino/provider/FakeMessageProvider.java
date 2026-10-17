@@ -6,6 +6,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,6 +75,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private final List<SendMessageCommand> sent = new ArrayList<>();
     private final Queue<ProviderException> sendFailures = new ArrayDeque<>();
     private final Map<UUID, List<String>> foundSends = new HashMap<>();
+    private final Set<UUID> cannotTellSends = new HashSet<>();
     private final List<Search> searches = new ArrayList<>();
     private CountDownLatch[] held;
     private boolean findsSends = true;
@@ -245,6 +247,10 @@ public final class FakeMessageProvider implements MessageProvider {
         if (!findsSends) {
             return MessageProvider.super.findSentMessages(context, command, startedAt);
         }
+        if (cannotTellSends.contains(command.clientMessageId())) {
+            throw new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN,
+                    "sino-zalo cannot tell whether the message went out (409)");
+        }
         return foundSends.getOrDefault(command.clientMessageId(), List.of());
     }
 
@@ -256,6 +262,11 @@ public final class FakeMessageProvider implements MessageProvider {
     /** {@code false}: {@link #findSentMessages} cannot tell, as a connector without it does. */
     public synchronized void findsSends(boolean finds) {
         findsSends = finds;
+    }
+
+    /** {@link #findSentMessages} cannot tell whether the message Sino gave {@code clientMessageId} went out (409). */
+    public synchronized void cannotTell(UUID clientMessageId) {
+        cannotTellSends.add(clientMessageId);
     }
 
     /** The next sends fail with these, one each, in order; the send is still recorded. */
@@ -278,6 +289,7 @@ public final class FakeMessageProvider implements MessageProvider {
         sent.clear();
         sendFailures.clear();
         foundSends.clear();
+        cannotTellSends.clear();
         searches.clear();
         held = null;
         findsSends = true;
