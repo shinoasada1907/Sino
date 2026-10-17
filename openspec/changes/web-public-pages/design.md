@@ -2,7 +2,7 @@
 
 > Mode: **AUTO** (frontend). Người dùng 2026-10-17 chọn phạm vi "Landing + Privacy" và cách "Chép sang, giữ sino-site", rồi duyệt D-310…D-315 trong chat ("làm đi"): cả sáu là **người dùng duyệt**.
 > Nguồn: `apps/sino-site` (change `site-public-pages`: D-241 chữ đúng hiện trạng, D-245 khối quyền Google, D-252 chuyển động React Bits, D-253 trang Sino Messages). Thiết kế giao diện: canvas `Landing`, `SitePrivacy` như `sino-site` đã dựng.
-> Số quyết định: D-310…D-315. Task: WP-01…WP-04.
+> Số quyết định: D-310…D-316 (D-316 agent chốt ở WP-03). Task: WP-01…WP-04.
 
 ## Context
 
@@ -48,6 +48,10 @@ Email liên hệ, người đứng tên, ngày hiệu lực, nhà cung cấp má
 
 ### D-315 — Theme và tiêu đề tab · **Người dùng duyệt**
 Trang công khai theo theme của app (người dùng chọn, hay theo hệ điều hành); không có nút đổi theme riêng. Mỗi trang đặt `document.title` như `PAGES` của `sino-site` ("Sino Messages · Hộp thư chung cho Gmail và việc cần làm", "Chính sách quyền riêng tư · Sino", "Privacy policy · Sino") và trả lại tiêu đề cũ khi rời trang.
+
+### D-316 — Câu về cookie trong bản privacy của `sino-web` · **Agent chốt** (WP-03, để người dùng xem lại)
+Bản `sino-site` ghi "Site này (trang giới thiệu, chính sách và điều khoản) không dùng cookie…": đúng với một site tĩnh. Trong `sino-web`, mở `/` thì `HomeGate` hỏi `GET /api/auth/me`, và theo spec `web-authentication` câu trả lời cấp cookie `XSRF-TOKEN` (`csrf.spa()`). Chép nguyên câu thì chính sách nói sai đúng chỗ Google đọc. Bản `sino-web` đổi đoạn đó thành: trang giới thiệu và trang chính sách nằm trong ứng dụng, không đo lượt truy cập, không tải gì từ dịch vụ khác; lần hỏi phiên có thể đặt cookie chống giả mạo yêu cầu, một trong các cookie của ứng dụng đã ghi ở mục *Dữ liệu Sino lưu* (link `#thu-thap`). Tiếng Anh tương ứng. Mọi câu khác giữ nguyên.
+**Phương án bị loại:** giữ nguyên câu (sai sự thật, trái D-241 "chữ đúng hiện trạng" người dùng đã duyệt cho `sino-site`); không hỏi phiên ở `/` để khỏi có cookie (người đã đăng nhập mở domain thì không vào thẳng app được, trái D-310).
 
 ## Những chỗ khác `sino-site` khi chép
 

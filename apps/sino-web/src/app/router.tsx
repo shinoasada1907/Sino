@@ -8,6 +8,7 @@ import { InboxPage } from '@/features/inbox/InboxPage'
 import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotesPage } from '@/features/notes/NotesPage'
 import { HomeGate } from '@/features/public/HomeGate'
+import { PrivacyRoute } from '@/features/public/PrivacyRoute'
 import { TasksPage } from '@/features/tasks/TasksPage'
 import { NotFoundPage } from './NotFoundPage'
 import { MorePage } from './shell/MorePage'
@@ -33,6 +34,8 @@ export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
   // The Sino Messages page for a visitor, Tổng quan for the owner (D-310).
   { path: '/', element: <HomeGate /> },
+  { path: '/privacy', element: <PrivacyRoute lang="vi" /> },
+  { path: '/en/privacy', element: <PrivacyRoute lang="en" /> },
   {
     element: <RequireAuth />,
     children: [

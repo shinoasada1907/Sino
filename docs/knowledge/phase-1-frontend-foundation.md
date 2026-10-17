@@ -1773,6 +1773,19 @@ Link       thẻ <a href="/login"> thật (mở tab mới, đọc màn hình đ�
 
 Kết quả: nút trông như nút, là một link đúng nghĩa, và vào app không tải lại bundle. Test tìm thanh đầu qua link "Mở Sino Messages" đỏ khi trang có thêm hai nút cùng tên: Testing Library báo `Found multiple elements`. Tìm theo vai trò `banner` (chỉ có một thanh đầu) bền hơn tìm theo một chữ có thể lặp lại.
 
+### 24.5 Chính sách quyền riêng tư: chép chữ, nhưng chữ phải còn đúng (WP-03)
+Hai bản VI/EN được chép nguyên văn, kể cả câu Limited Use mà Google đòi đúng từng chữ. Ba chỗ phải đổi:
+
+```text
+thông tin chủ sở hữu   site.config.ts của sino-site  ->  features/public/owner.ts, đọc qua ownerDetails()
+link /security          trang Bảo mật chưa có (SI-05)  ->  giữ câu, bỏ link (D-311)
+"site này không dùng cookie"  đúng với site tĩnh, SAI trong app  ->  viết lại (D-316)
+```
+
+Câu cookie là bài học chính. Chép một văn bản sang chỗ mới thì từng câu phải được kiểm lại theo chỗ mới. Ở `sino-site` trang không gọi API nào, nên không có cookie. Ở `sino-web`, mở `/` thì `HomeGate` hỏi `GET /api/auth/me`, và máy chủ trả kèm cookie `XSRF-TOKEN` (Spring Security `csrf.spa()`, spec `web-authentication`). Test viết trước: trong mục *Phạm vi* không còn câu "không dùng cookie", có câu về cookie chống giả mạo yêu cầu, và có link về mục *Dữ liệu Sino lưu*, nơi chính sách vốn đã liệt kê cookie của ứng dụng.
+
+Thông tin chủ sở hữu đi qua hàm `ownerDetails()` chứ không phải một hằng số import thẳng, để test thay được nó bằng `vi.mock`: test vừa kiểm "[chưa điền: …]" khi còn trống, vừa kiểm email thành link `mailto:` và ngày viết kiểu Việt / Anh khi đã điền, mà không đỏ khi chủ sở hữu điền giá trị thật.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1973,3 +1986,5 @@ Kết quả: nút trông như nút, là một link đúng nghĩa, và vào app k
 168. Lúc đang hỏi phiên, `HomeGate` hiện dấu chờ thay vì trang giới thiệu; lúc máy chủ lỗi thì hiện trang giới thiệu. Giải thích từng lựa chọn, và vì sao `RequireAuth` làm khác ở trường hợp lỗi.
 169. Kể ba việc site tĩnh có sẵn mà ứng dụng một trang phải tự làm, và chỗ trong `PublicFrame` làm từng việc.
 170. Vì sao nút "Đăng nhập" của trang giới thiệu là `<Button asChild><Link to="/login">` mà không phải `<Button onClick={() => navigate("/login")}>`? Kể hai điều người dùng mất với cách thứ hai.
+171. Câu "site này không dùng cookie" đúng ở sino-site mà sai ở sino-web. Cookie nào, từ đâu ra? Kể một câu khác trong một văn bản bạn từng chép mà có thể sai theo cùng cách.
+172. Vì sao thông tin chủ sở hữu đọc qua hàm `ownerDetails()` thay vì import thẳng một hằng số? Test sẽ ra sao nếu import thẳng và chủ sở hữu điền email thật?
