@@ -41,10 +41,12 @@ class ZaloProviderTests {
         assertThat(off.turnedOn()).isFalse();
     }
 
-    // Each capability comes with the task that builds its operation: reading and push (ZL-08), sending (ZL-09).
+    // Reading and push are built in ZL-08; sending comes in ZL-09.
     @Test
-    void declaresNoCapabilityBeforeItsOperationsExist() {
-        assertThat(zalo.capabilities().values()).isEmpty();
+    void declaresReadingAndPushCapabilities() {
+        assertThat(zalo.capabilities().values()).containsExactlyInAnyOrder(
+                dev.sino.provider.ProviderCapability.READ_MESSAGES,
+                dev.sino.provider.ProviderCapability.PUSH_WEBHOOK);
     }
 
     // Who the account is comes with the QR login (D-275), not from a call with credentials.

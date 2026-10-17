@@ -1,7 +1,7 @@
 package dev.sino.provider.infrastructure.zalo;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,7 +38,8 @@ class ZaloWiringTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(ZALO + ".displayName", contains("Zalo")))
                 .andExpect(jsonPath(ZALO + ".kind", contains("CHAT")))
-                .andExpect(jsonPath(ZALO + ".capabilities", contains(empty())))
+                .andExpect(jsonPath(ZALO + ".capabilities",
+                        contains(containsInAnyOrder("READ_MESSAGES", "PUSH_WEBHOOK"))))
                 .andExpect(jsonPath(ZALO + ".connectMethod", contains("QR")))
                 .andExpect(jsonPath(ZALO + ".connectable", contains(true)));
     }

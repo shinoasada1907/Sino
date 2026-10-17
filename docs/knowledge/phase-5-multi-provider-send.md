@@ -1043,3 +1043,64 @@ Zalo không có lịch sử cũ để chọn khoảng thời gian ở bước 4 
 ### 12.4 Kiểm chứng (ZL-11)
 - **Đỏ trước:** 12 test mới trong `accounts.api.test.ts`, `connect.format.test.ts` và `ConnectOnApi.test.tsx` đỏ vì `fetchConnectProviders` còn chặn `QR`, thiếu hàm gọi API QR, thiếu `ZALO_RISK_WARNING` / `qrFailedMessage` và `ConnectWizard` chưa có bước QR.
 - **Xanh:** `pnpm lint` 0 lỗi, `pnpm exec tsc -b` 0 lỗi, `pnpm build` 0 lỗi, `pnpm test -- --run` 90/90 file (778/778 test) xanh, giữ nguyên cả test `InitialSyncOnApi.test.tsx` (D-305) cho luồng bước 4 sang bước 5.
+
+## 13. Đọc và chuẩn hóa tin Zalo, nhận push ở `sino-api` (ZL-08)
+
+**Ở đâu:** `apps/sino-api/src/main/java/dev/sino/provider/infrastructure/zalo/{ZaloMessageNormalizer,ZaloWebhookController,ZaloWebhookErrorCode,ZaloProvider}.java`; test `ZaloMessageNormalizerTests`, `ZaloFetchUpdatesTests`, `ZaloWebhookTests`, cập nhật `ZaloProviderContractTest`, `ZaloProviderTests`, `ZaloWiringTests`. Làm ở chế độ AUTO.
+
+### 13.1 Đường đi của tin mới từ `sino-zalo` sang Hộp thư Sino
+```text
+ Zalo WebSocket ---> sino-zalo (MessageBuffer, giữ theo thứ tự msgId)
+                        |
+                        | 1. POST /api/webhooks/zalo  (Authorization: Bearer <SINO_ZALO_SECRET>, <= 1 KB)
+                        |    {"accountId": "...", "ownId": "100000000000000001"}
+                        v
+                   sino-api: ZaloWebhookController
+                        |    phát ProviderPushReceived(ZaloProvider.TYPE, ownId, now)
+                        v
+                   PushNotices (F07) ---> tìm sync_checkpoint có watch_address = ownId
+                        |
+                        v
+                   ImportRunner ---> ZaloProvider.fetchUpdates(context, cursor)
+                        |
+                        | 2. GET /accounts/{accountId}/messages?after={cursor}&limit=100
+                        v
+                   ZaloMessageNormalizer (D-279)
+                        |    - USER -> DIRECT, GROUP -> GROUP
+                        |    - isSelf -> OUTBOUND + SENT + read=true; tin khác -> INBOUND + read=false
+                        |    - webchat -> TEXT; 5 loại khác -> chữ thay thế tiếng Việt + metadata.zaloType
+                        |    - cắt > 100 000 ký tự (không chẻ đôi surrogate pair), xóa \u0000
+                        |    - lọc sentAt < cursor.since() khi quét đầu; tin hỏng -> SkippedItem
+                        v
+                   JdbcConversationStore ---> phát MailStored ---> SSE đẩy lên sino-web
+```
+Nhờ dùng lại nguyên xi `ProviderPushReceived` và `PushNotices` của F07, lõi đồng bộ (`sync`) không có thêm một nhánh `if (zalo)` nào: với Gmail, `watch_address` là địa chỉ email nhận từ Pub/Sub; với Zalo, `watch_address` là `ownId` mà `sino-zalo` gửi trong thông báo webhook.
+
+### 13.2 `registerPush` giữ phiên sống sau khi `sino-zalo` khởi động lại (D-277)
+`ZaloProvider.registerPush(context)` gọi `PUT /accounts/{accountId}/session` trên `sino-zalo` rồi trả `PushRegistration(ownId, now + 3 ngày)`:
+- hạn 3 ngày bằng đúng ngưỡng `RENEW_BEFORE` (3 ngày) của `PushWatches`;
+- nhờ vậy mỗi giờ khi `PushWatches` quét các tài khoản sắp hết hạn watch, tài khoản Zalo luôn được gọi `registerPush` lại — nếu `sino-zalo` vừa khởi động lại và mất bộ nhớ, phiên được nạp lại tự động mà không phải đợi người dùng bấm đồng bộ;
+- trong khi đó `watch_expires_at > now()` vẫn đúng suốt 3 ngày, nên lịch đồng bộ dự phòng (`dueForSync`) chỉ hỏi mỗi 30 phút thay vì mỗi 1 phút.
+
+### 13.3 Chuẩn hóa từng tin và giữ trang sống khi có tin hỏng (D-279)
+`ZaloMessageNormalizer` tách việc chuẩn hóa một tin (`normalize(Message, ownId)`) khỏi việc gom cả trang (`normalize(MessagePage, ownId, since, cursor)`):
+
+| `zaloType` từ `sino-zalo` | `MessageType` | `textContent` | `metadata` |
+|---|---|---|---|
+| `webchat` | `TEXT` | nội dung gốc (đã xóa `\u0000`, cắt ở `100 000` ký tự) | `{}` |
+| `chat.photo` | `IMAGE` | `[Ảnh]` | `{"zaloType": "chat.photo"}` |
+| `chat.sticker` | `UNKNOWN` | `[Sticker]` | `{"zaloType": "chat.sticker"}` |
+| `share.file` | `FILE` | `[Tệp]` | `{"zaloType": "share.file"}` |
+| `chat.voice` | `AUDIO` | `[Tin nhắn thoại]` | `{"zaloType": "chat.voice"}` |
+| loại khác (`chat.video.msg`, ...) | `UNKNOWN` | `[Tin Zalo chưa hỗ trợ]` | `{"zaloType": "<loại gốc>"}` |
+
+Một tin thiếu `msgId`, `threadId`, `threadType` hợp lệ (`USER`/`GROUP`), `sentAt` chuẩn ISO-8601, `fromId` (khi không phải `isSelf`), hoặc `webchat` mà `text` là `null` sẽ ném `ProviderException(PAYLOAD_NORMALIZATION_FAILED)` ở hàm đơn; hàm gom trang bắt lỗi đó và đưa vào `SkippedItem(Kind.MESSAGE, msgId, PAYLOAD_NORMALIZATION_FAILED, ...)` để các tin lành trong cùng trang vẫn vào Hộp thư.
+
+### 13.4 Webhook `/api/webhooks/zalo`: so khóa hằng thời gian và chặn body quá 1 KB
+`ZaloWebhookController` kiểm `Authorization: Bearer <SINO_ZALO_SECRET>` bằng `MessageDigest.isEqual` (so sánh hằng thời gian, không rò độ dài hay ký tự qua thời gian trả lời) trước khi chạm vào body:
+- thiếu hoặc sai khóa (hoặc Zalo đang tắt): ném `ZaloWebhookErrorCode.PUSH_TOKEN_INVALID` -> `401 Unauthorized`, không đọc body, không phát sự kiện;
+- khóa đúng: đọc tối đa `MAX_BODY_BYTES + 1` (`1025` byte) từ `InputStream`; nếu vượt `1024` byte hoặc JSON hỏng / thiếu `ownId` thì trả `400 Bad Request` và không phát sự kiện, log cảnh báo không bao giờ in nội dung body hay khóa.
+
+### 13.5 Kiểm chứng (ZL-08)
+- **Đỏ trước:** 3 lớp test mới (`ZaloMessageNormalizerTests`, `ZaloFetchUpdatesTests`, `ZaloWebhookTests`) và `ZaloProviderContractTest` (phần `READ_MESSAGES` + `PUSH_WEBHOOK`) đỏ khi chưa có `ZaloMessageNormalizer`, `ZaloWebhookController` và `ZaloProvider.{fetchUpdates,registerPush}`.
+- **Xanh:** `ZaloMessageNormalizerTests`, `ZaloFetchUpdatesTests`, `ZaloWebhookTests`, `ZaloProviderContractTest`, `ZaloProviderTests`, `ZaloWiringTests`, `ModularityTests` xanh toàn bộ.
