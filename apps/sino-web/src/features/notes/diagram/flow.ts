@@ -7,6 +7,9 @@ export type BlockNode = Node<BlockNodeData, 'block'>
 export type LinkEdgeData = { label: string | null }
 export type LinkEdge = Edge<LinkEdgeData, 'link'>
 
+/** "Vừa màn hình", and how a diagram opens (D-210): every block in view, never larger than 100 %. */
+export const FIT_VIEW = { padding: 0.2, maxZoom: 1 }
+
 /**
  * The nodes of a diagram. What React Flow knows of a node it already drew (its size, whether it is chosen) is kept, so
  * the diagram stays the one truth without React Flow measuring every block again; `select` chooses a new block alone.

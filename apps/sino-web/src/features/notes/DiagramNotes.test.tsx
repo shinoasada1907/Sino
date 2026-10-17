@@ -1,18 +1,23 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { restoreReactFlow, stubReactFlow } from '@/test/reactFlow'
 import { renderApp } from '@/test/renderApp'
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
 
+// The canvas and React Flow load on their own (React.lazy). In a busy full run the first diagram of a file took over the
+// 3 s wait of findBy: loading them here takes the module load out of the test, and OPEN gives the first render time.
+beforeAll(() => import('./diagram/DiagramEditor'), 30_000)
+const OPEN = { timeout: 8000 }
+
 const ready = () => screen.findByRole('region', { name: 'Danh sách ghi chú' })
 const list = () => within(screen.getByRole('region', { name: 'Danh sách ghi chú' }))
 const card = (title: RegExp) => list().getByRole('link', { name: title })
 const cardTitles = () => list().queryAllByRole('link').flatMap((link) => link.querySelector('[data-slot="note-title"]')?.textContent ?? [])
 /** The open diagram; the canvas loads on its own, after the list. */
-const diagram = async () => within(await screen.findByRole('main', { name: 'Sơ đồ đang mở' }))
+const diagram = async () => within(await screen.findByRole('main', { name: 'Sơ đồ đang mở' }, OPEN))
 
 describe('Sơ đồ in the list of notes (DG-02, fe-ui-diagram-notes)', () => {
   beforeEach(() => {
@@ -116,9 +121,9 @@ describe('A new diagram (DG-02, spec: Sơ đồ mới)', () => {
     // The list hears of the new note a tick after the address changes (TanStack Query batches with setTimeout).
     expect(within(await list().findByRole('link', { name: /Ý chính/ })).getByText('Sơ đồ · 2 khối · 0 nối')).toBeInTheDocument()
     expect(list().getByRole('button', { name: 'Tất cả · 8' })).toBeInTheDocument()
-    // The same canvas stays, the new block chosen.
+    // The same canvas stays, the new block chosen and being written (DG-03).
     expect((await diagram()).getByText('2 khối · 0 đường nối')).toBeInTheDocument()
-    expect(screen.getByText('Khối mới').closest('.react-flow__node')).toHaveClass('selected')
+    expect(screen.getByRole('textbox', { name: 'Chữ của khối' }).closest('.react-flow__node')).toHaveClass('selected')
   })
 
   it('makes the diagram once it is named', async () => {

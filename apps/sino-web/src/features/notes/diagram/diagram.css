@@ -1,6 +1,17 @@
 /* React Flow's own rules sit in Tailwind's base layer, so the classes of the blocks, links and handles win over them. */
 @import "@xyflow/react/dist/base.css" layer(base);
 
+/* The blue of a block, new for the canvas (D-207), and how strong a colour tints a block in each theme. Global, since
+   the menu "THÊM Ô" opens outside the canvas. */
+:root {
+  --block-blue: #6E8BEF;
+  --block-tint: 20%;
+}
+
+.theme-dark {
+  --block-tint: 12%;
+}
+
 /* A chosen link is drawn darker (React Flow's variable) and thicker (the prototype's `.edge.selected`). */
 .react-flow__edge.selected .react-flow__edge-path {
   stroke-width: 2.2;

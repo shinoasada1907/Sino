@@ -10,6 +10,9 @@ const ORIGINAL = {
  * reports at once, and DOMMatrixReadOnly for the zoom. Without sizes React Flow keeps every block hidden and draws no
  * link. The canvas is 1000 × 600 and a block 160 × 48; dragging and connecting are checked in Chrome.
  * Call in `beforeEach` (the stubbed globals are undone after each test) and `restoreReactFlow` in `afterAll`.
+ *
+ * Click a block, a link or the ground with `fireEvent`, not user-event: user-event's mousedown carries `view: null`
+ * (its own property, which cannot be patched) and d3-drag / d3-zoom read `event.view.document` on mousedown.
  */
 export function stubReactFlow() {
   vi.stubGlobal(

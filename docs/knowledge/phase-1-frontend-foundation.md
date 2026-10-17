@@ -1648,6 +1648,52 @@ jsdom không có bố cục: mọi phần tử cỡ 0, nên React Flow ẩn hế
 
 Chạy cả bộ, một test tạo sơ đồ thỉnh thoảng đỏ: "không tìm thấy thẻ" ngay sau khi địa chỉ đã đổi. TanStack Query báo cho danh sách rằng cache có ghi chú mới qua `setTimeout(0)`, còn router đổi địa chỉ ngay. Máy bận thì lần kiểm thẻ chạy trước lần vẽ lại. Sửa bằng `await list().findByRole(...)` (chờ thẻ) thay vì `getByRole` (tìm ngay). Test NT "makes a new note…" chập chờn từ trước cũng cùng gốc này và được sửa cùng cách.
 
+### 23.11 Khối và đường nối hỏi vùng vẽ qua một context (DG-03)
+React Flow tự vẽ `BlockNode` và `LinkEdge` từ `nodeTypes` / `edgeTypes`, và chỉ đưa cho chúng `id`, `data`, `selected`. Ta không truyền được prop riêng như "đang sửa khối nào" hay "xóa khối này". Vì vậy `DiagramCanvas` đặt một context `DiagramActions`:
+
+```text
+DiagramCanvas
+  actions = { editing, editingLink, writeBlock, finishBlock, colorBlock, removeBlock,
+              chooseLink, writeLink, finishLink, removeLink }
+  <DiagramActionsContext value={actions}>
+     <ReactFlow ...>  ->  BlockNode: useDiagramActions().finishBlock(id, chữ)
+                      ->  LinkEdge:  useDiagramActions().removeLink(id)
+  mỗi thao tác = onChange(hàm thuần của diagram.ts)   (vẫn một đường đi duy nhất, 23.8)
+```
+
+Context nằm trong file `.ts` riêng (`actions.ts`): oxlint cảnh báo file `.tsx` vừa export component vừa export thứ khác, vì Fast Refresh khi đó không giữ được state. Khi gõ xong chữ mà chữ không đổi, `finishBlock` không gọi `onChange`, nên không có lần lưu thừa.
+
+### 23.12 Thả đường nối ở bất kỳ đâu trên khối
+React Flow chỉ biết khối đích (`connection.toNode`) khi chuột thả gần một chấm (trong 20 px). Trang mẫu cho thả lên bất kỳ chỗ nào của khối, nên `onConnectEnd` tự tìm:
+
+```text
+điểm thả (px của màn hình) --screenToFlowPosition--> điểm trên sơ đồ
+khối đích = toNode, nếu không có thì khối đè lên điểm đó (getIntersectingNodes)
+cạnh đích = chấm được thả lên, nếu không có thì nearestSide(khung khối, điểm thả)
+onChange(connect(sơ đồ, từ, cạnh từ, tới, cạnh tới))   -> quy tắc không tự nối, không trùng
+```
+
+`connection.pointer` tính theo góc của vùng vẽ chứ không theo tọa độ sơ đồ; đọc mã `XYHandle` mới thấy, nên điểm thả lấy từ chính sự kiện chuột. `getIntersectingNodes` tính bằng hình học trên dữ liệu của React Flow, không hỏi DOM.
+
+### 23.13 Con trỏ: khối còn ẩn, và menu giữ focus
+Khối mới phải mở sẵn ô gõ chữ có con trỏ. Hai thứ cản:
+
+```text
+1. React Flow ẩn khối (visibility: hidden) tới khi đo xong cỡ; phần tử ẩn không nhận focus.
+   -> BlockNode chờ useInternalNode(id).measured rồi mới focus() + select().
+2. Menu "THÊM Ô" là menu modal của Radix: nó giữ focus bên trong tới khi đóng hẳn.
+   Thêm khối ngay trong onSelect: ô chữ xin focus, menu kéo về, menu đóng, focus rơi về <body>.
+   -> onSelect chỉ ghi lại việc cần làm; onCloseAutoFocus (menu đã nhả focus) mới thêm khối.
+```
+
+Test bắt được lỗi thứ hai (`document.activeElement` là `BODY`). Menu còn một chỗ: Radix đặt tên menu theo nút mở nó (`aria-labelledby`), ở đây là một điểm vô hình không tên. `aria-labelledby={undefined}` đặt sau props của Radix nên đè được, và `aria-label="Thêm ô"` có hiệu lực. Ô màu và chữ "B" trong mục menu có `aria-hidden`, để tên mục là "Khối chính" chứ không phải "BKhối chính".
+
+### 23.14 jsdom: d3 cần `event.view`
+React Flow kéo khối bằng d3-drag và kéo nền bằng d3-zoom. Cả hai đọc `event.view.document` khi nhấn chuột. user-event tạo sự kiện chuột với `view` là thuộc tính riêng của từng sự kiện, trả `null`, nên vá ở prototype không ăn. Test bấm khối, đường nối và nền bằng `fireEvent.click` / `fireEvent.doubleClick`: chỉ có sự kiện click, không có mousedown, nên d3 không chạy. Nút trên thanh chọn có class `nodrag nopan`. d3 bỏ qua sự kiện từ đó, nên user-event dùng được; trên trình duyệt thật, nhấn nút trên thanh cũng không kéo nền nữa.
+
+### 23.15 Test sơ đồ đầu tiên của file chậm khi chạy cả bộ
+Chạy cả bộ (82 file song song, gần 2 phút), test đầu tiên của mỗi file sơ đồ có lúc không thấy vùng vẽ sau 3 s. Hai phần làm chậm: tải module `DiagramEditor` + React Flow lần đầu (`import()` động), và lần vẽ đầu của cả app. Cách sửa giống `MOVE` của FE-114 (câu 154): `beforeAll(() => import('./diagram/DiagramEditor'))` đưa việc tải module ra khỏi test, và chỉ lần chờ mở vùng vẽ được `OPEN = { timeout: 8000 }`. Các lần chờ khác vẫn 3 s, nên test treo thật vẫn bị bắt sớm.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1836,3 +1882,8 @@ Chạy cả bộ, một test tạo sơ đồ thỉnh thoảng đỏ: "không tì
 156. Vì sao `@xyflow/react/dist/base.css` được import vào `layer(base)`? Không làm vậy thì class Tailwind của chấm nối thua ở đâu, và vì sao độ đặc hiệu không cứu được?
 157. Vì sao `nodesOf` chép lại các trường cũ của node (như `measured`) thay vì dựng node mới từ sơ đồ? Bỏ đi thì vùng vẽ trông ra sao?
 158. Một test chờ địa chỉ đổi xong rồi tìm thẻ ngay, thỉnh thoảng đỏ khi chạy cả bộ. Vì sao, và sửa thế nào mà không tăng thời gian chờ?
+159. `BlockNode` được React Flow vẽ, không phải ta. Vậy nó biết "khối này đang được sửa" và xóa được chính nó bằng cách nào? Vì sao context nằm trong file `.ts` riêng?
+160. Người dùng thả đường nối lên giữa một khối, xa mọi chấm. `connection.toNode` khi đó là gì, và Sino tìm khối đích, cạnh đích ra sao?
+161. Chọn "Khối vàng" trong menu thì khối mới phải có con trỏ ngay. Kể hai lý do con trỏ có thể không tới, và cách Sino tránh từng cái.
+162. Vì sao test bấm khối bằng `fireEvent.click` mà không bằng `userEvent.click`? Vì sao thêm `nopan` cho thanh chọn lại có lợi cả ngoài test?
+163. Vì sao chỉ nới hạn chờ mở vùng vẽ lên 8 s, và nạp trước module trong `beforeAll`, thay vì tăng `asyncUtilTimeout` cho mọi test?

@@ -1,5 +1,5 @@
-import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
-import { Plus, Trash2 } from 'lucide-react'
+import { ReactFlowProvider, useReactFlow, useStore } from '@xyflow/react'
+import { Maximize, Minus, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
@@ -12,6 +12,7 @@ import type { Diagram, NoteItem } from '../notes.types'
 import { FROM_NEW, useCreateNote, useSaveNote } from '../useNotes'
 import { addBlock, diagramFootLine, freeSpot, newBlock, newDiagram } from './diagram'
 import { DiagramCanvas } from './DiagramCanvas'
+import { FIT_VIEW } from './flow'
 
 /** How long the changes must stop before the diagram is saved (D-210). */
 const SAVE_AFTER_MS = 600
@@ -33,12 +34,13 @@ export function DiagramEditor(props: { note: NoteItem | undefined; search: strin
 function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search: string; now: Date }) {
   const [title, setTitle] = useState(note?.title ?? '')
   const [diagram, setDiagram] = useState<Diagram>(() => note?.diagram ?? newDiagram())
-  const [fresh, setFresh] = useState<string>()
+  // The block being written: one just added, or one double-clicked.
+  const [editing, setEditing] = useState<string | null>(null)
   const { mutate: save } = useSaveNote()
   const { mutateAsync: create } = useCreateNote()
   const navigate = useNavigate()
   const { screenToFlowPosition } = useReactFlow()
-  const canvas = useRef<HTMLDivElement>(null)
+  const canvas = useStore((state) => state.domNode)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const changed = useRef(false)
   const creating = useRef(false)
@@ -84,11 +86,11 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
   }
   // "+ Khối": a block in the middle of what the canvas shows, or below the blocks there.
   const addInMiddle = () => {
-    const box = canvas.current?.getBoundingClientRect()
+    const box = canvas?.getBoundingClientRect()
     const middle = screenToFlowPosition({ x: (box?.left ?? 0) + (box?.width ?? 0) / 2, y: (box?.top ?? 0) + (box?.height ?? 0) / 2 })
     const spot = freeSpot(diagram, middle.x, middle.y)
     const block = newBlock(spot.x, spot.y)
-    setFresh(block.id)
+    setEditing(block.id)
     change(addBlock(diagram, block))
   }
   const togglePin = () => note && save({ note, change: { pinned: !note.pinned } })
@@ -120,6 +122,7 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
             <Plus strokeWidth={1.6} />
             Khối
           </Button>
+          <ZoomControls />
           <div className="flex shrink-0 items-center gap-0.5 max-md:hidden">
             <PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={togglePin} size="icon-sm" />
             {note ? (
@@ -139,12 +142,32 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
             )}
           </div>
         </div>
-        <DiagramCanvas ref={canvas} diagram={diagram} fresh={fresh} onChange={change} />
+        <DiagramCanvas diagram={diagram} editing={editing} onEditing={setEditing} onChange={change} />
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-5 py-2.5">
           <Spec>{note ? editedLine(note.updatedAt, now) : 'Sơ đồ mới · lưu khi có thay đổi'}</Spec>
           <Spec>{diagramFootLine(diagram)}</Spec>
         </div>
       </main>
     </>
+  )
+}
+
+/** −, how far, +, and "Vừa màn hình" (D-207); scrolling and pinching zoom too. */
+function ZoomControls() {
+  const { zoomIn, zoomOut, fitView } = useReactFlow()
+  const zoom = useStore((state) => state.transform[2])
+  return (
+    <div role="group" aria-label="Thu phóng" className="inline-flex shrink-0 items-center gap-0.5 rounded-sm border bg-surface p-0.5 max-md:hidden">
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="Thu nhỏ" onClick={() => void zoomOut({ duration: 150 })}>
+        <Minus strokeWidth={1.6} />
+      </Button>
+      <output className="min-w-11.5 text-center font-mono text-xs leading-4 font-medium text-muted-foreground tabular-nums">{Math.round(zoom * 100)}%</output>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="Phóng to" onClick={() => void zoomIn({ duration: 150 })}>
+        <Plus strokeWidth={1.6} />
+      </Button>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="Vừa màn hình" onClick={() => void fitView({ ...FIT_VIEW, duration: 200 })}>
+        <Maximize strokeWidth={1.6} />
+      </Button>
+    </div>
   )
 }
