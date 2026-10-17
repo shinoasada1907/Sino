@@ -56,6 +56,8 @@ describe('a diagram (DG-01, fe-ui-diagram-notes)', () => {
     expect(setBlockText(diagram(), 'b', 'Đặt xe 16 chỗ').blocks[1].text).toBe('Đặt xe 16 chỗ')
     expect(setBlockText(diagram(), 'b', 'x'.repeat(DIAGRAM_LIMITS.text + 5)).blocks[1].text).toHaveLength(DIAGRAM_LIMITS.text)
     expect(setBlockColor(diagram(), 'c', 'GREEN').blocks[2].color).toBe('GREEN')
+    // The other blocks stay as they were (DG-04: a mutant changing every block lived).
+    expect(setBlockColor(diagram(), 'c', 'GREEN').blocks.slice(0, 2)).toEqual(diagram().blocks.slice(0, 2))
   })
 
   it('removes a block with every link of it', () => {
@@ -113,6 +115,10 @@ describe('a diagram (DG-01, fe-ui-diagram-notes)', () => {
     // Two blocks down the middle: past both.
     const two: Diagram = { blocks: [...one.blocks, block('b', { x: -80, y: below.y - 24 })], links: [] }
     expect(freeSpot(two, 0, 0).y).toBeGreaterThan(below.y + 48)
+    // DG-04 (mutants that lived): a block beside the spot is no reason to move; one just above it, nearer than a
+    // block and a gap, is.
+    expect(freeSpot(one, 400, 0)).toEqual({ x: 400, y: 0 })
+    expect(freeSpot(one, 0, 50).y).toBeGreaterThan(50)
   })
 
   it('counts them in words at the foot of the canvas (DG-02)', () => {

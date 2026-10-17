@@ -16,7 +16,7 @@ const SIDES: [Side, Position, string][] = [
 
 export const TOOLBAR = 'nodrag nopan flex items-center gap-1 rounded-sm bg-surface p-1 shadow-popover'
 export const TOOLBAR_BUTTON =
-  'h-6.5 cursor-pointer rounded-xs px-2 text-xs leading-4 font-medium text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid'
+  'h-6.5 pointer-coarse:h-9 cursor-pointer rounded-xs px-2 text-xs leading-4 font-medium text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid'
 
 /**
  * A block of the diagram (the prototype's `.block`): its words, or "Khối mới" while it has none; bold for a main block;
@@ -76,7 +76,7 @@ export function BlockNode({ id, data, selected, dragging }: NodeProps<BlockNodeT
           position={position}
           aria-label={`Nối từ cạnh ${name}`}
           className={cn(
-            'size-3.5 min-h-0 min-w-0 rounded-full border-2 border-surface bg-foreground opacity-0 transition-[opacity,scale] duration-(--dur-fast) ease-out group-hover:opacity-100 hover:scale-125',
+            'size-3.5 pointer-coarse:size-5 min-h-0 min-w-0 rounded-full border-2 border-surface bg-foreground opacity-0 transition-[opacity,scale] duration-(--dur-fast) ease-out group-hover:opacity-100 hover:scale-125',
             (selected || connecting) && 'opacity-100',
           )}
         />
@@ -90,7 +90,7 @@ export function BlockNode({ id, data, selected, dragging }: NodeProps<BlockNodeT
             aria-pressed={data.color === color}
             onClick={() => actions.colorBlock(id, color)}
             className={cn(
-              'size-4.5 cursor-pointer rounded-full border border-border-strong outline-none aria-pressed:outline-2 aria-pressed:outline-offset-1 aria-pressed:outline-ring aria-pressed:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid',
+              'size-4.5 pointer-coarse:size-7 cursor-pointer rounded-full border border-border-strong outline-none aria-pressed:outline-2 aria-pressed:outline-offset-1 aria-pressed:outline-ring aria-pressed:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid',
               SWATCH[color],
             )}
           />

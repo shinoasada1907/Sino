@@ -12,7 +12,7 @@ import {
   type OnConnectEnd,
   type XYPosition,
 } from '@xyflow/react'
-import { useState, type CSSProperties, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
 import type { BlockColor, Diagram, Side } from '../notes.types'
 import { DiagramActionsContext, type DiagramActions } from './actions'
 import { AddMenu, type MenuSpot } from './AddMenu'
@@ -38,6 +38,9 @@ const FLOW_COLORS = {
 
 /** A diagram with this many blocks or fewer says how to add and link (the prototype's hint). */
 const HINT_UP_TO = 2
+
+/** How long a finger stays on empty ground to open "THÊM Ô" (D-212), and how far it may slip meanwhile. */
+const LONG_PRESS = { ms: 500, slip: 8 }
 
 /**
  * The canvas of a diagram (D-207, D-208): the diagram is the one truth, React Flow only draws it. Every change goes out
@@ -99,14 +102,32 @@ export function DiagramCanvas({
     const toSide = (connection.toHandle?.id as Side | undefined) ?? nearestSide(box, drop)
     onChange(connect(diagram, from, fromSide, target.id, toSide))
   }
-  const openMenu = (event: MouseEvent | globalThis.MouseEvent) => {
-    event.preventDefault()
+  const openMenu = (clientX: number, clientY: number) => {
     const corner = domNode?.getBoundingClientRect() ?? { left: 0, top: 0 }
-    setMenu({
-      open: true,
-      spot: { left: event.clientX - corner.left, top: event.clientY - corner.top },
-      at: screenToFlowPosition({ x: event.clientX, y: event.clientY }),
-    })
+    setMenu({ open: true, spot: { left: clientX - corner.left, top: clientY - corner.top }, at: screenToFlowPosition({ x: clientX, y: clientY }) })
+  }
+  // A long press of one finger on empty ground opens the menu: iOS has no context menu for it. A second finger (a pinch)
+  // or a slip (a pan) is not a long press.
+  const press = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null)
+  const letGo = () => {
+    clearTimeout(press.current?.timer)
+    press.current = null
+  }
+  useEffect(() => () => clearTimeout(press.current?.timer), [])
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' || press.current) {
+      letGo()
+      return
+    }
+    if ((event.target as Element).classList.contains('react-flow__pane')) {
+      const { clientX, clientY } = event
+      press.current = { x: clientX, y: clientY, timer: setTimeout(() => openMenu(clientX, clientY), LONG_PRESS.ms) }
+    }
+  }
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (press.current && Math.hypot(event.clientX - press.current.x, event.clientY - press.current.y) > LONG_PRESS.slip) {
+      letGo()
+    }
   }
   const onPaneDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
     if ((event.target as Element).classList.contains('react-flow__pane')) {
@@ -143,7 +164,16 @@ export function DiagramCanvas({
 
   return (
     <DiagramActionsContext value={actions}>
-      <div role="group" aria-label="Vùng vẽ sơ đồ" className="relative min-h-0 flex-1" onDoubleClick={onPaneDoubleClick}>
+      <div
+        role="group"
+        aria-label="Vùng vẽ sơ đồ"
+        className="relative min-h-0 flex-1"
+        onDoubleClick={onPaneDoubleClick}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={letGo}
+        onPointerCancel={letGo}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -163,7 +193,11 @@ export function DiagramCanvas({
             )
           }
           onConnectEnd={onConnectEnd}
-          onPaneContextMenu={openMenu}
+          onPaneContextMenu={(event) => {
+            event.preventDefault()
+            letGo()
+            openMenu(event.clientX, event.clientY)
+          }}
           connectionMode={ConnectionMode.Loose}
           connectionLineStyle={{ strokeDasharray: '5 4' }}
           deleteKeyCode={['Delete', 'Backspace']}
@@ -185,7 +219,10 @@ export function DiagramCanvas({
         />
         {diagram.blocks.length <= HINT_UP_TO && (
           <p className="pointer-events-none absolute bottom-4 left-1/2 z-1 w-max max-w-[calc(100%-32px)] -translate-x-1/2 rounded-sm bg-surface px-3 py-2 text-center text-xs leading-4 text-muted-foreground shadow-popover">
-            Chuột phải hoặc bấm đúp vào chỗ trống để thêm khối · kéo một chấm ở cạnh khối sang khối khác để nối · chọn rồi bấm Delete để xóa
+            <span className="pointer-coarse:hidden">
+              Chuột phải hoặc bấm đúp vào chỗ trống để thêm khối · kéo một chấm ở cạnh khối sang khối khác để nối · chọn rồi bấm Delete để xóa
+            </span>
+            <span className="hidden pointer-coarse:inline">Nhấn giữ chỗ trống để thêm khối · chạm một khối rồi kéo chấm ở cạnh nó sang khối khác để nối</span>
           </p>
         )}
       </div>

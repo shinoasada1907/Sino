@@ -10,7 +10,7 @@ import { PinButton } from '../components/PinButton'
 import { editedLine, savedLine } from '../format'
 import type { Diagram, NoteItem } from '../notes.types'
 import { FROM_NEW, useCreateNote, useSaveNote } from '../useNotes'
-import { addBlock, diagramFootLine, freeSpot, newBlock, newDiagram } from './diagram'
+import { addBlock, diagramFootLine, diagramSummary, freeSpot, newBlock, newDiagram } from './diagram'
 import { DiagramCanvas } from './DiagramCanvas'
 import { FIT_VIEW } from './flow'
 
@@ -116,38 +116,56 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
               later()
             }}
             onBlur={() => flush.current()}
-            className="min-w-0 flex-[1_1_240px] bg-transparent p-0 text-xl leading-7 font-bold tracking-[-0.018em] text-foreground outline-none placeholder:text-subtle-foreground md:text-2xl md:leading-8"
+            className="min-w-0 flex-[1_1_160px] bg-transparent p-0 text-xl leading-7 font-bold tracking-[-0.018em] text-ellipsis text-foreground outline-none placeholder:text-subtle-foreground xl:text-2xl xl:leading-8"
           />
-          <Button type="button" variant="primary" size="sm" aria-label="Thêm khối" onClick={addInMiddle}>
-            <Plus strokeWidth={1.6} />
-            Khối
-          </Button>
-          <ZoomControls />
-          <div className="flex shrink-0 items-center gap-0.5 max-md:hidden">
-            <PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={togglePin} size="icon-sm" />
-            {note ? (
-              <DeleteNoteDialog
-                note={note}
-                after={`/notes${search}`}
-                trigger={
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Xóa ghi chú">
-                    <Trash2 strokeWidth={1.6} />
-                  </Button>
-                }
-              />
-            ) : (
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="Xóa ghi chú" disabled>
-                <Trash2 strokeWidth={1.6} />
-              </Button>
-            )}
+          {/* One group: on a narrow column it goes to a line of its own as a whole, never Ghim and Xóa alone. */}
+          <div className="ml-auto flex shrink-0 items-center gap-3">
+            <Button type="button" variant="primary" size="sm" aria-label="Thêm khối" onClick={addInMiddle}>
+              <Plus strokeWidth={1.6} />
+              Khối
+            </Button>
+            <ZoomControls />
+            <div className="flex shrink-0 items-center gap-0.5 max-md:hidden">
+              <PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={togglePin} size="icon-sm" />
+              {note ? (
+                <DeleteNoteDialog
+                  note={note}
+                  after={`/notes${search}`}
+                  trigger={
+                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Xóa ghi chú">
+                      <Trash2 strokeWidth={1.6} />
+                    </Button>
+                  }
+                />
+              ) : (
+                <Button type="button" variant="ghost" size="icon-sm" aria-label="Xóa ghi chú" disabled>
+                  <Trash2 strokeWidth={1.6} />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
         <DiagramCanvas diagram={diagram} editing={editing} onEditing={setEditing} onChange={change} />
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-5 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-5 py-2.5 max-md:hidden">
           <Spec>{note ? editedLine(note.updatedAt, now) : 'Sơ đồ mới · lưu khi có thay đổi'}</Spec>
           <Spec>{diagramFootLine(diagram)}</Spec>
         </div>
       </main>
+      {/* D-212: on a phone the saved time sits in the header; the foot holds the size and Xóa, as for a text note. */}
+      <div role="group" aria-label="Sơ đồ này" className="flex items-center justify-between gap-3 border-t px-5 pt-2.5 pb-7 md:hidden">
+        <Spec>{diagramSummary(diagram)}</Spec>
+        {note && (
+          <DeleteNoteDialog
+            note={note}
+            after={`/notes${search}`}
+            trigger={
+              <Button type="button" variant="ghost" size="sm" className="text-danger-ink">
+                Xóa
+              </Button>
+            }
+          />
+        )}
+      </div>
     </>
   )
 }

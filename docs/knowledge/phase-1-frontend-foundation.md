@@ -1694,6 +1694,32 @@ React Flow kéo khối bằng d3-drag và kéo nền bằng d3-zoom. Cả hai đ
 ### 23.15 Test sơ đồ đầu tiên của file chậm khi chạy cả bộ
 Chạy cả bộ (82 file song song, gần 2 phút), test đầu tiên của mỗi file sơ đồ có lúc không thấy vùng vẽ sau 3 s. Hai phần làm chậm: tải module `DiagramEditor` + React Flow lần đầu (`import()` động), và lần vẽ đầu của cả app. Cách sửa giống `MOVE` của FE-114 (câu 154): `beforeAll(() => import('./diagram/DiagramEditor'))` đưa việc tải module ra khỏi test, và chỉ lần chờ mở vùng vẽ được `OPEN = { timeout: 8000 }`. Các lần chờ khác vẫn 3 s, nên test treo thật vẫn bị bắt sớm.
 
+### 23.16 Điện thoại và tablet (DG-04, D-212)
+Bố cục như ghi chú chữ: từ 768 px vùng vẽ ở cột phải, dưới 768 px là trang riêng (đầu trang: quay lại "Ghi chú", "TỰ LƯU · giờ", Ghim; thanh đáy "Sơ đồ này": "N khối · M nối" và "Xóa"). Ba điểm riêng của sơ đồ:
+
+```text
+nhấn giữ chỗ trống 500 ms     -> menu "THÊM Ô" (iOS không có contextmenu khi nhấn giữ)
+  nhấc ngón sớm               -> hủy (chạm thường)
+  trượt quá 8 px              -> hủy (đang kéo nền)
+  ngón thứ hai chạm xuống     -> hủy (đang chụm để thu phóng)
+màn cảm ứng (pointer: coarse) -> chấm nối, chấm màu, nút thanh chọn to hơn; gợi ý nói "nhấn giữ"
+cột hẹp (768 px)              -> "+ Khối", thu phóng, Ghim, Xóa xuống hàng cùng nhau, không bỏ Ghim lẻ một hàng
+```
+
+Gợi ý và cỡ chạm dựa vào loại con trỏ (`pointer-coarse:` của Tailwind, tức `@media (pointer: coarse)`), không dựa vào bề rộng: tablet cảm ứng rộng hơn 768 px vẫn là ngón tay. Test "không mở khi chạm ngắn" lúc đầu dồn ba trường hợp vào một lần chờ; lỗi gài "bỏ `onPointerUp`" vẫn sống, vì lần nhấn kế tiếp tình cờ hủy hẹn giờ thay cho nó. Tách mỗi trường hợp một lần chờ thì cả ba lỗi gài đều bị bắt.
+
+### 23.17 Kiểm bằng lỗi gài `diagram.ts`
+31 lỗi gài (giới hạn, căn giữa, không tự nối, không trùng, xóa khối kéo theo đường, cạnh gần nhất, chữ trên đường, `freeSpot`...). Lượt đầu 27 bị bắt, 4 sống, tức là 4 chỗ test chưa nói:
+
+```text
+changeBlock đổi mọi khối          -> thêm: đổi màu một khối, các khối khác giữ nguyên
+freeSpot bỏ kiểm trục x           -> thêm: khối nằm bên cạnh (cùng độ cao) không làm dời chỗ
+freeSpot bỏ khoảng 16 px          -> thêm: khối ở trên, gần hơn một khối + khoảng, vẫn làm dời
+freeSpot bước 1 px thay vì 64 px  -> giữ: vẫn không đè và vẫn ở dưới (yêu cầu), chỉ khác khoảng cách
+```
+
+Lượt hai 30/31. Lỗi còn sống không phải test thiếu mà là một cách làm khác cũng đúng yêu cầu: nó còn tìm được chỗ trống gần hơn. Đổi thuật toán hay ghi thêm yêu cầu về khoảng cách là quyết định riêng, không làm lẳng lặng trong một task kiểm.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1887,3 +1913,6 @@ Chạy cả bộ (82 file song song, gần 2 phút), test đầu tiên của m�
 161. Chọn "Khối vàng" trong menu thì khối mới phải có con trỏ ngay. Kể hai lý do con trỏ có thể không tới, và cách Sino tránh từng cái.
 162. Vì sao test bấm khối bằng `fireEvent.click` mà không bằng `userEvent.click`? Vì sao thêm `nopan` cho thanh chọn lại có lợi cả ngoài test?
 163. Vì sao chỉ nới hạn chờ mở vùng vẽ lên 8 s, và nạp trước module trong `beforeAll`, thay vì tăng `asyncUtilTimeout` cho mọi test?
+164. Vì sao nhấn giữ trên vùng vẽ phải tự đo bằng hẹn giờ, dù Android Chrome có bắn `contextmenu` khi nhấn giữ? Ba trường hợp nào phải hủy hẹn giờ, và vì sao?
+165. Vì sao gợi ý "nhấn giữ" và cỡ chấm nối theo `pointer: coarse` chứ không theo bề rộng màn hình?
+166. Lỗi gài "freeSpot bước 1 px" sống sót. Đó là test thiếu hay một cách làm khác cũng đúng? Bạn quyết thế nào, và ai quyết nếu muốn đổi?
