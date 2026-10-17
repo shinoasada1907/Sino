@@ -246,6 +246,15 @@ Spike mới thấy hai loại `webchat` và `chat.photo`. Tên `chat.sticker`, `
 
 **Đã sửa so với phần 4 lúc trình bày:** ~~hết giờ khi gửi → `PROVIDER_UNAVAILABLE`~~ → `OUTCOME_UNKNOWN`. **LÝ DO:** F10 đã có mã này cho "có thể đã gửi" (D-135). `PROVIDER_UNAVAILABLE` sẽ cho phép gửi lại mù.
 **Đã sửa sau review:** ~~`410` → `AUTH_EXPIRED`~~ → `PUT session` rồi thử lại; chỉ `410` của chính `PUT` mới là `AUTH_EXPIRED`. **LÝ DO:** D-289.
+**Chốt ở ZL-06** (2026-10-17, **agent chốt, cần xem lại**; `ZaloClient`, test `ZaloErrorMappingTests`):
+- **`400` của chính `PUT session`** (body không có phiên dùng được) → `AUTH_EXPIRED`, như `410`, kèm log WARN có `code` của `sino-zalo` (thêm sau review: nếu chính `sino-api` dựng body sai thì quét lại không chữa được, và log là chỗ duy nhất nói ra); phiên đang lưu không phải object JSON → `AUTH_EXPIRED` mà không gọi `sino-zalo`. **LÝ DO:** quét lại cho một phiên đúng; gửi lại phiên này thì không bao giờ được.
+- **Khóa bí mật chỉ gồm ký tự ASCII nhìn thấy được, không khoảng trắng** (thêm sau review), rồi mới đủ 32 byte; sai thì app dừng. Lời gọi mà JDK không dựng được (`IllegalArgumentException`) → `PROVIDER_UNAVAILABLE` với lời cố định. **LÝ DO:** khóa đi trong header, và `HttpClient` của JDK từ chối header có ký tự ngoài ASCII bằng một lỗi **in nguyên header**, tức in khóa; `sino-zalo` nhận khóa như vậy, nhưng hai bên không bao giờ nói chuyện được với nó.
+- **Công tắc `SINO_ZALO_ENABLED` đọc như boolean của Spring** (thêm sau review): `true`/`on`/`yes`/`1` là bật, `false`/`off`/`no`/`0` là tắt, giá trị khác làm app dừng. **LÝ DO:** so chuỗi `"true"` thì `1` hay `yes` để Zalo tắt mà không một dòng log, trong khi `ZaloProperties.enabled` lại đọc chúng là bật.
+- **Lần gọi lại sau `PUT session` vẫn lỗi:** `410` → `AUTH_EXPIRED` (Zalo vừa hủy chính phiên vừa đưa), `404` → `PROVIDER_UNAVAILABLE` (`sino-zalo` lại mất phiên, lượt sau thử lại); không có lần thứ ba.
+- **`404` / `410` chỉ là "không có phiên" khi body có `code` của `sino-zalo`** (`UNKNOWN_ACCOUNT`, `SESSION_ENDED`). `404` khác (route không có, hai service lệch phiên bản) → `REQUEST_REJECTED`, không gửi phiên. **LÝ DO:** gửi lại phiên không chữa được một route không có.
+- **Không kết nối được khi gửi** (`ConnectException`, hết giờ lúc kết nối, tên máy không tìm thấy) → `PROVIDER_UNAVAILABLE`: chưa có gì đi, như Gmail (`GmailApi.sendFailure`). `201` thiếu `msgId` hoặc đọc không được → `OUTCOME_UNKNOWN`.
+- **`4xx` khác** → `REQUEST_REJECTED`; `200` mà body đọc không được khi đọc tin → `PAYLOAD_NORMALIZATION_FAILED`; tra tin trả `200` mà thiếu `msgIds` → `PAYLOAD_NORMALIZATION_FAILED`, không bao giờ là danh sách rỗng (D-280).
+- **Hạn chờ:** kết nối 2 giây, đọc 10 giây (lần đọc đầu sau khi `sino-zalo` khởi động lại có thể chờ nó bù tin, tối đa 5 giây, D-278), gửi 15 giây (trên 10 giây của `sino-zalo`, D-280). HTTP/1.1. Lời của mọi `ProviderException` không có khóa, phiên hay body của `sino-zalo`; lời "Zalo đang tạm tắt" của D-286 viết bằng tiếng Anh như mọi lời lỗi provider khác ("Zalo is turned off (SINO_ZALO_ENABLED)"), vì nó chỉ vào log.
 
 ### D-282 — Bảo mật nội bộ · **Người dùng chốt** (phần 2)
 - **Mạng:** `sino-zalo` chỉ nghe ở `127.0.0.1` (máy dev) hoặc trong mạng Docker, không mở ra ngoài.
@@ -287,6 +296,7 @@ Contract F03 thêm `default void disconnect(ProviderContext context) {}`. Module
 - Phiên Zalo dừng bằng cách dừng tiến trình `sino-zalo` (README ghi rõ hai bước).
 
 **Đã sửa so với phần 4 lúc trình bày:** ~~`sino-api` gọi `DELETE session` cho mọi account~~. **LÝ DO:** tắt là lúc khẩn cấp; dừng tiến trình chắc chắn hơn và không cần thêm vòng lặp qua mọi account.
+**Tạm từ ZL-06 tới ZL-07** (**người dùng chốt** 2026-10-17, "Chỉ đăng ký khi bật"): ~~tắt thì `ZaloProvider` vẫn có trong registry~~ → chỉ đăng ký khi `SINO_ZALO_ENABLED=true`; phần "mọi lời gọi ra `sino-zalo` ném `PROVIDER_UNAVAILABLE`" có ngay ở ZL-06 (`ZaloClient`). **LÝ DO:** tới ZL-07 `GET /api/providers` chưa có `connectable`, và web tự gán `connectable: true` cho mọi provider được trả; Zalo trong danh sách thì hộp thoại kết nối cho bấm Zalo rồi báo lỗi. Chưa có account Zalo nào trước ZL-07, nên không ai mất quyền đọc tin đã lưu. ZL-07 chuyển về đúng D-286.
 
 ### D-287 — Cách hướng dẫn trong change này · **Người dùng chốt** (2026-10-14)
 - **Người code:** người dùng code mọi task từ ZL-01, theo thứ tự trong `tasks.md`.
