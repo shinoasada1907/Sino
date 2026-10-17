@@ -1,0 +1,19 @@
+{
+	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	handle /api/* {
+		reverse_proxy sino-api:8080
+	}
+
+	handle {
+		root * /srv
+		encode zstd gzip
+		try_files {path} /index.html
+		file_server
+	}
+}
