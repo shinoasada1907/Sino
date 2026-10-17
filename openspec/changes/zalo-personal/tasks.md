@@ -174,7 +174,7 @@
 
 ## 3. `sino-web`
 
-- [ ] 3.1 **ZL-11 — Bước Zalo trong hộp thoại kết nối**
+- [x] 3.1 **ZL-11 — Bước Zalo trong hộp thoại kết nối**
   - **Goal:** người dùng kết nối và quét lại Zalo từ web, có cảnh báo trước (D-272, D-288).
   - **Files:** `apps/sino-web/src/features/accounts/{accounts.api.ts (connectMethod, ~~connectable,~~ QR API),connect.types.ts,ConnectWizard.tsx,components/QrStep.tsx,components/RiskStep.tsx,useQrConnect.ts}`, test cạnh từng file, handler MSW. **LÝ DO:** `fetchConnectProviders` đọc `connectable` từ API ngay ở ZL-07 (agent chốt, D-285 "Chốt ở ZL-07"): từ ZL-07 backend đăng ký Zalo cả khi tắt, nên web còn tự gán `true` thì hộp thoại cho bấm Zalo rồi báo lỗi. Task này còn: `connectMethod` (chọn bước QR) và các lời gọi QR.
   - **Acceptance criteria:** spec `zalo-connect-web` (cả 5 requirement); DN-2 (chữ cảnh báo) được người dùng chốt; đối chiếu canvas `ConnectWizard`.
@@ -183,6 +183,8 @@
   - **Bạn sẽ học:** polling bằng TanStack Query (`refetchInterval` dừng theo trạng thái), dọn dẹp khi đóng hộp thoại, vì sao web không tự đoán `connectable`.
   - **Hints:** Level 2: `refetchInterval` là hàm nhận dữ liệu hiện tại và trả `false` khi trạng thái không còn `WAITING`/`SCANNED`.
   - **Thêm từ `f05c-messages-inbox-split` (D-305, 2026-10-16):** bước cuối "Hoàn tất" của một tài khoản Zalo có nút "Mở Tin nhắn" (`/messages`), không phải "Mở hộp thư" (spec `connect-wizard` *Kết quả quay về* của f05c; FE-113 làm phần chọn nút theo `kind`).
+  - **Thực hiện (2026-10-17, AUTO):** người dùng chốt giữ nguyên bản nháp chữ cảnh báo DN-2 (`ZALO_RISK_WARNING`). Bỏ chặn tạm `connectMethod === 'OAUTH2'` trong `fetchConnectProviders`, thêm `startQrConnect`, `fetchQrStatus`, `cancelQrConnect`; thêm `RiskStep`, `QrStep`, `useQrConnect` (polling 2 giây khi `WAITING`/`SCANNED`, dừng ở trạng thái kết thúc, gọi `initial-sync` với `range: 'ALL'` khi `DONE` và `reconnected: false`, `DELETE` khi đóng hộp thoại giữa chừng); nối vào `ConnectWizard` và đổi nút kết nối lại thành "Quét QR lại" cho tài khoản Zalo (`ReauthAlert`, `AccountsPage`, `AccountDetailPage`, `MobileAccountDetail`).
+  - **Bằng chứng:** đỏ trước: 12 test mới trong `accounts.api.test.ts`, `connect.format.test.ts`, `ConnectOnApi.test.tsx`; xanh: `pnpm lint` 0, `pnpm exec tsc -b` 0, `pnpm build` 0, `pnpm test -- --run` 90/90 file (778/778 test). Kiến thức: mục 12 của `phase-5-multi-provider-send.md` + `.docx`.
 
 ## 4. Chạy, CI, nghiệm thu
 

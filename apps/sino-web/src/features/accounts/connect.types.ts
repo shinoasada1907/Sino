@@ -4,14 +4,36 @@ import type { ProviderInfo } from '@/shared/domain'
  * Data contract of the connect wizard (D-42, D-47…D-50), on top of the Tài khoản contract; see the change design.md.
  */
 
+export type ConnectMethod = 'OAUTH2' | 'QR'
+
 /** One provider of `GET /api/providers`, extended with what the wizard needs. */
 export interface ConnectableProvider extends ProviderInfo {
   /** Already in the API: READ_MESSAGES, SEND_MESSAGES, ATTACHMENTS, ... */
   capabilities: string[]
-  /** To add: the provider has a connect flow (an OAuth2 connector). */
+  /** How the provider connects (D-285); OAUTH2 when omitted by older fixtures. */
+  connectMethod?: ConnectMethod
+  /** The provider has a connect flow and is turned on (D-285, D-286). */
   connectable: boolean
   /** To add: the scopes asked for when connecting, as short codes ("gmail.readonly"); null while the API does not tell. */
   scopes: string[] | null
+}
+
+/** `POST /api/accounts/connect/{provider}/qr` (ZL-07, D-275). */
+export interface QrChallenge {
+  loginId: string
+  qrImage: string
+  expiresAt: string
+}
+
+export type QrLoginStateName = 'WAITING' | 'SCANNED' | 'DONE' | 'EXPIRED' | 'DECLINED' | 'FAILED'
+
+/** `GET /api/accounts/connect/{provider}/qr/{loginId}` (ZL-07, D-275). */
+export interface QrConnectStatus {
+  state: QrLoginStateName
+  displayName?: string
+  accountId?: string
+  reconnected?: boolean
+  code?: string
 }
 
 export type SyncRange = 'DAYS_30' | 'DAYS_90' | 'ALL'

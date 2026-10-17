@@ -422,5 +422,5 @@ Mọi request (trừ `/health`) có `Authorization: Bearer <SINO_ZALO_SECRET>`. 
   - (c) dừng change.
 
   **Đề xuất:** (a) nếu cửa sổ ≥ 1 ngày, (c) nếu chỉ vài phút. **Câu hỏi cho người dùng:** cửa sổ ngắn nhất bạn chấp nhận?
-- **DN-2 (ZL-11):** chữ cảnh báo. **Bản nháp:** "Sino kết nối Zalo bằng cách không chính thức. Zalo có thể khóa tài khoản dùng cách này. Đừng mở Zalo Web hay Zalo PC bằng tài khoản này, vì Sino sẽ bị đăng xuất. Sino lưu phiên đăng nhập đã mã hóa và chỉ nhận tin từ lúc kết nối." **Câu hỏi:** sửa chữ nào? (Câu về Zalo PC giữ nguyên ở ZL-11 cho chắc, rồi sửa theo kết quả đo ở ZL-13.)
+- **DN-2 (ZL-11) — ĐÃ CHỐT (2026-10-17, người dùng chọn "Giữ nguyên bản nháp"):** chữ cảnh báo: `"Sino kết nối Zalo bằng cách không chính thức. Zalo có thể khóa tài khoản dùng cách này. Đừng mở Zalo Web hay Zalo PC bằng tài khoản này, vì Sino sẽ bị đăng xuất. Sino lưu phiên đăng nhập đã mã hóa và chỉ nhận tin từ lúc kết nối."` (Câu về Zalo PC giữ nguyên ở ZL-11, sửa theo kết quả đo ở ZL-13 nếu cần.)
 - **DN-3 (sau change):** nơi chạy `sino-zalo` khi lên production, theo nơi chạy `sino-api`, chưa chọn.

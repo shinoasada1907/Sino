@@ -2,7 +2,20 @@ import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
 import { server } from '@/test/msw/server'
-import { deleteAccount, fetchAccountExtras, fetchAccounts, fetchConnectProviders, fetchInitialSync, fetchSyncEstimate, saveChannel, startConnect, startInitialSync } from './accounts.api'
+import {
+  cancelQrConnect,
+  deleteAccount,
+  fetchAccountExtras,
+  fetchAccounts,
+  fetchConnectProviders,
+  fetchInitialSync,
+  fetchQrStatus,
+  fetchSyncEstimate,
+  saveChannel,
+  startConnect,
+  startInitialSync,
+  startQrConnect,
+} from './accounts.api'
 
 describe('the Tài khoản requests on the backend API (D-56)', () => {
   it('turns the accounts and providers of the API into the screen contract, with null for what the API lacks', async () => {
@@ -103,36 +116,72 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
     server.use(http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)))
 
     expect(await fetchConnectProviders()).toEqual([
-      { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'], connectable: true, scopes: null },
+      {
+        type: 'gmail',
+        displayName: 'Gmail',
+        kind: 'EMAIL',
+        capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'],
+        connectMethod: 'OAUTH2',
+        connectable: true,
+        scopes: null,
+      },
     ])
   })
 
-  // D-285, D-286: Zalo turned off is listed, says it connects by QR code, and cannot be connected.
-  it('takes from the API which providers can be connected', async () => {
+  // D-285, D-286: Zalo turned off is listed, says it connects by QR code, and cannot be connected; turned on, it can.
+  it('takes from the API how each provider connects and whether it can be connected (ZL-11)', async () => {
     server.use(
       http.get('/api/providers', () =>
         HttpResponse.json([
           { ...API_PROVIDERS[0], connectMethod: 'OAUTH2', connectable: true },
-          { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: [], connectMethod: 'QR', connectable: false },
+          { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: ['READ_MESSAGES'], connectMethod: 'QR', connectable: true },
+          { type: 'telegram', displayName: 'Telegram', kind: 'CHAT', capabilities: [], connectMethod: null, connectable: false },
         ]),
       ),
     )
 
     expect(await fetchConnectProviders()).toEqual([
-      { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'], connectable: true, scopes: null },
-      { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: [], connectable: false, scopes: null },
+      {
+        type: 'gmail',
+        displayName: 'Gmail',
+        kind: 'EMAIL',
+        capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'],
+        connectMethod: 'OAUTH2',
+        connectable: true,
+        scopes: null,
+      },
+      { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: ['READ_MESSAGES'], connectMethod: 'QR', connectable: true, scopes: null },
+      { type: 'telegram', displayName: 'Telegram', kind: 'CHAT', capabilities: [], connectMethod: 'OAUTH2', connectable: false, scopes: null },
     ])
   })
 
-  // The wizard has no QR step before ZL-11: a provider connected by QR code waits, on or off, rather than fail.
-  it('keeps a provider connected by QR code to come until the wizard has its step', async () => {
+  it('starts, polls and cancels a QR connect (ZL-11)', async () => {
+    const started: unknown[] = []
+    let cancelled = ''
     server.use(
-      http.get('/api/providers', () =>
-        HttpResponse.json([{ type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: [], connectMethod: 'QR', connectable: true }]),
+      http.post('/api/accounts/connect/:provider/qr', async ({ params, request }) => {
+        started.push([params.provider, await request.json()])
+        return HttpResponse.json({ loginId: 'login-1', qrImage: 'iVBORw0KGgo=', expiresAt: '2026-10-02T07:06:40Z' }, { status: 201 })
+      }),
+      http.get('/api/accounts/connect/:provider/qr/:loginId', ({ params }) =>
+        HttpResponse.json({ state: 'SCANNED', displayName: `Nick ${params.provider} ${params.loginId}` }),
       ),
+      http.delete('/api/accounts/connect/:provider/qr/:loginId', ({ params }) => {
+        cancelled = `${params.provider}/${params.loginId}`
+        return new HttpResponse(null, { status: 204 })
+      }),
     )
 
-    expect((await fetchConnectProviders()).map((provider) => provider.connectable)).toEqual([false])
+    expect(await startQrConnect('zalo', null)).toEqual({ loginId: 'login-1', qrImage: 'iVBORw0KGgo=', expiresAt: '2026-10-02T07:06:40Z' })
+    await startQrConnect('zalo', 'acc-zalo')
+    expect(await fetchQrStatus('zalo', 'login-1')).toEqual({ state: 'SCANNED', displayName: 'Nick zalo login-1' })
+    await cancelQrConnect('zalo', 'login-1')
+
+    expect(started).toEqual([
+      ['zalo', { acceptRisk: true }],
+      ['zalo', { acceptRisk: true, accountId: 'acc-zalo' }],
+    ])
+    expect(cancelled).toBe('zalo/login-1')
   })
 
   it('starts a connect, or signs an account in again, and returns where to send the browser', async () => {

@@ -998,3 +998,48 @@ Một reviewer độc lập đọc bản chụp của code (không có lỗi CRI
   - Lần chạy lại đầu báo "đường gốc hỏng": script khôi phục file bằng `copyFileSync`, mà trên Windows nó giữ giờ sửa cũ, nên Maven giữ class của lỗi gài cuối. Đã sửa script; kết quả trong vòng lặp vẫn đúng, vì mỗi lỗi gài được ghi bằng `writeFileSync`.
 - **Chạy thật với `sino-zalo`** (cổng 8093, không gọi Zalo, không `POST /logins`): login lạ thì `404 UNKNOWN_LOGIN` rồi `Failed`; hủy thì `204`; sai khóa thì `401`, `PROVIDER_UNAVAILABLE` và log ERROR; khóa không có trong log. Lần chạy đầu treo 555 giây trước request đầu tiên (máy treo hoặc ngủ); chạy lại mất 1,5 giây.
 - **Chưa kiểm:** quét mã QR thật bằng nick phụ, phiên thật đi qua `PUT session`: ZL-13. Màn QR trên web: ZL-11. Hộp thoại kết nối trong Chrome (extension Chrome không kết nối được lúc làm): `connectable` lấy từ API có test, và chữ "Sắp có" của provider không kết nối được có test sẵn (`connect.format.test.ts`).
+
+## 12. Bước Zalo trong hộp thoại kết nối trên `sino-web` (ZL-11)
+
+**Ở đâu:** `apps/sino-web/src/features/accounts/{connect.types.ts,accounts.api.ts,connect.format.ts,useQrConnect.ts,components/{RiskStep.tsx,QrStep.tsx,ConnectWizard.tsx,ReauthAlert.tsx,MobileAccountDetail.tsx},AccountsPage.tsx,AccountDetailPage.tsx}`, test `accounts.api.test.ts`, `connect.format.test.ts`, `ConnectOnApi.test.tsx`. Làm ở chế độ AUTO, chữ cảnh báo DN-2 do bạn chốt.
+
+### 12.1 Luồng trên web: một hộp thoại, hai nhánh kết nối
+```text
+ Bước 1: Chọn nhà cung cấp (GET /api/providers -> connectMethod, connectable)
+    |
+    +-- connectMethod = OAUTH2 (Gmail)
+    |      |-- Bước 2: Quyền truy cập (ScopeReview)
+    |      |-- Bước 3: Đăng nhập (POST /api/accounts/connect/{provider} -> chuyển trang)
+    |      |-- Bước 4: Đồng bộ lần đầu (SyncChoice)
+    |      +-- Bước 5: Hoàn tất ("Mở hộp thư")
+    |
+    +-- connectMethod = QR (Zalo)
+           |-- Bước 2: Rủi ro & quyền (RiskStep + checkbox "Tôi hiểu rủi ro", nút "Hiện mã QR" khóa tới khi tick)
+           |-- Bước 3: Quét mã QR (QrStep + useQrConnect)
+           |      |-- POST /api/accounts/connect/zalo/qr {acceptRisk: true, accountId?}
+           |      |-- GET  /api/accounts/connect/zalo/qr/{loginId} mỗi 2 giây khi còn WAITING / SCANNED
+           |      |-- Đóng hộp thoại giữa chừng -> DELETE /api/accounts/connect/zalo/qr/{loginId}
+           |      |-- EXPIRED -> ẩn ảnh QR, hiện "Mã đã hết hạn" + "Tạo mã mới"
+           |      |-- DECLINED / FAILED -> hiện lời báo tiếng Việt (gồm CONNECT_ACCOUNT_IN_USE) + "Thử lại"
+           |      +-- DONE:
+           |             |-- reconnected = false -> POST /api/accounts/{id}/initial-sync {range: "ALL"} -> Bước 5
+           |             +-- reconnected = true  -> làm mới danh sách account, đóng hộp thoại
+           +-- Bước 5: Hoàn tất ("Sino nhận tin Zalo từ bây giờ. Mở Tin nhắn để đọc.")
+```
+`fetchConnectProviders` trong `accounts.api.ts` bỏ chặn tạm `connectMethod === 'OAUTH2'` của ZL-07 và cho phép cả `'OAUTH2'` lẫn `'QR'` khi `connectable` là `true`. Khi `SINO_ZALO_ENABLED=false`, API trả `connectable: false` và bước 1 vẫn hiện Zalo với nhãn "Sắp có", radio bị khóa.
+
+### 12.2 Polling theo trạng thái bằng `refetchInterval` và dọn dẹp khi đóng
+`useQrConnect` dùng `useQuery` của TanStack Query với `refetchInterval` là một hàm đọc trạng thái hiện tại:
+- khi dữ liệu chưa về hoặc `state` là `'WAITING'` hay `'SCANNED'`, hàm trả `2000` (hỏi lại mỗi 2 giây);
+- ngay khi sang `'DONE'`, `'EXPIRED'`, `'DECLINED'` hoặc `'FAILED'`, hàm trả `false` và vòng hỏi dừng hẳn.
+
+Khi người dùng đóng hộp thoại hoặc bấm "Quay lại" lúc phiên đăng nhập QR chưa `DONE`, `ConnectWizard` gọi `qr.cancel()`, gửi `DELETE /api/accounts/connect/{provider}/qr/{loginId}` (best-effort, bỏ qua lỗi mạng) để `sino-zalo` hủy phiên QR đang chờ.
+
+### 12.3 Kết nối mới và quét lại (`reconnected`)
+Zalo không có lịch sử cũ để chọn khoảng thời gian ở bước 4 (D-288):
+- **Kết nối mới (`reconnected: false`):** `useQrConnect` gọi luôn `POST /api/accounts/{accountId}/initial-sync` với `range: 'ALL'` (để `sino-api` bật `registerPush` / listener và đánh dấu `firstImport = DONE`), làm mới cache `['accounts']`, rồi chuyển thẳng từ bước 3 sang bước 5 ("Hoàn tất", hiện "Sino nhận tin Zalo từ bây giờ. Mở Tin nhắn để đọc." và nút "Mở Tin nhắn" trỏ tới `/messages`).
+- **Quét lại (`reconnected: true`):** account đã nhập lần đầu từ trước, nên không gọi lại `initial-sync` (gọi nữa sẽ nhận `409ALREADY_IMPORTED`); chỉ làm mới danh sách account và đóng hộp thoại. Ở danh sách và trang chi tiết account, tài khoản Zalo ở trạng thái `AUTH_EXPIRED` hiện nút "Quét QR lại" thay vì "Đăng nhập lại", bấm vào mở thẳng bước 2 (cảnh báo rủi ro) với `accountId` của tài khoản đó.
+
+### 12.4 Kiểm chứng (ZL-11)
+- **Đỏ trước:** 12 test mới trong `accounts.api.test.ts`, `connect.format.test.ts` và `ConnectOnApi.test.tsx` đỏ vì `fetchConnectProviders` còn chặn `QR`, thiếu hàm gọi API QR, thiếu `ZALO_RISK_WARNING` / `qrFailedMessage` và `ConnectWizard` chưa có bước QR.
+- **Xanh:** `pnpm lint` 0 lỗi, `pnpm exec tsc -b` 0 lỗi, `pnpm build` 0 lỗi, `pnpm test -- --run` 90/90 file (778/778 test) xanh, giữ nguyên cả test `InitialSyncOnApi.test.tsx` (D-305) cho luồng bước 4 sang bước 5.

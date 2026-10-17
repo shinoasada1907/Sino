@@ -3,7 +3,7 @@ import { ApiError } from '@/shared/api/problem'
 import { formatCount, methodLabel } from '@/shared/format'
 import { formatAgo } from '@/shared/time/relative'
 import type { SyncStatus } from './accounts.types'
-import type { ConnectableProvider, InitialSyncStatus, SyncEstimate } from './connect.types'
+import type { ConnectMethod, ConnectableProvider, InitialSyncStatus, SyncEstimate } from './connect.types'
 
 const CAPABILITY_TAGS: [capability: string, tag: string][] = [
   ['READ_MESSAGES', 'Đọc'],
@@ -47,15 +47,28 @@ export function notAskedNote(type: string): string | null {
   return NOT_ASKED[type] ?? null
 }
 
-/** Label, title, footer note and main button of each of the five steps (D-47 order). */
-export function wizardStep(step: number, identity: string): { label: string; title: string; note: string; next: string | null } {
+/** The warning shown before any Zalo QR code is requested (D-272, DN-2). */
+export const ZALO_RISK_WARNING =
+  'Sino kết nối Zalo bằng cách không chính thức. Zalo có thể khóa tài khoản dùng cách này. Đừng mở Zalo Web hay Zalo PC bằng tài khoản này, vì Sino sẽ bị đăng xuất. Sino lưu phiên đăng nhập đã mã hóa và chỉ nhận tin từ lúc kết nối.'
+
+/** Label, title, footer note and main button of each of the five steps (D-47 order; QR flow in ZL-11). */
+export function wizardStep(
+  step: number,
+  identity: string,
+  connectMethod: ConnectMethod = 'OAUTH2',
+): { label: string; title: string; note: string; next: string | null } {
+  const qr = connectMethod === 'QR'
   switch (step) {
     case 1:
       return { label: '1 · Nhà cung cấp', title: 'Chọn nhà cung cấp', note: 'Chỉ xin quyền tối thiểu. Bạn xem lại ở bước 2.', next: 'Tiếp tục' }
     case 2:
-      return { label: '2 · Quyền', title: 'Xem lại quyền truy cập', note: 'Thu hồi quyền bất cứ lúc nào trong Tài khoản.', next: 'Đồng ý và tiếp tục' }
+      return qr
+        ? { label: '2 · Cảnh báo', title: 'Lưu ý trước khi kết nối Zalo', note: 'Ngắt kết nối bất cứ lúc nào trong Tài khoản.', next: 'Hiện mã QR' }
+        : { label: '2 · Quyền', title: 'Xem lại quyền truy cập', note: 'Thu hồi quyền bất cứ lúc nào trong Tài khoản.', next: 'Đồng ý và tiếp tục' }
     case 3:
-      return { label: '3 · Đăng nhập', title: 'Đăng nhập', note: `Đăng nhập diễn ra trên trang của ${identity}.`, next: `Tiếp tục tới ${identity}` }
+      return qr
+        ? { label: '3 · Mã QR', title: 'Quét mã QR Zalo', note: 'Mã QR có hiệu lực trong 100 giây.', next: null }
+        : { label: '3 · Đăng nhập', title: 'Đăng nhập', note: `Đăng nhập diễn ra trên trang của ${identity}.`, next: `Tiếp tục tới ${identity}` }
     case 4:
       return { label: '4 · Đồng bộ', title: 'Tùy chọn đồng bộ', note: 'Đổi lại sau trong chi tiết tài khoản.', next: 'Bắt đầu đồng bộ' }
     default:
@@ -74,6 +87,18 @@ const ERRORS: Record<string, string> = {
 /** The message for `?connectError=CODE` (catalog of F04a); an unknown code gets the general one. */
 export function connectErrorMessage(code: string): string {
   return ERRORS[code] ?? ERRORS.CONNECT_FAILED
+}
+
+/** Why a QR login ended in `FAILED` (D-275, D-290). */
+export function qrFailedMessage(code?: string): string {
+  switch (code) {
+    case 'CONNECT_WRONG_ACCOUNT':
+      return 'Bạn đã quét nhầm tài khoản Zalo khác. Hãy quét đúng tài khoản cần kết nối lại.'
+    case 'CONNECT_ACCOUNT_IN_USE':
+      return 'Tài khoản Zalo này đã được kết nối với một tài khoản Sino khác.'
+    default:
+      return 'Không kết nối được Zalo. Hãy thử lại.'
+  }
 }
 
 /** "khoảng 1.180 thư" and "3–5 phút" */
