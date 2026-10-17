@@ -74,6 +74,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private final List<Search> searches = new ArrayList<>();
     private CountDownLatch[] held;
     private boolean findsSends = true;
+    private volatile UUID lastReadAccount;
 
     private FakeMessageProvider(Builder builder) {
         this.type = builder.type;
@@ -292,6 +293,7 @@ public final class FakeMessageProvider implements MessageProvider {
     @Override
     public Optional<MessageContent> fetchMessageContent(ProviderContext context, String externalMessageId) {
         contentCalls.incrementAndGet();
+        lastReadAccount = context.accountId();
         if (contentFailure != null) {
             throw contentFailure;
         }
@@ -303,6 +305,7 @@ public final class FakeMessageProvider implements MessageProvider {
     public AttachmentContent fetchAttachment(ProviderContext context, String externalMessageId,
             String externalAttachmentId) {
         fileCalls.incrementAndGet();
+        lastReadAccount = context.accountId();
         if (fileFailure != null) {
             throw fileFailure;
         }
@@ -321,6 +324,11 @@ public final class FakeMessageProvider implements MessageProvider {
     /** How many times {@link #fetchMessageContent} reached the fake provider, failed calls included. */
     public int contentCalls() {
         return contentCalls.get();
+    }
+
+    /** The account the last {@link #fetchMessageContent} or {@link #fetchAttachment} was for, failed calls included. */
+    public UUID lastReadAccount() {
+        return lastReadAccount;
     }
 
     /** How many times {@link #fetchUpdates} was called, failed calls included. */

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -29,14 +30,33 @@ import dev.sino.provider.spi.NormalizedMessage;
 @Transactional(readOnly = true)
 public class MessageHistory {
 
-    private static final String SELECT = """
+    private static final String COLUMNS = """
             SELECT m.id, m.direction, m.status, m.sent_at, m.text_content, m.body_format, m.is_read, m.recipients,
                    m.client_message_id,
                    m.metadata ->> :subject AS subject,
                    p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
-            WHERE m.conversation_id = :conversation
             """;
+
+    private static final String SELECT = COLUMNS + "WHERE m.conversation_id = :conversation\n";
+
+    // The messages of every copy of a thread (F05b, D-184), each Message-ID once: from the copy it went from, which
+    // keeps what Sino knows of a message it sent, else the primary copy, else the oldest. A message without one is
+    // always there, and so is one whose Message-ID header was empty: nothing says two of those are one. Only IDs and
+    // times are sorted for that; the page is cut from what is left, so it never brings back the other copy of a
+    // message, which its own mailbox may date differently, and only the messages of the page are read whole. The key
+    // is written out, not a parameter: DISTINCT ON and ORDER BY must be the same expression, and two parameters are two
+    // expressions to PostgreSQL.
+    private static final String EVERY_COPY = """
+            WITH shown AS (
+                SELECT DISTINCT ON (COALESCE('rfc:' || NULLIF(m.metadata ->> '%1$s', ''), 'id:' || m.id))
+                       m.id, m.sent_at
+                FROM unnest(ARRAY[:copies]::uuid[]) WITH ORDINALITY AS copy(id, rank)
+                JOIN message m ON m.conversation_id = copy.id
+                ORDER BY COALESCE('rfc:' || NULLIF(m.metadata ->> '%1$s', ''), 'id:' || m.id),
+                         m.direction = 'OUTBOUND' DESC, copy.rank, m.id
+            )
+            """.formatted(NormalizedMessage.RFC_MESSAGE_ID);
 
     private final JdbcClient jdbc;
     private final InboxService inbox;
@@ -47,18 +67,21 @@ public class MessageHistory {
     }
 
     /**
-     * Newest first, then by ID, {@code limit} at most, after {@code cursor} when given.
+     * Newest first, then by ID, {@code limit} at most, after {@code cursor} when given: the messages of every copy of
+     * the thread in the inbox, each once (F05b, D-184).
      *
      * @throws dev.sino.common.error.SinoException with {@code CONVERSATION_NOT_FOUND} when not in the inbox
      */
     public MessagePage page(UUID ownerId, UUID conversationId, MessageCursor cursor, int limit) {
-        inbox.requireInInbox(ownerId, conversationId);
+        InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
+        // The primary copy first, then the others from the oldest on: the order a message of many copies is taken in.
+        List<UUID> copies = Stream.concat(Stream.of(conversation.primaryId()), conversation.conversationIds().stream())
+                .distinct().toList();
         // Keyset paging as for the inbox; one more row than asked tells whether there is a next page.
-        JdbcClient.StatementSpec query = jdbc.sql(SELECT + (cursor == null ? ""
-                : "AND m.sent_at <= :before AND (m.sent_at, m.id) < (:before, :beforeId)")
-                + " ORDER BY m.sent_at DESC, m.id DESC LIMIT :rows")
-                .param("subject", NormalizedMessage.SUBJECT).param("conversation", conversationId)
-                .param("rows", limit + 1);
+        JdbcClient.StatementSpec query = jdbc.sql(EVERY_COPY + COLUMNS + "WHERE m.id IN (SELECT id FROM shown"
+                + (cursor == null ? "" : " WHERE (sent_at, id) < (:before, :beforeId)")
+                + " ORDER BY sent_at DESC, id DESC LIMIT :rows) ORDER BY m.sent_at DESC, m.id DESC")
+                .param("subject", NormalizedMessage.SUBJECT).param("copies", copies).param("rows", limit + 1);
         if (cursor != null) {
             query = query.param("before", cursor.sentAt().atOffset(ZoneOffset.UTC)).param("beforeId", cursor.id());
         }
@@ -71,7 +94,7 @@ public class MessageHistory {
         return new MessagePage(items, new MessageCursor(last.sentAt(), last.id()));
     }
 
-    /** One message of a conversation the caller already found in the inbox, as {@link #page} lists it. */
+    /** One message of one copy of a conversation the caller already found in the inbox, as {@link #page} lists it. */
     Optional<InboxMessage> message(UUID conversationId, UUID messageId) {
         return jdbc.sql(SELECT + "AND m.id = :message").param("subject", NormalizedMessage.SUBJECT)
                 .param("conversation", conversationId).param("message", messageId)

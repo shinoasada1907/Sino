@@ -138,6 +138,7 @@ Module `realtime` đổi mỗi mã cuộc trò chuyện của sự kiện (đồ
 - **Gộp không phát sự kiện cho tài khoản kia** (BE-80): khi lưu thư của một tài khoản gộp nhóm với cuộc trò chuyện của tài khoản khác, sự kiện của lượt lưu chỉ nói về cuộc trò chuyện của tài khoản đang lưu. BE-81 phát `conversations.changed` theo mã của nhóm. **→ D-189:** sự kiện mang mã nhóm, đổi ở module `realtime`.
 - **Gom lại mỗi lần khởi động** (BE-80): quét mọi thư có `Message-ID` của từng tài khoản, mỗi tài khoản một transaction ngắn; hộp thư rất lớn làm lần khởi động lâu hơn (đo ở BE-83).
 - **V19 ghi lại toàn bảng `conversation`** (cột tự tính `STORED`, khóa `ACCESS EXCLUSIVE` trong lúc chạy): chấp nhận với một người dùng; PostgreSQL 18 không index được cột tự tính `VIRTUAL`.
+- **Mỗi trang thư đọc cả nhóm** (BE-82): bỏ trùng phải xong trước khi cắt trang (hai bản của một thư lệch giờ), nên mỗi trang đọc mã, giờ, `Message-ID`, chiều của **mọi** thư của nhóm rồi sắp, thay vì chỉ đọc đầu index `(conversation_id, sent_at)` như F06. Chỉ các cột hẹp đó được sắp; chữ, người gửi, người nhận chỉ đọc cho thư của trang. Chuỗi email vài chục thư thì không đáng kể; một cuộc chat rất dài (Zalo, Telegram: luôn một bản, không có `Message-ID`) đọc cả cuộc mỗi trang. Đo ở BE-83; chậm thì cho nhóm một bản đi đường cũ.
 
 ## Migration Plan
 
