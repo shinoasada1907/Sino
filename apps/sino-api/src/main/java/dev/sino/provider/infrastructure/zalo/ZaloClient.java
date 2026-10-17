@@ -93,6 +93,13 @@ class ZaloClient {
                 .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().toBodilessEntity());
     }
 
+    /** Ends the account's session at sino-zalo (D-284); sino-zalo answers 204 also when it holds none. */
+    void deleteSession(ProviderContext context) {
+        requireOn();
+        UUID accountId = accountIdOf(context);
+        call(Call.SESSION, () -> reading.delete().uri(ACCOUNT + "/session", accountId).retrieve().toBodilessEntity());
+    }
+
     /** Starts a QR login (D-275): sino-zalo answers once Zalo gave the code, within 15 seconds. */
     Login startLogin() {
         requireOn();

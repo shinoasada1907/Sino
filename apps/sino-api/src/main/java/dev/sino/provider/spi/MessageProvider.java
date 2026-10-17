@@ -126,4 +126,11 @@ public interface MessageProvider {
         return Optional.empty();
     }
 
+    /**
+     * Stops anything the connector keeps for this account (such as a session or listener, D-284). Called after the
+     * removal or disabling of the account has committed; a failure is only logged. Does nothing by default.
+     */
+    default void disconnect(ProviderContext context) {
+    }
+
 }

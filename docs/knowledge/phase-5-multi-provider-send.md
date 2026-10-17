@@ -1141,3 +1141,64 @@ Giải pháp ở `ZL-09`:
 ### 14.3 Kiểm chứng (ZL-09)
 - **Đỏ trước:** `ZaloSendTests`, `ZaloProviderTests`, `ZaloWiringTests` và 2 test mới trong `ConversationSendApiTests` (`aMessageSinoZaloCannotTellAboutStaysUnknownWhileANewerOneSettles`, `aChatConversationWithOnlyAnOutboundMessageRepliesToItsThreadAndPassesItsType`) đỏ trước khi sửa `ZaloProvider`, `ReplyService` và `Replies`.
 - **Xanh:** `Zalo*`, `ConversationSendApiTests`, `ConversationReplyApiTests`, `ModularityTests` (208 test chạy, 0 lỗi).
+
+---
+
+## 15. ZL-10 — Ngắt phiên khi xóa hoặc tắt tài khoản; công tắc tắt Zalo trọn vẹn
+
+### 15.1 Mở rộng contract `MessageProvider.disconnect(ProviderContext)`
+`MessageProvider` thêm phương thức mặc định:
+```java
+default void disconnect(ProviderContext context) {
+}
+```
+- Mặc định không làm gì: các connector không giữ trạng thái sống theo tài khoản (như Gmail, vốn chỉ thu hồi refresh token OAuth2 qua `OAuth2TokenRevoker` khi xóa tài khoản) không cần ghi đè.
+- `ZaloProvider.disconnect(context)` gọi `ZaloClient.deleteSession(context)` -> `DELETE /accounts/{accountId}/session` tới `sino-zalo` kèm `Authorization: Bearer <SINO_ZALO_SECRET>`. Tại `sino-zalo`, `SessionRegistry.remove(accountId)` dừng WebSocket listener của `zca-js` và xóa phiên cộng bộ đệm tin trong RAM (D-284).
+
+### 15.2 Vì sao `AccountManagementService` chỉ gọi `disconnect` sau khi transaction đã commit
+Nếu `AccountManagementService` gọi `DELETE /accounts/{accountId}/session` **trước** khi transaction cơ sở dữ liệu commit mà ngay sau đó transaction bị rollback (ví dụ do xung đột khóa lạc quan `OptimisticLockingFailureException` hoặc lỗi ở một `@EventListener`), tài khoản trong PostgreSQL vẫn ở trạng thái `CONNECTED` nhưng `sino-zalo` đã xóa mất phiên và tắt listener.
+
+Do đó `AccountManagementService` tách việc ngắt phiên ra sau commit ở cả hai đường:
+```text
+1. Xóa tài khoản — AccountManagementService.remove(ownerId, accountId)
+   +-------------------------------------------------------------------+
+   | transaction.execute:                                              |
+   |   - đọc Revocation (OAuth2) và ProviderContext trước khi xóa      |
+   |   - account.remove(now) + credentials.delete(id)                  |
+   |   - publish AccountRemoved                                        |
+   +-------------------------------------------------------------------+
+                                   |
+                         (commit thành công)
+                                   v
+   +-------------------------------------------------------------------+
+   | Ngoài transaction (best-effort):                                  |
+   |   - revoker.revoke(...) nếu provider có OAuth2 revocation URI     |
+   |   - connector.disconnect(context) -> lỗi chỉ ghi LOG.warn         |
+   +-------------------------------------------------------------------+
+
+2. Tắt tài khoản — AccountManagementService.update(ownerId, accountId, command)
+   +-------------------------------------------------------------------+
+   | @Transactional:                                                   |
+   |   - command.enabled() == false và account.disable() đổi trạng thái|
+   |   - publish AccountStatusChanged(..., DISABLED)                   |
+   |   - đăng ký TransactionSynchronization.afterCommit()              |
+   +-------------------------------------------------------------------+
+                                   |
+                         (commit thành công)
+                                   v
+   +-------------------------------------------------------------------+
+   | afterCommit() (best-effort):                                      |
+   |   - connector.disconnect(context) -> lỗi chỉ ghi LOG.warn         |
+   +-------------------------------------------------------------------+
+```
+Khi `connector.disconnect(context)` ném `ProviderException` hoặc `RuntimeException` (ví dụ `sino-zalo` đang tắt hoặc trả `500`), `AccountManagementService` chỉ ghi `LOG.warn` với `accountId`, tên provider và `errorCode` / tên lớp ngoại lệ (không bao giờ in nội dung lỗi thô hay credential), giữ nguyên kết quả xóa hoặc tắt tài khoản.
+
+### 15.3 Công tắc tắt khẩn cấp (`sino.zalo.enabled=false`) trọn vẹn (D-286)
+Khi `sino.zalo.enabled=false`:
+1. `ZaloProvider` vẫn có mặt trong `ProviderRegistry` với `turnedOn() = false`, `connectMethod = QR`; `GET /api/providers` trả `connectable = false`.
+2. `POST /api/accounts/connect/zalo/qr` bị `QrConnectService` chặn ngay với `409 PROVIDER_DISABLED`.
+3. Mọi lời gọi ra `sino-zalo` trên `ZaloProvider` (`fetchUpdates`, `sendMessage`, `findSentMessages`, `registerPush`, `disconnect` và `qrLogin().start/status/cancel`) đều bị `ZaloClient.requireOn()` chặn trước khi mở kết nối mạng và ném `ProviderException(PROVIDER_UNAVAILABLE)`.
+
+### 15.4 Kiểm chứng (ZL-10)
+- **Đỏ trước:** 8/11 test trong `ZaloDisconnectTests` và `AccountDisconnectTests` đỏ khi `ZaloProvider.disconnect` và `AccountManagementService` chưa cài đặt.
+- **Xanh:** `ZaloDisconnectTests`, `AccountDisconnectTests`, `RemoveAccountRevokesTests`, `AccountsApiTests`, toàn bộ `Zalo*` và `ModularityTests` (195 test chạy, 0 lỗi).

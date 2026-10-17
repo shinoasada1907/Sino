@@ -155,5 +155,10 @@ class ZaloProvider implements MessageProvider {
         return Optional.of(new PushRegistration(ownId, Instant.now().plus(PUSH_TTL)));
     }
 
+    @Override
+    public void disconnect(ProviderContext context) {
+        client.deleteSession(context);
+    }
+
 }
 

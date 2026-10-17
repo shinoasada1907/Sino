@@ -167,7 +167,7 @@
   - **Thực hiện (2026-10-17, AUTO):** `ZaloProvider` khai `SEND_MESSAGES`, cài `sendMessage` (`ConversationType.GROUP` → `ThreadType.GROUP`, còn lại → `ThreadType.USER`, gọi `ZaloClient.send` trả `SendMessageResult(msgId, SENT, sentAt)`) và `findSentMessages` (gọi `ZaloClient.lookup`, đổi `409 CANNOT_TELL` thành `ProviderException(OUTCOME_UNKNOWN)` để `ZaloClient.lookup` vẫn giữ `PROVIDER_UNAVAILABLE` theo bảng D-281); `SendMessageCommand` mang thêm `ConversationType` (kèm constructor 6 tham số mặc định `DIRECT`); `ReplyService` truyền `ConversationType` khi gửi và đối chiếu, đồng thời cho `OUTCOME_UNKNOWN` trong `reconcile` đi nhánh `canTell = false` (giữ `UNKNOWN` cả sau 10 phút và duyệt tiếp tin mới hơn); `Replies.recipientsOf` lấy địa chỉ từ chính cuộc trò chuyện (`DIRECT` / `GROUP`) khi cuộc trò chuyện chỉ có tin tự gửi từ điện thoại.
   - **Bằng chứng:** đỏ trước: `ZaloSendTests`, `ZaloProviderTests`, `ZaloWiringTests`, `ConversationSendApiTests` (2 test mới); xanh: `Zalo*`, `ConversationSendApiTests`, `ConversationReplyApiTests`, `ModularityTests` (208 test, 0 lỗi). Kiến thức: mục 14 của `phase-5-multi-provider-send.md` + `.docx`.
 
-- [ ] 2.5 **ZL-10 — Ngắt phiên khi xóa/tắt account; công tắc tắt trọn vẹn**
+- [x] 2.5 **ZL-10 — Ngắt phiên khi xóa/tắt account; công tắc tắt trọn vẹn**
   - **Goal:** xóa hay tắt account thì Sino không còn giữ phiên Zalo (D-284, D-286).
   - **Files:** `provider/spi/MessageProvider.disconnect`, `account/application/AccountManagementService` (gọi sau commit), `ZaloProvider.disconnect`, test `AccountDisconnectTests`, `ZaloDisconnectTests`.
   - **Acceptance criteria:** spec `zalo-provider` (Ngắt phiên khi xóa hoặc tắt account); delta `provider-contract` (Contract ngắt kết nối).
@@ -175,6 +175,8 @@
   - **Depends on:** ZL-09
   - **Bạn sẽ học:** việc phụ sau commit (`TransactionSynchronization` hoặc `@TransactionalEventListener`), best-effort và vì sao không được làm hỏng việc chính.
   - **Hints:** Level 1: "nếu gọi `DELETE session` **trước** khi commit mà transaction rollback, chuyện gì xảy ra?" Kiểm zca-js có API đăng xuất không (D-284).
+  - **Thực hiện (2026-10-18, AUTO):** `MessageProvider` thêm `default void disconnect(ProviderContext)` (mặc định không làm gì); `ZaloClient.deleteSession` gọi `DELETE /accounts/{accountId}/session` kèm `Bearer <SINO_ZALO_SECRET>` và `ZaloProvider.disconnect` ủy quyền sang đó; `AccountManagementService.remove` đọc `ProviderContext` trước khi xóa credential trong transaction rồi gọi `disconnect` ngoài transaction sau khi `transaction.execute` đã commit; `AccountManagementService.update` khi `command.enabled() == false` và `account.disable()` thực sự đổi trạng thái thì đăng ký `TransactionSynchronization.afterCommit()` để gọi `disconnect` sau khi commit; lỗi của `disconnect` chỉ ghi `LOG.warn` (mã lỗi hoặc tên lớp ngoại lệ, không in nội dung lỗi thô hay credential) và không làm hỏng việc xóa/tắt tài khoản.
+  - **Bằng chứng:** đỏ trước: 8/11 test trong `ZaloDisconnectTests` và `AccountDisconnectTests`; xanh: `ZaloDisconnectTests`, `AccountDisconnectTests`, `RemoveAccountRevokesTests`, `AccountsApiTests`, toàn bộ `Zalo*` và `ModularityTests` (195 test, 0 lỗi). Kiến thức: mục 15 của `phase-5-multi-provider-send.md` + `.docx`.
 
 ## 3. `sino-web`
 
