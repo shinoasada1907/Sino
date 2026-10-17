@@ -23,9 +23,11 @@ interface AccountResponse {
   createdAt: Instant
 }
 
-/** One provider of `GET /api/providers` (F03). */
+/** One provider of `GET /api/providers` (F03); `connectMethod` and `connectable` since ZL-07 (D-285). */
 interface ProviderResponse extends ProviderEntry {
   capabilities: string[]
+  connectMethod?: 'OAUTH2' | 'QR' | null
+  connectable?: boolean
 }
 
 // The only channel the API can tell and change today: receiving, which is automatic sync (`syncEnabled`).
@@ -92,13 +94,19 @@ export async function deleteAccount({ accountId }: { accountId: string }): Promi
 }
 
 /**
- * `GET /api/providers`. Every provider it lists has a connector, and the only one so far (Gmail, F04a) connects through
- * OAuth2, so all are connectable; the backend adds `connectable` (D-50) once a provider without that flow exists. The
- * scopes asked for are not in the API yet: null.
+ * `GET /api/providers`. A provider can be connected when the API says so (D-285): Zalo turned off is listed and is not
+ * (D-286). A backend from before `connectable` listed only providers that connect over OAuth2: connectable. The wizard
+ * connects over OAuth2 only until its QR step exists (ZL-11), so a provider connected by QR code waits too. The scopes
+ * asked for are not in the API yet: null.
  */
 export async function fetchConnectProviders(): Promise<ConnectableProvider[]> {
   const providers = await api.get<ProviderResponse[]>('/api/providers')
-  return providers.map((provider) => ({ ...toProviderInfo(provider), capabilities: provider.capabilities, connectable: true, scopes: null }))
+  return providers.map((provider) => ({
+    ...toProviderInfo(provider),
+    capabilities: provider.capabilities,
+    connectable: (provider.connectable ?? true) && (provider.connectMethod ?? 'OAUTH2') === 'OAUTH2',
+    scopes: null,
+  }))
 }
 
 /**

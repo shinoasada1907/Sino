@@ -885,3 +885,116 @@ Một reviewer độc lập đọc bản chụp của code trước khi commit (
 - **Gài lỗi (mutation), trên bản trước review:** 16 lỗi gài vào `ZaloClient` và `ZaloConfiguration` (bỏ lần thử lại, đổi mã của `PUT 410`/`400`, `5xx` khi gửi, công tắc tắt vẫn gọi, `409`, hạn chờ gửi bằng hạn chờ đọc, đảo lần lỗi thứ hai, tra tin thiếu `msgIds`, `401` không log ERROR, mọi `404` đều gửi phiên, đảo kết quả gửi không có câu trả lời, `429`, khóa đếm bằng ký tự, khóa 31 byte, địa chỉ không có host): 16/16 bị bắt. Lượt chạy đầu báo "16/16" nhưng sai: `mvnw.cmd` không chạy được, nên lỗi gài nào cũng bị tính là bị bắt; script sửa lại để chạy `./mvnw` và đòi đường chạy gốc xanh trước.
 - **Chạy thật với `sino-zalo`** (cổng 8093, không gọi Zalo): sai khóa -> `401` -> `PROVIDER_UNAVAILABLE` + log ERROR; đọc, gửi, tra tin cho một account lạ -> `404` thật -> `PUT session` (Fastify kiểm body tới `body/session/imei`, tức dạng `{ session: {...} }` đúng) -> `400` vì `imei` rỗng -> `AUTH_EXPIRED` + log WARN `FST_ERR_VALIDATION`; body gửi và body tra tin (`after` 9 chữ số lẻ) qua schema; cookie và khóa không có trong log nào.
 - **Chưa kiểm:** `PUT session` với phiên thật (đăng nhập bằng cookie vào Zalo), đọc và gửi tin thật: ZL-08, ZL-09, rồi ZL-13 bằng nick phụ.
+
+## 11. Kết nối bằng mã QR: SPI, API, kết nối lại, một nick một owner (ZL-07)
+
+**Ở đâu:**
+- `provider`: `ConnectMethod`, `ProviderDescriptor` (`connectMethod`, `connectable`), `spi/{QrLogin,QrChallenge,QrLoginState}`, `MessageProvider.{qrLogin,turnedOn}`, `DefaultProviderRegistry`, `api/ProviderResponse`;
+- `account`: `application/{QrConnectService,QrConnectStatus,QrConnectStart,PendingQrConnect}`, `api/{QrConnectController,PendingQrConnects,QrConnectRequest,QrChallengeResponse,QrStatusResponse}`, mã lỗi mới, một truy vấn mới của `ConnectedAccountRepository`;
+- `provider/infrastructure/zalo`: `ZaloQrLogin`, `ZaloClient` (`/logins`), `ZaloProvider`, `ZaloConfiguration`;
+- web: `accounts.api.ts` đọc `connectable`.
+
+Claude làm ở chế độ AUTO.
+
+### 11.1 Luồng: ba request, một lần đăng ký
+```text
+ web                          sino-api                                     sino-zalo
+ ---                          --------                                     ---------
+ POST .../zalo/qr  ---------> QrConnectService.start
+ {acceptRisk:true}              - provider có qrLogin()? (không: 422)
+                                - đang bật? (không: 409)
+                                - kết nối lại: account của owner? (không: 404)
+                                QrLogin.start() --------------------------> POST /logins  (chờ Zalo cho mã, <= 15 s)
+ <-- 201 {loginId, qrImage} --  session giữ PendingQrConnect(loginId)
+ (hiện mã, mỗi 2 s hỏi)
+ GET .../qr/{loginId} ------> session có loginId này? (không: 404)
+                              QrLogin.status() ---------------------------> GET /logins/{id}
+                                WAITING / SCANNED -> trả về, giữ trong session
+                                EXPIRED / DECLINED / FAILED -> trả về, xóa khỏi session
+                                DONE (một lần) -> kiểm D-290, kiểm nick khi kết nối lại,
+                                                  AccountRegistrationService.register (F02),
+                                                  xóa khỏi session
+ <-- 200 {state, accountId?, reconnected?, code?}
+ DELETE .../qr/{loginId} ---> có trong session -> QrLogin.cancel() -------> DELETE /logins/{id}
+ <-- 204 (luôn luôn)
+```
+Không có gì của luồng này nằm trong database cho tới khi người dùng xác nhận trên điện thoại. Lần kết nối đang chờ nằm trong **HTTP session** của trình duyệt đã bắt đầu nó (`PendingQrConnects`, như `PendingConnects` của OAuth2 ở F04a), nên chỉ trình duyệt đó hỏi hay hủy được, và không có gì phải dọn khi người dùng bỏ ngang.
+
+### 11.2 Mở rộng contract mà không phá connector cũ: `default` method
+Contract F03 có thêm hai phương thức, cả hai là **`default` method** của interface:
+- `default Optional<QrLogin> qrLogin()`: mặc định rỗng;
+- `default boolean turnedOn()`: mặc định `true`.
+
+`default` method là phần thân viết sẵn trong interface: lớp nào không viết lại thì dùng bản đó. Nhờ vậy Gmail và 10 connector giả trong test **không phải sửa một dòng**. Ngược lại, `kind()` của BE-110 cố ý *không* có default, vì quên khai loại thì màn hình sai; quên khai QR thì chỉ là "không kết nối bằng QR", đúng với mọi connector cũ. Câu hỏi cần đặt khi thêm vào một contract: giá trị mặc định có đúng cho **mọi** lớp đang có không? Đúng thì `default`, không thì để trống và để trình biên dịch bắt.
+
+Registry kiểm một luật mới lúc khởi động: một connector có cả `oauth2()` lẫn `qrLogin()` thì app dừng, vì web sẽ không biết hiện bước nào.
+
+### 11.3 Trạng thái là một sealed interface
+`QrLoginState` là một **sealed interface** với sáu record con: `Waiting`, `Scanned(displayName)`, `Done(profile, credentials)`, `Expired`, `Declined`, `Failed(reason)`. `sealed` nghĩa là danh sách con đóng: không lớp nào ngoài sáu lớp đó được là `QrLoginState`. Lợi ích nằm ở `switch`:
+
+```text
+return switch (state) {
+    case QrLoginState.Waiting waiting   -> ...;
+    case QrLoginState.Scanned scanned   -> ... scanned.displayName() ...;
+    case QrLoginState.Done done         -> ... done.profile(), done.credentials() ...;
+    ...  (đủ sáu)
+};
+```
+Trình biên dịch biết đủ sáu trường hợp, nên không cần nhánh `default`; thêm một trạng thái thứ bảy thì mọi `switch` thiếu nó **không biên dịch được**, thay vì lặng lẽ rơi vào `default`. Mỗi trạng thái mang đúng dữ liệu của nó: chỉ `Done` có credential, chỉ `Scanned` có tên. So với một `enum` cộng các trường có thể `null`, kiểu này làm cho trạng thái sai (một `WAITING` có credential) không viết ra được.
+
+`Done.toString()` không cần viết lại: record in các thành phần bằng `toString()` của chúng, và `TokenCredentials.toString()` đã che khóa (test `aFinishedLoginNeverPrintsItsCredential`). `QrChallenge` thì viết lại `toString()` để bỏ ảnh QR: vài kilobyte base64 không có chỗ trong một dòng log.
+
+### 11.4 Mâu thuẫn trong hồ sơ, và `turnedOn()`
+Khi code, mình thấy ba câu trong hồ sơ không thể cùng đúng:
+1. D-286: tắt Zalo thì `qrLogin()` rỗng;
+2. spec `provider-catalog-api`: tắt Zalo thì `connectMethod` = `QR`, `connectable` = false;
+3. spec `qr-connect`: kết nối provider đang tắt thì `409 PROVIDER_DISABLED`.
+
+Nếu `qrLogin()` rỗng thì registry không biết Zalo kết nối bằng QR (`connectMethod` = `null`, trái câu 2), và `POST .../qr` sẽ trả `422 CONNECT_METHOD_MISMATCH` (trái câu 3). Cách gỡ (agent chốt, cần xem lại): **cách kết nối** và **đang bật hay tắt** là hai sự thật khác nhau, nên là hai phương thức. `qrLogin()` luôn có; `turnedOn()` nói công tắc. Registry tính `connectable = connectMethod != null && turnedOn()`, và `QrConnectService` trả `409` khi `turnedOn()` là false. Spec và D-286 được sửa theo, có ghi lý do. Bài học: khi hai yêu cầu đánh nhau, thường là một khái niệm đang bị dùng cho hai việc.
+
+### 11.5 Kết nối lại, và một nick một owner (D-290)
+Khi connector báo `Done`, `QrConnectService.finish` hỏi theo thứ tự:
+1. **Kết nối lại mà quét nhầm nick?** Lần kết nối đang chờ có `accountId` thì `ownId` vừa quét phải bằng `externalAccountId` của account đó; khác thì `FAILED CONNECT_WRONG_ACCOUNT`, không account nào đổi. Giống Gmail (F04a).
+2. **Nick đã thuộc owner khác?** Truy vấn `existsByProviderAndExternalAccountIdAndOwnerIdNotAndRemovedAtIsNull`: Spring Data dựng câu SQL từ chính **tên phương thức** (`exists` + các điều kiện nối bằng `And`, `Not` là khác, `IsNull` là `removed_at is null`). Account đang tắt vẫn tính; account đã xóa thì không. Có thì `FAILED CONNECT_ACCOUNT_IN_USE`. Luật này đặt ở đây, không trong `register`, vì luồng OAuth2 của Gmail cũng đi qua `register` mà Gmail không cần nó.
+3. **Account cần kết nối lại đã bị xóa trong lúc quét?** Thì `FAILED CONNECT_FAILED`.
+4. Còn lại: `register` (F02), một transaction, rồi `DONE` với `accountId` và `reconnected` (owner đã có account chưa xóa với nick này trước đó chưa). Web dùng `reconnected` để biết có cần nhập lần đầu không (D-288).
+
+Credential của Zalo là `TokenCredentials` chứa nguyên JSON phiên `sino-zalo` đưa (D-274), lưu vào bảng credential đã mã hóa với `credential_type` = `TOKEN`. Test `theSessionGoesBackToSinoZaloAsItCame` đi trọn vòng: phiên lúc `DONE` thành credential, credential thành body của `PUT session`, và body đó bằng đúng JSON ban đầu.
+
+### 11.6 Hai lần hỏi cùng lúc: khóa theo session
+`sino-zalo` chỉ nói `DONE` **một lần** rồi quên lần đăng nhập. Nếu hai lần hỏi của cùng một trình duyệt chạm nhau (hai tab, hay một lần hỏi chậm bị lần sau đuổi kịp), lần thứ nhất nhận `DONE` và đăng ký account, lần thứ hai nhận "không biết" và báo `FAILED`, và web có thể hiện lỗi dù account đã kết nối. `QrConnectController.status` vì vậy chạy trong `synchronized (WebUtils.getSessionMutex(session))`: các lần hỏi của một session đi lần lượt, lần sau thấy lần kết nối đã bị xóa và nhận `404`. Khóa giữ trong lúc gọi `sino-zalo` (tối đa 10 giây), nhưng chỉ các request QR của chính session đó phải chờ; người dùng khác không bị ảnh hưởng.
+
+### 11.7 Mã lỗi: 400 hay 422
+Spec ghi `400 CONNECT_METHOD_MISMATCH`, nhưng trong app, lỗi sai luật nghiệp vụ (`ErrorCategory.INVALID`) luôn trả `422 Unprocessable Content`, kể cả `CONNECT_NOT_SUPPORTED` cùng loại ở luồng OAuth2. `400 Bad Request` để dành cho request sai dạng: body không đọc được, hay thiếu `acceptRisk` (Bean Validation `@NotNull @AssertTrue`, mã `VALIDATION_FAILED`). Mình theo quy ước của app và sửa spec (agent chốt). Các mã mới: `PROVIDER_DISABLED` (`409`), `QR_LOGIN_NOT_FOUND` (`404`), `QR_UNAVAILABLE` (`502`: `sino-zalo` không đưa mã QR, hay không trả lời một lần hỏi; lần kết nối vẫn được giữ, lần hỏi sau hỏi lại), và `CONNECT_ACCOUNT_IN_USE` trong `code` của `FAILED`.
+
+### 11.8 Zalo luôn có trong registry, và web đọc `connectable`
+`ZaloConfiguration` giờ luôn tạo `ZaloProvider`; khi tắt nó chỉ không kiểm khóa và ghi một dòng "Zalo is off". Lựa chọn "chỉ đăng ký khi bật" của bạn ở ZL-06 được trả về đúng D-286. Để việc này không làm hộp thoại kết nối cho bấm một Zalo đang tắt, `fetchConnectProviders` của web đọc `connectable` từ API (phần này kéo lên từ ZL-11, agent chốt); backend cũ không có trường này thì coi là kết nối được. Hộp thoại chưa có bước QR (ZL-11), nên web tạm chỉ coi provider OAuth2 là kết nối được: bật Zalo lúc này mà cho bấm thì hộp thoại sẽ đi nhầm luồng OAuth2 và nhận `422` (review tìm ra). Kết quả trên `dev`: Zalo, tắt hay bật, hiện "Sắp có" trong hộp thoại kết nối, như canvas vẽ cho một provider chưa kết nối được; ZL-11 bỏ điều kiện tạm này khi có bước QR.
+
+Công tắc đọc như mọi boolean của Spring nhờ chính `ZaloProperties` (`boolean enabled`): `true`/`on`/`yes`/`1` là bật, `false`/`off`/`no`/`0` là tắt, giá trị khác thì app dừng ở bước bind cấu hình. Hai `Condition` tự viết ở ZL-06 không còn cần nữa.
+
+**Hạn chờ "lời gọi chậm".** `sino-zalo` chờ Zalo đưa mã QR tối đa 15 giây, dài hơn hạn chờ đọc 10 giây của client. Lệnh gửi tin và lệnh bắt đầu đăng nhập giờ chung một hạn chờ "chậm" là 20 giây (`ZaloProvider.SLOW_TIMEOUT`, trước đây là `SEND_TIMEOUT` 15 giây), trên cả 10 giây của lệnh gửi và 15 giây chờ mã QR.
+
+### 11.9 Review tìm ra
+Một reviewer độc lập đọc bản chụp của code (không có lỗi CRITICAL hay HIGH):
+- **Sửa ở đây:**
+  - `register` ném lỗi sau `DONE` thì trả `FAILED` và xóa lần kết nối, thay vì `500` (provider đã quên lần đăng nhập, nên không có lần sau);
+  - `displayName` rỗng từ `sino-zalo` (Zalo không báo ai quét) thì tên là `ownId`, thay vì thất bại và mất phiên;
+  - web chỉ coi provider OAuth2 là kết nối được cho tới khi có bước QR (mục 11.8);
+  - thêm test hai lần hỏi chạy song song (luồng thật, một lần hỏi bị giữ giữa chừng bằng `CountDownLatch`), "Thêm" với nick đã có (`reconnected` = true), account bị xóa trong lúc quét (không sống lại), và `401`/`403` cho hỏi và hủy.
+- **Không sửa, có lý do:**
+  - kiểm D-290 không khóa: giới hạn đã chấp nhận ở D-290;
+  - khóa session giữ trong lúc gọi `sino-zalo`: lấy lần kết nối ra rồi trả lại thì một lần hỏi chồng lên lúc còn `WAITING` sẽ nhận `404` sai (design D-275 "Chốt ở ZL-07").
+- **Bài học, lần thứ hai** (lần đầu ở ZL-05): một bất biến về đồng thời ("không đăng ký hai lần") phải có test chạy đồng thời, không chỉ một dòng Javadoc.
+
+### 11.10 Kiểm chứng (ZL-07)
+- **Đỏ trước:**
+  - tầng provider biên dịch đỏ (thiếu `ConnectMethod`, `QrLogin`…);
+  - `QrConnectApiTests` 22/23 đỏ với `404` (route chưa có);
+  - các test Zalo 26 đỏ;
+  - test web đỏ (Zalo bị gán `connectable: true`);
+  - sau review, 4 test mới đỏ đúng chỗ. Một test `401` đỏ vì chính test sai: session vừa `POST` đã đăng nhập, nên phải hỏi bằng một session mới.
+- **Xanh:** `./mvnw -B -ntp verify` trong worktree trên `5a80bb4`: 1681 test, 0 lỗi, 0 hỏng, 11 bỏ qua, `ModularityTests` xanh. Web, trên `dev` mới nhất (`9461f75`, sau các trang public): `pnpm lint` 0, `tsc -b` 0, `pnpm test` 769/769 (90 file), `pnpm build` 0. Backend không đổi gì giữa `5a80bb4` và `9461f75` ngoài một test `real-gmail` của BE-83.
+- **Gài lỗi:** 19 lỗi gài vào service, controller, trạng thái, session, registry, `ZaloQrLogin`, `ZaloClient`, `ZaloConfiguration`; 2 sống sót lúc đầu (hỏi dưới provider khác, `SCANNED` bị coi là xong), thêm 2 test thì bị bắt; 19/19.
+  - Lần chạy lại đầu báo "đường gốc hỏng": script khôi phục file bằng `copyFileSync`, mà trên Windows nó giữ giờ sửa cũ, nên Maven giữ class của lỗi gài cuối. Đã sửa script; kết quả trong vòng lặp vẫn đúng, vì mỗi lỗi gài được ghi bằng `writeFileSync`.
+- **Chạy thật với `sino-zalo`** (cổng 8093, không gọi Zalo, không `POST /logins`): login lạ thì `404 UNKNOWN_LOGIN` rồi `Failed`; hủy thì `204`; sai khóa thì `401`, `PROVIDER_UNAVAILABLE` và log ERROR; khóa không có trong log. Lần chạy đầu treo 555 giây trước request đầu tiên (máy treo hoặc ngủ); chạy lại mất 1,5 giây.
+- **Chưa kiểm:** quét mã QR thật bằng nick phụ, phiên thật đi qua `PUT session`: ZL-13. Màn QR trên web: ZL-11. Hộp thoại kết nối trong Chrome (extension Chrome không kết nối được lúc làm): `connectable` lấy từ API có test, và chữ "Sắp có" của provider không kết nối được có test sẵn (`connect.format.test.ts`).

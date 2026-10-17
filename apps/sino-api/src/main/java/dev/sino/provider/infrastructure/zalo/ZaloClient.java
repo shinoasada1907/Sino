@@ -50,21 +50,21 @@ class ZaloClient {
 
     private final boolean enabled;
     private final RestClient reading;
-    private final RestClient sending;
+    private final RestClient slow;
 
     /**
-     * @param readTimeout until the whole answer is read, for every call but a send
-     * @param sendTimeout the same for a send, which must be above the 10 s sino-zalo waits for Zalo, so a slow send
-     *        comes back as its 504 (D-280)
+     * @param readTimeout until the whole answer is read, for every call but the slow ones
+     * @param slowTimeout the same for a send and for the start of a QR login, which must be above the 10 s sino-zalo
+     *        waits for Zalo to send, so a slow send comes back as its 504 (D-280), and the 15 s it waits for a QR code
      */
     ZaloClient(URI url, String secret, boolean enabled, Duration connectTimeout, Duration readTimeout,
-            Duration sendTimeout) {
+            Duration slowTimeout) {
         this.enabled = enabled;
         // sino-zalo speaks HTTP/1.1 on this machine: asking it to upgrade to HTTP/2 would serve nothing.
         HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(connectTimeout)
                 .build();
         this.reading = clientOf(url, secret, client, readTimeout);
-        this.sending = clientOf(url, secret, client, sendTimeout);
+        this.slow = clientOf(url, secret, client, slowTimeout);
     }
 
     private static RestClient clientOf(URI url, String secret, HttpClient client, Duration timeout) {
@@ -92,6 +92,37 @@ class ZaloClient {
                 .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().toBodilessEntity());
     }
 
+    /** Starts a QR login (D-275): sino-zalo answers once Zalo gave the code, within 15 seconds. */
+    Login startLogin() {
+        requireOn();
+        return call(Call.READ, () -> answer(slow.post().uri("/logins").retrieve().body(Login.class)));
+    }
+
+    /**
+     * Where the QR login is, or empty when sino-zalo does not know it: it restarted, or forgot the login after
+     * handing over its session or five minutes on.
+     */
+    Optional<LoginView> login(String loginId) {
+        requireOn();
+        return call(Call.READ, () -> {
+            try {
+                return Optional.of(answer(reading.get().uri("/logins/{loginId}", loginId).retrieve()
+                        .body(LoginView.class)));
+            } catch (RestClientResponseException failure) {
+                if (failure.getStatusCode().value() == 404 && "UNKNOWN_LOGIN".equals(codeOf(failure))) {
+                    return Optional.empty();
+                }
+                throw failure;
+            }
+        });
+    }
+
+    /** Ends the QR login at Zalo; sino-zalo answers 204 also when it does not know it. */
+    void cancelLogin(String loginId) {
+        requireOn();
+        call(Call.READ, () -> reading.delete().uri("/logins/{loginId}", loginId).retrieve().toBodilessEntity());
+    }
+
     /** The account's messages after {@code after}, a Zalo {@code msgId}, or from the first one sino-zalo holds. */
     MessagePage messages(ProviderContext context, String after, int limit) {
         UUID accountId = accountIdOf(context);
@@ -108,7 +139,7 @@ class ZaloClient {
     Sent send(ProviderContext context, SendRequest request) {
         UUID accountId = accountIdOf(context);
         return inSession(context, Call.SEND, () -> {
-            Sent sent = sending.post().uri(ACCOUNT + "/messages", accountId).contentType(MediaType.APPLICATION_JSON)
+            Sent sent = slow.post().uri(ACCOUNT + "/messages", accountId).contentType(MediaType.APPLICATION_JSON)
                     .body(request).retrieve().body(Sent.class);
             if (sent == null || sent.msgId() == null || sent.msgId().isBlank()) {
                 throw new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN,
@@ -330,6 +361,31 @@ class ZaloClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record Problem(String code) {
+    }
+
+    /** A QR login just started: the code as a PNG in base64, scannable until {@code expiresAt}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Login(String loginId, String qrImage, Instant expiresAt) {
+    }
+
+    /**
+     * Where a QR login is: {@code state} is {@code WAITING}, {@code SCANNED} (with {@code displayName}), {@code DONE}
+     * (with {@code profile} and {@code session}, once), {@code EXPIRED}, {@code DECLINED} or {@code FAILED}.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record LoginView(String state, String displayName, Profile profile, JsonNode session) {
+
+        // The session is the account's credential: never in a log line.
+        @Override
+        public String toString() {
+            return "LoginView[state=" + state + ", displayName=" + displayName + ", profile=" + profile
+                    + ", session=" + (session == null ? null : "****") + "]";
+        }
+
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Profile(String ownId, String displayName, String avatarUrl) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

@@ -107,6 +107,34 @@ describe('the Tài khoản requests on the backend API (D-56)', () => {
     ])
   })
 
+  // D-285, D-286: Zalo turned off is listed, says it connects by QR code, and cannot be connected.
+  it('takes from the API which providers can be connected', async () => {
+    server.use(
+      http.get('/api/providers', () =>
+        HttpResponse.json([
+          { ...API_PROVIDERS[0], connectMethod: 'OAUTH2', connectable: true },
+          { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: [], connectMethod: 'QR', connectable: false },
+        ]),
+      ),
+    )
+
+    expect(await fetchConnectProviders()).toEqual([
+      { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL', capabilities: ['READ_MESSAGES', 'SEND_MESSAGES'], connectable: true, scopes: null },
+      { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: [], connectable: false, scopes: null },
+    ])
+  })
+
+  // The wizard has no QR step before ZL-11: a provider connected by QR code waits, on or off, rather than fail.
+  it('keeps a provider connected by QR code to come until the wizard has its step', async () => {
+    server.use(
+      http.get('/api/providers', () =>
+        HttpResponse.json([{ type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: [], connectMethod: 'QR', connectable: true }]),
+      ),
+    )
+
+    expect((await fetchConnectProviders()).map((provider) => provider.connectable)).toEqual([false])
+  })
+
   it('starts a connect, or signs an account in again, and returns where to send the browser', async () => {
     const sent: unknown[] = []
     server.use(

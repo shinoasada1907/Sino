@@ -51,6 +51,17 @@ class MessageProviderTests {
     }
 
     @Test
+    void aConnectorDeclaresNoQrLoginByDefault() {
+        assertThat(readOnly.qrLogin()).isEmpty();
+    }
+
+    // Only a connector with a switch of its own can be off (D-286).
+    @Test
+    void aConnectorIsTurnedOnByDefault() {
+        assertThat(readOnly.turnedOn()).isTrue();
+    }
+
+    @Test
     void aConnectorEstimatesNothingByDefault() {
         ProviderContext context = new ProviderContext(UUID.randomUUID(), "alice", new TokenCredentials("t"));
 

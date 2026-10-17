@@ -112,7 +112,7 @@
   - **Thực hiện (2026-10-17, AUTO):** BE-110 đã vào `dev`, nên `kind()` = `CHAT` khai luôn. `ZaloClient` có `putSession`, `messages`, `send`, `lookup`, mỗi lời gọi đi qua bảng D-281 và luật "`PUT session` rồi thử lại đúng một lần"; các chỗ bảng để ngỏ ghi ở design D-281 "Chốt ở ZL-06" (agent chốt, cần xem lại). `getAccountProfile` ném `CAPABILITY_NOT_SUPPORTED`: ai là account đến từ lần đăng nhập QR (ZL-07). Review độc lập trước commit: khóa ngoài ASCII lọt vào lời lỗi của JDK (sửa: khóa chỉ gồm ASCII nhìn thấy được, chặn `IllegalArgumentException`), công tắc đọc như boolean của Spring, log WARN cho `PUT 400`, thêm 7 phương thức test (17 ca chạy).
   - **Bằng chứng:** đỏ trước: biên dịch đỏ (4 lớp chưa có), sau review 8 test mới đỏ đúng chỗ; xanh: `-Dtest='Zalo*'` 83 test + `ZaloWiringTests`, `./mvnw -B -ntp verify` (worktree, trên `9f8af03`) 1613 test, 0 lỗi, 11 bỏ qua; gài lỗi 16/16 bị bắt (lượt đầu hỏng vì `mvnw.cmd` không chạy, mọi lỗi gài bị tính là bị bắt; chạy lại với đường gốc xanh); chạy thật với `sino-zalo` cổng 8093, không gọi Zalo: `401` → `PROVIDER_UNAVAILABLE` + ERROR, `404` → `PUT session` (body qua schema tới `session.imei`) → `400` → `AUTH_EXPIRED` + WARN, body gửi và tra tin qua schema, không có khóa hay cookie trong log. Kiến thức: mục 10 của `phase-5-multi-provider-send.md` + `.docx`. **Chưa kiểm:** phiên thật, đọc và gửi thật (ZL-08, ZL-09, ZL-13).
 
-- [ ] 2.2 **ZL-07 — Kết nối QR: SPI `qrLogin()`, API connect/poll/hủy, kết nối lại; `GET /api/providers` có `connectMethod`**
+- [x] 2.2 **ZL-07 — Kết nối QR: SPI `qrLogin()`, API connect/poll/hủy, kết nối lại; `GET /api/providers` có `connectMethod`**
   - **Goal:** người dùng kết nối và kết nối lại Zalo bằng QR (D-275, D-285).
   - **Files:**
     - `provider/spi/{QrLogin,QrChallenge,QrLoginState}.java`, `MessageProvider.qrLogin()`;
@@ -122,11 +122,26 @@
     - `ZaloProvider.qrLogin()`;
     - test `QrConnectApiTests`, `ProvidersApiTests`.
   - **Acceptance criteria:** spec `qr-connect` (cả 5 requirement); delta `provider-contract` (Contract kết nối bằng mã QR); delta `provider-catalog-api`.
-  - **Test:** từng trạng thái; `DONE` tạo account `CONNECTED` với credential mã hóa; kết nối lại đúng/sai `ownId`; nick đã thuộc owner khác (kể cả account đang tắt) → `FAILED` `CONNECT_ACCOUNT_IN_USE`, không account nào đổi; owner cũ đã xóa account → kết nối được (D-290, thêm sau review 2026-10-14); thiếu `acceptRisk`; Gmail → `400`; tắt → `409`; `loginId` của session khác → `404`; `ModularityTests` xanh.
+  - **Test:** từng trạng thái; `DONE` tạo account `CONNECTED` với credential mã hóa; kết nối lại đúng/sai `ownId`; nick đã thuộc owner khác (kể cả account đang tắt) → `FAILED` `CONNECT_ACCOUNT_IN_USE`, không account nào đổi; owner cũ đã xóa account → kết nối được (D-290, thêm sau review 2026-10-14); thiếu `acceptRisk`; Gmail → ~~`400`~~ `422` (**LÝ DO:** lỗi nghiệp vụ trong app là `422`, như `CONNECT_NOT_SUPPORTED`; design D-275 "Chốt ở ZL-07"); tắt → `409`; `loginId` của session khác → `404`; `ModularityTests` xanh.
   - **Depends on:** ZL-06
   - **Bạn sẽ học:** mở rộng contract mà không phá connector cũ (`default` method), sealed interface cho trạng thái, lưu tạm trong HTTP session, vì sao kết nối lại phải so `externalAccountId`.
   - **Hints:** Level 2: đặt `QrConnectService` cạnh `ConnectService`, dùng lại ~~`AccountRegistration.register`~~ `AccountRegistrationService.register` (**LÝ DO:** review 2026-10-14: lớp trong code tên là `AccountRegistrationService`). Kiểm D-290 trong `QrConnectService` trước khi gọi `register`, không đặt trong `register`, vì luồng OAuth2 của Gmail cũng đi qua `register`.
   - **Thêm từ ZL-06 (2026-10-17):** `ZaloConfiguration` hiện chỉ đăng ký `ZaloProvider` khi `SINO_ZALO_ENABLED=true` (người dùng chọn, xem ZL-06). Khi `GET /api/providers` đã trả `connectMethod`/`connectable`, đăng ký nó cả khi tắt (D-286: `connectable: false`, mọi lời gọi ra `sino-zalo` ném `PROVIDER_UNAVAILABLE`, `ZaloClient` đã làm phần này), sửa `ZaloConfigurationTests` (`staysOffByDefaultAndSaysSo`, `offNeedsNoSecret`) cho đúng, và kiểm hộp thoại kết nối trên web hiện Zalo "Sắp có" khi tắt. `ZaloClient.putSession` đã có. Đây cũng là lúc requirement *Connector có công tắc tắt vẫn ở trong registry* của `f05c-messages-inbox-split` (spec `provider-registry`) đúng trở lại cho Zalo; nếu f05c được archive trước ZL-07 thì `openspec/specs/provider-registry` nói trước điều ZL-07 mới làm.
+  - **Thực hiện (2026-10-17, AUTO):**
+    - SPI thêm ~~"`qrLogin()` rỗng khi tắt"~~ `qrLogin()` luôn có cộng `default boolean turnedOn()`. **LÝ DO** (agent chốt, cần xem lại): spec `provider-catalog-api` đòi `connectMethod` = `QR` và spec `qr-connect` đòi `409 PROVIDER_DISABLED` khi tắt; `qrLogin()` rỗng thì cả hai sai (D-286 sửa theo).
+    - `ConnectMethod`; `ProviderDescriptor` có `connectMethod` và `connectable`; registry dừng app khi một connector có cả hai cách kết nối.
+    - Ngoài danh sách file: `QrConnectStatus`, `QrConnectStart`, `PendingQrConnect`, `PendingQrConnects`, `QrConnectRequest`, `QrChallengeResponse`, `QrStatusResponse`, `ZaloQrLogin`, `ConnectMethod`, các mã lỗi mới; test `PendingQrConnectsTests`, `QrConnectServiceTests`, `QrLoginStateTests`, `ZaloQrLoginTests`, `ZaloOffWiringTests`, `FakeQrLogin`. ~~`ProvidersApiTests`~~ → `ProvidersControllerTests` (tên lớp test có sẵn).
+    - `ZaloConfiguration` luôn đăng ký `ZaloProvider` (D-286); hai `Condition` tự viết của ZL-06 bỏ, công tắc đọc qua `ZaloProperties.enabled`.
+    - `ZaloProvider.SEND_TIMEOUT` (15 s) đổi thành `SLOW_TIMEOUT` (20 s), chung cho gửi tin và bắt đầu đăng nhập. **LÝ DO:** `sino-zalo` chờ Zalo đưa mã QR tối đa 15 s, quá hạn chờ đọc 10 s.
+    - Web: `fetchConnectProviders` đọc `connectable` (kéo từ ZL-11), tạm chỉ coi `OAUTH2` là kết nối được tới khi có bước QR.
+    - Review độc lập (không có CRITICAL/HIGH): `register` lỗi sau `DONE` → `FAILED`; `displayName` rỗng → `ownId`; web chặn QR tới ZL-11; thêm test hai lần hỏi song song, "Thêm" với nick đã có, account bị xóa trong lúc quét, `401`/`403` cho hỏi và hủy.
+  - **Bằng chứng:**
+    - **Đỏ trước:** biên dịch đỏ ở tầng provider; `QrConnectApiTests` 22/23 đỏ (`404`); 26 test Zalo đỏ; test web đỏ; sau review 4 test đỏ đúng chỗ (một test `401` sai, đã sửa: session vừa `POST` đã đăng nhập).
+    - **Xanh:** `./mvnw -B -ntp verify` (worktree, `5a80bb4`) 1681 test, 0 lỗi, 11 bỏ qua; web trên `9461f75`: lint 0, `tsc -b` 0, test 769/769, build 0.
+    - **Gài lỗi:** 19/19 bị bắt, gồm 2 lỗi sống sót lúc đầu nên thêm 2 test (hỏi dưới provider khác, `SCANNED` chưa phải xong).
+    - **Chạy thật với `sino-zalo`** (cổng 8093, không gọi Zalo): login lạ → `Failed`, hủy → `204`, sai khóa → `PROVIDER_UNAVAILABLE` + ERROR, khóa không có trong log.
+    - Kiến thức: mục 11 + `.docx`.
+    - **NOT VERIFIED:** hộp thoại kết nối trong Chrome (extension Chrome không kết nối được; dữ liệu `connectable` có test, phần hiện "Sắp có" có test sẵn ở `connect.format.test.ts`); quét QR thật bằng nick phụ (ZL-13).
 
 - [ ] 2.3 **ZL-08 — Nhận tin: webhook, `registerPush`, `fetchUpdates`, chuẩn hóa**
   - **Goal:** tin Zalo hiện trong Hộp thư vài giây sau khi đến (D-277, D-279). Sau `f05c-messages-inbox-split` (D-300) tin Zalo hiện ở màn Tin nhắn (`/messages`), không ở Hộp thư.
@@ -161,7 +176,7 @@
 
 - [ ] 3.1 **ZL-11 — Bước Zalo trong hộp thoại kết nối**
   - **Goal:** người dùng kết nối và quét lại Zalo từ web, có cảnh báo trước (D-272, D-288).
-  - **Files:** `apps/sino-web/src/features/accounts/{accounts.api.ts (connectMethod, connectable, QR API),connect.types.ts,ConnectWizard.tsx,components/QrStep.tsx,components/RiskStep.tsx,useQrConnect.ts}`, test cạnh từng file, handler MSW.
+  - **Files:** `apps/sino-web/src/features/accounts/{accounts.api.ts (connectMethod, ~~connectable,~~ QR API),connect.types.ts,ConnectWizard.tsx,components/QrStep.tsx,components/RiskStep.tsx,useQrConnect.ts}`, test cạnh từng file, handler MSW. **LÝ DO:** `fetchConnectProviders` đọc `connectable` từ API ngay ở ZL-07 (agent chốt, D-285 "Chốt ở ZL-07"): từ ZL-07 backend đăng ký Zalo cả khi tắt, nên web còn tự gán `true` thì hộp thoại cho bấm Zalo rồi báo lỗi. Task này còn: `connectMethod` (chọn bước QR) và các lời gọi QR.
   - **Acceptance criteria:** spec `zalo-connect-web` (cả 5 requirement); DN-2 (chữ cảnh báo) được người dùng chốt; đối chiếu canvas `ConnectWizard`.
   - **Test:** Vitest + MSW cho mọi trạng thái, gồm `DONE` mới → `initial-sync` với `range` = `ALL`, `DONE` kết nối lại → không `initial-sync`, `FAILED` `CONNECT_ACCOUNT_IN_USE` → lời báo (thêm sau review 2026-10-14, D-288, D-290); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build`; Chrome một lượt ở các cỡ màn hộp thoại dùng.
   - **Depends on:** ZL-07 (contract API; dùng MSW nên làm song song với ZL-08…ZL-10 được)

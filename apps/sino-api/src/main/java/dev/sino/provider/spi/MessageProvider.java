@@ -57,6 +57,24 @@ public interface MessageProvider {
     }
 
     /**
+     * How the connector is connected by a QR code, or empty when it is not (D-275). A connector has this or
+     * {@link #oauth2()}, never both; as with OAuth2, the {@code account} module drives the login and registers the
+     * account.
+     */
+    default Optional<QrLogin> qrLogin() {
+        return Optional.empty();
+    }
+
+    /**
+     * False while the connector's own switch is off (D-286). It stays in the registry, so its accounts and their
+     * stored messages stay readable, but it cannot be connected and every call out fails with
+     * {@link ProviderErrorCode#PROVIDER_UNAVAILABLE}.
+     */
+    default boolean turnedOn() {
+        return true;
+    }
+
+    /**
      * Only for connectors that declare {@link ProviderCapability#SEND_MESSAGES}. A failure that leaves the message
      * certainly unsent has its usual code; one after which the provider may have sent it has
      * {@link ProviderErrorCode#OUTCOME_UNKNOWN} (D-135), and the caller must not send again blindly.

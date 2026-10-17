@@ -135,11 +135,20 @@ QrLogin.cancel(loginId)
 **Quy tắc:**
 - Web hỏi trạng thái mỗi 2 giây. Mã sống 100 giây; hết hạn thì web hiện "Tạo mã mới", tức gọi lại `POST`.
 - Kết nối lại phải đúng `ownId` cũ; sai thì `FAILED` với `CONNECT_WRONG_ACCOUNT`, giống Gmail.
-- Thiếu `acceptRisk` → `400`. Provider không có `qrLogin()` → `400 CONNECT_METHOD_MISMATCH`. Zalo đang tắt → `409 PROVIDER_DISABLED`. `loginId` của session khác → `404`.
+- Thiếu `acceptRisk` → `400`. Provider không có `qrLogin()` → ~~`400`~~ `422 CONNECT_METHOD_MISMATCH`. Zalo đang tắt → `409 PROVIDER_DISABLED`. `loginId` của session khác → `404`.
 
 **Phương án bị loại:**
 - SSE hay WebSocket cho trạng thái QR: poll 2 giây trong 100 giây là đủ, và ít phần chuyển động hơn.
 - Một endpoint riêng cho Zalo: một provider QR khác về sau (Telegram QR) sẽ phải làm lại từ đầu.
+
+**Chốt ở ZL-07** (2026-10-17, **agent chốt, cần xem lại**; spec `qr-connect`, `provider-contract` sửa theo):
+- **`422` thay vì `400` cho `CONNECT_METHOD_MISMATCH`.** **LÝ DO:** trong repo, lỗi sai luật nghiệp vụ (`ErrorCategory.INVALID`) luôn là `422`, kể cả `CONNECT_NOT_SUPPORTED` cùng loại của luồng OAuth2 (gọi `POST /api/accounts/connect/zalo`); `400` chỉ cho request sai dạng (thiếu `acceptRisk`: `VALIDATION_FAILED`). Muốn trả `400` cho một lỗi nghiệp vụ thì phải thêm một `ErrorCategory` mới cho cả app.
+- **Mã lỗi mới:** `QR_LOGIN_NOT_FOUND` (`404`, `loginId` không có trong session hay đã xong), `QR_UNAVAILABLE` (`502`, provider không đưa mã QR hay không trả lời một lần hỏi; lần kết nối đang chờ được giữ, lần hỏi sau hỏi lại), `CONNECT_ACCOUNT_IN_USE` (D-290, trong `code` của `FAILED`).
+- **Session:** lần kết nối đang chờ giữ 10 phút (mã sống 100 giây, `sino-zalo` quên lần đăng nhập sau 5 phút), tối đa 5 lần mỗi session, như `PendingConnects` của OAuth2. Lần đăng nhập kết thúc (`DONE`, `EXPIRED`, `DECLINED`, `FAILED`) thì bị xóa. Các lần hỏi của một session đi lần lượt (khóa session), nên hai lần hỏi chạm nhau không đăng ký account hai lần: `sino-zalo` chỉ nói `DONE` một lần.
+- **`reconnected`** là true khi owner đã có account chưa xóa với cùng `externalAccountId` trước khi đăng ký, kể cả khi người dùng quét bằng "Thêm" thay vì "Kết nối lại".
+- **Hủy** một `loginId` không có trong session thì vẫn `204`, nhưng không gọi provider: không session nào hủy được lần đăng nhập của session khác.
+- **Sau review:** `register` lỗi sau `DONE` (database chập chờn) thì trả `FAILED CONNECT_FAILED` và xóa lần kết nối, không để `500` rồi một lần hỏi sau mới thất bại: provider đã quên lần đăng nhập. `sino-zalo` trả `displayName` rỗng khi Zalo không báo ai quét (`ZcaGateway`) thì tên của account là `ownId`, thay vì thất bại và mất phiên. Hai lần hỏi chạm nhau có test (một `DONE`, một `404`, một account). Kiểm D-290 vẫn không khóa (giới hạn đã ghi ở D-290).
+- **Khóa giữ trong lúc gọi `sino-zalo`, không lấy lần kết nối ra rồi trả lại.** **LÝ DO:** lấy ra thì một lần hỏi chồng lên lúc còn `WAITING` sẽ nhận `404` như thể lần đăng nhập đã hết; giữ khóa thì nó chỉ phải chờ (tối đa 10 giây, chỉ các request QR của chính session đó). Khóa là `WebUtils.getSessionMutex`, như `ConnectController` của OAuth2: không có `HttpSessionMutexListener` thì đó là chính session, và Tomcat giữ một facade cho mỗi session.
 
 ### D-276 — Bị đá thì account thành "Cần đăng nhập lại"; rớt mạng thì tự nối lại · **Người dùng chốt** (phần 2)
 - **Bị đá:** listener đóng với `3000` hoặc `3003`, hoặc đăng nhập bằng cookie bị từ chối. `sino-zalo` đánh dấu phiên `ENDED` (kèm lý do), dừng listener, gọi webhook ngay (D-277). Lần gọi kế tiếp tới account đó nhận `410 SESSION_ENDED`. ~~`ZaloProvider` ném `AUTH_EXPIRED`~~ `ZaloProvider` gửi lại phiên đang lưu bằng `PUT session` một lần (D-289); đó vẫn là phiên đã bị đá nên `sino-zalo` trả `410` ngay mà không gọi Zalo, và `ZaloProvider` ném `AUTH_EXPIRED`. `ProviderAccessService` sẵn có chuyển account sang `AUTH_EXPIRED`, web hiện "Quét QR lại" (kết nối lại, D-275).
@@ -289,14 +298,15 @@ Contract F03 thêm `default void disconnect(ProviderContext context) {}`. Module
 - Web bỏ việc tự gán `connectable: true` (`accounts.api.ts`), và chọn bước tiếp theo trong hộp thoại theo `connectMethod`.
 
 **Phương án bị loại:** web tự biết "zalo là QR" (tên provider cứng trong web; provider QR thứ hai lại phải sửa web).
+**Chốt ở ZL-07** (2026-10-17): `connectMethod` suy ra từ connector (`oauth2()` → `OAUTH2`, `qrLogin()` → `QR`, không có → `null`), `connectable` = có `connectMethod` và `turnedOn()` (D-286). Phần web "đọc `connectable`" làm luôn ở ZL-07, không đợi ZL-11 (agent chốt): backend đăng ký Zalo cả khi tắt từ ZL-07, nên web còn tự gán `true` thì hộp thoại cho bấm Zalo rồi báo lỗi; backend cũ không có trường này thì coi là kết nối được (trước ZL-07 chỉ có provider OAuth2). Chọn bước theo `connectMethod` vẫn ở ZL-11; tới lúc đó web chỉ coi provider `OAUTH2` là kết nối được (thêm sau review: Zalo bật mà cho bấm thì hộp thoại đi luồng OAuth2 và nhận `422 CONNECT_NOT_SUPPORTED`).
 
 ### D-286 — Công tắc tắt: `sino-api` không gọi `sino-zalo` · **Người dùng chốt** (phần 4); cách tắt do **agent chỉnh khi viết hồ sơ, cần xem lại**
 - `SINO_ZALO_ENABLED=false` thì `ZaloProvider` vẫn có trong registry (account Zalo cũ vẫn hiện và đọc được tin đã lưu), nhưng mọi lời gọi ra `sino-zalo` ném `PROVIDER_UNAVAILABLE` với lời "Zalo đang tạm tắt".
-- `qrLogin()` trả rỗng và `connectable: false`.
+- ~~`qrLogin()` trả rỗng và `connectable: false`~~ → `turnedOn()` = false, `qrLogin()` vẫn có, `connectMethod` = `QR`, `connectable: false`, bắt đầu kết nối QR → `409 PROVIDER_DISABLED`. **LÝ DO** (ZL-07, agent chốt, cần xem lại): hồ sơ tự mâu thuẫn; spec `provider-catalog-api` đòi `connectMethod` = `QR` khi tắt và spec `qr-connect` đòi `409 PROVIDER_DISABLED`, mà `qrLogin()` rỗng thì `connectMethod` là `null` và lời gọi thành `422 CONNECT_METHOD_MISMATCH`. Contract F03 thêm `default boolean turnedOn()` (true), dùng chung cho mọi connector có công tắc riêng.
 - Phiên Zalo dừng bằng cách dừng tiến trình `sino-zalo` (README ghi rõ hai bước).
 
 **Đã sửa so với phần 4 lúc trình bày:** ~~`sino-api` gọi `DELETE session` cho mọi account~~. **LÝ DO:** tắt là lúc khẩn cấp; dừng tiến trình chắc chắn hơn và không cần thêm vòng lặp qua mọi account.
-**Tạm từ ZL-06 tới ZL-07** (**người dùng chốt** 2026-10-17, "Chỉ đăng ký khi bật"): ~~tắt thì `ZaloProvider` vẫn có trong registry~~ → chỉ đăng ký khi `SINO_ZALO_ENABLED=true`; phần "mọi lời gọi ra `sino-zalo` ném `PROVIDER_UNAVAILABLE`" có ngay ở ZL-06 (`ZaloClient`). **LÝ DO:** tới ZL-07 `GET /api/providers` chưa có `connectable`, và web tự gán `connectable: true` cho mọi provider được trả; Zalo trong danh sách thì hộp thoại kết nối cho bấm Zalo rồi báo lỗi. Chưa có account Zalo nào trước ZL-07, nên không ai mất quyền đọc tin đã lưu. ZL-07 chuyển về đúng D-286.
+**Tạm từ ZL-06 tới ZL-07** (**người dùng chốt** 2026-10-17, "Chỉ đăng ký khi bật"): ~~tắt thì `ZaloProvider` vẫn có trong registry~~ → chỉ đăng ký khi `SINO_ZALO_ENABLED=true`; phần "mọi lời gọi ra `sino-zalo` ném `PROVIDER_UNAVAILABLE`" có ngay ở ZL-06 (`ZaloClient`). **LÝ DO:** tới ZL-07 `GET /api/providers` chưa có `connectable`, và web tự gán `connectable: true` cho mọi provider được trả; Zalo trong danh sách thì hộp thoại kết nối cho bấm Zalo rồi báo lỗi. Chưa có account Zalo nào trước ZL-07, nên không ai mất quyền đọc tin đã lưu. ZL-07 chuyển về đúng D-286. **Đã chuyển ở ZL-07** (2026-10-17): `ZaloConfiguration` luôn đăng ký `ZaloProvider`; web đọc `connectable`, nên Zalo tắt hiện "Sắp có" trong hộp thoại kết nối.
 
 ### D-287 — Cách hướng dẫn trong change này · **Người dùng chốt** (2026-10-14)
 - **Người code:** người dùng code mọi task từ ZL-01, theo thứ tự trong `tasks.md`.

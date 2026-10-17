@@ -30,6 +30,17 @@ class ZaloProviderTests {
         assertThat(zalo.oauth2()).isEmpty();
     }
 
+    // On or off, Zalo says it connects by QR code; off, it cannot be connected now (D-286).
+    @Test
+    void connectsByQrCodeAndFollowsItsSwitch() {
+        ZaloProvider off = new ZaloProvider(new ZaloProperties(false, null, null));
+
+        assertThat(zalo.qrLogin()).isPresent();
+        assertThat(zalo.turnedOn()).isTrue();
+        assertThat(off.qrLogin()).isPresent();
+        assertThat(off.turnedOn()).isFalse();
+    }
+
     // Each capability comes with the task that builds its operation: reading and push (ZL-08), sending (ZL-09).
     @Test
     void declaresNoCapabilityBeforeItsOperationsExist() {
@@ -49,8 +60,14 @@ class ZaloProviderTests {
     // sino-zalo gives up on Zalo after 10 s and answers 504; Sino must still be listening then (D-280).
     @Test
     void waitsForASendLongerThanSinoZaloWaitsForZalo() {
-        assertThat(ZaloProvider.SEND_TIMEOUT).isGreaterThan(Duration.ofSeconds(10));
-        assertThat(ZaloProvider.SEND_TIMEOUT).isGreaterThan(ZaloProvider.READ_TIMEOUT);
+        assertThat(ZaloProvider.SLOW_TIMEOUT).isGreaterThan(Duration.ofSeconds(10));
+        assertThat(ZaloProvider.SLOW_TIMEOUT).isGreaterThan(ZaloProvider.READ_TIMEOUT);
+    }
+
+    // sino-zalo waits up to 15 s for Zalo to give a QR code, then answers 502 (ZL-02).
+    @Test
+    void waitsForAQrCodeLongerThanSinoZaloWaitsForZalo() {
+        assertThat(ZaloProvider.SLOW_TIMEOUT).isGreaterThan(Duration.ofSeconds(15));
     }
 
 }

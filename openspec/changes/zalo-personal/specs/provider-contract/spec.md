@@ -11,6 +11,17 @@ Connector MAY khai báo `qrLogin()`; mặc định MUST rỗng. `QrLogin.start()
 - **WHEN** trạng thái `DONE` được ghi ra log
 - **THEN** dòng log không có giá trị của credential
 
+### Requirement: Contract công tắc riêng của connector
+Connector MAY ghi đè `turnedOn()`; mặc định MUST là true. Connector đang tắt MUST vẫn có trong registry, giữ cách kết nối của nó (`connectMethod`), nhưng MUST NOT kết nối được (`connectable` = false). Registry MUST từ chối khởi động khi một connector có cả `oauth2()` lẫn `qrLogin()`.
+
+#### Scenario: Connector không có công tắc
+- **WHEN** một connector không ghi đè `turnedOn()`
+- **THEN** `turnedOn()` là true, và nó kết nối được nếu có `oauth2()` hoặc `qrLogin()`
+
+#### Scenario: Hai cách kết nối
+- **WHEN** ứng dụng khởi động với một connector có cả `oauth2()` lẫn `qrLogin()`
+- **THEN** ứng dụng dừng với lời nêu tên lớp của connector đó
+
 ### Requirement: Contract ngắt kết nối
 Connector MAY ghi đè `disconnect(context)` để dừng những gì nó giữ cho một account (phiên, listener); mặc định MUST không làm gì. Module `account` MUST gọi `disconnect` sau khi việc xóa hoặc tắt một account đã commit, và lỗi của `disconnect` MUST chỉ được ghi log.
 

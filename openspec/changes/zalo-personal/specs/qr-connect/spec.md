@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Bắt đầu kết nối bằng mã QR
-`POST /api/accounts/connect/{provider}/qr` với `acceptRisk` = true và `accountId` tùy chọn (kết nối lại) MUST gọi `qrLogin().start()` của connector và trả `201` với `loginId`, `qrImage` (PNG base64) và `expiresAt`. Lần kết nối đang chờ MUST được giữ trong HTTP session, gắn với owner và `accountId` nếu có. Thiếu hoặc sai `acceptRisk` MUST trả `400`. Provider không có `qrLogin()` MUST trả `400 CONNECT_METHOD_MISMATCH`. Provider đang tắt MUST trả `409 PROVIDER_DISABLED`. `accountId` không thuộc owner MUST trả `404`. Endpoint MUST đòi đăng nhập và CSRF như các endpoint ghi khác.
+`POST /api/accounts/connect/{provider}/qr` với `acceptRisk` = true và `accountId` tùy chọn (kết nối lại) MUST gọi `qrLogin().start()` của connector và trả `201` với `loginId`, `qrImage` (PNG base64) và `expiresAt`. Lần kết nối đang chờ MUST được giữ trong HTTP session, gắn với owner và `accountId` nếu có. Thiếu hoặc sai `acceptRisk` MUST trả `400`. Provider không có `qrLogin()` MUST trả `422 CONNECT_METHOD_MISMATCH`. Provider đang tắt MUST trả `409 PROVIDER_DISABLED`. `accountId` không thuộc owner MUST trả `404`. Provider không đưa mã QR MUST trả `502 QR_UNAVAILABLE`. Endpoint MUST đòi đăng nhập và CSRF như các endpoint ghi khác.
 
 #### Scenario: Bắt đầu kết nối Zalo
 - **WHEN** người dùng đã đăng nhập gọi `POST /api/accounts/connect/zalo/qr` với `acceptRisk` = true
@@ -13,10 +13,14 @@
 
 #### Scenario: Provider kết nối bằng OAuth2
 - **WHEN** người dùng gọi `POST /api/accounts/connect/gmail/qr`
-- **THEN** response là `400 CONNECT_METHOD_MISMATCH`
+- **THEN** response là `422 CONNECT_METHOD_MISMATCH`
 
 ### Requirement: Hỏi trạng thái và hoàn tất kết nối QR
-`GET /api/accounts/connect/{provider}/qr/{loginId}` MUST trả `state` của lần đăng nhập (`WAITING`, `SCANNED` kèm `displayName`, `DONE`, `EXPIRED`, `DECLINED`, `FAILED` kèm `code`). Khi connector báo `DONE`, server MUST gọi use case đăng ký kết nối của F02 với hồ sơ và credential nhận được, MUST xóa lần kết nối đang chờ khỏi session, và MUST trả `DONE` với `accountId` và `reconnected`. `loginId` không có trong session của người gọi MUST trả `404`.
+`GET /api/accounts/connect/{provider}/qr/{loginId}` MUST trả `state` của lần đăng nhập (`WAITING`, `SCANNED` kèm `displayName`, `DONE`, `EXPIRED`, `DECLINED`, `FAILED` kèm `code`). Khi connector báo `DONE`, server MUST gọi use case đăng ký kết nối của F02 với hồ sơ và credential nhận được, MUST xóa lần kết nối đang chờ khỏi session, và MUST trả `DONE` với `accountId` và `reconnected`. Lần đăng nhập kết thúc mà không có account (`EXPIRED`, `DECLINED`, `FAILED`) MUST cũng được xóa khỏi session. `loginId` không có trong session của người gọi MUST trả `404 QR_LOGIN_NOT_FOUND`. Provider không trả lời một lần hỏi MUST cho `502 QR_UNAVAILABLE` và MUST giữ lần kết nối đang chờ, để lần hỏi sau hỏi lại. Hai lần hỏi cùng lúc của một session MUST không đăng ký account hai lần.
+
+#### Scenario: Provider chậm một lần
+- **WHEN** `sino-zalo` không trả lời một lần hỏi trạng thái
+- **THEN** response là `502 QR_UNAVAILABLE`, và lần hỏi sau trả trạng thái như thường
 
 #### Scenario: Kết nối mới thành công
 - **WHEN** người dùng quét mã, xác nhận, và web hỏi trạng thái

@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Connector Zalo khai báo định danh và capability
-Registry MUST có connector `zalo` với `displayName` "Zalo" và đúng các capability `READ_MESSAGES`, `SEND_MESSAGES`, `PUSH_WEBHOOK`. Connector MUST có `qrLogin()` khi `sino.zalo.enabled` = true và MUST NOT có `oauth2()`.
+Registry MUST có connector `zalo` với `displayName` "Zalo" và đúng các capability `READ_MESSAGES`, `SEND_MESSAGES`, `PUSH_WEBHOOK`. Connector MUST có `qrLogin()`, cả khi tắt, và MUST NOT có `oauth2()`.
 
 #### Scenario: Danh sách provider
 - **WHEN** client gọi `GET /api/providers` khi Zalo đang bật
@@ -88,7 +88,11 @@ Connector MUST đổi lỗi theo bảng D-281: không kết nối được, `5xx
 - **THEN** account vẫn bị xóa và log có một dòng cảnh báo
 
 ### Requirement: Công tắc tắt Zalo
-Khi `sino.zalo.enabled` = false, connector `zalo` MUST vẫn có trong registry; `qrLogin()` MUST rỗng; `GET /api/providers` MUST trả `connectable` = false cho `zalo`; và mọi phương thức gọi ra `sino-zalo` MUST ném `PROVIDER_UNAVAILABLE` mà không gửi request nào.
+Khi `sino.zalo.enabled` = false, connector `zalo` MUST vẫn có trong registry; `turnedOn()` MUST là false; `GET /api/providers` MUST trả `connectMethod` = `QR` và `connectable` = false cho `zalo`; bắt đầu kết nối QR MUST trả `409 PROVIDER_DISABLED`; và mọi phương thức gọi ra `sino-zalo` MUST ném `PROVIDER_UNAVAILABLE` mà không gửi request nào.
+
+#### Scenario: Kết nối Zalo khi đang tắt
+- **WHEN** `SINO_ZALO_ENABLED=false` và người dùng gọi `POST /api/accounts/connect/zalo/qr` với `acceptRisk` = true
+- **THEN** response là `409 PROVIDER_DISABLED` và không có request nào tới `sino-zalo`
 
 #### Scenario: Tắt Zalo khẩn cấp
 - **WHEN** `SINO_ZALO_ENABLED=false` và lượt đồng bộ gọi `fetchUpdates` cho một account Zalo

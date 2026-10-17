@@ -32,6 +32,7 @@ import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
+import dev.sino.provider.spi.QrLogin;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.provider.spi.SkippedItem;
@@ -55,6 +56,8 @@ public final class FakeMessageProvider implements MessageProvider {
     private final ProviderCapabilities capabilities;
     private final List<List<RawMessage>> pages;
     private final OAuth2Connection oauth2;
+    private final QrLogin qrLogin;
+    private final boolean turnedOn;
     private final Long estimate;
     private final ProviderException estimateFailure;
     private final Map<Integer, ProviderException> failures;
@@ -85,6 +88,8 @@ public final class FakeMessageProvider implements MessageProvider {
                 : withPush(builder.capabilities);
         this.pages = List.copyOf(builder.pages);
         this.oauth2 = builder.oauth2;
+        this.qrLogin = builder.qrLogin;
+        this.turnedOn = builder.turnedOn;
         this.estimate = builder.estimate;
         this.estimateFailure = builder.estimateFailure;
         this.failures = Map.copyOf(builder.failures);
@@ -134,6 +139,16 @@ public final class FakeMessageProvider implements MessageProvider {
     @Override
     public Optional<OAuth2Connection> oauth2() {
         return Optional.ofNullable(oauth2);
+    }
+
+    @Override
+    public Optional<QrLogin> qrLogin() {
+        return Optional.ofNullable(qrLogin);
+    }
+
+    @Override
+    public boolean turnedOn() {
+        return turnedOn;
     }
 
     @Override
@@ -399,6 +414,8 @@ public final class FakeMessageProvider implements MessageProvider {
         private ProviderCapabilities capabilities = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES);
         private final List<List<RawMessage>> pages = new ArrayList<>();
         private OAuth2Connection oauth2;
+        private QrLogin qrLogin;
+        private boolean turnedOn = true;
         private Long estimate;
         private ProviderException estimateFailure;
         private final Map<Integer, ProviderException> failures = new HashMap<>();
@@ -426,6 +443,18 @@ public final class FakeMessageProvider implements MessageProvider {
         /** Makes the fake connect over OAuth2, like Gmail. */
         public Builder oauth2(OAuth2Connection oauth2) {
             this.oauth2 = oauth2;
+            return this;
+        }
+
+        /** Makes the fake connect by QR code, like Zalo. */
+        public Builder qrLogin(QrLogin qrLogin) {
+            this.qrLogin = qrLogin;
+            return this;
+        }
+
+        /** Makes the fake's own switch off (D-286): listed, not connectable. */
+        public Builder turnedOff() {
+            this.turnedOn = false;
             return this;
         }
 
