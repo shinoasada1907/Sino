@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive. F05b, `openspec/changes/f05b-merged-threads` (một chuỗi ở nhiều tài khoản là một dòng): xong BE-80 (nhóm), BE-81 (Hộp thư theo nhóm, trả lời từ bản chính), BE-82 (thư của nhóm, mỗi thư một lần); còn BE-83.
+> **Phạm vi:** F04a, `openspec/changes/f04a-gmail-connect` (kết nối Gmail bằng OAuth2): xong BE-30…BE-34 và FE-30, còn nghiệm thu. F04b, `openspec/changes/f04b-gmail-read` (đọc thư Gmail): xong BE-35…BE-39 và nghiệm thu; còn archive (sau F04a). F05, `openspec/changes/f05-unified-inbox` (lưu thư, lần nhập đầu, Hộp thư): xong BE-40…BE-47 và nghiệm thu (BE-46: nhập thật với Gmail); BE-61 (đếm đúng số thư cho khoảng ngày) xong; còn archive (sau F04b). F06, `openspec/changes/f06-message-history` (đọc cả cuộc trò chuyện): xong BE-54…BE-57 (BE-57: chạy thật với Gmail, chưa kiểm được phần tải tệp vì hộp thư chưa có thư kèm tệp); còn phần web chạy thật và archive. F05b, `openspec/changes/f05b-merged-threads` (một chuỗi ở nhiều tài khoản là một dòng): xong BE-80 (nhóm), BE-81 (Hộp thư theo nhóm, trả lời từ bản chính), BE-82 (thư của nhóm, mỗi thư một lần), BE-83 (chạy thật trên ba hộp thư của bạn); còn phần web chạy thật, nghiệm thu và archive.
 > **Cập nhật:** 2026-10-10. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -2182,6 +2182,59 @@ Bài học chung: một quy tắc chọn dữ liệu cho phân trang keyset ph�
 - **Toàn bộ:** `./mvnw -B -ntp verify`: 1529 test, 0 sai, 0 lỗi, 4 bỏ qua.
 - **Chưa kiểm:** dữ liệu thật của bạn, và `EXPLAIN ANALYZE` của câu đọc thư (BE-83).
 
+## 27. Chạy thật: nhóm trên dữ liệu của bạn (BE-83, F05b)
+
+**Ở đâu:** test `conversation/RealMergedThreadsTests` (mới, tag `real-gmail`), `conversation/RealGmailMessagesTests`; README mục *A thread in several real mailboxes (F05b)*.
+
+### 27.1 Một test thật không gọi Gmail
+Phần của F05b nằm sau Gmail: gom khi lưu, đọc theo nhóm, đổi theo nhóm. Vì vậy `RealMergedThreadsTests` đọc những gì Sino đã lưu từ ba hộp thư thật của bạn và đi qua API như web, nhưng không đồng bộ và không gửi gì. Chạy lại bao nhiêu lần cũng ra cùng kết quả, không tốn quota Gmail, và không có nguy cơ gửi nhầm. Phần đồng bộ thật vẫn do `RealGmailMessagesTests` làm.
+
+Như mọi test `real-gmail`, nó dùng profile `local` (file `.env`, database Compose), chỉ chạy tay, và tự bỏ qua khi có backend ở cổng 8080: hai backend trên một database sẽ cùng đồng bộ và cùng gom.
+
+### 27.2 Kiểm bằng một cách tính thứ hai
+Danh sách thư của một nhóm được so với một cách tính khác, viết bằng Java ngay trong test (`expectedMessages`): đọc mọi thư của các bản, rồi giữ mỗi khóa một thư theo quy tắc D-184 = B (thư đi, rồi bản cũ nhất, rồi mã nhỏ hơn). Nếu test chạy lại đúng câu SQL của `MessageHistory` thì nó luôn đồng ý với chính nó. Hai cách viết khác nhau mà ra cùng kết quả trên 52 thư thật mới là bằng chứng.
+
+Số đếm cũng vậy: `unread`, `needsReply`, `withAttachments` của `/counts` được so với số dòng của view tương ứng (`view=unread`, `reply`, `attachments`). Một bên là `count(*) FILTER (...)`, bên kia là danh sách đọc từng trang; hai đường code phải khớp.
+
+### 27.3 Đổi dữ liệu thật mà để lại như cũ
+Lưu trữ và đã đọc chỉ nằm trong Sino (D-67), nhưng vẫn là dữ liệu của bạn. Test chỉ thử trên một nhóm **không lưu trữ, không có thư chưa đọc**, vì từ trạng thái đó có đường quay về chính xác:
+
+```text
+  ban đầu: mọi bản không lưu trữ, mọi thư đã đọc
+  archived: true   -> mọi bản lưu trữ      (kiểm)
+  archived: false  -> về như cũ            (kiểm)
+  read: false      -> 1 thư chưa đọc       (thư mới nhất của bản chính)
+  read: true       -> mọi thư đã đọc: về như cũ
+```
+
+Một nhóm đang có hai thư chưa đọc thì không quay về được: `read: true` rồi `read: false` chỉ làm lại **một** thư chưa đọc. Lệnh trả lại nằm trong `finally`, để test đỏ giữa chừng vẫn trả dữ liệu về.
+
+### 27.4 Đọc `EXPLAIN ANALYZE`
+`EXPLAIN ANALYZE` chạy câu SQL thật và in ra PostgreSQL đã làm từng bước thế nào, mất bao lâu. Trên database của bạn (2339 cuộc trò chuyện):
+
+```text
+  Trang đầu Hộp thư (3,5 ms)
+    Seq Scan conversation          2338 dòng   mọi cuộc trò chuyện của bạn
+    GroupAggregate                 2317 nhóm
+    Sort: top-N heapsort           31 dòng     chỉ giữ 31 dòng đầu, không sắp cả 2317
+  Trang đầu thư của một nhóm (2,6 ms)
+    Index Scan message_conversation_sent_idx   thư của từng bản
+    Sort + bỏ trùng                            trên cột hẹp (id, sent_at)
+    Index Scan message_pk          21 lần      đọc đủ cột cho thư của trang
+```
+
+`Seq Scan` (đọc thẳng cả bảng) không phải lúc nào cũng xấu. Khi gần như mọi dòng đều cần, như ở đây (mọi cuộc trò chuyện của ba tài khoản), đọc thẳng bảng rẻ hơn đi qua index rồi nhảy vào bảng từng dòng. `top-N heapsort` nghĩa là PostgreSQL thấy `LIMIT 31` và chỉ giữ 31 dòng tốt nhất trong lúc đọc. Đổi lại, trang Hộp thư tốn thời gian theo số cuộc trò chuyện của bạn, vì mỗi trang gom lại tất cả (mục 25.2). Hôm nay đó là vài ms; nếu sau này chậm, cách sửa đã ghi ở design: lưu sẵn tóm tắt theo nhóm.
+
+Review của BE-82 còn nghi một chỗ: `m.id IN (SELECT ... LIMIT 21)` có làm PostgreSQL quét cả bảng `message` không. Kế hoạch cho thấy không: nó tra 21 lần theo khóa chính.
+
+### 27.5 Test thật cũ cũng phải đổi theo
+`RealGmailMessagesTests` (BE-57) so số thư qua API với `count(*)` của **một** bản. Từ BE-82, chuỗi gộp trả ít thư hơn con số đó (đã bỏ trùng), nên test này sẽ đỏ trên dữ liệu của bạn. `verify` không chạy test gắn tag `real-gmail`, nên chỉ có đọc lại code mới thấy. Giờ nó so với số thư đã bỏ trùng của cả nhóm. Bài học: đổi hành vi thì tìm cả những test không chạy tự động.
+
+### 27.6 Kiểm chứng (BE-83)
+- **Dữ liệu trước khi chạy** (psql, chỉ đọc): V19 đã áp; 2338 cuộc trò chuyện, 2317 nhóm, 21 nhóm hai bản (17 `tienct07` + `bonzed2001`, 4 `tienct07` + `tien.ntt1907`); 0 thư `Message-ID` trống hay thiếu, nên lỗi gộp nhầm ghi ở mục 26.7 không xảy ra trên dữ liệu của bạn.
+- **Test thật:** bạn dừng backend; `./mvnw test -Preal-gmail -Dtest=RealMergedThreadsTests,RealGmailMessagesTests`: 6 test, 0 sai, hai lượt. 21 dòng hai tài khoản; 52 thư đã lưu hiện thành 26; gom lại 78 ms không đổi gì; số đếm khớp view; nhóm thử được trả lại như cũ (kiểm lại bằng psql sau đó). Trang Hộp thư chậm nhất 76 ms, trang thư chậm nhất 17 ms (qua MockMvc, gồm cả JSON).
+- **Không gửi thư nào** (bạn không cho gửi). Trả lời từ bản chính (D-186) chỉ được kiểm bằng test tự động.
+
 ---
 
 ## Tự kiểm tra
@@ -2310,3 +2363,7 @@ Bài học chung: một quy tắc chọn dữ liệu cho phân trang keyset ph�
 122. `DISTINCT ON` giữ dòng nào trong các dòng cùng khóa? Vì sao cuối `ORDER BY` có `m.id`, dù không test nào cần nó?
 123. Vì sao thư không có `Message-ID` luôn hiện, dù hai thư như vậy có thể là một?
 124. Mở thư của bản `bonzed2001` qua mã nhóm (bản `tienct07`): nếu gọi Gmail bằng tài khoản của bản trong đường dẫn thì chuyện gì xảy ra, và vì sao test phải nhờ connector giả ghi lại tài khoản mới bắt được?
+125. Test thật của F05b không đồng bộ, không gọi Gmail: vì sao nó vẫn là chạy thật, và nó được gì nhờ không gọi Gmail?
+126. Vì sao so danh sách thư với một cách tính viết bằng Java, thay vì chạy lại câu SQL của `MessageHistory`?
+127. Vì sao test chỉ thử lưu trữ và đọc trên một nhóm "không lưu trữ, không có thư chưa đọc"?
+128. Trang Hộp thư có `Seq Scan` trên `conversation`: đó có phải lỗi không, và khi nào thì nó thành vấn đề?
