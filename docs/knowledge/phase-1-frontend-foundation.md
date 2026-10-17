@@ -1588,6 +1588,66 @@ Sơ đồ mẫu làm mẫu có 7 ghi chú, và thêm một tiêu đề thứ hai
 ### 23.5 Khối chưa có chữ
 Khối mới có chữ rỗng; vùng vẽ hiện chữ mờ "Khối mới". Tên và đầu nội dung trên thẻ bỏ qua khối không có chữ. Tên là khối có chữ đầu tiên, khối chính trước. Đầu nội dung là ba khối có chữ đầu tiên, nối bằng " · ". Không khối nào có chữ thì tên là "Sơ đồ mới". Test viết trước đỏ đúng chỗ: tên ra "Sơ đồ mới" dù sơ đồ có ba khối có chữ, vì bản WIP chỉ nhìn khối chính.
 
+### 23.6 "+ Ghi chú" hỏi loại, địa chỉ giữ `kind` (DG-02)
+"+ Ghi chú" (đầu danh sách, trạng thái trống, nút "+" trên điện thoại) nay mở một menu: "Ghi chú chữ" đi `/notes/new`, "Sơ đồ" đi `/notes/new?kind=diagram`. Mỗi mục là một `Link` bọc trong `DropdownMenuItem asChild`, nên nó vẫn là một đường dẫn thật (có `href`, mở được ở thẻ mới) và vẫn có vai trò `menuitem` cho trình đọc màn hình.
+
+Địa chỉ của một sơ đồ mới có hai loại tham số, dùng vào hai việc:
+
+```text
+/notes/new?filter=pinned&kind=diagram
+           ^^^^^^^^^^^^^ bộ lọc của danh sách: đi theo mọi link (search)
+                         ^^^^^^^^^^^^ loại của ghi chú mới: chỉ của trang này
+```
+
+`useNotesFilter` trả `search` chỉ gồm bộ lọc và từ khóa, để link của thẻ và nút quay lại không mang `kind` đi. Nhưng khi đổi chip hay gõ tìm, nó giữ `kind` có sẵn. Không giữ thì bấm "Đã ghim" trong lúc vẽ sơ đồ mới làm địa chỉ mất `kind`, và cột phải đổi thành ô soạn chữ.
+
+### 23.7 React Flow tải riêng (D-208)
+`NotesPage` không import vùng vẽ trực tiếp:
+
+```text
+const DiagramEditor = lazy(() => import('./diagram/DiagramEditor')
+  .then((module) => ({ default: module.DiagramEditor })))
+...
+<Suspense fallback={<p role="status">Đang mở sơ đồ…</p>}>
+  <DiagramEditor ... />
+</Suspense>
+```
+
+`import()` động báo cho Vite tách file đó và mọi thứ chỉ nó dùng (React Flow, d3) thành một chunk riêng. Trình duyệt chỉ tải chunk này khi một sơ đồ mở. `lazy` đòi một `default` export; `.then(...)` đổi export có tên thành `default`, để file vẫn theo quy ước export có tên như cả dự án. Bằng chứng ở bản build: `DiagramEditor-….js` 185 kB (60 kB gzip) và một file CSS 11 kB; chunk chính không chứa chữ `react-flow__` nào.
+
+CSS của React Flow được import vào một layer:
+
+```text
+@import "@xyflow/react/dist/base.css" layer(base);
+```
+
+Tailwind 4 đặt class tiện ích trong `@layer utilities`. Theo luật cascade layer, CSS không thuộc layer nào luôn thắng CSS trong layer, bất kể độ đặc hiệu. Để `base.css` ngoài layer thì `.react-flow__handle { background-color: … }` của nó thắng `bg-foreground` trên chấm nối. Đặt nó vào layer `base` thì class Tailwind thắng như mọi nơi khác.
+
+### 23.8 Sơ đồ là gốc, React Flow chỉ vẽ
+Có hai cách giữ dữ liệu khi dùng React Flow: để node của React Flow là gốc rồi suy ra sơ đồ, hoặc ngược lại. Sino chọn sơ đồ làm gốc, vì cái được lưu là sơ đồ và mọi quy tắc nằm trong `diagram.ts`:
+
+```text
+DiagramPane: diagram (state)
+   | nodesOf / edgesOf (flow.ts)
+   v
+DiagramCanvas: nodes, edges (React Flow vẽ; tự giữ cỡ đo được, khối đang chọn, vị trí lúc kéo)
+   | thả khối: moveBlock(diagram, ...)      "+ Khối": addBlock(diagram, ...)
+   v
+onChange(sơ đồ mới) -> DiagramPane lưu sau 600 ms (D-210) -> nodes theo sơ đồ mới
+```
+
+React Flow ghi cỡ đo được của mỗi khối vào node (`measured`). Khối chưa có cỡ bị ẩn và đường nối chưa được vẽ. Nếu mỗi lần sơ đồ đổi ta dựng node mới hoàn toàn, mọi khối mất cỡ và nhấp nháy ẩn hiện. Vì vậy `nodesOf(diagram, nodes cũ)` chép lại các trường cũ của node rồi mới ghi vị trí và chữ từ sơ đồ. Khi sơ đồ (prop) đổi, `DiagramCanvas` cập nhật node ngay trong lúc render (`if (shown !== diagram) { setShown(...); setNodes(...) }`), cách React khuyên cho "state đi theo prop", thay vì `useEffect` vốn vẽ một khung hình sai trước rồi mới sửa.
+
+### 23.9 Sơ đồ mới: tạo ở thay đổi đầu tiên (D-209)
+Giống ghi chú chữ (D-203): mở `/notes/new?kind=diagram` chưa tạo gì; thêm khối hay đặt tên thì tạo, rồi `navigate(..., { replace: true, state: FROM_NEW })`. Nhờ `FROM_NEW`, `NotesPage` giữ `key="new"` cho vùng vẽ, nên React không dựng lại nó: khối vừa thêm vẫn đang chọn, con trỏ vẫn ở ô tên.
+
+Chrome bắt một lỗi mà jsdom không thấy: "+ Khối" đặt khối mới đúng giữa màn hình, đè lên khối "Ý chính" cũng nằm giữa. Hàm thuần `freeSpot` dời chỗ thêm xuống dưới cho tới khi không đè khối nào (test viết trước, đỏ vì hàm chưa có).
+
+### 23.10 Test React Flow trong jsdom
+jsdom không có bố cục: mọi phần tử cỡ 0, nên React Flow ẩn hết khối và không vẽ đường nối. `src/test/reactFlow.ts` giả những gì nó cần: `ResizeObserver` báo cỡ ngay khi được gọi, `DOMMatrixReadOnly`, và `offsetWidth` / `offsetHeight` cho vùng vẽ (1000 × 600) và khối (160 × 48). Lần chạy đầu đỏ với `Cannot read properties of undefined (reading 'width')`: stack chỉ vào `XYPanZoom`, nơi React Flow 12.12 đọc `entry.contentRect.width`; bản giả thiếu `contentRect`. Kéo và nối vẫn chỉ kiểm được ở Chrome.
+
+Chạy cả bộ, một test tạo sơ đồ thỉnh thoảng đỏ: "không tìm thấy thẻ" ngay sau khi địa chỉ đã đổi. TanStack Query báo cho danh sách rằng cache có ghi chú mới qua `setTimeout(0)`, còn router đổi địa chỉ ngay. Máy bận thì lần kiểm thẻ chạy trước lần vẽ lại. Sửa bằng `await list().findByRole(...)` (chờ thẻ) thay vì `getByRole` (tìm ngay). Test NT "makes a new note…" chập chờn từ trước cũng cùng gốc này và được sửa cùng cách.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1772,3 +1832,7 @@ Khối mới có chữ rỗng; vùng vẽ hiện chữ mờ "Khối mới". Tên
 152. Một test xanh ngay lần chạy đầu thì chưa chứng minh gì. Làm sao biết nó có bắt được lỗi?
 153. Vì sao nạp thư mẫu vào database tạm tốt hơn giả câu trả lời bằng `fetch` trong trình duyệt, khi muốn kiểm "chạy với backend"?
 154. Vì sao chỉ nới hạn chờ của luồng tự chuyển màn, không tăng `asyncUtilTimeout` cho mọi test?
+155. Vì sao đổi chip lọc trên `/notes/new?kind=diagram` phải giữ `kind`, còn link của các thẻ thì không mang `kind` theo?
+156. Vì sao `@xyflow/react/dist/base.css` được import vào `layer(base)`? Không làm vậy thì class Tailwind của chấm nối thua ở đâu, và vì sao độ đặc hiệu không cứu được?
+157. Vì sao `nodesOf` chép lại các trường cũ của node (như `measured`) thay vì dựng node mới từ sơ đồ? Bỏ đi thì vùng vẽ trông ra sao?
+158. Một test chờ địa chỉ đổi xong rồi tìm thẻ ngay, thỉnh thoảng đỏ khi chạy cả bộ. Vì sao, và sửa thế nào mà không tăng thời gian chờ?

@@ -5,7 +5,9 @@ import {
   addBlock,
   connect,
   DIAGRAM_LIMITS,
+  diagramFootLine,
   diagramSummary,
+  freeSpot,
   moveBlock,
   nearestSide,
   newBlock,
@@ -99,6 +101,22 @@ describe('a diagram (DG-01, fe-ui-diagram-notes)', () => {
 
   it('counts its blocks and links', () => {
     expect(diagramSummary(diagram())).toBe('3 khối · 2 nối')
+  })
+
+  it('finds a free spot for a block added by "+ Khối": the point asked for, or lower down past the blocks there (DG-02)', () => {
+    const one: Diagram = { blocks: [block('a', { x: -80, y: -24 })], links: [] }
+
+    expect(freeSpot(one, 400, 300)).toEqual({ x: 400, y: 300 })
+    const below = freeSpot(one, 0, 0)
+    expect(below.x).toBe(0)
+    expect(below.y).toBeGreaterThanOrEqual(24 + 24 + 16)
+    // Two blocks down the middle: past both.
+    const two: Diagram = { blocks: [...one.blocks, block('b', { x: -80, y: below.y - 24 })], links: [] }
+    expect(freeSpot(two, 0, 0).y).toBeGreaterThan(below.y + 48)
+  })
+
+  it('counts them in words at the foot of the canvas (DG-02)', () => {
+    expect(diagramFootLine(diagram())).toBe('3 khối · 2 đường nối')
   })
 })
 

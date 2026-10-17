@@ -1,25 +1,31 @@
 import { Plus, Search } from 'lucide-react'
-import { useState } from 'react'
-import { Link, useLocation, useMatch, useParams } from 'react-router'
+import { lazy, Suspense, useState } from 'react'
+import { Link, useLocation, useMatch, useParams, useSearchParams } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { cn } from '@/shared/lib/utils'
 import { useNow } from '@/shared/time/useNow'
 import { Button } from '@/shared/ui/button'
+import { NewNoteMenu } from './components/NewNoteMenu'
 import { NoteEditor } from './components/NoteEditor'
 import { NoteList } from './components/NoteList'
 import { NotesLoadFailed, NotesSkeleton } from './components/NoteStates'
 import { useNotesFilter } from './useNotesFilter'
 import { FROM_NEW, useNotes } from './useNotes'
 
+// React Flow loads only when a diagram opens (fe-ui-diagram-notes, D-208).
+const DiagramEditor = lazy(() => import('./diagram/DiagramEditor').then((module) => ({ default: module.DiagramEditor })))
+
 /**
  * The Ghi chú screen (canvas `Notes`): the list and, beside it from 768 px, the open note (D-201). `/notes/:noteId`
  * opens a note and `/notes/new` a new one, keeping the filter and the search of the address (D-205). A new note keeps
- * its editor when it gets its own address, so the typing goes on (D-203).
+ * its editor when it gets its own address, so the typing goes on (D-203). A diagram, and `/notes/new?kind=diagram`,
+ * open on the canvas instead of the text editor (fe-ui-diagram-notes).
  */
 export function NotesPage() {
   const { noteId } = useParams()
   const creating = useMatch('/notes/new') !== null
   const location = useLocation()
+  const [params] = useSearchParams()
   const { data, error, refetch } = useNotes()
   const now = useNow()
   const { filter, query, search, setFilter, setQuery } = useNotesFilter()
@@ -33,11 +39,14 @@ export function NotesPage() {
       action={
         count !== null && (
           <>
-            <Button asChild variant="ghost" size="icon">
-              <Link to={{ pathname: '/notes/new', search }} aria-label="Ghi chú mới">
-                <Plus strokeWidth={1.6} />
-              </Link>
-            </Button>
+            <NewNoteMenu
+              search={search}
+              trigger={
+                <Button type="button" variant="ghost" size="icon" aria-label="Ghi chú mới">
+                  <Plus strokeWidth={1.6} />
+                </Button>
+              }
+            />
             <Button type="button" variant="ghost" size="icon" aria-label="Tìm trong ghi chú" aria-expanded={searchOpen} onClick={() => setSearchOpen((open) => !open)}>
               <Search strokeWidth={1.6} />
             </Button>
@@ -60,6 +69,7 @@ export function NotesPage() {
   const note = noteId === undefined ? undefined : data.notes.find((entry) => entry.id === noteId)
   const fromNew = (location.state as typeof FROM_NEW | null)?.noteFromNew === true
   const editorKey = creating || fromNew ? 'new' : noteId
+  const diagram = note ? note.kind === 'DIAGRAM' : creating && params.get('kind') === 'diagram'
 
   return (
     <div className="grid h-full min-h-0 md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
@@ -77,7 +87,11 @@ export function NotesPage() {
         className={open ? 'hidden md:flex' : 'flex'}
       />
       <div className={cn('min-h-0 min-w-0 flex-col', open ? 'flex' : 'hidden md:flex')}>
-        {creating || note ? (
+        {(creating || note) && diagram ? (
+          <Suspense fallback={<p role="status" className="m-auto p-10 text-sm text-muted-foreground">Đang mở sơ đồ…</p>}>
+            <DiagramEditor key={editorKey} note={note} search={search} now={now} />
+          </Suspense>
+        ) : creating || note ? (
           <NoteEditor key={editorKey} note={note} search={search} now={now} />
         ) : noteId !== undefined ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10">

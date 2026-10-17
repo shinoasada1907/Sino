@@ -37,7 +37,12 @@ describe('Ghi chú on a phone and a tablet, and its states (NT-03, fe-ui-notes)'
 
     expect(phoneHeader('Quay lại Thêm').getByRole('link', { name: 'Quay lại Thêm' })).toHaveAttribute('href', '/more')
     expect(phoneHeader('Quay lại Thêm').getByText('7 ghi chú')).toBeInTheDocument()
-    expect(phoneHeader('Quay lại Thêm').getByRole('link', { name: 'Ghi chú mới' })).toHaveAttribute('href', '/notes/new?filter=pinned')
+    // "Ghi chú mới" asks which kind (fe-ui-diagram-notes, D-206).
+    await user.click(phoneHeader('Quay lại Thêm').getByRole('button', { name: 'Ghi chú mới' }))
+    const menu = within(await screen.findByRole('menu'))
+    expect(menu.getByRole('menuitem', { name: /Ghi chú chữ/ })).toHaveAttribute('href', '/notes/new?filter=pinned')
+    expect(menu.getByRole('menuitem', { name: /Sơ đồ/ })).toHaveAttribute('href', '/notes/new?filter=pinned&kind=diagram')
+    await user.keyboard('{Escape}')
 
     // The search stays out of the way on a phone until asked for.
     const box = screen.getByRole('searchbox', { name: 'Tìm trong ghi chú' }).closest('[data-slot="note-search"]')
@@ -93,12 +98,17 @@ describe('Ghi chú on a phone and a tablet, and its states (NT-03, fe-ui-notes)'
   })
 
   it('says there is no note yet, with "+ Ghi chú"', async () => {
+    const user = userEvent.setup()
     vi.mocked(fetchNotes).mockResolvedValueOnce({ generatedAt: NOW.toISOString(), notes: [] })
     renderApp('/notes')
 
     const list = within(await ready())
     expect(list.getByText('Chưa có ghi chú nào')).toBeInTheDocument()
-    expect(list.getAllByRole('link', { name: 'Ghi chú' }).map((link) => link.getAttribute('href'))).toContain('/notes/new')
+    // The title's "+ Ghi chú" and the empty state's.
+    const buttons = list.getAllByRole('button', { name: 'Ghi chú' })
+    expect(buttons).toHaveLength(2)
+    await user.click(buttons[1])
+    expect(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Ghi chú chữ/ })).toHaveAttribute('href', '/notes/new')
     expect(list.queryByText('Không có ghi chú nào khớp')).toBeNull()
   })
 })

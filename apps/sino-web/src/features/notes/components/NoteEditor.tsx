@@ -1,4 +1,4 @@
-import { Ellipsis, ExternalLink, Link2Off, Pin, SquareCheck, Trash2 } from 'lucide-react'
+import { Ellipsis, ExternalLink, Link2Off, SquareCheck, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
@@ -9,6 +9,7 @@ import { anchorChip, anchorHeading, editedLine, lengthLine, linkedDue, NOTE_MAX_
 import type { NoteItem } from '../notes.types'
 import { FROM_NEW, useCreateNote, useSaveNote } from '../useNotes'
 import { DeleteNoteDialog } from './DeleteNoteDialog'
+import { PinButton } from './PinButton'
 
 /** How long the typing must stop before an edit is saved (D-203). */
 const SAVE_AFTER_MS = 600
@@ -194,23 +195,5 @@ export function NoteEditor({ note, search, now }: { note: NoteItem | undefined; 
         )}
       </div>
     </>
-  )
-}
-
-/** Ghim: a toggle that keeps its name and says its state (`aria-pressed`). */
-function PinButton({ pinned, disabled, onClick, size }: { pinned: boolean; disabled: boolean; onClick: () => void; size: 'icon' | 'icon-sm' }) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size={size}
-      aria-label="Ghim"
-      aria-pressed={pinned}
-      disabled={disabled}
-      onClick={onClick}
-      className="aria-pressed:bg-raised aria-pressed:text-foreground"
-    >
-      <Pin strokeWidth={1.6} />
-    </Button>
   )
 }

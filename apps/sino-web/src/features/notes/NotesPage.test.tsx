@@ -48,7 +48,7 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     expect(within(card(/Mã khách hàng/)).getByText('Hôm qua')).toBeInTheDocument()
     expect(within(card(/Số hợp đồng/)).getByText('Tin nhắn gốc không còn')).toBeInTheDocument()
     expect(within(card(/Ý tưởng chuyến đi/)).getByText('Ghi chú độc lập')).toBeInTheDocument()
-    // The sample diagram (spec diagram-notes); its own card comes with DG-02.
+    // The sample diagram (spec diagram-notes); its card is checked in DiagramNotes.test.
     expect(within(card(/Kế hoạch chuyến đi/)).getByText('Sơ đồ · 7 khối · 6 nối')).toBeInTheDocument()
     expect(screen.getByText('Chọn một ghi chú để xem')).toBeInTheDocument()
   })
@@ -118,14 +118,18 @@ describe('Ghi chú on desktop (NT-02, fe-ui-notes)', () => {
     const { router } = open('/notes')
     await ready()
 
-    await user.click(await list().findByRole('link', { name: 'Ghi chú' }))
+    // "+ Ghi chú" asks which kind (fe-ui-diagram-notes, D-206).
+    await user.click(await list().findByRole('button', { name: 'Ghi chú' }))
+    await user.click(await screen.findByRole('menuitem', { name: /Ghi chú chữ/ }))
     expect(router.state.location.pathname).toBe('/notes/new')
     const body = editor().getByRole('textbox', { name: 'Nội dung ghi chú' })
     await user.type(body, 'Gọi lại cho phòng khám')
 
     await vi.waitFor(() => expect(router.state.location.pathname).toMatch(/^\/notes\/[0-9a-f-]{36}$/), { timeout: 3000 })
     expect(router.state.historyAction).toBe('REPLACE')
-    expect(within(card(/Gọi lại cho phòng khám/)).getByText('Ghi chú độc lập')).toBeInTheDocument()
+    // The list hears of the new note a tick after the address changes (TanStack Query batches with setTimeout); under
+    // a loaded full run that tick came after the check (fe-ui-diagram-notes DG-02).
+    expect(within(await list().findByRole('link', { name: /Gọi lại cho phòng khám/ })).getByText('Ghi chú độc lập')).toBeInTheDocument()
     expect(editor().getByRole('textbox', { name: 'Nội dung ghi chú' })).toHaveFocus()
     expect(list().getByRole('button', { name: 'Tất cả · 8' })).toBeInTheDocument()
   })
