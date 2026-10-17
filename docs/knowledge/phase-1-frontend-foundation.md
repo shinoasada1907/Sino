@@ -1763,6 +1763,16 @@ Cuộn mượt khi bấm mục (`scroll-behavior: smooth`) chỉ áp lên trang 
 ### 24.3 Chép mà không nhân đôi
 Chỉ chép phần riêng của trang công khai: khung, thanh đầu, chân trang, chữ của trang, 5 component chuyển động React Bits và test của chúng. Những gì `sino-site` vốn chép từ `sino-web` (`Button`, `Badge`, `ProviderIcon`, `SinoMark`, `cn`, token màu) thì dùng thẳng bản của `sino-web`. Link vào app đổi từ `appUrl` + đường dẫn sang `<Link to="/login">`, đi qua router nên không tải lại trang. `gsap` (thư viện chuyển động) ghim đúng bản `sino-site` dùng, và chỉ nằm trong chunk công khai (kiểm ở bản build).
 
+### 24.4 Trang giới thiệu: chép chữ, đổi link (WP-02)
+Mười một khối của trang Sino Messages được chép nguyên chữ và nguyên class. Chỗ duy nhất phải nghĩ là link: ở `sino-site`, mọi nút vào app là `<a href={appUrl + '/login'}>` vì app ở một domain khác. Trong `sino-web` chúng thành `<Button asChild><Link to="/login">`:
+
+```text
+asChild    Button không vẽ <button> của nó mà gắn class lên phần tử con (Radix Slot)
+Link       thẻ <a href="/login"> thật (mở tab mới, đọc màn hình đều đúng), nhưng bấm thì router đổi trang, không tải lại
+```
+
+Kết quả: nút trông như nút, là một link đúng nghĩa, và vào app không tải lại bundle. Test tìm thanh đầu qua link "Mở Sino Messages" đỏ khi trang có thêm hai nút cùng tên: Testing Library báo `Found multiple elements`. Tìm theo vai trò `banner` (chỉ có một thanh đầu) bền hơn tìm theo một chữ có thể lặp lại.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1962,3 +1972,4 @@ Chỉ chép phần riêng của trang công khai: khung, thanh đầu, chân tra
 167. Vì sao `/` phải ra khỏi route `RequireAuth`? Route bố cục không có `path` giúp gì để `/overview`, `/tasks` vẫn khớp như cũ?
 168. Lúc đang hỏi phiên, `HomeGate` hiện dấu chờ thay vì trang giới thiệu; lúc máy chủ lỗi thì hiện trang giới thiệu. Giải thích từng lựa chọn, và vì sao `RequireAuth` làm khác ở trường hợp lỗi.
 169. Kể ba việc site tĩnh có sẵn mà ứng dụng một trang phải tự làm, và chỗ trong `PublicFrame` làm từng việc.
+170. Vì sao nút "Đăng nhập" của trang giới thiệu là `<Button asChild><Link to="/login">` mà không phải `<Button onClick={() => navigate("/login")}>`? Kể hai điều người dùng mất với cách thứ hai.

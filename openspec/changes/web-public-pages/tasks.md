@@ -19,8 +19,10 @@
 
 ## 2. Nội dung
 
-- [ ] 2.1 **WP-02 — Trang giới thiệu Sino Messages**
+- [x] 2.1 **WP-02 — Trang giới thiệu Sino Messages**
   - **Thực hiện:** `LandingPage` và các khối (Hero, ProviderStrip, Features, Planning, HowItWorks, Privacy, Faq, Band, MailRow, SectionHead) chép từ `sino-site/src/pages/messages`, link theo D-311.
+  - **Đã làm (2026-10-17, AUTO):** 11 file chép vào `features/public/landing/` (`MessagesPage` → `LandingPage`), chữ giữ nguyên; import đổi sang `../motion`, `../ui`, `Badge`/`ProviderIcon`/`cn` của `sino-web`; link vào app thành `<Button asChild><Link …>`: "Mở Sino Messages" → `/overview`, "Xem cách hoạt động" → `/#cach-hoat-dong`, "Mở Việc cần làm" → `/tasks`, "Đăng nhập" → `/login`, "Đọc thêm trong Chính sách quyền riêng tư" → `/privacy#google` (trang có ở WP-03); hai chú thích nói về HTML dựng sẵn sửa cho đúng `sino-web`; class giữ y nguyên bản gốc (kể cả chỗ IDE gợi ý viết gọn) để hai bản dễ so.
+  - **Kiểm chứng (2026-10-17):** đỏ trước 3/3 test mới đúng lý do (không có tiêu đề trang, link, phần để cuộn tới). Sau khi chép, 5 test của WP-01 đỏ vì tìm thanh đầu qua link "Mở Sino Messages", nay có ba link như vậy → tìm vùng `banner`. Xanh `features/public` 23/23. `pnpm lint` 0; `pnpm build` 0 (chunk `PublicPages` 154.2 kB, 57.9 kB gzip, là chunk duy nhất có `ScrollTrigger` của `gsap`; chunk chính 854.5 kB như trước); `pnpm test` 754/754. Chrome (Vite 5181, API giả `401`, iframe): 1440 hero, ảnh hộp thư, dải dịch vụ như `sino-site`; bấm "Tính năng" → `/#tinh-nang`, mục nằm ngay dưới thanh đầu dính, khối hiện dần; 390 chữ xuống dòng, nút trải ngang, không phần tử nào tràn quá 390 px. File kiến thức mục 24.4 + câu 170, `.docx` sinh lại, `genoffice docs check` 0 lỗi.
   - **Acceptance criteria:** *Trang giới thiệu ở `/`*, *Link của trang giới thiệu*.
 
 - [ ] 2.2 **WP-03 — Chính sách quyền riêng tư VI/EN, thông tin chủ sở hữu**

@@ -9,8 +9,8 @@ import { renderApp } from '@/test/renderApp'
 beforeAll(() => import('./PublicPages'), 30_000)
 
 const OPEN_APP = 'Mở Sino Messages'
-/** The top bar of a public page: the one banner with "Mở Sino Messages" in it. */
-const topBar = async () => within((await screen.findByRole('link', { name: OPEN_APP })).closest('header')!)
+/** The top bar of a public page, its one banner. */
+const topBar = async () => within(await screen.findByRole('banner'))
 
 describe('/ of sino-web (WP-01, web-public-pages, D-310)', () => {
   it('shows the Sino Messages page to a visitor who is not signed in, outside the app', async () => {
@@ -73,5 +73,59 @@ describe('/ of sino-web (WP-01, web-public-pages, D-310)', () => {
     await user.click(within(bar.getByRole('navigation', { name: 'Menu' })).getByRole('link', { name: 'Câu hỏi' }))
 
     expect(menu).not.toHaveAttribute('open')
+  })
+})
+
+describe('the Sino Messages page at / (WP-02, web-public-pages)', () => {
+  it('has the sections of sino-site, each under the id the top bar links to', async () => {
+    renderApp('/', { me: null })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Mọi hộp thư Gmail ở một nơi. Việc cần làm ngay bên cạnh.' })).toBeInTheDocument()
+    const sections: [string, string][] = [
+      ['tinh-nang', 'Một hộp thư làm được nhiều hơn đọc thư.'],
+      ['ke-hoach', 'Việc cần làm ở ngay cạnh hộp thư.'],
+      ['cach-hoat-dong', 'Ba bước, vài phút.'],
+      ['rieng-tu', 'Riêng tư là mặc định, không phải một tùy chọn.'],
+      ['cau-hoi', 'Trước khi bắt đầu.'],
+    ]
+    for (const [id, heading] of sections) {
+      expect(document.getElementById(id)).toContainElement(screen.getByRole('heading', { level: 2, name: heading }))
+    }
+    expect(screen.getByRole('heading', { level: 2, name: 'Bớt mở từng hộp thư. Bớt quên việc.' })).toBeInTheDocument()
+    // What Sino asks Google for, which Google reads before it verifies the app (sino-site D-245).
+    expect([...document.querySelectorAll('[data-slot="scope"] code')].map((code) => code.textContent)).toEqual([
+      'openid',
+      'email',
+      'gmail.readonly',
+      'gmail.send',
+    ])
+  })
+
+  it('links into the app and to the privacy policy of sino-web (D-311)', async () => {
+    renderApp('/', { me: null })
+    await screen.findByRole('heading', { level: 1 })
+
+    const main = within(screen.getByRole('main'))
+    expect(main.getAllByRole('link', { name: 'Mở Sino Messages' }).map((link) => link.getAttribute('href'))).toEqual(['/overview', '/overview'])
+    expect(main.getByRole('link', { name: 'Xem cách hoạt động' })).toHaveAttribute('href', '/#cach-hoat-dong')
+    expect(main.getByRole('link', { name: 'Mở Việc cần làm' })).toHaveAttribute('href', '/tasks')
+    expect(main.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute('href', '/login')
+    expect(main.getByRole('link', { name: 'Đọc thêm trong Chính sách quyền riêng tư' })).toHaveAttribute('href', '/privacy#google')
+  })
+
+  it('goes to the part of the page the address names, and to the one a top bar link names', async () => {
+    const user = userEvent.setup()
+    const scrolled: string[] = []
+    // jsdom has no scrolling; record which element was asked to come into view.
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id)
+    }
+    renderApp('/#cau-hoi', { me: null })
+
+    await vi.waitFor(() => expect(scrolled).toEqual(['cau-hoi']))
+    const bar = await topBar()
+    await user.click(within(bar.getByRole('navigation', { name: 'Các mục của Sino Messages' })).getByRole('link', { name: 'Kế hoạch' }))
+    await vi.waitFor(() => expect(scrolled).toEqual(['cau-hoi', 'ke-hoach']))
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
   })
 })

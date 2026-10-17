@@ -1,3 +1,4 @@
+import { LandingPage } from './landing/LandingPage'
 import { PublicFrame } from './layout/PublicFrame'
 import './public.css'
 
@@ -8,5 +9,9 @@ import './public.css'
 
 /** `/` for a visitor who is not signed in: the Sino Messages page (sino-site `/messages`, D-310). */
 export function Landing() {
-  return <PublicFrame title="Sino Messages · Hộp thư chung cho Gmail và việc cần làm" nav="product" />
+  return (
+    <PublicFrame title="Sino Messages · Hộp thư chung cho Gmail và việc cần làm" nav="product">
+      <LandingPage />
+    </PublicFrame>
+  )
 }
