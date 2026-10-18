@@ -136,6 +136,8 @@ interface MessageResponse {
   attachments: AttachmentResponse[]
   /** For a message sent from Sino (F10); absent on a backend before F10. */
   clientMessageId?: string | null
+  /** The address of a sticker's picture (ZL-14, D-279); absent when the message is no sticker. */
+  sticker?: string | null
 }
 
 function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse): ConversationItem {
@@ -204,7 +206,7 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId }: MessageResponse): Mail {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -221,6 +223,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     status: outbound ? ownStatus(status) : null,
     linked: [],
     ...(clientMessageId ? { clientMessageId } : {}),
+    ...(sticker ? { sticker } : {}),
   }
 }
 

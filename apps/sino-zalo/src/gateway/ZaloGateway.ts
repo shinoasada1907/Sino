@@ -36,6 +36,14 @@ export class ZaloRejectedError extends Error {}
 
 export type ThreadType = "USER" | "GROUP";
 
+/** The sticker of a `chat.sticker` message (D-279). `url` is null until sino-zalo asks Zalo for the picture. */
+export interface ZaloSticker {
+  readonly id: string;
+  readonly catId: string;
+  readonly type: number;
+  readonly url: string | null;
+}
+
 /** A Zalo message in the shape sino-zalo hands to sino-api (design, Contract API). */
 export interface ZaloMessage {
   readonly msgId: string;
@@ -49,6 +57,8 @@ export interface ZaloMessage {
   /** null when the message is not text. */
   readonly text: string | null;
   readonly sentAt: string;
+  /** Only on a `chat.sticker` message whose content names a sticker. */
+  readonly sticker?: ZaloSticker | undefined;
 }
 
 /** A thread's name and picture; null where Zalo gave none. */
@@ -88,6 +98,11 @@ export interface ZaloConnection {
    * any other failure leaves it unknown whether the message went out.
    */
   sendText(threadId: string, threadType: ThreadType, text: string): Promise<string>;
+  /**
+   * The address of a sticker's picture, or null when Zalo does not know the sticker. Throws
+   * ZaloUnavailableError when Zalo does not answer.
+   */
+  stickerUrl(stickerId: string): Promise<string | null>;
 }
 
 /** Everything sino-zalo asks of Zalo. Tests use FakeZaloGateway and never reach Zalo. */

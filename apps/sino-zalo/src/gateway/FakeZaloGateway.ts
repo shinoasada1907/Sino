@@ -125,6 +125,14 @@ export class FakeConnection implements ZaloConnection {
     }
     return String(this.zalo.nextMsgId++);
   }
+
+  async stickerUrl(stickerId: string): Promise<string | null> {
+    await Promise.resolve();
+    if (this.zalo.stickerFails) {
+      throw new ZaloUnavailableError("TypeError: fetch failed");
+    }
+    return this.zalo.stickerUrls.get(stickerId) ?? null;
+  }
 }
 
 /** ZaloGateway for tests: the test plays Zalo by calling the events of a login. */
@@ -143,6 +151,9 @@ export class FakeZaloGateway implements ZaloGateway {
   readonly threadInfos = new Map<string, ThreadInfo>();
   readonly threadInfoCalls: string[] = [];
   threadInfoFails = false;
+  /** The pictures Zalo gives stickers, by sticker id; any other sticker has none. */
+  readonly stickerUrls = new Map<string, string>();
+  stickerFails = false;
   /** Every text sent, refused or not, in order. */
   readonly sent: { threadId: string; threadType: ThreadType; text: string }[] = [];
   /** What Zalo does with the next send: take it, refuse it, break midway, or hold it until released. */

@@ -436,10 +436,24 @@ class ZaloClient {
     record Participant(String id, String name) {
     }
 
-    /** {@code text} is null when the message is not text; {@code sentAt} is ISO-8601. */
+    /**
+     * {@code text} is null when the message is not text; {@code sentAt} is ISO-8601; {@code sticker} is null unless
+     * the message is a sticker whose content named one.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
-            String zaloType, String text, String sentAt) {
+            String zaloType, String text, String sentAt, Sticker sticker) {
+
+        Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
+                String zaloType, String text, String sentAt) {
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, null);
+        }
+
+    }
+
+    /** {@code url} is null when sino-zalo could not get the picture from Zalo. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Sticker(String id, String catId, Integer type, String url) {
     }
 
 }

@@ -15,6 +15,7 @@ import { ConversationAvatars } from './ConversationAvatars'
 import { LatestPreview } from './LatestPreview'
 import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
+import { pictureOf } from '../sticker'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
 
@@ -159,6 +160,8 @@ function Tool({ label, icon: Icon, className, onClick }: { label: string; icon: 
 // Canvas `.bubble-row`: someone else's message on the left with their picture (and name in a group), own on the right.
 function Bubble({ message, showName, members }: { message: ChatMessage; showName: boolean; members: Member[] | null }) {
   const own = message.direction === 'OUT'
+  const sticker = pictureOf(message.sticker)
+  const [brokenSticker, setBrokenSticker] = useState(false)
   return (
     <div className={cn('flex max-w-[84%] items-end gap-2.5 md:max-w-[68%]', own ? 'flex-row-reverse self-end' : 'self-start')}>
       {!own && <Avatar aria-hidden="true" placeholder={memberPlaceholder(message.sender, members)} className="size-7" />}
@@ -168,14 +171,25 @@ function Bubble({ message, showName, members }: { message: ChatMessage; showName
             {message.sender}
           </span>
         )}
-        <div
-          className={cn(
-            'border px-3.5 py-2.5 text-sm',
-            own ? 'rounded-[16px_16px_6px_16px] border-primary bg-primary text-primary-foreground' : 'rounded-[16px_16px_16px_6px] bg-surface text-foreground',
-          )}
-        >
-          {message.text}
-        </div>
+        {sticker && !brokenSticker ? (
+          <img
+            src={sticker}
+            alt="Sticker"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setBrokenSticker(true)}
+            className="size-32 object-contain select-none"
+          />
+        ) : (
+          <div
+            className={cn(
+              'border px-3.5 py-2.5 text-sm',
+              own ? 'rounded-[16px_16px_6px_16px] border-primary bg-primary text-primary-foreground' : 'rounded-[16px_16px_16px_6px] bg-surface text-foreground',
+            )}
+          >
+            {message.text}
+          </div>
+        )}
         {message.attachments.map((file) =>
           file.image ? (
             <div

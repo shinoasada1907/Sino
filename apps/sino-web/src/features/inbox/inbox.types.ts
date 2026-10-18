@@ -182,6 +182,8 @@ export type Message =
       linked: { kind: LinkedKind; title: string }[]
       /** Made by the web for a message sent from Sino; sending again reuses it, so it never goes twice (D-131). */
       clientMessageId?: string
+      /** The address of a sticker's picture (ZL-14, D-279); absent when the message is no sticker or has no picture. */
+      sticker?: string
       /** Only in this browser: the server never stored it (a send that did not reach it, or not allowed). */
       local?: boolean
     }
