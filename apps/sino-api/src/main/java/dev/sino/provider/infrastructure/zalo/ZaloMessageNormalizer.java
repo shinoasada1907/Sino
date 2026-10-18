@@ -1,16 +1,20 @@
 package dev.sino.provider.infrastructure.zalo;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Conversation;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Participant;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.Sticker;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
@@ -35,6 +39,13 @@ final class ZaloMessageNormalizer {
 
     static final int MAX_TEXT_LENGTH = 100_000;
     static final String ZALO_TYPE_KEY = "zaloType";
+    static final int MAX_PICTURE_ADDRESS = 2_000;
+
+    /**
+     * Domains Zalo serves sticker pictures from, as zca-js's sticker answers show (not yet seen on a real run, ZL-13:
+     * a picture on another host shows as the placeholder text until it is added here).
+     */
+    static final List<String> PICTURE_DOMAINS = List.of("zadn.vn", "zdn.vn", "zaloapp.com", "zalo.me");
 
     private ZaloMessageNormalizer() {
     }
@@ -203,11 +214,55 @@ final class ZaloMessageNormalizer {
                 yield new Body(MessageType.TEXT, cut(withoutNul(message.text())), Map.of());
             }
             case "chat.photo" -> new Body(MessageType.IMAGE, "[Ảnh]", Map.of(ZALO_TYPE_KEY, "chat.photo"));
-            case "chat.sticker" -> new Body(MessageType.UNKNOWN, "[Sticker]", Map.of(ZALO_TYPE_KEY, "chat.sticker"));
+            case "chat.sticker" -> stickerBody(message.sticker());
             case "share.file" -> new Body(MessageType.FILE, "[Tệp]", Map.of(ZALO_TYPE_KEY, "share.file"));
             case "chat.voice" -> new Body(MessageType.AUDIO, "[Tin nhắn thoại]", Map.of(ZALO_TYPE_KEY, "chat.voice"));
             default -> new Body(MessageType.UNKNOWN, "[Tin Zalo chưa hỗ trợ]", Map.of(ZALO_TYPE_KEY, zaloType));
         };
+    }
+
+    private static Body stickerBody(Sticker sticker) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put(ZALO_TYPE_KEY, "chat.sticker");
+        if (sticker != null) {
+            putIfPresent(metadata, "stickerId", clean(sticker.id()));
+            putIfPresent(metadata, "stickerCatId", clean(sticker.catId()));
+            putIfPresent(metadata, NormalizedMessage.STICKER_URL, pictureAddress(sticker.url()));
+        }
+        return new Body(MessageType.UNKNOWN, "[Sticker]", Map.copyOf(metadata));
+    }
+
+    private static void putIfPresent(Map<String, String> metadata, String key, String value) {
+        if (value != null) {
+            metadata.put(key, value);
+        }
+    }
+
+    /**
+     * The address of a sticker's picture when the web may put it in an image: {@code https}, no user info, no
+     * characters a browser would escape or a header would not carry, a host that is a Zalo domain or a subdomain of
+     * one (never merely ending in its name), and not longer than {@link #MAX_PICTURE_ADDRESS}. Otherwise null, and the
+     * sticker stays the placeholder text: a wrong address is worse than none, since sino-zalo takes it from Zalo's
+     * answer and the browser would fetch it on every opening of the chat.
+     */
+    static String pictureAddress(String raw) {
+        String address = clean(raw);
+        if (address == null || address.length() > MAX_PICTURE_ADDRESS || !address.chars().allMatch(c -> c > 0x20 && c < 0x7f)) {
+            return null;
+        }
+        URI uri;
+        try {
+            uri = new URI(address);
+        } catch (URISyntaxException invalid) {
+            return null;
+        }
+        String host = uri.getHost();
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || host == null || uri.getUserInfo() != null) {
+            return null;
+        }
+        String lower = host.toLowerCase(Locale.ROOT);
+        boolean zalo = PICTURE_DOMAINS.stream().anyMatch(domain -> lower.equals(domain) || lower.endsWith("." + domain));
+        return zalo ? address : null;
     }
 
     private static ConversationType conversationType(String rawType) {

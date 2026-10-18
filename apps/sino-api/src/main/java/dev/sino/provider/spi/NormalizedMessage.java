@@ -37,6 +37,12 @@ public record NormalizedMessage(
     public static final String SUBJECT = "subject";
 
     /**
+     * Metadata key, the address of a sticker's picture: {@code https} on a host its provider serves pictures from,
+     * checked by the connector that wrote it. Left out when the message is no sticker or the picture is unknown.
+     */
+    public static final String STICKER_URL = "stickerUrl";
+
+    /**
      * Metadata key, the {@code Message-ID} of an email: the same in every mailbox that holds the message, so Sino finds
      * its copies in the other accounts of the owner (F05b, D-180). Left out when there is none.
      */

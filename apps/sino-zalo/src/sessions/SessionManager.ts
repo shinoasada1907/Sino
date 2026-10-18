@@ -12,6 +12,7 @@ import type { Notifier } from "../notify.ts";
 import { catchUp } from "./CatchUp.ts";
 import { Conversations, type ZaloConversation } from "./Conversations.ts";
 import { MessageBuffer } from "./MessageBuffer.ts";
+import { Stickers } from "./Stickers.ts";
 
 /** sino-zalo holds no session for the account, for instance just after a restart (404). */
 export class UnknownAccountError extends Error {}
@@ -53,6 +54,7 @@ interface LiveSession {
   readonly listener: ZaloListener;
   readonly buffer: MessageBuffer;
   readonly conversations: Conversations;
+  readonly stickers: Stickers;
   /** Closes since the listener last connected; sets the next reconnect delay. */
   failures: number;
   retry: ReturnType<typeof setTimeout> | null;
@@ -162,7 +164,7 @@ export class SessionManager {
     const { messages, hasMore } = session.buffer.after(cursor, limit);
     return {
       conversations: await session.conversations.of(messages),
-      messages,
+      messages: await session.stickers.fill(messages),
       nextCursor: messages.at(-1)?.msgId ?? after,
       hasMore,
     };
@@ -247,6 +249,7 @@ export class SessionManager {
       }),
       buffer: new MessageBuffer(),
       conversations: new Conversations(connection, { accountId, log: this.log }),
+      stickers: new Stickers(connection, { accountId, log: this.log }),
       failures: 0,
       retry: null,
       ready: false,

@@ -18,6 +18,7 @@ import {
   type ZaloMessage,
   ZaloRejectedError,
   type ZaloSession,
+  type ZaloSticker,
   ZaloUnavailableError,
 } from "./ZaloGateway.ts";
 
@@ -125,6 +126,15 @@ export class ZcaGateway implements ZaloGateway {
         };
       },
       sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
+      stickerUrl: async (stickerId) => {
+        try {
+          // `await` here, or a rejection would pass the catch below.
+          const [detail] = await api.getStickersDetail(Number(stickerId));
+          return detail?.stickerWebpUrl || detail?.stickerUrl || null;
+        } catch (error) {
+          throw new ZaloUnavailableError(reasonOf(error));
+        }
+      },
       threadInfo: async (threadId, threadType) => {
         try {
           // `await` here, or a rejection would pass the catch below.
@@ -139,10 +149,11 @@ export class ZcaGateway implements ZaloGateway {
   }
 }
 
-/** A zca-js message in the contract's shape (D-279 reads `zaloType` and `text`). */
+/** A zca-js message in the contract's shape (D-279 reads `zaloType`, `text` and the sticker). */
 export function toZaloMessage(message: Message): ZaloMessage {
   const data = message.data;
   const ts = Number(data.ts);
+  const sticker = data.msgType === "chat.sticker" ? stickerOf(data.content) : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -153,7 +164,32 @@ export function toZaloMessage(message: Message): ZaloMessage {
     zaloType: data.msgType,
     text: typeof data.content === "string" ? data.content : null,
     sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
+    ...(sticker === undefined ? {} : { sticker }),
   };
+}
+
+/** The sticker a `chat.sticker` content names, or undefined when it names none we can use. */
+function stickerOf(content: unknown): ZaloSticker | undefined {
+  if (typeof content !== "object" || content === null) {
+    return undefined;
+  }
+  const fields = content as Record<string, unknown>;
+  const id = wholeNumber(fields.id);
+  if (id === null || id <= 0) {
+    return undefined;
+  }
+  return {
+    id: String(id),
+    catId: String(wholeNumber(fields.catId) ?? 0),
+    type: wholeNumber(fields.type) ?? 0,
+    url: null,
+  };
+}
+
+/** A whole number given as a number or as text, else null. */
+function wholeNumber(value: unknown): number | null {
+  const number = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof number === "number" && Number.isSafeInteger(number) ? number : null;
 }
 
 /**

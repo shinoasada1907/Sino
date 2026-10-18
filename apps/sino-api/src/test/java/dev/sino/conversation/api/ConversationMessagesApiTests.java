@@ -199,6 +199,33 @@ class ConversationMessagesApiTests {
     }
 
     @Test
+    void aStickerMessageListsTheAddressOfItsPictureAndAnyOtherMessageListsNone() throws Exception {
+        String picture = "https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236";
+        store(gmail, thread("report"), fromAlice("m-1", MONDAY, "Chữ"),
+                new NormalizedMessage("m-2", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.UNKNOWN, "[Sticker]", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(),
+                        Map.of("zaloType", "chat.sticker", NormalizedMessage.STICKER_URL, picture), null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].text").value("[Sticker]"))
+                .andExpect(jsonPath("$.items[0].sticker").value(picture))
+                .andExpect(jsonPath("$.items[1].sticker").value(nullValue()));
+    }
+
+    @Test
+    void aStickerWithoutAPictureListsNoneAndTheMetadataStaysOutOfTheAnswer() throws Exception {
+        store(gmail, thread("report"), new NormalizedMessage("m-1", "report", "alice@example.test",
+                MessageDirection.INBOUND, MessageType.UNKNOWN, "[Sticker]", MessageStatus.UNKNOWN, false, null, MONDAY,
+                List.of(), Map.of("zaloType", "chat.sticker", "stickerId", "11236"), null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].sticker").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].metadata").doesNotExist());
+    }
+
+    @Test
     void addresseesAreUnknownForMailStoredWithoutThemAndAMessageMayHaveNoSenderOrText() throws Exception {
         NormalizedMessage notice = new NormalizedMessage("m-1", "report", null, MessageDirection.INBOUND,
                 MessageType.SYSTEM, null, MessageStatus.UNKNOWN, true, null, MONDAY, List.of(), Map.of(), null, null);

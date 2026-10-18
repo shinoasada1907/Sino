@@ -296,6 +296,30 @@ describe('the messages of a conversation on the F06 and F10 APIs', () => {
   })
 })
 
+describe('the sticker of a message (ZL-14)', () => {
+  it('gives a message the address of its sticker, and one without a sticker none', async () => {
+    const address = 'https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236'
+    server.use(
+      http.get('/api/conversations/:id/messages', () =>
+        HttpResponse.json({
+          items: [
+            { ...API_MESSAGES[0], id: 'st-1', text: '[Sticker]', sticker: address },
+            { ...API_MESSAGES[0], id: 'st-2', sticker: null },
+            { ...API_MESSAGES[0], id: 'st-3' },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    )
+
+    const { items } = await fetchMessages('c-1', null)
+
+    expect(items[0]).toMatchObject({ id: 'st-1', sticker: address })
+    expect(items[1]).not.toHaveProperty('sticker')
+    expect(items[2]).not.toHaveProperty('sticker')
+  })
+})
+
 describe('a message without a known sender (BE-54)', () => {
   it('names the sender as unknown, or as the reader for an own message, instead of failing', async () => {
     server.use(

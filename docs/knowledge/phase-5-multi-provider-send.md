@@ -1276,3 +1276,49 @@ Hai bài học:
 
 1. **Khi dựng lại CI tại máy, phải dựng lại đúng cả những file "không phải code".** `actions/checkout` mang theo *mọi* file đã commit, `.gitignore` nằm trong đó; một bản copy chọn tay thì không. Một "CI đỏ" dựng lại sai cách sẽ dẫn đi sửa nhầm chỗ.
 2. **Công cụ hay đọc `.gitignore` làm cấu hình.** oxlint, ripgrep, prettier, nhiều bundler đều vậy. Nghĩa là `.gitignore` không chỉ nói với Git: xóa một dòng trong đó có thể làm lint hoặc build đổi hành vi. `apps/sino-web` cũng dựa vào đúng cơ chế này và `frontend-ci` vẫn xanh, nên đây là kiểu dùng bình thường — chỉ cần biết là mình đang dựa vào nó.
+
+## 17. ZL-14 — Hiển thị sticker Zalo dạng ảnh trong chat
+
+### 17.1 Vấn đề: `chat.sticker` chỉ mang id, không mang URL ảnh
+Khi người dùng chat qua Zalo gửi một sticker, thư viện `zca-js` nhận được sự kiện với `msgType === "chat.sticker"`. Dữ liệu `data.content` trong sự kiện này không chứa địa chỉ URL của ảnh, mà chỉ chứa một đối tượng với các thuộc tính định danh: `{ id, catId, type }`.
+Trước ZL-14, Sino chỉ hiển thị văn bản đại diện `[Sticker]` (theo bảng D-279). Người dùng kiểm tra thấy trong giao diện chat chỉ hiện chữ `[Sticker]` thay vì hình ảnh sticker trực quan.
+
+Để hiển thị hình ảnh sticker thật, luồng xử lý cần đi qua đủ ba tầng:
+1. `sino-zalo` (Node.js): Phân giải `{ id, catId, type }` từ `data.content`, gọi API `getStickersDetail(id)` của `zca-js` để lấy URL ảnh WebP/PNG từ CDN Zalo (`*.zadn.vn`, `*.zdn.vn`).
+2. `sino-api` (Spring Boot / Java): Xác thực URL ảnh hợp lệ (chỉ chấp nhận HTTPS, thuộc các domain CDN của Zalo, không chứa thông tin nhạy cảm), lưu vào trường `metadata.stickerUrl`, giữ `textContent` là `[Sticker]` cho danh sách hội thoại, và trả trường `sticker` ở API lấy tin nhắn hội thoại (`GET /api/conversations/{id}/messages`).
+3. `sino-web` (React / TypeScript): Kiểm tra URL an toàn qua hàm `pictureOf`, kết xuất thẻ ảnh `<img>` với thuộc tính `loading="lazy"` và `referrerPolicy="no-referrer"`. Nếu ảnh bị lỗi khi tải hoặc URL không an toàn, tự động quay về bóng tin nhắn chữ `[Sticker]`.
+
+### 17.2 Phân giải URL sticker tại `sino-zalo` (`Stickers.ts`)
+Việc gọi API ngoài để lấy chi tiết sticker có thể gặp độ trễ hoặc lỗi mạng tạm thời. Nếu gọi tuần tự cho từng tin nhắn mỗi lần đọc tin, toàn bộ lượt đồng bộ sẽ bị chậm lại.
+Giải pháp được thiết kế trong lớp `Stickers`:
+- Cache URL thành công trong bộ nhớ: Một sticker id chỉ cần phân giải thành công một lần. Các tin nhắn sau dùng cùng sticker sẽ lấy ngay từ cache mà không cần gọi lại Zalo API.
+- Không cache kết quả null: Nếu mạng chập chờn hoặc API Zalo tạm thời chưa trả về chi tiết sticker, không lưu null vào cache để các lần đọc tiếp theo có cơ hội thử lại.
+- Giới hạn thời gian (Timeout 2 giây): Toàn bộ lời gọi phân giải sticker trong một mẻ tin nhắn bị chặn tối đa 2 giây bằng `Promise.race` và `AbortSignal`, đảm bảo API đọc tin nhắn `GET /accounts/{accountId}/messages` không bao giờ bị nghẽn quá lâu.
+- Bất biến (Immutability): Mảng tin nhắn gốc không bị sửa đổi trực tiếp; hàm `fill(messages)` trả về bản sao nông có bổ sung thuộc tính `sticker?: ZaloSticker`.
+
+### 17.3 Chuẩn hóa an toàn và chống lừa đảo URL tại `sino-api`
+Dữ liệu nhận từ dịch vụ trung gian hoặc bên thứ ba luôn tiềm ẩn rủi ro tấn công XSS hoặc rò rỉ dữ liệu qua URL (`javascript:`, `data:`, hoặc các domain độc hại).
+`ZaloMessageNormalizer` sử dụng phương thức `pictureAddress` để kiểm tra nghiêm ngặt:
+- Phải là địa chỉ HTTPS tuyệt đối (`url.getProtocol().equalsIgnoreCase("https")`).
+- Không chứa thông tin xác thực người dùng (`url.getUserInfo() == null`), ngăn ngừa dạng lừa đảo `https://user:pass@domain`.
+- Chiều dài chuỗi tối đa 2000 ký tự và chỉ chứa ký tự ASCII in được (`0x20` đến `0x7E`).
+- Tên miền (`host`) bắt buộc phải thuộc các domain CDN chính thức của Zalo: `zadn.vn`, `zdn.vn`, `zaloapp.com`, `zalo.me`, hoặc các subdomain kết thúc bằng `.zadn.vn`, `.zdn.vn`, v.v.
+
+Khi hợp lệ, URL được đưa vào `metadata.stickerUrl`. Khi lưu trữ hoặc đọc ra, câu lệnh SQL truy vấn trực tiếp JSON metadata:
+`m.metadata ->> :stickerUrl AS sticker_url`
+và trả về `MessageResponse.sticker`.
+
+### 17.4 Hiển thị và xử lý lỗi tải ảnh tại `sino-web`
+Tại giao diện web, tin nhắn sticker có hai yêu cầu quan trọng:
+1. Danh sách hội thoại bên trái (inbox list / snippet): Cần giữ nguyên chữ tóm tắt `[Sticker]` để người dùng liếc nhanh biết đây là tin gì. Vì vậy `textContent` ở backend vẫn là `[Sticker]`.
+2. Khung chat bên phải (thread detail): Thay vì vẽ khung tin nhắn chữ nền màu, component `Bubble` kiểm tra `pictureOf(message.sticker)`:
+   - Nếu có URL hợp lệ và ảnh chưa bị lỗi: hiển thị thẻ `<img src={sticker} alt="Sticker" loading="lazy" referrerPolicy="no-referrer" className="size-32 object-contain select-none" />`.
+   - `loading="lazy"` giúp trình duyệt chỉ tải ảnh khi cuộn tới vị trí tin nhắn.
+   - `referrerPolicy="no-referrer"` ngăn trình duyệt gửi thông tin máy chủ Sino trong tiêu đề `Referer` khi tải ảnh từ CDN của Zalo.
+   - Quản lý trạng thái lỗi bằng React state `brokenSticker`: Khi sự kiện `onError` xảy ra (ví dụ CDN xóa ảnh hoặc mất mạng), `brokenSticker` chuyển thành `true` và giao diện quay trở lại hiển thị bóng tin nhắn chữ `[Sticker]` chuẩn.
+
+### 17.5 Kiểm chứng (ZL-14)
+- `apps/sino-zalo`: 14 unit test trong `test/stickers.test.ts` kiểm tra parse `toZaloMessage`, cache URL, timeout, và route `GET /accounts/{accountId}/messages`. Tổng 151/151 test passed, oxlint 0 lỗi.
+- `apps/sino-api`: 24 test trong `ZaloStickerTests` kiểm tra toàn bộ các trường hợp URL hợp lệ, không hợp lệ, URL độc hại, và 2 test trong `ConversationMessagesApiTests` kiểm tra trường `sticker` ở API tin nhắn.
+- `apps/sino-web`: 10 test trong `sticker.test.ts`, 19 test trong `inbox.api.test.ts`, 6 test trong `Sticker.test.tsx` (kiểm tra đầy đủ việc hiển thị ảnh, các thuộc tính bảo mật, và fallback khi `onError`). Toàn bộ 799/799 test của `sino-web` đều passed, `oxlint` 0 lỗi, `tsc -b` và `pnpm build` thành công.
+

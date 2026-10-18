@@ -33,6 +33,7 @@ public class MessageHistory {
             SELECT m.id, m.direction, m.status, m.sent_at, m.text_content, m.body_format, m.is_read, m.recipients,
                    m.client_message_id,
                    m.metadata ->> :subject AS subject,
+                   m.metadata ->> :stickerUrl AS sticker_url,
                    p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
             """;
@@ -78,7 +79,8 @@ public class MessageHistory {
         JdbcClient.StatementSpec query = jdbc.sql(EVERY_COPY + COLUMNS + "WHERE m.id IN (SELECT id FROM shown"
                 + (cursor == null ? "" : " WHERE (sent_at, id) < (:before, :beforeId)")
                 + " ORDER BY sent_at DESC, id DESC LIMIT :rows) ORDER BY m.sent_at DESC, m.id DESC")
-                .param("subject", NormalizedMessage.SUBJECT).param("copies", copies).param("rows", limit + 1);
+                .param("subject", NormalizedMessage.SUBJECT).param("stickerUrl", NormalizedMessage.STICKER_URL)
+                .param("copies", copies).param("rows", limit + 1);
         if (cursor != null) {
             query = query.param("before", cursor.sentAt().atOffset(ZoneOffset.UTC)).param("beforeId", cursor.id());
         }
@@ -94,6 +96,7 @@ public class MessageHistory {
     /** One message of one copy of a conversation the caller already found in the inbox, as {@link #page} lists it. */
     Optional<InboxMessage> message(UUID conversationId, UUID messageId) {
         return jdbc.sql(SELECT + "AND m.id = :message").param("subject", NormalizedMessage.SUBJECT)
+                .param("stickerUrl", NormalizedMessage.STICKER_URL)
                 .param("conversation", conversationId).param("message", messageId)
                 .query((row, n) -> messageOf(row)).optional()
                 .map(message -> withFiles(List.of(message)).getFirst());
@@ -110,7 +113,7 @@ public class MessageHistory {
                 recipients == null ? null : recipients.to(), recipients == null ? null : recipients.cc(),
                 row.getString("subject"), row.getString("text_content"),
                 BodyFormat.valueOf(row.getString("body_format")), row.getBoolean("is_read"), List.of(),
-                row.getObject("client_message_id", UUID.class));
+                row.getObject("client_message_id", UUID.class), row.getString("sticker_url"));
     }
 
     private List<InboxMessage> withFiles(List<InboxMessage> messages) {
@@ -129,7 +132,7 @@ public class MessageHistory {
                 });
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
-                List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId())).toList();
+                List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId(), m.sticker())).toList();
     }
 
 }
