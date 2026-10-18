@@ -240,20 +240,20 @@
   - **Acceptance criteria:** mọi bước của kịch bản và mọi phép đo có bằng chứng ngắn trong mục này; bảng D-279 dùng tên `zaloType` thật; spec đã gộp vào `openspec/specs/`.
   - **Depends on:** ZL-12
 
-- [x] 4.3 **ZL-14 — Hiển thị sticker Zalo dạng ảnh trong chat**
-  - **Goal:** Tin nhắn `chat.sticker` từ Zalo hiện ảnh sticker trong chat (`sino-web`), thay vì chỉ hiện chữ `[Sticker]`.
+- [x] 4.3 **ZL-14 — Hiển thị sticker Zalo dạng ảnh & sticker động / GIF trong chat**
+  - **Goal:** Tin nhắn `chat.sticker` và `chat.gif` từ Zalo hiện ảnh sticker / ảnh GIF động trong chat (`sino-web`), thay vì chỉ hiện chữ `[Sticker]` hay `[Tin Zalo chưa hỗ trợ]`.
   - **Files:**
     - `apps/sino-zalo`: `ZaloGateway.ts`, `ZcaGateway.ts`, `Stickers.ts`, `SessionManager.ts`, `FakeZaloGateway.ts`, `test/stickers.test.ts`.
     - `apps/sino-api`: `NormalizedMessage.java`, `ZaloClient.java`, `ZaloMessageNormalizer.java`, `InboxMessage.java`, `MessageResponse.java`, `MessageHistory.java`, `ZaloStickerTests.java`, `ConversationMessagesApiTests.java`.
     - `apps/sino-web`: `sticker.ts`, `sticker.test.ts`, `inbox.types.ts`, `inbox.api.ts`, `inbox.api.test.ts`, `ChatThread.tsx`, `Sticker.test.tsx`.
   - **Acceptance criteria:**
-    - `sino-zalo` parse `{ id, catId, type }` từ `chat.sticker`, tra cứu URL ảnh sticker (`getStickersDetail`) với cache bộ nhớ, timeout 2s;
-    - `sino-api` kiểm tra an toàn URL (HTTPS, tên miền CDN Zalo `*.zadn.vn`, `*.zdn.vn`, `*.zaloapp.com`, `*.zalo.me`), lưu `metadata.stickerUrl`, trả trường `sticker` ở API messages;
-    - `sino-web` hiển thị `img` sticker (`loading="lazy"`, `referrerPolicy="no-referrer"`), fallback về chữ `[Sticker]` khi URL không hợp lệ hoặc ảnh lỗi tải;
+    - `sino-zalo` parse `{ id, catId, type }` từ `chat.sticker` (ưu tiên `detail.stickerUrl` chứa ảnh động/GIF trước `detail.stickerWebpUrl` tĩnh) và parse URL ảnh từ `chat.gif`, tra cứu với cache bộ nhớ, timeout 2s;
+    - `sino-api` kiểm tra an toàn URL (HTTPS, tên miền CDN Zalo `*.zadn.vn`, `*.zdn.vn`, `*.zaloapp.com`, `*.zalo.me`, các nguồn GIF `*.tenor.com`, `*.tenor.co`, `*.giphy.com`), lưu `metadata.stickerUrl`, trả trường `sticker` ở API messages;
+    - `sino-web` hiển thị `img` sticker / gif (`loading="lazy"`, `referrerPolicy="no-referrer"`), tự động phát chuyển động, fallback về chữ `[Sticker]` / `[GIF]` khi URL không hợp lệ hoặc ảnh lỗi tải;
     - Mọi test suite (backend unit tests, zalo gateway tests, web unit tests) đều xanh; `tsc`, `lint`, `build` thành công.
   - **Depends on:** ZL-12
   - **Thực hiện (2026-10-18, AUTO):**
-    - `apps/sino-zalo`: Viết `Stickers.ts` để tra cứu và cache URL; `toZaloMessage` parse `chat.sticker`; 14 test trong `test/stickers.test.ts` (151/151 test xanh, 0 lint error).
-    - `apps/sino-api`: `STICKER_URL` trong `NormalizedMessage`, `Sticker` record trong `ZaloClient`, hàm chuẩn hóa URL `pictureAddress` trong `ZaloMessageNormalizer`, `sticker` trong `MessageResponse` và `MessageHistory`; 24 test trong `ZaloStickerTests` và 2 test trong `ConversationMessagesApiTests` đều xanh.
-    - `apps/sino-web`: Hàm `pictureOf` kiểm tra URL an toàn trong `sticker.ts`; trường `sticker` trong `inbox.types.ts` và `inbox.api.ts`; hiển thị ảnh sticker trong `ChatThread.tsx` (có xử lý `onError` fallback); 35 test liên quan đến sticker xanh; toàn bộ 799 web test xanh, `oxlint` 0 lỗi, `tsc -b` và `pnpm build` thành công.
+    - `apps/sino-zalo`: Viết `Stickers.ts` để tra cứu và cache URL; `toZaloMessage` parse `chat.sticker` và `chat.gif`; ưu tiên `stickerUrl` động; 17 test trong `test/stickers.test.ts` (154/154 test xanh, 0 lint error).
+    - `apps/sino-api`: `STICKER_URL` trong `NormalizedMessage`, `Sticker` record trong `ZaloClient`, `chat.gif` support và whitelist domain GIF trong `ZaloMessageNormalizer`, `sticker` trong `MessageResponse` và `MessageHistory`; 28 test trong `ZaloStickerTests` và 2 test trong `ConversationMessagesApiTests` đều xanh.
+    - `apps/sino-web`: Hàm `pictureOf` kiểm tra URL an toàn trong `sticker.ts`; trường `sticker` trong `inbox.types.ts` và `inbox.api.ts`; hiển thị ảnh sticker/gif trong `ChatThread.tsx` (có xử lý `onError` fallback); 36 test liên quan đến sticker xanh; toàn bộ 799 web test xanh, `oxlint` 0 lỗi, `tsc -b` và `pnpm build` thành công.
 

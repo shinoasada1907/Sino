@@ -81,6 +81,30 @@ describe("toZaloMessage for a sticker", () => {
 
     expect(toZaloMessage(new UserMessage("7001", text)).sticker).toBeUndefined();
   });
+
+  it("extracts the gif url when msgType is chat.gif", () => {
+    const gifUrl = "https://media.tenor.com/example.gif";
+    const msg = zcaData({ msgId: "201", msgType: "chat.gif", content: { href: gifUrl } });
+
+    const message = toZaloMessage(new UserMessage("7001", msg));
+
+    expect(message.zaloType).toBe("chat.gif");
+    expect(message.sticker).toEqual({
+      id: "201",
+      catId: "0",
+      type: 0,
+      url: gifUrl,
+    });
+  });
+
+  it("accepts string url or json params for chat.gif", () => {
+    const gifUrl = "https://zalo-api.zadn.vn/media/example.gif";
+    const directUrl = zcaData({ msgId: "202", msgType: "chat.gif", content: gifUrl });
+    const jsonParams = zcaData({ msgId: "203", msgType: "chat.gif", content: JSON.stringify({ url: gifUrl }) });
+
+    expect(toZaloMessage(new UserMessage("7001", directUrl)).sticker?.url).toBe(gifUrl);
+    expect(toZaloMessage(new UserMessage("7001", jsonParams)).sticker?.url).toBe(gifUrl);
+  });
 });
 
 describe("Stickers", () => {
@@ -114,6 +138,20 @@ describe("Stickers", () => {
     const [same] = await stickers.fill([text]);
 
     expect(same).toBe(text);
+    expect(zalo.calls).toEqual([]);
+  });
+
+  it("keeps a sticker url that is already known and asks Zalo nothing", async () => {
+    const zalo = connection(async () => "https://zalo-api.zadn.vn/s/a.webp");
+    const stickers = new Stickers(zalo.source, { accountId: "a1", log: silent });
+    const prefilled = {
+      ...stickerMessage("100"),
+      sticker: { id: "100", catId: "0", type: 0, url: "https://media.tenor.com/a.gif" },
+    };
+
+    const [filled] = await stickers.fill([prefilled]);
+
+    expect(filled.sticker?.url).toBe("https://media.tenor.com/a.gif");
     expect(zalo.calls).toEqual([]);
   });
 

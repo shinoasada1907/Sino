@@ -121,4 +121,32 @@ class ZaloStickerTests {
 
         assertThat(message.sticker()).isEqualTo(new Sticker("11236", "3341", 7, PICTURE));
     }
+
+    @Test
+    void aChatGifMessageBecomesAnAnimatedStickerWithGifPlaceholder() {
+        String tenorUrl = "https://media.tenor.com/xyz/hello.gif";
+        Message gifMsg = new Message("1002", FRIEND, "USER", FRIEND, "Bình", false, "chat.gif", null, SENT_AT,
+                new Sticker("1002", "0", 0, tenorUrl));
+
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(gifMsg, SELF);
+
+        assertThat(message.type()).isEqualTo(MessageType.UNKNOWN);
+        assertThat(message.textContent()).isEqualTo("[GIF]");
+        assertThat(message.metadata()).containsEntry("zaloType", "chat.gif")
+                .containsEntry(NormalizedMessage.STICKER_URL, tenorUrl);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "https://media.tenor.com/a.gif",
+        "https://c.tenor.com/b.gif",
+        "https://media.giphy.com/media/c.gif" })
+    void tenorAndGiphyAddressesAreKeptForGifs(String url) {
+        Message gifMsg = new Message("1003", FRIEND, "USER", FRIEND, "Bình", false, "chat.gif", null, SENT_AT,
+                new Sticker("1003", "0", 0, url));
+
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(gifMsg, SELF);
+
+        assertThat(message.metadata()).containsEntry(NormalizedMessage.STICKER_URL, url);
+    }
 }

@@ -130,7 +130,7 @@ export class ZcaGateway implements ZaloGateway {
         try {
           // `await` here, or a rejection would pass the catch below.
           const [detail] = await api.getStickersDetail(Number(stickerId));
-          return detail?.stickerWebpUrl || detail?.stickerUrl || null;
+          return detail?.stickerUrl || detail?.stickerWebpUrl || null;
         } catch (error) {
           throw new ZaloUnavailableError(reasonOf(error));
         }
@@ -153,7 +153,12 @@ export class ZcaGateway implements ZaloGateway {
 export function toZaloMessage(message: Message): ZaloMessage {
   const data = message.data;
   const ts = Number(data.ts);
-  const sticker = data.msgType === "chat.sticker" ? stickerOf(data.content) : undefined;
+  const sticker =
+    data.msgType === "chat.sticker"
+      ? stickerOf(data.content)
+      : data.msgType === "chat.gif"
+        ? gifStickerOf(data.msgId, data.content)
+        : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -166,6 +171,50 @@ export function toZaloMessage(message: Message): ZaloMessage {
     sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
     ...(sticker === undefined ? {} : { sticker }),
   };
+}
+
+/** The sticker a `chat.gif` content names (D-279). */
+function gifStickerOf(msgId: string, content: unknown): ZaloSticker | undefined {
+  const url = gifUrlOf(content);
+  return {
+    id: msgId,
+    catId: "0",
+    type: 0,
+    url,
+  };
+}
+
+/** Extracts the URL from a `chat.gif` content payload. */
+function gifUrlOf(content: unknown): string | null {
+  if (typeof content === "string") {
+    const trimmed = content.trim();
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
+    if (trimmed.startsWith("{")) {
+      try {
+        return gifUrlOf(JSON.parse(trimmed));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+  if (typeof content === "object" && content !== null) {
+    const fields = content as Record<string, unknown>;
+    const candidate = fields.href || fields.url || fields.normalUrl || fields.oriUrl || fields.thumbUrl || fields.thumb;
+    if (typeof candidate === "string" && (candidate.startsWith("http://") || candidate.startsWith("https://"))) {
+      return candidate;
+    }
+    if (typeof fields.params === "string") {
+      try {
+        return gifUrlOf(JSON.parse(fields.params));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
 }
 
 /** The sticker a `chat.sticker` content names, or undefined when it names none we can use. */

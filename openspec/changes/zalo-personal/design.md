@@ -208,17 +208,18 @@ QrLogin.cancel(loginId)
 | `webchat` | `TEXT`, `textContent` = nội dung |
 | `chat.photo` | `IMAGE`, chữ `[Ảnh]` |
 | `chat.sticker` | `UNKNOWN`, chữ `[Sticker]`, `metadata.stickerUrl` khi có ảnh |
+| `chat.gif` | `UNKNOWN`, chữ `[GIF]`, `metadata.stickerUrl` khi có ảnh |
 | `share.file` | `FILE`, chữ `[Tệp]` |
 | `chat.voice` | `AUDIO`, chữ `[Tin nhắn thoại]` |
 | loại khác | `UNKNOWN`, chữ `[Tin Zalo chưa hỗ trợ]`, `metadata.zaloType` = loại gốc |
 | `ts` | `sentAt` |
 | `msgId` | `externalMessageId` |
 
-**Bổ sung ZL-14 (2026-10-18, AUTO — Sticker dạng ảnh):**
-- Khi Zalo gửi tin sticker (`chat.sticker`), nội dung `data.content` chứa `{ id, catId, type }` chứ không có URL ảnh trực tiếp.
-- `sino-zalo` (`Stickers.ts`) gọi `api.getStickersDetail(id)` từ `zca-js` để lấy URL ảnh (`stickerWebpUrl` hoặc `stickerUrl`), có cache trong bộ nhớ (chỉ cache URL hợp lệ để lỗi tạm thời có thể thử lại ở lần đọc sau), timeout 2 giây.
-- `sino-api` (`ZaloMessageNormalizer`) kiểm tra tính hợp lệ của URL ảnh (bắt buộc HTTPS, không chứa userInfo, độ dài <= 2000 ký tự, thuộc tên miền CDN Zalo như `zadn.vn`, `zdn.vn`, `zaloapp.com`, `zalo.me`), lưu vào `metadata.stickerUrl`, và giữ `textContent = "[Sticker]"` để danh sách hội thoại vẫn hiển thị snippet `[Sticker]`. API tin nhắn `GET /api/conversations/{id}/messages` trả thêm trường `sticker`.
-- `sino-web` (`sticker.ts`, `ChatThread.tsx`): kiểm tra URL an toàn qua `pictureOf` (HTTPS, không user/password), hiển thị thẻ `<img alt="Sticker" loading="lazy" referrerPolicy="no-referrer" />`. Khi ảnh lỗi tải (`onError`) hoặc URL không hợp lệ, tự động hiển thị bóng tin nhắn chữ `[Sticker]` thay thế.
+**Bổ sung ZL-14 (2026-10-18, AUTO — Sticker dạng ảnh & Sticker động / GIF):**
+- Khi Zalo gửi tin sticker (`chat.sticker`), nội dung `data.content` chứa `{ id, catId, type }`. `sino-zalo` (`ZcaGateway.ts`, `Stickers.ts`) gọi `api.getStickersDetail(id)` từ `zca-js` và ưu tiên `detail.stickerUrl` (ảnh động / GIF đầy đủ) trước `detail.stickerWebpUrl` (thường là ảnh tĩnh nén webpc 1 frame), có cache trong bộ nhớ và timeout 2 giây.
+- Khi người dùng gửi ảnh GIF từ Zalo (`chat.gif`), `sino-zalo` trích xuất URL ảnh GIF từ `data.content` (`href`, `url`, `normalUrl`, `params`).
+- `sino-api` (`ZaloMessageNormalizer`) kiểm tra tính hợp lệ của URL ảnh (bắt buộc HTTPS, không chứa userInfo, độ dài <= 2000 ký tự, thuộc tên miền CDN Zalo `zadn.vn`, `zdn.vn`, `zaloapp.com`, `zalo.me` hoặc các nguồn GIF phổ biến `tenor.com`, `tenor.co`, `giphy.com`), lưu vào `metadata.stickerUrl`, và giữ `textContent` là `[Sticker]` (cho sticker) hoặc `[GIF]` (cho chat.gif) để snippet danh sách hội thoại hiển thị trực quan. API tin nhắn `GET /api/conversations/{id}/messages` trả trường `sticker`.
+- `sino-web` (`sticker.ts`, `ChatThread.tsx`): kiểm tra URL an toàn qua `pictureOf` (HTTPS, không user/password), hiển thị thẻ `<img alt="Sticker" loading="lazy" referrerPolicy="no-referrer" />`. Khi ảnh lỗi tải (`onError`) hoặc URL không hợp lệ, tự động hiển thị bóng tin nhắn chữ thay thế (`[Sticker]` hoặc `[GIF]`). Trình duyệt tự động phát chuyển động của sticker động (GIF/animated WebP) trong thẻ `<img>`.
 
 Spike mới thấy hai loại `webchat` và `chat.photo`. Tên `chat.sticker`, `share.file`, `chat.voice` là **giả định, chưa kiểm**: ~~ZL-00 ghi lại tên thật (gửi thử từng loại) và sửa bảng này trước ZL-08~~ ZL-13 ghi lại tên thật (gửi thử từng loại), rồi sửa bảng này và `ZaloMessageNormalizer` (D-270). Tới lúc đó, tin có tên khác giả định rơi vào hàng "loại khác": hiện `[Tin Zalo chưa hỗ trợ]` và giữ tên gốc trong `metadata.zaloType`, nên không mất tin. Ảnh, tệp và giọng nói không có `NormalizedAttachment` ở bản đầu (D-271). Thu hồi tin, reaction, đã xem: `sino-zalo` ghi log loại sự kiện, không xử lý.
 

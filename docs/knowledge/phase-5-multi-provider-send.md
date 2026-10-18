@@ -1277,22 +1277,23 @@ Hai bài học:
 1. **Khi dựng lại CI tại máy, phải dựng lại đúng cả những file "không phải code".** `actions/checkout` mang theo *mọi* file đã commit, `.gitignore` nằm trong đó; một bản copy chọn tay thì không. Một "CI đỏ" dựng lại sai cách sẽ dẫn đi sửa nhầm chỗ.
 2. **Công cụ hay đọc `.gitignore` làm cấu hình.** oxlint, ripgrep, prettier, nhiều bundler đều vậy. Nghĩa là `.gitignore` không chỉ nói với Git: xóa một dòng trong đó có thể làm lint hoặc build đổi hành vi. `apps/sino-web` cũng dựa vào đúng cơ chế này và `frontend-ci` vẫn xanh, nên đây là kiểu dùng bình thường — chỉ cần biết là mình đang dựa vào nó.
 
-## 17. ZL-14 — Hiển thị sticker Zalo dạng ảnh trong chat
+## 17. ZL-14 — Hiển thị sticker Zalo và tin nhắn GIF dạng ảnh trong chat
 
-### 17.1 Vấn đề: `chat.sticker` chỉ mang id, không mang URL ảnh
-Khi người dùng chat qua Zalo gửi một sticker, thư viện `zca-js` nhận được sự kiện với `msgType === "chat.sticker"`. Dữ liệu `data.content` trong sự kiện này không chứa địa chỉ URL của ảnh, mà chỉ chứa một đối tượng với các thuộc tính định danh: `{ id, catId, type }`.
-Trước ZL-14, Sino chỉ hiển thị văn bản đại diện `[Sticker]` (theo bảng D-279). Người dùng kiểm tra thấy trong giao diện chat chỉ hiện chữ `[Sticker]` thay vì hình ảnh sticker trực quan.
+### 17.1 Vấn đề: `chat.sticker` chỉ mang id, và tin nhắn ảnh động GIF cần xử lý chuyên biệt
+Khi người dùng chat qua Zalo gửi một sticker, thư viện `zca-js` nhận được sự kiện với `msgType === "chat.sticker"`. Dữ liệu `data.content` trong sự kiện này không chứa địa chỉ URL của ảnh, mà chỉ chứa một đối tượng với các thuộc tính định danh: `{ id, catId, type }`. Ngoài ra, Zalo còn có dạng tin nhắn ảnh động GIF (`msgType === "chat.gif"`) khi người dùng chia sẻ từ kho GIF tích hợp.
+Trước ZL-14, Sino chỉ hiển thị văn bản đại diện `[Sticker]` hoặc `[GIF]` (theo bảng D-279). Người dùng kiểm tra thấy trong giao diện chat chỉ hiện chữ thay vì hình ảnh trực quan. Hơn nữa, với các sticker động, nếu chỉ lấy thumbnail WebP nén tĩnh (`webpc`) thì hình ảnh bị đứng yên, mất chuyển động.
 
-Để hiển thị hình ảnh sticker thật, luồng xử lý cần đi qua đủ ba tầng:
-1. `sino-zalo` (Node.js): Phân giải `{ id, catId, type }` từ `data.content`, gọi API `getStickersDetail(id)` của `zca-js` để lấy URL ảnh WebP/PNG từ CDN Zalo (`*.zadn.vn`, `*.zdn.vn`).
-2. `sino-api` (Spring Boot / Java): Xác thực URL ảnh hợp lệ (chỉ chấp nhận HTTPS, thuộc các domain CDN của Zalo, không chứa thông tin nhạy cảm), lưu vào trường `metadata.stickerUrl`, giữ `textContent` là `[Sticker]` cho danh sách hội thoại, và trả trường `sticker` ở API lấy tin nhắn hội thoại (`GET /api/conversations/{id}/messages`).
-3. `sino-web` (React / TypeScript): Kiểm tra URL an toàn qua hàm `pictureOf`, kết xuất thẻ ảnh `<img>` với thuộc tính `loading="lazy"` và `referrerPolicy="no-referrer"`. Nếu ảnh bị lỗi khi tải hoặc URL không an toàn, tự động quay về bóng tin nhắn chữ `[Sticker]`.
+Để hiển thị hình ảnh sticker và GIF thật (bao gồm cả ảnh động):
+1. `sino-zalo` (Node.js): Phân giải `{ id, catId, type }` từ `data.content`, gọi API `getStickersDetail(id)` của `zca-js`. Ưu tiên lấy `detail.stickerUrl` (URL chứa ảnh động gốc GIF hoặc WebP động) trước `detail.stickerWebpUrl` (ảnh thumbnail tĩnh dạng WebP). Với `chat.gif`, trích xuất trực tiếp địa chỉ URL từ nội dung `data.content` hoặc trường `params`.
+2. `sino-api` (Spring Boot / Java): Xác thực URL an toàn (chấp nhận HTTPS, danh sách tên miền tin cậy gồm CDN Zalo và các nhà cung cấp GIF phổ biến như `tenor.com`, `giphy.com`), lưu vào trường `metadata.stickerUrl`, gán `textContent` là `[Sticker]` hoặc `[GIF]`, và trả trường `sticker` ở API tin nhắn (`GET /api/conversations/{id}/messages`).
+3. `sino-web` (React / TypeScript): Kiểm tra URL an toàn qua hàm `pictureOf`, kết xuất thẻ ảnh `<img>` với thuộc tính `loading="lazy"` và `referrerPolicy="no-referrer"`. Nếu ảnh bị lỗi khi tải hoặc URL không an toàn, tự động quay về khung tin nhắn chữ tương ứng `[Sticker]` hoặc `[GIF]`.
 
-### 17.2 Phân giải URL sticker tại `sino-zalo` (`Stickers.ts`)
+### 17.2 Phân giải URL sticker và xử lý tin nhắn GIF tại `sino-zalo` (`Stickers.ts` và `ZcaGateway.ts`)
 Việc gọi API ngoài để lấy chi tiết sticker có thể gặp độ trễ hoặc lỗi mạng tạm thời. Nếu gọi tuần tự cho từng tin nhắn mỗi lần đọc tin, toàn bộ lượt đồng bộ sẽ bị chậm lại.
-Giải pháp được thiết kế trong lớp `Stickers`:
-- Cache URL thành công trong bộ nhớ: Một sticker id chỉ cần phân giải thành công một lần. Các tin nhắn sau dùng cùng sticker sẽ lấy ngay từ cache mà không cần gọi lại Zalo API.
-- Không cache kết quả null: Nếu mạng chập chờn hoặc API Zalo tạm thời chưa trả về chi tiết sticker, không lưu null vào cache để các lần đọc tiếp theo có cơ hội thử lại.
+Giải pháp được thiết kế trong lớp `Stickers` và gateway:
+- Ưu tiên tài nguyên động: Trong `ZcaGateway`, thứ tự trích xuất URL chi tiết sticker là `detail?.stickerUrl || detail?.stickerWebpUrl || null`. Điều này đảm bảo sticker động hiển thị đầy đủ hoạt cảnh thay vì khung hình tĩnh.
+- Xử lý tin nhắn `chat.gif`: Hàm `gifStickerOf` và `gifUrlOf` phân tích cấu trúc đa dạng của tin nhắn GIF (dạng chuỗi URL, đối tượng JSON, hoặc chuỗi JSON lồng nhau trong `params` với các khóa `href`, `url`, `normalUrl`, `oriUrl`). Tin nhắn sau khi trích xuất được gắn sẵn `sticker: { id, catId, type, url }`.
+- Cache URL thông minh: Trong `Stickers.fill(messages)`, nếu tin nhắn đã có sẵn URL (như tin nhắn GIF), hệ thống nạp thẳng vào bộ nhớ cache mà không cần gửi truy vấn tới Zalo API. Với các sticker cần tra cứu qua `id`, hệ thống lưu cache khi thành công và không cache kết quả null để cho phép thử lại.
 - Giới hạn thời gian (Timeout 2 giây): Toàn bộ lời gọi phân giải sticker trong một mẻ tin nhắn bị chặn tối đa 2 giây bằng `Promise.race` và `AbortSignal`, đảm bảo API đọc tin nhắn `GET /accounts/{accountId}/messages` không bao giờ bị nghẽn quá lâu.
 - Bất biến (Immutability): Mảng tin nhắn gốc không bị sửa đổi trực tiếp; hàm `fill(messages)` trả về bản sao nông có bổ sung thuộc tính `sticker?: ZaloSticker`.
 
@@ -1302,23 +1303,26 @@ Dữ liệu nhận từ dịch vụ trung gian hoặc bên thứ ba luôn tiềm
 - Phải là địa chỉ HTTPS tuyệt đối (`url.getProtocol().equalsIgnoreCase("https")`).
 - Không chứa thông tin xác thực người dùng (`url.getUserInfo() == null`), ngăn ngừa dạng lừa đảo `https://user:pass@domain`.
 - Chiều dài chuỗi tối đa 2000 ký tự và chỉ chứa ký tự ASCII in được (`0x20` đến `0x7E`).
-- Tên miền (`host`) bắt buộc phải thuộc các domain CDN chính thức của Zalo: `zadn.vn`, `zdn.vn`, `zaloapp.com`, `zalo.me`, hoặc các subdomain kết thúc bằng `.zadn.vn`, `.zdn.vn`, v.v.
+- Tên miền (`host`) bắt buộc phải thuộc các domain tin cậy:
+  - CDN chính thức của Zalo: `zadn.vn`, `zdn.vn`, `zaloapp.com`, `zalo.me`, hoặc các subdomain kết thúc bằng `.zadn.vn`, `.zdn.vn`.
+  - Nhà cung cấp ảnh động GIF: `tenor.com`, `tenor.co`, `giphy.com`, hoặc các subdomain liên quan như `media.tenor.com`, `c.tenor.com`, `media.giphy.com`.
 
 Khi hợp lệ, URL được đưa vào `metadata.stickerUrl`. Khi lưu trữ hoặc đọc ra, câu lệnh SQL truy vấn trực tiếp JSON metadata:
 `m.metadata ->> :stickerUrl AS sticker_url`
 và trả về `MessageResponse.sticker`.
 
 ### 17.4 Hiển thị và xử lý lỗi tải ảnh tại `sino-web`
-Tại giao diện web, tin nhắn sticker có hai yêu cầu quan trọng:
-1. Danh sách hội thoại bên trái (inbox list / snippet): Cần giữ nguyên chữ tóm tắt `[Sticker]` để người dùng liếc nhanh biết đây là tin gì. Vì vậy `textContent` ở backend vẫn là `[Sticker]`.
+Tại giao diện web, tin nhắn sticker và GIF có hai yêu cầu quan trọng:
+1. Danh sách hội thoại bên trái (inbox list / snippet): Cần giữ nguyên chữ tóm tắt `[Sticker]` hoặc `[GIF]` để người dùng liếc nhanh biết loại tin nhắn. Vì vậy `textContent` ở backend vẫn lưu tương ứng `[Sticker]` hoặc `[GIF]`.
 2. Khung chat bên phải (thread detail): Thay vì vẽ khung tin nhắn chữ nền màu, component `Bubble` kiểm tra `pictureOf(message.sticker)`:
-   - Nếu có URL hợp lệ và ảnh chưa bị lỗi: hiển thị thẻ `<img src={sticker} alt="Sticker" loading="lazy" referrerPolicy="no-referrer" className="size-32 object-contain select-none" />`.
+   - Nếu có URL hợp lệ và ảnh chưa bị lỗi: hiển thị thẻ `<img src={sticker} alt={isGif ? "GIF" : "Sticker"} loading="lazy" referrerPolicy="no-referrer" className="size-32 object-contain select-none" />`. Thẻ ảnh hiển thị mượt mà cả ảnh tĩnh lẫn hoạt ảnh GIF động.
    - `loading="lazy"` giúp trình duyệt chỉ tải ảnh khi cuộn tới vị trí tin nhắn.
-   - `referrerPolicy="no-referrer"` ngăn trình duyệt gửi thông tin máy chủ Sino trong tiêu đề `Referer` khi tải ảnh từ CDN của Zalo.
-   - Quản lý trạng thái lỗi bằng React state `brokenSticker`: Khi sự kiện `onError` xảy ra (ví dụ CDN xóa ảnh hoặc mất mạng), `brokenSticker` chuyển thành `true` và giao diện quay trở lại hiển thị bóng tin nhắn chữ `[Sticker]` chuẩn.
+   - `referrerPolicy="no-referrer"` ngăn trình duyệt gửi thông tin máy chủ Sino trong tiêu đề `Referer` khi tải tài nguyên từ bên ngoài.
+   - Quản lý trạng thái lỗi bằng React state `brokenSticker`: Khi sự kiện `onError` xảy ra (ví dụ CDN xóa ảnh hoặc mất mạng), `brokenSticker` chuyển thành `true` và giao diện tự động quay trở lại hiển thị bóng tin nhắn chữ tương ứng (`[Sticker]` hoặc `[GIF]`).
 
 ### 17.5 Kiểm chứng (ZL-14)
-- `apps/sino-zalo`: 14 unit test trong `test/stickers.test.ts` kiểm tra parse `toZaloMessage`, cache URL, timeout, và route `GET /accounts/{accountId}/messages`. Tổng 151/151 test passed, oxlint 0 lỗi.
-- `apps/sino-api`: 24 test trong `ZaloStickerTests` kiểm tra toàn bộ các trường hợp URL hợp lệ, không hợp lệ, URL độc hại, và 2 test trong `ConversationMessagesApiTests` kiểm tra trường `sticker` ở API tin nhắn.
-- `apps/sino-web`: 10 test trong `sticker.test.ts`, 19 test trong `inbox.api.test.ts`, 6 test trong `Sticker.test.tsx` (kiểm tra đầy đủ việc hiển thị ảnh, các thuộc tính bảo mật, và fallback khi `onError`). Toàn bộ 799/799 test của `sino-web` đều passed, `oxlint` 0 lỗi, `tsc -b` và `pnpm build` thành công.
+- `apps/sino-zalo`: 17 unit test trong `test/stickers.test.ts` kiểm tra parse `toZaloMessage` cho cả sticker tĩnh, sticker động và `chat.gif`, cache URL, timeout, và route `GET /accounts/{accountId}/messages`. Toàn bộ 154/154 test passed trên 13 file test, oxlint 0 lỗi.
+- `apps/sino-api`: 28 test trong `ZaloStickerTests` kiểm tra toàn bộ các trường hợp URL hợp lệ, không hợp lệ, URL độc hại, tin nhắn `chat.gif`, và các domain Tenor/GIPHY. Toàn bộ 28/28 test passed, `mvn test` thành công.
+- `apps/sino-web`: 11 test trong `sticker.test.ts` (bao gồm kiểm tra domain Tenor/GIPHY), 19 test trong `inbox.api.test.ts`, 6 test trong `Sticker.test.tsx` (kiểm tra đầy đủ việc hiển thị ảnh, các thuộc tính bảo mật, và fallback khi `onError`). Toàn bộ 799/799 test của `sino-web` đều passed, `oxlint` 0 lỗi, `tsc -b` và `pnpm build` thành công.
+
 

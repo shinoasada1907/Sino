@@ -30,8 +30,12 @@ export class Stickers {
   async fill(messages: readonly ZaloMessage[]): Promise<ZaloMessage[]> {
     const wanted = new Set<string>();
     for (const message of messages) {
-      if (message.sticker !== undefined && !this.urls.has(message.sticker.id)) {
-        wanted.add(message.sticker.id);
+      if (message.sticker !== undefined) {
+        if (message.sticker.url) {
+          this.urls.set(message.sticker.id, message.sticker.url);
+        } else if (!this.urls.has(message.sticker.id)) {
+          wanted.add(message.sticker.id);
+        }
       }
     }
     await this.ask([...wanted]);
@@ -41,7 +45,7 @@ export class Stickers {
       if (sticker === undefined) {
         return message;
       }
-      return { ...message, sticker: { ...sticker, url: this.urls.get(sticker.id) ?? null } };
+      return { ...message, sticker: { ...sticker, url: this.urls.get(sticker.id) ?? sticker.url ?? null } };
     });
   }
 
