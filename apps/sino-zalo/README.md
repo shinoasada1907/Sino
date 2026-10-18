@@ -4,11 +4,16 @@ Node service that will sit between `sino-api` and Zalo for personal Zalo account
 zca-js (F09, D-273). Only `sino-api` may call it, with a shared secret (D-282). It keeps nothing on disk: Zalo sessions
 are stored encrypted by `sino-api` (D-274). The plan is `openspec/changes/zalo-personal` at the repository root.
 
-**Status (ZL-05):** configuration, the shared-secret check, `GET /health`, the QR login, sessions with their
-listeners (start, stop, kick, reconnect), reading (the message buffer, the cursor, the catch-up after a restart and
-the batched webhook), and sending text: one send per `clientMessageId`, one message per second per account, and the
-lookup of sent messages. All of it has run only against the fake gateway so far; the first run against Zalo itself is
-ZL-13.
+**Status (ZL-12):** this service is feature-complete for the change: configuration, the shared-secret check,
+`GET /health`, the QR login, sessions with their listeners (start, stop, kick, reconnect), reading (the message
+buffer, the cursor, the catch-up after a restart and the batched webhook), and sending text: one send per
+`clientMessageId`, one message per second per account, and the lookup of sent messages. The `sino-api` side is done
+too, through ZL-11 (connect by QR from the web, reading, replies, disconnect when an account is removed or turned
+off). All of it has run only against the fake gateway so far; the first run against Zalo itself is ZL-13, and the
+message types in `ZaloMessageNormalizer` of `sino-api` are the ones that run will confirm or correct.
+
+`zalo-ci` (`.github/workflows/zalo-ci.yml`) runs the lint, the type check and the tests of this folder on every push
+and pull request that touches it.
 
 Run every command below from `apps/sino-zalo`.
 
@@ -48,6 +53,42 @@ and a line naming the variable.
 | Type-check | `pnpm typecheck` |
 | Tests once (Vitest) | `pnpm test` |
 | Tests in watch mode | `pnpm test:watch` |
+
+## Run it next to sino-api
+
+From a fresh clone, with nothing of Sino running yet:
+
+1. **Make the shared secret**, once, and keep the output:
+   ```bash
+   node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+   ```
+2. **This service:** `cp .env.example .env` in `apps/sino-zalo`, put the secret in `SINO_ZALO_SECRET`, leave
+   `SINO_ZALO_HOST`, `SINO_ZALO_PORT` and `SINO_API_URL` as they are if `sino-api` will listen on its usual `:8080`.
+3. **`sino-api`:** in `apps/sino-api/.env`, set `SINO_ZALO_ENABLED=true` and `SINO_ZALO_SECRET` to the *same* secret;
+   `SINO_ZALO_URL` already points at `http://127.0.0.1:8090`. The whole section is in
+   `apps/sino-api/README.md` → "Zalo: personal accounts through sino-zalo (F09)".
+4. **Start this service first:** `pnpm install` then `pnpm dev` (or `pnpm start`) in `apps/sino-zalo`. Check it:
+   ```bash
+   curl http://127.0.0.1:8090/health
+   ```
+   `{"status":"UP","sessions":{"live":0,"ended":0}}` means it is up. A wrong secret or port stops it at start with a
+   line naming the variable, so a service that is running is a service that is configured.
+5. **Then start `sino-api`** and `apps/sino-web` as their own READMEs say. With Zalo off, `sino-api` logs that it is
+   off and names the two settings; on, it logs nothing special.
+6. **Connect an account:** in the web, Tài khoản → Thêm tài khoản → Zalo, accept the warning, scan the QR with the
+   Zalo app. Zalo missing from that dialog, or shown as "Sắp có", means `sino-api` still has Zalo off.
+
+The order matters only so that step 6 works: `sino-api` starts fine while `sino-zalo` is down, every Zalo call simply
+fails until it is up.
+
+## Turn Zalo off in a hurry
+
+Two steps, in this order (D-286); the same list, with the settings spelled out, is in `apps/sino-api/README.md`:
+
+1. **Stop this process** (Ctrl+C, or stop its service). Every listener dies with it, so the Zalo sessions stop at Zalo
+   straight away, without needing anything from `sino-api`.
+2. **Set `SINO_ZALO_ENABLED=false` in `apps/sino-api/.env` and restart `sino-api`**, so nothing calls this service any
+   more and the connect dialog stops offering Zalo.
 
 ## API so far
 

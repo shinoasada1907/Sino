@@ -1202,3 +1202,77 @@ Khi `sino.zalo.enabled=false`:
 ### 15.4 Kiểm chứng (ZL-10)
 - **Đỏ trước:** 8/11 test trong `ZaloDisconnectTests` và `AccountDisconnectTests` đỏ khi `ZaloProvider.disconnect` và `AccountManagementService` chưa cài đặt.
 - **Xanh:** `ZaloDisconnectTests`, `AccountDisconnectTests`, `RemoveAccountRevokesTests`, `AccountsApiTests`, toàn bộ `Zalo*` và `ModularityTests` (195 test chạy, 0 lỗi).
+## 16. ZL-12 — Chạy `sino-zalo` cạnh `sino-api`, và CI cho một package trong monorepo
+
+### 16.1 Cấu hình qua biến môi trường: một secret, hai tiến trình
+Sino chạy Zalo bằng **hai tiến trình riêng**, nên cùng một bí mật phải có ở hai chỗ và phải khớp nhau:
+
+```text
+apps/sino-zalo/.env                        apps/sino-api/.env
+  SINO_ZALO_SECRET=<S>  <--- phải bằng --->  SINO_ZALO_SECRET=<S>
+  SINO_ZALO_HOST=127.0.0.1                   SINO_ZALO_ENABLED=true
+  SINO_ZALO_PORT=8090   <--- trỏ tới  ---->  SINO_ZALO_URL=http://127.0.0.1:8090
+  SINO_API_URL=http://127.0.0.1:8080 ------> nơi sino-zalo gọi webhook
+```
+
+Hai điều đáng học ở cách đặt cấu hình này:
+
+1. **Hỏng thì chết ngay lúc khởi động, không chết lúc đang dùng.** Cả hai bên đều kiểm cấu hình ở lần chạy đầu: `loadConfig(env)` của `sino-zalo` thoát mã 1 kèm tên biến sai, còn `ZaloConfiguration.check(properties)` của `sino-api` ném `IllegalStateException` làm Spring dừng khởi động. Hệ quả thực tế rất tiện khi vận hành: **tiến trình còn sống nghĩa là cấu hình đã đúng**, không có trạng thái "chạy được nhưng cấu hình sai" để phải đoán.
+2. **Thông báo lỗi nêu *tên* biến, không bao giờ in *giá trị*.** `SINO_ZALO_SECRET` là bí mật dùng chung; in nó ra log là rò rỉ. Mọi câu lỗi trong `ZaloConfiguration` đều theo kiểu "SINO_ZALO_SECRET (sino.zalo.secret) must be at least 32 bytes", đủ để sửa mà không tiết lộ gì.
+
+`ZaloConfiguration` còn chặn secret có ký tự ngoài ASCII hiển thị: nó đi vào HTTP header `Authorization`, và JDK sẽ từ chối header lạ **kèm nguyên nội dung header trong câu lỗi** — tức là làm rò rỉ secret qua đúng cái lỗi đó. Chặn sớm ở cấu hình vừa cho câu lỗi dễ hiểu, vừa tránh rò rỉ.
+
+### 16.2 Health check: vì sao `GET /health` không cần secret
+`src/auth.ts` giữ một danh sách đường dẫn công khai:
+```ts
+const PUBLIC_ROUTES = new Set(["/health"]);
+```
+Mọi đường dẫn khác — kể cả đường chưa có route nào phục vụ — đều phải có `Authorization: Bearer <SINO_ZALO_SECRET>`. Cách này (chặn mặc định, mở theo danh sách trắng) an toàn hơn cách ngược lại: thêm route mới về sau là **tự động** được bảo vệ, không phải nhớ thêm gì.
+
+`/health` được mở vì nó chỉ trả **số đếm**, không trả nội dung tin:
+```text
+GET /health  ->  200 {"status":"UP","sessions":{"live":0,"ended":0}}
+```
+Người kiểm tra cần biết "tiến trình có sống không" trước khi có secret trong tay (script khởi động, docker healthcheck, hay chính người dùng chạy `curl`). Mở một endpoint chỉ có số đếm là cái giá nhỏ để đổi lấy việc đó.
+
+### 16.3 Tắt khẩn cấp: thứ tự hai bước, và vì sao thứ tự đó
+Cơ chế của công tắc đã nằm ở mục 15.3. Phần vận hành là **thứ tự**:
+
+1. **Dừng tiến trình `sino-zalo` trước.** Listener WebSocket chết theo tiến trình, nên phiên Zalo dừng ngay tại Zalo. Bước này không cần `sino-api` làm gì cả — mà lúc khẩn cấp, `sino-api` có thể chính là chỗ đang hỏng.
+2. **Rồi `SINO_ZALO_ENABLED=false` và khởi động lại `sino-api`.** Không còn lời gọi nào ra `sino-zalo`, hộp thoại kết nối thôi mời Zalo, nhưng Gmail và tin Zalo đã lưu vẫn đọc được.
+
+Đây là lý do hồ sơ **bỏ** phương án "`sino-api` gọi `DELETE session` cho mọi account" (D-286): phương án đó cần `sino-api` còn khỏe, còn phải lặp đúng qua mọi account; dừng tiến trình thì chắc chắn hơn và không phụ thuộc gì. Bài học chung: **đường tắt khẩn cấp nên phụ thuộc vào càng ít thành phần càng tốt** — nhất là không phụ thuộc vào thành phần có thể đang là nguyên nhân.
+
+Làm thiếu một bước thì: chỉ bước 1, `sino-api` cứ gọi một service không có ai trả lời (an toàn, nhưng mọi lời gọi Zalo đều lỗi); chỉ bước 2, phiên Zalo vẫn sống nguyên trong `sino-zalo`.
+
+### 16.4 CI cho một package trong monorepo: `paths` filter
+`.github/workflows/zalo-ci.yml` chỉ chạy khi có thay đổi liên quan:
+```yaml
+on:
+  push:
+    branches: [main, dev, "feature/**"]
+    paths:
+      - "apps/sino-zalo/**"
+      - ".github/workflows/zalo-ci.yml"
+
+concurrency:
+  group: zalo-ci-${{ github.ref }}
+  cancel-in-progress: true
+```
+Mấy chi tiết dễ bỏ sót:
+
+- **Chính file workflow nằm trong `paths`.** Sửa workflow mà không có dòng đó thì job không chạy, và không biết mình vừa làm nó hỏng hay chưa.
+- **`concurrency.group` gắn với tên nhánh** cộng `cancel-in-progress: true`: push liên tiếp trên cùng nhánh thì lần cũ bị hủy, chỉ lần mới nhất chạy. Tên group phải có tên workflow ở đầu như trên, nếu không `zalo-ci` và `frontend-ci` sẽ hủy lẫn nhau.
+- **`cache-dependency-path` trỏ vào `apps/sino-zalo/pnpm-lock.yaml`.** Repo này **không** có pnpm workspace ở gốc: mỗi app có `pnpm-lock.yaml` riêng. Trỏ sai lockfile thì cache không bao giờ trúng (và xấu hơn: trúng cache của app khác).
+- **`pnpm install --frozen-lockfile`** chứ không phải `pnpm install`: lockfile lệch `package.json` thì CI phải đỏ, không được âm thầm cập nhật lockfile rồi chạy tiếp.
+- **Không có bước Build.** Node chạy trực tiếp file TypeScript (nó chỉ xóa phần type), nên không có sản phẩm build nào để tạo. Nhưng chính vì Node **không** kiểm type, `pnpm typecheck` (`tsc`) phải là một bước riêng — nếu không thì lỗi type sẽ không bao giờ bị CI bắt. So với `frontend-ci`, chỗ `Build` được thay bằng `Type-check`.
+
+### 16.5 Một cái bẫy: oxlint bỏ `node_modules` là nhờ `.gitignore`
+Khi kiểm chứng ZL-12, cách làm là dựng lại đúng các lệnh của job trong một thư mục sạch (không `node_modules`, không `.env`) rồi chạy. Lần đầu `pnpm lint` **đỏ**, oxlint đi vào `node_modules/typescript/lib/typescript.js` và báo lỗi trong code của người khác.
+
+Nguyên nhân không phải CI: `.oxlintrc.json` của `sino-zalo` **không** có `ignorePatterns`, và oxlint bỏ qua `node_modules` chỉ vì `.gitignore` có dòng đó. Bản copy thủ công của thư mục sạch đã thiếu `.gitignore`. Thêm `.gitignore` vào thì lint về 0.
+
+Hai bài học:
+
+1. **Khi dựng lại CI tại máy, phải dựng lại đúng cả những file "không phải code".** `actions/checkout` mang theo *mọi* file đã commit, `.gitignore` nằm trong đó; một bản copy chọn tay thì không. Một "CI đỏ" dựng lại sai cách sẽ dẫn đi sửa nhầm chỗ.
+2. **Công cụ hay đọc `.gitignore` làm cấu hình.** oxlint, ripgrep, prettier, nhiều bundler đều vậy. Nghĩa là `.gitignore` không chỉ nói với Git: xóa một dòng trong đó có thể làm lint hoặc build đổi hành vi. `apps/sino-web` cũng dựa vào đúng cơ chế này và `frontend-ci` vẫn xanh, nên đây là kiểu dùng bình thường — chỉ cần biết là mình đang dựa vào nó.

@@ -1,0 +1,56 @@
+# Zalo CI (ZL-12): lint, type-check and test apps/sino-zalo on every push or pull request that touches it.
+# There is no build step: Node runs the TypeScript directly (see apps/sino-zalo/README.md).
+name: zalo-ci
+
+on:
+  push:
+    branches: [main, dev, "feature/**"]
+    paths:
+      - "apps/sino-zalo/**"
+      - ".github/workflows/zalo-ci.yml"
+  pull_request:
+    paths:
+      - "apps/sino-zalo/**"
+      - ".github/workflows/zalo-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zalo-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/sino-zalo
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs the pnpm version named in "packageManager" of package.json.
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/sino-zalo/package.json
+
+      # apps/sino-zalo has its own lockfile: there is no pnpm workspace at the repository root.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: pnpm
+          cache-dependency-path: apps/sino-zalo/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      # Node strips the types without checking them, so this is the only type check.
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test

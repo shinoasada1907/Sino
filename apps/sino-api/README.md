@@ -330,6 +330,44 @@ Good to know:
 - A leaked push token (an hour at most) only lets someone make Sino sync earlier: a notice carries no mail, and Sino
   reads the changes itself.
 
+## Zalo: personal accounts through sino-zalo (F09)
+
+Personal Zalo has no official API, so `sino-api` does not talk to Zalo itself: it calls `apps/sino-zalo`, a small Node
+service that drives the unofficial library zca-js and holds the live Zalo sessions (change `zalo-personal`, D-273,
+D-282). Start `sino-zalo` first, then `sino-api`; `apps/sino-zalo/README.md` has its prerequisites and commands.
+
+| Variable | Default | What it is |
+|---|---|---|
+| `SINO_ZALO_ENABLED` | `false` | Turns Zalo on. Off, the connector stays registered: Zalo accounts connected earlier still show and their stored messages still read, and nothing calls `sino-zalo` (D-286) |
+| `SINO_ZALO_URL` | `http://127.0.0.1:8090` | Where `sino-zalo` listens: this machine or the Docker network, never the internet (D-282) |
+| `SINO_ZALO_SECRET` | none | The secret the two services share, at least 32 bytes of visible ASCII and no space; the same value as `SINO_ZALO_SECRET` in `apps/sino-zalo/.env`. Required once Zalo is on |
+
+Generate the secret once and paste the same value into both `.env` files:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+```
+
+With `SINO_ZALO_ENABLED=true`, a secret that is missing, too short or not plain ASCII, or a `SINO_ZALO_URL` that is not
+an http(s) address, stops the startup with a message naming the setting; the value itself is never printed.
+
+Turned off, Zalo shows as "Sắp có" in the connect dialog (`connectable: false` on `GET /api/providers`), starting a QR
+connect answers `409 PROVIDER_DISABLED` ("Zalo is turned off."), and every other call out answers
+`PROVIDER_UNAVAILABLE` ("Zalo is turned off (SINO_ZALO_ENABLED)").
+
+### Turn Zalo off in a hurry
+
+Two steps, in this order (D-286):
+
+1. **Stop the `sino-zalo` process** — Ctrl+C in its terminal, or stop its service. Every listener dies with it, so the
+   Zalo sessions stop at Zalo straight away. This is the step that counts: it needs nothing from `sino-api`, which may
+   be the very thing misbehaving. `sino-api` deliberately has no "disconnect every account" loop for this (D-286).
+2. **Set `SINO_ZALO_ENABLED=false` and restart `sino-api`** — nothing reaches out to `sino-zalo` any more and the
+   connect dialog stops offering Zalo. Gmail and the Zalo messages already stored keep working.
+
+Either step alone is incomplete: after step 1 only, `sino-api` keeps calling a service that is not answering (safe, but
+every Zalo call fails); after step 2 only, the Zalo sessions stay alive inside `sino-zalo`.
+
 ## Admin (read-only operator API)
 
 An optional second sign-in for the person who runs Sino (change `admin-api`, D-260…D-266). The admin sees numbers and
