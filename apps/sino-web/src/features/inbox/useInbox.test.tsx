@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ProviderKind } from '@/shared/domain'
 import { API_CONVERSATIONS, API_MESSAGES, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
 import { server } from '@/test/msw/server'
 import { sendMessage } from './inbox.api'
@@ -292,5 +293,42 @@ describe('useSendMessage', () => {
     await waitFor(() => expect(outboxOf(queryClient)).toEqual([expect.objectContaining({ text: 'Ok nhé', status: 'FAILED', local: true })]))
     // The server's list is left as it was.
     expect(queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(messagesKey('c-1'))?.pages[0].items).toEqual([older])
+  })
+})
+
+describe('useConversationList, when the screen switches kind (f05c)', () => {
+  const CHAT_ROW = { ...API_CONVERSATIONS[0], id: 'z-1', provider: 'zalo', kind: 'CHAT', title: 'Hà' }
+
+  it('shows no row of the view before while the first page of the new kind loads', async () => {
+    let answerChat: (() => void) | undefined
+    server.use(
+      http.get('/api/conversations', async ({ request }) => {
+        if (new URL(request.url).searchParams.get('kind') === 'chat') {
+          await new Promise<void>((resolve) => (answerChat = resolve))
+          return HttpResponse.json({ items: [CHAT_ROW], nextCursor: null })
+        }
+        return HttpResponse.json({ items: [API_CONVERSATIONS[0]], nextCursor: null })
+      }),
+    )
+    const { wrapper } = setup({ list: null })
+    const { result, rerender } = renderHook(({ kind }: { kind: ProviderKind }) => useConversationList(kind, ALL, now), {
+      wrapper,
+      initialProps: { kind: 'EMAIL' as ProviderKind },
+    })
+    await waitFor(() => expect(result.current.conversations?.map((item) => item.id)).toEqual(['c-1']))
+
+    rerender({ kind: 'CHAT' })
+
+    // `keepPreviousData` holds the pages of the kind before until the first page of the new one arrives, and an open
+    // conversation takes its row from `loaded` before its own request: an email row left here shows under Tin nhắn.
+    await waitFor(() => expect(result.current.switching).toBe(true))
+    expect(result.current.loaded).toEqual([])
+    expect(result.current.conversations).toEqual([])
+
+    await waitFor(() => expect(answerChat).toBeDefined())
+    answerChat!()
+
+    await waitFor(() => expect(result.current.conversations?.map((item) => item.id)).toEqual(['z-1']))
+    expect(result.current.switching).toBe(false)
   })
 })
