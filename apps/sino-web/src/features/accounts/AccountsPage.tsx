@@ -182,7 +182,7 @@ export function AccountsPage() {
         {accounts
           .filter((account) => account.status === 'AUTH_EXPIRED')
           .map((account) => (
-            <ReauthAlert key={account.id} {...reauthNotice(account, nameOf, now)} accountId={account.id} />
+            <ReauthAlert key={account.id} {...reauthNotice(account, nameOf, now)} accountId={account.id} provider={account.provider} />
           ))}
 
         <div className="flex flex-wrap items-center gap-3">

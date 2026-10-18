@@ -93,7 +93,9 @@ export function useConversationList(kind: ProviderKind, filter: InboxFilter, now
   const load = useCallback(() => void fetchNextPage({ cancelRefetch: false }), [fetchNextPage])
   // A row can come twice when the list changed between two pages.
   const seen = new Set<string>()
-  const loaded = (data?.pages.flatMap((page) => page.items) ?? []).filter((item) => !seen.has(item.id) && seen.add(item.id))
+  const loaded = (data?.pages.flatMap((page) => page.items) ?? []).filter(
+    (item) => item.kind === kind && !seen.has(item.id) && seen.add(item.id),
+  )
   return {
     conversations: data && filterConversations(loaded, filter, now),
     loaded,

@@ -27,6 +27,13 @@ public interface ConnectedAccountRepository extends JpaRepository<ConnectedAccou
     /** The account with this ID, only when it belongs to this user and is not removed. */
     Optional<ConnectedAccount> findByIdAndOwnerIdAndRemovedAtIsNull(UUID id, UUID ownerId);
 
+    /**
+     * Whether a user other than {@code ownerId} has this account of the provider, turned off or not, unless removed
+     * (D-290).
+     */
+    boolean existsByProviderAndExternalAccountIdAndOwnerIdNotAndRemovedAtIsNull(ProviderType provider,
+            String externalAccountId, UUID ownerId);
+
     /** The account behind the unique key {@code (user_id, provider, external_account_id)}, removed or not. */
     Optional<ConnectedAccount> findByOwnerIdAndProviderAndExternalAccountId(UUID ownerId, ProviderType provider,
             String externalAccountId);

@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Lock, Plus, TriangleAlert } from 'lucide-react'
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { Link } from 'react-router'
 import { kindOfProvider, SCREENS } from '@/features/inbox/screen'
 import type { ProviderKind } from '@/shared/domain'
@@ -30,6 +30,9 @@ import {
 import { DEFAULT_SYNC_OPTIONS, type ConnectableProvider, type InitialSyncStatus, type SyncEstimate, type SyncOptions, type SyncRange } from '../connect.types'
 import { isMail, scopeLabel } from '../format'
 import { useConnectProviders, useStartConnect, useStartInitialSync, useSyncEstimate } from '../useConnect'
+import { useQrConnect } from '../useQrConnect'
+import { QrStep } from './QrStep'
+import { RiskStep } from './RiskStep'
 
 // The button of step 5 opens the screen of the account's kind (f05c, D-305).
 const OPEN_SCREEN: Record<ProviderKind, string> = { EMAIL: 'Mở hộp thư', CHAT: 'Mở Tin nhắn' }
@@ -42,7 +45,7 @@ export type WizardState =
   | { step: 1 | 2 | 3; provider: string | null; accountId: string | null }
   | { step: 4; accountId: string; options: SyncOptions }
   /** The account's first import has started: the wizard shows its status, which the account list follows. */
-  | { step: 5; accountId: string }
+  | { step: 5; accountId: string; provider?: string; displayName?: string }
 
 
 const STEPS = [1, 2, 3, 4, 5] as const
@@ -69,8 +72,22 @@ export function ConnectWizard({
   const sync = state?.step === 4 ? state : null
   const { estimate } = useSyncEstimate(sync?.accountId ?? null, sync?.options.range ?? DEFAULT_SYNC_OPTIONS.range)
   const startFailure = startSync.isError ? startSyncFailure(startSync.error) : null
+  const [riskAccepted, setRiskAccepted] = useState(false)
+
+  const qr = useQrConnect(({ accountId, reconnected, provider, displayName }) => {
+    setRiskAccepted(false)
+    startConnect.reset()
+    startSync.reset()
+    onChange(reconnected ? null : { step: 5, accountId, provider, displayName })
+  })
 
   const go = (next: WizardState | null) => {
+    if (next === null || next.step !== 3) {
+      qr.cancel()
+    }
+    if (next === null || next.step === 1 || (next.step === 2 && state?.step !== 3)) {
+      setRiskAccepted(false)
+    }
     startConnect.reset()
     startSync.reset()
     onChange(next)
@@ -80,22 +97,57 @@ export function ConnectWizard({
     if (!state) {
       return null
     }
-    const account = accounts.find((item) => item.id === state.accountId)
-    const beforeSignIn = 'provider' in state
+    const listedAccount = accounts.find((item) => item.id === state.accountId)
+    const fallbackProvider = 'provider' in state ? state.provider : undefined
+    const account: AccountItem | undefined =
+      listedAccount ??
+      (state.step === 5 && fallbackProvider
+        ? {
+            id: state.accountId,
+            provider: fallbackProvider,
+            externalAccountId: state.accountId,
+            displayName: state.displayName ?? nameOf(fallbackProvider),
+            address: state.displayName ?? nameOf(fallbackProvider),
+            avatarUrl: null,
+            status: 'CONNECTED',
+            syncEnabled: true,
+            createdAt: new Date(0).toISOString(),
+            lastSyncedAt: null,
+            syncProgress: null,
+            statusChangedAt: null,
+            access: null,
+            storedMessages: 0,
+            syncIntervalMinutes: null,
+            channels: [],
+            firstImport: null,
+          }
+        : undefined)
+    const beforeSignIn = state.step <= 3 && 'provider' in state
     const wanted = beforeSignIn ? state.provider : (account?.provider ?? null)
     const provider = providers.find((item) => item.type === wanted) ?? (beforeSignIn ? providers.find((item) => item.connectable) : undefined)
     const type = provider?.type ?? wanted ?? ''
+    const connectMethod = provider?.connectMethod ?? (type === 'zalo' ? 'QR' : 'OAUTH2')
+    const isQr = connectMethod === 'QR'
     const kind = kindOfProvider(providers, type)
     const identity = identityName(type, provider?.displayName ?? nameOf(type))
-    const meta = wizardStep(state.step, identity)
+    const meta = wizardStep(state.step, identity, connectMethod)
     const canBack = state.step === 3 || (state.step === 2 && state.accountId === null)
     const nothingToPick = state.step === 1 && !providers.some((item) => item.connectable)
+    const nextDisabled =
+      nothingToPick ||
+      startConnect.isPending ||
+      startSync.isPending ||
+      (isQr && state.step === 2 && !riskAccepted)
 
     const next = () => {
       switch (state.step) {
         case 1:
+          return go({ ...state, provider: type, step: 2 })
         case 2:
-          return go({ ...state, provider: type, step: state.step === 1 ? 2 : 3 })
+          if (isQr) {
+            qr.start(type, state.accountId)
+          }
+          return go({ ...state, provider: type, step: 3 })
         case 3:
           return startConnect.mutate({ provider: type, accountId: state.accountId })
         case 4:
@@ -124,7 +176,7 @@ export function ConnectWizard({
                   step === state.step && 'bg-foreground',
                 )}
               />
-              <Spec className={cn('truncate', step === state.step && 'text-foreground')}>{wizardStep(step, identity).label}</Spec>
+              <Spec className={cn('truncate', step === state.step && 'text-foreground')}>{wizardStep(step, identity, connectMethod).label}</Spec>
             </li>
           ))}
         </ol>
@@ -137,8 +189,26 @@ export function ConnectWizard({
               onSelect={(picked) => go({ ...state, provider: picked })}
             />
           )}
-          {state.step === 2 && provider && <ScopeReview provider={provider} account={account} identity={identity} />}
-          {state.step === 3 && <SignIn type={type} identity={identity} failed={startConnect.isError} />}
+          {state.step === 2 && provider && (
+            isQr ? (
+              <RiskStep account={account} accepted={riskAccepted} onAccept={setRiskAccepted} />
+            ) : (
+              <ScopeReview provider={provider} account={account} identity={identity} />
+            )
+          )}
+          {state.step === 3 && (
+            isQr ? (
+              <QrStep
+                challenge={qr.challenge}
+                status={qr.status}
+                starting={qr.starting}
+                startFailed={qr.startFailed}
+                onRetry={() => qr.start(type, state.accountId)}
+              />
+            ) : (
+              <SignIn type={type} identity={identity} failed={startConnect.isError} />
+            )
+          )}
           {state.step === 4 && account && (
             <SyncChoice
               account={account}
@@ -151,6 +221,7 @@ export function ConnectWizard({
           {state.step === 5 && account && (
             <Done
               account={account}
+              fromQr={Boolean(fallbackProvider)}
               status={account.firstImport ?? undefined}
               providerName={nameOf(account.provider)}
               openLabel={OPEN_SCREEN[kind]}
@@ -176,7 +247,7 @@ export function ConnectWizard({
               </Button>
             )}
             {meta.next && (
-              <Button type="button" variant="primary" disabled={nothingToPick || startConnect.isPending || startSync.isPending} onClick={next}>
+              <Button type="button" variant="primary" disabled={nextDisabled} onClick={next}>
                 {meta.next}
               </Button>
             )}
@@ -427,6 +498,7 @@ function SyncChoice({
 // Step 5 of the canvas: the account is connected and its first import runs, is done, or stopped.
 function Done({
   account,
+  fromQr = false,
   status,
   providerName,
   openLabel,
@@ -437,6 +509,7 @@ function Done({
   onMore,
 }: {
   account: AccountItem
+  fromQr?: boolean
   status: InitialSyncStatus | undefined
   providerName: string
   /** The button that opens the screen of the account's kind. */
@@ -449,8 +522,9 @@ function Done({
   onMore: () => void
 }) {
   const noun = isMail(account.provider) ? 'thư' : 'tin nhắn'
+  const isZalo = account.provider === 'zalo'
   const stopped = status?.state === 'FAILED' ? initialSyncFailure(status.errorCode, providerName) : null
-  const progress = status && !stopped ? initialSyncView(status) : null
+  const progress = status && !stopped && !fromQr ? initialSyncView(status) : null
   const done = status?.state === 'DONE'
   return (
     <div className="flex flex-col items-start gap-5 pt-2">
@@ -463,11 +537,13 @@ function Done({
       <div className="flex flex-col gap-1.5">
         <h3 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">Đã kết nối {account.address}</h3>
         <p className="text-sm text-muted-foreground">
-          {done
-            ? `Sino đã nhập xong ${noun} của tài khoản này. ${openLabel} để đọc.`
-            : stopped
-              ? `Lần nhập ${noun} đầu tiên đã dừng.`
-              : 'Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.'}
+          {fromQr && !stopped
+            ? `Sino nhận tin Zalo từ bây giờ. ${openLabel} để đọc.`
+            : done
+              ? `Sino đã nhập xong ${noun} của tài khoản này. ${openLabel} để đọc.`
+              : stopped
+                ? `Lần nhập ${noun} đầu tiên đã dừng.`
+                : 'Sino đang đồng bộ lần đầu. Bạn dùng được ngay trong lúc chờ.'}
         </p>
       </div>
       {progress && (
@@ -483,7 +559,7 @@ function Done({
         <div className="flex w-full flex-col items-start gap-3">
           <FailedNotice>{stopped.text}</FailedNotice>
           <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={stopped.fix === 'SIGN_IN' ? onSignIn : onRetry}>
-            {stopped.fix === 'SIGN_IN' ? 'Đăng nhập lại' : 'Thử lại'}
+            {stopped.fix === 'SIGN_IN' ? (isZalo ? 'Quét QR lại' : 'Đăng nhập lại') : 'Thử lại'}
           </Button>
         </div>
       )}

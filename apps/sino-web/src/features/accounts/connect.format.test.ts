@@ -3,6 +3,7 @@ import { ApiError } from '@/shared/api/problem'
 import { providerDescription } from '@/shared/format'
 import type { ConnectableProvider } from './connect.types'
 import {
+  ZALO_RISK_WARNING,
   connectErrorMessage,
   estimateParts,
   identityName,
@@ -10,6 +11,7 @@ import {
   initialSyncView,
   notAskedNote,
   providerTags,
+  qrFailedMessage,
   scopePurpose,
   startSyncFailure,
   wizardStep,
@@ -65,11 +67,13 @@ describe('steps', () => {
       next: 'Tiếp tục',
     })
     expect(wizardStep(2, 'Google')).toMatchObject({ label: '2 · Quyền', title: 'Xem lại quyền truy cập', next: 'Đồng ý và tiếp tục' })
+    expect(wizardStep(2, 'Zalo', 'QR')).toMatchObject({ label: '2 · Cảnh báo', next: 'Hiện mã QR' })
     expect(wizardStep(3, 'Google')).toMatchObject({
       label: '3 · Đăng nhập',
       note: 'Đăng nhập diễn ra trên trang của Google.',
       next: 'Tiếp tục tới Google',
     })
+    expect(wizardStep(3, 'Zalo', 'QR')).toMatchObject({ label: '3 · Mã QR', next: null })
     expect(wizardStep(3, 'Facebook')).toMatchObject({ note: 'Đăng nhập diễn ra trên trang của Facebook.', next: 'Tiếp tục tới Facebook' })
     expect(wizardStep(4, 'Google')).toMatchObject({ title: 'Tùy chọn đồng bộ', next: 'Bắt đầu đồng bộ' })
     expect(wizardStep(5, 'Google')).toEqual({ label: '5 · Xong', title: 'Hoàn tất', note: 'Bạn có thể đóng cửa sổ này.', next: null })
@@ -86,6 +90,15 @@ describe('results', () => {
     )
     expect(connectErrorMessage('CONNECT_FAILED')).toBe('Không kết nối được với Google. Hãy thử lại sau.')
     expect(connectErrorMessage('SOMETHING_NEW')).toBe('Không kết nối được với Google. Hãy thử lại sau.')
+  })
+
+  it('has the approved warning text (DN-2) and turns each QR failure code into a sentence (ZL-11)', () => {
+    expect(ZALO_RISK_WARNING).toContain('Sino kết nối Zalo bằng cách không chính thức.')
+    expect(ZALO_RISK_WARNING).toContain('Đừng mở Zalo Web hay Zalo PC bằng tài khoản này')
+    expect(qrFailedMessage('CONNECT_WRONG_ACCOUNT')).toContain('quét nhầm tài khoản')
+    expect(qrFailedMessage('CONNECT_ACCOUNT_IN_USE')).toBe('Tài khoản Zalo này đã được kết nối với một tài khoản Sino khác.')
+    expect(qrFailedMessage('CONNECT_FAILED')).toBe('Không kết nối được Zalo. Hãy thử lại.')
+    expect(qrFailedMessage(undefined)).toBe('Không kết nối được Zalo. Hãy thử lại.')
   })
 
   it('writes the estimate of the first sync', () => {

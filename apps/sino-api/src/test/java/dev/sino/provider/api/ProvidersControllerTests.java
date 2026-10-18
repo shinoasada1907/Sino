@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import dev.sino.common.security.ApiSecurityTestConfiguration;
+import dev.sino.provider.ConnectMethod;
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderDescriptor;
 import dev.sino.provider.ProviderKind;
@@ -46,22 +47,26 @@ class ProvidersControllerTests {
     void listsEveryProviderInTheRegistryOrder() throws Exception {
         given(registry.descriptors()).willReturn(List.of(
                 new ProviderDescriptor(ProviderType.of("fake"), "Fake", ProviderKind.CHAT,
-                        ProviderCapabilities.of(READ_MESSAGES)),
+                        ProviderCapabilities.of(READ_MESSAGES), ConnectMethod.QR, false),
                 new ProviderDescriptor(ProviderType.of("fake-mail"), "Fake Mail", ProviderKind.EMAIL,
-                        ProviderCapabilities.of(SEND_MESSAGES, READ_MESSAGES))));
+                        ProviderCapabilities.of(SEND_MESSAGES, READ_MESSAGES), ConnectMethod.OAUTH2, true)));
 
         mvc.perform(get("/api/providers").with(apiUser()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(APPLICATION_JSON))
                 .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].*", hasSize(4)))
+                .andExpect(jsonPath("$[0].*", hasSize(6)))
                 .andExpect(jsonPath("$[0].type").value("fake"))
                 .andExpect(jsonPath("$[0].displayName").value("Fake"))
                 .andExpect(jsonPath("$[0].kind").value("CHAT"))
                 .andExpect(jsonPath("$[0].capabilities", contains("READ_MESSAGES")))
+                .andExpect(jsonPath("$[0].connectMethod").value("QR"))
+                .andExpect(jsonPath("$[0].connectable").value(false))
                 .andExpect(jsonPath("$[1].type").value("fake-mail"))
                 .andExpect(jsonPath("$[1].displayName").value("Fake Mail"))
                 .andExpect(jsonPath("$[1].kind").value("EMAIL"))
+                .andExpect(jsonPath("$[1].connectMethod").value("OAUTH2"))
+                .andExpect(jsonPath("$[1].connectable").value(true))
                 .andExpect(jsonPath("$[1].capabilities", contains("READ_MESSAGES", "SEND_MESSAGES")));
     }
 

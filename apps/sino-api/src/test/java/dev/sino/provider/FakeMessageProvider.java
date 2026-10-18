@@ -6,6 +6,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,6 +33,7 @@ import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
+import dev.sino.provider.spi.QrLogin;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.provider.spi.SkippedItem;
@@ -55,6 +57,8 @@ public final class FakeMessageProvider implements MessageProvider {
     private final ProviderCapabilities capabilities;
     private final List<List<RawMessage>> pages;
     private final OAuth2Connection oauth2;
+    private final QrLogin qrLogin;
+    private final boolean turnedOn;
     private final Long estimate;
     private final ProviderException estimateFailure;
     private final Map<Integer, ProviderException> failures;
@@ -71,6 +75,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private final List<SendMessageCommand> sent = new ArrayList<>();
     private final Queue<ProviderException> sendFailures = new ArrayDeque<>();
     private final Map<UUID, List<String>> foundSends = new HashMap<>();
+    private final Set<UUID> cannotTellSends = new HashSet<>();
     private final List<Search> searches = new ArrayList<>();
     private CountDownLatch[] held;
     private boolean findsSends = true;
@@ -85,6 +90,8 @@ public final class FakeMessageProvider implements MessageProvider {
                 : withPush(builder.capabilities);
         this.pages = List.copyOf(builder.pages);
         this.oauth2 = builder.oauth2;
+        this.qrLogin = builder.qrLogin;
+        this.turnedOn = builder.turnedOn;
         this.estimate = builder.estimate;
         this.estimateFailure = builder.estimateFailure;
         this.failures = Map.copyOf(builder.failures);
@@ -134,6 +141,16 @@ public final class FakeMessageProvider implements MessageProvider {
     @Override
     public Optional<OAuth2Connection> oauth2() {
         return Optional.ofNullable(oauth2);
+    }
+
+    @Override
+    public Optional<QrLogin> qrLogin() {
+        return Optional.ofNullable(qrLogin);
+    }
+
+    @Override
+    public boolean turnedOn() {
+        return turnedOn;
     }
 
     @Override
@@ -230,6 +247,10 @@ public final class FakeMessageProvider implements MessageProvider {
         if (!findsSends) {
             return MessageProvider.super.findSentMessages(context, command, startedAt);
         }
+        if (cannotTellSends.contains(command.clientMessageId())) {
+            throw new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN,
+                    "sino-zalo cannot tell whether the message went out (409)");
+        }
         return foundSends.getOrDefault(command.clientMessageId(), List.of());
     }
 
@@ -241,6 +262,11 @@ public final class FakeMessageProvider implements MessageProvider {
     /** {@code false}: {@link #findSentMessages} cannot tell, as a connector without it does. */
     public synchronized void findsSends(boolean finds) {
         findsSends = finds;
+    }
+
+    /** {@link #findSentMessages} cannot tell whether the message Sino gave {@code clientMessageId} went out (409). */
+    public synchronized void cannotTell(UUID clientMessageId) {
+        cannotTellSends.add(clientMessageId);
     }
 
     /** The next sends fail with these, one each, in order; the send is still recorded. */
@@ -263,6 +289,7 @@ public final class FakeMessageProvider implements MessageProvider {
         sent.clear();
         sendFailures.clear();
         foundSends.clear();
+        cannotTellSends.clear();
         searches.clear();
         held = null;
         findsSends = true;
@@ -399,6 +426,8 @@ public final class FakeMessageProvider implements MessageProvider {
         private ProviderCapabilities capabilities = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES);
         private final List<List<RawMessage>> pages = new ArrayList<>();
         private OAuth2Connection oauth2;
+        private QrLogin qrLogin;
+        private boolean turnedOn = true;
         private Long estimate;
         private ProviderException estimateFailure;
         private final Map<Integer, ProviderException> failures = new HashMap<>();
@@ -426,6 +455,18 @@ public final class FakeMessageProvider implements MessageProvider {
         /** Makes the fake connect over OAuth2, like Gmail. */
         public Builder oauth2(OAuth2Connection oauth2) {
             this.oauth2 = oauth2;
+            return this;
+        }
+
+        /** Makes the fake connect by QR code, like Zalo. */
+        public Builder qrLogin(QrLogin qrLogin) {
+            this.qrLogin = qrLogin;
+            return this;
+        }
+
+        /** Makes the fake's own switch off (D-286): listed, not connectable. */
+        public Builder turnedOff() {
+            this.turnedOn = false;
             return this;
         }
 

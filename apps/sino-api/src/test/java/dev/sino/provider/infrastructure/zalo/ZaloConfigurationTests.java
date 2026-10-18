@@ -14,11 +14,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
-import dev.sino.provider.spi.MessageProvider;
-
 /**
- * Zalo is on only when turned on with the secret it shares with sino-zalo (D-272, D-282). Until Sino can tell the web
- * that Zalo connects by QR code, it is also listed only when on (ZL-06; D-286 lists it always from ZL-07 on).
+ * Zalo is on only when turned on with the secret it shares with sino-zalo (D-272, D-282). Off, the connector is still
+ * there, turned off, so the accounts it has stay readable (D-286).
  */
 @ExtendWith(OutputCaptureExtension.class)
 class ZaloConfigurationTests {
@@ -30,10 +28,10 @@ class ZaloConfigurationTests {
             .withUserConfiguration(ZaloConfiguration.class);
 
     @Test
-    void staysOffByDefaultAndSaysSo(CapturedOutput output) {
+    void isOffByDefaultYetThereAndSaysSo(CapturedOutput output) {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
-            assertThat(context).doesNotHaveBean(MessageProvider.class);
+            assertThat(context.getBean(ZaloProvider.class).turnedOn()).isFalse();
         });
         assertThat(output).contains("Zalo is off").contains("SINO_ZALO_ENABLED");
     }
@@ -42,7 +40,7 @@ class ZaloConfigurationTests {
     void offNeedsNoSecret() {
         contextRunner.withPropertyValues("sino.zalo.enabled=false", "sino.zalo.secret=short").run(context -> {
             assertThat(context).hasNotFailed();
-            assertThat(context).doesNotHaveBean(MessageProvider.class);
+            assertThat(context.getBean(ZaloProvider.class).turnedOn()).isFalse();
         });
     }
 
@@ -50,6 +48,7 @@ class ZaloConfigurationTests {
     void turnsOnWithTheSecretAndFindsSinoZaloOnThisMachine(CapturedOutput output) {
         contextRunner.withPropertyValues(ENABLED, "sino.zalo.secret=" + SECRET).run(context -> {
             assertThat(context).hasSingleBean(ZaloProvider.class);
+            assertThat(context.getBean(ZaloProvider.class).turnedOn()).isTrue();
             assertThat(context.getBean(ZaloProperties.class).url()).isEqualTo(URI.create("http://127.0.0.1:8090"));
         });
         assertThat(output).doesNotContain("Zalo is off").doesNotContain(SECRET);
@@ -94,14 +93,14 @@ class ZaloConfigurationTests {
     @ValueSource(strings = { "true", "TRUE", "1", "yes", "on" })
     void anyWayOfSayingTrueTurnsItOn(String value) {
         contextRunner.withPropertyValues("sino.zalo.enabled=" + value, "sino.zalo.secret=" + SECRET)
-                .run(context -> assertThat(context).hasNotFailed().hasSingleBean(ZaloProvider.class));
+                .run(context -> assertThat(context.getBean(ZaloProvider.class).turnedOn()).isTrue());
     }
 
     @ParameterizedTest
     @ValueSource(strings = { "false", "0", "no", "off" })
     void anyWayOfSayingFalseTurnsItOff(String value) {
         contextRunner.withPropertyValues("sino.zalo.enabled=" + value)
-                .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(MessageProvider.class));
+                .run(context -> assertThat(context.getBean(ZaloProvider.class).turnedOn()).isFalse());
     }
 
     @Test

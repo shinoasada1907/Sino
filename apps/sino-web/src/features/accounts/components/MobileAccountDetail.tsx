@@ -53,7 +53,7 @@ export function MobileAccountDetail({
           <Button asChild variant="primary">
             <Link to={`/accounts?reconnect=${account.id}`}>
               <RefreshCw strokeWidth={1.6} />
-              Đăng nhập lại {name}
+              {account.provider === 'zalo' ? 'Quét QR lại' : `Đăng nhập lại ${name}`}
             </Link>
           </Button>
         </div>

@@ -3,7 +3,16 @@ import { toProviderInfo, type ProviderEntry } from '@/shared/api/providers'
 import type { AccountStatus, Instant } from '@/shared/domain'
 import type { AccountExtras, AccountItem, AccountsData, ChannelKind, SyncStatus } from './accounts.types'
 import { initialSyncView } from './connect.format'
-import type { ConnectableProvider, InitialSyncState, InitialSyncStatus, SyncEstimate, SyncOptions, SyncRange } from './connect.types'
+import type {
+  ConnectableProvider,
+  InitialSyncState,
+  InitialSyncStatus,
+  QrChallenge,
+  QrConnectStatus,
+  SyncEstimate,
+  SyncOptions,
+  SyncRange,
+} from './connect.types'
 
 // The requests of the Tài khoản screens, on the backend API (D-56): what the API does not give yet is null.
 
@@ -23,9 +32,11 @@ interface AccountResponse {
   createdAt: Instant
 }
 
-/** One provider of `GET /api/providers` (F03). */
+/** One provider of `GET /api/providers` (F03); `connectMethod` and `connectable` since ZL-07 (D-285). */
 interface ProviderResponse extends ProviderEntry {
   capabilities: string[]
+  connectMethod?: 'OAUTH2' | 'QR' | null
+  connectable?: boolean
 }
 
 // The only channel the API can tell and change today: receiving, which is automatic sync (`syncEnabled`).
@@ -92,13 +103,22 @@ export async function deleteAccount({ accountId }: { accountId: string }): Promi
 }
 
 /**
- * `GET /api/providers`. Every provider it lists has a connector, and the only one so far (Gmail, F04a) connects through
- * OAuth2, so all are connectable; the backend adds `connectable` (D-50) once a provider without that flow exists. The
- * scopes asked for are not in the API yet: null.
+ * `GET /api/providers`. A provider can be connected when the API says so (D-285): Zalo turned off is listed and is not
+ * (D-286). A backend from before `connectable` listed only providers that connect over OAuth2: connectable. The scopes
+ * asked for are not in the API yet: null.
  */
 export async function fetchConnectProviders(): Promise<ConnectableProvider[]> {
   const providers = await api.get<ProviderResponse[]>('/api/providers')
-  return providers.map((provider) => ({ ...toProviderInfo(provider), capabilities: provider.capabilities, connectable: true, scopes: null }))
+  return providers.map((provider) => {
+    const connectMethod = provider.connectMethod ?? 'OAUTH2'
+    return {
+      ...toProviderInfo(provider),
+      capabilities: provider.capabilities,
+      connectMethod,
+      connectable: (provider.connectable ?? true) && provider.connectMethod !== null,
+      scopes: null,
+    }
+  })
 }
 
 /**
@@ -107,6 +127,24 @@ export async function fetchConnectProviders(): Promise<ConnectableProvider[]> {
  */
 export async function startConnect(provider: string, accountId: string | null): Promise<{ authorizationUrl: string }> {
   return api.post(`/api/accounts/connect/${provider}`, accountId === null ? undefined : { accountId })
+}
+
+/** `POST /api/accounts/connect/{provider}/qr` (ZL-07, D-272, D-275): starts a QR login once the user accepted the risk. */
+export async function startQrConnect(provider: string, accountId: string | null): Promise<QrChallenge> {
+  return api.post(`/api/accounts/connect/${provider}/qr`, {
+    acceptRisk: true,
+    ...(accountId === null ? {} : { accountId }),
+  })
+}
+
+/** `GET /api/accounts/connect/{provider}/qr/{loginId}` (ZL-07, D-275): asks where a QR login is. */
+export async function fetchQrStatus(provider: string, loginId: string): Promise<QrConnectStatus> {
+  return api.get(`/api/accounts/connect/${provider}/qr/${loginId}`)
+}
+
+/** `DELETE /api/accounts/connect/{provider}/qr/{loginId}` (ZL-07, D-275): cancels a pending QR login when the dialog closes. */
+export async function cancelQrConnect(provider: string, loginId: string): Promise<void> {
+  await api.delete(`/api/accounts/connect/${provider}/qr/${loginId}`)
 }
 
 /** Leaves Sino for the provider's sign-in page; the browser comes back through the callback. */
