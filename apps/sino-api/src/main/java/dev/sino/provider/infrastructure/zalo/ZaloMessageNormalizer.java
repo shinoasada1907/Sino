@@ -45,7 +45,14 @@ final class ZaloMessageNormalizer {
      * Domains Zalo serves sticker pictures from, as zca-js's sticker answers show (not yet seen on a real run, ZL-13:
      * a picture on another host shows as the placeholder text until it is added here).
      */
-    static final List<String> PICTURE_DOMAINS = List.of("zadn.vn", "zdn.vn", "zaloapp.com", "zalo.me");
+    static final List<String> PICTURE_DOMAINS = List.of(
+            "zadn.vn",
+            "zdn.vn",
+            "zaloapp.com",
+            "zalo.me",
+            "tenor.com",
+            "tenor.co",
+            "giphy.com");
 
     private ZaloMessageNormalizer() {
     }
@@ -214,22 +221,23 @@ final class ZaloMessageNormalizer {
                 yield new Body(MessageType.TEXT, cut(withoutNul(message.text())), Map.of());
             }
             case "chat.photo" -> new Body(MessageType.IMAGE, "[Ảnh]", Map.of(ZALO_TYPE_KEY, "chat.photo"));
-            case "chat.sticker" -> stickerBody(message.sticker());
+            case "chat.sticker" -> stickerBody("chat.sticker", "[Sticker]", message.sticker());
+            case "chat.gif" -> stickerBody("chat.gif", "[GIF]", message.sticker());
             case "share.file" -> new Body(MessageType.FILE, "[Tệp]", Map.of(ZALO_TYPE_KEY, "share.file"));
             case "chat.voice" -> new Body(MessageType.AUDIO, "[Tin nhắn thoại]", Map.of(ZALO_TYPE_KEY, "chat.voice"));
             default -> new Body(MessageType.UNKNOWN, "[Tin Zalo chưa hỗ trợ]", Map.of(ZALO_TYPE_KEY, zaloType));
         };
     }
 
-    private static Body stickerBody(Sticker sticker) {
+    private static Body stickerBody(String zaloType, String placeholderText, Sticker sticker) {
         Map<String, String> metadata = new LinkedHashMap<>();
-        metadata.put(ZALO_TYPE_KEY, "chat.sticker");
+        metadata.put(ZALO_TYPE_KEY, zaloType);
         if (sticker != null) {
             putIfPresent(metadata, "stickerId", clean(sticker.id()));
             putIfPresent(metadata, "stickerCatId", clean(sticker.catId()));
             putIfPresent(metadata, NormalizedMessage.STICKER_URL, pictureAddress(sticker.url()));
         }
-        return new Body(MessageType.UNKNOWN, "[Sticker]", Map.copyOf(metadata));
+        return new Body(MessageType.UNKNOWN, placeholderText, Map.copyOf(metadata));
     }
 
     private static void putIfPresent(Map<String, String> metadata, String key, String value) {

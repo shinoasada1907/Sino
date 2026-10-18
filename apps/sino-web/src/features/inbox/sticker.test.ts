@@ -6,6 +6,10 @@ describe('pictureOf (the address of a sticker the page may show)', () => {
     expect(pictureOf('https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236')).toBe('https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236')
   })
 
+  it('keeps an https address for a gif', () => {
+    expect(pictureOf('https://media.tenor.com/xyz/hello.gif')).toBe('https://media.tenor.com/xyz/hello.gif')
+  })
+
   it.each([
     ['nothing', undefined],
     ['null', null],
