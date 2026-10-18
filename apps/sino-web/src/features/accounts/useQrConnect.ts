@@ -49,6 +49,8 @@ export function useQrConnect(onDone: (event: QrDoneEvent) => void) {
     queryKey: ['qr-connect', active?.provider, active?.challenge.loginId],
     queryFn: () => fetchQrStatus(active!.provider, active!.challenge.loginId),
     enabled: active !== null,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     refetchInterval: (query) => {
       const state = query.state.data?.state
       return !state || state === 'WAITING' || state === 'SCANNED' ? 2000 : false
@@ -73,7 +75,6 @@ export function useQrConnect(onDone: (event: QrDoneEvent) => void) {
     const accountId = status.accountId
     const reconnected = Boolean(status.reconnected)
     const displayName = status.displayName ?? lastScannedNameRef.current
-    setActive(null)
 
     void (async () => {
       if (!reconnected) {
@@ -88,6 +89,7 @@ export function useQrConnect(onDone: (event: QrDoneEvent) => void) {
         }
       }
       await queryClient.invalidateQueries({ queryKey: ACCOUNTS_QUERY_KEY })
+      setActive(null)
       onDoneRef.current({ accountId, reconnected, provider, displayName })
     })()
   }, [active, queryClient, status])
