@@ -96,13 +96,26 @@ describe('uploadErrorMessage: each refusal of the server in Vietnamese, with wha
     expect(uploadErrorMessage(refused(422, 'STICKER_INVALID_IMAGE', { maxSide: 512 }))).toContain('512 điểm ảnh')
   })
 
-  it('ignores a limit that is not a number, and falls back on ours', () => {
+  it('ignores a limit that is not a number or not positive, and falls back on ours', () => {
     expect(uploadErrorMessage(refused(413, 'STICKER_TOO_LARGE', { maxBytes: 'lớn' }))).toContain('nặng hơn 1 MB')
+    expect(uploadErrorMessage(refused(413, 'STICKER_TOO_LARGE', { maxBytes: 0 }))).toContain('nặng hơn 1 MB')
+    expect(uploadErrorMessage(refused(413, 'STICKER_TOO_LARGE', { maxBytes: -5 }))).toContain('nặng hơn 1 MB')
     expect(uploadErrorMessage(refused(409, 'STICKER_LIMIT_REACHED', { maxPerOwner: null }))).toContain('300 sticker')
+    expect(uploadErrorMessage(refused(409, 'STICKER_LIMIT_REACHED', { maxPerOwner: 0 }))).toContain('300 sticker')
+    expect(uploadErrorMessage(refused(422, 'STICKER_INVALID_IMAGE', { maxSide: 0 }))).toContain('1024 điểm ảnh')
+    expect(uploadErrorMessage(refused(422, 'STICKER_INVALID_IMAGE'))).toContain('1024 điểm ảnh')
+  })
+
+  it('does not take a number written as text for a limit: only a real number is the limit of the server', () => {
+    expect(uploadErrorMessage(refused(413, 'STICKER_TOO_LARGE', { maxBytes: '2097152' }))).toContain('nặng hơn 1 MB')
+    expect(uploadErrorMessage(refused(409, 'STICKER_LIMIT_REACHED', { maxPerOwner: '50' }))).toContain('300 sticker')
+    expect(uploadErrorMessage(refused(422, 'STICKER_INVALID_IMAGE', { maxSide: '512' }))).toContain('1024 điểm ảnh')
   })
 
   it('has a plain sentence for a code it does not know, a status without a body, and what is not an ApiError', () => {
-    for (const error of [refused(500, 'INTERNAL'), new ApiError(502, 'HTTP_502', null), new Error('boom'), 'oops', undefined]) {
+    // Only an `ApiError` is believed about its code: another object that carries a `code` says nothing about the sticker API.
+    const notFromTheApi = [{ code: 'STICKER_DUPLICATE' }, Object.assign(new Error('x'), { code: 'STICKER_LIMIT_REACHED' })]
+    for (const error of [refused(500, 'INTERNAL'), new ApiError(502, 'HTTP_502', null), new Error('boom'), 'oops', undefined, ...notFromTheApi]) {
       expect(uploadErrorMessage(error)).toBe('Không tải lên được. Hãy thử lại.')
     }
   })
