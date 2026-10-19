@@ -20,7 +20,7 @@
 - **THEN** `name` là `Mèo vui`
 
 ### Requirement: Chỉ nhận ảnh hợp lệ trong giới hạn
-Loại ảnh MUST được nhận ra bằng nội dung của tệp (chữ ký ở đầu tệp), không bằng đuôi tên tệp hay `Content-Type` của phần multipart. Loại khác PNG, GIF, WebP MUST bị từ chối `415 STICKER_TYPE_UNSUPPORTED`. Chiều rộng và chiều cao MUST được đo từ phần đầu của tệp mà không giải mã điểm ảnh; ảnh có phần đầu hỏng, hoặc có cạnh vượt giới hạn, MUST bị từ chối `422 STICKER_INVALID_IMAGE`. Tệp lớn hơn giới hạn dung lượng MUST bị từ chối `413 STICKER_TOO_LARGE`, kể cả khi vượt hàng rào multipart của máy chủ, và MUST không trả `500`. Thiếu phần `file` hoặc tệp rỗng MUST trả `400 STICKER_FILE_MISSING`. Các giới hạn là số của DN-1 trong `design.md`.
+Loại ảnh MUST được nhận ra bằng nội dung của tệp (chữ ký ở đầu tệp), không bằng đuôi tên tệp hay `Content-Type` của phần multipart. Loại khác PNG, GIF, WebP MUST bị từ chối `415 STICKER_TYPE_UNSUPPORTED`. Chiều rộng và chiều cao MUST được đo từ phần đầu của tệp mà không giải mã điểm ảnh; ảnh có phần đầu hỏng, hoặc có cạnh vượt giới hạn, MUST bị từ chối `422 STICKER_INVALID_IMAGE`. Tệp lớn hơn giới hạn dung lượng MUST bị từ chối `413 STICKER_TOO_LARGE`, kể cả khi vượt hàng rào multipart của máy chủ, và MUST không trả `500`. Thiếu phần `file` hoặc tệp rỗng MUST trả `422 STICKER_FILE_MISSING`. Các giới hạn là số của DN-1 trong `design.md`.
 
 #### Scenario: Tệp đổi đuôi
 - **WHEN** người dùng tải một tệp văn bản đặt tên `meo.png`, khai `Content-Type: image/png`
@@ -40,7 +40,7 @@ Loại ảnh MUST được nhận ra bằng nội dung của tệp (chữ ký �
 
 #### Scenario: Không có tệp
 - **WHEN** người dùng gửi `POST /api/stickers` không có phần `file`, hoặc `file` rỗng
-- **THEN** phản hồi `400 STICKER_FILE_MISSING`
+- **THEN** phản hồi `422 STICKER_FILE_MISSING`
 
 ### Requirement: Không trùng nội dung và có hạn mức
 Một người dùng MUST không có hai sticker cùng nội dung: tải một ảnh có cùng SHA-256 với một sticker đã có của người đó MUST bị từ chối `409 STICKER_DUPLICATE` và nêu id của sticker đã có. Khi người dùng đã đủ số sticker tối đa, tải thêm MUST bị từ chối `409 STICKER_LIMIT_REACHED`. Hai người dùng khác nhau MAY có cùng một nội dung. Các giới hạn là số của DN-1 và DN-2 trong `design.md`.

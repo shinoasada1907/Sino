@@ -12,7 +12,19 @@ public enum StickerErrorCode implements ErrorCode {
     STICKER_TYPE_UNSUPPORTED(ErrorCategory.UNSUPPORTED_MEDIA_TYPE),
 
     /** The type is right but the head of the file is broken, or the image is larger than the limit allows (422). */
-    STICKER_INVALID_IMAGE(ErrorCategory.INVALID);
+    STICKER_INVALID_IMAGE(ErrorCategory.INVALID),
+
+    /** No file was sent, or it is empty (422). */
+    STICKER_FILE_MISSING(ErrorCategory.INVALID),
+
+    /** The file is larger than the limit of the library (413). */
+    STICKER_TOO_LARGE(ErrorCategory.PAYLOAD_TOO_LARGE),
+
+    /** The owner keeps this very file already; the problem names the sticker as {@code stickerId} (409, DN-2). */
+    STICKER_DUPLICATE(ErrorCategory.CONFLICT),
+
+    /** The owner keeps as many stickers as the library allows (409). */
+    STICKER_LIMIT_REACHED(ErrorCategory.CONFLICT);
 
     private final ErrorCategory category;
 
