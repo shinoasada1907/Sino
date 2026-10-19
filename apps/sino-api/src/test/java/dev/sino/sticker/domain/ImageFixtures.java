@@ -62,6 +62,53 @@ final class ImageFixtures {
         }
     }
 
+    /** A real WebP kept under {@code src/test/resources/sticker} (the JDK cannot write one). */
+    static byte[] webpFile(String name) {
+        try (java.io.InputStream in = ImageFixtures.class.getResourceAsStream("/sticker/" + name)) {
+            if (in == null) {
+                throw new IllegalStateException("No test resource sticker/" + name);
+            }
+            return in.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** One RIFF chunk: its four letters, its size as little-endian 32 bits, the payload, and a pad byte when the size is odd. */
+    static byte[] riffChunk(String fourCc, byte[] payload) {
+        ByteBuffer chunk = ByteBuffer.allocate(8 + payload.length + (payload.length & 1)).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        chunk.put(fourCc.getBytes(StandardCharsets.US_ASCII)).putInt(payload.length).put(payload);
+        return chunk.array();
+    }
+
+    /** A WebP file around the given chunks: {@code RIFF}, the size, {@code WEBP}. */
+    static byte[] webpOf(byte[]... chunks) {
+        byte[] body = concat(chunks);
+        ByteBuffer file = ByteBuffer.allocate(12 + body.length).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        file.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(4 + body.length).put("WEBP".getBytes(StandardCharsets.US_ASCII)).put(body);
+        return file.array();
+    }
+
+    /** The payload of a lossy chunk that says a size: a key frame tag, the start code, then the 14-bit sizes. */
+    static byte[] vp8Payload(int width, int height) {
+        return ByteBuffer.allocate(10 + 4).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                .put(new byte[] { 0x10, 0x00, 0x00, (byte) 0x9D, 0x01, 0x2A }).putShort((short) width).putShort((short) height).array();
+    }
+
+    /** The payload of a lossless chunk that says a size: the signature, then the width and height minus one in 14 bits each. */
+    static byte[] vp8lPayload(int width, int height) {
+        return ByteBuffer.allocate(5 + 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).put((byte) 0x2F)
+                .putInt((width - 1) | (height - 1) << 14).array();
+    }
+
+    /** The payload of an extended chunk: flags, 3 reserved bytes, then the canvas width and height minus one in 24 bits each. */
+    static byte[] vp8xPayload(int flags, int width, int height) {
+        ByteBuffer payload = ByteBuffer.allocate(10).order(java.nio.ByteOrder.LITTLE_ENDIAN).put((byte) flags).put(new byte[3]);
+        payload.put((byte) (width - 1)).put((byte) ((width - 1) >> 8)).put((byte) ((width - 1) >> 16));
+        payload.put((byte) (height - 1)).put((byte) ((height - 1) >> 8)).put((byte) ((height - 1) >> 16));
+        return payload.array();
+    }
+
     // --- GIFs written by hand, for what an encoder does not make: every size of colour table, odd blocks, cuts. ---
 
     /**
