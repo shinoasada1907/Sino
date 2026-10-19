@@ -20,7 +20,7 @@
 - **THEN** `name` là `Mèo vui`
 
 ### Requirement: Chỉ nhận ảnh hợp lệ trong giới hạn
-Loại ảnh MUST được nhận ra bằng nội dung của tệp (chữ ký ở đầu tệp), không bằng đuôi tên tệp hay `Content-Type` của phần multipart. Loại khác PNG, GIF, WebP MUST bị từ chối `415 STICKER_TYPE_UNSUPPORTED`. Chiều rộng và chiều cao MUST được đo từ phần đầu của tệp mà không giải mã điểm ảnh; ảnh có phần đầu hỏng, hoặc có cạnh vượt giới hạn, MUST bị từ chối `422 STICKER_INVALID_IMAGE`. Tệp lớn hơn giới hạn dung lượng MUST bị từ chối `413 STICKER_TOO_LARGE`, kể cả khi vượt hàng rào multipart của máy chủ, và MUST không trả `500`. Thiếu phần `file` hoặc tệp rỗng MUST trả `422 STICKER_FILE_MISSING`. Các giới hạn là số của DN-1 trong `design.md`.
+Loại ảnh MUST được nhận ra bằng nội dung của tệp (chữ ký ở đầu tệp), không bằng đuôi tên tệp hay `Content-Type` của phần multipart. Loại khác PNG, GIF, WebP MUST bị từ chối `415 STICKER_TYPE_UNSUPPORTED`. Chiều rộng và chiều cao MUST được đo từ phần đầu của tệp mà không giải mã điểm ảnh; ảnh có phần đầu hỏng, hoặc có cạnh vượt giới hạn, MUST bị từ chối `422 STICKER_INVALID_IMAGE`. Tệp lớn hơn giới hạn dung lượng MUST bị từ chối `413 STICKER_TOO_LARGE`. Tệp lớn tới mức vượt cả hàng rào multipart của máy chủ (đặt cao hơn giới hạn dung lượng một chút) MUST bị từ chối `413` với mã chung `PAYLOAD_TOO_LARGE`, dưới dạng `application/problem+json`, và MUST không trả `500` hay một trang lỗi. Thiếu phần `file` hoặc tệp rỗng MUST trả `422 STICKER_FILE_MISSING`. Các giới hạn là số của DN-1 trong `design.md`.
 
 #### Scenario: Tệp đổi đuôi
 - **WHEN** người dùng tải một tệp văn bản đặt tên `meo.png`, khai `Content-Type: image/png`
@@ -37,6 +37,10 @@ Loại ảnh MUST được nhận ra bằng nội dung của tệp (chữ ký �
 #### Scenario: Quá dung lượng
 - **WHEN** người dùng tải một ảnh PNG lớn hơn giới hạn dung lượng
 - **THEN** phản hồi `413 STICKER_TOO_LARGE`, không phải `500`
+
+#### Scenario: Quá cả hàng rào của máy chủ
+- **WHEN** người dùng tải một tệp 3 MB (giới hạn dung lượng 1 MiB, hàng rào multipart 2 MB)
+- **THEN** phản hồi `413` dạng `application/problem+json` với `code` là `PAYLOAD_TOO_LARGE`, không lưu gì, và phiên đăng nhập vẫn dùng được
 
 #### Scenario: Không có tệp
 - **WHEN** người dùng gửi `POST /api/stickers` không có phần `file`, hoặc `file` rỗng
@@ -71,6 +75,17 @@ Một người dùng MUST không có hai sticker cùng nội dung: tải một �
 #### Scenario: Thư viện trống
 - **WHEN** người dùng chưa tải gì
 - **THEN** `items` là `[]`
+
+### Requirement: Xem một sticker
+`GET /api/stickers/{id}` MUST trả một `StickerResponse` (không kèm byte) của sticker thuộc người dùng đang đăng nhập; đó cũng là nơi `Location` của một lần tải lên trỏ tới. Sticker của người khác hoặc không tồn tại MUST trả `404 STICKER_NOT_FOUND`, không phân biệt hai trường hợp.
+
+#### Scenario: Theo Location
+- **WHEN** người dùng tải một ảnh lên rồi gọi `GET` vào địa chỉ trong `Location`
+- **THEN** phản hồi `200` với đúng sticker vừa tạo
+
+#### Scenario: Của người khác
+- **WHEN** người dùng gọi `GET /api/stickers/{id}` với id của sticker thuộc chủ khác
+- **THEN** phản hồi `404 STICKER_NOT_FOUND`
 
 ### Requirement: Phục vụ nội dung ảnh
 `GET /api/stickers/{id}/content` MUST trả đúng byte đã lưu với `Content-Type` là loại đã nhận ra lúc tải, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` và `Cache-Control: private, max-age=31536000, immutable`. Sticker không tồn tại hoặc của người khác MUST trả `404 STICKER_NOT_FOUND`, không phân biệt hai trường hợp.

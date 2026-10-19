@@ -125,6 +125,16 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void anUploadAboveTheFenceOfTheServerIsPayloadTooLargeWithItsOwnCode() throws Exception {
+        // The multipart limit of the container throws before any controller runs; it is told apart from the checks of a module.
+        mvc.perform(post("/api/probe/upload").with(apiUser()).with(csrf()))
+                .andExpect(status().isContentTooLarge())
+                .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"))
+                .andExpect(jsonPath("$.instance").value("/api/probe/upload"));
+    }
+
+    @Test
     void unknownApiPathIsResourceNotFound() throws Exception {
         mvc.perform(get("/api/probe/nowhere").with(apiUser()))
                 .andExpect(status().isNotFound())
@@ -301,6 +311,11 @@ class GlobalExceptionHandlerTests {
         @GetMapping("/no-answer")
         void providerGivesNoAnswer() {
             throw new SinoException(ProbeErrorCode.PROVIDER_GAVE_NO_ANSWER, "The provider did not answer.");
+        }
+
+        @PostMapping("/upload")
+        void upload() {
+            throw new org.springframework.web.multipart.MaxUploadSizeExceededException(1024);
         }
 
         @GetMapping("/too-large")

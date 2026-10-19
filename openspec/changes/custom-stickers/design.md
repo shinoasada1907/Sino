@@ -38,13 +38,14 @@ Phương án đã chọn: **PostgreSQL, `bytea`**: sao lưu cùng database, mộ
 - **Hệ quả:** một tệp có phần đầu hợp lệ mà thân hỏng vẫn có thể lọt vào (ta không giải mã). Chấp nhận: trình duyệt sẽ không vẽ được nó, nhưng không có cách nào để nó gây hại, vì ta phục vụ đúng loại đã nhận ra với `nosniff` (D-335). Nếu sau này gửi qua Zalo cần ảnh chắc chắn giải mã được thì kiểm ở change gửi.
 
 ### D-333 — Giới hạn là kiểm tra chính xác trong ứng dụng; multipart chỉ là hàng rào · agent chốt
-`StickerService` kiểm dung lượng, chiều rộng/cao và hạn mức bằng con số của DN-1 và trả lỗi có mã riêng. Cấu hình `spring.servlet.multipart.max-file-size` và `max-request-size` được đặt **tường minh** ở mức nhỉnh hơn giới hạn của ứng dụng chút, chỉ để Tomcat không phải đệm tệp khổng lồ; việc vượt hàng rào ném `MaxUploadSizeExceededException`, phải được ánh xạ ra cùng `413 STICKER_TOO_LARGE` thay vì lỗi 500 hay trang lỗi mặc định. Vì sao đặt tường minh: mặc định 1 MB của Spring có thể đổi giữa các bản và là một con số ngầm.
+`StickerService` kiểm dung lượng, chiều rộng/cao và hạn mức bằng con số của DN-1 và trả lỗi có mã riêng. Cấu hình `spring.servlet.multipart.max-file-size` và `max-request-size` được đặt **tường minh** (2MB, trên giới hạn 1MB của ứng dụng) chỉ để Tomcat không phải đệm tệp khổng lồ. Việc vượt hàng rào ném `MaxUploadSizeExceededException` trước khi controller chạy; `GlobalExceptionHandler` đổi nó thành `413` dạng problem với mã chung **`PAYLOAD_TOO_LARGE`** (không phải `STICKER_TOO_LARGE`: lúc đó chưa biết đây là sticker; web coi hai mã như nhau). Một test chạy máy chủ thật kiểm cả hai tầng (1,5 MB: `STICKER_TOO_LARGE` của dịch vụ; 3 MB: `PAYLOAD_TOO_LARGE` của máy chủ) và một test khác canh hàng rào luôn cao hơn giới hạn. Vì sao đặt tường minh: mặc định 1 MB của Spring có thể đổi giữa các bản và là một con số ngầm.
 
 ### D-334 — Hình dạng API · agent chốt
 | Yêu cầu | Kết quả |
 |---|---|
 | `POST /api/stickers` (`multipart/form-data`: `file` bắt buộc, `name` tùy chọn) | `201`, `Location: /api/stickers/{id}`, thân `StickerResponse` |
 | `GET /api/stickers` | `200 { items: [StickerResponse…] }`, mới nhất trước, không phân trang (số lượng bị chặn bởi hạn mức) |
+| `GET /api/stickers/{id}` | `200` một `StickerResponse`; là nơi `Location` của lần tải lên trỏ tới (thêm ở ST-08: một `Location` dẫn tới `405` là lỗi) |
 | `GET /api/stickers/{id}/content` | `200` byte của ảnh, `Content-Type` là loại đã nhận ra |
 | `DELETE /api/stickers/{id}` | `204`; sau đó `GET` cả hai đều `404` |
 

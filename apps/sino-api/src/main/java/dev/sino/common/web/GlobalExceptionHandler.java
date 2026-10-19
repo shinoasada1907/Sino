@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -169,6 +170,7 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case NoHandlerFoundException e -> ProblemCodes.RESOURCE_NOT_FOUND;
             case HttpRequestMethodNotSupportedException e -> ProblemCodes.METHOD_NOT_ALLOWED;
             case HttpMediaTypeNotSupportedException e -> ProblemCodes.UNSUPPORTED_MEDIA_TYPE;
+            case MaxUploadSizeExceededException e -> ProblemCodes.PAYLOAD_TOO_LARGE;
             default -> {
                 // Unlisted Spring MVC errors still get a code derived from their status, e.g. NOT_ACCEPTABLE.
                 HttpStatus known = HttpStatus.resolve(status.value());

@@ -100,6 +100,12 @@ public class StickerService {
         return stickers.findByOwnerIdOrderByCreatedAtDescIdDesc(ownerId);
     }
 
+    /** One sticker of the owner, without its bytes. @throws SinoException {@code STICKER_NOT_FOUND} */
+    @Transactional(readOnly = true)
+    public Sticker get(UUID ownerId, UUID id) {
+        return owned(ownerId, id);
+    }
+
     /**
      * The picture of a sticker of the owner: its bytes and the media type to send them with. The sticker is found for
      * its owner first, so a sticker of another owner is never read.
