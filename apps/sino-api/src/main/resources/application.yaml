@@ -108,3 +108,10 @@ sino:
     # D-157: the time zone of the user's days for tasks and the calendar (an IANA name such as Asia/Ho_Chi_Minh).
     # New repeat rules take it and keep it. An unknown name stops the app.
     time-zone: ${SINO_PLANNER_TIME_ZONE:Asia/Ho_Chi_Minh}
+  stickers:
+    # custom-stickers, DN-1: the limits of the sticker library, checked exactly by the sticker service. Each must be
+    # positive and fit what the database takes (10MB, 16383 px) or the app stops. Keep spring.servlet.multipart.max-file-size
+    # (above) a little higher than max-file-size.
+    max-file-size: ${SINO_STICKERS_MAX_FILE_SIZE:1MB}
+    max-side: ${SINO_STICKERS_MAX_SIDE:1024}
+    max-per-owner: ${SINO_STICKERS_MAX_PER_OWNER:300}
