@@ -1,6 +1,6 @@
 ## Mode
 
-**AUTO** cho riêng change này từ 2026-10-19 (người dùng: "oke triển khai đi", sau khi kế hoạch ghi rõ tính năng mới chạy TRAINING và người dùng là người code; `project-mode.yaml` `task_overrides.custom-stickers`). `new_features` vẫn là TRAINING cho các tính năng khác. Claude làm từng task nhỏ theo đủ quy trình (test viết trước, kiểm chứng, tài liệu, commit trên `dev`), báo lại ở các điểm dừng. Ngoại lệ vẫn cần người dùng: ST-00 (khung canvas) là bản thiết kế cuối cùng của giao diện, người dùng duyệt trước khi dựng màn.
+**AUTO** cho riêng change này từ 2026-10-19 (người dùng: "oke triển khai đi", sau khi kế hoạch ghi rõ tính năng mới chạy TRAINING và người dùng là người code; `project-mode.yaml` `task_overrides.custom-stickers`). `new_features` vẫn là TRAINING cho các tính năng khác. Claude làm từng task nhỏ theo đủ quy trình (test viết trước, kiểm chứng, tài liệu, commit trên `dev`), báo lại ở các điểm dừng. Ngoại lệ vẫn cần người dùng: ST-00 (khung canvas) là bản thiết kế cuối cùng của giao diện, người dùng duyệt trước khi dựng màn. **Cập nhật 2026-10-19:** người dùng bảo dựng thẳng trang React và bỏ qua ST-00 ("Dựng thẳng trang React (ST-12 trở đi), bỏ qua ST-00"); lý do và phần còn nợ ghi ở task 0.1 của `tasks.md`.
 
 Quyết định kiến trúc do người dùng chốt. **Đã chốt 2026-10-19:** D-328 (phạm vi), D-329 (định dạng), D-330 (kho lưu), và DN-1…DN-4 theo đúng đề xuất ("oke triển khai đi" trả lời bản kế hoạch nêu đề xuất của từng mục). **Agent chốt, cần xem lại:** D-331…D-337.
 

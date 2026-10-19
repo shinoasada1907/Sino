@@ -65,7 +65,7 @@ Mỗi sticker MUST có thao tác xóa mở một hộp xác nhận nêu tên sti
 - **THEN** màn báo lỗi và `meo` vẫn còn trong lưới
 
 ### Requirement: Vào màn Sticker từ điều hướng
-Màn Sticker MUST có mục trong điều hướng theo quyết định DN-3 của `design.md` (mặc định: mục "Sticker" ở cột bên và dải icon, một dòng ở trang Thêm của mobile) và MUST có tên trang "Sticker". Trên mobile, mục "Thêm" MUST là mục hiện hành khi đang ở `/stickers`. Màn MUST dựng theo khung canvas đã được người dùng duyệt (ST-00) ở ba cỡ: máy tính (từ 1280 px), máy tính bảng (768-1279 px), điện thoại (dưới 768 px), cả theme sáng và tối.
+Màn Sticker MUST có mục trong điều hướng theo quyết định DN-3 của `design.md` (mặc định: mục "Sticker" ở cột bên và dải icon, một dòng ở trang Thêm của mobile) và MUST có tên trang "Sticker". Trên mobile, mục "Thêm" MUST là mục hiện hành khi đang ở `/stickers`. Màn MUST dựng theo canvas khi canvas có khung Sticker (ST-00 bị bỏ qua theo lệnh người dùng 2026-10-19, xem `tasks.md` 0.1; cho tới lúc có khung thì theo các màn có sẵn như Ghi chú) ở ba cỡ: máy tính (từ 1280 px), máy tính bảng (768-1279 px), điện thoại (dưới 768 px), cả theme sáng và tối.
 
 #### Scenario: Từ trang Thêm
 - **WHEN** người dùng ở điện thoại mở `/more` và bấm "Sticker"

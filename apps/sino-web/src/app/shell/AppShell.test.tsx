@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { delay, http } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
@@ -40,6 +40,7 @@ describe('sidebar (desktop)', () => {
       ['Lịch', '/calendar'],
       [/^Việc cần làm/, '/tasks'],
       ['Ghi chú', '/notes'],
+      ['Sticker', '/stickers'],
       [/^Tài khoản/, '/accounts'],
       ['Dịch vụ', '/services'],
       [/^Đăng ký/, '/registrations'],
@@ -164,6 +165,52 @@ describe('tab bar (mobile)', () => {
 
     expect(others.getAllByRole('link')[0]).toHaveAttribute('href', '/calendar')
     expect(others.getAllByRole('link')[0]).toHaveAccessibleName('Lịch')
+  })
+})
+
+// The Sticker screen of custom-stickers (ST-12, DN-3): in the plan group right after Ghi chú, a row on Thêm, and "Thêm" stays current on it.
+describe('the Sticker screen in the navigation (ST-12, DN-3)', () => {
+  // The screen reads its library when it opens; an empty one is all these tests need.
+  beforeEach(() => server.use(http.get('/api/stickers', () => HttpResponse.json({ items: [] }))))
+
+  it('sits after Ghi chú in the sidebar and the rail, and is marked as current on its screen', async () => {
+    renderApp('/stickers')
+    const sidebar = within(shellPart('sidebar'))
+    const rail = within(shellPart('rail'))
+
+    const current = await sidebar.findByRole('link', { name: 'Sticker' })
+    expect(current).toHaveAttribute('href', '/stickers')
+    expect(current).toHaveAttribute('aria-current', 'page')
+    expect(sidebar.getByRole('link', { name: 'Ghi chú' })).not.toHaveAttribute('aria-current')
+    const order = (links: HTMLElement[]) => links.map((link) => link.getAttribute('href')).filter((href) => href === '/notes' || href === '/stickers' || href === '/accounts')
+    expect(order(sidebar.getAllByRole('link'))).toEqual(['/notes', '/stickers', '/accounts'])
+    expect(order(rail.getAllByRole('link'))).toEqual(['/notes', '/stickers', '/accounts'])
+    expect(rail.getByRole('link', { name: 'Sticker' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('has a row on Thêm after Ghi chú, which opens the screen', async () => {
+    const user = userEvent.setup()
+    const { router } = renderApp('/more')
+    const others = within(await screen.findByRole('navigation', { name: 'Mục khác' }))
+
+    expect(others.getAllByRole('link').map((link) => link.getAttribute('href'))).toContain('/stickers')
+    const hrefs = others.getAllByRole('link').map((link) => link.getAttribute('href'))
+    expect(hrefs.indexOf('/stickers')).toBe(hrefs.indexOf('/notes') + 1)
+    await user.click(others.getByRole('link', { name: 'Sticker' }))
+
+    expect(router.state.location.pathname).toBe('/stickers')
+  })
+
+  it('keeps "Thêm" as the current tab on the screen, as on the other screens behind it', async () => {
+    renderApp('/stickers')
+
+    expect(await within(shellPart('tabbar')).findByRole('link', { name: 'Thêm' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('titles the page "Sticker" in the top bar', async () => {
+    renderApp('/stickers')
+
+    expect(await within(shellPart('topbar')).findAllByText('Sticker')).not.toHaveLength(0)
   })
 })
 
