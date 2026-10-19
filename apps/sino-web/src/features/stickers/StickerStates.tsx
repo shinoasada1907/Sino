@@ -1,6 +1,7 @@
 import { RotateCw, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/shared/ui/button'
+import { STICKER_LIMIT_LABEL } from './format'
 import { GRID } from './StickerCard'
 
 /** The shape of the grid while the list loads (no canvas for this state; as the other screens). */
@@ -42,7 +43,7 @@ export function StickersEmpty({ children }: { children?: ReactNode }) {
   return (
     <div className="flex max-w-105 flex-col items-start gap-3 px-4 py-10 md:px-6">
       <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Thư viện sticker đang trống</h2>
-      <p className="text-sm text-muted-foreground">Ảnh PNG, GIF hoặc WebP bạn thêm vào sẽ nằm ở đây.</p>
+      <p className="text-sm text-muted-foreground">Bấm “Tải lên” để chọn ảnh PNG, GIF hoặc WebP, mỗi ảnh tối đa {STICKER_LIMIT_LABEL}.</p>
       {children}
     </div>
   )
