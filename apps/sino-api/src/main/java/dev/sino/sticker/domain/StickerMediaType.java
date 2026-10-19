@@ -18,4 +18,14 @@ public enum StickerMediaType {
         return value;
     }
 
+    /** The type with this stored value ({@code image/png}), exactly as written. */
+    public static StickerMediaType of(String value) {
+        for (StickerMediaType type : values()) {
+            if (type.value.equals(value)) {
+                return type;
+            }
+        }
+        throw new IllegalArgumentException("Not a media type the library keeps: " + value);
+    }
+
 }
