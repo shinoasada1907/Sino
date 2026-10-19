@@ -24,7 +24,13 @@ public enum StickerErrorCode implements ErrorCode {
     STICKER_DUPLICATE(ErrorCategory.CONFLICT),
 
     /** The owner keeps as many stickers as the library allows (409). */
-    STICKER_LIMIT_REACHED(ErrorCategory.CONFLICT);
+    STICKER_LIMIT_REACHED(ErrorCategory.CONFLICT),
+
+    /**
+     * No sticker with this ID belongs to the caller. A sticker of another owner is reported the same way, so that no ID
+     * can be found out by trying (404, D-336).
+     */
+    STICKER_NOT_FOUND(ErrorCategory.NOT_FOUND);
 
     private final ErrorCategory category;
 

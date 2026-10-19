@@ -12,7 +12,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -312,6 +314,128 @@ class StickerServiceTests {
         assertThatThrownBy(() -> service.upload(nobody, "a.png", null, png(8, 8))).isNotInstanceOf(SinoException.class);
         assertThat(count("sticker")).isZero();
         assertThat(count("sticker_content")).isZero();
+    }
+
+    // --- list, picture and delete (ST-07, D-336): every one is of one owner, and another owner's sticker is "not found" ---
+
+    private void later() {
+        clock.set(clock.instant().plus(Duration.ofMinutes(1)));
+    }
+
+    @Test
+    void listsTheStickersOfTheOwnerNewestFirstAndOnlyThose() {
+        Sticker first = service.upload(owner, "1.png", null, png(10, 10));
+        later();
+        Sticker second = service.upload(owner, "2.png", null, png(11, 10));
+        later();
+        Sticker third = service.upload(owner, "3.png", null, png(12, 10));
+        service.upload(insertUser("stranger@sino.test"), "x.png", null, png(13, 10));
+
+        assertThat(service.list(owner)).extracting(Sticker::id).containsExactly(third.id(), second.id(), first.id());
+    }
+
+    @Test
+    void listsNothingForAnOwnerWithNoStickers() {
+        assertThat(service.list(owner)).isEmpty();
+        assertThat(service.list(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void giveBackThePictureOfAStickerByteForByteWithItsMediaType() {
+        byte[] file = animatedGif(30, 20, 3);
+        Sticker sticker = service.upload(owner, "nhay.gif", null, file);
+
+        StickerPicture picture = service.picture(owner, sticker.id());
+
+        assertThat(picture.mediaType()).isEqualTo(StickerMediaType.GIF);
+        assertThat(picture.bytes()).containsExactly(file);
+    }
+
+    @Test
+    void aStickerOfAnotherOwnerAndOneThatDoesNotExistAreNotFoundAlike() {
+        UUID stranger = insertUser("stranger@sino.test");
+        Sticker theirs = service.upload(stranger, "theirs.png", null, png(10, 10));
+        UUID unknown = UUID.randomUUID();
+
+        Throwable otherOwners = org.assertj.core.api.Assertions.catchThrowable(() -> service.picture(owner, theirs.id()));
+        Throwable nobodys = org.assertj.core.api.Assertions.catchThrowable(() -> service.picture(owner, unknown));
+
+        assertThat(otherOwners).satisfies(refusedWith(StickerErrorCode.STICKER_NOT_FOUND));
+        assertThat(nobodys).satisfies(refusedWith(StickerErrorCode.STICKER_NOT_FOUND));
+        // Nothing in the answer tells the two apart, so no id can be found out by trying.
+        assertThat(otherOwners).hasMessage(nobodys.getMessage());
+        assertThat(((SinoException) otherOwners).properties()).isEqualTo(((SinoException) nobodys).properties());
+    }
+
+    @Test
+    void aStickerWhoseBytesAreMissingIsAFaultOfTheDataAndNotNotFound() {
+        Sticker sticker = service.upload(owner, "meo.png", null, png(10, 10));
+        jdbc.update("delete from sticker_content where sticker_id = ?", sticker.id());
+
+        assertThatThrownBy(() -> service.picture(owner, sticker.id())).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(sticker.id().toString());
+    }
+
+    @Test
+    void deletesAStickerWithItsBytesAndNothingElse() {
+        Sticker gone = service.upload(owner, "gone.png", null, png(10, 10));
+        Sticker kept = service.upload(owner, "kept.png", null, png(11, 10));
+
+        service.delete(owner, gone.id());
+
+        assertThat(service.list(owner)).extracting(Sticker::id).containsExactly(kept.id());
+        assertThat(count("sticker_content")).isEqualTo(1);
+        assertThatThrownBy(() -> service.picture(owner, gone.id())).satisfies(refusedWith(StickerErrorCode.STICKER_NOT_FOUND));
+        assertThat(service.picture(owner, kept.id()).bytes()).isNotEmpty();
+    }
+
+    @Test
+    void deletingTwiceIsNotFoundTheSecondTime() {
+        Sticker sticker = service.upload(owner, "meo.png", null, png(10, 10));
+        service.delete(owner, sticker.id());
+
+        assertThatThrownBy(() -> service.delete(owner, sticker.id())).satisfies(refusedWith(StickerErrorCode.STICKER_NOT_FOUND));
+    }
+
+    @Test
+    void deletingAStickerOfAnotherOwnerDeletesNothing() {
+        UUID stranger = insertUser("stranger@sino.test");
+        Sticker theirs = service.upload(stranger, "theirs.png", null, png(10, 10));
+
+        assertThatThrownBy(() -> service.delete(owner, theirs.id())).satisfies(refusedWith(StickerErrorCode.STICKER_NOT_FOUND));
+
+        assertThat(service.list(stranger)).extracting(Sticker::id).containsExactly(theirs.id());
+        assertThat(count("sticker_content")).isEqualTo(1);
+    }
+
+    @Test
+    void deletingAnUnknownStickerIsNotFound() {
+        assertThatThrownBy(() -> service.delete(owner, UUID.randomUUID())).satisfies(refusedWith(StickerErrorCode.STICKER_NOT_FOUND));
+    }
+
+    @Test
+    void aFileDeletedCanBeKeptAgain() {
+        Sticker first = service.upload(owner, "meo.png", null, png(10, 10));
+        service.delete(owner, first.id());
+
+        Sticker again = service.upload(owner, "meo.png", null, png(10, 10));
+
+        assertThat(again.id()).isNotEqualTo(first.id());
+        assertThat(service.list(owner)).extracting(Sticker::id).containsExactly(again.id());
+    }
+
+    @Test
+    void deletingFreesARoomUnderTheLimit() {
+        Sticker first = service.upload(owner, "1.png", null, png(10, 10));
+        service.upload(owner, "2.png", null, png(11, 10));
+        service.upload(owner, "3.png", null, png(12, 10));
+        assertThatThrownBy(() -> service.upload(owner, "4.png", null, png(13, 10))).satisfies(refusedWith(StickerErrorCode.STICKER_LIMIT_REACHED));
+
+        service.delete(owner, first.id());
+
+        assertThat(service.upload(owner, "4.png", null, png(13, 10)).id()).isNotNull();
+        List<Sticker> list = service.list(owner);
+        assertThat(list).hasSize(3);
     }
 
     @TestConfiguration(proxyBeanMethods = false)

@@ -1,6 +1,7 @@
 package dev.sino.sticker.application;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.sino.common.error.SinoException;
@@ -90,6 +92,48 @@ public class StickerService {
         Sticker saved = stickers.saveAndFlush(draft);
         contents.save(StickerContent.of(saved.id(), content));
         return saved;
+    }
+
+    /** Every sticker of the owner, newest first, without the bytes (the web draws a grid from them). */
+    @Transactional(readOnly = true)
+    public List<Sticker> list(UUID ownerId) {
+        return stickers.findByOwnerIdOrderByCreatedAtDescIdDesc(ownerId);
+    }
+
+    /**
+     * The picture of a sticker of the owner: its bytes and the media type to send them with. The sticker is found for
+     * its owner first, so a sticker of another owner is never read.
+     *
+     * @throws SinoException {@code STICKER_NOT_FOUND}
+     * @throws IllegalStateException when the sticker has no bytes, which the one transaction of {@link #upload} rules out
+     */
+    @Transactional(readOnly = true)
+    public StickerPicture picture(UUID ownerId, UUID id) {
+        Sticker sticker = owned(ownerId, id);
+        StickerContent content = contents.findById(sticker.id())
+                .orElseThrow(() -> new IllegalStateException("The sticker " + id + " has no bytes."));
+        return new StickerPicture(sticker.mediaType(), content.bytes());
+    }
+
+    /**
+     * Deletes a sticker of the owner with its bytes.
+     *
+     * @throws SinoException {@code STICKER_NOT_FOUND} when the owner has no such sticker (also the second time)
+     */
+    @Transactional
+    public void delete(UUID ownerId, UUID id) {
+        if (stickers.deleteOwned(id, ownerId) == 0) {
+            throw notFound();
+        }
+    }
+
+    private Sticker owned(UUID ownerId, UUID id) {
+        return stickers.findByIdAndOwnerId(id, ownerId).orElseThrow(StickerService::notFound);
+    }
+
+    private static SinoException notFound() {
+        // The same words for another owner's sticker and for one that does not exist.
+        return new SinoException(StickerErrorCode.STICKER_NOT_FOUND, "There is no such sticker in the library.");
     }
 
     private Optional<SinoException> alreadyKept(UUID ownerId, byte[] sha256) {

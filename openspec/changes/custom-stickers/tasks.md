@@ -103,13 +103,16 @@
   - **Lỗi gài: 49 mutant** (kiểm trống, biên dung lượng và cạnh, chiều nào được kiểm, đủ hạn mức một cái, thời gian, tên đảo, bắt lỗi tranh chấp, thông điệp mang `stickerId` và giới hạn, byte có được lưu, một giao dịch cho hai bảng, biên của cấu hình và mặc định, mọi nhánh của `StickerNames`): **48 bị bắt**; lần đầu 47/49, hai sống sót: (1) `saveAndFlush` đổi thành `save` là **tương đương** về hành vi quan sát được (id sinh ở phía client, lỗi ràng buộc vẫn ra từ `execute`); giữ `saveAndFlush` với chú thích vì nó bảo đảm hàng sticker được ghi trước byte có khóa ngoại trỏ tới nó, bất kể Hibernate xếp lô thế nào; (2) tên có ít hơn 50 code point nhưng hơn 50 đơn vị UTF-16 (30 emoji): thêm test, và mutant "tính theo đơn vị UTF-16" bị bắt (nó ném `IndexOutOfBounds` ở `offsetByCodePoints`).
   - **Giới hạn đã biết:** hàng rào multipart của Tomcat và ánh xạ `MaxUploadSizeExceededException` thuộc ST-08; `StickerService` chưa biết tới HTTP.
 
-- [ ] 1.7 **ST-07 — `StickerService`: danh sách, nội dung, xóa; phạm vi theo chủ (D-336)**
+- [x] 1.7 **ST-07 — `StickerService`: danh sách, nội dung, xóa; phạm vi theo chủ (D-336)**
   - **Goal:** ba thao tác còn lại, an toàn theo chủ.
   - **Files:** `StickerService.java` và test.
   - **Acceptance criteria:** spec: *Liệt kê…*, *Phục vụ nội dung…* (phần dữ liệu), *Xóa sticker*: mới nhất trước; id của chủ khác hoặc không tồn tại đều là `STICKER_NOT_FOUND` và không lộ khác biệt; xóa của người khác không xóa gì.
   - **Test:** Testcontainers, hai chủ giả (hai dòng `app_user`); ca: danh sách riêng từng chủ, lấy nội dung của người khác = không tìm thấy, xóa của người khác = không tìm thấy và sticker còn nguyên.
   - **Depends on:** ST-05.
   - **Hints:** **Level 1:** mọi câu lệnh dính `user_id`; không bao giờ tìm theo id rồi mới so chủ. **Level 2:** để `findByIdAndUser` (một câu) thay vì `findById` rồi `if`; giảm một lớp lỗi quên kiểm.
+
+  - **Thực hiện (2026-10-19, AUTO):** `StickerService.list(ownerId)` (theo kho, mới nhất trước, không đọc byte), `picture(ownerId, id)` (tìm sticker **theo chủ trước**, rồi mới đọc byte; trả `StickerPicture(mediaType, bytes)`), `delete(ownerId, id)` (`deleteOwned` trả 0 thì `STICKER_NOT_FOUND`); mã mới `STICKER_NOT_FOUND` (404). Sticker của chủ khác và sticker không tồn tại cho **cùng lời lẽ và cùng thành viên problem**, để không dò được id bằng cách thử (có test so thông điệp và thành viên của hai ca). Sticker có hàng nhưng mất byte là `IllegalStateException` (lỗi của dữ liệu, ra `500`), không phải "không tìm thấy": một giao dịch duy nhất của `upload` đã loại trường hợp đó, nên nếu xảy ra thì phải ồn ào.
+  - **Bằng chứng (2026-10-19):** đỏ trước: lỗi biên dịch thiếu `list`, `picture`, `delete`, `StickerPicture`, `STICKER_NOT_FOUND`. Xanh: `StickerServiceTests` 37 (11 test mới). **Lỗi gài: 10 mutant, tất cả bị bắt** (danh sách mọi chủ, ảnh của chủ khác, loại ảnh luôn PNG, thiếu byte ra `null` hoặc "không tìm thấy", xóa báo thành công khi không xóa gì hoặc từ chối khi đã xóa, đảo tham số `deleteOwned` và `findByIdAndOwnerId`, thông điệp lộ khác biệt giữa hai loại "không tìm thấy").
 
 - [ ] 1.8 **ST-08 — API: controller, lỗi, header, cấu hình multipart (D-333, D-334, D-335)**
   - **Goal:** bốn điểm cuối đúng spec, lỗi đúng mã.
