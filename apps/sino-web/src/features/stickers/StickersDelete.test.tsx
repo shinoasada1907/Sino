@@ -261,6 +261,9 @@ describe('Sticker screen: where the focus goes after the dialog (ST-15)', () => 
 
     await user.click(within(dialog()).getByRole('button', { name: 'Xóa' }))
 
+    // While the dialog is open Radix hides the page from the accessibility tree, so "meo is not there" holds at once and
+    // "nhay is there" cannot be found: wait for the dialog (it closes when the slow server has answered) before the grid.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(library().queryByRole('img', { name: 'meo' })).not.toBeInTheDocument())
     expect(library().getByRole('img', { name: 'nhay' })).toBeInTheDocument()
   })
