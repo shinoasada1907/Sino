@@ -210,6 +210,12 @@ function unseen(msgType: string, photo: ZaloPhoto | undefined, sticker: ZaloStic
  * addresses may be in `params`, a JSON text. `title` is the caption the sender typed, empty for none. undefined
  * when the content names no web address at all; the message then stays the text `[Ảnh]` in Sino. Not yet seen on
  * a real photo (ZL-16): the log line of SessionManager says whether a picture was found.
+ *
+ * A photo that is a Zalo sticker (the tigers the user sends, ZL-18) has `href`, `thumb` and `params.hd` on
+ * b-f11-zpc.zdn.vn and the browser gets 404 from all three. What marks it is in `params`: a whole number
+ * `pStickerType` and `webp`, whose web address is the picture to show; the address the photo would have shown
+ * becomes its fallback. Only a `pStickerType` that is a whole number switches to `webp`, so a photo without one is
+ * read exactly as before.
  */
 function photoOf(content: unknown): ZaloPhoto | undefined {
   const fields = objectOf(content);
@@ -218,15 +224,41 @@ function photoOf(content: unknown): ZaloPhoto | undefined {
   }
   const params = objectOf(fields.params) ?? {};
   const thumbUrl = webAddress(fields.thumb) ?? webAddress(params.thumbUrl);
-  const url =
+  const shown =
     webAddress(fields.href) ??
     ["rawUrl", "normalUrl", "oriUrl", "hdUrl", "hd"].map((key) => webAddress(params[key])).find((a) => a !== null) ??
     thumbUrl;
+  const sticker = Number.isSafeInteger(params.pStickerType) ? addressIn(params.webp, 2) : null;
+  const url = sticker ?? shown;
   if (url === null) {
     return undefined;
   }
+  const second = sticker === null ? thumbUrl : shown;
   const caption = typeof fields.title === "string" ? fields.title.trim() : "";
-  return { url, thumbUrl: thumbUrl === url ? null : thumbUrl, caption: caption === "" ? null : caption };
+  return { url, thumbUrl: second === url ? null : second, caption: caption === "" ? null : caption };
+}
+
+/**
+ * The first web address in a value: the value itself, or one inside it, in an object (the key `url` first, then the
+ * others in order), in a list, or in JSON text, down `depth` levels. null when there is none.
+ */
+function addressIn(value: unknown, depth: number): string | null {
+  const own = webAddress(value);
+  if (own !== null || depth === 0) {
+    return own;
+  }
+  const inner = Array.isArray(value)
+    ? value
+    : Object.entries(objectOf(value) ?? {})
+        .sort(([a], [b]) => Number(b === "url") - Number(a === "url"))
+        .map(([, field]) => field);
+  for (const field of inner) {
+    const found = addressIn(field, depth - 1);
+    if (found !== null) {
+      return found;
+    }
+  }
+  return null;
 }
 
 /** The fields of a value that is an object, or of JSON text that holds one; null for anything else (an array too). */
@@ -275,6 +307,14 @@ function photoShapeOf(data: Message["data"]): string {
   const params = content === null ? null : objectOf(content.params);
   if (params !== null) {
     parts.push(...keysOf("params.", params));
+    // One object deeper (up to three objects, ten keys each): `params.webp` is where the picture of a Zalo sticker is.
+    const objects = Object.entries(params)
+      .slice(0, 20)
+      .filter(([, value]) => typeof value === "object" && value !== null && !Array.isArray(value))
+      .slice(0, 3);
+    for (const [key, value] of objects) {
+      parts.push(...keysOf(`params.${safeKey(key)}.`, value as Record<string, unknown>, 10));
+    }
   }
   for (const [name, ext] of [["propertyExt", data.propertyExt], ["paramsExt", data.paramsExt]] as const) {
     for (const [key, value] of Object.entries(typeof ext === "object" && ext !== null ? ext : {}).slice(0, 10)) {
@@ -286,9 +326,9 @@ function photoShapeOf(data: Message["data"]): string {
   return parts.join(",");
 }
 
-function keysOf(prefix: string, fields: Record<string, unknown>): string[] {
+function keysOf(prefix: string, fields: Record<string, unknown>, limit = 20): string[] {
   return Object.entries(fields)
-    .slice(0, 20)
+    .slice(0, limit)
     .map(([key, value]) => `${prefix}${safeKey(key)}:${kindWithHostOf(value)}`);
 }
 
