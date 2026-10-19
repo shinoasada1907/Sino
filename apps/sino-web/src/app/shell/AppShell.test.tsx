@@ -1,11 +1,15 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { delay, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
 import { INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
 import { createTasksSample } from '@/features/tasks/tasks.sample'
 import { publishConversationsChanged } from '@/shared/realtime/streamState'
 import { CANVAS_NOW } from '@/shared/time/canvasClock'
+import { accountsWithStatus } from '@/test/accountsWithStatus'
+import { server } from '@/test/msw/server'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
 import type { ShellData } from './shell.types'
@@ -236,6 +240,47 @@ describe('top bar', () => {
     expect(topbar.getAllByRole('button', { name: 'Tìm kiếm' })).toHaveLength(1)
   })
 
+})
+
+describe('the count of accounts needing action (NS-01, D-321)', () => {
+  // The shell sample says 1; each test gives the list another number, so the two cannot agree by chance.
+  it('takes it from the account list, not from the shell data', async () => {
+    renderApp('/overview', {
+      accounts: accountsWithStatus('AUTH_EXPIRED', 'ERROR', 'CONNECTED'),
+      shell: shellWith((s) => (s.navCounts.accountsNeedingAction = 7)),
+    })
+
+    expect(await within(shellPart('rail')).findByRole('link', { name: 'Tài khoản, 2 cần xử lý' })).toHaveAttribute('href', '/accounts')
+    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Tài khoản, 2 cần xử lý' })).toBeInTheDocument()
+  })
+
+  it('shows nothing on Tài khoản when no account needs action, whatever the shell data says', async () => {
+    renderApp('/overview', {
+      accounts: accountsWithStatus('CONNECTED', 'DEGRADED', 'DISABLED'),
+      shell: shellWith((s) => (s.navCounts.accountsNeedingAction = 1)),
+    })
+
+    expect(await within(shellPart('rail')).findByRole('link', { name: 'Tài khoản' })).toHaveAttribute('href', '/accounts')
+    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
+  })
+
+  it('shows nothing while the account list has not come, rather than the sample count', async () => {
+    server.use(http.get('/api/accounts', () => delay('infinite')), http.get('/api/providers', () => delay('infinite')))
+    renderApp('/overview', { accounts: null, shell: shellWith((s) => (s.navCounts.accountsNeedingAction = 1)) })
+
+    expect(await within(shellPart('rail')).findByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
+    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
+  })
+
+  it('follows the list as an account needs the owner and then does not', async () => {
+    const { queryClient } = renderApp('/overview', { accounts: accountsWithStatus('CONNECTED', 'AUTH_EXPIRED') })
+    const rail = within(shellPart('rail'))
+    expect(await rail.findByRole('link', { name: 'Tài khoản, 1 cần xử lý' })).toBeInTheDocument()
+
+    act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus('CONNECTED', 'CONNECTED')))
+
+    expect(await rail.findByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
+  })
 })
 
 describe('the mark on the browser tab (NF-01, D-317)', () => {

@@ -16,6 +16,14 @@ function serveInboxFrame() {
     ),
   )
 }
+// The shell keeps the account list on every screen (NS-01), so an account event and a stream that opens again read it too.
+function serveAccounts() {
+  server.use(
+    http.get('/api/accounts', () => HttpResponse.json(API_ACCOUNTS)),
+    http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+    http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
+  )
+}
 // An account of the inbox sample: the bar of the shell names the kind of the account of an event from the frame (NF-02).
 const changed = { type: 'conversations.changed', accountId: 'acc-gmail', conversationIds: ['conv-1'], newInbound: 1, source: 'sync', at: AT }
 
@@ -37,6 +45,7 @@ describe('the event stream of the web (FE-53)', () => {
 
   it('reads the inbox again when its conversations change, and the accounts when an account changes', async () => {
     serveInboxFrame()
+    serveAccounts()
     const { queryClient } = renderApp('/overview')
     await screen.findByRole('heading', { level: 1 })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
@@ -49,10 +58,13 @@ describe('the event stream of the web (FE-53)', () => {
     invalidate.mockClear()
     stream.emit('account.changed', { type: 'account.changed', accountId: 'acc-1', at: AT })
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['accounts'], ['inbox'], ['inbox-unread']])
+    // The accounts are read again too (NS-01): leave no request in flight, or it lands in the next test and finds no handler.
+    await vi.waitFor(() => expect(queryClient.isFetching()).toBe(0))
   })
 
   it('reads both again when the stream opens again after a loss, not when it first opens', async () => {
     serveInboxFrame()
+    serveAccounts()
     const { queryClient } = renderApp('/overview')
     await screen.findByRole('heading', { level: 1 })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
@@ -65,6 +77,8 @@ describe('the event stream of the web (FE-53)', () => {
     stream.open()
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['inbox'], ['inbox-unread'], ['accounts']])
     expect(FakeEventSource.instances).toHaveLength(1)
+    // The accounts are read again too (NS-01): leave no request in flight, or it lands in the next test and finds no handler.
+    await vi.waitFor(() => expect(queryClient.isFetching()).toBe(0))
   })
 
   it('does not open a new stream itself when the browser gives up on it', async () => {

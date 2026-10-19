@@ -1,4 +1,5 @@
 import { Outlet, useLocation, useMatches } from 'react-router'
+import { useAccountsNeedingAction } from '@/features/accounts/useAccounts'
 import { useUnreadByKind } from '@/features/inbox/useInbox'
 import { navCountsOf } from '@/features/tasks/format'
 import { useTasks } from '@/features/tasks/useTasks'
@@ -27,8 +28,10 @@ export function AppShell() {
   useEventStream()
   const { shell: sample, receivedAt } = useShellData()
   // The counts of Tin nhắn and Hộp thư are the real ones (D-93, f05c), so that new mail changes them; the task counts come
-  // from the task list (D-83, FE-70), so every change of a task shows on the navigation; the other counts are still sample data.
+  // from the task list (D-83, FE-70), so every change of a task shows on the navigation; the accounts needing action come
+  // from the account list (D-321), none until it has come; the other counts are still sample data.
   const unread = useUnreadByKind()
+  const accountsNeedingAction = useAccountsNeedingAction() ?? 0
   // The browser tab says there is news too (NF-01, D-317): chats and mail together, the chats as 0 while the backend cannot count them.
   useTabUnread(unread && unread.EMAIL + (unread.CHAT ?? 0))
   // And a bar under the top bar says the new messages that came while the owner was elsewhere (NF-02, D-318).
@@ -38,6 +41,7 @@ export function AppShell() {
   const now = useNow()
   const navCounts = sample && {
     ...sample.navCounts,
+    accountsNeedingAction,
     ...(unread === undefined ? {} : { messagesUnread: unread.CHAT, inboxUnread: unread.EMAIL }),
     ...(tasks === undefined ? {} : navCountsOf(tasks, now)),
   }

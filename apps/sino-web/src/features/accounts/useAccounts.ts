@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import type { ShellData } from '@/app/shell/shell.types'
 import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
@@ -11,6 +11,8 @@ import type { AccountExtras, AccountItem, AccountsData, ChannelKind } from './ac
 import { needsAttention } from './format'
 
 export const ACCOUNTS_QUERY_KEY = ['accounts'] as const
+// One query for the account screens and for the navigation of the shell, so both read the same list.
+const accountsQuery = queryOptions({ queryKey: ACCOUNTS_QUERY_KEY, queryFn: fetchAccounts, staleTime: Infinity })
 /** How often the list is asked again while a first import runs. */
 export const SYNC_POLL_MS = 2000
 const extrasKey = (accountId: string) => ['accounts', accountId, 'extras'] as const
@@ -33,9 +35,7 @@ export function useAccounts(): AccountsQuery {
   const queryClient = useQueryClient()
   const live = useStreamState() === 'open'
   const { data, dataUpdatedAt, error, refetch } = useQuery({
-    queryKey: ACCOUNTS_QUERY_KEY,
-    queryFn: fetchAccounts,
-    staleTime: Infinity,
+    ...accountsQuery,
     refetchInterval: (query) =>
       !live && query.state.data?.accounts.some((account) => account.firstImport?.state === 'RUNNING') ? SYNC_POLL_MS : false,
   })
@@ -46,6 +46,17 @@ export function useAccounts(): AccountsQuery {
     }
   }, [imported, queryClient])
   return { list: data, receivedAt: dataUpdatedAt, error, retry: () => void refetch() }
+}
+
+const countNeedingAction = (list: AccountsData) => list.accounts.filter(needsAttention).length
+
+/**
+ * How many accounts need the owner to act (`needsAttention`: signed out or failing), for the navigation of the shell
+ * (D-321); `undefined` until the list has come. It reads the shared list but not through `useAccounts`, which reads the
+ * inbox again for every finished first import: right on the account screens, not at every start of the app.
+ */
+export function useAccountsNeedingAction(): number | undefined {
+  return useQuery({ ...accountsQuery, select: countNeedingAction }).data
 }
 
 /**
@@ -122,20 +133,12 @@ export function useDisconnectAccount() {
     mutationFn: deleteAccount,
     onSuccess: (_result, { accountId }: Disconnect) => {
       const list = queryClient.getQueryData<AccountsData>(ACCOUNTS_QUERY_KEY)
-      const removed = list?.accounts.find((account) => account.id === accountId)
       if (list) {
         queryClient.setQueryData(ACCOUNTS_QUERY_KEY, withoutAccount(list, accountId))
       }
       queryClient.removeQueries({ queryKey: extrasKey(accountId) })
       queryClient.setQueryData<ShellData>(SHELL_QUERY_KEY, (shell) =>
-        shell && {
-          ...shell,
-          accountCount: Math.max(0, shell.accountCount - 1),
-          navCounts: {
-            ...shell.navCounts,
-            accountsNeedingAction: shell.navCounts.accountsNeedingAction - (removed && needsAttention(removed) ? 1 : 0),
-          },
-        },
+        shell && { ...shell, accountCount: Math.max(0, shell.accountCount - 1) },
       )
       queryClient.setQueryData<OverviewData>(OVERVIEW_QUERY_KEY, (overview) =>
         overview && { ...overview, accounts: overview.accounts.filter((account) => account.id !== accountId) },
