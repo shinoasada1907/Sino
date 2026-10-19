@@ -1515,3 +1515,104 @@ Zalo          chat.photo, href/thumb/params.hd cùng host
 - Viết test trước (12 test mới đỏ), rồi xanh: `sino-zalo` 259/259, oxlint 0, `tsc` 0. Gài lỗi 13: ba lỗi sống sót vì thiếu test (độ sâu tìm địa chỉ, đường lùi bị nhầm với `thumb`, danh sách bị coi như object); đã thêm test rồi diệt cả ba.
 - Kiểm trên ảnh thật, kết quả là bản sửa chưa chạm vào nguyên nhân thật: sáu tin sau bản sửa, chỉ hai tin chó hiện hình, hổ, mèo và dê vẫn `[Ảnh]`, trong khi bốn tin có `photoShape` y hệt nhau. Gọi thẳng CDN bằng `curl` cho cùng kết quả như trình duyệt: ảnh chó trả 200 (tệp có từ 15/10), ảnh hổ, mèo, dê trả 404 với thân rỗng, bất kể đổi đuôi tệp, tiền tố hay header. Tức là CDN không có tệp tại địa chỉ mà tin nêu, và Sino không có gì để hiện. Bài học: một cấu trúc `content` giống hệt nhau không có nghĩa là mọi tin dùng được như nhau, vì chỗ khác nhau có thể nằm ở dữ liệu bên ngoài (tệp có thật trên CDN hay không); và một giả thuyết hợp lý (`params.webp` giữ ảnh thật) vẫn phải được đo bằng đúng những tin lỗi trước khi coi là đã sửa. Còn mở: tệp có được tạo khi tài khoản nhận xem hay không, và `params.contentId` có phải mã sticker hay không.
 - Chưa làm: tin đã lưu trước bản sửa (ba ảnh 18:15–18:17, các tin 20:21, 20:31, 20:58, 21:18) giữ `[Ảnh]`, không backfill (như ZL-15 và ZL-16); chưa gửi một ảnh thường sau bản sửa để xem tận mắt (mã của nhánh ảnh thường không đổi và có test giữ nguyên).
+
+## 22. Thư viện sticker tự tạo (`custom-stickers`, ST-01 đến ST-20)
+
+**Ở đâu:** backend `sticker/` (`domain/StickerImage`, `PngHead`, `GifHead`, `WebpHead`, `Sticker`, `StickerContent`; `application/StickerService`, `StickerProperties`; `infrastructure/StickerRepository`, `StickerContentRepository`; `api/StickersController`), migration `V21__sticker_create_sticker.sql`; web `apps/sino-web/src/features/stickers/` (`StickersPage`, `useUploadQueue`, `format.ts`, `stickers.api.ts`) và `shared/api/client.ts` (`api.upload`). Change: `openspec/changes/custom-stickers`.
+
+**Là gì / để làm gì:** người dùng tải ảnh PNG, GIF hoặc WebP của riêng mình lên Sino để giữ, xem trong một lưới và xóa khi không cần. **Hôm nay chưa gửi sticker đi đâu cả** (D-328): gửi qua Zalo là change `custom-stickers-send`, mở bằng một spike đo xem Zalo nhận gì. Đừng lẫn với mục 17 đến 21: ở đó sticker do người khác gửi đến, ảnh nằm trên máy chủ Zalo và Sino không giữ byte nào; ở đây ảnh là dữ liệu của người dùng, không lấy lại được từ đâu, nên Sino phải lưu và sao lưu cùng database.
+
+```text
+web: màn Sticker (/stickers)                         sino-api: module sticker
+  chọn tệp / kéo thả -- api.upload(FormData) ----->  POST /api/stickers   (multipart)
+  lưới ô vuông      <-- GET /api/stickers ---------   |  StickerService.upload, kiểm theo thứ tự:
+  <img src=".../content"> <-- GET /api/stickers/{id}/content   tệp có / cỡ / loại thật / cạnh / trùng / hạn mức
+  nút xóa (có hỏi)  -- DELETE /api/stickers/{id} -->  |  chỉ ghi khi qua hết
+                                                      v
+                                       sticker (metadata)      sticker_content (byte, bảng riêng)
+```
+
+| Quyết định | Nội dung |
+|---|---|
+| D-328 | Làm hai change: thư viện trước, gửi qua Zalo sau (người dùng) |
+| D-329 | Nhận PNG, GIF, WebP; SVG để sau vì SVG là XML có thể mang script (người dùng) |
+| D-330 | Lưu byte trong PostgreSQL, cột `bytea` (người dùng) |
+| DN-1 | 1 MiB mỗi tệp, 1024 điểm ảnh mỗi cạnh, 300 sticker mỗi người |
+| DN-2 | Ảnh đã có thì từ chối `409 STICKER_DUPLICATE` |
+| D-331 | Hai bảng: `sticker` và `sticker_content` |
+| D-332 | Nhận loại và đo cỡ từ phần đầu tệp, không giải mã ảnh |
+| D-333 | Giới hạn chính xác nằm trong ứng dụng; multipart chỉ là hàng rào |
+| D-335 | Phục vụ ảnh với `nosniff`, cache lâu, riêng tư |
+| D-336 | Sticker của người khác là `404` |
+| D-337 | Web có `api.upload`, không sửa `post` |
+| D-338, D-339 | Hạn mức đếm không khóa; "trùng" do chỉ mục duy nhất quyết, bắt lỗi ở ngoài giao dịch |
+
+### 22.1 Nhận ra loại bằng nội dung, không bằng tên hay `Content-Type`
+Tên tệp và `Content-Type` của phần multipart đều do client khai, nên ai cũng đặt được. `StickerImage.read` đọc vài byte đầu và hỏi lần lượt ba lớp đọc đầu tệp:
+
+| Loại | Chữ ký ở đầu tệp |
+|---|---|
+| PNG | 8 byte `89 50 4E 47 0D 0A 1A 0A` |
+| GIF | `GIF87a` hoặc `GIF89a` |
+| WebP | `RIFF`, 4 byte cỡ, rồi `WEBP` |
+
+Không khớp cái nào thì `415 STICKER_TYPE_UNSUPPORTED`. Khi chạy thật, một tệp chữ thường đổi tên thành `gia.png` (57 byte) bị `415` dù đuôi và loại do trình duyệt khai đều là PNG; một JPEG thật cũng bị `415` (D-329: không tự đổi định dạng hộ người dùng). Cái giá được chấp nhận (D-332): một tệp có phần đầu đúng mà thân hỏng vẫn lọt vào, nhưng không có đường nào cho nó gây hại vì Sino phục vụ lại đúng loại đã nhận ra cùng `nosniff` (mục 22.6); trình duyệt chỉ không vẽ được ảnh đó.
+
+### 22.2 Vì sao đo cỡ từ phần đầu tệp, không giải mã (D-332)
+Một PNG dưới 1 MiB có thể khai 60.000 x 60.000 điểm ảnh. Giải mã nó cần hàng chục gigabyte bộ nhớ và làm sập máy chủ (kiểu tấn công "decompression bomb"). Chiều rộng và cao nằm ngay ở đầu tệp, nên Sino đọc chúng và phán trước khi ai giải mã gì. Khi chạy thật, `rong.png` 1100 x 100 bị `422 STICKER_INVALID_IMAGE`, web nói "Không đọc được ảnh này, hoặc có cạnh dài hơn 1024 điểm ảnh". JDK không có bộ đọc WebP, nên tự đọc đầu tệp cũng là cách duy nhất chung cho cả ba loại.
+
+Mỗi loại một kiểu đầu tệp, và có những bẫy riêng của Java:
+- **PNG** (`PngHead`): chunk đầu là `IHDR`, 8 byte đầu của dữ liệu là rộng và cao, **số nguyên không dấu 32 bit, big-endian** (`ByteBuffer` mặc định big-endian). Java không có `int` không dấu: `bytes.getInt(i) & 0xFFFFFFFFL` đưa về `long`. Vị trí chunk cũng là `long` vì độ dài chunk do tệp khai; một độ dài giả cực lớn mà để trong `int` thì cộng vào sẽ tràn số và trỏ về đầu tệp. Ảnh động (APNG) có chunk `acTL` **trước** `IDAT` đầu tiên, nên chỉ đi qua các chunk tới `IDAT` là đủ.
+- **GIF** (`GifHead`): rộng và cao là hai số 16 bit **little-endian** ngay sau tiêu đề. Số khung phải đếm các khối ảnh (`0x2C`); một byte `0x2C` nằm trong dữ liệu khối con không phải khung mới, nên phải đi theo chuỗi "byte độ dài, rồi từng đó byte" chứ không dò byte. Thấy khối ảnh thứ hai là biết ảnh động, dừng ngay. Một GIF chỉ một khung vẫn là `STATIC`.
+- **WebP** (`WebpHead`): có ba kiểu chunk đầu: `VP8 ` (có mất dữ liệu), `VP8L` (không mất), `VP8X` (mở rộng: ảnh động, trong suốt, metadata). Cờ hoạt ảnh nằm ở `VP8X`.
+
+`kind` (`STATIC` hay `ANIMATED`) do máy chủ tự tính từ tệp, người dùng không khai được.
+
+### 22.3 Vì sao hai bảng: `sticker` và `sticker_content` (D-331)
+Lưới chỉ cần tên, cỡ và loại. Nếu byte nằm cùng dòng, một câu `SELECT` danh sách (hoặc một entity JPA nạp theo mặc định) kéo cả byte của mọi sticker vào bộ nhớ. Tách ra thì danh sách chạy trên bảng nhỏ và byte chỉ được đọc khi có đúng một yêu cầu `.../content`. Khi chạy thật với 300 sticker, `GET /api/stickers` mất 31 ms. Cái giá: lấy ảnh cần thêm một lần đọc, và xóa phải xóa cả hai bảng; `ON DELETE CASCADE` ở khóa ngoại lo việc đó, nên sau khi xóa không có dòng mồ côi nào (đã kiểm bằng `psql`). `ALTER TABLE ... SET STORAGE EXTERNAL` bảo PostgreSQL đừng nén lại cột này: PNG, GIF, WebP đã nén rồi, nén thêm tốn thời gian mà không được gì.
+
+### 22.4 Trùng thì do chỉ mục quyết, hạn mức thì chỉ đếm (D-338, D-339)
+Hai lần tải cùng một tệp đồng thời cùng qua phép kiểm "đã có chưa" rồi mới ghi. Chỉ mục duy nhất `(user_id, sha256)` là thứ thật sự chặn bản thứ hai: lần ghi sau bị `DataIntegrityViolationException`. Lỗi này chỉ lộ ra **lúc commit**, ngoài phương thức, nên `@Transactional` trên phương thức không bắt được; nếu để nó đi thẳng ra thì người dùng nhận `500`. `StickerService` dùng `TransactionTemplate` viết tay, bắt lỗi ở ngoài giao dịch, rồi **hỏi lại trong giao dịch mới** (giao dịch cũ đã hỏng) xem chủ đã có sticker này chưa: có thì là `STICKER_DUPLICATE` kèm `stickerId`; không thì lỗi gốc đi tiếp, để một ràng buộc khác không bị gọi nhầm là "trùng".
+
+Hạn mức (300) thì khác: chỉ đếm rồi ghi, không khóa. Hai lần tải cùng lúc ở sát hạn mức có thể cùng qua và vượt một hai sticker. Chấp nhận vì hạn mức là rào bảo vệ dung lượng chứ không phải ràng buộc toàn vẹn. Quy tắc chung rút ra: ràng buộc phải đúng thì để database giữ bằng chỉ mục; rào "gần đúng" thì kiểm trong ứng dụng.
+
+### 22.5 Sticker của người khác là `404` (D-336)
+Mọi truy vấn có `user_id = CurrentUser.requireOwnerId()` (`findByIdAndOwnerId`), như `ACCOUNT_NOT_FOUND`, `TASK_NOT_FOUND` và `NOTE_NOT_FOUND`. Sticker của người khác và sticker không tồn tại cho cùng `404 STICKER_NOT_FOUND`, nên không ai dò được id nào có thật. Hôm nay Sino chỉ có một chủ; ràng buộc này giữ cho thiết kế khỏi phải sửa khi có nhiều người.
+
+### 22.6 Hai tầng giới hạn và cách phục vụ ảnh (D-333, D-335)
+- Giới hạn **chính xác** (1 MiB, 1024 điểm ảnh, 300 sticker) nằm trong `StickerService` và đọc từ cấu hình `sino.stickers.*`. `spring.servlet.multipart.max-file-size` (2 MB) chỉ là hàng rào cho Tomcat khỏi đệm tệp khổng lồ, đặt cao hơn giới hạn của ứng dụng; một test canh hàng rào luôn cao hơn. Vượt hàng rào là lỗi chung `413 PAYLOAD_TOO_LARGE` (lúc đó chưa biết đây là sticker); web coi hai mã như nhau. Khi chạy thật: 1,6 MB vào `413 STICKER_TOO_LARGE`, 3 MB vào `413 PAYLOAD_TOO_LARGE`, và phiên vẫn dùng được ngay sau đó (`GET /api/auth/me` vẫn `200`).
+- `GET .../content` trả đúng loại đã nhận ra, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`, `Cache-Control: private, max-age=31536000, immutable`. Nội dung của một `id` không bao giờ đổi (thay là xóa rồi tạo mới, id khác) nên cache mãi là an toàn; `private` vì có cookie phiên. Chỉ có ba loại ảnh nên không đường nào cho nội dung chạy script.
+
+### 22.7 Web: tải tệp bằng `FormData` thì không tự đặt `Content-Type` (D-337)
+`api.post` luôn đặt `Content-Type: application/json` và `JSON.stringify` thân. Một thân `FormData` cần để **trình duyệt** tự đặt `Content-Type` vì nó thêm `boundary` (chuỗi ngăn các phần); đặt tay là gãy toàn bộ yêu cầu. Nên có hàm riêng `api.upload(path, form)` dùng chung phần CSRF, lỗi và phiên của `request`. Hai phương án bị bỏ: một nhánh `if (body instanceof FormData)` trong `post` (một hàm hai việc) và một `fetch` riêng cho sticker (nhân đôi xử lý CSRF và `401`).
+
+### 22.8 Web: hàng đợi tải lên, và câu chữ nằm ở web
+- `useUploadQueue` gửi **từng tệp một**: nhẹ cho máy chủ, và màn nói được tệp nào lỗi vì sao. Tệp web tự từ chối (`checkStickerFile`: sai loại, rỗng, quá 1 MB) không rời máy; một tệp lỗi không cản các tệp khác. Loại được xét **trước** cỡ: một JPEG nhỏ vẫn bị từ chối, nói "quá lớn" sẽ nói sai.
+- Lỗi từ máy chủ đọc theo `code` của Problem Details chứ không theo trạng thái HTTP, rồi đổi thành câu tiếng Việt (`uploadErrorMessage`); câu tiếng Anh của máy chủ chỉ để lập trình viên đọc. Lỗi không thể khác đi khi thử lại (trùng, sai loại, quá lớn) thì không có nút "Thử lại"; mất mạng hay máy chủ hỏng thì có.
+- Kéo thả dùng cùng đường với nút chọn tệp: một vùng thả bao cả trang, khung "Thả ảnh PNG, GIF hoặc WebP để tải lên" hiện khi kéo qua.
+
+### 22.9 Web: xóa có hỏi, tiêu điểm bàn phím, lưới và ảnh động
+- Xóa luôn hỏi "Xóa sticker này?" nêu tên. Radix ẩn phần còn lại của trang khỏi cây truy cập khi hộp mở, nên test truy vấn phải thêm `hidden: true`. Khi hộp đóng, tiêu điểm về nút đã mở nó; nếu sticker đã mất thì sang nút xóa của sticker kế (hoặc trước), và hết sạch thì về nút "Tải lên" của trạng thái trống. Không có hàm này thì người dùng bàn phím rơi tiêu điểm về đầu trang sau mỗi lần xóa.
+- Lưới là CSS thuần: `grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))`, nên số cột do trình duyệt tính (7 ở 1440, 5 ở 1024, 2 ở 390) và không có JavaScript nào để test. Nút xóa chỉ ẩn khi thiết bị có chuột (`@media (hover: hover)`); trên điện thoại nút luôn hiện, rộng 44 điểm ảnh.
+- GIF và WebP động chạy ngay trong thẻ `<img>`, không cần code. Cái giá (DN-4): CSS không dừng được ảnh động, nên `prefers-reduced-motion` không áp dụng được với ảnh trong lưới.
+- Mỗi `<img>` có `loading="lazy"`: với 300 sticker, mở trang chỉ gọi 126 lần `.../content` (không phải 300).
+
+### 22.10 Kiểm chứng (ST-20) và giới hạn
+Chạy thật trên backend thật (`spring-boot:run` với PostgreSQL 18 trong Docker, JDK 25), web bằng Vite dev server, trình duyệt Chromium do Playwright lái; tệp mẫu tạo bằng Pillow và canvas của trình duyệt. Các ca đã chạy qua giao diện:
+- Đăng nhập, mở `/stickers`: trạng thái trống đúng chữ. Chọn **bốn tệp cùng lúc** (PNG, GIF động, WebP động, WebP tĩnh): cả bốn `201`; `kind` và cỡ đúng; **GIF và WebP động đổi khung hình thật** trong lưới (bốn khung khác nhau trong tám lần chụp), PNG và WebP tĩnh thì không đổi. Byte tải về từ `.../content` có `sha1` bằng tệp gốc.
+- Từ chối đúng câu: tải lại ảnh đã có "Sticker này đã có trong thư viện."; JPEG và tệp chữ đổi đuôi `.png` "Chỉ nhận PNG, GIF, WebP."; PNG 1,5 MB "Tệp nặng hơn 1 MB; hãy chọn ảnh nhẹ hơn."; PNG 1100 điểm ảnh bề ngang "Không đọc được ảnh này, hoặc có cạnh dài hơn 1024 điểm ảnh. Hãy thử ảnh khác."
+- Xóa: hộp xác nhận rồi `204`; `psql` không còn dòng ở `sticker` lẫn `sticker_content`, không có dòng mồ côi; **cùng tệp tải lại được** sau khi xóa.
+- Đầy hạn mức: đủ 300, tải ảnh mới ra "Thư viện đã đầy (tối đa 300 sticker). Hãy xóa bớt sticker rồi tải lại."; xóa một sticker thì tải được tiếp. Trực tiếp vào API (web chặn từ trước tệp trên 1 MB): 1,6 MB `413 STICKER_TOO_LARGE`, 3 MB `413 PAYLOAD_TOO_LARGE`, tệp rỗng `422 STICKER_FILE_MISSING`.
+- Hai theme x ba cỡ (1440, 1024, 390; sáng và tối): không cuộn ngang ở cả sáu, số cột 7, 5, 2; mở trang 300 sticker mất khoảng 2,7 giây cho tới khi đủ thẻ.
+- Nhật ký ứng dụng: không có dòng `ERROR`; chỉ có các dòng `WARN` của những lần từ chối trên.
+
+Cổng kiểm tra: `./mvnw -B -ntp verify` 2403 test, 0 lỗi, 8 bỏ qua (có sẵn từ trước, không thuộc sticker); web `pnpm lint` 0 lỗi (hai cảnh báo có sẵn ở `features/public`), `tsc -b` 0, `pnpm test` 1092/1092 (109 file), `pnpm build` 0; `openspec validate custom-stickers --strict` hợp lệ với OpenSpec 1.6.0 (đúng bản đã sinh các skill của repo; bản mới nhất 1.14.3 thêm một cảnh báo "requirement quá dài" mà `f15-notes` cũng vướng, và `--strict` coi cảnh báo là lỗi).
+
+Lượt chạy toàn bộ lộ ra ba test đỏ không thuộc mã sticker, đã sửa ở ba commit riêng; cả ba cùng một họ lỗi "test chỉ xanh khi chạy đủ nhanh hoặc đúng thứ tự":
+- `NotesApiTests` (69 ca đỏ): lớp này xóa `app_user` của người khác mà không xóa trước các dòng con. `AdminApiTests` chạy trước để lại `connected_account` của người dùng khác, nên lần xóa `app_user` vi phạm khóa ngoại. Surefire chạy lớp theo thứ tự tệp của hệ thống, nên máy khác thứ tự thì không đỏ. Sửa: xóa theo thứ tự con trước cha, đủ mọi bảng trỏ vào `app_user` (`task`, `note`, `sticker`, `connected_account`) và các bảng con của `connected_account` (`conversation`, `sync_checkpoint`), như `AdminApiTests` đã làm. `TasksApiTests` và `StickersApiTests` có cùng điểm yếu (chỉ xóa bảng của mình) nhưng không đỏ ở thứ tự đã chạy; chưa sửa.
+- `StickersDelete` "still deletes when the server is slow" (ST-15): khi hộp xác nhận còn mở, Radix ẩn cả trang khỏi cây truy cập nên câu `waitFor(không còn ảnh 'meo')` đúng ngay từ lần kiểm đầu (đúng vì trang đang bị ẩn, không vì đã xóa), rồi `getByRole('img', 'nhay')` rơi vào lúc trang còn bị ẩn. Máy chậm hơn thì vô tình xanh. Sửa: chờ hộp đóng trước khi kiểm lưới.
+- `useShellData` "leave the other counts": so hai mẫu dữ liệu tạo bằng `new Date()` cách nhau một mili giây (`lastSyncedAt` lệch). Sửa: cố định một thời điểm cho mẫu, như `42f8908` đã làm với `AppShell.test.tsx`.
+
+Hai sai sót của chính phiên kiểm chứng này, ghi lại để khỏi lặp: (1) ảnh mẫu tôi sinh ra lặp lại sau 256 lần nên ~40 ảnh bị `409` và thư viện chỉ đầy 261/300, đúng là lỗi trùng của chính ứng dụng nhưng do dữ liệu thử không duy nhất; (2) ảnh thử "thứ 301" dùng lại một tệp đã lưu nên gặp "trùng" chứ không gặp "đầy". Dữ liệu thử phải mới hoàn toàn mỗi lần chạy.
+
+**Chưa kiểm:** hộp chọn tệp thật của hệ điều hành và kéo thả thật từ Explorer (Playwright đặt tệp thẳng vào ô nhập); màn cảm ứng thật (chỉ giả lập cỡ và cảm ứng); Safari và Firefox; đối chiếu canvas (ST-00 bị bỏ qua theo lệnh người dùng: màn dựng theo Ghi chú và `index.css`, nên khi có khung canvas phải đối chiếu lại); gửi sticker qua Zalo (change sau). Người dùng chưa xem màn.
