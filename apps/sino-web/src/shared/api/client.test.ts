@@ -141,3 +141,111 @@ describe('API client', () => {
     expect(expired).toHaveBeenCalledTimes(1)
   })
 })
+
+// ST-10 (custom-stickers, D-337): a file goes up as multipart/form-data, which `post` cannot send (it writes JSON).
+describe('API client uploads', () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
+
+  const formOf = (name?: string) => {
+    const form = new FormData()
+    form.append('file', new File([PNG], 'meo.png', { type: 'image/png' }))
+    if (name !== undefined) {
+      form.append('name', name)
+    }
+    return form
+  }
+
+  beforeEach(() => setCsrfCookie('token-1'))
+  afterEach(() => {
+    document.cookie = 'XSRF-TOKEN=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+  })
+
+  it('sends the form as it is, with the CSRF token and a multipart type the browser makes up (no JSON type of ours)', async () => {
+    let seen: { method: string; token: string | null; type: string | null; name: unknown; file: File } | undefined
+    server.use(
+      http.post('/api/stickers', async ({ request }) => {
+        const form = await request.formData()
+        seen = {
+          method: request.method,
+          token: request.headers.get('X-XSRF-TOKEN'),
+          type: request.headers.get('Content-Type'),
+          name: form.get('name'),
+          file: form.get('file') as File,
+        }
+        return HttpResponse.json({ id: 'st-1' }, { status: 201 })
+      }),
+    )
+
+    expect(await api.upload('/api/stickers', formOf('meo'))).toEqual({ id: 'st-1' })
+
+    expect(seen?.method).toBe('POST')
+    expect(seen?.token).toBe('token-1')
+    // The boundary after the type exists only if the browser wrote the header; one written by hand has none and breaks the body.
+    expect(seen?.type).toMatch(/^multipart\/form-data; boundary=/)
+    expect(seen?.name).toBe('meo')
+    expect(seen?.file.type).toBe('image/png')
+    expect(new Uint8Array(await seen!.file.arrayBuffer())).toEqual(PNG)
+    // Not asserted: the file name. jsdom's File is not Node's, so the name does not survive the `fetch` of the test runner
+    // (it arrives as "blob"); a browser sends it. The pages test the name in the form they hand to `api.upload`.
+  })
+
+  it('sends the same form again after a stale CSRF token, bytes included', async () => {
+    const calls: string[] = []
+    const files: number[] = []
+    server.use(
+      http.post('/api/stickers', async ({ request }) => {
+        const token = request.headers.get('X-XSRF-TOKEN')
+        calls.push(`POST ${token}`)
+        files.push(((await request.formData()).get('file') as File).size)
+        return token === 'token-2' ? HttpResponse.json({ id: 'st-1' }, { status: 201 }) : problem(403, { code: 'CSRF_TOKEN_INVALID' })
+      }),
+      http.get('/api/auth/me', () => {
+        calls.push('GET me')
+        setCsrfCookie('token-2')
+        return problem(401, { code: 'UNAUTHORIZED' })
+      }),
+    )
+
+    expect(await api.upload('/api/stickers', formOf())).toEqual({ id: 'st-1' })
+
+    expect(calls).toEqual(['POST token-1', 'GET me', 'POST token-2'])
+    expect(files).toEqual([PNG.length, PNG.length])
+  })
+
+  it('turns a refusal of the server into an ApiError with its code, like every other call', async () => {
+    server.use(http.post('/api/stickers', () => problem(413, { code: 'STICKER_TOO_LARGE', detail: 'Too large' })))
+
+    expect(await caught(api.upload('/api/stickers', formOf()))).toMatchObject({ status: 413, code: 'STICKER_TOO_LARGE' })
+  })
+
+  it('turns a network failure into NETWORK_ERROR', async () => {
+    server.use(http.post('/api/stickers', () => HttpResponse.error()))
+
+    expect(await caught(api.upload('/api/stickers', formOf()))).toMatchObject({ status: 0, code: 'NETWORK_ERROR' })
+  })
+
+  it('tells the app when the session has ended', async () => {
+    const expired = vi.fn()
+    const stop = onSessionExpired(expired)
+    server.use(http.post('/api/stickers', () => problem(401, { code: 'UNAUTHORIZED' })))
+
+    await caught(api.upload('/api/stickers', formOf()))
+
+    expect(expired).toHaveBeenCalledTimes(1)
+    stop()
+  })
+
+  it('leaves the JSON calls as they were', async () => {
+    let type: string | null = null
+    server.use(
+      http.post('/api/tasks', ({ request }) => {
+        type = request.headers.get('Content-Type')
+        return HttpResponse.json({ id: 't-1' })
+      }),
+    )
+
+    await api.post('/api/tasks', { title: 'x' })
+
+    expect(type).toBe('application/json')
+  })
+})
