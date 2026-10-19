@@ -237,6 +237,7 @@ export class SessionManager {
         },
         message: (message) => this.received(accountId, session, message),
         oldMessages: (messages, threadType) => {
+          for (const message of messages) this.logMessage(accountId, message, "catch-up");
           const resolve = session.pages.get(threadType);
           session.pages.delete(threadType);
           resolve?.(messages);
@@ -266,6 +267,18 @@ export class SessionManager {
     if (this.sessions.get(accountId) !== session) {
       return;
     }
+    this.logMessage(accountId, message);
+    // Into the buffer first: whatever happens to the webhook, sino-api finds the message at its next pull.
+    if (session.buffer.add([message]).length > 0) {
+      this.notifier.messagesArrived(session.ownId);
+    }
+  }
+
+  /**
+   * One log line for a message Zalo gave: from the live listener, or (`source`) from the catch-up, which takes
+   * the messages sent while sino-zalo was off and so is where most of them come from after a restart.
+   */
+  private logMessage(accountId: string, message: ZaloMessage, source?: "catch-up"): void {
     // IDs, type and length only: never the text (D-282). For a photo also whether a picture was found, never its
     // address (it opens the picture) or its caption. For a sticker its ids, which are numbers. When the pipeline could
     // not show the message as it means to (no picture, no sticker, a type nobody has handled): the keys of the content
@@ -283,13 +296,10 @@ export class SessionManager {
           ? { stickerId: message.sticker.id, stickerCatId: message.sticker.catId, stickerType: message.sticker.type }
           : {}),
         ...(message.contentShape === undefined ? {} : { contentShape: message.contentShape }),
+        ...(source === undefined ? {} : { source }),
       },
       "Zalo message",
     );
-    // Into the buffer first: whatever happens to the webhook, sino-api finds the message at its next pull.
-    if (session.buffer.add([message]).length > 0) {
-      this.notifier.messagesArrived(session.ownId);
-    }
   }
 
   private async catchUpIfNeeded(accountId: string, session: LiveSession, cursor: bigint): Promise<void> {

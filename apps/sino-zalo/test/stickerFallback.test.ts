@@ -297,3 +297,67 @@ describe("SessionManager logs what it needs to tell a sticker or an unknown type
     expect(details).toEqual({ accountId: "a1", msgId: "100", threadId: "8001", zaloType: "webchat", length: 2 });
   });
 });
+
+describe("SessionManager logs the messages Zalo gave back when catching up, as it logs the live ones", () => {
+  const catchUpMessage = (msgId: string, fields: Partial<ZaloMessage> = {}): ZaloMessage => ({
+    msgId,
+    threadId: "8001",
+    threadType: "USER",
+    fromId: "8001",
+    fromName: "Bạn A",
+    isSelf: false,
+    zaloType: "webchat",
+    text: "Mai họp lúc 9 giờ",
+    sentAt: "2026-10-19T08:00:00.000Z",
+    ...fields,
+  });
+
+  async function caughtUp(page: ZaloMessage[]) {
+    const gateway = new FakeZaloGateway();
+    const lines: { message: string; details: Record<string, unknown> }[] = [];
+    const record = (details: object, text: string) => void lines.push({ message: text, details: details as Record<string, unknown> });
+    const manager = new SessionManager(gateway, new QuietNotifier(), { log: { info: record, warn: record } });
+    gateway.oldPages.USER.push(page);
+    await manager.put("a1", SESSION);
+    gateway.latestListener().events.ready();
+    await manager.readMessages("a1", "500", 100);
+    manager.stopAll();
+    return lines.filter((l) => l.message === "Zalo message").map((l) => l.details);
+  }
+
+  it("logs each message of a page by id, type and length, marked as coming from the catch-up, never its text", async () => {
+    const lines = await caughtUp([catchUpMessage("501"), catchUpMessage("502")]);
+
+    expect(lines).toEqual([
+      { accountId: "a1", msgId: "501", threadId: "8001", zaloType: "webchat", length: 17, source: "catch-up" },
+      { accountId: "a1", msgId: "502", threadId: "8001", zaloType: "webchat", length: 17, source: "catch-up" },
+    ]);
+    expect(JSON.stringify(lines)).not.toContain("Mai họp");
+  });
+
+  it("logs the ids of a sticker and the shape of a content it cannot show, as a live message does", async () => {
+    const lines = await caughtUp([
+      catchUpMessage("501", { zaloType: "chat.sticker", text: null, sticker: { id: "500", catId: "77", type: 3, url: null } }),
+      catchUpMessage("502", { zaloType: "chat.webcontent", text: null, contentShape: "title:string(1)" }),
+    ]);
+
+    expect(lines[0]).toMatchObject({ msgId: "501", stickerId: "500", stickerCatId: "77", stickerType: 3, source: "catch-up" });
+    expect(lines[1]).toMatchObject({ msgId: "502", contentShape: "title:string(1)", source: "catch-up" });
+  });
+
+  it("logs nothing for an empty page", async () => {
+    expect(await caughtUp([])).toEqual([]);
+  });
+
+  it("marks only the catch-up: a live message has no source", async () => {
+    const gateway = new FakeZaloGateway();
+    const lines: Record<string, unknown>[] = [];
+    const manager = new SessionManager(gateway, new QuietNotifier(), { log: { info: (details) => void lines.push(details as Record<string, unknown>), warn: () => {} } });
+    await manager.put("a1", SESSION);
+
+    gateway.latestListener().receive(catchUpMessage("600"));
+    manager.stopAll();
+
+    expect(lines.find((l) => l.msgId === "600")).not.toHaveProperty("source");
+  });
+});

@@ -1475,6 +1475,8 @@ Vì chưa biết "sticker khác" là gì, phần quan trọng hơn là làm cho 
 - `sino-zalo` `SessionManager`: dòng "Zalo message" của sticker có thêm ba số đó; của **mọi** tin mà đường ống không hiểu thì có thêm `contentShape` (tên khóa và loại giá trị, không bao giờ một giá trị). `unseen` quyết định tin nào: loại tin chưa ai xử lý (không nằm trong `KNOWN_TYPES`), ảnh không tìm được ảnh, sticker không đọc được, GIF không có địa chỉ. Một `switch` theo loại tin, mỗi loại có điều kiện "không hiểu" riêng.
 - `sino-api`: WARN khi từ chối địa chỉ ảnh tĩnh, sprite hay GIF của sticker, dùng chung một hàm `warnRefused(what, raw)` với ảnh. Trước đây một sticker ở tên miền lạ lặng lẽ ở lại là chữ.
 
+Một lỗ hổng của chính cách ghi log này đã lộ ra ở lần chạy đầu: dòng "Zalo message" chỉ có cho tin đến **trực tiếp** qua listener. Tin mà Zalo trả lại khi bù tin (`old_messages`: mọi thứ gửi lúc `sino-zalo` tắt hay đang nối lại, và đó là đường chính sau mỗi lần khởi động lại) đi thẳng vào bộ đệm mà không qua chỗ ghi log, nên người dùng tìm không thấy dòng nào dù tin đã về Sino. Sửa bằng cách tách việc ghi log thành một hàm `logMessage` dùng chung cho cả hai đường, tin bù có thêm `source: "catch-up"`. Bài học: khi thêm log để chẩn đoán, phải liệt kê **mọi đường** một tin có thể đi vào hệ thống, không chỉ đường quen thuộc nhất.
+
 ```text
 Sticker không hiện. Xem lần lượt:
   dòng "Zalo message" của nó      zaloType gì? có stickerId, stickerCatId không? contentShape?
