@@ -296,6 +296,7 @@ export class SessionManager {
           ? { stickerId: message.sticker.id, stickerCatId: message.sticker.catId, stickerType: message.sticker.type }
           : {}),
         ...(message.contentShape === undefined ? {} : { contentShape: message.contentShape }),
+        ...(message.photoShape === undefined ? {} : { photoShape: message.photoShape }),
         ...(source === undefined ? {} : { source }),
       },
       "Zalo message",

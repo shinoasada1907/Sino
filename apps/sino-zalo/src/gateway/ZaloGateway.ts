@@ -100,6 +100,12 @@ export interface ZaloMessage {
    * value, never a value, so the log can say what Zalo sent (ZL-16). sino-api ignores it.
    */
   readonly contentShape?: string | undefined;
+  /**
+   * Only on a `chat.photo` message, found or not: every key of the content (and of its `params`) with the kind of its
+   * value, and the host of each web address, never a path or a value, so the log can say which address of a photo
+   * that fails to load was chosen and where the others are (ZL-18). sino-api ignores it.
+   */
+  readonly photoShape?: string | undefined;
 }
 
 /** A thread's name and picture; null where Zalo gave none. */

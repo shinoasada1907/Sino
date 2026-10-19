@@ -166,6 +166,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
         : undefined;
   const photo = data.msgType === "chat.photo" ? photoOf(data.content) : undefined;
   const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
+  const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -179,6 +180,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
     ...(sticker === undefined ? {} : { sticker }),
     ...(photo === undefined ? {} : { photo }),
     ...(contentShape === undefined ? {} : { contentShape }),
+    ...(photoShape === undefined ? {} : { photoShape }),
   };
 }
 
@@ -256,6 +258,56 @@ function contentShapeOf(content: unknown): string {
       .map(([key, value]) => `${key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30)}:${kindOf(value)}`)
       .join(",") || "empty"
   );
+}
+
+/**
+ * Where a photo's content keeps its addresses, for the log (ZL-18). The photos that load come from photo-stal-*.zdn.vn
+ * and the ones that do not (404) from b-f11-zpc.zdn.vn, so which address was chosen, and whether another one is in
+ * the content or in `params`, is what the log has to say. Each key of the content (up to 20), then each of `params`
+ * (up to 20, `params.` before the name), with the kind of its value and, for a web address, its host: a host opens
+ * nothing, the path does. Last the numbers Zalo puts beside the content (`propertyExt`, `paramsExt`), which may say
+ * what sort of image it is; their text is left out.
+ */
+function photoShapeOf(data: Message["data"]): string {
+  const content = objectOf(data.content);
+  const parts =
+    content === null ? [`content:${kindOf(data.content)}`] : keysOf("", content);
+  const params = content === null ? null : objectOf(content.params);
+  if (params !== null) {
+    parts.push(...keysOf("params.", params));
+  }
+  for (const [name, ext] of [["propertyExt", data.propertyExt], ["paramsExt", data.paramsExt]] as const) {
+    for (const [key, value] of Object.entries(typeof ext === "object" && ext !== null ? ext : {}).slice(0, 10)) {
+      if (typeof value === "number" && Number.isSafeInteger(value)) {
+        parts.push(`${name}.${safeKey(key)}:${value}`);
+      }
+    }
+  }
+  return parts.join(",");
+}
+
+function keysOf(prefix: string, fields: Record<string, unknown>): string[] {
+  return Object.entries(fields)
+    .slice(0, 20)
+    .map(([key, value]) => `${prefix}${safeKey(key)}:${kindWithHostOf(value)}`);
+}
+
+function safeKey(key: string): string {
+  return key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30);
+}
+
+/** `kindOf`, but a web address says its host: `url(photo-stal-11.zdn.vn)`, or `url(unreadable)`. */
+function kindWithHostOf(value: unknown): string {
+  const kind = kindOf(value);
+  if (kind !== "url") {
+    return kind;
+  }
+  try {
+    const host = new URL(value as string).hostname;
+    return /^[A-Za-z0-9.-]{1,100}$/.test(host) ? `url(${host})` : "url(unreadable)";
+  } catch {
+    return "url(unreadable)";
+  }
 }
 
 function kindOf(value: unknown): string {
