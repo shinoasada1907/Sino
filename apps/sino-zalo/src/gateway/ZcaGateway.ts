@@ -3,6 +3,7 @@ import {
   type Credentials,
   LoginQRCallbackEventType,
   type Message,
+  type StickerDetail,
   ThreadType as ZcaThreadType,
   Zalo,
   ZaloApiError,
@@ -19,6 +20,7 @@ import {
   ZaloRejectedError,
   type ZaloSession,
   type ZaloSticker,
+  type ZaloStickerArt,
   ZaloUnavailableError,
 } from "./ZaloGateway.ts";
 
@@ -126,11 +128,11 @@ export class ZcaGateway implements ZaloGateway {
         };
       },
       sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
-      stickerUrl: async (stickerId) => {
+      stickerArt: async (stickerId) => {
         try {
           // `await` here, or a rejection would pass the catch below.
           const [detail] = await api.getStickersDetail(Number(stickerId));
-          return detail?.stickerUrl || detail?.stickerWebpUrl || null;
+          return detail === undefined ? null : stickerArtOf(detail);
         } catch (error) {
           throw new ZaloUnavailableError(reasonOf(error));
         }
@@ -171,6 +173,24 @@ export function toZaloMessage(message: Message): ZaloMessage {
     sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
     ...(sticker === undefined ? {} : { sticker }),
   };
+}
+
+/**
+ * The still picture and the sprite sheet of a sticker out of Zalo's detail. `stickerUrl` is a still 130x130 PNG,
+ * not a moving picture; the sticker moves only when Zalo names a sprite sheet with more than one frame and a
+ * duration. null when the detail names no picture at all.
+ */
+export function stickerArtOf(
+  detail: Pick<StickerDetail, "stickerUrl" | "stickerSpriteUrl" | "stickerWebpUrl" | "totalFrames" | "duration">,
+): ZaloStickerArt | null {
+  const url = detail.stickerUrl || detail.stickerWebpUrl || null;
+  const frames = detail.totalFrames;
+  const durationMs = Math.round(detail.duration);
+  const sprite =
+    detail.stickerSpriteUrl && Number.isSafeInteger(frames) && frames > 1 && durationMs > 0
+      ? { url: detail.stickerSpriteUrl, frames, durationMs }
+      : null;
+  return url === null && sprite === null ? null : { url, sprite };
 }
 
 /** The sticker a `chat.gif` content names (D-279). */

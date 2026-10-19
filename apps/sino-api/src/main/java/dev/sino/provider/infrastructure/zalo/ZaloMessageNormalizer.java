@@ -15,6 +15,7 @@ import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Participant;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sticker;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.StickerSprite;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
@@ -40,6 +41,16 @@ final class ZaloMessageNormalizer {
     static final int MAX_TEXT_LENGTH = 100_000;
     static final String ZALO_TYPE_KEY = "zaloType";
     static final int MAX_PICTURE_ADDRESS = 2_000;
+
+    /**
+     * What a sprite sheet may be (ZL-15): the frames of a Zalo sticker run from 2 up to a few dozen (7 and 19 seen),
+     * and one run lasts a fraction of a second to a few seconds. Outside these the whole sprite is left out and the
+     * sticker shows still, which also covers a duration whose unit turns out not to be milliseconds.
+     */
+    static final int MIN_SPRITE_FRAMES = 2;
+    static final int MAX_SPRITE_FRAMES = 300;
+    static final int MIN_SPRITE_DURATION_MS = 100;
+    static final int MAX_SPRITE_DURATION_MS = 10_000;
 
     /**
      * Domains Zalo serves sticker pictures from, as zca-js's sticker answers show (not yet seen on a real run, ZL-13:
@@ -236,8 +247,30 @@ final class ZaloMessageNormalizer {
             putIfPresent(metadata, "stickerId", clean(sticker.id()));
             putIfPresent(metadata, "stickerCatId", clean(sticker.catId()));
             putIfPresent(metadata, NormalizedMessage.STICKER_URL, pictureAddress(sticker.url()));
+            // Only a Zalo sticker moves by a sprite sheet; a gif is its own moving picture.
+            if ("chat.sticker".equals(zaloType)) {
+                putSprite(metadata, sticker.sprite());
+            }
         }
         return new Body(MessageType.UNKNOWN, placeholderText, Map.copyOf(metadata));
+    }
+
+    /** The sprite sheet with its frames and duration, or nothing at all when any of the three cannot be trusted. */
+    private static void putSprite(Map<String, String> metadata, StickerSprite sprite) {
+        if (sprite == null) {
+            return;
+        }
+        String address = pictureAddress(sprite.url());
+        Integer frames = sprite.frames();
+        Integer durationMs = sprite.durationMs();
+        if (address == null || frames == null || durationMs == null
+                || frames < MIN_SPRITE_FRAMES || frames > MAX_SPRITE_FRAMES
+                || durationMs < MIN_SPRITE_DURATION_MS || durationMs > MAX_SPRITE_DURATION_MS) {
+            return;
+        }
+        metadata.put(NormalizedMessage.STICKER_SPRITE_URL, address);
+        metadata.put(NormalizedMessage.STICKER_FRAMES, String.valueOf(frames));
+        metadata.put(NormalizedMessage.STICKER_DURATION_MS, String.valueOf(durationMs));
     }
 
     private static void putIfPresent(Map<String, String> metadata, String key, String value) {

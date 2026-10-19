@@ -159,6 +159,16 @@ export interface Attachment {
   url?: string
 }
 
+/**
+ * The sprite sheet of a Zalo sticker that moves (ZL-15): `frames` pictures side by side in one row, one run of them
+ * lasting `durationMs`.
+ */
+export interface StickerSprite {
+  url: string
+  frames: number
+  durationMs: number
+}
+
 export type Message =
   | {
       id: string
@@ -184,6 +194,8 @@ export type Message =
       clientMessageId?: string
       /** The address of a sticker's picture (ZL-14, D-279); absent when the message is no sticker or has no picture. */
       sticker?: string
+      /** The sprite sheet of a sticker that moves (ZL-15); absent for a still sticker or any other message. */
+      stickerSprite?: StickerSprite
       /** Only in this browser: the server never stored it (a send that did not reach it, or not allowed). */
       local?: boolean
     }

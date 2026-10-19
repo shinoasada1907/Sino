@@ -43,6 +43,17 @@ public record NormalizedMessage(
     public static final String STICKER_URL = "stickerUrl";
 
     /**
+     * Metadata keys of a sticker that moves (ZL-15): the address of its sprite sheet (checked like
+     * {@link #STICKER_URL}), the number of frames laid side by side in one row, and the milliseconds one run of
+     * them lasts. All three or none; left out when the sticker is still or any of them is unusable.
+     */
+    public static final String STICKER_SPRITE_URL = "stickerSpriteUrl";
+
+    public static final String STICKER_FRAMES = "stickerFrames";
+
+    public static final String STICKER_DURATION_MS = "stickerDurationMs";
+
+    /**
      * Metadata key, the {@code Message-ID} of an email: the same in every mailbox that holds the message, so Sino finds
      * its copies in the other accounts of the owner (F05b, D-180). Left out when there is none.
      */

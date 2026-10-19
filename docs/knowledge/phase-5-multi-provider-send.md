@@ -1284,14 +1284,14 @@ Khi người dùng chat qua Zalo gửi một sticker, thư viện `zca-js` nhậ
 Trước ZL-14, Sino chỉ hiển thị văn bản đại diện `[Sticker]` hoặc `[GIF]` (theo bảng D-279). Người dùng kiểm tra thấy trong giao diện chat chỉ hiện chữ thay vì hình ảnh trực quan. Hơn nữa, với các sticker động, nếu chỉ lấy thumbnail WebP nén tĩnh (`webpc`) thì hình ảnh bị đứng yên, mất chuyển động.
 
 Để hiển thị hình ảnh sticker và GIF thật (bao gồm cả ảnh động):
-1. `sino-zalo` (Node.js): Phân giải `{ id, catId, type }` từ `data.content`, gọi API `getStickersDetail(id)` của `zca-js`. Ưu tiên lấy `detail.stickerUrl` (URL chứa ảnh động gốc GIF hoặc WebP động) trước `detail.stickerWebpUrl` (ảnh thumbnail tĩnh dạng WebP). Với `chat.gif`, trích xuất trực tiếp địa chỉ URL từ nội dung `data.content` hoặc trường `params`.
+1. `sino-zalo` (Node.js): Phân giải `{ id, catId, type }` từ `data.content`, gọi API `getStickersDetail(id)` của `zca-js`. Ưu tiên lấy `detail.stickerUrl` (ZL-14 tưởng đây là ảnh động; thực ra là PNG tĩnh, xem mục 18) trước `detail.stickerWebpUrl` (ảnh thumbnail tĩnh dạng WebP). Với `chat.gif`, trích xuất trực tiếp địa chỉ URL từ nội dung `data.content` hoặc trường `params`.
 2. `sino-api` (Spring Boot / Java): Xác thực URL an toàn (chấp nhận HTTPS, danh sách tên miền tin cậy gồm CDN Zalo và các nhà cung cấp GIF phổ biến như `tenor.com`, `giphy.com`), lưu vào trường `metadata.stickerUrl`, gán `textContent` là `[Sticker]` hoặc `[GIF]`, và trả trường `sticker` ở API tin nhắn (`GET /api/conversations/{id}/messages`).
 3. `sino-web` (React / TypeScript): Kiểm tra URL an toàn qua hàm `pictureOf`, kết xuất thẻ ảnh `<img>` với thuộc tính `loading="lazy"` và `referrerPolicy="no-referrer"`. Nếu ảnh bị lỗi khi tải hoặc URL không an toàn, tự động quay về khung tin nhắn chữ tương ứng `[Sticker]` hoặc `[GIF]`.
 
 ### 17.2 Phân giải URL sticker và xử lý tin nhắn GIF tại `sino-zalo` (`Stickers.ts` và `ZcaGateway.ts`)
 Việc gọi API ngoài để lấy chi tiết sticker có thể gặp độ trễ hoặc lỗi mạng tạm thời. Nếu gọi tuần tự cho từng tin nhắn mỗi lần đọc tin, toàn bộ lượt đồng bộ sẽ bị chậm lại.
 Giải pháp được thiết kế trong lớp `Stickers` và gateway:
-- Ưu tiên tài nguyên động: Trong `ZcaGateway`, thứ tự trích xuất URL chi tiết sticker là `detail?.stickerUrl || detail?.stickerWebpUrl || null`. Điều này đảm bảo sticker động hiển thị đầy đủ hoạt cảnh thay vì khung hình tĩnh.
+- Ưu tiên tài nguyên động: Trong `ZcaGateway`, thứ tự trích xuất URL chi tiết sticker là `detail?.stickerUrl || detail?.stickerWebpUrl || null`. Giả định của ZL-14 là thứ tự này giữ được hoạt cảnh của sticker động; giả định đó sai, xem mục 18.
 - Xử lý tin nhắn `chat.gif`: Hàm `gifStickerOf` và `gifUrlOf` phân tích cấu trúc đa dạng của tin nhắn GIF (dạng chuỗi URL, đối tượng JSON, hoặc chuỗi JSON lồng nhau trong `params` với các khóa `href`, `url`, `normalUrl`, `oriUrl`). Tin nhắn sau khi trích xuất được gắn sẵn `sticker: { id, catId, type, url }`.
 - Cache URL thông minh: Trong `Stickers.fill(messages)`, nếu tin nhắn đã có sẵn URL (như tin nhắn GIF), hệ thống nạp thẳng vào bộ nhớ cache mà không cần gửi truy vấn tới Zalo API. Với các sticker cần tra cứu qua `id`, hệ thống lưu cache khi thành công và không cache kết quả null để cho phép thử lại.
 - Giới hạn thời gian (Timeout 2 giây): Toàn bộ lời gọi phân giải sticker trong một mẻ tin nhắn bị chặn tối đa 2 giây bằng `Promise.race` và `AbortSignal`, đảm bảo API đọc tin nhắn `GET /accounts/{accountId}/messages` không bao giờ bị nghẽn quá lâu.
@@ -1325,4 +1325,55 @@ Tại giao diện web, tin nhắn sticker và GIF có hai yêu cầu quan trọn
 - `apps/sino-api`: 28 test trong `ZaloStickerTests` kiểm tra toàn bộ các trường hợp URL hợp lệ, không hợp lệ, URL độc hại, tin nhắn `chat.gif`, và các domain Tenor/GIPHY. Toàn bộ 28/28 test passed, `mvn test` thành công.
 - `apps/sino-web`: 11 test trong `sticker.test.ts` (bao gồm kiểm tra domain Tenor/GIPHY), 19 test trong `inbox.api.test.ts`, 6 test trong `Sticker.test.tsx` (kiểm tra đầy đủ việc hiển thị ảnh, các thuộc tính bảo mật, và fallback khi `onError`). Toàn bộ 799/799 test của `sino-web` đều passed, `oxlint` 0 lỗi, `tsc -b` và `pnpm build` thành công.
 
+## 18. ZL-15 — Sticker Zalo chuyển động bằng sprite sheet
 
+### 18.1 Vấn đề: ảnh đang hiển thị chỉ là khung đầu
+Sau ZL-14, sticker hiện ra nhưng đứng yên, và người dùng thấy nó "chỉ là ảnh thường". Nguyên nhân là ZL-14 tin rằng `detail.stickerUrl` là ảnh động. Kiểm tra thật (chỉ xin header và 33 byte đầu của PNG, hai sticker đã nhận):
+
+| Địa chỉ | Là gì | Kích thước |
+|---|---|---|
+| `.../sticker/webpc?eid=33784&size=130` | PNG tĩnh, một khung | 130 x 130, 8 KB |
+| `.../sprite?eid=33784&size=130` | PNG sprite sheet | 910 x 130 (7 khung), 75 KB |
+| `.../sprite?eid=45342&size=130` | PNG sprite sheet | 2470 x 130 (19 khung), 185 KB |
+
+Sticker chuyển động của Zalo vì vậy là **một tấm ảnh dài**, các khung xếp cạnh nhau trên một hàng, mỗi khung vuông bằng chiều cao tấm ảnh. `getStickersDetail` trả thêm `stickerSpriteUrl`, `totalFrames` và `duration`.
+
+```text
+sprite sheet 910 x 130, 7 khung:
++------+------+------+------+------+------+------+
+|  0   |  1   |  2   |  3   |  4   |  5   |  6   |   mỗi khung 130 x 130
++------+------+------+------+------+------+------+
+
+hộp hiển thị 128 x 128, overflow ẩn: chỉ thấy một khung.
+Tấm ảnh trượt sang trái từng bước: 0, -128, -256, ... -768 px, rồi về 0.
+```
+
+### 18.2 `sino-zalo`: lấy sprite cùng ảnh tĩnh trong một lời gọi
+`stickerArt(id)` thay `stickerUrl(id)` và trả `{ url, sprite }`, vẫn chỉ một lần gọi `getStickersDetail`. Hàm thuần `stickerArtOf` quyết định: ảnh tĩnh là `stickerUrl`, rồi `stickerWebpUrl`; sprite chỉ có khi Zalo nêu địa chỉ sprite, `totalFrames` là số nguyên lớn hơn 1 và `duration` làm tròn lớn hơn 0. Nếu cả ảnh tĩnh lẫn sprite đều không có thì trả `null` (Zalo không biết sticker). `Stickers` cache cả hai và ghi một dòng log số khung và thời lượng lần đầu thấy mỗi sticker, chỉ có số, để kiểm đơn vị của `duration` trên dữ liệu thật.
+
+### 18.3 `sino-api`: kiểm tra và lưu
+Metadata là bảng chữ-sang-chữ, nên ba giá trị mới lưu dạng chữ: `stickerSpriteUrl`, `stickerFrames`, `stickerDurationMs`. Chỉ `chat.sticker` có sprite; GIF tự nó đã là ảnh động.
+- Địa chỉ sprite qua đúng `pictureAddress` của ảnh tĩnh (https, không user info, tên miền Zalo).
+- Số khung từ 2 đến 300, thời lượng từ 100 đến 10 000 ms. Ngoài khoảng đó **bỏ cả sprite** thay vì cắt cho vừa: nếu `duration` hóa ra không tính bằng mili giây, cắt sẽ cho một sticker chạy sai tốc độ mà không ai biết, còn bỏ thì sticker hiện ảnh tĩnh và dữ liệu thật cho thấy lỗi.
+- Đọc lại: `MessageHistory.spriteOf` phân tích chữ thành số có `try/catch`; thiếu một giá trị hoặc số hỏng thì không có sprite, sticker vẫn có ảnh tĩnh.
+- API tin nhắn giữ nguyên `sticker` (ảnh tĩnh) và thêm `stickerSprite { url, frames, durationMs }`. Thêm trường chứ không đổi trường cũ, nên web và sino-zalo cũ vẫn chạy với nhau.
+
+### 18.4 `sino-web`: chạy sprite bằng CSS
+`StickerPicture` đặt `<img>` rộng `frames x 100%` của hộp 128 x 128 (mỗi khung đúng bằng hộp) và gắn `animate-sticker`:
+
+```text
+animation: sticker-run var(--sticker-ms) steps(var(--sticker-frames), jump-none) infinite
+@keyframes sticker-run { to { transform: translateX(calc(-100% * (frames - 1) / frames)) } }
+```
+
+- `translateX` theo phần trăm tính trên bề rộng của chính phần tử, nên `-(frames-1)/frames` là đúng khung cuối.
+- `steps(N, jump-none)` cho đủ N vị trí từ đầu đến cuối; `steps(N)` thường chỉ cho N-1 vị trí đầu và bỏ khung cuối.
+- Số khung và thời lượng đi qua hai biến CSS `--sticker-frames`, `--sticker-ms` đặt trên chính thẻ `<img>`, nên CSS là một đoạn cố định.
+- `motion-reduce:animate-none`: người đọc bật giảm chuyển động thì sticker đứng ở khung đầu.
+- Sprite lỗi tải thì ảnh tĩnh, ảnh tĩnh lỗi thì chữ `[Sticker]`: ba tầng, mỗi tầng một state `brokenSprite`, `brokenSticker`.
+- `spriteOf` kiểm lại cùng giới hạn với backend: giá trị mà trang chạy đã qua hai lần kiểm.
+
+### 18.5 Kiểm chứng (ZL-15)
+- `jsdom` không chạy được CSS animation, nên phần chuyển động kiểm riêng trong trình duyệt thật với sprite thật: đọc `transform` sau khi đặt thời gian của animation bằng Web Animations API. Đồng hồ của tab nền trong khung xem trước đứng yên (`timeline = 0`), nên lấy mẫu theo thời gian thật không thấy gì dù CSS đúng; đặt `currentTime` cho kết quả xác định: 7 vị trí `0 … -768` px.
+- sino-zalo 165/165, sino-api 1796 test, sino-web 831/831 (trên worktree sạch). Kèm sửa một lỗi `TS18048` của ZL-14 trong `test/stickers.test.ts`.
+- Chưa kiểm: một sticker thật đi hết đường, tên trường và đơn vị `duration` của Zalo (lấy từ type của zca-js). Sticker đã lưu trước ZL-15 giữ ảnh tĩnh.

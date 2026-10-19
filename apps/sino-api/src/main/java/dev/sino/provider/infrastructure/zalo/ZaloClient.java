@@ -451,9 +451,22 @@ class ZaloClient {
 
     }
 
-    /** {@code url} is null when sino-zalo could not get the picture from Zalo. */
+    /**
+     * {@code url} is null when sino-zalo could not get the picture from Zalo; {@code sprite} is null unless the
+     * sticker moves.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Sticker(String id, String catId, Integer type, String url) {
+    record Sticker(String id, String catId, Integer type, String url, StickerSprite sprite) {
+
+        Sticker(String id, String catId, Integer type, String url) {
+            this(id, catId, type, url, null);
+        }
+
+    }
+
+    /** The sprite sheet of a sticker that moves: frames side by side in one row, one run lasting {@code durationMs}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record StickerSprite(String url, Integer frames, Integer durationMs) {
     }
 
 }

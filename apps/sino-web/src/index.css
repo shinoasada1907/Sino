@@ -76,6 +76,8 @@
   /* MotionSpec C: a row that arrives slides 6 px and fades in; with reduced motion it only fades. */
   --animate-row-in: row-in var(--dur-page) var(--ease-out) both;
   --animate-fade-in: fade-in var(--dur-page) var(--ease-out) both;
+  /* ZL-15: a Zalo sticker's sprite sheet (frames side by side in one row) slides left one frame at a time. */
+  --animate-sticker: sticker-run var(--sticker-ms) steps(var(--sticker-frames), jump-none) infinite;
   /* Canvas .anim-enter: a part of a public page comes in on load, 6 px up (web-public-pages, from sino-site). */
   --animate-enter: enter var(--dur-page) var(--ease-out) both;
   @keyframes enter {
@@ -93,6 +95,11 @@
   @keyframes fade-in {
     from {
       opacity: 0;
+    }
+  }
+  @keyframes sticker-run {
+    to {
+      transform: translateX(calc(-100% * (var(--sticker-frames) - 1) / var(--sticker-frames)));
     }
   }
 

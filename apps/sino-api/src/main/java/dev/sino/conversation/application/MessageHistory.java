@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import dev.sino.conversation.application.InboxMessage.File;
 import dev.sino.conversation.application.InboxMessage.Sender;
+import dev.sino.conversation.application.InboxMessage.StickerSprite;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.NormalizedMessage;
@@ -34,6 +35,9 @@ public class MessageHistory {
                    m.client_message_id,
                    m.metadata ->> :subject AS subject,
                    m.metadata ->> :stickerUrl AS sticker_url,
+                   m.metadata ->> :stickerSpriteUrl AS sticker_sprite_url,
+                   m.metadata ->> :stickerFrames AS sticker_frames,
+                   m.metadata ->> :stickerDurationMs AS sticker_duration_ms,
                    p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
             """;
@@ -80,6 +84,9 @@ public class MessageHistory {
                 + (cursor == null ? "" : " WHERE (sent_at, id) < (:before, :beforeId)")
                 + " ORDER BY sent_at DESC, id DESC LIMIT :rows) ORDER BY m.sent_at DESC, m.id DESC")
                 .param("subject", NormalizedMessage.SUBJECT).param("stickerUrl", NormalizedMessage.STICKER_URL)
+                .param("stickerSpriteUrl", NormalizedMessage.STICKER_SPRITE_URL)
+                .param("stickerFrames", NormalizedMessage.STICKER_FRAMES)
+                .param("stickerDurationMs", NormalizedMessage.STICKER_DURATION_MS)
                 .param("copies", copies).param("rows", limit + 1);
         if (cursor != null) {
             query = query.param("before", cursor.sentAt().atOffset(ZoneOffset.UTC)).param("beforeId", cursor.id());
@@ -97,6 +104,9 @@ public class MessageHistory {
     Optional<InboxMessage> message(UUID conversationId, UUID messageId) {
         return jdbc.sql(SELECT + "AND m.id = :message").param("subject", NormalizedMessage.SUBJECT)
                 .param("stickerUrl", NormalizedMessage.STICKER_URL)
+                .param("stickerSpriteUrl", NormalizedMessage.STICKER_SPRITE_URL)
+                .param("stickerFrames", NormalizedMessage.STICKER_FRAMES)
+                .param("stickerDurationMs", NormalizedMessage.STICKER_DURATION_MS)
                 .param("conversation", conversationId).param("message", messageId)
                 .query((row, n) -> messageOf(row)).optional()
                 .map(message -> withFiles(List.of(message)).getFirst());
@@ -113,7 +123,27 @@ public class MessageHistory {
                 recipients == null ? null : recipients.to(), recipients == null ? null : recipients.cc(),
                 row.getString("subject"), row.getString("text_content"),
                 BodyFormat.valueOf(row.getString("body_format")), row.getBoolean("is_read"), List.of(),
-                row.getObject("client_message_id", UUID.class), row.getString("sticker_url"));
+                row.getObject("client_message_id", UUID.class), row.getString("sticker_url"),
+                spriteOf(row.getString("sticker_sprite_url"), row.getString("sticker_frames"),
+                        row.getString("sticker_duration_ms")));
+    }
+
+    /**
+     * The sprite sheet of a sticker as the connector stored it (ZL-15). The metadata is text, so it is read back with
+     * care: all three values must be there and the numbers whole and above zero, else the sticker lists no sprite and
+     * shows still.
+     */
+    private static StickerSprite spriteOf(String url, String frames, String durationMs) {
+        if (url == null || frames == null || durationMs == null) {
+            return null;
+        }
+        try {
+            int frameCount = Integer.parseInt(frames);
+            int duration = Integer.parseInt(durationMs);
+            return frameCount > 1 && duration > 0 ? new StickerSprite(url, frameCount, duration) : null;
+        } catch (NumberFormatException unreadable) {
+            return null;
+        }
     }
 
     private List<InboxMessage> withFiles(List<InboxMessage> messages) {
@@ -132,7 +162,8 @@ public class MessageHistory {
                 });
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
-                List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId(), m.sticker())).toList();
+                List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId(), m.sticker(),
+                m.stickerSprite())).toList();
     }
 
 }

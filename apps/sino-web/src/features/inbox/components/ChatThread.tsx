@@ -15,7 +15,8 @@ import { ConversationAvatars } from './ConversationAvatars'
 import { LatestPreview } from './LatestPreview'
 import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
-import { pictureOf } from '../sticker'
+import { pictureOf, spriteOf } from '../sticker'
+import { StickerPicture } from './StickerPicture'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
 
@@ -160,8 +161,11 @@ function Tool({ label, icon: Icon, className, onClick }: { label: string; icon: 
 // Canvas `.bubble-row`: someone else's message on the left with their picture (and name in a group), own on the right.
 function Bubble({ message, showName, members }: { message: ChatMessage; showName: boolean; members: Member[] | null }) {
   const own = message.direction === 'OUT'
-  const sticker = pictureOf(message.sticker)
   const [brokenSticker, setBrokenSticker] = useState(false)
+  const [brokenSprite, setBrokenSprite] = useState(false)
+  // A sticker that moves plays its sprite sheet; when that cannot load it shows the still picture, then the text.
+  const still = brokenSticker ? null : pictureOf(message.sticker)
+  const sprite = brokenSprite ? null : spriteOf(message.stickerSprite)
   return (
     <div className={cn('flex max-w-[84%] items-end gap-2.5 md:max-w-[68%]', own ? 'flex-row-reverse self-end' : 'self-start')}>
       {!own && <Avatar aria-hidden="true" placeholder={memberPlaceholder(message.sender, members)} className="size-7" />}
@@ -171,15 +175,8 @@ function Bubble({ message, showName, members }: { message: ChatMessage; showName
             {message.sender}
           </span>
         )}
-        {sticker && !brokenSticker ? (
-          <img
-            src={sticker}
-            alt="Sticker"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setBrokenSticker(true)}
-            className="size-32 object-contain select-none"
-          />
+        {sprite || still ? (
+          <StickerPicture still={still} sprite={sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => setBrokenSticker(true)} />
         ) : (
           <div
             className={cn(
