@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71.
-> **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71. Mục 6 là phần lõi của F15 (ghi chú độc lập), `openspec/changes/f15-notes`: BE-90.
+> **Cập nhật:** 2026-10-19. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
 
@@ -479,3 +479,111 @@ Hai bẫy gặp khi viết `TaskForm.test.tsx`:
 - RED 19 test và một file không nạp được (chưa có `taskForm.ts`); GREEN; ca "Back không mở lại biểu mẫu" viết sau nên gài lỗi một lần (`navigate(-1)` thành `replace`): test đỏ, trả code lại.
 - `pnpm lint` 0 cảnh báo (tách `fieldProps.ts` vì file component không nên export hàm thường), `tsc -b` 0, `vitest` 590/590, `pnpm build` 0.
 - Chrome với backend thật: "Tùy chỉnh…" mỗi 2 tuần thứ Hai và thứ Năm sau 6 lần (máy chủ lưu đúng); dời hạn sang thứ Ba → 422 hiện cạnh ô Lặp lại; Esc không đổi gì; bỏ hạn → việc về "KHÔNG CÓ HẠN"; xóa có hỏi lại; 768 (hộp thoại) và 390 (trang riêng, thu chip để bảy thứ nằm một dòng); không lỗi console.
+
+---
+
+## 6. Bảng `note` và `NoteService` (BE-90)
+
+**Ở đâu:** migration `V20__notes_create_note.sql`; `notes/domain/Note`, `NotesErrorCode`; `notes/infrastructure/NoteRepository`; `notes/application/NoteService`, `NewNote`, `NoteChange`. Test: `NoteTests` (thuần Java), `NoteServiceTests` (PostgreSQL thật).
+
+**Là gì / để làm gì:** ghi chú lưu thật trong Sino (F15, change `f15-notes`): tạo, sửa, ghim, xóa, liệt kê. Chưa có đường REST (đó là BE-91) và chưa gắn với tin nhắn (D-170). Module `notes` đứng riêng như `planner`, chỉ nhờ `common`.
+
+```text
+NoteService (mọi hàm nhận ownerId từ web, ghi chú của người khác = NOTE_NOT_FOUND)
+  list(owner)                              mọi ghi chú, sửa gần nhất trước (updated_at DESC, id DESC)
+  get(owner, id)
+  create(owner, NewNote)                   chưa ghim, version 0
+  update(owner, id, version, NoteChange)   version lệch -> OptimisticLockingFailureException (sẽ là 409)
+  delete(owner, id)                        xóa hẳn, không cần version (D-176)
+```
+
+| Quyết định | Nội dung |
+|---|---|
+| D-170 | Ghi chú độc lập trước, gắn tin nhắn đợt sau |
+| D-172 | Mỗi ghi chú có `version`; lưu với `version` cũ thì bị từ chối, không ghi gì |
+| D-173 | Danh sách trả đủ nội dung; tìm và lọc ở trình duyệt |
+| D-174 | Nội dung bắt buộc, tiêu đề tùy chọn |
+| D-175 | Ghim không phải một lần sửa |
+| D-176 | Xóa hẳn |
+
+### 6.1 Vì sao so `version` trong service mà vẫn cần `@Version` của JPA (câu gợi ý của task)
+Hai lớp kiểm bắt hai chuyện khác nhau, cùng ra một ngoại lệ:
+
+```text
+tab cũ:     đọc ghi chú (version 3) ........ 10 phút ........ lưu với version 3
+                                  tab khác: lưu -> version 4
+            NoteService so 3 với 4 -> khác -> OptimisticLockingFailureException     (lớp 1: service)
+
+cùng lúc:   request A đọc 3 --+            request B đọc 3 --+
+            A: UPDATE ... WHERE id = ? AND version = 3  -> 1 hàng, version thành 4
+            B: UPDATE ... WHERE id = ? AND version = 3  -> 0 hàng -> exception       (lớp 2: @Version)
+```
+
+- `@Version` chỉ biết version mà transaction **này** đã đọc ở đầu hàm. Nó luôn khớp với database tại lúc đó, nên một tab mở từ 10 phút trước không bao giờ bị nó bắt. Chỉ con số `version` mà client gửi lên mới nói được "tôi đã đọc bản nào".
+- Kiểm trong service thì lại không bắt được hai request đến cùng lúc, vì cả hai cùng đọc thấy version khớp rồi mới ghi. Lúc đó câu `UPDATE ... WHERE version = ?` của Hibernate là lưới cuối.
+- Cả hai ném `OptimisticLockingFailureException` nên `GlobalExceptionHandler` có sẵn đổi thành `409 CONCURRENT_MODIFICATION` ở một chỗ, đúng như D-172 muốn.
+
+### 6.2 Vì sao `update` không cần `flush()` (một giả định sai mà kiểm bằng lỗi gài đã lộ ra)
+Bản đầu của `update` có `notes.flush()` ở cuối, với lý do: Hibernate chỉ tăng `version` khi ghi xuống database (lúc commit), nên nếu hàm trả ghi chú trước đó thì web nhận `version` cũ, lưu lần sau với `version` cũ và tự gây `409` cho chính mình.
+
+Lý do đó sai. Kiểm bằng lỗi gài (bỏ dòng `flush()`) không làm test nào đỏ, kể cả `savesANewBodyAndRaisesTheVersion` đòi object trả về mang `version` 1. Lý do:
+
+```text
+controller gọi service.update(...)
+  -> proxy @Transactional mở transaction
+     -> thân hàm sửa object Note (managed)
+  -> proxy commit: Hibernate flush, gửi UPDATE ... version = 4, và gán 4 vào CHÍNH object đó
+  -> proxy trả object về controller          <- controller đọc version SAU commit, đã là 4
+```
+
+`update` là ranh giới transaction (`open-in-view: false`, controller không nằm trong transaction nào), nên khi controller nhận object thì commit đã xong. Cùng lý do mà ngoại lệ khóa lạc quan của hai request đua nhau vẫn bay ra khỏi `update` dù không flush: lỗi lúc commit được Spring đổi thành `ObjectOptimisticLockingFailureException` rồi ném ra từ lời gọi qua proxy (test `twoSavesFromTheSameVersionAtOnceLeaveOneConflict` đúng một lần bị từ chối).
+
+Chỉ khi một service khác gọi `update` bên trong transaction của nó thì object mới còn `version` cũ cho tới khi flush; hiện không có chỗ nào như vậy. Bài học: một dòng "để chắc ăn" mà không test nào cần là code thừa mang một lời giải thích sai; bỏ nó đi.
+
+### 6.3 Ghim không phải một lần sửa, nhưng vẫn tăng `version` (D-175)
+`updated_at` do code của ta đặt: `edit` đặt, `pin` không đụng tới. `version` thì Hibernate tự tăng khi **bất kỳ** cột nào đổi:
+
+| Lệnh | Cột đổi | `updated_at` | `version` |
+|---|---|---|---|
+| sửa nội dung hoặc tiêu đề | `title`/`body`, `updated_at` | đổi | +1 |
+| ghim / bỏ ghim | `pinned` | giữ | +1 |
+| sửa cùng giá trị | không cột nào | giữ | giữ |
+
+Dòng cuối là chỗ dễ sai: `edit` phải trả `false` **trước khi** gán `updatedAt`. Nếu gán `updatedAt = now` rồi mới so, Hibernate thấy một cột đổi và tăng `version` cả khi chữ không đổi. Lúc đó tab nào tự lưu lại đúng chữ cũ cũng làm tab kia gặp `409` vô lý. Test `aChangeToTheSameValuesKeepsTheVersionAndTheTimeOfTheEdit` giữ chỗ này.
+
+### 6.4 Quy tắc nội dung ở ba nơi, mỗi nơi một vai
+- Java (`Note.create`, `Note.edit`): ném `IllegalArgumentException`, giữ bất biến của object. `edit` kiểm **cả hai** giá trị trước khi gán nên lỗi giữa chừng không để lại một object nửa cũ nửa mới (test `anEditThatBreaksARuleChangesNothing`).
+- API (BE-91, sắp tới): Bean Validation trả `400` có tên ô lỗi, để web hiện đúng chỗ.
+- Database: `CHECK` là lưới cuối cho mọi đường ghi khác (SQL viết tay, một lỗi lập trình sau này).
+
+Hai lớp đầu và `CHECK` không giống hệt nhau, và đó là cố ý:
+- `String.isBlank()` của Java coi mọi khoảng trắng Unicode (xuống dòng, tab, khoảng trắng toàn góc U+3000) là trắng, còn `btrim(body) <> ''` của PostgreSQL chỉ cắt dấu cách. `CHECK` yếu hơn Java, nên mọi thứ Java nhận thì `CHECK` cũng nhận. Test chèn thẳng `'   '` (toàn dấu cách) để thấy `CHECK` chặn.
+- Đếm ký tự: Java `String.length()` đếm đơn vị UTF-16, `char_length` của PostgreSQL đếm code point. Một ký tự ngoài bảng cơ bản (emoji chẳng hạn) là 2 trong Java và 1 trong PostgreSQL, nên Java luôn chặn trước hoặc cùng lúc, không bao giờ có ghi chú qua Java mà vi phạm `CHECK`.
+- Bẫy của `CHECK`: biểu thức ra `NULL` thì **qua**. `title IS NULL OR btrim(title) <> ''` viết rõ nhánh `NULL` ra trước để không dựa vào quy tắc đó.
+
+### 6.5 Tiêu đề trống là `null`, và `null` trong `NoteChange` là "giữ nguyên"
+`Note.checkedTitle` đổi tiêu đề trống thành `null`, nên "không có tiêu đề" chỉ có một cách lưu. `edit` so hai tiêu đề bằng `Objects.equals`, an toàn với `null`.
+
+`NoteChange` dùng `null` cho "client không gửi trường này", còn `title` là chuỗi rỗng cho "bỏ tiêu đề". `Note.edit(title, body, now)` thì nhận hai giá trị **đầy đủ**, không phải bản vá. Việc đổi "giữ nguyên" thành giá trị hiện có nằm trong `NoteService.update`:
+
+```java
+note.edit(change.title() != null ? change.title() : note.title(),
+          change.body() != null ? change.body() : note.body(), clock.instant());
+```
+
+Làm vậy `edit` đơn giản, dễ test thành bảng, và "không đổi gì" chỉ là so hai cặp giá trị.
+
+### 6.6 Thứ tự danh sách nằm ngay trong tên hàm
+`findByOwnerIdOrderByUpdatedAtDescIdDesc`: Spring Data dựng câu truy vấn từ tên hàm. ID là UUIDv7, tăng theo thời gian tạo, nên hai ghi chú cùng `updated_at` thì ghi chú tạo sau đứng trước, và thứ tự không nhảy giữa các lần đọc. Test `notesEditedAtTheSameTimeComeLargestIdFirst` chèn thẳng ba ID cố định bằng SQL thay vì dựa vào cách Hibernate sinh ID.
+
+### 6.7 Test: hai tab cùng lúc
+- `NoteTests` không nạp Spring; các giá trị trống dùng `@NullAndEmptySource` cộng `@ValueSource`, một bảng cho tiêu đề và một bảng cho nội dung.
+- `NoteServiceTests` dùng `MovableClock` chỉnh tay như `TaskServiceTests`.
+- `twoSavesFromTheSameVersionAtOnceLeaveOneConflict` cho hai luồng cùng gửi `version` 0 sau một `CountDownLatch`. Dù hai luồng xen kẽ thế nào, kết quả cố định: đúng một lần lưu được và một lần bị từ chối. Nếu luồng sau đọc sau khi luồng trước commit thì lớp 1 bắt; nếu cả hai đọc trước thì lớp 2 bắt (PostgreSQL cho câu `UPDATE` thứ hai chờ rồi thấy `version` đã đổi). Test này không cần `sleep`, nên không chập chờn.
+- `aSaveOverAnOlderReadIsRefusedByTheDatabaseToo` chạy lần sửa thứ hai trên luồng khác như mục 2.8, để chứng minh lớp 2 một mình cũng đủ.
+- Test `@ApplicationModuleTest` chỉ nạp module `notes` cùng module chung `common`; `identity` chưa cần vì BE-90 chưa có đường REST.
+
+### 6.8 Kiểm chứng (BE-90)
+- RED: viết `NoteTests` và `NoteServiceTests` trước, `test-compile` hỏng vì chưa có `Note`, `NoteService`, `NoteRepository`; GREEN ngay lần chạy đầu (28 + 23 test và `ModularityTests` 2/2). `module-notes.adoc` do Modulith sinh ra xác nhận `notes` là một module.
+- Kiểm bằng lỗi gài một lần cho `Note`, `NoteService` và `NoteRepository` (20 lỗi, mỗi lần một thay đổi, chạy lại hai lớp test): 19 bị bắt. Lỗi còn lại (bỏ `flush()`) sống sót và hóa ra là code thừa dựa trên giả định sai (mục 6.2), nên dòng đó bị bỏ. Hai lỗi đổi thứ tự danh sách ban đầu không biên dịch được vì đổi tên hàm repository mà quên chỗ gọi; gài lại cho đúng thì cả hai bị bắt.
+- `./mvnw -B -ntp verify` (JDK 25, PostgreSQL 18 trong Docker): 1546 test, 0 lỗi, 4 bỏ qua.

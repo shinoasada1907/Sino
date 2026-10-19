@@ -7,7 +7,9 @@
 
 ## 1. Backend
 
-- [ ] 1.1 **BE-90 — Module `notes`, bảng `note`, `Note`, `NoteService`**
+- [x] 1.1 **BE-90 — Module `notes`, bảng `note`, `Note`, `NoteService`** — XONG 2026-10-19 (phiên cloud, nhánh `claude/funny-mayer-35jgp7`)
+  - **Bằng chứng:** test viết trước, `test-compile` đỏ rồi xanh; `NoteTests` 28, `NoteServiceTests` 23 (CHECK có kiểm tên ràng buộc, hai tab cùng `version` cùng lúc → một lần bị từ chối), `ModularityTests` 2/2 thấy `notes`; kiểm bằng lỗi gài 19/19 bị bắt (một lỗi thứ 20, bỏ `flush()`, sống sót); `./mvnw -B -ntp verify` → 1546 test, 0 lỗi, 4 bỏ qua; mục F15 (6.1–6.8) trong `docs/knowledge/phase-4-planner.md`.
+  - **Làm khác kế hoạch:** (1) migration là **V20** vì V19 là số cao nhất trên cây này; chưa báo sino-api-27, sino-api-94 (phiên cloud này không liên lạc được); nếu `dev` đã dùng V20 thì đánh số lại khi gộp. (2) `NoteService.update` **không** `flush()` (bản đầu có, kiểm bằng lỗi gài cho thấy thừa): object trả về nhận `version` mới lúc commit, trước khi controller đọc. (3) `.docx` của file kiến thức **chưa sinh lại**: máy cloud không có GenOffice; chạy `genoffice create --type docx --from docs/knowledge/phase-4-planner.md --out docs/knowledge/phase-4-planner.docx --force` rồi `genoffice docs check`. (4) Chưa báo sino-api-94 trước khi sửa file kiến thức Phase 4 (chỉ thêm mục 6 và hai dòng đầu file).
   - **Goal / Why:** ghi chú lưu thật: tạo, sửa có kiểm phiên bản, ghim, xóa, danh sách (D-172, D-174, D-175, D-176).
   - **Depends on:** —
   - **Trước khi viết:** dòng nhận việc trong `PROJECT_STATE.md`; kiểm số V cao nhất trên `dev` (2026-10-12: V19) và báo sino-api-27, sino-api-94 số sẽ dùng.
