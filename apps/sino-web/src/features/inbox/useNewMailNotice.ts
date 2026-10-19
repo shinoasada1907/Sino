@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { onConversationsChanged } from '@/shared/realtime/streamState'
 
-// How long "N thư mới" stays after the last new mail.
-const NOTICE_MS = 6000
+// How long "N thư mới" stays after the last new mail; the bar of the shell (NF-02) waits as long once the tab shows again.
+export const NOTICE_MS = 6000
 
 /**
  * "N thư mới" / "N tin mới" (D-92): the new conversations brought by background sync since the notice last showed;

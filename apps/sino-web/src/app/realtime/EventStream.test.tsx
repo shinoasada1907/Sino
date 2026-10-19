@@ -16,7 +16,8 @@ function serveInboxFrame() {
     ),
   )
 }
-const changed = { type: 'conversations.changed', accountId: 'acc-1', conversationIds: ['conv-1'], newInbound: 1, source: 'sync', at: AT }
+// An account of the inbox sample: the bar of the shell names the kind of the account of an event from the frame (NF-02).
+const changed = { type: 'conversations.changed', accountId: 'acc-gmail', conversationIds: ['conv-1'], newInbound: 1, source: 'sync', at: AT }
 
 describe('the event stream of the web (FE-53)', () => {
   it('opens one stream for the signed-in app, and none on the sign-in page', async () => {

@@ -127,8 +127,8 @@ describe('the notice of each screen (f05c)', () => {
     lastStream().emit('conversations.changed', event('sync', 2))
     lastStream().emit('conversations.changed', { ...event('sync', 1), accountId: 'acc-zalo' })
 
-    expect(await screen.findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /thư mới/ })).toBeNull()
+    expect(await list().findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
+    expect(list().queryByRole('button', { name: /thư mới/ })).toBeNull()
   })
 
   it('says nothing on Hộp thư for new chats', async () => {
@@ -140,7 +140,9 @@ describe('the notice of each screen (f05c)', () => {
     lastStream().emit('conversations.changed', { ...event('sync', 1), accountId: 'acc-zalo' })
     lastStream().emit('conversations.changed', event('sync', 2))
 
-    expect(await screen.findByRole('button', { name: '2 thư mới' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /3 thư mới|tin mới/ })).toBeNull()
+    expect(await list().findByRole('button', { name: '2 thư mới' })).toBeInTheDocument()
+    expect(list().queryByRole('button', { name: /3 thư mới|tin mới/ })).toBeNull()
+    // The list stays silent about the chats; the bar of the shell, on every screen, tells them (NF-02).
+    expect(await within(shellPart('notice-bar')).findByText('1 tin mới')).toBeInTheDocument()
   })
 })

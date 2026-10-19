@@ -92,8 +92,8 @@ function seedInbox(queryClient: QueryClient, sample: InboxSample) {
   }
 }
 
-/** The element of one shell part (`sidebar`, `rail`, `tabbar`, `topbar`); all are in the DOM because jsdom ignores CSS. */
-export function shellPart(name: 'sidebar' | 'rail' | 'tabbar' | 'topbar'): HTMLElement {
+/** The element of one shell part (`sidebar`, `rail`, `tabbar`, `topbar`, `notice-bar`); all are in the DOM because jsdom ignores CSS. */
+export function shellPart(name: 'sidebar' | 'rail' | 'tabbar' | 'topbar' | 'notice-bar'): HTMLElement {
   const element = document.querySelector<HTMLElement>(`[data-slot="${name}"]`)
   if (!element) {
     throw new Error(`No [data-slot="${name}"] in the page`)

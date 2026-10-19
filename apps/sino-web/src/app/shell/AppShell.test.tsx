@@ -1,8 +1,10 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createInboxSample } from '@/features/inbox/inbox.sample'
+import { INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
 import { createTasksSample } from '@/features/tasks/tasks.sample'
+import { publishConversationsChanged } from '@/shared/realtime/streamState'
 import { CANVAS_NOW } from '@/shared/time/canvasClock'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
@@ -234,4 +236,135 @@ describe('top bar', () => {
     expect(topbar.getAllByRole('button', { name: 'Tìm kiếm' })).toHaveLength(1)
   })
 
+})
+
+describe('the mark on the browser tab (NF-01, D-317)', () => {
+  // index.html gives the page its title and its icon; jsdom does not load it.
+  let icon: HTMLLinkElement
+  beforeEach(() => {
+    document.title = 'Sino'
+    icon = document.createElement('link')
+    icon.rel = 'icon'
+    icon.setAttribute('href', '/favicon.svg')
+    document.head.append(icon)
+  })
+  afterEach(() => {
+    icon.remove()
+    document.title = ''
+  })
+
+  it('adds the unread chats and the unread mail up in the title, and puts the dot on the icon', async () => {
+    renderApp('/overview', { inbox: inboxWithUnread(2, 1) })
+
+    await waitFor(() => expect(document.title).toBe('(3) Sino'))
+    expect(icon).toHaveAttribute('href', '/favicon-unread.svg')
+  })
+
+  it('keeps the plain title when nothing is unread', async () => {
+    renderApp('/overview', { inbox: inboxWithUnread(0, 0) })
+
+    await screen.findByRole('main')
+    expect(document.title).toBe('Sino')
+    expect(icon).toHaveAttribute('href', '/favicon.svg')
+  })
+
+  it('follows the unread counts as new messages come in', async () => {
+    const { queryClient } = renderApp('/overview', { inbox: inboxWithUnread(0, 0) })
+    await screen.findByRole('main')
+
+    act(() => queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, { EMAIL: 1, CHAT: 4 }))
+
+    await waitFor(() => expect(document.title).toBe('(5) Sino'))
+  })
+
+  it('counts only the mail while the backend cannot count the chats apart', async () => {
+    const { queryClient } = renderApp('/overview', { inbox: inboxWithUnread(0, 0) })
+    await screen.findByRole('main')
+
+    act(() => queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, { EMAIL: 4, CHAT: null }))
+
+    await waitFor(() => expect(document.title).toBe('(4) Sino'))
+  })
+
+  it('gives the title back when the owner leaves the app', async () => {
+    const { unmount } = renderApp('/overview', { inbox: inboxWithUnread(2, 1) })
+    await waitFor(() => expect(document.title).toBe('(3) Sino'))
+
+    unmount()
+
+    expect(document.title).toBe('Sino')
+    expect(icon).toHaveAttribute('href', '/favicon.svg')
+  })
+
+  it('does not touch the title of a page outside the app', async () => {
+    document.title = 'Before'
+    renderApp('/login', { me: null })
+
+    await screen.findByRole('heading', { level: 1 })
+    expect(document.title).toBe('Before')
+  })
+})
+
+describe('the bar of new messages (NF-02, D-318, D-319)', () => {
+  const sample = createInboxSample(new Date())
+  const ZALO = sample.accounts.find((account) => account.provider === 'zalo')!.id
+  const sync = (accountId: string, newInbound: number) =>
+    act(() => publishConversationsChanged({ accountId, conversationIds: ['c-1'], newInbound, source: 'sync', at: new Date().toISOString() }))
+
+  it('tells a new chat on a screen that is not the list of chats', async () => {
+    renderApp('/tasks')
+    await screen.findByRole('main')
+
+    sync(ZALO, 1)
+
+    const bar = within(shellPart('notice-bar'))
+    expect(await bar.findByText('1 tin mới')).toBeInTheDocument()
+    expect(bar.getByRole('link', { name: /^Xem/ })).toHaveAttribute('href', '/messages')
+  })
+
+  it('sits between the top bar and the page', async () => {
+    renderApp('/tasks')
+    const main = await screen.findByRole('main')
+
+    const bar = shellPart('notice-bar')
+
+    expect(shellPart('topbar').compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(bar.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('goes to the list and lets the notice go when "Xem" is pressed', async () => {
+    const user = userEvent.setup()
+    const { router } = renderApp('/tasks')
+    await screen.findByRole('main')
+    sync(ZALO, 2)
+    const bar = within(shellPart('notice-bar'))
+
+    await user.click(await bar.findByRole('link', { name: /^Xem/ }))
+
+    expect(router.state.location.pathname).toBe('/messages')
+    expect(bar.queryByText(/mới/)).not.toBeInTheDocument()
+  })
+
+  it('leaves the open list to its own notice', async () => {
+    renderApp('/messages')
+    await screen.findByRole('main')
+
+    sync(ZALO, 1)
+
+    // The list says "1 tin mới" itself (D-92); the bar of the shell stays empty.
+    expect(await screen.findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
+    expect(within(shellPart('notice-bar')).queryByText(/mới/)).not.toBeInTheDocument()
+  })
+
+  it('closes with its button', async () => {
+    const user = userEvent.setup()
+    renderApp('/tasks')
+    await screen.findByRole('main')
+    sync(ZALO, 1)
+    const bar = within(shellPart('notice-bar'))
+
+    await user.click(await bar.findByRole('button', { name: /^Đóng thông báo/ }))
+
+    expect(bar.queryByText(/mới/)).not.toBeInTheDocument()
+  })
 })
