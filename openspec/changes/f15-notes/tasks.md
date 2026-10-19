@@ -40,7 +40,7 @@
 
 ## 2. Web
 
-- [ ] 2.1 **FE-90 — Màn Ghi chú trên API (chữ và sơ đồ)**
+- [x] 2.1 **FE-90 — Màn Ghi chú trên API (chữ và sơ đồ)**
   - **Goal / Why:** tạo, sửa, ghim, xóa lưu thật; tải lại không mất; không bao giờ mất chữ hay khối âm thầm (D-172, D-178, D-179).
   - **Depends on:** BE-91 (hợp đồng; chạy thật ở cuối task); đọc `PROJECT_STATE.md` xem ai đang giữ `features/notes/**`.
   - **Files:** `apps/sino-web/src/features/notes/{notes.types,notes.api,useNotes,format}.ts` (+ test), `components/{NoteEditor,NoteList,NoteCard}.tsx` (dòng báo, ẩn phần chưa có dữ liệu), `diagram/DiagramEditor.tsx` và nơi nó được dựng (dòng báo, nạp lại sơ đồ), `NotesPage.tsx` nếu cần; `apps/sino-web/src/test/{notesSampleApi.ts,fixtures/notesApi.ts}` (mới); mục F15 của file kiến thức.
@@ -49,6 +49,17 @@
   - **Chrome thật:** backend thật từ worktree (cổng riêng, PostgreSQL tạm), 1440 và 390: tạo, sửa, tải lại, ghim, xóa ghi chú chữ; tạo sơ đồ, thêm khối, nối, tải lại thấy đủ; hai tab cùng một ghi chú (chữ và sơ đồ) → tab sau báo xung đột, không mất chữ hay khối.
   - **Acceptance criteria:** delta `notes-screen`.
   - **Hints:** Level 1 — "khi danh sách đọc lại trong lúc đang gõ, ô soạn nên tin bản nào, và vì sao?"
+  - **Đã làm (2026-10-19, AUTO):** `notes.api.ts` gọi `/api/notes` (chỉ đổi thân hàm, D-42), `NoteItem.version`; `useAutosave.ts` dùng chung cho ô soạn chữ và vùng vẽ sơ đồ: lưu đi với `version` của `base` (bản trình soạn xuất phát từ đó, không phải bản trong cache), một yêu cầu một lúc, `409` / `404` / lỗi khác thành dòng báo `SyncNotice` ("Tải bản mới" / "Lưu bản của tôi", "Lưu thành ghi chú mới", "Thử lại"), ghim lỗi báo "Không ghim được"; xóa ghi chú đã mất ở nơi khác coi như đã xóa; `hasAnchoredNotes` ẩn chip "Gắn tin nhắn" và dòng "Ghi chú độc lập"; bỏ nút "Thêm thao tác"; `sameDiagram` so sơ đồ theo nội dung. Test: `NotesOnApi.test.tsx` 26, `notes.api.test.ts` 7, `sameDiagram` 4, `hasAnchoredNotes` 2; `test/{notesBackend, notesSampleApi, fixtures/notesApi}.ts`. Kiến thức: `### F15.3`.
+  - **Làm khác kế hoạch:**
+    - Thêm `useAutosave.ts` và `components/SyncNotice.tsx`, không có trong danh sách file. **LÝ DO:** ô soạn chữ và vùng vẽ cần đúng cùng một máy trạng thái (lưu, `409`, `404`, thử lại); chép hai nơi thì luật "không ghi đè im lặng" sẽ lệch nhau.
+    - Thêm `base` riêng cho trình soạn thay vì lưu theo `version` của cache. **LÝ DO:** kế hoạch chỉ ghi "ô soạn không nhận bản mới khi còn thay đổi chưa lưu"; nếu lần lưu vẫn lấy `version` từ cache thì danh sách đọc lại mang `version` của tab khác vào lần tự lưu kế tiếp, và nó ghi đè im lặng đúng điều D-172 chặn. Có test riêng.
+    - Thêm hàng đợi: mỗi lần một yêu cầu. **LÝ DO:** gõ, rời ô, gõ tiếp, rời ô khi lần lưu đầu chưa xong cho hai `PATCH` cùng `version`, cái sau tự gây `409` cho chính mình. Có test với máy chủ chậm.
+    - Xóa ghi chú trả `404` được coi là đã xóa. **LÝ DO:** ghi chú đã bị xóa ở nơi khác mà báo "Không xóa được" thì người dùng kẹt, thử lại cũng `404`.
+    - "Thêm thao tác" bỏ hẳn khỏi ô soạn chữ (kế hoạch: ẩn). **LÝ DO:** như `TaskDetail` của FE-70, chưa có thao tác nào, nút chỉ là nhiễu.
+    - `?filter=linked` khi chưa có ghi chú nào có neo thì hiện tất cả. **LÝ DO:** chip đã ẩn, một danh sách rỗng "Không có ghi chú nào khớp" mà không có chip nào sáng thì khó hiểu.
+    - Phải thêm mock `sampleNotesApi` vào `MobileSubPage.test.tsx` (mở màn Ghi chú thật). **LÝ DO:** màn nay gọi `/api/notes`; lỗi là "Requests without an MSW handler".
+  - **Kiểm chứng (2026-10-19):** viết trước 41 test mới: 39 đỏ (adapter, `sameDiagram`, `hasAnchoredNotes`, màn trên API) và 81 test cũ xanh nhờ mock mẫu. Xanh: thư mục `notes` 122/122; cả dự án 998 test, 994 xanh, 4 đỏ ngoài phạm vi: `client.test.ts` (2) và `useStickers.test.tsx` (1) về tải tệp (cũng đỏ trên cây dùng chung không có thay đổi của mình), `useShellData.test.tsx` (1) lệch 1 ms giữa hai `new Date()` (riêng 7/7 xanh). `pnpm lint` 0 lỗi (2 cảnh báo có sẵn ở `features/public`), `tsc -b` 0, `pnpm build` thành công. Lỗi gài: 10 lỗi (nhận bản mới khi còn chữ chưa lưu, bỏ hàng đợi, `409` không thành xung đột, không bao giờ chặn, không đổi `base`, "Lưu bản của tôi" không lấy `version` mới, `hasAnchoredNotes` luôn đúng, xóa `404` bị coi là lỗi, `sameDiagram` bỏ nhãn nối, bỏ gửi `version`), cả 10 đỏ đúng test. **Chrome thật** (backend `./mvnw spring-boot:test-run` cổng 18080 + Vite cấu hình tạm, 1440 và 375): tạo, tải lại còn; tab nhận bản mới khi không còn chữ chưa lưu; `PATCH` từ ngoài trang rồi gõ → dòng báo đúng chữ, chữ còn, máy chủ không bị ghi đè; "Lưu bản của tôi" → version 3; sơ đồ tạo ở thay đổi đầu tiên và tải lại thấy đủ khối; ghim; xóa; ở 375 dòng báo gọn; console chỉ có `401` trước khi đăng nhập và `409` do chính mình gây ra.
+  - **NOT VERIFIED:** kéo, nối khối và nhấn giữ trên cảm ứng thật; "Tải bản mới", `404` và lỗi mạng chỉ bằng test jsdom, chưa trên Chrome thật; hai thiết bị thật; mọi cỡ màn × 2 theme (để dành nghiệm thu ACC). **Hạn chế đã biết:** rời trình soạn khi dòng báo xung đột còn đó thì chữ chưa lưu mất.
 
 ## 3. Nghiệm thu
 

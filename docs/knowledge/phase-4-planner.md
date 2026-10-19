@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71. Phần lõi của F15, `openspec/changes/f15-notes` (ghi chú chữ và ghi chú dạng sơ đồ lưu trong database, chưa gắn tin nhắn), nằm ở phần cuối, mục "Ghi chú (F15)": BE-90, BE-91.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71. Phần lõi của F15, `openspec/changes/f15-notes` (ghi chú chữ và ghi chú dạng sơ đồ lưu trong database, chưa gắn tin nhắn), nằm ở phần cuối, mục "Ghi chú (F15)": BE-90, BE-91, FE-90.
 > **Cập nhật:** 2026-10-19. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -616,3 +616,65 @@ Hai chi tiết: (1) trường thiếu làm `toDiagram()` ném `NullPointerExcept
 - XANH: `NotesApiTests` 69, `ModularityTests` 2. `./mvnw -B -ntp clean verify` trong worktree: 1965 test, 0 lỗi, 8 bỏ qua (sẵn có), BUILD SUCCESS.
 - Gài lỗi: 10 lỗi ở lớp API, cả 10 làm đỏ đúng test của nó: bỏ luật ghi chú chữ, bỏ luật ghi chú sơ đồ, tắt `@FollowsDiagramRules`, `PATCH` không cần trường nào, `version` không bắt buộc, `version` âm, cho phép NUL, response bỏ `diagram`, `body` trắng ở `PATCH`, bỏ `Location`.
 - Chưa kiểm: gọi API trên backend chạy thật; làm ở FE-90 cùng Chrome thật.
+
+### F15.3 Màn Ghi chú trên API, lưu có phiên bản (FE-90)
+
+**Ở đâu:** `apps/sino-web/src/features/notes/`: `notes.api.ts`, `useNotes.ts`, `useAutosave.ts` (mới), `components/{NoteEditor, SyncNotice, NoteList}.tsx`, `diagram/{DiagramEditor.tsx, diagram.ts}` (`sameDiagram`), `format.ts` (`hasAnchoredNotes`). Test: `NotesOnApi.test.tsx`, `notes.api.test.ts`, `src/test/{notesBackend.ts, notesSampleApi.ts, fixtures/notesApi.ts}`.
+
+**Hợp đồng không đổi, chỉ đổi thân hàm (D-42).** Màn dựng trên dữ liệu mẫu từ NT-01; `notes.api.ts` là chỗ duy nhất gọi mạng, nên chuyển sang API thật chỉ là viết lại bốn hàm (`fetchNotes`, `createNote`, `saveNote`, `deleteNote`) và thêm `version` vào `NoteItem`. `saveNote` chỉ gửi trường đã đổi cùng `version` (`JSON.stringify` bỏ trường `undefined`, nên trường không gửi thì máy chủ giữ nguyên; `title: ''` được gửi để xóa tiêu đề). Ghi chú sơ đồ gửi `{ kind: 'DIAGRAM', title, diagram }` và không có `body`.
+
+```text
+gõ chữ / kéo khối
+   |  ngừng 600 ms, hoặc rời ô, hoặc rời ghi chú
+   v
+hàng đợi (mỗi lần một việc, theo thứ tự) --> PATCH { version: base.version, ...phần đã đổi }
+                                                  |
+   200  --> base = bản máy chủ trả về
+   409  --> "Ghi chú này vừa được sửa ở nơi khác."  --> [Tải bản mới] [Lưu bản của tôi]
+   404  --> "Ghi chú này đã bị xóa ở nơi khác."     --> [Lưu thành ghi chú mới]
+   khác --> "Không lưu được thay đổi."              --> [Thử lại]   (lần ngừng gõ sau cũng tự thử)
+```
+
+**Khái niệm chính: `base`, bản mà trình soạn xuất phát từ đó, khác với bản trong cache.** Cache của danh sách (`useNotes`) đọc lại mỗi khi tab trở lại phía trước. Nếu một lần lưu lấy `version` từ cache, thì: người dùng đang gõ dở, tab khác vừa sửa cùng ghi chú, danh sách đọc lại mang `version` mới của tab kia vào cache, lần tự lưu kế tiếp gửi `version` mới đó và **thắng im lặng**, ghi đè đoạn vừa sửa ở tab kia. Đúng cái mà D-172 sinh ra để chặn. Vì vậy `useAutosave` giữ `base` riêng:
+- `base` bắt đầu từ ghi chú lúc mở; mỗi lần lưu thành công đổi `base` thành bản máy chủ trả về;
+- danh sách đọc lại **không** đổi `base` khi còn thay đổi chưa lưu (`changeOf(base, nội dung) !== null`), nên lần lưu sau đi với `version` cũ và nhận `409`, còn chữ đang gõ vẫn nằm trong ô;
+- khi không còn gì chưa lưu, trình soạn nhận bản mới (`adopt`), nên không ai phải bấm gì chỉ để thấy chữ từ tab kia.
+
+Cache chỉ để hiển thị ("Sửa lúc ...", chip, thẻ); `base` mới là cái để lưu. Test `does not take the typing away when the list is read again, and the save that follows is refused, not silent` kiểm đúng chuyện này: lần lưu đi với `version` 2, không phải 3 vừa đọc.
+
+**Hàng đợi, vì một lần lưu chồng lên lần lưu trước sẽ tự gây `409` cho chính mình.** Gõ, rời ô (lưu bắt đầu), gõ tiếp, rời ô lần nữa trong lúc lần đầu chưa xong: hai `PATCH` cùng mang `version` cũ, cái sau bị `409`. Mọi yêu cầu mạng của trình soạn (lưu, ghim, tải bản mới, lưu bản của tôi) đi qua một chuỗi `Promise`:
+
+```ts
+queue.current = queue.current.then(task).catch(() => undefined).finally(() => { pending.current -= 1 })
+```
+
+Mỗi việc đọc nội dung và `base` **lúc đến lượt**, không lúc được xếp hàng, nên hai lần "lưu" liên tiếp thành một lần lưu thật và một lần không có gì để lưu. `.catch(() => undefined)` giữ chuỗi sống khi một việc lỗi (nếu không, mọi việc sau sẽ không bao giờ chạy). Đếm `pending` để biết lúc nào là "đang có lần lưu trên đường đi": lúc đó lần đọc lại danh sách chưa được nhận làm `base`.
+
+**So nội dung, không so tham chiếu.** Sau mỗi lần lưu, máy chủ trả một bản sao sơ đồ (đối tượng khác, khóa có thể khác thứ tự). Nếu trình soạn so `diagram !== base.diagram`, mọi lần ngừng gõ đều thấy "đã đổi" và lại `PATCH`. `sameDiagram` so từng khối và nối theo trường; tiêu đề so sau khi bỏ khoảng trắng hai đầu, vì máy chủ lưu tiêu đề đã cắt.
+
+**`409`, `404`, lỗi khác: ba trạng thái, ba lối ra.** `SyncNotice` hiện dòng báo ở đầu trình soạn (cả chữ lẫn sơ đồ; chữ báo khác một câu: "Chữ bạn đang gõ chưa được lưu" và "Thay đổi bạn vừa vẽ chưa được lưu"). Trong lúc `409` hoặc `404`, tự lưu dừng hẳn (`blocked()`), nhưng nội dung vẫn ở trong ô. "Tải bản mới" đọc lại danh sách và nạp bản máy chủ; "Lưu bản của tôi" đọc lại để lấy `version` mới rồi lưu nội dung đang có lên đó (ghi đè có chủ ý, người dùng đã chọn); "Lưu thành ghi chú mới" xóa `base` và tạo ghi chú mới từ chữ hoặc sơ đồ đang có. Lỗi mạng hay `5xx` chỉ hiện dòng báo, không dừng gì: lần ngừng gõ sau tự thử lại.
+
+**Một ghi chú đã bị xóa ở nơi khác thì coi như đã xóa.** `deleteNote` trả `404` khi ghi chú không còn; nếu hiện "Không xóa được ghi chú" thì người dùng kẹt, vì thử lại cũng `404` mãi. `useDeleteNote` nuốt đúng `404` (và chỉ `404`) nên màn đi về danh sách như bình thường.
+
+**Ẩn phần chưa có dữ liệu.** `hasAnchoredNotes` là hàm thuần: chip "Gắn tin nhắn" và dòng nguồn "Ghi chú độc lập" chỉ hiện khi có ít nhất một ghi chú có neo (D-178); `?filter=linked` khi chưa có neo hiện tất cả thay vì một danh sách rỗng khó hiểu. "Thêm thao tác" bỏ hẳn khỏi trình soạn chữ, như FE-70 với việc.
+
+**Hạ tầng test.**
+- `notesBackend` (MSW) giữ ghi chú trong bộ nhớ **với luật của máy chủ thật**: `PATCH` đi với `version`, cũ hơn thì `409`, không đổi gì thì giữ `version`, ghim giữ giờ sửa. Có "tay" để làm như tab khác: `editElsewhere`, `removeElsewhere`, `fail(n)`, `setDown(true)` (lỗi mạng), `slowSaves(ms)` (để hai lần lưu có thể chồng nhau).
+- Các test cũ (NT-01 đến DG-04) viết trên dữ liệu mẫu, nên dùng `vi.mock('./notes.api', ...)` với `sampleNotesApi`, cùng cách `sampleTasksApi` của FE-70. Một test bên ngoài thư mục `notes` cũng mở màn Ghi chú thật (`MobileSubPage.test.tsx`) và phải mock tương tự: lỗi hiện ra là "Requests without an MSW handler: GET /api/notes".
+- Đọc lại danh sách trong test: `await act(() => queryClient.invalidateQueries({ queryKey: NOTES_QUERY_KEY }))`.
+
+**Câu gợi ý của task: "khi danh sách đọc lại trong lúc đang gõ, ô soạn nên tin bản nào, và vì sao?"** Tin **chữ của chính nó** và **`base` của chính nó**, không tin danh sách. Danh sách chỉ nói "máy chủ đang có gì"; ô soạn cần biết "tôi xuất phát từ đâu". Khi hai điều đó khác nhau mà còn chữ chưa lưu thì đó chính là xung đột, và chỉ máy chủ (bằng `409`) hay người dùng (bằng hai nút) mới có quyền quyết ai thắng.
+
+**Bẫy khi chạy trình duyệt thật.**
+- Chuyển sang tab khác rồi quay lại kích hoạt đọc lại danh sách, và trình soạn không còn gì chưa lưu sẽ nhận bản mới: đúng ý, nhưng nghĩa là muốn thấy `409` thì phải để máy chủ đổi **sau** khi tab này đã đọc xong và **trước** khi nó lưu. Cách làm: `fetch` một `PATCH` từ chính trang (có token `X-XSRF-TOKEN` đọc từ cookie) rồi gõ vào ô.
+- Nếu ngăn trình duyệt của ứng dụng bị ẩn, thao tác bấm báo "không vẽ được trang"; thử lại, hoặc nhờ người dùng đưa ngăn đó lên.
+- Backend thử dùng `./mvnw spring-boot:test-run -Dspring-boot.run.arguments=--server.port=18080` (PostgreSQL tạm bằng Testcontainers, hồ sơ `test` có sẵn tài khoản thử) và Vite chạy bằng một cấu hình tạm đổi cổng và địa chỉ proxy, nên không đụng backend trên cổng 8080 của người dùng.
+
+**Kiểm chứng (FE-90).**
+- ĐỎ đúng lý do: viết trước 41 test mới, chạy khi chưa có cài đặt: 39 đỏ (adapter 7, `sameDiagram` 4, `hasAnchoredNotes` 2, màn trên API 26), 2 xanh sẵn (chúng kiểm điều chưa từng xảy ra, như "không gọi API khi chữ trống"); 81 test cũ vẫn xanh nhờ mock dữ liệu mẫu.
+- XANH: thư mục `notes` 122/122 (11 file). Cả dự án: 998 test, 994 xanh và 4 đỏ ngoài phạm vi: `client.test.ts` (2) và `useStickers.test.tsx` (1) về tải tệp multipart (cũng đỏ trên bản không có thay đổi của mình, trong thư mục dùng chung), và `useShellData.test.tsx` (1) so hai `new Date()` lệch 1 ms (chạy riêng 7/7 xanh).
+- `pnpm lint`: 0 lỗi, 2 cảnh báo có sẵn ở `features/public/*` (không đụng); `tsc -b` 0; `pnpm build` thành công.
+- Gài lỗi (một lần, cho logic lưu): 10 lỗi, cả 10 làm đỏ đúng test của chúng: nhận bản mới của danh sách dù còn chữ chưa lưu, bỏ hàng đợi, `409` không thành "xung đột", không bao giờ chặn, không đổi `base` sau khi lưu, "Lưu bản của tôi" không lấy `version` mới, `hasAnchoredNotes` luôn đúng, xóa `404` bị coi là lỗi, `sameDiagram` bỏ qua nhãn nối, `saveNote` quên gửi `version`.
+- Chrome thật (backend `test-run` cổng 18080, 1440 và 375): tạo ghi chú chữ rồi tải lại vẫn còn; sửa từ tab khác rồi quay lại tab này (không còn chữ chưa lưu) thì ô soạn nhận chữ mới; `PATCH` từ ngoài trang rồi gõ thêm: dòng báo đúng chữ, hai nút, chữ đang gõ còn nguyên, máy chủ chưa bị ghi đè (version 2 vẫn là bản của "điện thoại"); "Lưu bản của tôi" cho version 3 chứa chữ của tab này và dòng báo biến mất; sơ đồ tạo ở thay đổi đầu tiên, tải lại thấy đủ khối, thẻ "Sơ đồ · 2 khối · 0 nối", ghim (version 2, chip "Đã ghim · 1"), xóa về `/notes`; ở 375 dòng báo nằm gọn một khối trên trang với hai nút; chip chỉ có "Tất cả", "Đã ghim", "Sơ đồ" và thẻ không có "Ghi chú độc lập"; console chỉ có `401` trước khi đăng nhập và `409` do chính mình gây ra.
+- `NOT VERIFIED`: kéo và nối khối, nhấn giữ trên cảm ứng thật (như DG-04); "Tải bản mới", `404` ("Lưu thành ghi chú mới") và lỗi mạng chỉ kiểm bằng test jsdom, chưa trên Chrome thật; 2 thiết bị thật; mọi cỡ màn × 2 theme (để dành cho nghiệm thu).
+- Hạn chế đã biết: rời trình soạn khi dòng báo xung đột còn đó thì chữ chưa lưu mất (dòng báo đã nói "chưa được lưu", nhưng không có hộp hỏi khi rời).
