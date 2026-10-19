@@ -8,7 +8,17 @@ import type { UploadEntry } from './useUploadQueue'
  * `status` region that is always in the page, so a screen reader hears its changes; a refusal is an `alert` of its own,
  * heard at once. "Ẩn thông báo tải lên" clears the finished ones once nothing is loading.
  */
-export function UploadList({ entries, active, onDismiss }: { entries: UploadEntry[]; active: boolean; onDismiss: () => void }) {
+export function UploadList({
+  entries,
+  active,
+  onRetry,
+  onDismiss,
+}: {
+  entries: UploadEntry[]
+  active: boolean
+  onRetry: (id: number) => void
+  onDismiss: () => void
+}) {
   const progress = entries.filter((entry) => entry.state !== 'failed')
   const failed = entries.filter((entry) => entry.state === 'failed')
 
@@ -31,9 +41,16 @@ export function UploadList({ entries, active, onDismiss }: { entries: UploadEntr
         ))}
       </ul>
       {failed.map((entry) => (
-        <p key={entry.id} role="alert" className="rounded-sm border border-danger/45 bg-danger/8 px-3 py-2 text-sm text-danger-ink">
-          <span className="font-semibold">{entry.name}</span>: {entry.message}
-        </p>
+        <div key={entry.id} role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-sm border border-danger/45 bg-danger/8 px-3 py-2 text-sm text-danger-ink">
+          <p className="min-w-0 grow">
+            <span className="font-semibold">{entry.name}</span>: {entry.message}
+          </p>
+          {entry.retryable && (
+            <Button type="button" variant="secondary" size="sm" aria-label={`Thử lại tải ${entry.name}`} onClick={() => onRetry(entry.id)}>
+              Thử lại
+            </Button>
+          )}
+        </div>
       ))}
       {entries.length > 0 && !active && (
         <Button type="button" variant="ghost" size="sm" className="self-start" onClick={onDismiss}>

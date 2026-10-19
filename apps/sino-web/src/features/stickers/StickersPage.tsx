@@ -2,6 +2,7 @@ import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { Spec } from '@/shared/ui/spec'
 import { GRID, StickerCard } from './StickerCard'
 import { StickersEmpty, StickersLoadFailed, StickersSkeleton } from './StickerStates'
+import { DropZone } from './DropZone'
 import { FilePicker, UploadButton } from './UploadButton'
 import { UploadList } from './UploadList'
 import { useStickers } from './useStickers'
@@ -20,7 +21,7 @@ export function StickersPage() {
   return (
     <FilePicker onFiles={uploads.add}>
       {(openPicker) => (
-        <section aria-label="Thư viện sticker" className="flex h-full min-h-0 flex-col overflow-auto">
+        <DropZone label="Thư viện sticker" onFiles={uploads.add}>
           <MobilePageHeader
             back={{ to: '/more', label: 'Quay lại Thêm' }}
             title="Sticker"
@@ -34,7 +35,7 @@ export function StickersPage() {
             </div>
             <UploadButton onClick={openPicker} />
           </header>
-          <UploadList entries={uploads.entries} active={uploads.active} onDismiss={uploads.dismiss} />
+          <UploadList entries={uploads.entries} active={uploads.active} onRetry={uploads.retry} onDismiss={uploads.dismiss} />
           {stickers === undefined ? (
             error ? (
               <StickersLoadFailed onRetry={retry} />
@@ -53,7 +54,7 @@ export function StickersPage() {
               ))}
             </ul>
           )}
-        </section>
+        </DropZone>
       )}
     </FilePicker>
   )

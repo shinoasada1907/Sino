@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { checkStickerFile, uploadErrorMessage } from './format'
+import { useEffect, useRef, useState } from 'react'
+import { checkStickerFile, isRetryableUpload, uploadErrorMessage } from './format'
 import { useUploadSticker } from './useStickers'
 
 export type UploadState = 'waiting' | 'uploading' | 'done' | 'failed'
@@ -10,6 +10,8 @@ export interface UploadEntry {
   name: string
   state: UploadState
   message?: string
+  /** A failed upload that may work the second time (no network, a server that failed): the screen offers "Thử lại". */
+  retryable?: boolean
 }
 
 const isActive = (entry: UploadEntry) => entry.state === 'waiting' || entry.state === 'uploading'
@@ -25,6 +27,15 @@ export function useUploadQueue() {
   const pending = useRef<{ id: number; file: File }[]>([])
   const running = useRef(false)
   const nextId = useRef(0)
+  // The files by entry, for `retry`; a file is kept only while its entry is.
+  const kept = useRef(new Map<number, File>())
+  useEffect(() => {
+    for (const id of kept.current.keys()) {
+      if (!entries.some((entry) => entry.id === id)) {
+        kept.current.delete(id)
+      }
+    }
+  }, [entries])
 
   const update = (id: number, change: Partial<UploadEntry>) =>
     setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, ...change } : entry)))
@@ -41,7 +52,7 @@ export function useUploadQueue() {
           await upload.mutateAsync({ file: item.file })
           update(item.id, { state: 'done' })
         } catch (error) {
-          update(item.id, { state: 'failed', message: uploadErrorMessage(error) })
+          update(item.id, { state: 'failed', message: uploadErrorMessage(error), retryable: isRetryableUpload(error) })
         }
       }
     } finally {
@@ -56,6 +67,7 @@ export function useUploadQueue() {
       const id = nextId.current++
       const check = checkStickerFile(file)
       if (check.ok) {
+        kept.current.set(id, file)
         pending.current.push({ id, file })
         made.push({ id, name: file.name, state: 'waiting' })
       } else {
@@ -67,7 +79,18 @@ export function useUploadQueue() {
     void drain()
   }
 
+  /** Puts a failed file back in the queue, at the end. */
+  function retry(id: number) {
+    const file = kept.current.get(id)
+    if (!file) {
+      return
+    }
+    update(id, { state: 'waiting', message: undefined, retryable: undefined })
+    pending.current.push({ id, file })
+    void drain()
+  }
+
   const dismiss = () => setEntries((list) => list.filter(isActive))
 
-  return { entries, add, dismiss, active: entries.some(isActive) }
+  return { entries, add, retry, dismiss, active: entries.some(isActive) }
 }
