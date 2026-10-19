@@ -105,6 +105,9 @@ export class ZcaGateway implements ZaloGateway {
         : new ZaloUnavailableError(reasonOf(error));
     }
 
+    // The stickers of a category, once Zalo has given them, for the stickers of that category that come later.
+    const categories = new Map<number, StickerDetail[]>();
+
     return {
       ownId: api.getOwnId(),
       listener: (events) => {
@@ -129,11 +132,10 @@ export class ZcaGateway implements ZaloGateway {
         };
       },
       sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
-      stickerArt: async (stickerId) => {
+      stickerArt: async (stickerId, catId) => {
         try {
           // `await` here, or a rejection would pass the catch below.
-          const [detail] = await api.getStickersDetail(Number(stickerId));
-          return detail === undefined ? null : stickerArtOf(detail);
+          return await findStickerArt(api, categories, stickerId, catId);
         } catch (error) {
           throw new ZaloUnavailableError(reasonOf(error));
         }
@@ -163,7 +165,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
         ? gifStickerOf(data.msgId, data.content)
         : undefined;
   const photo = data.msgType === "chat.photo" ? photoOf(data.content) : undefined;
-  const contentShape = data.msgType === "chat.photo" && photo === undefined ? contentShapeOf(data.content) : undefined;
+  const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -178,6 +180,26 @@ export function toZaloMessage(message: Message): ZaloMessage {
     ...(photo === undefined ? {} : { photo }),
     ...(contentShape === undefined ? {} : { contentShape }),
   };
+}
+
+/** The types of message the pipeline knows what to do with (D-279); any other is shown as a placeholder. */
+const KNOWN_TYPES = new Set(["webchat", "chat.photo", "chat.sticker", "chat.gif", "share.file", "chat.voice"]);
+
+/**
+ * Whether a message is one the pipeline could not show as it means to: a type nobody has handled, or a photo, a sticker
+ * or a gif whose content named nothing to show. Its content is then described in the log (`contentShapeOf`).
+ */
+function unseen(msgType: string, photo: ZaloPhoto | undefined, sticker: ZaloSticker | undefined): boolean {
+  switch (msgType) {
+    case "chat.photo":
+      return photo === undefined;
+    case "chat.sticker":
+      return sticker === undefined;
+    case "chat.gif":
+      return !sticker?.url;
+    default:
+      return !KNOWN_TYPES.has(msgType);
+  }
 }
 
 /**
@@ -228,10 +250,12 @@ function contentShapeOf(content: unknown): string {
   if (fields === null) {
     return `content:${kindOf(content)}`;
   }
-  return Object.entries(fields)
-    .slice(0, 20)
-    .map(([key, value]) => `${key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30)}:${kindOf(value)}`)
-    .join(",");
+  return (
+    Object.entries(fields)
+      .slice(0, 20)
+      .map(([key, value]) => `${key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30)}:${kindOf(value)}`)
+      .join(",") || "empty"
+  );
 }
 
 function kindOf(value: unknown): string {
@@ -254,6 +278,38 @@ function webAddress(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed.startsWith("https://") || trimmed.startsWith("http://") ? trimmed : null;
+}
+
+/**
+ * The picture of a sticker: what Zalo names for the sticker itself and, when it names nothing (zca-js drops a sticker
+ * Zalo refuses, so a sticker of a pack it does not serve comes back as no answer at all), what the sticker's category
+ * lists for it. Null when neither has a picture or the category cannot be named. A category is asked for once and
+ * kept in `categories`; one that failed is not kept, so the next sticker asks again. A failure of either question
+ * is the caller's to handle.
+ */
+export async function findStickerArt(
+  api: Pick<API, "getStickersDetail" | "getStickerCategoryDetail">,
+  categories: Map<number, StickerDetail[]>,
+  stickerId: string,
+  catId: string | undefined,
+): Promise<ZaloStickerArt | null> {
+  const [detail] = await api.getStickersDetail(Number(stickerId));
+  const own = detail === undefined ? null : stickerArtOf(detail);
+  if (own !== null) {
+    return { ...own, via: "detail" };
+  }
+  const category = wholeNumber(catId);
+  if (category === null || category <= 0) {
+    return null;
+  }
+  let stickers = categories.get(category);
+  if (stickers === undefined) {
+    stickers = await api.getStickerCategoryDetail(category);
+    categories.set(category, stickers);
+  }
+  const listed = stickers.find((candidate) => String(candidate.id) === String(Number(stickerId)));
+  const art = listed === undefined ? null : stickerArtOf(listed);
+  return art === null ? null : { ...art, via: "category" };
 }
 
 /**

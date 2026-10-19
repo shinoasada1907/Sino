@@ -1437,3 +1437,54 @@ Lần chạy thật đầu cho thấy một bài học về cách làm: ảnh v�
 - Môi trường của phiên này không có JDK 25 và Docker, nên sino-api chạy bằng JDK 21 bật `--enable-preview` và PostgreSQL 16 cục bộ có hàm `uuidv7()` bù, trên một bản sao của cây. Hệ quả: một số test phụ thuộc thứ tự ID trong cùng một mili-giây đỏ ngẫu nhiên, y hệt trên mã chưa sửa. Một bộ test chạy trên môi trường khác nhà phát triển thường dùng thì chỉ chứng minh được phần nó chạm tới; so với mã gốc trong cùng môi trường mới nói được "tôi không làm hỏng gì thêm".
 - **Chưa kiểm trên ảnh thật:** tên trường trong `content` của một ảnh nhận về; CDN của Zalo có cho trình duyệt lấy ảnh mà không cần cookie và không có Referer hay không; địa chỉ ảnh có hết hạn sau một thời gian không (nếu có, ảnh cũ sẽ lùi về `[Ảnh]` khi mở lại). Cả ba chỉ biết được khi gửi một ảnh thật.
 - Tin ảnh đã lưu trước ZL-16 giữ chữ `[Ảnh]` vì metadata của chúng không có địa chỉ; không backfill, như sticker ở ZL-15. Ảnh mới gửi từ giờ sẽ hiện.
+
+## 20. ZL-17 — Sticker ngoài bộ chuẩn: đường lùi theo bộ, và log chỉ đúng chỗ rơi
+
+### 20.1 Vấn đề: một thư viện nuốt lỗi
+Sau khi ảnh hiện, người dùng báo sticker chuẩn của Zalo hiện còn "sticker khác" thì không. Nhìn vào `getStickersDetail` của zca-js thì thấy lý do có thể:
+
+```text
+getStickersDetail(ids)
+  -> với mỗi id gọi Zalo ("sticker_detail")
+  -> Promise.allSettled(...)         chờ tất cả, KHÔNG ném lỗi nào
+  -> chỉ giữ những cái "fulfilled"   cái bị từ chối bị bỏ im lặng
+  -> trả về mảng (có thể rỗng)
+```
+
+Sticker nào Zalo từ chối trả theo từng id (một sticker ngoài danh mục, hoặc thuộc một bộ mà dịch vụ này không phục vụ) làm mảng rỗng, và `sino-zalo` đọc "mảng rỗng" là "Zalo không biết sticker này": tin hiện chữ `[Sticker]` mà không một dòng log nào. Đây là cùng bài học của ảnh (mục 19): một tầng "an toàn" bằng cách bỏ qua điều nó không hiểu thì không tự cho biết nó hỏng ở đâu.
+
+### 20.2 Đường lùi: hỏi theo bộ
+zca-js có `getStickerCategoryDetail(cateId)`, trả **cả bộ** sticker của một `catId`. Tin sticker mang sẵn `catId`, nên khi hỏi theo từng sticker không ra ảnh, `findStickerArt` hỏi cả bộ và lấy sticker có đúng `id`:
+
+```text
+getStickersDetail(id) có ảnh?  có -> dùng (via: detail)
+                               không -> catId là số nguyên dương?  không -> không có ảnh
+                                        có -> bộ đã có trong bộ nhớ?  có -> dùng
+                                                                     không -> hỏi Zalo, nhớ lại
+                                        sticker có trong bộ và có ảnh?  có -> dùng (via: category)
+                                                                       không -> không có ảnh
+```
+- Một bộ chỉ hỏi một lần (`Map<number, StickerDetail[]>` trong phiên): các sticker khác của bộ đó lấy từ bộ nhớ. Bộ hỏi lỗi thì **không** nhớ, để sticker sau hỏi lại; nhớ lỗi sẽ làm cả bộ hỏng mãi.
+- `catId` là chữ, đọc bằng `wholeNumber`; `0`, số âm, chữ hay rỗng thì không hỏi bộ (không có bộ nào để hỏi).
+- Lỗi của lời hỏi thứ nhất vẫn đi lên như cũ; `findStickerArt` là hàm nhận `api` và bộ nhớ làm tham số, nên kiểm thử bằng một `api` giả mà không cần Zalo.
+- Đây là **một phỏng đoán có cơ sở, chưa kiểm trên sticker thật**: nếu "sticker khác" không thuộc loại này thì đường lùi không phí gì (chỉ chạy khi cách thứ nhất thất bại) nhưng cũng không giúp gì.
+
+### 20.3 Log chỉ đúng chỗ rơi
+Vì chưa biết "sticker khác" là gì, phần quan trọng hơn là làm cho mỗi chỗ có thể rơi đều để lại một dòng:
+- `sino-zalo` `Stickers`: WARN "Zalo gave no picture for the sticker" với `stickerId`, `catId`, `stickerType` (đều là số) khi cả hai cách đều không ra ảnh; INFO "through its category" khi phải lấy theo bộ. Chữ `via` chỉ để ghi log, không đi vào tin gửi cho `sino-api`.
+- `sino-zalo` `SessionManager`: dòng "Zalo message" của sticker có thêm ba số đó; của **mọi** tin mà đường ống không hiểu thì có thêm `contentShape` (tên khóa và loại giá trị, không bao giờ một giá trị). `unseen` quyết định tin nào: loại tin chưa ai xử lý (không nằm trong `KNOWN_TYPES`), ảnh không tìm được ảnh, sticker không đọc được, GIF không có địa chỉ. Một `switch` theo loại tin, mỗi loại có điều kiện "không hiểu" riêng.
+- `sino-api`: WARN khi từ chối địa chỉ ảnh tĩnh, sprite hay GIF của sticker, dùng chung một hàm `warnRefused(what, raw)` với ảnh. Trước đây một sticker ở tên miền lạ lặng lẽ ở lại là chữ.
+
+```text
+Sticker không hiện. Xem lần lượt:
+  dòng "Zalo message" của nó      zaloType gì? có stickerId, stickerCatId không? contentShape?
+  WARN sino-zalo "no picture"     Zalo không có ảnh, kể cả theo bộ
+  WARN sino-zalo "did not give"   gọi Zalo bị lỗi (có lý do)
+  WARN sino-api "does not accept" địa chỉ bị từ chối: tên miền nào
+  không có WARN nào               địa chỉ đã qua sino-api; xem tab Network của trình duyệt
+```
+
+### 20.4 Kiểm chứng và giới hạn
+- Viết test trước (24 đỏ), rồi xanh. Gài lỗi tìm ra hai chỗ test yếu: không có ca nào kiểm "tin GIF không ghi mã sticker" (GIF mang một đối tượng `sticker` với `id` là mã tin, nên một điều kiện thiếu loại tin sẽ ghi sai), và không có ca "chỉ ảnh nhỏ bị từ chối". Cả hai đã thêm test.
+- Chưa có sticker thật nào của người dùng, và container này không với tới CDN của Zalo (proxy chặn), nên không thử được địa chỉ nào. Chưa xác nhận đường lùi cứu được sticker nào.
+- Sticker đã lưu trước đó giữ như cũ, không backfill (như ZL-15 và ZL-16).

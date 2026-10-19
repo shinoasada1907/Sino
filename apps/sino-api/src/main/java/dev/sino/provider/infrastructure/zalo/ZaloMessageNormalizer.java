@@ -274,22 +274,22 @@ final class ZaloMessageNormalizer {
                 putIfPresent(metadata, NormalizedMessage.IMAGE_CAPTION,
                         caption == null ? null : cut(caption, MAX_CAPTION_LENGTH));
             } else {
-                warnRefused(photo);
+                warnRefused("photo", clean(photo.url()) != null ? photo.url() : photo.thumbUrl());
             }
         }
         return new Body(MessageType.IMAGE, "[Ảnh]", Map.copyOf(metadata));
     }
 
     /**
-     * Says what is known of a photo address Sino refused, and nothing of its path (it can open the picture): the host
-     * and the scheme when the address can be read, its length, and whether it is plain printable ASCII. Enough to tell
-     * a Zalo CDN missing from {@link #PICTURE_DOMAINS} from an address refused for how it is written.
+     * Says what is known of an address of a picture Sino refused ({@code what}: a photo, a sticker, a gif, a sticker
+     * sprite), and nothing of its path (it can open the picture): the host and the scheme when the address can be
+     * read, its length, and whether it is plain printable ASCII. Enough to tell a Zalo CDN missing from
+     * {@link #PICTURE_DOMAINS} from an address refused for how it is written. Nothing is said for no address at all.
      */
-    private static void warnRefused(Photo photo) {
-        String raw = clean(photo.url()) != null ? clean(photo.url()) : clean(photo.thumbUrl());
-        if (raw != null) {
-            LOG.warn("Zalo gave a photo whose address Sino does not accept ({}); it stays the placeholder text",
-                    describe(raw));
+    private static void warnRefused(String what, String raw) {
+        String address = clean(raw);
+        if (address != null) {
+            LOG.warn("Zalo gave a {} whose address Sino does not accept ({})", what, describe(address));
         }
     }
 
@@ -317,7 +317,11 @@ final class ZaloMessageNormalizer {
         if (sticker != null) {
             putIfPresent(metadata, "stickerId", clean(sticker.id()));
             putIfPresent(metadata, "stickerCatId", clean(sticker.catId()));
-            putIfPresent(metadata, NormalizedMessage.STICKER_URL, pictureAddress(sticker.url()));
+            String picture = pictureAddress(sticker.url());
+            if (picture == null) {
+                warnRefused("chat.gif".equals(zaloType) ? "gif" : "sticker", sticker.url());
+            }
+            putIfPresent(metadata, NormalizedMessage.STICKER_URL, picture);
             // Only a Zalo sticker moves by a sprite sheet; a gif is its own moving picture.
             if ("chat.sticker".equals(zaloType)) {
                 putSprite(metadata, sticker.sprite());
@@ -332,6 +336,9 @@ final class ZaloMessageNormalizer {
             return;
         }
         String address = pictureAddress(sprite.url());
+        if (address == null) {
+            warnRefused("sticker sprite", sprite.url());
+        }
         Integer frames = sprite.frames();
         Integer durationMs = sprite.durationMs();
         if (address == null || frames == null || durationMs == null

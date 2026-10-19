@@ -51,6 +51,8 @@ export interface ZaloStickerSprite {
 export interface ZaloStickerArt {
   readonly url: string | null;
   readonly sprite: ZaloStickerSprite | null;
+  /** How the picture was found, for the log only: by the sticker itself or, failing that, through its category. */
+  readonly via?: "detail" | "category" | undefined;
 }
 
 /**
@@ -139,9 +141,10 @@ export interface ZaloConnection {
   sendText(threadId: string, threadType: ThreadType, text: string): Promise<string>;
   /**
    * The still picture of a sticker and its sprite sheet, or null when Zalo does not know the sticker or names
-   * no picture for it. Throws ZaloUnavailableError when Zalo does not answer.
+   * no picture for it, also in its category (`catId`, from the message). Throws ZaloUnavailableError when Zalo
+   * does not answer.
    */
-  stickerArt(stickerId: string): Promise<ZaloStickerArt | null>;
+  stickerArt(stickerId: string, catId?: string): Promise<ZaloStickerArt | null>;
 }
 
 /** Everything sino-zalo asks of Zalo. Tests use FakeZaloGateway and never reach Zalo. */

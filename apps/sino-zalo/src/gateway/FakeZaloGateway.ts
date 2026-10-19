@@ -127,7 +127,7 @@ export class FakeConnection implements ZaloConnection {
     return String(this.zalo.nextMsgId++);
   }
 
-  async stickerArt(stickerId: string): Promise<ZaloStickerArt | null> {
+  async stickerArt(stickerId: string, _catId?: string): Promise<ZaloStickerArt | null> {
     await Promise.resolve();
     if (this.zalo.stickerFails) {
       throw new ZaloUnavailableError("TypeError: fetch failed");

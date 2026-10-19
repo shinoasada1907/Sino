@@ -5,10 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sticker;
@@ -18,6 +21,7 @@ import dev.sino.provider.spi.NormalizedMessage;
 import tools.jackson.databind.json.JsonMapper;
 
 /** The picture of a Zalo sticker message reaches {@code metadata}, and only when its address is safe to show (D-279). */
+@ExtendWith(OutputCaptureExtension.class)
 class ZaloStickerTests {
 
     private static final String SELF = "100000000000000001";
@@ -256,5 +260,45 @@ class ZaloStickerTests {
         assertThat(mapper.readValue(moving, Message.class).sticker().sprite())
                 .isEqualTo(new StickerSprite(SPRITE, 7, 700));
         assertThat(mapper.readValue(still, Message.class).sticker().sprite()).isNull();
+    }
+    @Test
+    void aStickerPictureSinoRefusesIsWarnedAboutByHostAndSchemeNeverByPath(CapturedOutput output) {
+        ZaloMessageNormalizer.normalize(sticker(new Sticker("1", "2", 7, "https://cdn.example.com/private/token-abc123/a.webp")),
+                SELF);
+
+        assertThat(output.getAll()).contains("Zalo gave a sticker whose address Sino does not accept")
+                .contains("host: cdn.example.com, scheme: https").doesNotContain("token-abc123");
+    }
+
+    @Test
+    void aGifPictureSinoRefusesIsWarnedAbout(CapturedOutput output) {
+        Message gif = new Message("1004", FRIEND, "USER", FRIEND, "Bình", false, "chat.gif", null, SENT_AT,
+                new Sticker("1004", "0", 0, "https://evil.example.com/a.gif"));
+
+        ZaloMessageNormalizer.normalize(gif, SELF);
+
+        assertThat(output.getAll()).contains("Zalo gave a gif whose address Sino does not accept")
+                .contains("host: evil.example.com");
+    }
+
+    @Test
+    void aSpriteSheetSinoRefusesIsWarnedAboutAndTheStillPictureIsKept(CapturedOutput output) {
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(
+                sticker(moving("https://cdn.example.com/sprite/token-xyz/s.png", 7, 700)), SELF);
+
+        assertThat(output.getAll()).contains("Zalo gave a sticker sprite whose address Sino does not accept")
+                .contains("host: cdn.example.com").doesNotContain("token-xyz");
+        assertThat(message.metadata()).containsEntry(NormalizedMessage.STICKER_URL, PICTURE)
+                .doesNotContainKey(NormalizedMessage.STICKER_SPRITE_URL);
+    }
+
+    @Test
+    void aStickerWhoseAddressesSinoKeepsOrWhichHasNoneIsNotWarnedAbout(CapturedOutput output) {
+        ZaloMessageNormalizer.normalize(sticker(moving(SPRITE, 7, 700)), SELF);
+        ZaloMessageNormalizer.normalize(sticker(new Sticker("1", "2", 7, null)), SELF);
+        ZaloMessageNormalizer.normalize(sticker(null), SELF);
+        ZaloMessageNormalizer.normalize(sticker(moving(null, null, null)), SELF);
+
+        assertThat(output.getAll()).doesNotContain("does not accept");
     }
 }

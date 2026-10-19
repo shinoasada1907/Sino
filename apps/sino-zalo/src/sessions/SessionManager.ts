@@ -267,8 +267,10 @@ export class SessionManager {
       return;
     }
     // IDs, type and length only: never the text (D-282). For a photo also whether a picture was found, never its
-    // address (it opens the picture) or its caption, so a photo that shows nowhere can be told apart: not found here,
-    // or lost later (ZL-16). When none was found, the keys of the content with the kind of each value, never a value.
+    // address (it opens the picture) or its caption. For a sticker its ids, which are numbers. When the pipeline could
+    // not show the message as it means to (no picture, no sticker, a type nobody has handled): the keys of the content
+    // with the kind of each value, never a value, so a message that shows nowhere can be told apart: not understood
+    // here, or lost later (ZL-16).
     this.log.info(
       {
         accountId,
@@ -276,12 +278,11 @@ export class SessionManager {
         threadId: message.threadId,
         zaloType: message.zaloType,
         length: message.text?.length ?? 0,
-        ...(message.zaloType === "chat.photo"
-          ? {
-              photo: message.photo !== undefined,
-              ...(message.contentShape === undefined ? {} : { contentShape: message.contentShape }),
-            }
+        ...(message.zaloType === "chat.photo" ? { photo: message.photo !== undefined } : {}),
+        ...(message.zaloType === "chat.sticker" && message.sticker !== undefined
+          ? { stickerId: message.sticker.id, stickerCatId: message.sticker.catId, stickerType: message.sticker.type }
           : {}),
+        ...(message.contentShape === undefined ? {} : { contentShape: message.contentShape }),
       },
       "Zalo message",
     );

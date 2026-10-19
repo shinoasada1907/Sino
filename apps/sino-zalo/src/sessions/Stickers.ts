@@ -1,4 +1,4 @@
-import type { ZaloConnection, ZaloMessage, ZaloStickerArt } from "../gateway/ZaloGateway.ts";
+import type { ZaloConnection, ZaloMessage, ZaloSticker, ZaloStickerArt } from "../gateway/ZaloGateway.ts";
 
 export interface StickersOptions {
   readonly accountId: string;
@@ -32,18 +32,18 @@ export class Stickers {
 
   /** The messages with the sticker pictures known so far; a message is copied, never changed. */
   async fill(messages: readonly ZaloMessage[]): Promise<ZaloMessage[]> {
-    const wanted = new Set<string>();
+    const wanted = new Map<string, ZaloSticker>();
     for (const message of messages) {
       if (message.sticker !== undefined) {
         if (message.sticker.url) {
           // A picture the message already carries (a gif) is still: it has no sprite sheet.
           this.arts.set(message.sticker.id, { url: message.sticker.url, sprite: null });
         } else if (!this.arts.has(message.sticker.id)) {
-          wanted.add(message.sticker.id);
+          wanted.set(message.sticker.id, message.sticker);
         }
       }
     }
-    await this.ask([...wanted]);
+    await this.ask([...wanted.values()]);
 
     return messages.map((message) => {
       const sticker = message.sticker;
@@ -55,8 +55,8 @@ export class Stickers {
     });
   }
 
-  private async ask(ids: string[]): Promise<void> {
-    if (ids.length === 0) {
+  private async ask(stickers: ZaloSticker[]): Promise<void> {
+    if (stickers.length === 0) {
       return;
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -65,24 +65,34 @@ export class Stickers {
     });
     try {
       // Answers that come after the time is up still land in the cache for the next page.
-      await Promise.race([Promise.all(ids.map((id) => this.askOne(id))), timeUp]);
+      await Promise.race([Promise.all(stickers.map((sticker) => this.askOne(sticker))), timeUp]);
     } finally {
       clearTimeout(timer);
     }
   }
 
-  private async askOne(id: string): Promise<void> {
+  private async askOne(sticker: ZaloSticker): Promise<void> {
+    const id = sticker.id;
     try {
-      const art = await this.connection.stickerArt(id);
-      if (art !== null) {
-        this.arts.set(id, art);
-        if (art.sprite !== null) {
-          // What Zalo gave, to check the unit of the duration on the first real stickers (ZL-15). Numbers only.
-          this.log.info(
-            { accountId: this.accountId, stickerId: id, frames: art.sprite.frames, durationMs: art.sprite.durationMs },
-            "Zalo gave an animated sticker",
-          );
-        }
+      const art = await this.connection.stickerArt(id, sticker.catId);
+      if (art === null) {
+        // Ids only, so a sticker that never shows can be named; Zalo would not say more.
+        this.log.warn(
+          { accountId: this.accountId, stickerId: id, catId: sticker.catId, stickerType: sticker.type },
+          "Zalo gave no picture for the sticker",
+        );
+        return;
+      }
+      this.arts.set(id, art);
+      if (art.via === "category") {
+        this.log.info({ accountId: this.accountId, stickerId: id, via: "category" }, "Zalo gave the sticker through its category");
+      }
+      if (art.sprite !== null) {
+        // What Zalo gave, to check the unit of the duration on the first real stickers (ZL-15). Numbers only.
+        this.log.info(
+          { accountId: this.accountId, stickerId: id, frames: art.sprite.frames, durationMs: art.sprite.durationMs },
+          "Zalo gave an animated sticker",
+        );
       }
     } catch (error) {
       const reason = error instanceof Error ? `${error.name}: ${error.message}` : "Unknown error";

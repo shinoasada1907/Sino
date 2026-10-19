@@ -226,6 +226,13 @@ class ZaloPhotoTests {
     }
 
     @Test
+    void aThumbnailSinoRefusesIsWarnedAboutWhenThePictureHasNoAddress(CapturedOutput output) {
+        normalize(new Photo(null, "https://cdn.example.com/t/token-abc123/t.jpg", null));
+
+        assertThat(output.getAll()).contains("host: cdn.example.com").doesNotContain("token-abc123");
+    }
+
+    @Test
     void aPictureSinoKeepsIsNotWarnedAbout(CapturedOutput output) {
         normalize(new Photo(FULL, THUMB, null));
 
