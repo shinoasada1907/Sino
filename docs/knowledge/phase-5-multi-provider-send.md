@@ -1490,3 +1490,28 @@ Sticker không hiện. Xem lần lượt:
 - Viết test trước (24 đỏ), rồi xanh. Gài lỗi tìm ra hai chỗ test yếu: không có ca nào kiểm "tin GIF không ghi mã sticker" (GIF mang một đối tượng `sticker` với `id` là mã tin, nên một điều kiện thiếu loại tin sẽ ghi sai), và không có ca "chỉ ảnh nhỏ bị từ chối". Cả hai đã thêm test.
 - Chưa có sticker thật nào của người dùng, và container này không với tới CDN của Zalo (proxy chặn), nên không thử được địa chỉ nào. Chưa xác nhận đường lùi cứu được sticker nào.
 - Sticker đã lưu trước đó giữ như cũ, không backfill (như ZL-15 và ZL-16).
+
+## 21. ZL-18 — Ảnh kiểu sticker: có địa chỉ, nhưng trình duyệt không tải được
+
+### 21.1 Triệu chứng và điều tưởng ban đầu
+Người dùng gửi từ Zalo hai "sticker" hổ cam và thấy Sino hiện chữ `[Ảnh]` không có hình, trong khi ảnh chụp thường hiện đúng. Giả thuyết đầu là sticker do chính tài khoản gửi đi bị rơi khỏi đường chuẩn hóa. Giả thuyết đó sai, và cách biết nó sai là điều đáng học: chữ `[Ảnh]` chỉ có một nơi sinh ra trong mã (`photoBody`, nhánh `chat.photo`), còn sticker thật cho `[Sticker]`. Một dòng chữ placeholder cho biết tin đã đi qua nhánh nào, nên đọc mã tìm nơi sinh ra chữ trước khi đoán loại tin.
+
+### 21.2 Đi tìm từng lớp
+```text
+trình duyệt   GET ảnh -> 404 (b-f11-zpc.zdn.vn)        <- lỗi lộ ra ở đây
+sino-web      <img> lỗi -> ảnh nhỏ -> chữ [Ảnh]
+sino-api      lưu địa chỉ, không WARN (tên miền được nhận)
+sino-zalo     photoOf chọn href; log: photo:true
+Zalo          chat.photo, href/thumb/params.hd cùng host
+```
+- Log của `sino-zalo` nói `photo: true` (tìm thấy địa chỉ), `sino-api` không cảnh báo gì, API trả `image`: địa chỉ đã qua hai lớp kiểm tra, nên lỗi nằm ở lớp cuối cùng, nơi trình duyệt tải ảnh.
+- Một đoạn lệnh chạy trong Console của trình duyệt đã thử tải cùng đường dẫn với và không có Referer, và với ba tên miền khác: tất cả đều lỗi. Vậy địa chỉ được chọn không có ảnh công khai, và ảnh thật (nếu có) nằm ở nơi khác trong `content`.
+- Không có tài liệu nào về dạng `content`, nên cách duy nhất là nhìn dữ liệu thật: thêm `photoShape` vào log (tên mọi khóa, loại giá trị và **tên miền** của từng địa chỉ, không bao giờ đường dẫn hay giá trị), rồi để người dùng gửi lại một ảnh. Dòng log thật cho thấy hai thứ chỉ ảnh hổ cam có: `params.pStickerType` (số) và `params.webp` (object). Đó là ảnh kiểu sticker của Zalo; `href`, `thumb` và `params.hd` của nó đều trỏ tới nơi trả 404.
+
+### 21.3 Cách sửa
+`photoOf` trong `ZcaGateway.ts`: khi `params.pStickerType` là số nguyên, địa chỉ web đầu tiên trong `params.webp` (khóa `url` trước, trong object, danh sách hay chuỗi JSON, sâu tới hai cấp) là ảnh chính, và địa chỉ mà ảnh đó vốn hiện trở thành ảnh dự phòng. Web đã có sẵn đường lùi ảnh chính, ảnh nhỏ, chữ `[Ảnh]`, nên không đổi gì ở `sino-api` và `sino-web`. Ảnh không có `pStickerType` đọc y như trước, nên ảnh thường không đổi hành vi. Điều kiện chặt như vậy là cố ý: dấu hiệu mới chỉ thấy ở ảnh hổ cam, nên chỉ nhánh có dấu hiệu đó mới đổi.
+
+### 21.4 Kiểm chứng và giới hạn
+- Viết test trước (12 test mới đỏ), rồi xanh: `sino-zalo` 259/259, oxlint 0, `tsc` 0. Gài lỗi 13: ba lỗi sống sót vì thiếu test (độ sâu tìm địa chỉ, đường lùi bị nhầm với `thumb`, danh sách bị coi như object); đã thêm test rồi diệt cả ba.
+- Kiểm trên ảnh thật, kết quả là bản sửa chưa chạm vào nguyên nhân thật: sáu tin sau bản sửa, chỉ hai tin chó hiện hình, hổ, mèo và dê vẫn `[Ảnh]`, trong khi bốn tin có `photoShape` y hệt nhau. Gọi thẳng CDN bằng `curl` cho cùng kết quả như trình duyệt: ảnh chó trả 200 (tệp có từ 15/10), ảnh hổ, mèo, dê trả 404 với thân rỗng, bất kể đổi đuôi tệp, tiền tố hay header. Tức là CDN không có tệp tại địa chỉ mà tin nêu, và Sino không có gì để hiện. Bài học: một cấu trúc `content` giống hệt nhau không có nghĩa là mọi tin dùng được như nhau, vì chỗ khác nhau có thể nằm ở dữ liệu bên ngoài (tệp có thật trên CDN hay không); và một giả thuyết hợp lý (`params.webp` giữ ảnh thật) vẫn phải được đo bằng đúng những tin lỗi trước khi coi là đã sửa. Còn mở: tệp có được tạo khi tài khoản nhận xem hay không, và `params.contentId` có phải mã sticker hay không.
+- Chưa làm: tin đã lưu trước bản sửa (ba ảnh 18:15–18:17, các tin 20:21, 20:31, 20:58, 21:18) giữ `[Ảnh]`, không backfill (như ZL-15 và ZL-16); chưa gửi một ảnh thường sau bản sửa để xem tận mắt (mã của nhánh ảnh thường không đổi và có test giữ nguyên).
