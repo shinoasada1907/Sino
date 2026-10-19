@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71. Phần lõi của F15, `openspec/changes/f15-notes` (ghi chú chữ và ghi chú dạng sơ đồ lưu trong database, chưa gắn tin nhắn), nằm ở phần cuối, mục "Ghi chú (F15)": BE-90.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71. Phần lõi của F15, `openspec/changes/f15-notes` (ghi chú chữ và ghi chú dạng sơ đồ lưu trong database, chưa gắn tin nhắn), nằm ở phần cuối, mục "Ghi chú (F15)": BE-90, BE-91.
 > **Cập nhật:** 2026-10-19. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
@@ -557,3 +557,62 @@ Cả hai cùng ném `OptimisticLockingFailureException`, nên handler sẵn có 
 - `./mvnw -B -ntp verify` trong worktree: 1873 test, 0 lỗi, 0 error, 8 bỏ qua (sẵn có), BUILD SUCCESS.
 - Gài lỗi (một lần cho `Diagram` và `Note`): 13 lỗi gài, cả 13 làm đỏ đúng test của luật đó, rồi trả code lại. `Diagram`: bỏ kiểm tự nối, trùng cặp, 301 khối, nối tới khối không có, sơ đồ rỗng, mã khối trùng, NUL trong chữ khối. `Note`: `edit` bỏ qua sơ đồ, `edit` coi sơ đồ bằng nhau là đã đổi, bỏ chặn `body` cho sơ đồ, ghim đổi `updated_at`. `NoteService`: bỏ so `version`, bỏ chuyển `diagram` xuống `edit`. Một lỗi gài đầu (mã khối trùng) làm đỏ cả những test không liên quan vì nó bỏ luôn lệnh `add` vào tập mã; viết lại chỉ tắt phần báo lỗi thì chỉ còn `twoBlocksCannotShareAnId` đỏ.
 - Bài học: lỗi gài tốt chỉ tắt một nhánh, không xóa lệnh có tác dụng phụ trong cùng điều kiện, nếu không "đỏ" không còn nói lên điều gì.
+
+### F15.2 REST `/api/notes` cho ghi chú chữ và sơ đồ (BE-91)
+
+**Ở đâu:** `notes/api/{NotesController, CreateNoteRequest, UpdateNoteRequest, NoteResponse, DiagramBody, FollowsDiagramRules, DiagramRules, Texts}`; `apps/sino-api/README.md` (năm dòng `/api/notes`).
+
+```text
+GET    /api/notes           -> { generatedAt, notes: [NoteItem ...] }   mọi ghi chú, sửa gần nhất trước
+GET    /api/notes/{id}      -> NoteItem
+POST   /api/notes           -> 201 + Location + NoteItem                { kind?, title?, body? | diagram }
+PATCH  /api/notes/{id}      -> NoteItem                                 { version, title?, body?, pinned?, diagram? }
+DELETE /api/notes/{id}      -> 204
+
+NoteItem = { id, kind, title, body, diagram, pinned, createdAt, updatedAt, version, anchor, quote, linked }
+```
+
+**Ba lớp kiểm, mỗi lớp một loại lỗi (như F16 mục 3.1).** Một yêu cầu đi qua ba chỗ, và chỗ nào bắt thì mã lỗi như thế:
+
+| Chỗ | Bắt gì | Trả |
+|---|---|---|
+| Jackson (đọc JSON) | giá trị không đọc được: `kind` / màu / cạnh lạ, mã khối không phải UUID, tọa độ là chữ | `400 MALFORMED_REQUEST` |
+| Bean Validation trên request | thiếu trường, quá dài, có NUL, `PATCH` rỗng hoặc thiếu `version`, và **mọi luật của sơ đồ** | `400 VALIDATION_FAILED` |
+| `NoteService` (cần đọc ghi chú) | không có / của người khác, nhầm loại, `version` lệch | `404`, `422 NOTE_KIND_MISMATCH`, `409` |
+
+Quy tắc chọn: lỗi nào chỉ nhìn request là thấy thì thuộc 400; lỗi cần biết ghi chú đang lưu thế nào thì thuộc service.
+
+**Vì sao `DiagramBody` là bản sao của `Diagram` chứ không để Jackson dựng thẳng `Diagram`.** Có hai lý do, và cả hai đều là lỗi im lặng:
+- Jackson gọi constructor của `record`. Nếu một luật bị phạm, `IllegalArgumentException` bị bọc thành lỗi đọc JSON, nên người dùng nhận `MALFORMED_REQUEST` và mất tên luật ("nối tới khối không có trong sơ đồ").
+- Với `double x` (kiểu nguyên thủy), một khối thiếu `x` được đọc thành `0.0` chứ không báo thiếu. `DiagramBody` dùng `Double` và `@NotNull`, nên thiếu là lỗi có tên trường.
+
+**Một ràng buộc tự viết, `@FollowsDiagramRules`, để luật chỉ viết một lần.** Luật của sơ đồ (300 khối, nối không tự nối, không trùng cặp...) đã nằm trong `Diagram` từ BE-90. Viết lại chúng thành annotation Bean Validation là viết hai lần, rồi hai bản sẽ lệch nhau. Nên `DiagramRules` (một `ConstraintValidator`) chỉ thử dựng `Diagram` từ `DiagramBody`; nếu `IllegalArgumentException` thì dùng đúng câu của luật làm câu báo lỗi:
+
+```java
+catch (IllegalArgumentException broken) {
+    context.disableDefaultConstraintViolation();
+    context.buildConstraintViolationWithTemplate(broken.getMessage()).addConstraintViolation();
+    return false;
+}
+```
+
+Hai chi tiết: (1) trường thiếu làm `toDiagram()` ném `NullPointerException`; validator trả `true` ở nhánh đó vì `@NotNull` đã báo đúng trường rồi, báo hai lần chỉ làm rối. (2) `buildConstraintViolationWithTemplate` coi chuỗi là *mẫu* (có thể chứa `${...}`); câu của domain do ta viết và không chứa chữ của người dùng nên an toàn, nhưng đây là chỗ không bao giờ được nối chữ người dùng vào.
+
+**`@AssertTrue` trên `record`, và quy tắc theo loại.** Như `CreateTaskRequest`, các luật nhiều trường là phương thức `isXxx()` có `@AssertTrue`: "ghi chú chữ cần chữ và không có sơ đồ", "ghi chú sơ đồ cần sơ đồ và không có chữ". `kind` thiếu coi là `TEXT` để web cũ không đổi. `body: ""` cho một sơ đồ cũng bị từ chối: với sơ đồ, `body` phải vắng hẳn, nên chỉ có một cách đúng để gửi. `UpdateNoteRequest` không biết loại của ghi chú (chưa đọc nó), nên chỉ kiểm phần chắc chắn: `version` bắt buộc và không âm, ít nhất một trường, `body` nếu có thì có chữ; còn nhầm loại để `NoteService` trả `422` (xem F15.1).
+
+**`NoteResponse` khớp `NoteItem` của web.** `anchor`, `quote` luôn `null` và `linked` luôn `[]` (D-177); khai báo là `Object` và `List<Object>` để khi có neo thật chỉ đổi kiểu, không đổi hình dạng JSON. `body` của sơ đồ là `""` và `diagram` của ghi chú chữ là `null`: web cần phân biệt hai loại nên gửi cả hai trường chứ không bỏ trường nào.
+
+**Câu gợi ý của task: "vì sao `version` nằm trong body của `PATCH` mà không ở header `If-Match`?"** `If-Match` là cách chuẩn của HTTP: máy chủ so với `ETag` của tài nguyên, lệch thì trả `412 Precondition Failed`. Nó đòi hai thứ ta chưa có: mỗi mục trong danh sách mang một `ETag` riêng (danh sách trả cả mảng ghi chú, web lấy `version` từ từng phần tử), và web phải đọc, giữ và gửi thêm một header. Lệch còn đi đường lỗi `412` mới, trong khi cả app đã dùng `409 CONCURRENT_MODIFICATION` cho cùng chuyện. Đặt `version` trong JSON cho web một chỗ duy nhất (`NoteItem.version`) và dùng lại đường `409` sẵn có (D-172).
+
+**Bẫy khi viết test.**
+- `@SpringBootTest` + `MockMvc` chạy cả ứng dụng, nên mỗi test phải xóa `note` và người dùng phụ trước (`@BeforeEach`), nếu không ghi chú của test trước lẫn vào danh sách.
+- Mã khối trong test là UUID cố định (`new UUID(0x7000L, 0x8000000000000000L | n)`), để biết chắc mã nào có ở đâu; 301 khối và 601 nối được sinh bằng vòng lặp, không gõ tay.
+- Biểu thức chính quy chặn NUL là `[^\x00]*` (mọi ký tự trừ NUL), không phải `.*`: dấu `.` không khớp xuống dòng, và ghi chú nhiều dòng là chuyện bình thường. Lỗi gài đổi `[^\x00]*` thành `.*` làm đỏ cả test "giữ nguyên nội dung như đã gõ" (xuống dòng bị từ chối) lẫn các ca NUL (trả `500` thay vì `400`, vì PostgreSQL từ chối NUL).
+- Test bảng (`@ParameterizedTest`) đặt tên cho từng dòng (`"a link to a block that is not there"`): khi một ca đỏ, báo cáo nói ngay ca nào, không phải đếm chỉ số.
+- Lỗi gài làm lộ một bẫy của chính việc gài lỗi: sau khi thử một lỗi gài, trả file nguồn lại bằng `mv` cho nó **giờ sửa cũ**. Maven thấy class đã biên dịch (từ bản gài lỗi) mới hơn nguồn nên không biên dịch lại, và lần `verify` sau chạy trên class còn gài lỗi, đỏ đúng những test của lỗi gài mà nguồn thì sạch. Dấu hiệu: nguồn đúng mà test đỏ như lúc gài. Cách chữa: `clean`, hoặc `touch` file sau khi trả.
+
+**Kiểm chứng (BE-91).**
+- ĐỎ đúng lý do: 69 test viết trước, chạy khi chưa có controller: 66 đỏ và 2 lỗi, tất cả vì `404 RESOURCE_NOT_FOUND` (không có đường dẫn).
+- XANH: `NotesApiTests` 69, `ModularityTests` 2. `./mvnw -B -ntp clean verify` trong worktree: 1965 test, 0 lỗi, 8 bỏ qua (sẵn có), BUILD SUCCESS.
+- Gài lỗi: 10 lỗi ở lớp API, cả 10 làm đỏ đúng test của nó: bỏ luật ghi chú chữ, bỏ luật ghi chú sơ đồ, tắt `@FollowsDiagramRules`, `PATCH` không cần trường nào, `version` không bắt buộc, `version` âm, cho phép NUL, response bỏ `diagram`, `body` trắng ở `PATCH`, bỏ `Location`.
+- Chưa kiểm: gọi API trên backend chạy thật; làm ở FE-90 cùng Chrome thật.
