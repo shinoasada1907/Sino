@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { Spec } from '@/shared/ui/spec'
 import { GRID, StickerCard } from './StickerCard'
 import { StickersEmpty, StickersLoadFailed, StickersSkeleton } from './StickerStates'
+import { DeleteStickerDialog } from './DeleteStickerDialog'
 import { DropZone } from './DropZone'
 import { FilePicker, UploadButton } from './UploadButton'
 import { UploadList } from './UploadList'
+import type { StickerItem } from './stickers.types'
 import { useStickers } from './useStickers'
 import { useUploadQueue } from './useUploadQueue'
 
@@ -13,10 +16,39 @@ import { useUploadQueue } from './useUploadQueue'
  * "Tải lên" to add pictures. The canvas has no frame for it yet (`tasks.md` 0.1), so it follows Ghi chú: a title with the
  * count, and on a phone (like `MobileNotes`) the header with a way back to Thêm. Loading, empty and failed lists each say so.
  */
+/** The sticker the owner is asking to delete, the button that asked, and the sticker the focus goes to if that one is gone. */
+interface Deletion {
+  sticker: StickerItem
+  opener: HTMLElement
+  neighborId: string | null
+  open: boolean
+}
+
 export function StickersPage() {
   const { stickers, error, retry } = useStickers()
   const uploads = useUploadQueue()
+  const [deletion, setDeletion] = useState<Deletion | null>(null)
   const count = stickers?.length
+
+  const askToDelete = (sticker: StickerItem, opener: HTMLElement) => {
+    const at = stickers?.findIndex((item) => item.id === sticker.id) ?? -1
+    const neighbor = stickers?.[at + 1] ?? stickers?.[at - 1]
+    setDeletion({ sticker, opener, neighborId: neighbor?.id ?? null, open: true })
+  }
+
+  // When the dialog has closed the focus goes back to the button that opened it. If that sticker is gone, to the delete
+  // button of the next one (the previous if it was the last), and with none left, to the upload button of the empty library.
+  const placeFocus = (event: Event) => {
+    event.preventDefault()
+    if (!deletion) {
+      return
+    }
+    const buttons = Array.from(document.querySelectorAll<HTMLElement>('[data-sticker-delete]'))
+    const target = deletion.opener.isConnected
+      ? deletion.opener
+      : (buttons.find((button) => button.dataset.stickerDelete === deletion.neighborId) ?? document.querySelector<HTMLElement>('[data-slot="stickers-empty"] button'))
+    target?.focus()
+  }
 
   return (
     <FilePicker onFiles={uploads.add}>
@@ -50,10 +82,16 @@ export function StickersPage() {
             // `role="list"`: Safari drops the list semantics of a list with `list-style: none`.
             <ul role="list" aria-label="Sticker của bạn" className={GRID}>
               {stickers.map((sticker) => (
-                <StickerCard key={sticker.id} sticker={sticker} />
+                <StickerCard key={sticker.id} sticker={sticker} onDelete={askToDelete} />
               ))}
             </ul>
           )}
+          <DeleteStickerDialog
+            sticker={deletion?.sticker ?? null}
+            open={deletion?.open ?? false}
+            onClose={() => setDeletion((current) => current && { ...current, open: false })}
+            onCloseAutoFocus={placeFocus}
+          />
         </DropZone>
       )}
     </FilePicker>
