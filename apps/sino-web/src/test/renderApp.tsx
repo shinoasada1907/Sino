@@ -30,7 +30,7 @@ const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn'
 /**
  * Renders the whole app at `path` with the given shell, overview, accounts, inbox and tasks data already in the query
  * cache; `inbox: null`, `accounts: null` and `tasks: null` leave those screens to their requests (answered by MSW, or to see them loading or
- * failing). The inbox sample fills the frame and one page of every view and source; a test file that mocks inbox.api
+ * failing), and `shell: null` leaves the shell data to what the app has of its own today (`useShellData`). The inbox sample fills the frame and one page of every view and source; a test file that mocks inbox.api
  * with `sampleInboxApi` gets its later requests answered from the same sample. The owner is signed in unless `me`
  * says otherwise: `null` is signed out, `'request'` leaves the sign-in check to its request (answered by MSW).
  */
@@ -44,7 +44,7 @@ export function renderApp(
     tasks = createTasksSample(new Date()),
     me = SIGNED_IN,
   }: {
-    shell?: ShellData
+    shell?: ShellData | null
     overview?: OverviewData
     accounts?: AccountsData | null
     inbox?: InboxSample | null
@@ -53,7 +53,9 @@ export function renderApp(
   } = {},
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  queryClient.setQueryData(SHELL_QUERY_KEY, shell)
+  if (shell) {
+    queryClient.setQueryData(SHELL_QUERY_KEY, shell)
+  }
   queryClient.setQueryData(OVERVIEW_QUERY_KEY, overview)
   if (accounts) {
     queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accounts)

@@ -1,7 +1,5 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import type { ShellData } from '@/app/shell/shell.types'
-import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
 import { INBOX_QUERY_KEY } from '@/features/inbox/useInbox'
 import type { OverviewData } from '@/features/overview/overview.types'
 import { OVERVIEW_QUERY_KEY } from '@/features/overview/useOverview'
@@ -48,15 +46,21 @@ export function useAccounts(): AccountsQuery {
   return { list: data, receivedAt: dataUpdatedAt, error, retry: () => void refetch() }
 }
 
-const countNeedingAction = (list: AccountsData) => list.accounts.filter(needsAttention).length
+export interface AccountCounts {
+  total: number
+  /** The accounts the owner has to act on (`needsAttention`): signed out or failing. */
+  needingAction: number
+}
+
+const countsOf = (list: AccountsData): AccountCounts => ({ total: list.accounts.length, needingAction: list.accounts.filter(needsAttention).length })
 
 /**
- * How many accounts need the owner to act (`needsAttention`: signed out or failing), for the navigation of the shell
- * (D-321); `undefined` until the list has come. It reads the shared list but not through `useAccounts`, which reads the
- * inbox again for every finished first import: right on the account screens, not at every start of the app.
+ * How many accounts there are and how many of them need the owner, for the navigation of the shell (D-321, D-326);
+ * `undefined` until the list has come. It reads the shared list but not through `useAccounts`, which reads the inbox
+ * again for every finished first import: right on the account screens, not at every start of the app.
  */
-export function useAccountsNeedingAction(): number | undefined {
-  return useQuery({ ...accountsQuery, select: countNeedingAction }).data
+export function useAccountCounts(): AccountCounts | undefined {
+  return useQuery({ ...accountsQuery, select: countsOf }).data
 }
 
 /**
@@ -125,7 +129,8 @@ export function useSetChannel() {
 type Disconnect = { accountId: string }
 
 /**
- * Disconnects an account, then takes it out of every screen that shows it: the list, the shell counts and the overview.
+ * Disconnects an account, then takes it out of every screen that shows it: the list (the counts of the shell follow it,
+ * D-326) and the overview.
  */
 export function useDisconnectAccount() {
   const queryClient = useQueryClient()
@@ -137,9 +142,6 @@ export function useDisconnectAccount() {
         queryClient.setQueryData(ACCOUNTS_QUERY_KEY, withoutAccount(list, accountId))
       }
       queryClient.removeQueries({ queryKey: extrasKey(accountId) })
-      queryClient.setQueryData<ShellData>(SHELL_QUERY_KEY, (shell) =>
-        shell && { ...shell, accountCount: Math.max(0, shell.accountCount - 1) },
-      )
       queryClient.setQueryData<OverviewData>(OVERVIEW_QUERY_KEY, (overview) =>
         overview && { ...overview, accounts: overview.accounts.filter((account) => account.id !== accountId) },
       )

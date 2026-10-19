@@ -17,7 +17,8 @@ export interface NavCounts {
 export interface ShellData {
   /** `shortName` is what the greeting uses ("An"); without it the greeting uses `displayName`. */
   owner: { displayName: string; shortName: string | null }
-  accountCount: number
+  /** How many accounts the owner has; null until the account list has come (D-326). */
+  accountCount: number | null
   navCounts: NavCounts
   unreadNotifications: number
   sync: {

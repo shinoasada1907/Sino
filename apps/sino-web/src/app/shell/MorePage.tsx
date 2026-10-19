@@ -1,7 +1,6 @@
 import { Bell, ChevronRight, Globe, LogOut, RefreshCw, SunMoon, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import { useAccountsNeedingAction } from '@/features/accounts/useAccounts'
 import { useLogout, useMe } from '@/features/auth/useAuth'
 import { cn } from '@/shared/lib/utils'
 import { useTheme } from '@/shared/theme/themeContext'
@@ -39,9 +38,9 @@ export function MorePage() {
   const signOut = useLogout()
   const clock = useNow()
   const now = new Date(Math.max(clock.getTime(), receivedAt))
-  // From the account list, as on the navigation (D-322): this page reads the shell data itself, not the merged one of `AppShell`.
-  const attention = useAccountsNeedingAction() ?? 0
-  const counts = shell && { ...shell.navCounts, accountsNeedingAction: attention }
+  // The shell data brings the counts of accounts from the account list (D-326), as on the navigation.
+  const attention = shell?.navCounts.accountsNeedingAction ?? 0
+  const counts = shell?.navCounts
   const status = shell ? syncStatus(shell.sync, now) : null
 
   return (
@@ -54,7 +53,7 @@ export function MorePage() {
           <Avatar className="size-12" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-base font-semibold">{me?.displayName ?? shell?.owner.displayName}</span>
-            {shell && (
+            {shell && shell.accountCount !== null && (
               <span className="text-sm text-muted-foreground">
                 {shell.accountCount} tài khoản{attention > 0 ? ` · ${attention} cần xử lý` : ''}
               </span>

@@ -1,5 +1,4 @@
 import { Outlet, useLocation, useMatches } from 'react-router'
-import { useAccountsNeedingAction } from '@/features/accounts/useAccounts'
 import { useUnreadByKind } from '@/features/inbox/useInbox'
 import { navCountsOf } from '@/features/tasks/format'
 import { useTasks } from '@/features/tasks/useTasks'
@@ -26,12 +25,12 @@ export interface ShellHandle {
 
 export function AppShell() {
   useEventStream()
-  const { shell: sample, receivedAt } = useShellData()
+  const { shell: base, receivedAt } = useShellData()
   // The counts of Tin nhắn and Hộp thư are the real ones (D-93, f05c), so that new mail changes them; the task counts come
-  // from the task list (D-83, FE-70), so every change of a task shows on the navigation; the accounts needing action come
-  // from the account list (D-321), none until it has come; the other counts are still sample data.
+  // from the task list (D-83, FE-70), so every change of a task shows on the navigation. The shell data brings the counts
+  // of accounts from the account list (D-326) and flags no notification or registration (D-325); the owner and the sync
+  // line are still sample data.
   const unread = useUnreadByKind()
-  const accountsNeedingAction = useAccountsNeedingAction() ?? 0
   // The browser tab says there is news too (NF-01, D-317): chats and mail together, the chats as 0 while the backend cannot count them.
   useTabUnread(unread && unread.EMAIL + (unread.CHAT ?? 0))
   // And a bar under the top bar says the new messages that came while the owner was elsewhere (NF-02, D-318).
@@ -39,13 +38,12 @@ export function AppShell() {
   const { tasks } = useTasks()
   // Ticks every minute, so a task due at noon counts as late once noon has passed.
   const now = useNow()
-  const navCounts = sample && {
-    ...sample.navCounts,
-    accountsNeedingAction,
+  const navCounts = base && {
+    ...base.navCounts,
     ...(unread === undefined ? {} : { messagesUnread: unread.CHAT, inboxUnread: unread.EMAIL }),
     ...(tasks === undefined ? {} : navCountsOf(tasks, now)),
   }
-  const shell = sample && navCounts && { ...sample, navCounts }
+  const shell = base && navCounts && { ...base, navCounts }
   const { pathname } = useLocation()
   const handle: ShellHandle = Object.assign({}, ...useMatches().map((match) => (match.handle ?? {}) as ShellHandle))
   // A sub-page such as /accounts/acc-gmail keeps the title of its section.

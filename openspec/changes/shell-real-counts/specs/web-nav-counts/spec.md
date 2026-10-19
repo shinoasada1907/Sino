@@ -29,3 +29,30 @@ Việc khung app đọc danh sách tài khoản để lấy số cần xử lý 
 #### Scenario: Mở app khi có tài khoản đã nhập xong
 - **WHEN** app mở, danh sách có tài khoản `firstImport.state` là `DONE`, và người dùng không ở màn Tài khoản
 - **THEN** hộp thư không bị đánh dấu cũ hay đọc lại vì số tài khoản cần xử lý
+
+### Requirement: Chuông thông báo và mục Đăng ký không báo gì khi chưa có nguồn thật
+Khi app chưa có nguồn thông báo hay đăng ký thật, chuông ở thanh trên cùng (chấm và chữ "N mới" trong tên), dòng Thông báo và dòng Đăng ký ở trang Thêm, và mục Đăng ký của cột điều hướng, dải icon MUST không báo số nào: chuông tên "Thông báo" và không có chấm, Đăng ký không có huy hiệu "N mới". Khi dữ liệu của khung app có số khác 0 (một backend đã có nguồn), các chỗ đó MUST hiện đúng số đó.
+
+#### Scenario: Chưa có nguồn thông báo và đăng ký
+- **WHEN** app mở với dữ liệu khung app của chính nó, không có backend nào cho thông báo và đăng ký
+- **THEN** chuông ở thanh trên cùng có tên "Thông báo" và không có chấm; mục Đăng ký có tên "Đăng ký", không có "mới"; trang Thêm không có huy hiệu ở dòng Thông báo và Đăng ký
+
+#### Scenario: Dữ liệu khung app có số thông báo
+- **WHEN** dữ liệu khung app báo 3 thông báo chưa đọc
+- **THEN** chuông có tên "Thông báo, 3 mới" và một chấm, và dòng Thông báo ở trang Thêm có huy hiệu 3
+
+### Requirement: Số tài khoản lấy từ danh sách tài khoản
+Số tài khoản ở chân cột điều hướng ("N tài khoản") và ở thẻ chủ tài khoản của trang Thêm ("N tài khoản · M cần xử lý") MUST bằng số tài khoản trong danh sách tài khoản đang có, mọi trạng thái đều tính (kể cả `DISABLED` và `ERROR`). Khi danh sách chưa về hoặc việc tải bị lỗi, dòng đó MUST không hiện (không phải "0 tài khoản", không phải số của dữ liệu mẫu). Số MUST đổi theo danh sách mà không cần tải lại trang, kể cả khi một tài khoản bị ngắt kết nối. Số này MUST không phụ thuộc vào dữ liệu mẫu của khung app.
+
+#### Scenario: Có danh sách
+- **WHEN** danh sách có 3 tài khoản và dữ liệu mẫu của khung app ghi 9
+- **THEN** chân cột điều hướng ghi "3 tài khoản", và thẻ chủ tài khoản của trang Thêm bắt đầu bằng "3 tài khoản"
+
+#### Scenario: Danh sách chưa về
+- **WHEN** app vừa mở và `GET /api/accounts` chưa trả lời
+- **THEN** chân cột điều hướng và thẻ chủ tài khoản của trang Thêm không có dòng "N tài khoản"
+
+#### Scenario: Danh sách đổi trong lúc dùng
+- **WHEN** danh sách từ hai tài khoản còn một (như khi người dùng ngắt kết nối một tài khoản, hay danh sách được đọc lại sau `account.changed`)
+- **THEN** chân cột điều hướng ghi "1 tài khoản" ngay khi danh sách đổi, không cần tải lại trang và không cần ghi riêng vào dữ liệu của khung app
+

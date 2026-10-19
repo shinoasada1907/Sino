@@ -1786,6 +1786,44 @@ Câu cookie là bài học chính. Chép một văn bản sang chỗ mới thì 
 
 Thông tin chủ sở hữu đi qua hàm `ownerDetails()` chứ không phải một hằng số import thẳng, để test thay được nó bằng `vi.mock`: test vừa kiểm "[chưa điền: …]" khi còn trống, vừa kiểm email thành link `mailto:` và ngày viết kiểu Việt / Anh khi đã điền, mà không đỏ khi chủ sở hữu điền giá trị thật.
 
+## 25. Số trên khung app: lấy từ đâu (`shell-real-counts`)
+
+### 25.0 Bức tranh
+Khung app (cột bên, dải icon, thanh dưới, thanh trên cùng, trang Thêm) từng đọc vài con số từ một bản dữ liệu mẫu cố định: chuông luôn "3 mới", Tài khoản luôn "1 cần xử lý", Đăng ký luôn "1 mới", chân cột "3 tài khoản". Ở môi trường thật, các số đó nói dối. Change này cho mỗi số một trong hai nguồn: **đếm từ dữ liệu thật của app**, hoặc **không nói gì** khi chưa có nguồn.
+
+```text
+GET /api/accounts + /api/providers
+        |
+        v
+  ACCOUNTS_QUERY_KEY (một cache, hai người đọc)
+   |                                  |
+   |  useAccounts()                   |  useAccountCounts()  select -> { total, needingAction }
+   v                                  v
+ màn Tài khoản                  useShellData()  ghép vào ShellData
+ (đọc lại hộp thư khi            |-- accountCount          -> chân cột bên, thẻ ở trang Thêm
+  nhập đầu xong)                 '-- accountsNeedingAction -> chấm và chữ ở Sidebar, Rail, TabBar, trang Thêm
+
+Không có nguồn nào: unreadNotifications = 0, registrationsNew = 0  (shellToday)
+```
+
+### 25.1 `select` của TanStack Query: đếm mà không giữ bản sao
+`useAccountCounts` là một `useQuery` trên cùng khóa với màn Tài khoản, thêm `select: countsOf`. `select` chạy trên dữ liệu trong cache và chỉ đưa kết quả cho người gọi; cache vẫn giữ cả danh sách. Hai điều đáng biết:
+- Kết quả của `select` được so sánh theo cấu trúc với lần trước (structural sharing). Danh sách đổi một công tắc kênh nhưng đếm vẫn `{ total: 3, needingAction: 2 }` thì người gọi nhận lại đúng object cũ, không vẽ lại.
+- Hook này không gọi `useAccounts()`. `useAccounts` còn hai bổn phận của màn Tài khoản (đọc lại danh sách khi một lần nhập đầu đang chạy; đọc lại hộp thư khi có tài khoản nhập xong). Trạng thái "nhập xong" ở lại mãi, nên gắn `useAccounts` vào khung app thì mỗi lần mở app đọc lại hộp thư một lần thừa.
+
+### 25.2 Chưa biết thì không nói gì
+Trước khi danh sách về, số tài khoản cần xử lý là 0 và tổng số tài khoản là `null` (kiểu `number | null`). Không phải 0 cho tổng: "0 tài khoản" là một câu khẳng định, còn chưa biết thì phải im. Cột bên bỏ dòng chữ, trang Thêm bỏ dòng "N tài khoản". Cùng cách nghĩ với `messagesUnread: number | null` ở f05c.
+
+### 25.3 Hai loại số, một chỗ ghép
+`useShellData` làm hai việc, và hai việc không lẫn:
+- `queryFn: shellToday` là cái backend sẽ nói nếu có endpoint cho khung app. Hôm nay nó là mẫu của canvas trừ hai số không ai đếm được (thông báo, đăng ký) đặt về 0. Backend có endpoint thì thay đúng hàm này.
+- Phần ghép sau `useQuery` là số **app tự tính** (số tài khoản). Nó chạy dù cache được gieo từ đâu, nên test gieo `accountCount: 9` mà danh sách có 3 tài khoản vẫn thấy 3.
+
+Trước đây `AppShell` và `MorePage` mỗi nơi tự ghi đè một số. Gom về `useShellData` chỉ làm được khi `useDisconnectAccount` thôi ghi `accountCount` vào cache shell: nếu còn, `useAccounts.ts` import `useShellData.ts` và `useShellData.ts` import `useAccounts.ts`, tức vòng phụ thuộc. Cái đáng học: mỗi con số có đúng một nguồn thì không còn ai phải nhớ cập nhật nó ở chỗ thứ hai.
+
+### 25.4 Một test xanh ngay lần chạy đầu chưa chứng minh gì
+Test "chuông không có chấm" dùng `renderApp('/overview', { shell: null })` để chạy đường dữ liệu thật của app. Lần đầu nó xanh ngay, kể cả khi code còn trả 3: trước khi dữ liệu về, chuông vốn không có số nào, nên câu hỏi được trả lời bởi trạng thái chưa tải. Sửa: đợi dữ liệu có trong cache rồi mới khẳng định. Sau đó mới đỏ đúng chỗ (`Unable to find role="link" and name "Thông báo"`, vì chuông đang tên "Thông báo, 3 mới"). Cách tự hỏi: *nếu code sai, test này có đỏ không?* Chạy nó trên code cũ là cách rẻ nhất để biết.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -1988,3 +2026,7 @@ Thông tin chủ sở hữu đi qua hàm `ownerDetails()` chứ không phải m�
 170. Vì sao nút "Đăng nhập" của trang giới thiệu là `<Button asChild><Link to="/login">` mà không phải `<Button onClick={() => navigate("/login")}>`? Kể hai điều người dùng mất với cách thứ hai.
 171. Câu "site này không dùng cookie" đúng ở sino-site mà sai ở sino-web. Cookie nào, từ đâu ra? Kể một câu khác trong một văn bản bạn từng chép mà có thể sai theo cùng cách.
 172. Vì sao thông tin chủ sở hữu đọc qua hàm `ownerDetails()` thay vì import thẳng một hằng số? Test sẽ ra sao nếu import thẳng và chủ sở hữu điền email thật?
+173. Vì sao `useAccountCounts` không gọi `useAccounts()` dù cùng đọc danh sách? Điều gì xảy ra mỗi lần mở app nếu gọi?
+174. Vì sao tổng số tài khoản là `null` khi danh sách chưa về, còn số cần xử lý là 0? "Chưa biết" và "bằng 0" khác nhau ở chỗ nào trên màn hình?
+175. Gieo cache shell với `accountCount: 9` mà danh sách có 3 tài khoản. Cột bên hiện số nào, và vì sao đây là điều ta muốn?
+176. Test `shell: null` của chuông xanh ngay lần đầu dù code sai. Vì sao, và thêm đúng một dòng nào để nó đỏ khi code sai?

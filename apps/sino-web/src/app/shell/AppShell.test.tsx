@@ -64,20 +64,21 @@ describe('sidebar (desktop)', () => {
 
   // At the moment of the canvas: the sample's rent is due at 17:00 that day, which is the next day once the test runs
   // after 21:05 in Asia/Ho_Chi_Minh.
-  it('takes the owner from the shell data, the inbox count from the inbox (D-93) and the task count from the tasks (D-83)', async () => {
+  it('takes the owner from the shell data, the inbox count from the inbox (D-93), the task count from the tasks (D-83) and the account count from the accounts (D-326)', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
       vi.setSystemTime(CANVAS_NOW)
       const tasks = createTasksSample(new Date())
       renderApp('/overview', {
         inbox: inboxWithUnread(5, 3),
+        accounts: accountsWithStatus('CONNECTED', 'CONNECTED'),
         tasks: { ...tasks, tasks: tasks.tasks.filter((task) => task.id !== 'task-bill') },
         shell: shellWith((s) => {
           s.navCounts.inboxUnread = 99
           s.navCounts.messagesUnread = 99
           s.navCounts.tasksDue = 7
           s.owner.displayName = 'Bình Trần'
-          s.accountCount = 2
+          s.accountCount = 9
         }),
       })
       const sidebar = within(shellPart('sidebar'))
@@ -242,7 +243,7 @@ describe('top bar', () => {
 
 })
 
-describe('the count of accounts needing action (NS-01, D-321)', () => {
+describe('the counts of accounts (NS-01, NS-03, D-321, D-326)', () => {
   // The shell sample says 1; each test gives the list another number, so the two cannot agree by chance.
   it('takes it from the account list, not from the shell data', async () => {
     renderApp('/overview', {
@@ -270,6 +271,21 @@ describe('the count of accounts needing action (NS-01, D-321)', () => {
 
     expect(await within(shellPart('rail')).findByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
     expect(within(shellPart('sidebar')).getByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
+    // Nor does the foot of the sidebar say how many accounts there are: the sample says 3.
+    expect(within(shellPart('sidebar')).queryByText(/tài khoản$/)).not.toBeInTheDocument()
+  })
+
+  it('says at the foot of the sidebar how many accounts the list has, and follows it', async () => {
+    const { queryClient } = renderApp('/overview', {
+      accounts: accountsWithStatus('CONNECTED', 'AUTH_EXPIRED'),
+      shell: shellWith((s) => (s.accountCount = 9)),
+    })
+    const sidebar = within(shellPart('sidebar'))
+    expect(await sidebar.findByText('2 tài khoản')).toBeInTheDocument()
+
+    act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus('CONNECTED')))
+
+    expect(await sidebar.findByText('1 tài khoản')).toBeInTheDocument()
   })
 
   it('follows the list as an account needs the owner and then does not', async () => {
@@ -280,6 +296,39 @@ describe('the count of accounts needing action (NS-01, D-321)', () => {
     act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus('CONNECTED', 'CONNECTED')))
 
     expect(await rail.findByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
+  })
+})
+
+// `shell: null`: the shell data is what the app has of its own today, not a sample handed in by the test.
+describe('what has no source yet is not flagged (NS-02, D-325)', () => {
+  it('rings no bell: no dot and no count in its name', async () => {
+    const { queryClient } = renderApp('/overview', { shell: null })
+    const topbar = within(shellPart('topbar'))
+    // Before the data comes the bell has no count either; the point is that it has none after.
+    await waitFor(() => expect(queryClient.getQueryData(SHELL_QUERY_KEY)).toBeDefined())
+
+    const bells = await topbar.findAllByRole('link', { name: 'Thông báo' })
+
+    expect(bells).toHaveLength(2) // desktop bar and tablet bar
+    for (const bell of bells) {
+      expect(bell).toHaveAttribute('href', '/notifications')
+      expect(bell.querySelector('span')).toBeNull()
+    }
+    expect(topbar.queryByRole('link', { name: /mới/ })).not.toBeInTheDocument()
+  })
+
+  it('flags no new registration on Đăng ký, on any size', async () => {
+    const { queryClient } = renderApp('/overview', { shell: null })
+    await waitFor(() => expect(queryClient.getQueryData(SHELL_QUERY_KEY)).toBeDefined())
+
+    expect(await within(shellPart('sidebar')).findByRole('link', { name: 'Đăng ký' })).toHaveAttribute('href', '/registrations')
+    expect(within(shellPart('sidebar')).queryByRole('link', { name: /^Đăng ký, / })).not.toBeInTheDocument()
+  })
+
+  it('still shows the count of the notifications once the data has one', async () => {
+    renderApp('/overview', { shell: shellWith((s) => (s.unreadNotifications = 3)) })
+
+    expect(await within(shellPart('topbar')).findAllByRole('link', { name: 'Thông báo, 3 mới' })).toHaveLength(2)
   })
 })
 

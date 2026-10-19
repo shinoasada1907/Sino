@@ -3,7 +3,6 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
-import type { ShellData } from '@/app/shell/shell.types'
 import { SHELL_QUERY_KEY } from '@/app/shell/useShellData'
 import { createOverviewSample } from '@/features/overview/overview.sample'
 import type { OverviewData } from '@/features/overview/overview.types'
@@ -17,7 +16,7 @@ import {
   ACCOUNTS_QUERY_KEY,
   useAccount,
   useAccounts,
-  useAccountsNeedingAction,
+  useAccountCounts,
   useDisconnectAccount,
   useSetChannel,
   withChannel,
@@ -73,53 +72,53 @@ describe('first imports in the list (FE-52)', () => {
   })
 })
 
-describe('accounts needing action (NS-01, D-321)', () => {
-  it('is not known until the list has come', async () => {
+describe('account counts (NS-01, NS-03, D-321, D-326)', () => {
+  it('are not known until the list has come', async () => {
     const { wrapper } = setup({ list: false })
-    const { result } = renderHook(() => useAccountsNeedingAction(), { wrapper })
+    const { result } = renderHook(() => useAccountCounts(), { wrapper })
 
     expect(result.current).toBeUndefined()
-    await waitFor(() => expect(result.current).toBe(1))
+    await waitFor(() => expect(result.current).toEqual({ total: 3, needingAction: 1 }))
   })
 
-  it('counts the accounts the owner has to act on: signed out or failing, not degraded, off or well', () => {
+  it('count the accounts, and of them those the owner has to act on: signed out or failing, not degraded, off or well', () => {
     const { queryClient, wrapper } = setup({ list: false })
     queryClient.setQueryData(
       ACCOUNTS_QUERY_KEY,
       accountsWithStatus('AUTH_EXPIRED', 'ERROR', 'DEGRADED', 'DISABLED', 'CONNECTED', 'AUTH_EXPIRED'),
     )
 
-    const { result } = renderHook(() => useAccountsNeedingAction(), { wrapper })
+    const { result } = renderHook(() => useAccountCounts(), { wrapper })
 
-    expect(result.current).toBe(3)
+    expect(result.current).toEqual({ total: 6, needingAction: 3 })
   })
 
-  it('is zero when no account needs action, and when there is no account at all', async () => {
+  it('are zero when no account needs action, and when there is no account at all', async () => {
     const { queryClient, wrapper } = setup({ list: false })
     queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus('CONNECTED', 'DEGRADED'))
-    const { result } = renderHook(() => useAccountsNeedingAction(), { wrapper })
-    expect(result.current).toBe(0)
+    const { result } = renderHook(() => useAccountCounts(), { wrapper })
+    expect(result.current).toEqual({ total: 2, needingAction: 0 })
 
     act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus('AUTH_EXPIRED')))
-    await waitFor(() => expect(result.current).toBe(1))
+    await waitFor(() => expect(result.current).toEqual({ total: 1, needingAction: 1 }))
     act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus()))
 
-    await waitFor(() => expect(result.current).toBe(0))
+    await waitFor(() => expect(result.current).toEqual({ total: 0, needingAction: 0 }))
   })
 
-  it('follows the list as an account is signed out and signed in again', async () => {
+  it('follow the list as an account is signed out and signed in again', async () => {
     const { queryClient, wrapper } = setup({ list: false })
     queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus('CONNECTED', 'CONNECTED'))
-    const { result } = renderHook(() => useAccountsNeedingAction(), { wrapper })
+    const { result } = renderHook(() => useAccountCounts(), { wrapper })
 
     act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus('CONNECTED', 'AUTH_EXPIRED')))
-    await waitFor(() => expect(result.current).toBe(1))
+    await waitFor(() => expect(result.current?.needingAction).toBe(1))
 
     act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accountsWithStatus('CONNECTED', 'CONNECTED')))
-    await waitFor(() => expect(result.current).toBe(0))
+    await waitFor(() => expect(result.current?.needingAction).toBe(0))
   })
 
-  it('reads the list without the first-import duties of useAccounts: no inbox read again at every start of the app', () => {
+  it('read the list without the first-import duties of useAccounts: no inbox read again at every start of the app', () => {
     const data = createAccountsSample(now)
     const withDoneImport = {
       ...data,
@@ -132,9 +131,23 @@ describe('accounts needing action (NS-01, D-321)', () => {
     queryClient.setQueryData(ACCOUNTS_QUERY_KEY, withDoneImport)
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
 
-    renderHook(() => useAccountsNeedingAction(), { wrapper })
+    renderHook(() => useAccountCounts(), { wrapper })
 
     expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  it('keep the same object while the list changes but the counts do not', () => {
+    const { queryClient, wrapper } = setup({ list: false })
+    const list = accountsWithStatus('CONNECTED', 'AUTH_EXPIRED')
+    queryClient.setQueryData(ACCOUNTS_QUERY_KEY, list)
+    const { result } = renderHook(() => useAccountCounts(), { wrapper })
+    const before = result.current
+
+    // A channel switched: the list is another one, the counts are the same.
+    act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, withChannel(list, 'acc-0', 'SEND', false)))
+
+    expect(queryClient.getQueryData(ACCOUNTS_QUERY_KEY)).not.toBe(list)
+    expect(result.current).toBe(before)
   })
 })
 
@@ -197,15 +210,15 @@ describe('mutations', () => {
     expect(channelsOf(queryClient.getQueryData<AccountsData>(ACCOUNTS_QUERY_KEY)!, 'acc-gmail')[1].enabled).toBe(true)
   })
 
-  it('disconnecting updates the list, the account count of the shell and the overview', async () => {
+  it('disconnecting updates the list and the overview, and leaves the shell cache alone (the count comes from the list, D-326)', async () => {
     const { queryClient, wrapper } = setup()
     queryClient.setQueryData(['accounts', 'acc-messenger', 'extras'], createAccountExtrasSample('acc-messenger', now))
+    const shellBefore = queryClient.getQueryData(SHELL_QUERY_KEY)
     const { result } = renderHook(() => useDisconnectAccount(), { wrapper })
     await act(() => result.current.mutateAsync({ accountId: 'acc-messenger' }))
     expect(queryClient.getQueryData(['accounts', 'acc-messenger', 'extras'])).toBeUndefined()
     expect(queryClient.getQueryData<AccountsData>(ACCOUNTS_QUERY_KEY)!.accounts).toHaveLength(2)
-    const shell = queryClient.getQueryData<ShellData>(SHELL_QUERY_KEY)!
-    expect(shell.accountCount).toBe(2)
+    expect(queryClient.getQueryData(SHELL_QUERY_KEY)).toEqual(shellBefore)
     const overview = queryClient.getQueryData<OverviewData>(OVERVIEW_QUERY_KEY)!
     expect(overview.accounts.map((account) => account.id)).toEqual(['acc-gmail', 'acc-zalo'])
   })

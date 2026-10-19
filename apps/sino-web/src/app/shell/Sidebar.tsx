@@ -38,7 +38,7 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-sm font-semibold">{shell?.owner.displayName}</span>
             <span className="truncate font-mono text-[11px] leading-4 text-muted-foreground">
-              {shell ? `${shell.accountCount} tài khoản` : ''}
+              {shell && shell.accountCount !== null ? `${shell.accountCount} tài khoản` : ''}
             </span>
           </div>
           <UserMenu>
