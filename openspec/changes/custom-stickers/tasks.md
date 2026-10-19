@@ -32,6 +32,16 @@
   - **Bằng chứng (2026-10-19):** môi trường: JDK 25 lấy từ image `eclipse-temurin:25-jdk`, `dockerd` bật tay, `postgres:18` cho Testcontainers (xem ghi chú đầu file). Đỏ trước: 15/15 `relation "sticker" does not exist` (bản test đầu). Bản test đầu còn hai lỗi của chính test, sửa rồi viết lại: `users.save` chưa flush nên khóa ngoại không thấy chủ (đổi `saveAndFlush`), và một câu bị từ chối làm hỏng cả giao dịch của test (`current transaction is aborted`) nên mỗi test chỉ kiểm một lần từ chối, các ca của cùng một luật là tham số. Xanh: `StickerSchemaTests` **36/36**. Lỗi gài trên chính migration: **16 mutant, 15 bị bắt** bằng lỗi thật (bỏ unique, bỏ cascade, nhận JPEG, bỏ `kind`, size 0 hoặc 20 MiB, tên rỗng, cạnh 0 hoặc 16384, `sha256 >= 31`, nội dung rỗng, bỏ `SET STORAGE`, chỉ mục không `DESC`, bỏ hai khóa ngoại); mutant còn lại là tương đương (xem trên) và đã loại ràng buộc thừa. Lưu ý đọc log: ở `-q` Maven không in gì khi test xanh, nên dòng "killed ()" trống nghĩa là mutant **sống sót**.
   - **NOT VERIFIED:** toàn bộ test backend (chạy ở ST-09), migration trên PostgreSQL có sẵn dữ liệu của người dùng (bảng mới, không đụng bảng nào có sẵn).
 
+
+- [x] 1.1a **ST-01a — `ErrorCategory`: 413 và 415 (thêm khi đọc code, ngoài kế hoạch đầu)**
+  - **Goal:** lớp lỗi dùng chung có chỗ cho "quá lớn" (413) và "loại tệp không nhận" (415), mà D-334 cần.
+  - **Files:** `apps/sino-api/src/main/java/dev/sino/common/error/ErrorCategory.java` (`PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`), `common/web/GlobalExceptionHandler.java` (`statusOf`), test `GlobalExceptionHandlerTests`.
+  - **Acceptance criteria:** một `SinoException` có mã thuộc hai category mới trả `413` và `415` với `application/problem+json` và `code` của mã đó.
+  - **Test:** `GlobalExceptionHandlerTests` (hai mã probe mới).
+  - **Depends on:** không.
+  - **Thực hiện (2026-10-19, AUTO):** thêm hai hằng cho `ErrorCategory` và hai nhánh cho `statusOf` (`switch` đầy đủ nên không thể quên). **LÝ DO của task:** khi đọc `common/error` để viết `StickerErrorCode` thì thấy `ErrorCategory` chỉ có 401, 404, 409, 422, 429, 502, 503, 504; D-334 dùng 413 và 415 mà không có chỗ nào để trả. Phương án bỏ: gói mọi lỗi tải lên vào `INVALID` (422) để khỏi sửa `common`: mất ý nghĩa của HTTP (client và proxy hiểu 413 và 415), và `common` được dành cho đúng loại việc này.
+  - **Bằng chứng (2026-10-19):** đỏ trước: lỗi biên dịch `cannot find symbol PAYLOAD_TOO_LARGE`. Xanh: `GlobalExceptionHandlerTests` 21/21 (có hai test mới), cùng `SinoExceptionTests`, `DefaultProviderRegistryTests`, `ModularityTests` 45/45.
+
 - [ ] 1.2 **ST-02 — Đọc ảnh: khung `StickerImage` và PNG (D-332)**
   - **Goal:** một hàm thuần nhận byte của ảnh và trả loại, tĩnh/động, chiều rộng và cao, hoặc từ chối đúng loại lỗi; làm trọn cho PNG.
   - **Files:** `apps/sino-api/src/main/java/dev/sino/sticker/domain/StickerImage.java` (+ record kết quả, hai ngoại lệ hoặc một `StickerErrorCode`), test cạnh nó.

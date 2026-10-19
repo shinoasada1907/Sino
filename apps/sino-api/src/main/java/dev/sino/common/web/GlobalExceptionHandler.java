@@ -151,6 +151,8 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;
             case INVALID -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case PAYLOAD_TOO_LARGE -> HttpStatus.CONTENT_TOO_LARGE;
+            case UNSUPPORTED_MEDIA_TYPE -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
             case DEPENDENCY_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case PROVIDER_FAILED -> HttpStatus.BAD_GATEWAY;
             case PROVIDER_OUTCOME_UNKNOWN -> HttpStatus.GATEWAY_TIMEOUT;

@@ -18,6 +18,12 @@ public enum ErrorCategory {
     /** The request is well-formed but breaks a business rule (422). */
     INVALID,
 
+    /** The request carries more than the API takes, for example a file above the size limit (413). */
+    PAYLOAD_TOO_LARGE,
+
+    /** The request carries a kind of file or data the API does not take (415). */
+    UNSUPPORTED_MEDIA_TYPE,
+
     /** A dependency such as a provider is temporarily unavailable (503). */
     DEPENDENCY_UNAVAILABLE,
 
