@@ -27,6 +27,7 @@ new_features: TRAINING
 # Task-level override: when the user says they will code a task themselves ("để tôi làm BE-xx"),
 # that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
 task_overrides:
+  f15-notes: AUTO           # 2026-10-19: AUTO for BE-90, BE-91, FE-90 and ACC, chữ và sơ đồ (user: "AUTO cho f15-notes … mình tự làm, kiểm chứng, commit trên dev rồi báo"); asked because `new_features` is TRAINING and F15 was planned 2026-10-12, before that rule. Architecture decisions still go to the user.
   zalo-personal: AUTO       # 2026-10-15: AUTO from ZL-02 on ("chuyển sang mode AUTO tiếp tục phần tích hợp zalo"); 2026-10-14: TRAINING, the user coded ZL-01 ("Toàn bộ")
   # 2026-10-16: BE-110 of f05c-messages-inbox-split ran in TRAINING ("phần này tôi làm được không" → "oke step by step
   # nhé"): the user coded it in small steps, Claude wrote the tests from step 5 and, when asked, finished and committed it.

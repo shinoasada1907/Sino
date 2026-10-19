@@ -1,9 +1,9 @@
-# Kiến thức Phase 4 — Việc cần làm và Lịch
+# Kiến thức Phase 4 — Việc cần làm, Lịch và Ghi chú
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71.
-> **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71. Phần lõi của F15, `openspec/changes/f15-notes` (ghi chú chữ và ghi chú dạng sơ đồ lưu trong database, chưa gắn tin nhắn), nằm ở phần cuối, mục "Ghi chú (F15)": BE-90.
+> **Cập nhật:** 2026-10-19. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
 
@@ -479,3 +479,81 @@ Hai bẫy gặp khi viết `TaskForm.test.tsx`:
 - RED 19 test và một file không nạp được (chưa có `taskForm.ts`); GREEN; ca "Back không mở lại biểu mẫu" viết sau nên gài lỗi một lần (`navigate(-1)` thành `replace`): test đỏ, trả code lại.
 - `pnpm lint` 0 cảnh báo (tách `fieldProps.ts` vì file component không nên export hàm thường), `tsc -b` 0, `vitest` 590/590, `pnpm build` 0.
 - Chrome với backend thật: "Tùy chỉnh…" mỗi 2 tuần thứ Hai và thứ Năm sau 6 lần (máy chủ lưu đúng); dời hạn sang thứ Ba → 422 hiện cạnh ô Lặp lại; Esc không đổi gì; bỏ hạn → việc về "KHÔNG CÓ HẠN"; xóa có hỏi lại; 768 (hộp thoại) và 390 (trang riêng, thu chip để bảy thứ nằm một dòng); không lỗi console.
+
+---
+
+## Ghi chú (F15)
+
+Màn Ghi chú của web (ghi chú chữ và ghi chú dạng sơ đồ) dựng xong trên dữ liệu mẫu, nên tải lại trang là mất hết. F15 cho nó một chỗ lưu thật: module mới `notes`, đứng riêng như `planner`, chỉ phụ thuộc `identity` (ai đang gọi) và `common`. Change: `openspec/changes/f15-notes`.
+
+| Quyết định | Nội dung |
+|---|---|
+| D-170 | Ghi chú độc lập trước, gắn tin nhắn đợt sau (người dùng) |
+| D-172 | Lưu phải kèm `version` đã đọc; lệch thì `409`, không ghi gì (người dùng) |
+| D-173 | Danh sách trả đủ nội dung; tìm và lọc ở trình duyệt (người dùng) |
+| D-174 | Ghi chú chữ bắt buộc có nội dung; tiêu đề tùy chọn (người dùng) |
+| D-175 | Ghim không phải một lần sửa: không đổi `updated_at` (người dùng duyệt) |
+| D-179 | Ghi chú sơ đồ nằm cùng bảng `note`: cột `kind` và `diagram jsonb` (người dùng, 2026-10-19; thay D-171 "sơ đồ là change riêng") |
+
+### F15.1 Bảng `note`, `Note`, `Diagram` và `NoteService` (BE-90)
+
+**Ở đâu:** `notes/domain/{Note, NoteKind, Diagram, DiagramBlock, DiagramLink, Side, BlockColor, NotesErrorCode}`; `notes/application/{NoteService, NewNote, NoteChange}`; `notes/infrastructure/NoteRepository`; `db/migration/V20__notes_create_note.sql`.
+
+```text
+note
+  id  user_id  kind  title  body  diagram  pinned  created_at  updated_at  version
+                |             |       |
+                |             |       +-- jsonb: cả sơ đồ {"blocks":[...], "links":[...]}
+                |             +---------- chữ của ghi chú chữ; rỗng ('') với sơ đồ
+                +------------------------ TEXT | DIAGRAM, chọn lúc tạo, không bao giờ đổi
+
+TEXT    : body có chữ, diagram = NULL
+DIAGRAM : body = '',   diagram là một object JSON
+```
+
+**Vì sao một bảng và một cột jsonb (D-179).** Web luôn gửi và nhận cả sơ đồ: mỗi lần tự lưu là thay toàn bộ. Không có chỗ nào cần đọc hay sửa một khối riêng. Một cột jsonb giữ sơ đồ nhất quán trong một lần ghi (không có chuyện đã lưu 3 khối trong 5 rồi lỗi), và dùng chung `version`, `409`, ghim, xóa, danh sách với ghi chú chữ. **Phương án bỏ:** hai bảng `note_block` và `note_link`: nhiều lệnh mỗi lần lưu, sơ đồ có thể dở dang khi lỗi giữa chừng, mà chưa ai truy vấn theo khối. Khi F11 (tìm toàn văn) cần tìm trong khối thì tách sau.
+
+**`Diagram` là một `record` biết các luật nhìn xuyên.** Mỗi khối và mỗi nối tự kiểm phần của mình (`DiagramBlock`: chữ tối đa 2.000 ký tự, tọa độ là số hữu hạn; `DiagramLink`: nhãn tối đa 80 ký tự). Những luật cần nhìn cả sơ đồ nằm một chỗ, trong compact constructor của `Diagram`:
+
+```text
+1 .. 300 khối, tối đa 600 nối
+mã khối không trùng, mã nối không trùng
+một nối nối hai khối KHÁC nhau, cả hai nằm trong sơ đồ
+một cặp (từ, tới) có tối đa một nối      (từ A tới B và từ B tới A là hai nối khác nhau)
+```
+
+Nhờ vậy không tạo được một `Diagram` hỏng ở bất kỳ đâu: API (BE-91) chỉ việc dựng nó, lỗi nào cũng ra từ một chỗ. `List.copyOf` trong constructor làm hai việc: sơ đồ không đổi được qua danh sách đã dùng để dựng nó, và `null` bị chặn ngay (NullPointerException).
+
+**`equals` theo nội dung, và vì sao nó quan trọng.** `record` so từng thành phần. Web gửi lại cả sơ đồ ở mỗi lần tự lưu, kể cả lần chẳng có gì đổi (ví dụ đổi tiêu đề). `Note.edit` so sơ đồ mới với sơ đồ đang lưu bằng `Objects.equals`: bằng nhau thì không phải một lần sửa, `updated_at` và `version` giữ nguyên. Nếu so bằng tham chiếu (`==`), mọi lần tự lưu đều tăng `version`, và tab thứ hai sẽ bị `409` oan.
+
+**Hibernate lưu `record` lồng nhau vào jsonb.** Chỉ cần hai dòng trên trường (`@JdbcTypeCode(SqlTypes.JSON)` và `@Column(name = "diagram")`), như `AccountCredential.scopes`. Điều chưa chắc là danh sách các record lồng nhau có đi qua Jackson 3 (Spring Boot 4) và quay lại đúng không, nên test `NoteServiceTests` lưu một sơ đồ có chữ Việt, emoji, dấu nháy kép, xuống dòng và số thập phân dài, đọc lại bằng một lần mở EntityManager khác, và so `equals` với bản gốc. Test còn hỏi thẳng jsonb bằng SQL (`diagram -> 'links' -> 0 ->> 'fromSide'`) để chắc dạng JSON khớp hợp đồng D-211, không chỉ khớp với chính Java.
+
+**`kind` không đổi, và dùng `STRING` chứ không `ORDINAL`.** `@Column(updatable = false)`: Hibernate không bao giờ ghi lại cột này. `@Enumerated(EnumType.STRING)` lưu chữ `TEXT` / `DIAGRAM`; `ORDINAL` lưu số thứ tự, và thêm một giá trị vào giữa enum sau này sẽ làm mọi hàng cũ đổi nghĩa trong im lặng.
+
+**Hai tầng chặn khi nhầm loại.** Trong `Note.edit` (domain): gửi `body` cho ghi chú sơ đồ, hay `diagram` cho ghi chú chữ, ném `IllegalArgumentException`: người gọi code sai. `NoteService.update` kiểm trước, và ném `SinoException(NOTE_KIND_MISMATCH)`, mã `422`. Thứ tự: không có ghi chú → `404`; nhầm loại → `422`; `version` lệch → `409`. Nhầm loại được xét trước `version` vì không phiên bản nào làm cho yêu cầu đó đúng. **Vì sao `422` mà không `400`:** ở app này `400 VALIDATION_FAILED` chỉ đến từ Bean Validation trên request, tức là lỗi thấy được chỉ nhìn request. Nhầm loại phụ thuộc vào ghi chú đã lưu: request đúng dạng nhưng trái luật nghiệp vụ, đúng nhóm `INVALID` (`422`) của `ErrorCategory`. (`POST` có `body` cho sơ đồ thì chỉ nhìn request cũng thấy sai, nên đó là `400`, kiểm ở BE-91 và ở `NewNote`.)
+
+**Database giữ sàn dưới.** `V20` có các CHECK, mỗi cái một tên để test kiểm đúng cái bị chặn:
+
+```text
+note_kind_ck          kind IN ('TEXT','DIAGRAM')
+note_text_ck          kind <> 'TEXT'    OR (diagram IS NULL AND btrim(body) <> '')
+note_diagram_ck       kind <> 'DIAGRAM' OR (diagram IS NOT NULL AND jsonb_typeof(diagram) = 'object' AND body = '')
+note_body_length_ck   char_length(body) <= 20000
+note_title_blank_ck   title IS NULL OR btrim(title) <> ''
+```
+
+`kind <> 'TEXT' OR (...)` là cách viết "nếu là TEXT thì ..." trong SQL: chỉ khi `kind` là `TEXT` thì vế phải mới phải đúng. Bên trong sơ đồ (số khối, nối trỏ đúng) do ứng dụng kiểm, database không cố hiểu JSON. **Bẫy:** `insert ... values (?)` với một chuỗi cho cột jsonb báo lỗi kiểu ("column is of type jsonb but expression is of type character varying"); phải viết `?::jsonb`. Test dùng `insertRow` để chèn thẳng hàng hỏng nên gặp bẫy này.
+
+**Câu gợi ý của task: "vì sao so `version` trong service mà vẫn cần `@Version` của JPA?"** Hai thứ bắt hai tình huống khác nhau:
+- Service so `version` gửi lên với `version` đang lưu: bắt **tab cũ**. Tab A đọc ở version 3, tab B lưu thành 4, một lúc sau tab A lưu với version 3: service thấy 3 khác 4 và từ chối. Hai request cách nhau, JPA không thấy gì sai, vì nó chỉ biết version nó vừa đọc.
+- `@Version` bắt **hai request cùng lúc**, cùng đọc version 3 và cùng qua được bước so. Câu `UPDATE ... WHERE version = 3` của request thứ hai không còn hàng nào để sửa, JPA ném `OptimisticLockingFailureException`. Test `twoSavesOfTheSameVersionAtTheSameTimeEndInOneRefusal` dựng đúng tình huống này bằng đồng hồ chỉnh tay có thể dừng lại giữa chừng.
+
+Cả hai cùng ném `OptimisticLockingFailureException`, nên handler sẵn có trả cùng một `409 CONCURRENT_MODIFICATION`.
+
+**Kiểm chứng (BE-90).**
+- Xuất phát từ bản WIP `f43fdd6` (ghi chú chữ, chưa ai chạy): trong worktree mới, 49 test (`NoteTests` 25, `NoteServiceTests` 22, `ModularityTests` 2) xanh trước khi sửa gì, nên phần chữ là nền chắc.
+- ĐỎ đúng lý do: test mới viết trước, `test-compile` chỉ báo thiếu `Diagram`, `DiagramBlock`, `DiagramLink`, `BlockColor`, `Side`, `NoteKind`, `Note.diagram()`, `Note.kind()`, `NewNote.text(...)`: không có lỗi nào khác.
+- XANH: `NoteTests` 34, `DiagramTests` 21, `NewNoteTests` 5, `NoteServiceTests` 40, `ModularityTests` 2 (module `notes` được nhận). Sơ đồ có chữ Việt, emoji, dấu nháy kép, xuống dòng và số thập phân dài lưu rồi đọc lại bằng EntityManager khác đều `equals` bản gốc.
+- `./mvnw -B -ntp verify` trong worktree: 1873 test, 0 lỗi, 0 error, 8 bỏ qua (sẵn có), BUILD SUCCESS.
+- Gài lỗi (một lần cho `Diagram` và `Note`): 13 lỗi gài, cả 13 làm đỏ đúng test của luật đó, rồi trả code lại. `Diagram`: bỏ kiểm tự nối, trùng cặp, 301 khối, nối tới khối không có, sơ đồ rỗng, mã khối trùng, NUL trong chữ khối. `Note`: `edit` bỏ qua sơ đồ, `edit` coi sơ đồ bằng nhau là đã đổi, bỏ chặn `body` cho sơ đồ, ghim đổi `updated_at`. `NoteService`: bỏ so `version`, bỏ chuyển `diagram` xuống `edit`. Một lỗi gài đầu (mã khối trùng) làm đỏ cả những test không liên quan vì nó bỏ luôn lệnh `add` vào tập mã; viết lại chỉ tắt phần báo lỗi thì chỉ còn `twoBlocksCannotShareAnId` đỏ.
+- Bài học: lỗi gài tốt chỉ tắt một nhánh, không xóa lệnh có tác dụng phụ trong cùng điều kiện, nếu không "đỏ" không còn nói lên điều gì.
