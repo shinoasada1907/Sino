@@ -121,6 +121,52 @@ describe("toZaloMessage for a photo", () => {
     }
   });
 
+  it("reads a content that arrives as JSON text", () => {
+    const content = JSON.stringify({ title: "Chuyến đi", href: FULL, thumb: THUMB });
+
+    expect(photoOf(content).photo).toEqual({ url: FULL, thumbUrl: THUMB, caption: "Chuyến đi" });
+  });
+
+  it("gives no photo for a text that is not JSON or not an object", () => {
+    for (const content of ["{not json", "text", "[1,2]", "null", '"https://f21-zpc.zdn.vn/a.jpg"']) {
+      expect(photoOf(content).photo).toBeUndefined();
+    }
+  });
+
+  it("describes the content of a photo it found no picture in, by key and kind, never by value", () => {
+    const content = { title: "", pic: "https://f21-zpc.zdn.vn/secret-token-abc/a.jpg", n: 5, nested: { a: 1 }, none: null, list: [1] };
+
+    const shape = photoOf(content).contentShape;
+
+    expect(shape).toBe("title:string(0),pic:url,n:number,nested:object,none:null,list:array");
+    expect(shape).not.toContain("secret-token");
+    expect(shape).not.toContain("zdn.vn");
+  });
+
+  it("describes a content that is no object", () => {
+    expect(photoOf("hello").contentShape).toBe("content:string(5)");
+    expect(photoOf(null).contentShape).toBe("content:null");
+    expect(photoOf(12).contentShape).toBe("content:number");
+    expect(photoOf([1, 2]).contentShape).toBe("content:array");
+    expect(photoOf("[1,2]").contentShape).toBe("content:string(5)");
+  });
+
+  it("keeps the shape short and safe when the keys are many or odd", () => {
+    const odd = "bad key!\n" + "k".repeat(60);
+    const content: Record<string, unknown> = { [odd]: "x".repeat(300), ...Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`k${i}`, i])) };
+
+    const shape = photoOf(content).contentShape ?? "";
+
+    expect(shape.split(",").length).toBe(20);
+    expect(shape.split(",")[0]).toBe(`bad_key__${"k".repeat(21)}:string(300)`);
+    expect(shape).toMatch(/^[A-Za-z0-9_.:(),-]*$/);
+  });
+
+  it("gives no shape when the picture was found, nor for a message that is not a photo", () => {
+    expect(photoOf({ href: FULL }).contentShape).toBeUndefined();
+    expect(photoOf({ title: "x" }, { msgType: "share.file" }).contentShape).toBeUndefined();
+  });
+
   it("gives a photo only to a chat.photo message", () => {
     const other = photoOf({ href: FULL, thumb: THUMB }, { msgType: "share.file" });
 
@@ -217,6 +263,23 @@ describe("SessionManager logs a photo", () => {
     const lines = await received(withoutPhoto);
 
     expect(lines.find((l) => l.message === "Zalo message")?.details).toMatchObject({ photo: false });
+  });
+
+  it("adds the shape of the content when no picture was found, and nothing else of it", async () => {
+    const { photo: _photo, ...withoutPhoto } = photoMessage("100");
+
+    const lines = await received({ ...withoutPhoto, contentShape: "title:string(0),pic:url" });
+
+    expect(lines.find((l) => l.message === "Zalo message")?.details).toMatchObject({
+      photo: false,
+      contentShape: "title:string(0),pic:url",
+    });
+  });
+
+  it("leaves the shape out of the log when the picture was found", async () => {
+    const lines = await received(photoMessage("100"));
+
+    expect(lines.find((l) => l.message === "Zalo message")?.details).not.toHaveProperty("contentShape");
   });
 
   it("adds nothing for a message that is not a photo", async () => {

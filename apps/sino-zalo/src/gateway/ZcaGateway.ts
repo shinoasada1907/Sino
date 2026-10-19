@@ -163,6 +163,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
         ? gifStickerOf(data.msgId, data.content)
         : undefined;
   const photo = data.msgType === "chat.photo" ? photoOf(data.content) : undefined;
+  const contentShape = data.msgType === "chat.photo" && photo === undefined ? contentShapeOf(data.content) : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -175,6 +176,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
     sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
     ...(sticker === undefined ? {} : { sticker }),
     ...(photo === undefined ? {} : { photo }),
+    ...(contentShape === undefined ? {} : { contentShape }),
   };
 }
 
@@ -186,11 +188,11 @@ export function toZaloMessage(message: Message): ZaloMessage {
  * a real photo (ZL-16): the log line of SessionManager says whether a picture was found.
  */
 function photoOf(content: unknown): ZaloPhoto | undefined {
-  if (typeof content !== "object" || content === null) {
+  const fields = objectOf(content);
+  if (fields === null) {
     return undefined;
   }
-  const fields = content as Record<string, unknown>;
-  const params = paramsOf(fields.params);
+  const params = objectOf(fields.params) ?? {};
   const thumbUrl = webAddress(fields.thumb) ?? webAddress(params.thumbUrl);
   const url =
     webAddress(fields.href) ??
@@ -203,17 +205,46 @@ function photoOf(content: unknown): ZaloPhoto | undefined {
   return { url, thumbUrl: thumbUrl === url ? null : thumbUrl, caption: caption === "" ? null : caption };
 }
 
-/** The fields of a content's `params`, which Zalo sends as JSON text; none when it is not an object. */
-function paramsOf(raw: unknown): Record<string, unknown> {
-  if (typeof raw !== "string") {
-    return {};
+/** The fields of a value that is an object, or of JSON text that holds one; null for anything else (an array too). */
+function objectOf(value: unknown): Record<string, unknown> | null {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
   }
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+}
+
+/**
+ * What a content looks like, for the log when no picture was found in it (ZL-16): up to 20 keys, each with the kind of
+ * its value (`url` for a web address, the length for other text) and never the value itself, since an address can open
+ * the picture. A content that is no object is described as a whole.
+ */
+function contentShapeOf(content: unknown): string {
+  const fields = objectOf(content);
+  if (fields === null) {
+    return `content:${kindOf(content)}`;
   }
+  return Object.entries(fields)
+    .slice(0, 20)
+    .map(([key, value]) => `${key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30)}:${kindOf(value)}`)
+    .join(",");
+}
+
+function kindOf(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  if (typeof value === "string") {
+    return webAddress(value) === null ? `string(${value.length})` : "url";
+  }
+  return typeof value;
 }
 
 /** The text of a web address, trimmed, or null when the value is anything else. */

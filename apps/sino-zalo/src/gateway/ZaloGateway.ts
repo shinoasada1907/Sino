@@ -93,6 +93,11 @@ export interface ZaloMessage {
   readonly sticker?: ZaloSticker | undefined;
   /** Only on a `chat.photo` message whose content names a picture. */
   readonly photo?: ZaloPhoto | undefined;
+  /**
+   * Only on a `chat.photo` message whose content named no picture: the keys of the content with the kind of each
+   * value, never a value, so the log can say what Zalo sent (ZL-16). sino-api ignores it.
+   */
+  readonly contentShape?: string | undefined;
 }
 
 /** A thread's name and picture; null where Zalo gave none. */

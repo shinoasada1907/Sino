@@ -280,22 +280,35 @@ final class ZaloMessageNormalizer {
         return new Body(MessageType.IMAGE, "[Ảnh]", Map.copyOf(metadata));
     }
 
-    /** Names the host of a photo address Sino refused, and nothing else of it: the path can open the picture. */
+    /**
+     * Says what is known of a photo address Sino refused, and nothing of its path (it can open the picture): the host
+     * and the scheme when the address can be read, its length, and whether it is plain printable ASCII. Enough to tell
+     * a Zalo CDN missing from {@link #PICTURE_DOMAINS} from an address refused for how it is written.
+     */
     private static void warnRefused(Photo photo) {
         String raw = clean(photo.url()) != null ? clean(photo.url()) : clean(photo.thumbUrl());
         if (raw != null) {
-            LOG.warn("Zalo gave a photo whose address Sino does not accept (host: {}); it stays the placeholder text",
-                    hostOf(raw));
+            LOG.warn("Zalo gave a photo whose address Sino does not accept ({}); it stays the placeholder text",
+                    describe(raw));
         }
     }
 
-    private static String hostOf(String address) {
+    private static String describe(String address) {
+        String host = "unreadable";
+        String scheme = "unreadable";
         try {
-            String host = new URI(address).getHost();
-            return host != null && host.matches("[A-Za-z0-9.-]{1,100}") ? host : "unreadable";
+            URI uri = new URI(address);
+            if (uri.getHost() != null && uri.getHost().matches("[A-Za-z0-9.-]{1,100}")) {
+                host = uri.getHost();
+            }
+            if (uri.getScheme() != null && uri.getScheme().matches("[A-Za-z][A-Za-z0-9+.-]{0,20}")) {
+                scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+            }
         } catch (URISyntaxException invalid) {
-            return "unreadable";
+            // Both stay "unreadable".
         }
+        boolean plain = address.chars().allMatch(c -> c > 0x20 && c < 0x7f);
+        return "host: " + host + ", scheme: " + scheme + ", length: " + address.length() + ", plain: " + plain;
     }
 
     private static Body stickerBody(String zaloType, String placeholderText, Sticker sticker) {

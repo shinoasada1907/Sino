@@ -213,6 +213,19 @@ class ZaloPhotoTests {
     }
 
     @Test
+    void theWarningSaysWhyAnAddressOnAZaloHostWasStillRefused(CapturedOutput output) {
+        normalize(new Photo("http://f21-zpc.zdn.vn/jpg/token-abc123/a.jpg", null, null));
+        normalize(new Photo("https://f21-zpc.zdn.vn/jpg/to ken/a.jpg", null, null));
+        normalize(new Photo("not a url", null, null));
+
+        assertThat(output.getAll())
+                .contains("host: f21-zpc.zdn.vn, scheme: http, length: 44, plain: true")
+                .contains("host: unreadable, scheme: unreadable, length: 39, plain: false")
+                .contains("host: unreadable, scheme: unreadable, length: 9, plain: false")
+                .doesNotContain("token-abc123");
+    }
+
+    @Test
     void aPictureSinoKeepsIsNotWarnedAbout(CapturedOutput output) {
         normalize(new Photo(FULL, THUMB, null));
 
