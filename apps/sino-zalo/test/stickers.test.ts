@@ -123,11 +123,21 @@ describe("stickerArtOf", () => {
     stickerSpriteUrl: SPRITE.url,
     stickerWebpUrl: null,
     totalFrames: 7,
-    duration: 700,
+    // Zalo's duration is the milliseconds each frame lasts (ZL-15): 100 ms for 7 frames is a run of 700 ms.
+    duration: 100,
   };
 
-  it("gives the still picture and the sprite sheet with its frames and duration", () => {
+  it("gives the still picture and the sprite sheet with its frames and the length of one run", () => {
     expect(stickerArtOf(detail)).toEqual({ url: STILL, sprite: SPRITE });
+  });
+
+  it.each([
+    [7, 150, 1050],
+    [19, 100, 1900],
+  ])("counts a run as the milliseconds of a frame times the frames (%i frames at %i ms: %i ms)", (totalFrames, duration, run) => {
+    // 7 at 150 and 19 at 100 are what Zalo gave for the two stickers of 2026-10-19; read as a whole run they would
+    // play 19 frames in 100 ms.
+    expect(stickerArtOf({ ...detail, totalFrames, duration })?.sprite?.durationMs).toBe(run);
   });
 
   it("gives no sprite when Zalo names no sprite sheet", () => {
@@ -156,8 +166,8 @@ describe("stickerArtOf", () => {
     }
   });
 
-  it("rounds the duration to whole milliseconds", () => {
-    expect(stickerArtOf({ ...detail, duration: 699.6 })?.sprite?.durationMs).toBe(700);
+  it("rounds the milliseconds of a frame before counting the run", () => {
+    expect(stickerArtOf({ ...detail, duration: 99.6 })?.sprite?.durationMs).toBe(700);
   });
 
   it("falls back to the webp address for the still picture", () => {

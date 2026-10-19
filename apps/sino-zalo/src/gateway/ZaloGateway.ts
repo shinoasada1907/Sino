@@ -39,7 +39,7 @@ export type ThreadType = "USER" | "GROUP";
 /**
  * How a sticker moves: a sprite sheet with all its frames side by side in one row, each frame as wide as the
  * sheet is tall (checked on two stickers, 910x130 and 2470x130 for 130-pixel frames). `durationMs` is one run
- * of all the frames.
+ * of all the frames: the milliseconds each frame lasts times `frames`.
  */
 export interface ZaloStickerSprite {
   readonly url: string;

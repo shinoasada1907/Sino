@@ -178,17 +178,18 @@ export function toZaloMessage(message: Message): ZaloMessage {
 /**
  * The still picture and the sprite sheet of a sticker out of Zalo's detail. `stickerUrl` is a still 130x130 PNG,
  * not a moving picture; the sticker moves only when Zalo names a sprite sheet with more than one frame and a
- * duration. null when the detail names no picture at all.
+ * duration. Zalo's `duration` is the milliseconds each frame lasts (7 frames at 150, 19 at 100 on the first real
+ * stickers), so one run lasts `duration` times the frames. null when the detail names no picture at all.
  */
 export function stickerArtOf(
   detail: Pick<StickerDetail, "stickerUrl" | "stickerSpriteUrl" | "stickerWebpUrl" | "totalFrames" | "duration">,
 ): ZaloStickerArt | null {
   const url = detail.stickerUrl || detail.stickerWebpUrl || null;
   const frames = detail.totalFrames;
-  const durationMs = Math.round(detail.duration);
+  const frameMs = Math.round(detail.duration);
   const sprite =
-    detail.stickerSpriteUrl && Number.isSafeInteger(frames) && frames > 1 && durationMs > 0
-      ? { url: detail.stickerSpriteUrl, frames, durationMs }
+    detail.stickerSpriteUrl && Number.isSafeInteger(frames) && frames > 1 && frameMs > 0
+      ? { url: detail.stickerSpriteUrl, frames, durationMs: frames * frameMs }
       : null;
   return url === null && sprite === null ? null : { url, sprite };
 }
