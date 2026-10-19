@@ -1616,3 +1616,15 @@ Lượt chạy toàn bộ lộ ra ba test đỏ không thuộc mã sticker, đã
 Hai sai sót của chính phiên kiểm chứng này, ghi lại để khỏi lặp: (1) ảnh mẫu tôi sinh ra lặp lại sau 256 lần nên ~40 ảnh bị `409` và thư viện chỉ đầy 261/300, đúng là lỗi trùng của chính ứng dụng nhưng do dữ liệu thử không duy nhất; (2) ảnh thử "thứ 301" dùng lại một tệp đã lưu nên gặp "trùng" chứ không gặp "đầy". Dữ liệu thử phải mới hoàn toàn mỗi lần chạy.
 
 **Chưa kiểm:** hộp chọn tệp thật của hệ điều hành và kéo thả thật từ Explorer (Playwright đặt tệp thẳng vào ô nhập); màn cảm ứng thật (chỉ giả lập cỡ và cảm ứng); Safari và Firefox; đối chiếu canvas (ST-00 bị bỏ qua theo lệnh người dùng: màn dựng theo Ghi chú và `index.css`, nên khi có khung canvas phải đối chiếu lại); gửi sticker qua Zalo (change sau). Người dùng chưa xem màn.
+
+### 22.11 Review sau nghiệm thu: lần đọc danh sách chạy chéo một thay đổi
+Ở đâu: `features/stickers/useStickers.ts`, hàm `setStickers`. Sau khi tải lên hoặc xóa, web **vá** danh sách trong cache (`setQueryData`) để lưới đổi ngay mà không đọc lại cả danh sách. Bẫy: một lần đọc danh sách có thể đang chạy (mở màn, hay về lại tab với `staleTime` 0), và câu trả lời của nó có thể đã được tính **trước** khi máy chủ ghi thay đổi:
+
+```text
+GET /api/stickers  ----------- máy chủ đọc bảng (chưa có st-new) ------------------> về: [st-dance, st-cat]
+POST /api/stickers   ---> 201 st-new ---> vá cache: [st-new, st-dance, st-cat]          |
+                                                                     ghi đè <-----------+
+kết quả: lưới mất st-new cho tới lần vào sau, dù dòng "Đã thêm" đã hiện
+```
+
+Cách sửa: trước khi vá, `cancelQueries` hủy lần đọc đang chạy (câu trả lời cũ không còn chỗ ghi); nếu chưa có danh sách nào thì không vá được, nên `invalidateQueries` đọc lại, và lần đọc mới có thay đổi. Một bẫy của TanStack Query lộ ra khi làm: với truy vấn **chưa có dữ liệu**, lần đọc mới không hủy lần đọc đầu mà chờ và dùng lại kết quả của nó, nên `invalidateQueries` một mình vẫn để lại danh sách cũ; phải `cancelQueries` trước trong cả hai trường hợp. Test tái hiện đường đua bằng MSW: câu trả lời của lần đọc chậm 60 ms, lần tải lên xong trước nó.
