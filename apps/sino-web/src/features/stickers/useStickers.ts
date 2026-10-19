@@ -20,9 +20,17 @@ export function useStickers(): StickersQuery {
   return { stickers: data, receivedAt: dataUpdatedAt, error, retry: () => void refetch() }
 }
 
-// Written into the list the screen holds, so a change shows at once without reading the whole list again. A list that was
-// never read stays unread (the updater gives nothing back), and the screen reads it when it opens.
-function setStickers(queryClient: QueryClient, change: (list: StickerItem[]) => StickerItem[]) {
+// Written into the list the screen holds, so a change shows at once without reading the whole list again. A read of the
+// list still on its way may have been answered before the change was written, and would write the old list over it when
+// it lands, so it is called off first. With no list yet the change cannot be written in: the list is read again instead
+// (only while the screen shows it), and that read has the change. A first read is not called off by a new one (the new
+// one would wait for it), hence the explicit cancel in both cases.
+async function setStickers(queryClient: QueryClient, change: (list: StickerItem[]) => StickerItem[]) {
+  await queryClient.cancelQueries({ queryKey: STICKERS_QUERY_KEY })
+  if (queryClient.getQueryData(STICKERS_QUERY_KEY) === undefined) {
+    await queryClient.invalidateQueries({ queryKey: STICKERS_QUERY_KEY })
+    return
+  }
   queryClient.setQueryData<StickerItem[]>(STICKERS_QUERY_KEY, (list) => list && change(list))
 }
 

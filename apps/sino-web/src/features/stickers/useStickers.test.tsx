@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { API_STICKERS, sticker } from '@/test/fixtures/stickersApi'
 import { server } from '@/test/msw/server'
+import { fetchStickers } from './stickers.api'
 import type { StickerItem } from './stickers.types'
 import { STICKERS_QUERY_KEY, useDeleteSticker, useStickers, useUploadSticker } from './useStickers'
 
@@ -156,5 +157,76 @@ describe('useDeleteSticker (ST-11)', () => {
     })
 
     expect(queryClient.getQueryData<StickerItem[]>(STICKERS_QUERY_KEY)?.map((item) => item.id)).toEqual(['st-dance'])
+  })
+})
+
+// A read of the list that crosses a change: it was read before the change was written and comes back after it, so it
+// holds the list as it was (review 2026-10-19). The change must still show once everything has settled.
+describe('a read of the list that crosses an upload or a delete', () => {
+  const ids = (queryClient: QueryClient) => queryClient.getQueryData<StickerItem[]>(STICKERS_QUERY_KEY)?.map((item) => item.id)
+
+  it('keeps the new sticker when a read of the list that started before the upload ends after it', async () => {
+    const made = sticker({ id: 'st-new', name: 'moi', createdAt: '2026-10-19T10:00:00Z' })
+    server.use(
+      http.get('/api/stickers', async () => {
+        await delay(60)
+        return HttpResponse.json({ items: API_STICKERS })
+      }),
+      http.post('/api/stickers', () => HttpResponse.json(made, { status: 201 })),
+    )
+    const { queryClient, wrapper } = setup(API_STICKERS)
+    const { result } = renderHook(() => useUploadSticker(), { wrapper })
+    const reading = queryClient.fetchQuery({ queryKey: STICKERS_QUERY_KEY, queryFn: fetchStickers })
+
+    await act(() => result.current.mutateAsync({ file: PNG }))
+    await act(async () => {
+      await reading.catch(() => undefined)
+    })
+
+    expect(ids(queryClient)).toEqual(['st-new', 'st-dance', 'st-cat'])
+  })
+
+  it('shows a sticker uploaded while the list was still on its way, once the list has come', async () => {
+    const made = sticker({ id: 'st-new', name: 'moi', createdAt: '2026-10-19T10:00:00Z' })
+    let reads = 0
+    server.use(
+      http.get('/api/stickers', async () => {
+        reads += 1
+        if (reads === 1) {
+          // Read before the upload was written.
+          await delay(60)
+          return HttpResponse.json({ items: API_STICKERS })
+        }
+        return HttpResponse.json({ items: [made, ...API_STICKERS] })
+      }),
+      http.post('/api/stickers', () => HttpResponse.json(made, { status: 201 })),
+    )
+    const { queryClient, wrapper } = setup()
+    const { result } = renderHook(() => ({ list: useStickers(), upload: useUploadSticker() }), { wrapper })
+
+    await act(() => result.current.upload.mutateAsync({ file: PNG }))
+
+    await waitFor(() => expect(result.current.list.stickers?.map((item) => item.id)).toEqual(['st-new', 'st-dance', 'st-cat']))
+    expect(ids(queryClient)).toEqual(['st-new', 'st-dance', 'st-cat'])
+  })
+
+  it('does not bring a deleted sticker back when a read of the list that started before the delete ends after it', async () => {
+    server.use(
+      http.get('/api/stickers', async () => {
+        await delay(60)
+        return HttpResponse.json({ items: API_STICKERS })
+      }),
+      http.delete('/api/stickers/st-cat', () => new HttpResponse(null, { status: 204 })),
+    )
+    const { queryClient, wrapper } = setup(API_STICKERS)
+    const { result } = renderHook(() => useDeleteSticker(), { wrapper })
+    const reading = queryClient.fetchQuery({ queryKey: STICKERS_QUERY_KEY, queryFn: fetchStickers })
+
+    await act(() => result.current.mutateAsync('st-cat'))
+    await act(async () => {
+      await reading.catch(() => undefined)
+    })
+
+    expect(ids(queryClient)).toEqual(['st-dance'])
   })
 })
