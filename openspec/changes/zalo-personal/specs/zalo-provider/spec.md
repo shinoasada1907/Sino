@@ -47,6 +47,17 @@ Connector MUST đổi cuộc trò chuyện `USER` thành `DIRECT` và `GROUP` th
 - **WHEN** `sino-zalo` trả tin chữ có `isSelf` = true
 - **THEN** tin chuẩn hóa có `direction` = `OUTBOUND` và `read` = true
 
+### Requirement: Ảnh trong tin ảnh Zalo
+Với tin `zaloType` = `chat.photo`, `sino-zalo` MUST trả `photo { url, thumbUrl, caption }` lấy từ nội dung tin (`url` là ảnh như khung chat Zalo hiện, `thumbUrl` là ảnh nhỏ hoặc `null`, `caption` là chú thích hoặc `null`), và MUST bỏ `photo` khi nội dung không nêu địa chỉ web nào. Connector MUST chỉ lưu địa chỉ `https`, không có user info, không dài quá 2000 ký tự, thuộc tên miền Zalo; MUST lưu chúng cùng chú thích trong `metadata` (`imageUrl`, `imageThumbUrl`, `imageCaption`) và MUST giữ `textContent` = `[Ảnh]`. Ảnh chính bị từ chối mà ảnh nhỏ được nhận thì ảnh nhỏ MUST đứng thay; không địa chỉ nào được nhận thì MUST không lưu khóa ảnh nào, và log chỉ tên miền (không đường dẫn, không chú thích). API `GET /api/conversations/{id}/messages` MUST trả `image { url, thumbUrl, caption }` cho tin có `imageUrl` và `null` cho tin khác.
+
+#### Scenario: Ảnh có chú thích
+- **WHEN** `sino-zalo` trả tin `chat.photo` với `photo.url` và `photo.thumbUrl` trên `zdn.vn` và `photo.caption` = `Chuyến đi`
+- **THEN** tin chuẩn hóa có `textContent` = `[Ảnh]` và `metadata` có `imageUrl`, `imageThumbUrl`, `imageCaption` = `Chuyến đi`
+
+#### Scenario: Ảnh ở tên miền lạ
+- **WHEN** `photo.url` là `https://evil.example.com/a.jpg` và không có ảnh nhỏ
+- **THEN** tin chuẩn hóa có `textContent` = `[Ảnh]`, `metadata` không có khóa ảnh nào, và log có `evil.example.com` mà không có đường dẫn
+
 ### Requirement: Webhook báo có tin Zalo
 `POST /api/webhooks/zalo` với `{ "ownId": ... }` và đúng khóa bí mật MUST phát `ProviderPushReceived(zalo, ownId)` và trả `204`. Sai hoặc thiếu khóa MUST trả `401` và không phát event. Endpoint MUST không cần session đăng nhập hay CSRF, và MUST đọc tối đa 1 KB body.
 

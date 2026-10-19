@@ -3,7 +3,7 @@
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
 > **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai: Zalo cá nhân, `openspec/changes/zalo-personal`) mở 2026-10-14, bạn tự code ZL-01 (khung service `sino-zalo`, mục 5); từ ZL-02 (đăng nhập QR, mục 6) bạn chuyển change này sang AUTO.
-> **Cập nhật:** 2026-10-16. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
+> **Cập nhật:** 2026-10-19. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
 
 ---
 
@@ -1379,3 +1379,59 @@ animation: sticker-run var(--sticker-ms) steps(var(--sticker-frames), jump-none)
 - Lần chạy thật đầu tiên (hai sticker, 2026-10-19) xác nhận tên trường và sprite, và sửa đơn vị của `duration` (mục 18.2). Bài học: một giá trị mà không ai kiểm bằng dữ liệu thật thì chỉ là giả định. Ở đây giả định sai không làm hỏng gì rõ ràng, chỉ làm hoạt cảnh nhanh gấp hàng chục lần, nên phải có dòng log số khung và thời lượng (mục 18.2) để thấy được. Hai dòng đã lưu với số sai được sửa tay một lần trong DB dev.
 - Người dùng xác nhận trên màn chat (2026-10-19): sau bản sửa đơn vị, hai sticker thật chạy đúng tốc độ. Sticker đã lưu trước ZL-15 giữ ảnh tĩnh, theo thiết kế.
 - Một sự cố đi kèm: sino-api chạy từ IDE có `spring-boot-devtools`, nên build vào `target/classes` khi nó đang chạy làm ứng dụng tự khởi động lại giữa chừng. Đồng bộ báo lỗi `INTERNAL` cho đến khi người dùng khởi động lại hẳn. Nguyên nhân chưa chứng minh được vì không có log, nhưng quy tắc rút ra thì rõ: build và chạy test ở bản copy, không ở thư mục mà ứng dụng đang chạy.
+
+## 19. ZL-16 — Ảnh Zalo hiện trong chat
+
+### 19.1 Vấn đề: ảnh bị bỏ ở cả ba tầng
+Sau ZL-14 và ZL-15 sticker hiện đúng, nhưng một tin ảnh (`chat.photo`) vẫn chỉ là chữ `[Ảnh]`. Không phải một chỗ làm hỏng mà là cả đường đi không mang địa chỉ ảnh:
+
+```text
+Zalo                 sino-zalo              sino-api                      sino-web
+content {            toZaloMessage          ZaloMessageNormalizer         Bubble
+  href, thumb,  -->  photo { url,      -->  metadata imageUrl,       -->  PhotoPicture
+  title, params }      thumbUrl,              imageThumbUrl,              (img + liên kết)
+                       caption }              imageCaption                + chú thích
+(trước ZL-16: bỏ)    (trước: không có)      (trước: chỉ chữ "[Ảnh]")      (trước: chỉ chữ)
+```
+
+Thiết kế theo đúng khuôn sticker: địa chỉ ảnh đi **thẳng từ CDN của Zalo tới trình duyệt**. Sino không tải ảnh về và không lưu ảnh; thứ duy nhất Sino lưu là một dòng chữ địa chỉ trong `metadata`. Lý do chọn: không phải lưu và phục vụ ảnh (dung lượng, quyền riêng tư, bản quyền), và nhất quán với sticker đã chạy. Cái giá: trình duyệt phải lấy được ảnh từ Zalo, và địa chỉ có thể hết hạn (mục 19.5).
+
+### 19.2 `sino-zalo`: đọc nội dung ảnh
+`photoOf` đọc `content` của tin `chat.photo`:
+- `href` là ảnh như khung chat Zalo hiện, `thumb` là ảnh nhỏ. Bằng chứng không phải từ ảnh thật mà từ chính zca-js: khi trích dẫn một ảnh nó gán `normalUrl = content.href` và `thumbUrl = content.thumb` (`sendMessage.js`).
+- Thiếu `href` thì tìm trong `content.params`, một **chuỗi JSON** (`rawUrl`, `normalUrl`, `oriUrl`, `hdUrl`, `hd`), rồi mới tới `thumb`. `paramsOf` bọc `JSON.parse` trong `try/catch` vì đây là dữ liệu từ ngoài: hỏng thì coi như không có.
+- `title` là chú thích người gửi gõ kèm ảnh; rỗng hoặc toàn khoảng trắng thì là `null`.
+- `webAddress` chỉ nhận chuỗi bắt đầu bằng `https://` hoặc `http://`. Việc quyết định tên miền nào đáng tin **không** làm ở đây mà ở `sino-api`, nơi duy nhất giữ danh sách tên miền Zalo.
+- Toán tử `??` nối các nguồn theo thứ tự ưu tiên: `webAddress(href) ?? (khóa trong params) ?? thumb`. Khác với `||`, nó chỉ đi tiếp khi vế trái là `null`/`undefined`, nên một chuỗi rỗng không bị coi là "có".
+- Chỉ `chat.photo` có `photo`; một tin khác dù content giống ảnh cũng không.
+
+Vì chưa ai thấy content của một ảnh thật, `SessionManager` ghi thêm một cờ vào dòng log "Zalo message" của tin `chat.photo`: `photo: true` nghĩa là đã tìm thấy địa chỉ, `photo: false` nghĩa là không. Cờ là một boolean, **không bao giờ** là địa chỉ hay chú thích (địa chỉ ảnh riêng tư mở được ảnh). Có cờ này thì khi ảnh không hiện, ta biết lỗi ở tầng nào chứ không phải đoán.
+
+### 19.3 `sino-api`: kiểm tra, lưu, đọc lại
+- `ZaloClient.Message` thêm thành phần `photo` kiểu `Photo(url, thumbUrl, caption)`. Một `record` Java có đúng một constructor chính tắc, và Jackson dùng nó để đọc JSON; mỗi thành phần thêm vào làm mọi chỗ `new Message(...)` cũ không biên dịch được. Vì vậy hai constructor cũ (9 và 10 tham số) được giữ, gọi constructor chính tắc với `null` cho phần còn thiếu. Một JSON không có `photo` (sino-zalo cũ) đọc ra `photo = null`.
+- `ZaloMessageNormalizer.photoBody` dùng lại `pictureAddress` của sticker: https, không user info, không ký tự lạ, độ dài tối đa 2000, tên miền là tên miền Zalo hoặc con của nó. Thứ tự quyết định:
+
+```text
+ảnh chính hợp lệ?      có  -> imageUrl = ảnh chính; ảnh nhỏ hợp lệ và khác ảnh chính -> imageThumbUrl
+                       không, ảnh nhỏ hợp lệ?  có -> imageUrl = ảnh nhỏ (đứng thay), không có imageThumbUrl
+                                               không -> không khóa nào; log WARN tên miền
+```
+- Chữ của tin vẫn là `[Ảnh]` và `type` vẫn là `IMAGE`: danh sách hội thoại và bản xem trước đọc `textContent`, nên không đổi gì ở đó.
+- Chú thích: `clean` (bỏ NUL, bỏ khoảng trắng hai đầu, rỗng thì `null`) rồi `cut` đến 2000 ký tự. `cut` được tổng quát hóa thành `cut(text, max)`; vẫn không cắt đôi một cặp thay thế UTF-16 (một emoji ngoài BMP là hai `char`), nếu ký tự thứ `max` là nửa đầu của cặp thì lùi một. `metadata` là nơi chứa giá trị nhỏ, nên chú thích có trần riêng, thấp hơn trần 100 000 ký tự của chữ tin.
+- WARN khi không còn địa chỉ nào: `warnRefused` chỉ ghi **tên miền** (`hostOf`, và chỉ khi nó khớp `[A-Za-z0-9.-]{1,100}`, không thì ghi "unreadable"). Đường dẫn và chú thích không bao giờ vào log. Mục đích: nếu CDN ảnh của Zalo nằm ở một tên miền mà danh sách `PICTURE_DOMAINS` chưa có, ảnh sẽ lặng lẽ ở lại là `[Ảnh]`; dòng WARN cho biết tên miền nào cần thêm.
+- Đọc lại: `MessageHistory` thêm ba cột `image_url`, `image_thumb_url`, `image_caption` (toán tử `->>` của PostgreSQL lấy một khóa của cột jsonb ra dạng chữ). Tám tên khóa metadata giờ được gắn bằng một hàm `withMetadataKeys(StatementSpec)` dùng chung cho hai truy vấn (`page` và `message`), thay vì lặp lại từng dòng `.param(...)` ở cả hai nơi: thêm một khóa thì chỉ sửa một chỗ, và không thể quên chỗ thứ hai (một tham số có tên mà câu SQL dùng nhưng không được gắn sẽ làm cả endpoint lỗi).
+- `imageOf` trả `null` khi không có `image_url`, dù chú thích có hay không: ảnh không có địa chỉ thì không có `image`. `InboxMessage.Image` đi tới `MessageResponse.image`, thêm trường chứ không đổi trường cũ.
+
+### 19.4 `sino-web`: vẽ ảnh
+- `photoOf` (trong `photo.ts`) kiểm lại bằng `pictureOf` mà sticker đã dùng: giá trị mà trang tải đã qua hai lần kiểm (backend và web). Ảnh nhỏ hợp lệ đứng thay ảnh chính bị từ chối; ảnh nhỏ trùng ảnh chính thì bỏ; chú thích được cắt khoảng trắng.
+- `PhotoPicture` bọc `<img>` trong `<a target="_blank" rel="noopener noreferrer">`. `noopener` không cho tab mới điều khiển trang Sino qua `window.opener`; `noreferrer` không gửi địa chỉ trang Sino cho Zalo. `<img>` có `loading="lazy"` (chỉ tải khi cuộn tới) và `referrerPolicy="no-referrer"`.
+- Cỡ lấy từ ô `.photo` của canvas: bo 14 px, viền 1 px, rộng tối đa 280 px (220 px trên điện thoại). Khác khung gạch chéo của canvas, ảnh thật **giữ tỉ lệ**: `w-auto h-auto max-h-80 max-w-55 md:max-w-70`, nên ảnh dọc cao đến 320 px thay vì bị cắt thành ô 280 x 180. `min-h-20 min-w-20` giữ liên kết không co về 0 trong lúc ảnh chưa tải; cái giá là ảnh rất nhỏ (60 x 40) bị phóng lên 2 lần.
+- `Bubble` giữ trạng thái `photoStep` kiểu hợp `'FULL' | 'THUMB' | 'BROKEN'`: ảnh chính lỗi tải thì sang ảnh nhỏ (nếu có), ảnh nhỏ cũng lỗi thì ra chữ `[Ảnh]`. Dùng một hợp ba giá trị thay vì hai biến boolean vì ba trạng thái loại trừ nhau; ghép hai boolean cho ra một tổ hợp vô nghĩa. Chú thích tách khỏi chuỗi lùi này: ảnh hỏng hẳn thì vẫn còn chữ `[Ảnh]` và chú thích bên dưới, người đọc không mất chữ.
+- `TextBubble` được tách ra khỏi `Bubble` (cũ là một `<div>` viết thẳng) vì giờ có hai chỗ dùng: chữ của tin và chú thích.
+
+### 19.5 Kiểm chứng và những gì chưa kiểm
+- Viết test trước và thấy đỏ ở cả ba app, rồi xanh. Gài lỗi (mutation) vào `photoOf` của sino-zalo, cờ log, `photoBody`, `MessageHistory`, `MessageResponse`, `photo.ts`, `Bubble`, `PhotoPicture`: chỉ một mutant sống (nhánh `Array.isArray` thừa); nó tương đương nên mã được rút gọn thay vì thêm test. Bài học: một nhánh mà không test nào phân biệt được thường là nhánh không cần có.
+- Chrome thật chạy trên bản build với API và ảnh Zalo giả, vì cần đăng nhập mới vào được màn chat. Đo bằng script: ảnh ngang 280 x 187, vuông 280 x 280, dọc 214 x 320, và ba trường hợp lùi (ảnh nhỏ, chữ, chữ có chú thích).
+- Môi trường của phiên này không có JDK 25 và Docker, nên sino-api chạy bằng JDK 21 bật `--enable-preview` và PostgreSQL 16 cục bộ có hàm `uuidv7()` bù, trên một bản sao của cây. Hệ quả: một số test phụ thuộc thứ tự ID trong cùng một mili-giây đỏ ngẫu nhiên, y hệt trên mã chưa sửa. Một bộ test chạy trên môi trường khác nhà phát triển thường dùng thì chỉ chứng minh được phần nó chạm tới; so với mã gốc trong cùng môi trường mới nói được "tôi không làm hỏng gì thêm".
+- **Chưa kiểm trên ảnh thật:** tên trường trong `content` của một ảnh nhận về; CDN của Zalo có cho trình duyệt lấy ảnh mà không cần cookie và không có Referer hay không; địa chỉ ảnh có hết hạn sau một thời gian không (nếu có, ảnh cũ sẽ lùi về `[Ảnh]` khi mở lại). Cả ba chỉ biết được khi gửi một ảnh thật.
+- Tin ảnh đã lưu trước ZL-16 giữ chữ `[Ảnh]` vì metadata của chúng không có địa chỉ; không backfill, như sticker ở ZL-15. Ảnh mới gửi từ giờ sẽ hiện.

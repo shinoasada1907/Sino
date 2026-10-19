@@ -7,6 +7,7 @@ import java.util.UUID;
 import dev.sino.conversation.application.InboxMessage;
 import dev.sino.conversation.application.InboxMessage.Address;
 import dev.sino.conversation.application.InboxMessage.File;
+import dev.sino.conversation.application.InboxMessage.Image;
 import dev.sino.conversation.application.InboxMessage.Sender;
 import dev.sino.conversation.application.InboxMessage.StickerSprite;
 
@@ -16,13 +17,13 @@ import dev.sino.conversation.application.InboxMessage.StickerSprite;
  */
 record MessageResponse(UUID id, String direction, String status, Instant sentAt, Sender sender, List<Address> to,
         List<Address> cc, String subject, String text, String bodyFormat, boolean read, List<File> attachments,
-        UUID clientMessageId, String sticker, StickerSprite stickerSprite) {
+        UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image) {
 
     static MessageResponse from(InboxMessage message) {
         return new MessageResponse(message.id(), message.direction().name(), message.status().name(),
                 message.sentAt(), message.sender(), message.to(), message.cc(), message.subject(), message.text(),
                 message.bodyFormat().name(), message.read(), message.attachments(), message.clientMessageId(),
-                message.sticker(), message.stickerSprite());
+                message.sticker(), message.stickerSprite(), message.image());
     }
 
 }

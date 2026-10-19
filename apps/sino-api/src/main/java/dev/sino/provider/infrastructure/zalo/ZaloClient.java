@@ -438,17 +438,31 @@ class ZaloClient {
 
     /**
      * {@code text} is null when the message is not text; {@code sentAt} is ISO-8601; {@code sticker} is null unless
-     * the message is a sticker whose content named one.
+     * the message is a sticker whose content named one; {@code photo} is null unless the message is a photo whose
+     * content named a picture.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
-            String zaloType, String text, String sentAt, Sticker sticker) {
+            String zaloType, String text, String sentAt, Sticker sticker, Photo photo) {
+
+        Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
+                String zaloType, String text, String sentAt, Sticker sticker) {
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, null);
+        }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
                 String zaloType, String text, String sentAt) {
-            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, null);
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, null, null);
         }
 
+    }
+
+    /**
+     * The picture of a photo message as Zalo named it (ZL-16): {@code url} is the one the chat shows, {@code thumbUrl}
+     * a smaller one or null, {@code caption} the text the sender typed with it or null. Nothing here is checked yet.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Photo(String url, String thumbUrl, String caption) {
     }
 
     /**

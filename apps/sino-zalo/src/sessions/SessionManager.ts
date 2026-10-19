@@ -266,7 +266,9 @@ export class SessionManager {
     if (this.sessions.get(accountId) !== session) {
       return;
     }
-    // IDs, type and length only: never the text (D-282).
+    // IDs, type and length only: never the text (D-282). For a photo also whether a picture was found, never its
+    // address (it opens the picture) or its caption, so a photo that shows nowhere can be told apart: not found here,
+    // or lost later (ZL-16).
     this.log.info(
       {
         accountId,
@@ -274,6 +276,7 @@ export class SessionManager {
         threadId: message.threadId,
         zaloType: message.zaloType,
         length: message.text?.length ?? 0,
+        ...(message.zaloType === "chat.photo" ? { photo: message.photo !== undefined } : {}),
       },
       "Zalo message",
     );

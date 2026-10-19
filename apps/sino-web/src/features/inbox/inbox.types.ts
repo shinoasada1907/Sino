@@ -169,6 +169,16 @@ export interface StickerSprite {
   durationMs: number
 }
 
+/**
+ * The picture of a Zalo photo (ZL-16): where it is shown from, a smaller one when Zalo names a different one, and the
+ * caption its sender typed with it. Addresses are checked again by `photoOf` before the page loads them.
+ */
+export interface MessageImage {
+  url: string
+  thumbUrl: string | null
+  caption: string | null
+}
+
 export type Message =
   | {
       id: string
@@ -196,6 +206,8 @@ export type Message =
       sticker?: string
       /** The sprite sheet of a sticker that moves (ZL-15); absent for a still sticker or any other message. */
       stickerSprite?: StickerSprite
+      /** The picture of a photo (ZL-16); absent when the message is no photo or has no picture the backend trusts. */
+      image?: MessageImage
       /** Only in this browser: the server never stored it (a send that did not reach it, or not allowed). */
       local?: boolean
     }

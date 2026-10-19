@@ -17,6 +17,7 @@ import {
   type ZaloConnection,
   type ZaloGateway,
   type ZaloMessage,
+  type ZaloPhoto,
   ZaloRejectedError,
   type ZaloSession,
   type ZaloSticker,
@@ -151,7 +152,7 @@ export class ZcaGateway implements ZaloGateway {
   }
 }
 
-/** A zca-js message in the contract's shape (D-279 reads `zaloType`, `text` and the sticker). */
+/** A zca-js message in the contract's shape (D-279 reads `zaloType`, `text`, the sticker and the photo). */
 export function toZaloMessage(message: Message): ZaloMessage {
   const data = message.data;
   const ts = Number(data.ts);
@@ -161,6 +162,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
       : data.msgType === "chat.gif"
         ? gifStickerOf(data.msgId, data.content)
         : undefined;
+  const photo = data.msgType === "chat.photo" ? photoOf(data.content) : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -172,7 +174,55 @@ export function toZaloMessage(message: Message): ZaloMessage {
     text: typeof data.content === "string" ? data.content : null,
     sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
     ...(sticker === undefined ? {} : { sticker }),
+    ...(photo === undefined ? {} : { photo }),
   };
+}
+
+/**
+ * The picture a `chat.photo` content names (ZL-16). `href` is the picture as the chat shows it and `thumb` its
+ * thumbnail (zca-js reads them so when it quotes a photo, `sendMessage.js`); when `href` is missing the same
+ * addresses may be in `params`, a JSON text. `title` is the caption the sender typed, empty for none. undefined
+ * when the content names no web address at all; the message then stays the text `[Ảnh]` in Sino. Not yet seen on
+ * a real photo (ZL-16): the log line of SessionManager says whether a picture was found.
+ */
+function photoOf(content: unknown): ZaloPhoto | undefined {
+  if (typeof content !== "object" || content === null) {
+    return undefined;
+  }
+  const fields = content as Record<string, unknown>;
+  const params = paramsOf(fields.params);
+  const thumbUrl = webAddress(fields.thumb) ?? webAddress(params.thumbUrl);
+  const url =
+    webAddress(fields.href) ??
+    ["rawUrl", "normalUrl", "oriUrl", "hdUrl", "hd"].map((key) => webAddress(params[key])).find((a) => a !== null) ??
+    thumbUrl;
+  if (url === null) {
+    return undefined;
+  }
+  const caption = typeof fields.title === "string" ? fields.title.trim() : "";
+  return { url, thumbUrl: thumbUrl === url ? null : thumbUrl, caption: caption === "" ? null : caption };
+}
+
+/** The fields of a content's `params`, which Zalo sends as JSON text; none when it is not an object. */
+function paramsOf(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== "string") {
+    return {};
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The text of a web address, trimmed, or null when the value is anything else. */
+function webAddress(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.startsWith("https://") || trimmed.startsWith("http://") ? trimmed : null;
 }
 
 /**

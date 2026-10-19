@@ -12,6 +12,7 @@ import type {
   Member,
   Message,
   MessageBody,
+  MessageImage,
   MessagePage,
   OpenConversation,
   StickerSprite,
@@ -141,6 +142,8 @@ interface MessageResponse {
   sticker?: string | null
   /** The sprite sheet of a sticker that moves (ZL-15); absent or null for any other. */
   stickerSprite?: StickerSprite | null
+  /** The picture of a photo (ZL-16); absent or null for any other message. */
+  image?: MessageImage | null
 }
 
 function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse): ConversationItem {
@@ -209,7 +212,7 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite }: MessageResponse): Mail {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -228,6 +231,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     ...(clientMessageId ? { clientMessageId } : {}),
     ...(sticker ? { sticker } : {}),
     ...(stickerSprite ? { stickerSprite } : {}),
+    ...(image ? { image } : {}),
   }
 }
 

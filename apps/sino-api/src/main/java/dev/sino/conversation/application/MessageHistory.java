@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.sino.conversation.application.InboxMessage.File;
+import dev.sino.conversation.application.InboxMessage.Image;
 import dev.sino.conversation.application.InboxMessage.Sender;
 import dev.sino.conversation.application.InboxMessage.StickerSprite;
 import dev.sino.provider.spi.MessageDirection;
@@ -38,6 +39,9 @@ public class MessageHistory {
                    m.metadata ->> :stickerSpriteUrl AS sticker_sprite_url,
                    m.metadata ->> :stickerFrames AS sticker_frames,
                    m.metadata ->> :stickerDurationMs AS sticker_duration_ms,
+                   m.metadata ->> :imageUrl AS image_url,
+                   m.metadata ->> :imageThumbUrl AS image_thumb_url,
+                   m.metadata ->> :imageCaption AS image_caption,
                    p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
             """;
@@ -80,13 +84,10 @@ public class MessageHistory {
     public MessagePage page(UUID ownerId, UUID conversationId, MessageCursor cursor, int limit) {
         List<UUID> copies = inbox.requireInInbox(ownerId, conversationId).conversationIds();
         // Keyset paging as for the inbox; one more row than asked tells whether there is a next page.
-        JdbcClient.StatementSpec query = jdbc.sql(EVERY_COPY + COLUMNS + "WHERE m.id IN (SELECT id FROM shown"
+        JdbcClient.StatementSpec query = withMetadataKeys(jdbc.sql(EVERY_COPY + COLUMNS
+                + "WHERE m.id IN (SELECT id FROM shown"
                 + (cursor == null ? "" : " WHERE (sent_at, id) < (:before, :beforeId)")
-                + " ORDER BY sent_at DESC, id DESC LIMIT :rows) ORDER BY m.sent_at DESC, m.id DESC")
-                .param("subject", NormalizedMessage.SUBJECT).param("stickerUrl", NormalizedMessage.STICKER_URL)
-                .param("stickerSpriteUrl", NormalizedMessage.STICKER_SPRITE_URL)
-                .param("stickerFrames", NormalizedMessage.STICKER_FRAMES)
-                .param("stickerDurationMs", NormalizedMessage.STICKER_DURATION_MS)
+                + " ORDER BY sent_at DESC, id DESC LIMIT :rows) ORDER BY m.sent_at DESC, m.id DESC"))
                 .param("copies", copies).param("rows", limit + 1);
         if (cursor != null) {
             query = query.param("before", cursor.sentAt().atOffset(ZoneOffset.UTC)).param("beforeId", cursor.id());
@@ -102,14 +103,21 @@ public class MessageHistory {
 
     /** One message of one copy of a conversation the caller already found in the inbox, as {@link #page} lists it. */
     Optional<InboxMessage> message(UUID conversationId, UUID messageId) {
-        return jdbc.sql(SELECT + "AND m.id = :message").param("subject", NormalizedMessage.SUBJECT)
-                .param("stickerUrl", NormalizedMessage.STICKER_URL)
-                .param("stickerSpriteUrl", NormalizedMessage.STICKER_SPRITE_URL)
-                .param("stickerFrames", NormalizedMessage.STICKER_FRAMES)
-                .param("stickerDurationMs", NormalizedMessage.STICKER_DURATION_MS)
+        return withMetadataKeys(jdbc.sql(SELECT + "AND m.id = :message"))
                 .param("conversation", conversationId).param("message", messageId)
                 .query((row, n) -> messageOf(row)).optional()
                 .map(message -> withFiles(List.of(message)).getFirst());
+    }
+
+    /** The names of the {@code metadata} values {@link #COLUMNS} reads, which the connectors write (NormalizedMessage). */
+    private static JdbcClient.StatementSpec withMetadataKeys(JdbcClient.StatementSpec query) {
+        return query.param("subject", NormalizedMessage.SUBJECT).param("stickerUrl", NormalizedMessage.STICKER_URL)
+                .param("stickerSpriteUrl", NormalizedMessage.STICKER_SPRITE_URL)
+                .param("stickerFrames", NormalizedMessage.STICKER_FRAMES)
+                .param("stickerDurationMs", NormalizedMessage.STICKER_DURATION_MS)
+                .param("imageUrl", NormalizedMessage.IMAGE_URL)
+                .param("imageThumbUrl", NormalizedMessage.IMAGE_THUMB_URL)
+                .param("imageCaption", NormalizedMessage.IMAGE_CAPTION);
     }
 
     private static InboxMessage messageOf(ResultSet row) throws SQLException {
@@ -125,7 +133,14 @@ public class MessageHistory {
                 BodyFormat.valueOf(row.getString("body_format")), row.getBoolean("is_read"), List.of(),
                 row.getObject("client_message_id", UUID.class), row.getString("sticker_url"),
                 spriteOf(row.getString("sticker_sprite_url"), row.getString("sticker_frames"),
-                        row.getString("sticker_duration_ms")));
+                        row.getString("sticker_duration_ms")),
+                imageOf(row.getString("image_url"), row.getString("image_thumb_url"),
+                        row.getString("image_caption")));
+    }
+
+    /** The picture of a photo as the connector stored it (ZL-16): none without its address, whatever else is there. */
+    private static Image imageOf(String url, String thumbUrl, String caption) {
+        return url == null ? null : new Image(url, thumbUrl, caption);
     }
 
     /**
@@ -163,7 +178,7 @@ public class MessageHistory {
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
                 List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId(), m.sticker(),
-                m.stickerSprite())).toList();
+                m.stickerSprite(), m.image())).toList();
     }
 
 }

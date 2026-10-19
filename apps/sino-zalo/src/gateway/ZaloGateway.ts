@@ -65,6 +65,17 @@ export interface ZaloSticker {
   readonly sprite?: ZaloStickerSprite | null | undefined;
 }
 
+/**
+ * The picture of a `chat.photo` message (ZL-16): the address Zalo shows it from, a smaller one when Zalo names a
+ * different one, and the caption the sender typed with it. Addresses are web addresses as Zalo gave them;
+ * sino-api decides which hosts it trusts.
+ */
+export interface ZaloPhoto {
+  readonly url: string;
+  readonly thumbUrl: string | null;
+  readonly caption: string | null;
+}
+
 /** A Zalo message in the shape sino-zalo hands to sino-api (design, Contract API). */
 export interface ZaloMessage {
   readonly msgId: string;
@@ -80,6 +91,8 @@ export interface ZaloMessage {
   readonly sentAt: string;
   /** Only on a `chat.sticker` message whose content names a sticker. */
   readonly sticker?: ZaloSticker | undefined;
+  /** Only on a `chat.photo` message whose content names a picture. */
+  readonly photo?: ZaloPhoto | undefined;
 }
 
 /** A thread's name and picture; null where Zalo gave none. */

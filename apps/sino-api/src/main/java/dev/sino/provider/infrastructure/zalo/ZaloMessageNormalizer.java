@@ -10,10 +10,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Conversation;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Participant;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.Photo;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sticker;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.StickerSprite;
 import dev.sino.provider.spi.ConversationType;
@@ -39,6 +43,9 @@ import dev.sino.provider.spi.SyncCursor;
 final class ZaloMessageNormalizer {
 
     static final int MAX_TEXT_LENGTH = 100_000;
+
+    /** The caption of a photo lives in {@code metadata}, which holds small values; Zalo's own limit is far lower. */
+    static final int MAX_CAPTION_LENGTH = 2_000;
     static final String ZALO_TYPE_KEY = "zaloType";
     static final int MAX_PICTURE_ADDRESS = 2_000;
 
@@ -64,6 +71,8 @@ final class ZaloMessageNormalizer {
             "tenor.com",
             "tenor.co",
             "giphy.com");
+
+    private static final Logger LOG = LoggerFactory.getLogger(ZaloMessageNormalizer.class);
 
     private ZaloMessageNormalizer() {
     }
@@ -229,15 +238,64 @@ final class ZaloMessageNormalizer {
                     throw new ProviderException(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED,
                             "The webchat message has no text");
                 }
-                yield new Body(MessageType.TEXT, cut(withoutNul(message.text())), Map.of());
+                yield new Body(MessageType.TEXT, cut(withoutNul(message.text()), MAX_TEXT_LENGTH), Map.of());
             }
-            case "chat.photo" -> new Body(MessageType.IMAGE, "[Ảnh]", Map.of(ZALO_TYPE_KEY, "chat.photo"));
+            case "chat.photo" -> photoBody(message.photo());
             case "chat.sticker" -> stickerBody("chat.sticker", "[Sticker]", message.sticker());
             case "chat.gif" -> stickerBody("chat.gif", "[GIF]", message.sticker());
             case "share.file" -> new Body(MessageType.FILE, "[Tệp]", Map.of(ZALO_TYPE_KEY, "share.file"));
             case "chat.voice" -> new Body(MessageType.AUDIO, "[Tin nhắn thoại]", Map.of(ZALO_TYPE_KEY, "chat.voice"));
             default -> new Body(MessageType.UNKNOWN, "[Tin Zalo chưa hỗ trợ]", Map.of(ZALO_TYPE_KEY, zaloType));
         };
+    }
+
+    /**
+     * A photo is an {@code IMAGE} whose text stays {@code [Ảnh]}; the picture rides in {@code metadata} when its address
+     * passes {@link #pictureAddress}. A thumbnail Sino refuses is left out; one Sino accepts stands in for a picture it
+     * refuses. With no safe address at all the message is the placeholder alone, and the host Zalo named is warned
+     * about, so a CDN missing from {@link #PICTURE_DOMAINS} shows in the log instead of as pictures that never come.
+     */
+    private static Body photoBody(Photo photo) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put(ZALO_TYPE_KEY, "chat.photo");
+        if (photo != null) {
+            String url = pictureAddress(photo.url());
+            String thumb = pictureAddress(photo.thumbUrl());
+            if (url == null) {
+                url = thumb;
+                thumb = null;
+            }
+            if (url != null) {
+                metadata.put(NormalizedMessage.IMAGE_URL, url);
+                if (thumb != null && !thumb.equals(url)) {
+                    metadata.put(NormalizedMessage.IMAGE_THUMB_URL, thumb);
+                }
+                String caption = clean(photo.caption());
+                putIfPresent(metadata, NormalizedMessage.IMAGE_CAPTION,
+                        caption == null ? null : cut(caption, MAX_CAPTION_LENGTH));
+            } else {
+                warnRefused(photo);
+            }
+        }
+        return new Body(MessageType.IMAGE, "[Ảnh]", Map.copyOf(metadata));
+    }
+
+    /** Names the host of a photo address Sino refused, and nothing else of it: the path can open the picture. */
+    private static void warnRefused(Photo photo) {
+        String raw = clean(photo.url()) != null ? clean(photo.url()) : clean(photo.thumbUrl());
+        if (raw != null) {
+            LOG.warn("Zalo gave a photo whose address Sino does not accept (host: {}); it stays the placeholder text",
+                    hostOf(raw));
+        }
+    }
+
+    private static String hostOf(String address) {
+        try {
+            String host = new URI(address).getHost();
+            return host != null && host.matches("[A-Za-z0-9.-]{1,100}") ? host : "unreadable";
+        } catch (URISyntaxException invalid) {
+            return "unreadable";
+        }
     }
 
     private static Body stickerBody(String zaloType, String placeholderText, Sticker sticker) {
@@ -357,13 +415,11 @@ final class ZaloMessageNormalizer {
         return value.indexOf('\0') < 0 ? value : value.replace("\0", "");
     }
 
-    private static String cut(String text) {
-        if (text.length() <= MAX_TEXT_LENGTH) {
+    private static String cut(String text, int max) {
+        if (text.length() <= max) {
             return text;
         }
-        int end = Character.isHighSurrogate(text.charAt(MAX_TEXT_LENGTH - 1))
-                ? MAX_TEXT_LENGTH - 1
-                : MAX_TEXT_LENGTH;
+        int end = Character.isHighSurrogate(text.charAt(max - 1)) ? max - 1 : max;
         return text.substring(0, end);
     }
 
