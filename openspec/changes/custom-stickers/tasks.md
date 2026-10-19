@@ -1,6 +1,7 @@
 # Thư viện sticker tự tạo · Implementation Plan
 
-> **TRAINING** (`new_features: TRAINING`): người dùng tự code, tự test, tự debug; Claude hướng dẫn từng bước nhỏ (chỉ phần code mới kèm chỗ chèn chính xác, giải thích, hướng dẫn test). D-328…D-330 người dùng chốt 2026-10-19; D-331…D-337 do agent chốt, cần xem lại; DN-1…DN-4 chờ người dùng (xem `design.md`). Mọi task nhỏ đủ để làm và thử riêng.
+> **AUTO** cho riêng change này (người dùng 2026-10-19: "oke triển khai đi"; kế hoạch đầu viết cho TRAINING nên mỗi task còn phần **Hints** để người dùng có thể nhận task bất cứ lúc nào). D-328…D-330 và DN-1…DN-4 (theo đề xuất) người dùng chốt 2026-10-19; D-331…D-337 do agent chốt, cần xem lại (xem `design.md`). Mọi task nhỏ đủ để làm và thử riêng. Mỗi task: test viết trước (đỏ rồi xanh), kiểm chứng, ghi chú thực hiện ngay tại task, commit trên `dev`. Không push khi người dùng chưa bảo (hook của môi trường có thể nhắc; xem `CLAUDE.md`).
+> **Môi trường đám mây của phiên này (2026-10-19):** chỉ có JDK 21 và không có daemon Docker. Để chạy backend: bật `dockerd`, lấy JDK 25 từ image `eclipse-temurin:25-jdk` (`docker create` + `docker cp /opt/java/openjdk`), kéo `postgres:18` cho Testcontainers; `JAVA_HOME` trỏ tới JDK 25 rồi `./mvnw -B -ntp test`.
 > **Lệnh kiểm tra.** Backend (trong `apps/sino-api`): `./mvnw -B -ntp test` (hoặc `-Dtest=<Lớp>`); cần Docker cho Testcontainers. Web (trong `apps/sino-web`): `pnpm lint`, `pnpm exec tsc -b`, `pnpm test`, `pnpm build`. Test viết trước, thấy đỏ rồi mới viết code cho xanh.
 > **Gợi ý** theo hai mức: **Level 1** (hướng nghĩ, chưa nói cách), **Level 2** (hướng làm, vẫn không có code hoàn chỉnh). Số migration `V21` là số còn trống lúc lập kế hoạch; kiểm lại trước khi làm.
 
@@ -11,18 +12,25 @@
   - **Files:** `design/sino-ui/project/**` (khung mới, sáng và tối, máy tính, máy tính bảng, điện thoại) và bản trên https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB, như `CV-01` và `CV-02` của `f05c-messages-inbox-split`.
   - **Acceptance criteria:** có khung cho: lưới có sticker (cả GIF và ảnh tĩnh), trạng thái trống, nút tải lên và vùng kéo thả, tệp đang tải, từng loại lỗi (sai loại, quá cỡ, trùng, đầy), hộp xác nhận xóa; bản sao trong repo khớp bản đã xuất bản; người dùng duyệt.
   - **Test:** không có test tự động; người dùng xem và duyệt.
-  - **Depends on:** DN-3 (đặt ở đâu trong điều hướng) và DN-4 (GIF luôn chạy hay chạy khi rê chuột).
+  - **Depends on:** DN-3 và DN-4 (đã chốt theo đề xuất, 2026-10-19) và sự cho phép của người dùng để dựng khung.
   - **Hints:** **Level 1:** lưới ô vuông đều như màn Ghi chú; ghi chú trên khung số liệu của DN-1 (1 MiB, 300) để lời nhắn trong màn đúng. **Level 2:** đây là việc thiết kế, Claude dựng khung khi người dùng cho phép; ST-12 trở đi chờ task này.
 
 ## 1. Backend
 
-- [ ] 1.1 **ST-01 — Migration: bảng `sticker` và `sticker_content` (D-331)**
+- [x] 1.1 **ST-01 — Migration: bảng `sticker` và `sticker_content` (D-331)**
   - **Goal:** hai bảng đúng D-331, có ràng buộc làm sàn dưới kiểm tra của ứng dụng.
   - **Files:** `apps/sino-api/src/main/resources/db/migration/V21__sticker_create_sticker.sql`.
   - **Acceptance criteria:** `sticker(id uuid PK, user_id → app_user, name, media_type, kind, width, height, size_bytes, sha256, created_at)` với `kind IN ('STATIC','ANIMATED')`, `media_type IN ('image/png','image/gif','image/webp')`, kích thước và dung lượng dương, chỉ mục duy nhất `(user_id, sha256)` và chỉ mục `(user_id, created_at DESC)`; `sticker_content(sticker_id PK/FK ON DELETE CASCADE, content bytea NOT NULL)`; chạy lại Flyway trên database rỗng không lỗi.
   - **Test:** `./mvnw -B -ntp test -Dtest=<test migration/khởi động có sẵn>` (một test khởi động ứng dụng với Testcontainers đủ để Flyway chạy); thêm một test SQL nhỏ chèn dòng sai (`kind = 'X'`, `size_bytes = 0`) và kỳ vọng bị từ chối.
   - **Depends on:** không.
   - **Hints:** **Level 1:** `V20__notes_create_note.sql` là mẫu: khóa ngoại tới `app_user`, `CHECK` đặt tên `<bảng>_<cột>_ck`, ghi chú đầu file nói mỗi ràng buộc để làm gì. **Level 2:** `sha256` lưu dạng `bytea` 32 byte hay `char(64)` hex? Chọn một, ghi lý do ở ghi chú đầu file; `CHECK` độ dài đúng 32 hoặc 64.
+
+
+  - **Thực hiện (2026-10-19, AUTO):** `V21__sticker_create_sticker.sql`: `sticker` (khóa ngoại `app_user`, `UNIQUE (user_id, sha256)`, các `CHECK` loại ảnh, `kind`, kích thước, dung lượng, `sha256` đúng 32 byte, tên không rỗng) và `sticker_content` (khóa ngoại `ON DELETE CASCADE`, nội dung 1 byte đến 10 MiB), chỉ mục `(user_id, created_at DESC)`. `sha256` lưu `bytea` 32 byte (gọn, đúng thứ `MessageDigest` trả). Sàn của cơ sở dữ liệu nới hơn giới hạn của ứng dụng (dung lượng 10 MiB so với 1 MiB, cạnh 16383 so với 1024) vì giới hạn thật nằm trong cấu hình và có thể đổi (cùng ý với `note`).
+  - **Làm thêm so với kế hoạch:** `ALTER COLUMN content SET STORAGE EXTERNAL`. **LÝ DO:** PNG, GIF, WebP đã nén; PostgreSQL mặc định thử nén lại giá trị lớn bằng pglz, tốn CPU và không được gì. Có test đọc `pg_attribute.attstorage`.
+  - **Làm khác kế hoạch:** ~~`CHECK (char_length(name) <= 50)`~~ → chỉ `varchar(50)` + `btrim(name) <> ''`. **LÝ DO:** lỗi gài "cho phép 51" sống sót vì kiểu `varchar(50)` đã đếm ký tự (code point) và chặn trước; ràng buộc `CHECK` đó là thừa, bỏ khỏi migration cùng ghi chú.
+  - **Bằng chứng (2026-10-19):** môi trường: JDK 25 lấy từ image `eclipse-temurin:25-jdk`, `dockerd` bật tay, `postgres:18` cho Testcontainers (xem ghi chú đầu file). Đỏ trước: 15/15 `relation "sticker" does not exist` (bản test đầu). Bản test đầu còn hai lỗi của chính test, sửa rồi viết lại: `users.save` chưa flush nên khóa ngoại không thấy chủ (đổi `saveAndFlush`), và một câu bị từ chối làm hỏng cả giao dịch của test (`current transaction is aborted`) nên mỗi test chỉ kiểm một lần từ chối, các ca của cùng một luật là tham số. Xanh: `StickerSchemaTests` **36/36**. Lỗi gài trên chính migration: **16 mutant, 15 bị bắt** bằng lỗi thật (bỏ unique, bỏ cascade, nhận JPEG, bỏ `kind`, size 0 hoặc 20 MiB, tên rỗng, cạnh 0 hoặc 16384, `sha256 >= 31`, nội dung rỗng, bỏ `SET STORAGE`, chỉ mục không `DESC`, bỏ hai khóa ngoại); mutant còn lại là tương đương (xem trên) và đã loại ràng buộc thừa. Lưu ý đọc log: ở `-q` Maven không in gì khi test xanh, nên dòng "killed ()" trống nghĩa là mutant **sống sót**.
+  - **NOT VERIFIED:** toàn bộ test backend (chạy ở ST-09), migration trên PostgreSQL có sẵn dữ liệu của người dùng (bảng mới, không đụng bảng nào có sẵn).
 
 - [ ] 1.2 **ST-02 — Đọc ảnh: khung `StickerImage` và PNG (D-332)**
   - **Goal:** một hàm thuần nhận byte của ảnh và trả loại, tĩnh/động, chiều rộng và cao, hoặc từ chối đúng loại lỗi; làm trọn cho PNG.
@@ -61,7 +69,7 @@
   - **Files:** `apps/sino-api/src/main/java/dev/sino/sticker/application/StickerService.java` (+ `StickerProperties` giữ giới hạn từ cấu hình), `domain/StickerErrorCode.java`, test.
   - **Acceptance criteria:** spec `custom-stickers`: *Tải một sticker lên…*, *Chỉ nhận ảnh hợp lệ trong giới hạn*, *Không trùng nội dung và có hạn mức*: tệp rỗng, quá dung lượng, loại lạ, ảnh hỏng hoặc quá cỡ, trùng, đầy; tên theo D-334; `kind` do `StickerImage` tính; thứ tự kiểm rẻ trước đắt (rỗng, dung lượng, đọc ảnh, rồi mới chạm database).
   - **Test:** test đơn vị cho từng nhánh lỗi (kho giả hoặc Testcontainers) và một test tích hợp ghi thật; ca hai yêu cầu cùng lúc tải cùng ảnh (một thành công, một `STICKER_DUPLICATE`, không bao giờ lỗi 500).
-  - **Depends on:** ST-02, ST-03, ST-04, ST-05, DN-1, DN-2 (chốt các con số và cách xử lý trùng).
+  - **Depends on:** ST-02, ST-03, ST-04, ST-05 (số giới hạn DN-1 và cách xử lý trùng DN-2 đã chốt).
   - **Hints:** **Level 1:** chỉ mục duy nhất `(user_id, sha256)` mới là người gác cổng thật sự của "trùng"; kiểm `exists` trước chỉ để báo lỗi sớm và thân thiện. **Level 2:** hai yêu cầu cùng lúc sát hạn mức thì sao? Kiểm đếm rồi ghi không nguyên tử. Quyết một cách xử lý (khóa dòng của chủ như cách `ConversationSummaries.lockAll` làm, hay chấp nhận sai lệch nhỏ vì chỉ có một chủ) và ghi quyết định vào `design.md`.
 
 - [ ] 1.7 **ST-07 — `StickerService`: danh sách, nội dung, xóa; phạm vi theo chủ (D-336)**
@@ -90,7 +98,7 @@
 
 ## 2. Frontend
 
-- [ ] 2.1 **ST-10 — `api.upload` cho client (D-337)**
+- [x] 2.1 **ST-10 — `api.upload` cho client (D-337)**
   - **Goal:** gửi được `FormData` qua client chung mà vẫn có CSRF, lỗi và phiên.
   - **Files:** `apps/sino-web/src/shared/api/client.ts`, `client.test.ts`.
   - **Acceptance criteria:** `api.upload<T>(path, formData)` là một `POST` mà `Content-Type` **không** do ta đặt (trình duyệt tự thêm boundary), body là chính `FormData`, vẫn thêm `X-XSRF-TOKEN`, vẫn thử lại một lần khi `CSRF_TOKEN_INVALID`, vẫn báo `401` cho phiên hết hạn; `post`, `put`, `patch` không đổi hành vi.
@@ -98,7 +106,12 @@
   - **Depends on:** không.
   - **Hints:** **Level 1:** `request` hiện nhận `body: unknown` và luôn `JSON.stringify` + đặt `Content-Type`; câu hỏi là làm sao một nhánh nhận body đã dựng sẵn mà không nhân đôi phần CSRF. **Level 2:** để `request` nhận "body đã đóng gói" (chuỗi JSON kèm kiểu, hoặc `FormData`), thay vì kiểm `instanceof` ở nhiều chỗ.
 
-- [ ] 2.2 **ST-11 — Lớp dữ liệu: kiểu, request, hook, MSW**
+
+  - **Thực hiện (2026-10-19, AUTO):** `client.ts`: kiểu `Payload` (`{ json }` hoặc `{ form }`), `encode` (JSON đặt `Content-Type`, form **không** đặt), `api.upload<T>(path, form)`; `post`/`put`/`patch` giữ nguyên hành vi qua `json()`. `request` nhận `Payload` nên lần thử lại sau CSRF gửi lại đúng `FormData` (dùng lại được). 6 test mới ở `client.test.ts` (nhóm `API client uploads`): form đi nguyên vẹn kèm CSRF và `multipart/form-data; boundary=…`, thử lại sau CSRF cũ gửi lại cả byte, mã lỗi thành `ApiError`, mất mạng, `401` báo phiên hết hạn, và `post` vẫn gửi JSON.
+  - **Làm khác kế hoạch / giới hạn của môi trường test:** không khẳng định **tên tệp** trên đường dây trong `client.test.ts`. **LÝ DO:** `File` của jsdom không phải `File` của Node, nên qua `fetch` của bộ chạy test tên tệp thành `blob`; trình duyệt thật gửi đúng tên. Tên tệp được kiểm ở chỗ nó là của ta: `stickers.api.test.ts` kiểm `FormData` mà `uploadSticker` đưa cho `api.upload` (`form.get('file')` là đúng `File`, tên `meo.png`).
+  - **Bằng chứng (2026-10-19):** đỏ trước: 5 test `api.upload is not a function` (test "JSON vẫn như cũ" xanh sẵn, là hàng rào); sau khi code, 1 test đỏ vì tên tệp (xem trên), sửa. Xanh: `client.test.ts` 14/14. Cổng đầy đủ: `pnpm lint` 0 (2 cảnh báo cũ ở `features/public`), `pnpm exec tsc -b` 0, `pnpm test` **101 file / 930 test**, `pnpm build` 0. Lỗi gài không chạy cho task này (quy ước `CLAUDE.md` cho frontend).
+
+- [x] 2.2 **ST-11 — Lớp dữ liệu: kiểu, request, hook, MSW**
   - **Goal:** web nói chuyện được với `/api/stickers`.
   - **Files:** `apps/sino-web/src/features/stickers/{stickers.types.ts,stickers.api.ts,useStickers.ts}` và test; handler MSW cho test.
   - **Acceptance criteria:** `fetchStickers`, `uploadSticker(file, name?)`, `deleteSticker(id)`, `stickerContentUrl(id)`; `useStickers` (danh sách), `useUploadSticker`, `useDeleteSticker`; sau tải lên thành công danh sách có sticker mới mà không tải lại trang; sau xóa thì sticker biến; lỗi giữ nguyên `ApiError` (mã `STICKER_*`).
@@ -106,12 +119,17 @@
   - **Depends on:** ST-10.
   - **Hints:** **Level 1:** xem `features/tasks` và `features/accounts` (`useAccounts.ts`) cho cách đặt khóa cache và cập nhật sau mutation. **Level 2:** sau upload/xóa có hai cách (ghi thẳng vào cache hay `invalidateQueries`): chọn một, ghi lý do; với danh sách nhỏ, đọc lại thường đủ và ít chỗ sai hơn.
 
+
+  - **Thực hiện (2026-10-19, AUTO):** `stickers.types.ts` (`StickerItem`, `StickerKind`), `stickers.api.ts` (`fetchStickers`, `uploadSticker(file, name?)`, `deleteSticker`, `stickerContentUrl`), `useStickers.ts` (`useStickers`, `useUploadSticker`, `useDeleteSticker`; khóa `['stickers']`), fixture `test/fixtures/stickersApi.ts`, 19 test (`stickers.api.test.ts`, `useStickers.test.tsx`).
+  - **Chốt (agent, cần xem lại):** sau tải lên thành công, sticker mới được **ghi thẳng vào danh sách trong cache** (đứng đầu, bỏ bản cùng id nếu đã có) và sau xóa thì bỏ khỏi cache, **không đọc lại cả danh sách**. **LÝ DO:** hiện ngay, không nhấp nháy, và nhiều tệp tải lần lượt không kéo theo N lần đọc lại; danh sách được đọc lại mỗi lần vào màn (không đặt `staleTime`), nên sai lệch không tồn tại lâu. Danh sách chưa từng đọc thì không bị "dựng" từ một sticker (updater không trả gì). Xóa mà máy chủ nói `STICKER_NOT_FOUND` (đã xóa ở tab khác) cũng bỏ khỏi cache; các lỗi khác giữ nguyên.
+  - **Bằng chứng (2026-10-19):** đỏ trước: 2 file `Failed to resolve import` (chưa có module); xanh 17 rồi 19. Lỗi gài trên `useStickers.ts` và `stickers.api.ts`: **10 mutant**; lần đầu 8/10, hai mutant sống sót chỉ ra hai chỗ hở thật nên thêm test: "tải lên trả về id đã có thì không liệt kê hai lần", "id của sticker bị xóa được mã hóa"; sau đó 10/10 bị bắt. Cổng đầy đủ như ST-10 (cùng lần chạy).
+
 - [ ] 2.3 **ST-12 — Route, điều hướng, trang và các trạng thái danh sách**
   - **Goal:** `/stickers` có mặt trong điều hướng và hiện được các trạng thái của danh sách.
   - **Files:** `apps/sino-web/src/features/stickers/StickersPage.tsx` (+ test), `src/app/router.tsx`, `src/app/shell/navItems.ts` (`NAV_ITEMS`, `MORE_PATHS`), `src/app/shell/MorePage.tsx` (`OTHER_SCREENS`).
   - **Acceptance criteria:** spec `web-sticker-library`: *Màn Sticker liệt kê…* (có sticker, trống, đang tải, lỗi + thử lại, `alt`, `loading="lazy"`, GIF tự chạy) và *Vào màn Sticker từ điều hướng* (cột bên, dải icon, trang Thêm, tên trang, tab Thêm hiện hành); dựng theo khung ST-00.
   - **Test:** Vitest + `renderApp` (dữ liệu mẫu gieo vào cache) và MSW cho trạng thái lỗi; test điều hướng ở cả ba bộ phận của khung (`shellPart('sidebar')`, `rail`, `tabbar`/Thêm).
-  - **Depends on:** ST-00, ST-11, DN-3.
+  - **Depends on:** ST-00 (người dùng duyệt khung), ST-11.
   - **Hints:** **Level 1:** thêm màn mới trước hết là thêm một dòng cho từng nơi biết danh sách màn; `AppShell.test.tsx` có sẵn mẫu kiểm liên kết. **Level 2:** trang đang dựng của các màn chưa làm là `PAGES`/`NotFound` của khung; kiểm `MORE_PATHS` để tab Thêm sáng đúng.
 
 - [ ] 2.4 **ST-13 — Tải lên bằng nút, kiểm sơ bộ phía web**
@@ -119,7 +137,7 @@
   - **Files:** `apps/sino-web/src/features/stickers/{format.ts (checkStickerFile), UploadButton.tsx}` và test.
   - **Acceptance criteria:** spec *Tải sticker lên…* (phần chọn tệp, sai loại bị chặn tại chỗ, đang tải, vào lưới không tải lại trang) và phần bàn phím của *dùng được bằng bàn phím…*; `checkStickerFile` thuần: nhận PNG/GIF/WebP theo `type` (và theo đuôi khi `type` rỗng), từ chối loại khác và tệp quá dung lượng, trả lý do để hiển thị.
   - **Test:** test đơn vị thuần cho `checkStickerFile` (đủ các ca biên: đúng giới hạn, hơn 1 byte, `type` rỗng); test giao diện: chọn tệp bằng `userEvent.upload`, kiểm `POST` multipart tới MSW và lưới có sticker mới; chọn `.jpg` thì không có yêu cầu nào.
-  - **Depends on:** ST-12, DN-1 (số giới hạn).
+  - **Depends on:** ST-12 (số giới hạn DN-1 đã chốt).
   - **Hints:** **Level 1:** `<input type="file" hidden>` + một nút gọi `click()` của nó, hoặc `<label>` bọc; thuộc tính `accept` chỉ gợi ý, không phải hàng rào. **Level 2:** giới hạn dung lượng ở web trùng với backend là số bị nhân đôi: đặt một hằng có tên, ghi chú nguồn (DN-1, `design.md`), và nhớ rằng máy chủ vẫn là bên quyết định cuối.
 
 - [ ] 2.5 **ST-14 — Kéo thả, nhiều tệp, lỗi bằng tiếng Việt**

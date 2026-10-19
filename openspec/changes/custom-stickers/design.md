@@ -1,8 +1,8 @@
 ## Mode
 
-**TRAINING** cho cả change (`new_features: TRAINING`, người dùng 2026-10-14): người dùng tự code, tự test, tự debug; Claude lập kế hoạch và hướng dẫn từng bước nhỏ (chỉ phần code mới kèm chỗ chèn chính xác, giải thích, hướng dẫn test). Ngoại lệ cần người dùng cho phép: ST-00 (khung canvas) là việc thiết kế, không phải code.
+**AUTO** cho riêng change này từ 2026-10-19 (người dùng: "oke triển khai đi", sau khi kế hoạch ghi rõ tính năng mới chạy TRAINING và người dùng là người code; `project-mode.yaml` `task_overrides.custom-stickers`). `new_features` vẫn là TRAINING cho các tính năng khác. Claude làm từng task nhỏ theo đủ quy trình (test viết trước, kiểm chứng, tài liệu, commit trên `dev`), báo lại ở các điểm dừng. Ngoại lệ vẫn cần người dùng: ST-00 (khung canvas) là bản thiết kế cuối cùng của giao diện, người dùng duyệt trước khi dựng màn.
 
-Quyết định kiến trúc do người dùng chốt. **Đã chốt 2026-10-19:** D-328 (phạm vi), D-329 (định dạng), D-330 (kho lưu). **Agent chốt, cần xem lại:** D-331…D-337. **Chờ người dùng:** DN-1…DN-4 (có đề xuất).
+Quyết định kiến trúc do người dùng chốt. **Đã chốt 2026-10-19:** D-328 (phạm vi), D-329 (định dạng), D-330 (kho lưu), và DN-1…DN-4 theo đúng đề xuất ("oke triển khai đi" trả lời bản kế hoạch nêu đề xuất của từng mục). **Agent chốt, cần xem lại:** D-331…D-337.
 
 ## Context
 
@@ -60,7 +60,9 @@ Mọi câu lệnh đều có `user_id = CurrentUser.requireOwnerId()`. Sticker c
 ### D-337 — Web: thêm `api.upload`, không sửa `post` · agent chốt
 `api.post` luôn đặt `Content-Type: application/json` và `JSON.stringify`. Tải tệp cần `FormData` **không** tự đặt `Content-Type` (trình duyệt tự thêm `boundary`; đặt tay là gãy). Thêm `api.upload(path, formData)` dùng chung phần CSRF, lỗi và phiên của `request`, và `request` nhận body đã dựng sẵn. Phương án bỏ: nhánh `if (body instanceof FormData)` trong `post` (một hàm hai việc) và `fetch` riêng cho sticker (nhân đôi xử lý CSRF và 401).
 
-## Decision Needed (người dùng chốt)
+## Decision Needed: DN-1…DN-4 chốt theo đề xuất (người dùng, 2026-10-19: "oke triển khai đi")
+
+Các phương án được giữ lại để biết đã bỏ gì. **Chốt:** DN-1 = A (1 MiB, 1024 điểm ảnh mỗi cạnh, 300 sticker mỗi người), DN-2 = A (từ chối trùng, `409 STICKER_DUPLICATE`), DN-3 = A (mục "Sticker" ở cột bên và dải icon, một dòng ở trang Thêm; nhóm của mục ở cột bên do khung canvas ST-00 chốt), DN-4 = A (GIF luôn chạy).
 
 ### DN-1 — Giới hạn mỗi sticker và mỗi người
 | | Dung lượng mỗi tệp | Chiều rộng/cao tối đa | Số sticker mỗi người | Trần dung lượng |
