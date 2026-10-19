@@ -32,6 +32,9 @@ public record StickerImage(StickerMediaType mediaType, StickerKind kind, int wid
         if (PngHead.matches(content)) {
             return PngHead.read(content);
         }
+        if (GifHead.matches(content)) {
+            return GifHead.read(content);
+        }
         throw new SinoException(StickerErrorCode.STICKER_TYPE_UNSUPPORTED, "Only PNG, GIF and WebP images are kept.");
     }
 
