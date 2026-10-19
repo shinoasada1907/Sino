@@ -79,6 +79,13 @@ class NotesApiTests {
 
     @BeforeEach
     void startFromNoNotes() {
+        // Every table that points at a user, children first: a class that ran before this one (AdminApiTests, for
+        // one) may leave the accounts or tasks of another user, and then the last delete fails on a foreign key.
+        jdbc.update("delete from conversation");
+        jdbc.update("delete from sync_checkpoint");
+        jdbc.update("delete from connected_account");
+        jdbc.update("delete from task");
+        jdbc.update("delete from sticker");
         jdbc.update("delete from note");
         jdbc.update("delete from app_user where email <> 'owner@sino.test'");
         otherUser = users.save(new AppUser("other@example.com", "Other")).id();
