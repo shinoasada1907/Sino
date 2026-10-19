@@ -22,8 +22,14 @@ import dev.sino.TestcontainersConfiguration;
 /**
  * The sticker upload on a real server (ST-08): what MockMvc cannot show, because the multipart limit and the decoding of
  * a file name belong to the servlet container. A real HTTP client signs in and sends real multipart requests.
+ *
+ * <p>{@code server.tomcat.max-swallow-size} is raised above the 3 MB file of the tests that cross the multipart fence.
+ * Tomcat reads and drops the rest of a refused body only up to that size (2 MB by default) and closes the connection when
+ * more is left; seen on Windows, the client then gets "connection aborted" instead of the 413 it was sent, while on Linux
+ * it reads the 413. What is tested here (the answer to a refusal of the fence, and the session that outlives it) does not
+ * depend on that size, so it is raised to make the tests the same on every system.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "server.tomcat.max-swallow-size=10MB")
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
 class StickersOverHttpTests {
