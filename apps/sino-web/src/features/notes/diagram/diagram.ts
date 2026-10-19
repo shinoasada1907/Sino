@@ -103,3 +103,27 @@ export function diagramFootLine(diagram: Diagram): string {
 function changeBlock(diagram: Diagram, id: string, change: Partial<DiagramBlock>): Diagram {
   return { ...diagram, blocks: diagram.blocks.map((block) => (block.id === id ? { ...block, ...change } : block)) }
 }
+
+/**
+ * Whether two diagrams hold the same blocks and links in the same order, whatever the objects they are and the order of
+ * their fields. A save answers with its own copy of the diagram, so the editor, which holds the one it drew, compares by
+ * content to tell a change from a diagram that is only the server's copy of what it already has (FE-90).
+ */
+export function sameDiagram(a: Diagram | null | undefined, b: Diagram | null | undefined): boolean {
+  if (a === b) {
+    return true
+  }
+  if (!a || !b || a.blocks.length !== b.blocks.length || a.links.length !== b.links.length) {
+    return false
+  }
+  return (
+    a.blocks.every((x, index) => {
+      const y = b.blocks[index]
+      return x.id === y.id && x.x === y.x && x.y === y.y && x.text === y.text && x.color === y.color && x.main === y.main
+    }) &&
+    a.links.every((x, index) => {
+      const y = b.links[index]
+      return x.id === y.id && x.from === y.from && x.fromSide === y.fromSide && x.to === y.to && x.toSide === y.toSide && x.label === y.label
+    })
+  )
+}

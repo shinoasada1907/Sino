@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AppProviders } from '@/app/providers'
 import { createAccountsSample } from '@/features/accounts/accounts.sample'
 import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
@@ -16,6 +16,9 @@ import { AppShell } from './AppShell'
 import { MobilePageHeader } from './MobilePageHeader'
 import { createShellSample } from './shell.sample'
 import { SHELL_QUERY_KEY } from './useShellData'
+
+// The real Ghi chú page is opened below: its requests are answered by the canvas sample (the real API is tested in NotesOnApi.test.tsx).
+vi.mock('@/features/notes/notes.api', async (importOriginal) => (await import('@/test/notesSampleApi')).sampleNotesApi(await importOriginal()))
 
 // A route table made for this test: the mechanism is tested on its own, the real pages adopt it later.
 const routes: RouteObject[] = [

@@ -10,7 +10,7 @@ const anchor = (extra: Partial<NoteAnchor> & Pick<NoteAnchor, 'kind' | 'label'>)
   ...extra,
 })
 
-const text = (note: Omit<NoteItem, 'kind' | 'diagram'>): NoteItem => ({ ...note, kind: 'TEXT', diagram: null })
+const text = (note: Omit<NoteItem, 'kind' | 'diagram' | 'version'>): NoteItem => ({ ...note, kind: 'TEXT', diagram: null, version: 0 })
 
 /**
  * Sample data shaped like the "Sino UI" canvas (`Notes`, `MobileNotes`, `MobileNoteEditor`), and the diagram of the
@@ -109,6 +109,7 @@ function tripPlan(at: (canvasTime: string) => string): NoteItem {
     kind: 'DIAGRAM',
     title: 'Kế hoạch chuyến đi Đà Lạt',
     body: '',
+    version: 0,
     pinned: false,
     createdAt: at('2026-09-24T20:30:00+07:00'),
     updatedAt: at('2026-09-24T21:30:00+07:00'),

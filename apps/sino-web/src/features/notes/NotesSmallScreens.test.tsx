@@ -4,11 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderApp } from '@/test/renderApp'
 import { fetchNotes } from './notes.api'
 
-// The sample, behind a spy so that a test can make it slow, fail or come back empty.
-vi.mock('./notes.api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./notes.api')>()
-  return { ...actual, fetchNotes: vi.fn(actual.fetchNotes) }
-})
+// The canvas sample, with every request a spy, so that a test can make it slow, fail or come back empty.
+vi.mock('./notes.api', async (importOriginal) => (await import('@/test/notesSampleApi')).sampleNotesApi(await importOriginal()))
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
