@@ -86,6 +86,7 @@ class NotesApiTests {
         jdbc.update("delete from connected_account");
         jdbc.update("delete from task");
         jdbc.update("delete from sticker");
+        jdbc.update("delete from sticker_pack");
         jdbc.update("delete from note");
         jdbc.update("delete from app_user where email <> 'owner@sino.test'");
         otherUser = users.save(new AppUser("other@example.com", "Other")).id();

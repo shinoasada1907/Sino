@@ -47,6 +47,7 @@ class StickersOverHttpTests {
     @BeforeEach
     void signIn() {
         jdbc.update("delete from sticker");
+        jdbc.update("delete from sticker_pack");
         browser = new Browser("http://localhost:" + port);
         assertThat(browser.signIn("owner@sino.test", PASSWORD, false).status()).isLessThan(300);
     }

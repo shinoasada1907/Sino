@@ -35,4 +35,27 @@ public interface StickerRepository extends JpaRepository<Sticker, UUID> {
     @Query("delete from Sticker s where s.id = :id and s.ownerId = :ownerId")
     int deleteOwned(@Param("id") UUID id, @Param("ownerId") UUID ownerId);
 
+    /**
+     * For each pack of an owner that holds a sticker: how many it holds and its newest one (D-341). A pack without a
+     * sticker has no row. The aliases are quoted so that PostgreSQL keeps their case for the projection.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT pack_id AS "packId", count(*) AS "stickerCount",
+                   (array_agg(id ORDER BY created_at DESC, id DESC))[1] AS "coverStickerId"
+            FROM sticker
+            WHERE user_id = :ownerId AND pack_id IS NOT NULL
+            GROUP BY pack_id""")
+    List<PackContents> packContents(@Param("ownerId") UUID ownerId);
+
+    /** One row of {@link #packContents}. */
+    interface PackContents {
+
+        UUID getPackId();
+
+        long getStickerCount();
+
+        UUID getCoverStickerId();
+
+    }
+
 }

@@ -11,10 +11,11 @@ import org.springframework.util.unit.DataSize;
  * @param maxFileSize the largest file kept (1 MiB: {@code 1MB} is 1,048,576 bytes to Spring)
  * @param maxSide the largest width or height in pixels
  * @param maxPerOwner how many stickers one owner can keep
+ * @param maxPacksPerOwner how many packs one owner can have (sticker-packs, DN-6)
  */
 @ConfigurationProperties("sino.stickers")
 public record StickerProperties(@DefaultValue("1MB") DataSize maxFileSize, @DefaultValue("1024") int maxSide,
-        @DefaultValue("300") int maxPerOwner) {
+        @DefaultValue("300") int maxPerOwner, @DefaultValue("50") int maxPacksPerOwner) {
 
     /** What the database takes at most (V21): nothing larger could be stored, so a larger limit would be a mistake. */
     static final long DATABASE_MAX_BYTES = 10L * 1024 * 1024;
@@ -29,6 +30,9 @@ public record StickerProperties(@DefaultValue("1MB") DataSize maxFileSize, @Defa
         }
         if (maxPerOwner < 1) {
             throw new IllegalArgumentException("sino.stickers.max-per-owner must be at least 1");
+        }
+        if (maxPacksPerOwner < 1) {
+            throw new IllegalArgumentException("sino.stickers.max-packs-per-owner must be at least 1");
         }
     }
 

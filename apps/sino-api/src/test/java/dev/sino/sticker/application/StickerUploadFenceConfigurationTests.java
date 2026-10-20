@@ -21,7 +21,7 @@ class StickerUploadFenceConfigurationTests {
             Binder binder = Binder.get(context.getEnvironment());
             DataSize file = binder.bind("spring.servlet.multipart.max-file-size", DataSize.class).get();
             DataSize request = binder.bind("spring.servlet.multipart.max-request-size", DataSize.class).get();
-            DataSize stickerLimit = new StickerProperties(DataSize.ofMegabytes(1), 1, 1).maxFileSize();
+            DataSize stickerLimit = new StickerProperties(DataSize.ofMegabytes(1), 1, 1, 1).maxFileSize();
 
             assertThat(file).isGreaterThan(stickerLimit);
             assertThat(request).isGreaterThanOrEqualTo(file);

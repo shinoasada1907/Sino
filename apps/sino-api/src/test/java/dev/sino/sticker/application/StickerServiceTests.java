@@ -78,7 +78,7 @@ class StickerServiceTests {
 
     @BeforeEach
     void createOwner() {
-        JdbcTestUtils.deleteFromTables(jdbc, "sticker", "app_user");
+        JdbcTestUtils.deleteFromTables(jdbc, "sticker", "sticker_pack", "app_user");
         owner = insertUser("owner@sino.test");
         clock.set(NOW);
     }

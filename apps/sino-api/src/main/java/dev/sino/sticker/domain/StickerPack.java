@@ -1,7 +1,6 @@
 package dev.sino.sticker.domain;
 
 import java.time.Instant;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -61,14 +60,6 @@ public class StickerPack {
         }
         this.name = newName;
         return true;
-    }
-
-    /**
-     * What two names that may not be used together have in common: the name trimmed and in lower case, as the unique
-     * index on {@code lower(name)} compares them.
-     */
-    public static String nameKey(String name) {
-        return name.strip().toLowerCase(Locale.ROOT);
     }
 
     private static String checkedName(String name) {

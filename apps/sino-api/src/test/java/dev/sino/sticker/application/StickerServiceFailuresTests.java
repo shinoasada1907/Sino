@@ -61,7 +61,7 @@ class StickerServiceFailuresTests {
 
     @BeforeEach
     void createOwner() {
-        JdbcTestUtils.deleteFromTables(jdbc, "sticker", "app_user");
+        JdbcTestUtils.deleteFromTables(jdbc, "sticker", "sticker_pack", "app_user");
         owner = UUID.randomUUID();
         jdbc.update("insert into app_user (id, email, display_name, status, created_at, updated_at) "
                 + "values (?, 'owner@sino.test', 'Owner', 'ACTIVE', now(), now())", owner);

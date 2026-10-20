@@ -115,3 +115,5 @@ sino:
     max-file-size: ${SINO_STICKERS_MAX_FILE_SIZE:1MB}
     max-side: ${SINO_STICKERS_MAX_SIDE:1024}
     max-per-owner: ${SINO_STICKERS_MAX_PER_OWNER:300}
+    # sticker-packs, DN-6: how many packs one owner may have.
+    max-packs-per-owner: ${SINO_STICKERS_MAX_PACKS_PER_OWNER:50}

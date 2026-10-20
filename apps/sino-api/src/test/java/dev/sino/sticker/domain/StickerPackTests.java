@@ -74,11 +74,4 @@ class StickerPackTests {
         assertThat(pack.name()).isEqualTo("Mèo");
     }
 
-    @Test
-    void theKeyOfANameIgnoresCase() {
-        assertThat(StickerPack.nameKey("MÈO Vui")).isEqualTo(StickerPack.nameKey("mèo vui"));
-        assertThat(StickerPack.nameKey(" Mèo ")).isEqualTo(StickerPack.nameKey("mèo"));
-        assertThat(StickerPack.nameKey("Mèo")).isNotEqualTo(StickerPack.nameKey("Meo"));
-    }
-
 }

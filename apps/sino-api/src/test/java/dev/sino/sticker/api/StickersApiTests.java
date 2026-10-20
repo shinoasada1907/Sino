@@ -77,6 +77,7 @@ class StickersApiTests {
     @BeforeEach
     void startFromAnEmptyLibrary() {
         jdbc.update("delete from sticker");
+        jdbc.update("delete from sticker_pack");
         jdbc.update("delete from app_user where email <> 'owner@sino.test'");
         owner = users.findIdByEmail("owner@sino.test").orElseThrow();
     }

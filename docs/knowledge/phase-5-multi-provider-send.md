@@ -1647,10 +1647,39 @@ app_user 1 ---- n sticker_pack (id, user_id, name)          UNIQUE (id, user_id)
 
 **`ON DELETE SET NULL (pack_id)`:** xóa bộ thì sticker phải còn, chỉ rời bộ (DN-1). `SET NULL` thường sẽ đặt **mọi** cột của khóa ngoại về `NULL`, tức cả `user_id`, mà `user_id` thì `NOT NULL`: lần xóa sẽ hỏng. Từ PostgreSQL 15 có thể ghi rõ danh sách cột: `SET NULL (pack_id)` chỉ xóa `pack_id` và giữ `user_id`. Khi `pack_id` là `NULL`, khóa ngoại không được kiểm (kiểu so `MATCH SIMPLE` mặc định), nên sticker chưa xếp bộ không cần bộ nào.
 
-**Tên không trùng, không phân biệt hoa thường:** ràng buộc `UNIQUE (user_id, name)` coi `Mèo` và `mèo` là khác nhau. Chỉ mục duy nhất trên **biểu thức** `(user_id, lower(name))` so theo chữ thường, và `lower` của PostgreSQL hiểu chữ có dấu (`MÈO` thành `mèo`). Phía Java, `StickerPack.nameKey` dùng `toLowerCase(Locale.ROOT)` cho phép kiểm trước ở dịch vụ (SP-02): `Locale.ROOT` để kết quả không đổi theo ngôn ngữ của máy (ví dụ tiếng Thổ Nhĩ Kỳ đổi `I` khác). Chỉ mục mới là nơi chặn thật khi hai yêu cầu tới cùng lúc, như "trùng" của sticker (mục 22.4).
+**Tên không trùng, không phân biệt hoa thường:** ràng buộc `UNIQUE (user_id, name)` coi `Mèo` và `mèo` là khác nhau. Chỉ mục duy nhất trên **biểu thức** `(user_id, lower(name))` so theo chữ thường, và `lower` của PostgreSQL hiểu chữ có dấu (`MÈO` thành `mèo`). Dịch vụ (SP-02) kiểm trước bằng chính `lower()` của PostgreSQL (mục 23.3), và chỉ mục là nơi chặn thật khi hai yêu cầu tới cùng lúc, như "trùng" của sticker (mục 22.4).
 
 **Đếm ký tự:** tên tối đa 50 **code point**, như `varchar(50)` đếm; `String.length()` của Java đếm đơn vị UTF-16, một emoji ngoài bảng cơ bản là 2. `StickerPack` dùng `codePointCount`, và test có ca 50 emoji (được) và 50 emoji thêm một chữ (bị từ chối).
 
 ### 23.2 Kiểm chứng (SP-01)
 - Test viết trước: `test-compile` đỏ vì chưa có `StickerPack`, `StickerPackRepository`, `Sticker.packId`; xanh ngay lần chạy đầu: `StickerPackTests` 13, `StickerPackSchemaTests` 13, các test lược đồ và repository cũ của sticker (36 + 23) không đổi, `ModularityTests` 2/2.
 - `./mvnw -B -ntp verify` toàn bộ (JDK 25, PostgreSQL 18 trong Docker): 2429 test, 0 lỗi, 8 bỏ qua (có từ trước).
+
+### 23.3 `StickerPackService`: tạo, đổi tên, xóa, liệt kê (SP-02)
+**Ở đâu:** `sticker/application/StickerPackService`, `StickerPackSummary`, `StickerProperties` (`maxPacksPerOwner`, cấu hình `sino.stickers.max-packs-per-owner`, mặc định 50); `sticker/infrastructure/StickerPackRepository` (`findNamed`, `deleteOwned`), `StickerRepository.packContents`; `sticker/domain/StickerErrorCode` (`STICKER_PACK_NOT_FOUND`, `STICKER_PACK_NAME_TAKEN`, `STICKER_PACK_LIMIT_REACHED`).
+
+```text
+StickerPackService (mọi hàm nhận ownerId từ web; bộ của người khác = STICKER_PACK_NOT_FOUND)
+  list(owner)              bộ cũ trước, mỗi bộ: số sticker + sticker mới nhất (bìa)
+  get(owner, id)
+  create(owner, name)      tên trùng -> NAME_TAKEN, đủ 50 bộ -> LIMIT_REACHED (maxPacks)
+  rename(owner, id, name)  đổi được hoa thường của chính tên mình; tên của bộ khác -> NAME_TAKEN
+  delete(owner, id)        sticker của bộ ở lại, pack_id về NULL (database lo)
+```
+
+**So tên bằng `lower()` của PostgreSQL, không bằng Java:** lần kiểm trước là `lower(p.name) = lower(:name)` trong JPQL, nên PostgreSQL so theo đúng một cách với chỉ mục `lower(name)`. Bản đầu của SP-01 có hàm Java `nameKey` (`toLowerCase(Locale.ROOT)`) cho việc này; nó đã được bỏ, vì Java và PostgreSQL đổi chữ thường giống nhau ở gần như mọi chữ nhưng không phải mọi chữ (một số ký tự đặc biệt). Hai cách so cho một luật là chỗ để chúng lệch nhau: lần kiểm nói "chưa có", chỉ mục nói "đã có".
+
+**Lỗi trùng chỉ lộ ra lúc ghi:** hai yêu cầu cùng tên tới cùng lúc đều qua lần kiểm, rồi một lần ghi bị chỉ mục từ chối. Như D-339 của sticker: `TransactionTemplate` viết tay, `saveAndFlush` để lỗi bật ra ngay trong giao dịch, bắt `DataIntegrityViolationException` ở ngoài, rồi hỏi lại tên trong một giao dịch mới (giao dịch cũ đã hỏng): có bộ mang tên đó thì là `STICKER_PACK_NAME_TAKEN`, không thì lỗi gốc đi tiếp để một ràng buộc khác không bị gọi nhầm là "trùng tên". Test `twoCreationsOfOneNameAtTheSameMomentKeepOneAndRefuseTheOther` bọc repository bằng một proxy (`Hooks`) và một `CyclicBarrier` giữ cả hai luồng sau lần tìm tên, nên đường đua xảy ra mỗi lần chạy chứ không phải lúc có lúc không.
+
+**Đổi tên chính mình:** "Mèo" thành "mèo" là cùng một bộ, nên `findNamed` trả lại chính nó và phải được bỏ qua (`self`); chỉ mục cũng không chặn vì câu `UPDATE` sửa đúng dòng giữ tên đó.
+
+**Số sticker và bìa tính khi đọc (D-341):** một câu SQL thuần nhóm `sticker` theo `pack_id`: `count(*)` và `(array_agg(id ORDER BY created_at DESC, id DESC))[1]` (lấy phần tử đầu của mảng id đã xếp mới nhất trước). JPQL không có `array_agg`, nên đây là `nativeQuery`; bí danh cột đặt trong ngoặc kép (`AS "packId"`), vì PostgreSQL đổi bí danh không ngoặc thành chữ thường, và phép ánh xạ sang interface `PackContents` (`getPackId()`…) đọc theo đúng tên.
+
+**Xóa bằng một câu `DELETE` có điều kiện chủ:** `deleteOwned` trả số dòng đã xóa; 0 là "không có bộ đó của bạn", nên không cần đọc trước rồi mới xóa. Sticker của bộ không cần dòng code nào: khóa ngoại `SET NULL (pack_id)` của SP-01 lo.
+
+**Bẫy khi thêm một bảng trỏ vào `app_user`:** nhiều test dọn dữ liệu bằng `deleteFromTables(jdbc, "sticker", "app_user")` hay `delete from app_user where email <> 'owner@sino.test'`. Một dòng `sticker_pack` còn sót của lớp test trước sẽ làm lần xóa người dùng vỡ vì khóa ngoại (như `NotesApiTests` ở mục 22.10). Các test của sticker và `NotesApiTests` giờ xóa cả `sticker_pack`.
+
+### 23.4 Kiểm chứng (SP-02)
+- Test viết trước, đỏ vì chưa có dịch vụ, kiểu tóm tắt, mã lỗi, cấu hình; một lỗi biên dịch của chính test (`singleElement()` trả `Object`) sửa ở test. Một lượt đỏ giả do Docker daemon tắt giữa chừng: chạy lại sau khi bật.
+- Xanh: `StickerPackServiceTests` 14, `StickerPropertiesTests` 18 (3 mới), `StickerPackTests` 12 (bỏ ca của `nameKey`), `StickerServiceTests` 37 và `StickerServiceFailuresTests` 4 không đổi, `ModularityTests` 2/2.
+- `./mvnw -B -ntp verify` toàn bộ: 2445 test, 0 lỗi, 8 bỏ qua.

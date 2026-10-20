@@ -25,6 +25,7 @@ class StickerPropertiesTests {
             assertThat(properties.maxFileSize().toBytes()).isEqualTo(1_048_576L);
             assertThat(properties.maxSide()).isEqualTo(1024);
             assertThat(properties.maxPerOwner()).isEqualTo(300);
+            assertThat(properties.maxPacksPerOwner()).isEqualTo(50);
         });
     }
 
@@ -65,6 +66,19 @@ class StickerPropertiesTests {
     @ValueSource(strings = { "0", "-1" })
     void aCountOfNothingStopsTheApplication(String count) {
         contextRunner.withPropertyValues("sino.stickers.max-per-owner=" + count)
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void bindsTheNumberOfPacks() {
+        contextRunner.withPropertyValues("sino.stickers.max-packs-per-owner=7")
+                .run(context -> assertThat(context.getBean(StickerProperties.class).maxPacksPerOwner()).isEqualTo(7));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "0", "-1" })
+    void aNumberOfPacksOfNothingStopsTheApplication(String count) {
+        contextRunner.withPropertyValues("sino.stickers.max-packs-per-owner=" + count)
                 .run(context -> assertThat(context).hasFailed());
     }
 

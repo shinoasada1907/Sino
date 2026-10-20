@@ -30,7 +30,16 @@ public enum StickerErrorCode implements ErrorCode {
      * No sticker with this ID belongs to the caller. A sticker of another owner is reported the same way, so that no ID
      * can be found out by trying (404, D-336).
      */
-    STICKER_NOT_FOUND(ErrorCategory.NOT_FOUND);
+    STICKER_NOT_FOUND(ErrorCategory.NOT_FOUND),
+
+    /** No pack with this ID belongs to the caller; a pack of another owner is reported the same way (404, sticker-packs). */
+    STICKER_PACK_NOT_FOUND(ErrorCategory.NOT_FOUND),
+
+    /** Another pack of the owner has this name, whatever its case (409, DN-6). */
+    STICKER_PACK_NAME_TAKEN(ErrorCategory.CONFLICT),
+
+    /** The owner has as many packs as allowed; the problem names the limit as {@code maxPacks} (409, DN-6). */
+    STICKER_PACK_LIMIT_REACHED(ErrorCategory.CONFLICT);
 
     private final ErrorCategory category;
 
