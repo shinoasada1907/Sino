@@ -2088,6 +2088,33 @@ Cả hai đều cho nội dung vai trò `dialog` tên "Sticker". Esc đóng khun
 - **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ ở `features/public`), `tsc -b`, `pnpm build`: đều qua. `pnpm test` 124 tệp, 1282/1286 test. 4 ca đỏ là các test tải lên đọc `request.formData()` (`client.test.ts`, `useStickers.test.tsx`). Chúng đỏ cả ở `549ae0a`, trước mọi commit của change này: lỗi của môi trường Node 26 + jsdom trên máy này.
 - **Chưa kiểm:** Chrome thật ở 1440 và 390 (Claude in Chrome mất kết nối trong phiên này); gửi thật qua Zalo (ZS-20).
 
+### 24.3 Gửi sticker như sticker của Zalo, không như ảnh (ZS-09, D-359)
+**Ở đâu:** `apps/sino-zalo/src/gateway/ZcaGateway.ts` (`sendImage` của kết nối, `sendPhotoSticker`, `photoStickerParams`, `photoUrlSender`); test `test/photoSticker.test.ts`.
+
+**Vấn đề:** gửi bằng `sendMessage` có `attachments` của `zca-js` thì Zalo nhận một **tin ảnh**: người nhận thấy ảnh có khung, không phải sticker. `zca-js` 2.2.0 không có API nào gửi "sticker tự tạo"; `sendSticker` của nó chỉ gửi được sticker có sẵn trong kho của Zalo.
+
+**Cách tìm ra đường gửi:** đọc mã JavaScript của chat.zalo.me (bản tải về, chỉ tìm chuỗi, không chạy). Hàm `_sendAISticker` của Zalo gửi một sticker AI là một **ảnh** kèm vài trường đánh dấu, qua `sendPhotoByUrl` tới `/api/message/photo_url` (nhóm: `/api/group/photo_url`). Dạng này khớp với tin hổ cam thật đã đọc được ở ZL-18 (`pStickerType`, `webp`, `contentId`, `propertyExt.type: 3`).
+
+```text
+sino-zalo                                   Zalo
+  uploadAttachment(ảnh) ------------------>  photo_original/upload   (chưa có tin nào trong chat)
+                        <------------------  normalUrl, hdUrl, thumbUrl, photoId
+  photo_url (AES, qua api.custom) -------->  /api/message/photo_url
+     properties.type = 3   (bong bóng không viền)
+     properties.ext  = { sSrcStr: "", sSrcType: -1 }   (nguồn: AI)
+     jcp             = { pStickerType: 1 }             (AI_STICKER)
+     contentId = photoId, webp = { width, height, url = hdUrl }
+                        <------------------  { msgId }
+```
+- `photo_url` không có trong `zca-js`, nên được thêm vào phiên bằng `api.custom(...)`: hàm đó cho dùng lại cách dựng URL, mã hoá AES và gửi request của chính phiên đăng nhập. Mỗi kết nối gọi `custom` đúng một lần (gọi hai lần cùng tên thì `zca-js` ném lỗi).
+- GIF vẫn đi nhánh GIF cũ của `zca-js` (Zalo hiện như ảnh động).
+- **Lỗi:** chỉ upload thì chưa có tin nào trong chat, nên mọi lỗi trước lời gọi `photo_url` là "bị từ chối" (web hiện "Gửi lại"). Lỗi ở chính lời gọi gửi theo luật chung: có mã lỗi của Zalo là từ chối, còn lại là "chưa rõ" (không gửi lại mù, D-280).
+
+**Kiểm chứng:**
+- **Test tay** trên máy người dùng: bốn sticker đều `SENT`; tin vọng lại nằm trên CDN sticker của Zalo; người dùng thấy bên Zalo hiện đúng sticker. Zalo đổi PNG trong suốt thành JPEG nền trắng, giống sticker AI của chính Zalo.
+- **Test tự động sau:** 13 test (`photoSticker.test.ts`), trong đó có một kết nối thật với `zca-js` giả bằng `vi.mock` để thử cả nhánh chọn GIF hay sticker và URL `photo_url` của chat đôi lẫn nhóm. Gài lỗi 12/12 bị diệt.
+- **Rủi ro:** `photo_url` và các trường trên không có tài liệu. Zalo đổi thì đường này gãy; khi đó quay về gửi ảnh thường chỉ cần bỏ một nhánh trong `sendImage` của kết nối. Chưa gửi thử vào nhóm, chưa thử WebP động.
+
 ## 25. ZL-19 — Ảnh Zalo vẽ như sticker thì Sino cũng hiện như sticker
 
 **Ở đâu:** `apps/sino-zalo/src/gateway/ZaloGateway.ts` (`ZaloPhoto.sticker`), `ZcaGateway.ts` (`photoOf`), `sessions/SessionManager.ts` (log `photoSticker`); `apps/sino-api/.../provider/infrastructure/zalo/ZaloClient.java` (`Photo`), `ZaloMessageNormalizer.java` (`photoStickerBody`). Web không đổi.

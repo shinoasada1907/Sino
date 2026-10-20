@@ -65,7 +65,7 @@ Người dùng (2026-10-20): sticker gửi từ Sino bị Zalo coi là ảnh, mu
 - **GIF:** vẫn đi nhánh GIF của `zca-js` như D-353 (Zalo hiện thành ảnh động, chưa có đường sticker).
 - **Lỗi:** upload hỏng thì chưa có gì trong chat, nên mọi lỗi trước lời gọi `photo_url` là `ZaloRejectedError` ("Gửi lại" được); lời gọi `photo_url` hỏng thì như `deliver` (mã lỗi của Zalo là từ chối, còn lại là chưa rõ).
 - **Phương án bỏ:** loại "photo sticker" cũ của Zalo (`sSrcStr: "@STICKER"`, không có `pStickerType`): `contentId` của nó là mã một sticker có sẵn trong kho ảnh-sticker của Zalo, Sino không có mã đó.
-- **Chưa kiểm (giả định, biết ở lần xem trên devtest / ZS-20):** Zalo có nhận `contentId` là `photoId` không; `visibility: 0` có đúng cho nhóm không; câu trả lời có `msgId` ở gốc không (thiếu thì tin thành chưa rõ); ảnh upload có thành JPG và mất nền trong suốt không; WebP động có thành ảnh tĩnh không. `photo_url` không có tài liệu: Zalo đổi thì đường này gãy, khi đó quay về D-353 (ảnh thường) bằng cách bỏ nhánh trong `ZcaGateway.sendImage`.
+- **Đã đo (máy người dùng, 2026-10-21, chat đôi):** Zalo nhận `contentId` là `photoId` và trả `msgId` ở gốc (bốn lần gửi đều `SENT`); tin vọng lại nằm trên CDN sticker (`b-f11-zpc.zdn.vn`) như sticker AI thật; người dùng thấy nó hiện như sticker trên Zalo. Ảnh bị đổi thành JPEG nền trắng (PNG trong suốt mất nền), giống sticker AI của chính Zalo. **Chưa kiểm:** `visibility: 0` cho nhóm; WebP động có thành ảnh tĩnh không. `photo_url` không có tài liệu: Zalo đổi thì đường này gãy, khi đó quay về D-353 (ảnh thường) bằng cách bỏ nhánh trong `ZcaGateway.sendImage`.
 
 ## Decision Needed (đã chốt: tất cả theo đề xuất A, người dùng 2026-10-20 "duyệt theo đề xuất"; trước ZS-01)
 
