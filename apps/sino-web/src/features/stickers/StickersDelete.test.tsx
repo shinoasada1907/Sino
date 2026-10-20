@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { API_STICKERS } from '@/test/fixtures/stickersApi'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
@@ -35,6 +35,10 @@ async function openLibrary(items: StickerItem[] = API_STICKERS) {
   renderApp('/stickers')
   await library().findByRole('img', { name: items[0].name })
 }
+
+
+// The screen also reads the packs (SP-06); these tests are about a library in no pack, so there is none.
+beforeEach(() => server.use(http.get('/api/sticker-packs', () => HttpResponse.json({ items: [] }))))
 
 describe('Sticker screen: deleting with a confirmation (ST-15)', () => {
   it('gives each sticker a delete button named after it', async () => {

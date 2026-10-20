@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { API_STICKERS, sticker } from '@/test/fixtures/stickersApi'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
@@ -28,6 +28,10 @@ async function openLibrary() {
   renderApp('/stickers')
   await library().findByRole('img', { name: 'meo' })
 }
+
+
+// The screen also reads the packs (SP-06); these tests are about a library in no pack, so there is none.
+beforeEach(() => server.use(http.get('/api/sticker-packs', () => HttpResponse.json({ items: [] }))))
 
 describe('Sticker screen: drag and drop (ST-14)', () => {
   it('uploads a file dropped on the screen as one chosen with the button', async () => {

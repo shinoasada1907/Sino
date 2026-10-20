@@ -100,3 +100,52 @@ const FINAL_REFUSALS = new Set([
 export function isRetryableUpload(error: unknown): boolean {
   return !(error instanceof ApiError && FINAL_REFUSALS.has(error.code))
 }
+
+/** The longest name of a pack, in characters as the server counts them (code points, so an emoji is one; D-344). */
+const PACK_NAME_MAX = 50
+/** As many packs as a person may have when the server does not say: the default of `sino.stickers.max-packs-per-owner`. */
+const DEFAULT_MAX_PACKS = 50
+
+/** The rule of a name, for the line under the field. */
+export const PACK_NAME_RULE = `Tên bộ có từ 1 đến ${PACK_NAME_MAX} ký tự.`
+
+/** Whether the server takes this as the name of a pack: 1 to 50 characters once the spaces around it are gone. */
+export function isPackName(name: string): boolean {
+  const length = [...name.trim()].length
+  return length >= 1 && length <= PACK_NAME_MAX
+}
+
+const NETWORK_SENTENCE = 'Không kết nối được với máy chủ. Hãy kiểm tra mạng rồi thử lại.'
+const PACK_GONE_SENTENCE = 'Bộ này không còn nữa. Có thể nó vừa bị xóa ở nơi khác.'
+
+/** Why a pack was not created or renamed, with what to do; `name` is what the owner typed. */
+export function packErrorMessage(error: unknown, name: string): string {
+  const code = error instanceof ApiError ? error.code : ''
+  switch (code) {
+    case 'STICKER_PACK_NAME_TAKEN':
+      return `Đã có bộ tên “${name.trim()}”. Hãy đặt tên khác.`
+    case 'STICKER_PACK_LIMIT_REACHED':
+      return `Bạn đã có đủ ${limitOf(error, 'maxPacks') ?? DEFAULT_MAX_PACKS} bộ. Hãy xóa bớt một bộ rồi tạo lại.`
+    case 'STICKER_PACK_NOT_FOUND':
+      return PACK_GONE_SENTENCE
+    case 'VALIDATION_FAILED':
+      return PACK_NAME_RULE
+    case NETWORK_ERROR:
+      return NETWORK_SENTENCE
+    default:
+      return 'Không lưu được bộ. Hãy thử lại.'
+  }
+}
+
+/** Why a sticker did not move to another pack. */
+export function moveErrorMessage(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : ''
+  switch (code) {
+    case 'STICKER_PACK_NOT_FOUND':
+      return PACK_GONE_SENTENCE
+    case NETWORK_ERROR:
+      return NETWORK_SENTENCE
+    default:
+      return 'Không chuyển được sticker. Hãy thử lại.'
+  }
+}

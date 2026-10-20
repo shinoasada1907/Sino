@@ -171,7 +171,13 @@ describe('tab bar (mobile)', () => {
 // The Sticker screen of custom-stickers (ST-12, DN-3): in the plan group right after Ghi chú, a row on Thêm, and "Thêm" stays current on it.
 describe('the Sticker screen in the navigation (ST-12, DN-3)', () => {
   // The screen reads its library when it opens; an empty one is all these tests need.
-  beforeEach(() => server.use(http.get('/api/stickers', () => HttpResponse.json({ items: [] }))))
+  // The screen reads the stickers and, since SP-06, the packs.
+  beforeEach(() =>
+    server.use(
+      http.get('/api/stickers', () => HttpResponse.json({ items: [] })),
+      http.get('/api/sticker-packs', () => HttpResponse.json({ items: [] })),
+    ),
+  )
 
   it('sits after Ghi chú in the sidebar and the rail, and is marked as current on its screen', async () => {
     renderApp('/stickers')

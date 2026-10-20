@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
-import { checkStickerFile, isRetryableUpload, STICKER_MAX_BYTES, uploadErrorMessage } from './format'
+import { checkStickerFile, isPackName, isRetryableUpload, moveErrorMessage, packErrorMessage, STICKER_MAX_BYTES, uploadErrorMessage } from './format'
 
 const file = (name: string, type: string, size = 1000) => ({ name, type, size })
 const TYPE_REASON = /chỉ nhận PNG, GIF, WebP/i
@@ -134,4 +134,52 @@ describe('isRetryableUpload: only what may work the second time (ST-14)', () => 
       expect(isRetryableUpload(refused(409, code))).toBe(false)
     },
   )
+})
+
+const refusal = (code: string, extra: Record<string, unknown> = {}) => new ApiError(409, code, 'detail of the server', [], extra)
+
+describe('isPackName: the rule of the server for the name of a pack, checked before sending (SP-06)', () => {
+  it.each([
+    ['Mèo', true],
+    ['  Mèo  ', true],
+    ['x'.repeat(50), true],
+    ['😀'.repeat(50), true],
+    ['', false],
+    ['   ', false],
+    ['\u3000', false],
+    ['x'.repeat(51), false],
+    ['😀'.repeat(50) + 'x', false],
+  ])('%j is a name: %s', (name, allowed) => {
+    expect(isPackName(name)).toBe(allowed)
+  })
+})
+
+describe('packErrorMessage: each refusal of a pack in Vietnamese (SP-06)', () => {
+  it('names the name that is taken, as the owner typed it without the spaces around it', () => {
+    expect(packErrorMessage(refusal('STICKER_PACK_NAME_TAKEN'), '  mèo ')).toBe('Đã có bộ tên “mèo”. Hãy đặt tên khác.')
+  })
+
+  it('says how many packs one may have: the number the server gives, else 50', () => {
+    expect(packErrorMessage(refusal('STICKER_PACK_LIMIT_REACHED', { maxPacks: 20 }), 'Gà')).toBe('Bạn đã có đủ 20 bộ. Hãy xóa bớt một bộ rồi tạo lại.')
+    expect(packErrorMessage(refusal('STICKER_PACK_LIMIT_REACHED'), 'Gà')).toBe('Bạn đã có đủ 50 bộ. Hãy xóa bớt một bộ rồi tạo lại.')
+    expect(packErrorMessage(refusal('STICKER_PACK_LIMIT_REACHED', { maxPacks: 'many' }), 'Gà')).toBe('Bạn đã có đủ 50 bộ. Hãy xóa bớt một bộ rồi tạo lại.')
+  })
+
+  it('says a pack is gone, a name the server refused, a lost network, and anything else', () => {
+    expect(packErrorMessage(refusal('STICKER_PACK_NOT_FOUND'), 'Gà')).toBe('Bộ này không còn nữa. Có thể nó vừa bị xóa ở nơi khác.')
+    expect(packErrorMessage(refusal('VALIDATION_FAILED'), 'Gà')).toBe('Tên bộ có từ 1 đến 50 ký tự.')
+    expect(packErrorMessage(new ApiError(0, NETWORK_ERROR, null), 'Gà')).toBe(
+      'Không kết nối được với máy chủ. Hãy kiểm tra mạng rồi thử lại.',
+    )
+    expect(packErrorMessage(refusal('INTERNAL'), 'Gà')).toBe('Không lưu được bộ. Hãy thử lại.')
+    expect(packErrorMessage(new Error('boom'), 'Gà')).toBe('Không lưu được bộ. Hãy thử lại.')
+  })
+})
+
+describe('moveErrorMessage: why a sticker did not move, in Vietnamese (SP-06)', () => {
+  it('says the pack is gone, the network is lost, or to try again', () => {
+    expect(moveErrorMessage(refusal('STICKER_PACK_NOT_FOUND'))).toBe('Bộ này không còn nữa. Có thể nó vừa bị xóa ở nơi khác.')
+    expect(moveErrorMessage(new ApiError(0, NETWORK_ERROR, null))).toBe('Không kết nối được với máy chủ. Hãy kiểm tra mạng rồi thử lại.')
+    expect(moveErrorMessage(refusal('INTERNAL'))).toBe('Không chuyển được sticker. Hãy thử lại.')
+  })
 })

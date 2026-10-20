@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_STICKERS, sticker } from '@/test/fixtures/stickersApi'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
@@ -15,6 +15,10 @@ const problem = (status: number, code: string) =>
 /** The library is there: the region of the screen has come. */
 const ready = () => screen.findByRole('region', { name: 'Thư viện sticker' })
 const library = () => within(screen.getByRole('region', { name: 'Thư viện sticker' }))
+
+
+// The screen also reads the packs (SP-06); these tests are about a library in no pack, so there is none.
+beforeEach(() => server.use(http.get('/api/sticker-packs', () => HttpResponse.json({ items: [] }))))
 
 describe('Sticker screen: the library (ST-12, spec web-sticker-library)', () => {
   it('shows each sticker as a picture named by the sticker, newest first, from its content address', async () => {
@@ -60,9 +64,10 @@ describe('Sticker screen: the library (ST-12, spec web-sticker-library)', () => 
     renderApp('/stickers')
     await ready()
 
-    // Two in the DOM: the phone header's and the title of 768 px up; CSS shows one.
+    // Two in the DOM: the phone header's and the title of 768 px up; CSS shows one. The third is the count of the part
+    // "Chưa xếp bộ", which holds both (SP-06).
     expect(await library().findAllByRole('heading', { level: 1, name: 'Sticker' })).toHaveLength(2)
-    expect(library().getAllByText('2 sticker')).toHaveLength(2)
+    expect(library().getAllByText('2 sticker')).toHaveLength(3)
   })
 
   it('goes back to Thêm from the phone header, as the other screens behind it (canvas MobileNotes)', async () => {

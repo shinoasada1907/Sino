@@ -1774,3 +1774,45 @@ record ChangeStickerRequest(String name, JsonNode packId) {
 - Test viết trước, đỏ vì chưa có hàm và module mới; xanh: `stickers.api.test.ts` 16 (thêm 7), `useStickers.test.tsx` 25 (thêm 12: tải vào bộ, bộ đã mất khi tải và khi chuyển, xóa sticker làm đổi ảnh bìa, chuyển, bỏ khỏi bộ, đổi tên, sticker đã mất, lỗi khác không đổi gì, không tự dựng danh sách bộ, đánh dấu cũ khi không có sticker để đếm, hai ca lần đọc chạy chéo), `usePacks.test.tsx` 14 (đọc, thử lại, tạo, đổi tên, xóa, lỗi, bộ đã mất, ba ca lần đọc chạy chéo).
 - `pnpm lint` (2 cảnh báo cũ ở `features/public`, không phải tệp của task này), `tsc -b`, `pnpm test` 110 tệp, 1128 test, `pnpm build`: đều qua.
 - Không chạy Chrome thật: task này không đổi màn nào (lớp dữ liệu chưa được màn nào dùng; màn theo bộ là SP-06).
+
+### 23.11 Web: màn Sticker theo bộ (SP-06)
+**Ở đâu** (tính từ `apps/sino-web/src/features/stickers/`): `StickersPage.tsx` (gom phần, hộp thoại, tiêu điểm), `groupByPack.ts` (chia sticker theo bộ), `PackSection.tsx` (một phần, nút "Tạo bộ", nút đổi tên và xóa bộ), `PackDialogs.tsx` (hộp "Tạo bộ sticker", "Đổi tên bộ", "Xóa bộ …?"), `MoveStickerMenu.tsx` (menu "Chuyển tới"), `StickerCard.tsx` (thêm nút chuyển và câu lỗi của lần chuyển), `format.ts` (`isPackName`, `packErrorMessage`, `moveErrorMessage`). Test: `StickersPacks.test.tsx`, `groupByPack.test.ts`, `format.test.ts`.
+
+**Màn trông ra sao:** canvas không có khung cho màn này (DN-7 = A), nên màn dựng bằng những phần sẵn có của chính màn Sticker: hộp thoại, lưới, nút.
+
+```text
+Sticker  3 STICKER                            [Tạo bộ] [Tải lên]
+Mèo  1 STICKER                                     (sửa) (xóa)
+  [meo]
+Chó  0 STICKER                                     (sửa) (xóa)
+  Bộ này đang trống.
+Chưa xếp bộ  2 STICKER
+  [nhay] [dong]           mỗi ô: (chuyển bộ) (xóa) trên ảnh
+```
+
+**Chia phần là một hàm thuần:** `groupByPack(stickers, packs)` không đọc gì ngoài hai đối số và không đổi gì, nên test được không cần dựng màn. Nó cũng là chỗ sẽ được kiểm bằng lỗi gài (mutation) ở task cuối, theo quy ước của repo. Luật: mỗi bộ một phần, theo thứ tự của danh sách bộ, kể cả bộ trống. "Chưa xếp bộ" đứng cuối và chỉ hiện khi có sticker. Sticker giữ thứ tự của danh sách (mới nhất trước). Một sticker có `packId` mà danh sách bộ không có (bộ vừa tạo ở thẻ khác) được xếp vào "Chưa xếp bộ", để không sticker nào bị khuất.
+
+**Màn cần cả hai danh sách:** chỉ khi có cả sticker và bộ mới vẽ được lưới. Thiếu một trong hai thì hiện khung đang tải, hoặc báo lỗi nếu lần đọc hỏng. "Thử lại" chỉ đọc lại danh sách còn thiếu: danh sách đã có thì để yên.
+
+**Tiêu điểm bàn phím sau mỗi thao tác** (câu gợi ý của task):
+- Xóa một bộ: tiêu điểm về nút xóa của bộ kế bên (hết bộ sau thì bộ trước); không còn bộ nào thì về "Tạo bộ". Đây là cách ST-15 làm với sticker.
+- Có hai nút "Tạo bộ" trong DOM (đầu trang điện thoại và đầu trang máy tính), và CSS chỉ hiện một. `visibleOf` hỏi `element.checkVisibility()` của trình duyệt để chọn nút đang hiện. jsdom không có hàm này, nên khi chạy test nó lấy nút đầu tiên.
+- Chuyển một sticker: ô của nó rời phần cũ và hiện ở phần mới. Với React đó là **một phần tử mới**: `key` chỉ có nghĩa trong cùng một cha, nên đổi cha thì React gỡ ô cũ và gắn ô mới, và tiêu điểm trên nút cũ mất theo. Màn giữ một "lời nhờ" `{ id, packId }`: ô có đúng `id` và đúng `packId` mới thì lấy tiêu điểm khi gắn vào (`useEffect`), rồi báo lại để xóa lời nhờ. **Vì sao phải có `packId`:** lời nhờ được ghi ngay khi máy chủ trả lời, còn cache báo cho màn sau một nhịp (TanStack Query gom các thông báo rồi mới gửi). Chỉ so `id` thì ô cũ, vẫn còn ở phần cũ, có thể nhận lời nhờ trước rồi mất ngay sau đó. So cả `packId` thì chỉ ô ở phần mới khớp.
+
+**Menu "Chuyển tới" là một nhóm radio:** `DropdownMenuRadioGroup` của Radix cho mỗi mục vai trò `menuitemradio` với `aria-checked`, nên trình đọc màn hình đọc được "đang ở bộ nào". Menu mở bằng Enter, Space hay phím mũi tên, Esc đóng và trả tiêu điểm về nút. Chọn đúng chỗ sticker đang ở thì không gửi gì. **Bẫy 1:** khi menu (hay hộp thoại) mở, Radix gắn `aria-hidden` cho phần còn lại của trang. Test tìm theo vai trò phải thêm `hidden: true`, còn kịch bản Playwright phải tìm nút bằng CSS (`[aria-label="…"]`). **Bẫy 2:** các nút trên ảnh chỉ hiện khi rê chuột hay khi có tiêu điểm bên trong ô (`group-focus-within`). Lúc menu mở, tiêu điểm nằm trong menu, tức ngoài ô, nên nút sẽ tắt đi. `has-[[data-state=open]]:opacity-100` giữ chúng hiện khi nút của menu đang ở trạng thái mở.
+
+**Luật tên ở trình duyệt:** `isPackName` đếm `[...name.trim()].length`. Toán tử spread duyệt chuỗi theo code point, nên một emoji đếm là 1 như máy chủ; `name.length` thì đếm đơn vị UTF-16, emoji thành 2. `trim()` của JavaScript và `strip()` của Java bỏ những bộ ký tự hơi khác nhau. Máy chủ vẫn là nơi quyết định: một tên lọt qua trình duyệt mà máy chủ trả `400 VALIDATION_FAILED` vẫn ra đúng câu "Tên bộ có từ 1 đến 50 ký tự."
+
+**Một kiểu TypeScript đáng biết:** `PackDialog` là một union (hộp tên, hoặc hộp xóa). `Omit<PackDialog, 'open'>` **không** phân phối trên union: nó chỉ giữ các khóa chung của hai nhánh, nên mất `count` và `neighborId` của nhánh xóa. `PackDialogRequest` áp `Omit` cho từng nhánh bằng một kiểu điều kiện (`Member extends PackDialog ? Omit<Member, …> : never`), vì kiểu điều kiện trên một tham số kiểu thì phân phối trên từng nhánh của union.
+
+### 23.12 Kiểm chứng (SP-06)
+- Test viết trước, đỏ 41 ca (chưa có phần theo bộ, chưa có module); xanh: `StickersPacks.test.tsx` 28, `groupByPack.test.ts` 4, `format.test.ts` thêm 13. Test cũ của màn (`StickersPage`, `StickersDelete`, `StickersDrop`) và của `AppShell` thêm câu trả lời "chưa có bộ nào" cho `GET /api/sticker-packs`. Test đếm "2 sticker" giờ thấy 3 chỗ, vì phần "Chưa xếp bộ" cũng đếm.
+- `pnpm lint` (2 cảnh báo cũ ở `features/public`), `tsc -b`, `pnpm test` 112 tệp, 1173 test, `pnpm build`: đều qua. Lượt đầu của toàn bộ test có 4 ca đỏ ở `AppShell.test.tsx`: test cũ mở `/stickers` mà không trả lời danh sách bộ. Đã sửa test.
+- Chrome thật (Chromium do Playwright lái; backend thật trên PostgreSQL 18, V22; Vite), 28/28 kiểm tra:
+  - 1440 sáng: tải 3 ảnh, một phần "Chưa xếp bộ"; tạo "Mèo" (gõ có khoảng trắng hai đầu) thì ra phần trống và tiêu điểm về "Tạo bộ"; "mèo" ra câu tên trùng, tên trống ra câu luật, không còn `pointer-events` sót trên `body`.
+  - Chuột: nút của ô ẩn (độ mờ 0), hiện khi rê chuột, vẫn hiện khi menu mở. Menu "Mèo, Chó, Chưa xếp bộ", mục đang chọn được đánh dấu; chuyển `meo` thì tiêu điểm theo sang ô mới.
+  - Bàn phím: Enter, mũi tên xuống, Enter chuyển `nhay` sang "Chó", tiêu điểm theo. Máy chủ đếm `[["Mèo",1],["Chó",1]]` khớp màn.
+  - Đổi tên "Chó" thành "Chó con", tiêu điểm ở nút đổi tên. Xóa "Mèo": hộp nói "1 sticker của bộ sẽ về “Chưa xếp bộ”; không sticker nào bị xóa.", `meo` về "Chưa xếp bộ", tiêu điểm sang "Xóa bộ Chó con". `scrollWidth` 1440.
+  - 390 cảm ứng: `scrollWidth` 390, hai cột; nút "Tạo bộ", "Tải lên", đổi tên, xóa bộ, chuyển, xóa sticker đều 44 × 44 và luôn hiện; tạo bộ "Gà" từ đầu trang điện thoại rồi chạm chuyển `dong` vào "Gà".
+  - Lỗi trong console chỉ có hai lỗi đã biết trước: `401` của `/api/auth/me` trước khi đăng nhập và `409` của ca tên trùng cố ý.
+- Lỗi của kịch bản, không phải của màn: kịch bản nhấn mũi tên xuống khi Radix chưa kịp đặt tiêu điểm vào mục đầu (Radix làm việc đó một khung hình sau khi menu hiện), nên mục đầu được chọn. Đã cho kịch bản chờ tiêu điểm nằm trên một `menuitemradio`; người thật không bấm nhanh hơn một khung hình.
