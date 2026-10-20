@@ -2,6 +2,7 @@ package dev.sino.provider.spi;
 
 import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
 import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
+import static dev.sino.provider.ProviderCapability.SEND_IMAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -52,6 +53,13 @@ public abstract class MessageProviderContractTest {
                 List.of(new NormalizedRecipients.Address(null, "someone@example.test")), UUID.randomUUID(), null);
     }
 
+    /** What the picture checks send; override when the fake provider needs a known conversation. */
+    protected SendMessageCommand imageCommand() {
+        return new SendMessageCommand("conversation-1", ConversationType.DIRECT, null, null, List.of(),
+                UUID.randomUUID(), null,
+                new OutgoingImage(new byte[] {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4}, "image/png", "sticker.png", 64, 64));
+    }
+
     @Test
     void declaresWhoItIsAndWhatItCanDo() {
         assertThat(provider().type()).isNotNull();
@@ -77,6 +85,34 @@ public abstract class MessageProviderContractTest {
 
         assertThat(result.externalMessageId()).isNotBlank();
         assertThat(result.status()).isNotEqualTo(MessageStatus.FAILED);
+    }
+
+    // A connector that sends text can still be one that cannot send a picture (Gmail): it refuses, and sends nothing.
+    @Test
+    void refusesToSendAPictureWithoutTheCapability() {
+        assumeFalse(provider().capabilities().supports(SEND_IMAGES), "the connector sends pictures");
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> provider().sendMessage(context(), imageCommand()))
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    @Test
+    void sendsAPictureWhenItDeclaresTheCapability() {
+        assumeTrue(provider().capabilities().supports(SEND_IMAGES), "the connector cannot send pictures");
+
+        SendMessageResult result = provider().sendMessage(context(), imageCommand());
+
+        assertThat(result.externalMessageId()).isNotBlank();
+        assertThat(result.status()).isNotEqualTo(MessageStatus.FAILED);
+    }
+
+    @Test
+    void aConnectorThatSendsPicturesAlsoSendsMessages() {
+        assumeTrue(provider().capabilities().supports(SEND_IMAGES), "the connector cannot send pictures");
+
+        assertThat(provider().capabilities().supports(SEND_MESSAGES)).isTrue();
     }
 
     @Test

@@ -12,6 +12,13 @@ public enum ProviderCapability {
     /** Send messages and replies through {@code sendMessage}. */
     SEND_MESSAGES,
 
+    /**
+     * Send a picture as a message (D-349): {@code sendMessage} takes a command with an
+     * {@link dev.sino.provider.spi.OutgoingImage}. A connector with it also has {@link #SEND_MESSAGES}. Not what
+     * {@link #ATTACHMENTS} says, which is only that messages Sino reads carry the metadata of their files.
+     */
+    SEND_IMAGES,
+
     /** Normalized messages carry attachment metadata. */
     ATTACHMENTS,
 

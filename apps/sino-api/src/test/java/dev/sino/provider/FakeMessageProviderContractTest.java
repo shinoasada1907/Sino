@@ -4,6 +4,7 @@ import static dev.sino.provider.FakeMessageProvider.message;
 import static dev.sino.provider.FakeMessageProvider.messageWithoutSentAt;
 import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
 import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
+import static dev.sino.provider.ProviderCapability.SEND_IMAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -17,9 +18,11 @@ import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageProviderContractTest;
 import dev.sino.provider.spi.NormalizedMessage;
+import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -37,6 +40,8 @@ class FakeMessageProviderContractTest {
     private static final Instant SEPTEMBER = Instant.parse("2026-09-01T08:00:00Z");
     private static final Instant OCTOBER = Instant.parse("2026-10-01T08:00:00Z");
     private static final Instant BETWEEN = Instant.parse("2026-09-15T00:00:00Z");
+    private static final SendMessageCommand PICTURE = new SendMessageCommand("c-1", ConversationType.DIRECT, null, null,
+            List.of(), UUID.randomUUID(), null, new OutgoingImage(new byte[] {1, 2, 3}, "image/png", "sticker.png", 64, 64));
 
     @Nested
     class ReadOnly extends MessageProviderContractTest {
@@ -79,6 +84,42 @@ class FakeMessageProviderContractTest {
                     .isThrownBy(() -> provider.sendMessage(CONTEXT,
                             new SendMessageCommand("c-1", "hi", null, List.of(), UUID.randomUUID(), null)));
             assertThat(provider.sentMessages()).isEmpty();
+        }
+
+    }
+
+    // A connector that sends pictures too: the kit's picture checks that run only with SEND_IMAGES run on it.
+    @Nested
+    class SendingPictures extends MessageProviderContractTest {
+
+        private final FakeMessageProvider provider = FakeMessageProvider.builder("fake-chat")
+                .capabilities(SEND_MESSAGES, SEND_IMAGES)
+                .page(message("m-1"))
+                .build();
+
+        @Override
+        protected MessageProvider provider() {
+            return provider;
+        }
+
+        @Override
+        protected MessageProvider providerWithOneBrokenMessage() {
+            return provider;
+        }
+
+        @Override
+        protected ProviderContext context() {
+            return CONTEXT;
+        }
+
+        @Override
+        protected Set<String> expectedMessageIds() {
+            return Set.of();
+        }
+
+        @Override
+        protected Instant since() {
+            return BETWEEN;
         }
 
     }
@@ -295,6 +336,26 @@ class FakeMessageProviderContractTest {
 
         assertThat(second.messages()).extracting(NormalizedMessage::externalMessageId).containsExactly("m-2");
         assertThat(provider.fetchCalls()).isEqualTo(3);
+    }
+
+    @Test
+    void aPictureNeverReachesAProviderThatCannotSendPictures() {
+        FakeMessageProvider provider = FakeMessageProvider.builder("fake").capabilities(SEND_MESSAGES).build();
+
+        assertThatExceptionOfType(ProviderException.class).isThrownBy(() -> provider.sendMessage(CONTEXT, PICTURE))
+                .extracting(ProviderException::errorCode).isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+        assertThat(provider.sentMessages()).isEmpty();
+    }
+
+    @Test
+    void aProviderThatSendsPicturesGetsThePictureAsGiven() {
+        FakeMessageProvider provider = FakeMessageProvider.builder("fake").capabilities(SEND_MESSAGES, SEND_IMAGES)
+                .build();
+
+        provider.sendMessage(CONTEXT, PICTURE);
+
+        assertThat(provider.sentMessages()).singleElement().satisfies(command ->
+                assertThat(command.image()).isEqualTo(PICTURE.image()));
     }
 
     @Test

@@ -41,6 +41,24 @@ Web giữ một hàng chờ gửi sticker cho mỗi cuộc trò chuyện: gửi 
 ### D-356 — Ẩn nút khi không gửi được ảnh · agent chốt
 Chi tiết cuộc trò chuyện (`reply`) đã có trạng thái gửi được hay không theo capability (BE-58); thêm cờ `canSendImages` theo `SEND_IMAGES` của tài khoản. Không có cờ thì không có nút.
 
+### D-357 — `sino-zalo` nhận ảnh chặt hơn D-353 ở ba chỗ · agent chốt (ZS-02, ZS-03)
+- **Chữ cùng ảnh là `400 INVALID_MESSAGE`.** Spec chỉ nói chữ được phép rỗng khi có ảnh. `zca-js` gửi chữ kèm ảnh GIF thành hai tin và trả hai `msgId` (chữ kèm PNG/WebP thì thành chú thích của một tin), nên `SentLog` và đối chiếu không biết ghi cái nào. Không ai cần chữ kèm sticker, nên bỏ cho khỏi mơ hồ. `ZaloProvider` cũng từ chối lệnh có cả hai (`CAPABILITY_NOT_SUPPORTED`) trước khi gọi.
+- **`413` của Fastify thành `400 PAYLOAD_TOO_LARGE`.** `bodyLimit` vẫn 2 MiB như D-353, nhưng spec đòi ảnh 2 MiB giải ra là `400`, mà body của nó (khoảng 2,8 MiB) vượt giới hạn nên Fastify trả `413` trước khi route đọc được. Một `errorHandler` riêng của route đổi đúng lỗi `FST_ERR_CTP_BODY_TOO_LARGE` thành `400`; lỗi khác chuyển lại cho Fastify.
+- **Đối chiếu ảnh không cần chữ.** `text` của `POST /accounts/:accountId/sent/lookup` thành tuỳ chọn; thiếu thì không khớp tin trong bộ đệm theo chữ (ảnh không có chữ), chỉ `SentLog` theo `clientMessageId` nói được: `SENT` thì trả `msgId`, chưa rõ thì `409 CANNOT_TELL`, chưa từng giữ và phiên đã chạy từ trước `after` thì rỗng. `ReplyService.reconcile` dựng lệnh từ hàng đã lưu (chữ `[Sticker]`, không có ảnh) nên vẫn đi đường này; sau khi `sino-zalo` khởi động lại mà `SentLog` mất thì tin ảnh chưa rõ ở lại `UNKNOWN` (không bao giờ tự thành `FAILED`), khác tin chữ ở chỗ bộ đệm cũng không giúp được.
+- **Log chỉ ghi `imageType` và `imageBytes`**, không ghi tên tệp: tên có thể là chữ người dùng gõ.
+
+### D-358 — Contract provider mang ảnh (ZS-03) · agent chốt
+- **`OutgoingImage(bytes, mediaType, fileName, width, height)`** tự kiểm khi tạo: `image/png`, `image/gif` hay `image/webp` (viết thường); 1 byte tới 1 MiB (giới hạn của sticker trong thư viện); rộng và cao 1…16384 (cùng giới hạn với schema của `sino-zalo`); tên tệp tối đa 100 ký tự, không có đường dẫn hay ký tự điều khiển, **kết thúc đúng đuôi của loại** (`sino-zalo` và `zca-js` chọn nhánh GIF theo đuôi tên). Record sao chép mảng byte vào và ra, `equals` so theo byte, `toString` chỉ nói số byte.
+- **`SendMessageCommand` thêm `image`**; chữ rỗng được khi có ảnh (khi đó thành `null`); hai constructor cũ giữ nguyên, ảnh `null`.
+- **Từ chối ở connector, không ở chỗ gọi:** connector có `SEND_MESSAGES` mà không có `SEND_IMAGES` (Gmail) ném `CAPABILITY_NOT_SUPPORTED` trước mọi lời gọi ra ngoài; bộ test chung (`MessageProviderContractTest`) có ba ca ảnh để connector mới không quên: từ chối khi thiếu capability, gửi được khi có, và có `SEND_IMAGES` thì phải có `SEND_MESSAGES`.
+- **`ZaloClient.ImageRequest`** gửi byte dạng base64 chuẩn (có `+` và `/`, có đệm `=`, đúng cái `sino-zalo` đòi mã hoá lại ra chính nó); `toString` che `data`. `SendRequest` và thân đối chiếu bỏ hẳn trường `null` khỏi JSON vì schema của `sino-zalo` không nhận `null`.
+
+#### Bảng ý nghĩa capability (thêm một dòng cho `SEND_IMAGES`, theo requirement "Tập capability chuẩn" của delta `provider-contract`)
+
+| Capability | Nghĩa | Dùng bởi |
+|---|---|---|
+| `SEND_IMAGES` | Gửi một ảnh làm một tin: `sendMessage` nhận lệnh có `OutgoingImage`; kéo theo `SEND_MESSAGES`; không phải `ATTACHMENTS` (chỉ nói tin Sino đọc về có metadata tệp). Connector không có thì từ chối lệnh có ảnh và không gửi gì | `zalo-send-images` (Zalo có; Gmail không) |
+
 ## Decision Needed (đã chốt: tất cả theo đề xuất A, người dùng 2026-10-20 "duyệt theo đề xuất"; trước ZS-01)
 
 **Chốt 2026-10-20:** DN-1…DN-5 = **A** (đề xuất), người dùng: "duyệt theo đề xuất". Các phương án khác giữ lại bên dưới để biết đã bỏ gì.

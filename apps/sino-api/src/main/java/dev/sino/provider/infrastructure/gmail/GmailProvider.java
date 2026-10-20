@@ -252,6 +252,10 @@ class GmailProvider implements MessageProvider {
      */
     @Override
     public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
+        if (command.image() != null) {
+            // A picture is refused before anything is asked of Gmail (D-349).
+            capabilities().require(ProviderCapability.SEND_IMAGES);
+        }
         String accessToken = accessTokenOf(context);
         String from = api.profile(accessToken).emailAddress();
         Optional<Part> answered = Optional.ofNullable(command.replyToExternalMessageId())

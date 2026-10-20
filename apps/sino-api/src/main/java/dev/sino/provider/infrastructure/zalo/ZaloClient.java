@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,7 +26,9 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
+import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -362,12 +365,40 @@ class ZaloClient {
         USER, GROUP
     }
 
-    record SendRequest(String threadId, ThreadType threadType, String text, String clientMessageId) {
+    /**
+     * What sino-zalo is asked to send: a text or an {@code image}, never both, and the field left out is left out of
+     * the JSON altogether, since its schema takes no null.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record SendRequest(String threadId, ThreadType threadType, String text, ImageRequest image,
+            String clientMessageId) {
+
+        SendRequest(String threadId, ThreadType threadType, String text, String clientMessageId) {
+            this(threadId, threadType, text, null, clientMessageId);
+        }
+
+    }
+
+    /** A picture as sino-zalo takes it (D-353): the bytes in base64, which no log line or message ever shows. */
+    record ImageRequest(String data, String fileName, int width, int height) {
+
+        static ImageRequest of(OutgoingImage image) {
+            return new ImageRequest(Base64.getEncoder().encodeToString(image.bytes()), image.fileName(),
+                    image.width(), image.height());
+        }
+
+        @Override
+        public String toString() {
+            return "ImageRequest[fileName=" + fileName + ", width=" + width + ", height=" + height + ", data=****]";
+        }
+
     }
 
     record LookupRequest(String threadId, String clientMessageId, String text, Instant after) {
     }
 
+    /** A picture has no text to look it up by: sino-zalo finds it by {@code clientMessageId} alone. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private record LookupBody(String threadId, String clientMessageId, String text, String after) {
     }
 

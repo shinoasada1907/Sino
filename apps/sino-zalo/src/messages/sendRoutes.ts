@@ -36,7 +36,8 @@ interface SendBody {
 interface LookupBody {
   threadId: string;
   clientMessageId: string;
-  text: string;
+  /** Missing for a picture, which has no text to be found by: the sent log alone speaks for it (ZS-03). */
+  text?: string;
   after: string;
 }
 
@@ -74,7 +75,7 @@ const SEND_BODY_LIMIT = 2 * 1024 * 1024;
 
 const lookupBodySchema = {
   type: "object",
-  required: ["threadId", "clientMessageId", "text", "after"],
+  required: ["threadId", "clientMessageId", "after"],
   properties: {
     threadId: id,
     clientMessageId: id,

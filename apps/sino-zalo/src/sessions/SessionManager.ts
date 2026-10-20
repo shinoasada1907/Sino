@@ -182,15 +182,19 @@ export class SessionManager {
   }
 
   /** The account's own messages in a thread with this text, sent after `after` (epoch ms). */
-  ownMessages(accountId: string, threadId: string, text: string, after: number): OwnMessages {
+  ownMessages(accountId: string, threadId: string, text: string | undefined, after: number): OwnMessages {
     const session = this.liveSession(accountId);
-    const messages = session.buffer.filter(
-      (message) =>
-        message.isSelf &&
-        message.threadId === threadId &&
-        message.text === text &&
-        Date.parse(message.sentAt) > after,
-    );
+    // A picture has no text to match: only the sent log can say it went out.
+    const messages =
+      text === undefined
+        ? []
+        : session.buffer.filter(
+            (message) =>
+              message.isSelf &&
+              message.threadId === threadId &&
+              message.text === text &&
+              Date.parse(message.sentAt) > after,
+          );
     return { msgIds: messages.map((message) => message.msgId), liveSince: session.liveSince };
   }
 

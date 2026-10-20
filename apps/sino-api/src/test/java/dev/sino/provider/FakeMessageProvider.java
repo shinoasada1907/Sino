@@ -216,6 +216,10 @@ public final class FakeMessageProvider implements MessageProvider {
         if (!capabilities.supports(ProviderCapability.SEND_MESSAGES)) {
             return MessageProvider.super.sendMessage(context, command);
         }
+        if (command.image() != null) {
+            // Refused before it is recorded: a picture a connector cannot send never reaches it (D-349).
+            capabilities.require(ProviderCapability.SEND_IMAGES);
+        }
         CountDownLatch[] hold;
         int number;
         ProviderException failure;

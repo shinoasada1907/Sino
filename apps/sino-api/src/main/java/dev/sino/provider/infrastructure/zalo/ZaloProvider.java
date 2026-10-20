@@ -9,6 +9,7 @@ import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.ImageRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.LookupRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.SendRequest;
@@ -18,6 +19,7 @@ import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
+import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -31,7 +33,8 @@ import dev.sino.provider.spi.SyncCursor;
 /**
  * The personal Zalo connector (F09): Sino reaches Zalo through the sino-zalo service (D-273), every call through
  * {@link ZaloClient}. It connects by QR code, and is in the registry also while turned off (D-286). Reading buffered
- * messages, push registration and sending/reconciling text messages are active (ZL-08, ZL-09).
+ * messages, push registration and sending/reconciling text messages are active (ZL-08, ZL-09); so is sending a
+ * picture alone (D-349, D-353).
  */
 class ZaloProvider implements MessageProvider {
 
@@ -55,6 +58,7 @@ class ZaloProvider implements MessageProvider {
     private static final ProviderCapabilities CAPABILITIES = ProviderCapabilities.of(
             ProviderCapability.READ_MESSAGES,
             ProviderCapability.SEND_MESSAGES,
+            ProviderCapability.SEND_IMAGES,
             ProviderCapability.PUSH_WEBHOOK);
 
     private final boolean turnedOn;
@@ -118,12 +122,19 @@ class ZaloProvider implements MessageProvider {
 
     @Override
     public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
+        OutgoingImage image = command.image();
+        if (image != null && command.textContent() != null) {
+            // sino-zalo sends a text or a picture, not both: zca-js would send two messages and name two IDs (ZS-02).
+            throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
+                    "Zalo sends a picture alone: a text beside it is not supported");
+        }
         ThreadType threadType = command.conversationType() == ConversationType.GROUP
                 ? ThreadType.GROUP : ThreadType.USER;
         Sent sent = client.send(context, new SendRequest(
                 command.externalConversationId(),
                 threadType,
                 command.textContent(),
+                image == null ? null : ImageRequest.of(image),
                 command.clientMessageId().toString()));
         return new SendMessageResult(sent.msgId(), MessageStatus.SENT, sent.sentAt());
     }

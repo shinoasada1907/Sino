@@ -47,6 +47,7 @@ class ZaloProviderTests {
         assertThat(zalo.capabilities().values()).containsExactlyInAnyOrder(
                 dev.sino.provider.ProviderCapability.READ_MESSAGES,
                 dev.sino.provider.ProviderCapability.SEND_MESSAGES,
+                dev.sino.provider.ProviderCapability.SEND_IMAGES,
                 dev.sino.provider.ProviderCapability.PUSH_WEBHOOK);
     }
 
