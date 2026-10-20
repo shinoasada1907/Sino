@@ -126,6 +126,8 @@ export interface ConversationDetail {
   canSend: boolean | null
   /** Who a reply goes to (D-133); null when the backend does not tell, or in the sample data. */
   replyTo: Recipient[] | null
+  /** A sticker of the library can be sent here (zalo-send-images, D-356): the sticker button shows. False when the backend does not tell. */
+  canSendImages?: boolean
   /** The opening mail of a new conversation has not gone yet: no reply box and no notice (f10-new-mail, D-195). */
   opening?: boolean
   previousCursor: string | null
@@ -208,6 +210,11 @@ export type Message =
       stickerSprite?: StickerSprite
       /** The picture of a photo (ZL-16); absent when the message is no photo or has no picture the backend trusts. */
       image?: MessageImage
+      /**
+       * The sticker of the user's library that this message Sino sent is (zalo-send-images, D-352); the picture is
+       * `/api/stickers/{id}/content`, whatever address the provider gives its copy. Absent for any other message.
+       */
+      libraryStickerId?: string
       /** Only in this browser: the server never stored it (a send that did not reach it, or not allowed). */
       local?: boolean
     }

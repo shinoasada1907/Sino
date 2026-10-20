@@ -73,13 +73,16 @@
 
 ## 3. Web
 
-- [ ] 3.1 **ZS-07 — Gửi sticker: request, hàng chờ, hiện tin đi (D-352, D-355)**
+- [x] 3.1 **ZS-07 — Gửi sticker: request, hàng chờ, hiện tin đi (D-352, D-355)**
   - **Goal:** gửi sticker với `clientMessageId`, hiện ngay, gửi lần lượt.
   - **Files:** `features/inbox/**` (api, hook gửi, hàng chờ, hiện tin có `stickerId`), test.
   - **Acceptance criteria:** spec `chat-sticker-picker` phần "Bấm là gửi, tin hiện ngay".
   - **Test:** Vitest + MSW: hiện ngay, đã gửi, lỗi có "Gửi lại" cùng mã và "Bỏ", ba sticker bấm liên tiếp gửi đúng thứ tự từng cái một.
   - **Depends on:** ZS-05 (hợp đồng; MSW đứng thay tới khi chạy thật).
   - **Hints:** **Level 1:** hàng chờ tin chữ hiện có dùng lại được tới đâu? **Level 2:** cùng `clientMessageId` và trạng thái; khác ở thân gửi và cách vẽ tin.
+  - **Thực hiện:** `sendSticker(conversationId, stickerId, clientMessageId)` ở `inbox.api.ts`; `libraryStickerId` đi vào `Mail` và `reply.canSendImages` vào `ConversationDetail.canSendImages` (chỉ khi backend có `reply`). `useSendMessage` có thêm `sendSticker(stickerId)`: tin hiện ngay trong hộp gửi với "Đang gửi", dùng chung mọi callback với tin chữ (thành công, lỗi, chưa rõ, đọc lại danh sách) và `resend` gửi lại đúng sticker cùng `clientMessageId`. Hai `useMutation` dùng chung callback, sticker có `scope` của TanStack Query nên **đi từng cái một theo thứ tự bấm** (`onMutate` không chờ lượt nên tin hiện ngay), và mỗi cái đợi qua `stickerQueue.ts`. Bong bóng chat vẽ sticker thư viện từ `/api/stickers/{id}/content` (ảnh hỏng thì quay về ảnh Zalo rồi chữ).
+  - **Làm khác kế hoạch (lý do):** (1) **Thêm khoảng cách tối thiểu 1,1 giây giữa hai sticker** (D-355 sửa): "xong cái trước mới gửi cái sau" không đủ, cái trước xong sau 300 ms thì cái sau bị `429` của `sino-zalo`. Hàng chờ là một cho cả ứng dụng vì giới hạn tính theo tài khoản; test đặt `stickerPacing.gapMs = 0` trong `setup.ts`. (2) **Thêm "Gửi lại" và "Bỏ" cho bong bóng chat**, vì khung chat chưa có chúng ngay cả cho tin chữ lỗi (chỉ `EmailThread` có), mà spec đòi cho sticker; cùng mã nên tin chữ lỗi trong chat cũng có (có test).
+  - **Bằng chứng:** Test viết trước, **đỏ 20 test** (thiếu `sendSticker`, `stickerQueue`, `libraryStickerId`), xanh sau khi cài. `stickerQueue.test.ts` 5, `StickerSend.test.tsx` 8 (hiện ngay rồi thành tin đã lưu, từng cái một theo thứ tự, cái bị từ chối không chặn cái sau, tin chữ không bị giữ sau sticker, gửi lại cùng mã, chưa rõ, bỏ, không cho phép), `ChatStickerSend.test.tsx` 9, `inbox.api.test.ts` +3. Cả thư mục `features/inbox`: **31 tệp / 332 test xanh**; `tsc -b` 0. **Chưa chạy:** `pnpm lint`, toàn bộ `pnpm test`, `pnpm build` và Chrome thật, làm một lần ở cuối cùng với ZS-08 theo ý người dùng.
 
 - [ ] 3.2 **ZS-08 — Nút và khung chọn sticker (D-354, D-356)**
   - **Goal:** chọn sticker theo bộ ngay trong khung soạn tin.

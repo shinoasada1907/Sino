@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
 import { API_CONVERSATIONS, API_COUNTS, API_MESSAGES, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
 import { server } from '@/test/msw/server'
-import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, fetchUnreadByKind, updateConversation } from './inbox.api'
+import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, fetchUnreadByKind, sendSticker, updateConversation } from './inbox.api'
 
 const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOUND' }
 const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })
@@ -388,5 +388,57 @@ describe('a message without a known sender (BE-54)', () => {
       { id: 'n-1', direction: 'IN', sender: 'Không rõ người gửi' },
       { id: 'n-2', direction: 'OUT', sender: 'Bạn' },
     ])
+  })
+})
+
+describe('a sticker of the library (zalo-send-images)', () => {
+  it('names the sticker of the library that a message Sino sent carries, and leaves it out for any other', async () => {
+    server.use(
+      http.get('/api/conversations/:id/messages', () =>
+        HttpResponse.json({
+          items: [
+            { ...API_MESSAGES[0], id: 'st-1', text: '[Sticker]', direction: 'OUTBOUND', libraryStickerId: 'lib-1' },
+            { ...API_MESSAGES[0], id: 'st-2', libraryStickerId: null },
+            { ...API_MESSAGES[0], id: 'st-3' },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    )
+
+    const { items } = await fetchMessages('c-1', null)
+
+    expect(items[0]).toMatchObject({ id: 'st-1', libraryStickerId: 'lib-1' })
+    expect(items[1]).not.toHaveProperty('libraryStickerId')
+    expect(items[2]).not.toHaveProperty('libraryStickerId')
+  })
+
+  it('says whether a sticker can be sent in a conversation, from the reply of the API', async () => {
+    const to = [{ name: 'An', address: '8001' }]
+    const answer = (reply: object) =>
+      server.use(http.get('/api/conversations/:id', () => HttpResponse.json({ ...API_CONVERSATIONS[0], participants: API_PARTICIPANTS, reply })))
+
+    answer({ state: 'READY', to, canSendImages: true })
+    expect((await fetchConversation('c-1')).detail.canSendImages).toBe(true)
+    answer({ state: 'READY', to, canSendImages: false })
+    expect((await fetchConversation('c-1')).detail.canSendImages).toBe(false)
+    // A backend before the stickers says nothing: no button.
+    answer({ state: 'READY', to })
+    expect((await fetchConversation('c-1')).detail.canSendImages).toBe(false)
+  })
+
+  it('sends a sticker by its ID alone, with the clientMessageId, and returns the message the server stored', async () => {
+    let body: unknown
+    server.use(
+      http.post('/api/conversations/:id/messages', async ({ request }) => {
+        body = await request.json()
+        return HttpResponse.json({ ...API_MESSAGES[0], id: 'm-9', direction: 'OUTBOUND', status: 'SENT', text: '[Sticker]', clientMessageId: 'cid-1', libraryStickerId: 'lib-1' }, { status: 201 })
+      }),
+    )
+
+    const sent = await sendSticker('c-1', 'lib-1', 'cid-1')
+
+    expect(body).toEqual({ stickerId: 'lib-1', clientMessageId: 'cid-1' })
+    expect(sent).toMatchObject({ id: 'm-9', direction: 'OUT', status: 'SENT', clientMessageId: 'cid-1', libraryStickerId: 'lib-1' })
   })
 })

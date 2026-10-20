@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, configure } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
+import { stickerPacing } from '@/features/inbox/stickerQueue'
 import { stubEventSource } from './eventSource'
 import { stubOsColorScheme } from './matchMedia'
 import { stubObjectUrls } from './objectUrls'
@@ -37,6 +38,8 @@ beforeAll(() =>
 // (F08), which jsdom lacks; `unstubGlobals` resets both after each test. jsdom has no object URLs either, which the
 // previews of the "Thêm sticker" step use (SP-08); each test starts with none.
 beforeEach(() => {
+  // The stickers wait a second between two sends (stickerQueue); no test does.
+  stickerPacing.gapMs = 0
   stubOsColorScheme('light')
   stubEventSource()
   stubObjectUrls()
