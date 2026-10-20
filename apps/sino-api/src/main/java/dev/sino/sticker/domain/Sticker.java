@@ -19,7 +19,7 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * A sticker in the library of a Sino user (custom-stickers): an image the user keeps, with what the application worked
  * out from the file. Only the metadata; the bytes are in {@link StickerContent}, so that reading a list of stickers never
- * reads an image (D-331). A sticker never changes once it is kept: to replace it, delete it and keep another. Mapped onto
+ * reads an image (D-331). The picture of a sticker never changes once it is kept (to replace it, delete it and keep another); its name and its pack may (SP-03). Mapped onto
  * table {@code sticker} (V21; its pack, V22).
  * <p>
  * The limits that move with the configuration (size, side, how many) are the service's; here are the invariants the
@@ -39,7 +39,7 @@ public class Sticker {
     @Column(name = "user_id", nullable = false, updatable = false)
     private UUID ownerId;
 
-    @Column(name = "name", nullable = false, updatable = false)
+    @Column(name = "name", nullable = false)
     private String name;
 
     @Convert(converter = StickerMediaTypeConverter.class)
@@ -96,6 +96,23 @@ public class Sticker {
         sticker.sha256 = sha256Of(content);
         sticker.createdAt = Objects.requireNonNull(now, "now");
         return sticker;
+    }
+
+    /**
+     * Gives the sticker another name; its picture never changes.
+     *
+     * @param name already a name: not blank and at most {@value #MAX_NAME_LENGTH} code points
+     */
+    public void rename(String name) {
+        this.name = checkedName(name);
+    }
+
+    /**
+     * Puts the sticker in a pack, or in none for {@code null}. That the pack is the owner's is the service's to check,
+     * and the database's (the foreign key covers the owner, D-340).
+     */
+    public void moveTo(UUID packId) {
+        this.packId = packId;
     }
 
     private static String checkedName(String name) {

@@ -1683,3 +1683,29 @@ StickerPackService (mọi hàm nhận ownerId từ web; bộ của người khá
 - Test viết trước, đỏ vì chưa có dịch vụ, kiểu tóm tắt, mã lỗi, cấu hình; một lỗi biên dịch của chính test (`singleElement()` trả `Object`) sửa ở test. Một lượt đỏ giả do Docker daemon tắt giữa chừng: chạy lại sau khi bật.
 - Xanh: `StickerPackServiceTests` 14, `StickerPropertiesTests` 18 (3 mới), `StickerPackTests` 12 (bỏ ca của `nameKey`), `StickerServiceTests` 37 và `StickerServiceFailuresTests` 4 không đổi, `ModularityTests` 2/2.
 - `./mvnw -B -ntp verify` toàn bộ: 2445 test, 0 lỗi, 8 bỏ qua.
+
+### 23.5 Sticker trong bộ: tải lên vào bộ, đổi tên, chuyển bộ (SP-03)
+**Ở đâu:** `sticker/application/StickerService` (`upload(…, packId, …)`, `change`), `StickerChange`; `sticker/domain/Sticker` (`rename`, `moveTo`; cột `name` giờ sửa được). Test: `StickerInPackTests`.
+
+**Vì sao "chuyển bộ" có kiểu riêng (câu gợi ý của task):** một thay đổi có ba ý khác nhau về bộ: để nguyên, bỏ khỏi mọi bộ, hay chuyển vào bộ X. Một trường `UUID packId` có thể `null` chỉ nói được hai ý: `null` là "để nguyên" hay là "bỏ khỏi bộ"? `StickerChange` có trường `pack` kiểu `PackMove`, một **sealed interface** chỉ có hai bản hiện thực:
+
+```java
+public sealed interface PackMove {
+    record Into(UUID packId) implements PackMove { }   // vào bộ X (packId bắt buộc)
+    record Out() implements PackMove { }                // bỏ khỏi mọi bộ
+}
+// pack == null trong StickerChange: để nguyên
+```
+
+`sealed` nói với trình biên dịch rằng ngoài `Into` và `Out` không có kiểu nào khác, nên một `switch` trên `PackMove` không cần nhánh `default`. Dịch vụ đọc bằng **pattern matching** của `instanceof`: `change.pack() instanceof PackMove.Into into ? into.packId() : null`. Ở API (SP-04), JSON không có `packId` thì `pack` là `null`; `"packId": null` là `Out`; `"packId": "…"` là `Into`.
+
+**Bộ bị xóa đúng giữa lúc kiểm và lúc ghi:** dịch vụ thấy bộ còn, một yêu cầu khác xóa bộ, rồi câu `INSERT` (hay `UPDATE`) của sticker mới tới. Khóa ngoại `(pack_id, user_id)` của SP-01 từ chối, và lỗi đó bật ra lúc `flush`. Như D-339: bắt ở ngoài giao dịch đã hỏng, hỏi lại bộ trong giao dịch mới, không còn thì trả `STICKER_PACK_NOT_FOUND`, còn thì để lỗi gốc đi tiếp. Với tải lên, câu hỏi lại chạy sau câu hỏi "có phải trùng không" (`alreadyKept(…).or(() -> packGone(…))`): `Optional.or` thử lời giải thích thứ hai chỉ khi lời thứ nhất không đúng.
+
+**Bẫy khi viết test cho đường đua này:** test bọc repository của bộ để xóa bộ ngay sau khi dịch vụ tìm thấy nó. Nếu lệnh xóa chạy bằng `JdbcTemplate` trên **cùng luồng**, Spring cho nó tham gia giao dịch đang mở của dịch vụ (cùng một kết nối): khóa ngoại vẫn từ chối, nhưng giao dịch rollback kéo theo cả lệnh xóa, bộ "sống lại", và dịch vụ thấy bộ còn nên ném lỗi gốc. Đó không phải điều thật xảy ra khi một yêu cầu khác xóa bộ. Test cho lệnh xóa chạy trên luồng khác (`CompletableFuture.runAsync(...).join()`): luồng đó không có giao dịch nào, lệnh tự commit ngay, đúng như một yêu cầu khác.
+
+**Tên khi đổi:** theo đúng luật của lần tải lên (`StickerNames.of`): bỏ ký tự điều khiển, cắt khoảng trắng, quá 50 code point thì cắt bớt, trống thì là `Sticker`. Nội dung ảnh (`sha256`, byte) không đổi: một sticker vẫn không bao giờ đổi hình (D-335, cache vĩnh viễn).
+
+### 23.6 Kiểm chứng (SP-03)
+- Test viết trước: đỏ vì chưa có `StickerChange`, `upload` có bộ, `change`; xanh: `StickerInPackTests` 13 (tải vào bộ, không bộ, bộ của người khác và bộ không có không ghi gì, bộ bị xóa giữa chừng khi tải và khi chuyển, chuyển bộ cập nhật số của hai bộ, bỏ khỏi bộ, đổi tên theo luật tải lên giữ hình và bộ, đổi tên và chuyển cùng lúc, sticker của người khác, `StickerChange` rỗng, danh sách có `packId`), `StickerServiceTests` 37 và `StickerServiceFailuresTests` 4 không đổi.
+- `rename` và `moveTo` của `Sticker` ban đầu trả `boolean` theo mẫu của `StickerPack`; không chỗ nào dùng giá trị đó nên đổi thành `void`.
+- `./mvnw -B -ntp verify` toàn bộ: 2458 test, 0 lỗi, 8 bỏ qua.

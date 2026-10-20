@@ -18,6 +18,7 @@ import dev.sino.sticker.domain.StickerContent;
 import dev.sino.sticker.domain.StickerErrorCode;
 import dev.sino.sticker.domain.StickerImage;
 import dev.sino.sticker.infrastructure.StickerContentRepository;
+import dev.sino.sticker.infrastructure.StickerPackRepository;
 import dev.sino.sticker.infrastructure.StickerRepository;
 
 /**
@@ -29,14 +30,17 @@ public class StickerService {
 
     private final StickerRepository stickers;
     private final StickerContentRepository contents;
+    private final StickerPackRepository packs;
     private final StickerProperties properties;
     private final Clock clock;
     private final TransactionTemplate transaction;
 
-    StickerService(StickerRepository stickers, StickerContentRepository contents, StickerProperties properties, Clock clock,
+    StickerService(StickerRepository stickers, StickerContentRepository contents, StickerPackRepository packs,
+            StickerProperties properties, Clock clock,
             PlatformTransactionManager transactionManager) {
         this.stickers = stickers;
         this.contents = contents;
+        this.packs = packs;
         this.properties = properties;
         this.clock = clock;
         this.transaction = new TransactionTemplate(transactionManager);
@@ -55,6 +59,17 @@ public class StickerService {
      *         {@code STICKER_LIMIT_REACHED}
      */
     public Sticker upload(UUID ownerId, String fileName, String requestedName, byte[] content) {
+        return upload(ownerId, fileName, requestedName, null, content);
+    }
+
+    /**
+     * Keeps an image as {@link #upload(UUID, String, String, byte[])} does, in a pack of the owner (SP-03), or in none
+     * for {@code null}.
+     *
+     * @throws SinoException {@code STICKER_PACK_NOT_FOUND} when the pack is not the owner's, also when it is deleted
+     *         between the look and the write; and those of the other {@code upload}
+     */
+    public Sticker upload(UUID ownerId, String fileName, String requestedName, UUID packId, byte[] content) {
         if (content == null || content.length == 0) {
             throw new SinoException(StickerErrorCode.STICKER_FILE_MISSING, "No file was sent.");
         }
@@ -71,11 +86,66 @@ public class StickerService {
         }
         Sticker draft = Sticker.create(ownerId, StickerNames.of(requestedName, fileName), image, content, clock.instant());
         try {
-            return transaction.execute(status -> keep(draft, content));
+            return transaction.execute(status -> {
+                if (packId != null) {
+                    requirePack(ownerId, packId);
+                    draft.moveTo(packId);
+                }
+                return keep(draft, content);
+            });
         } catch (DataIntegrityViolationException e) {
             // Two uploads of one file at the same moment both found no duplicate; the unique index let one of them in.
-            throw alreadyKept(ownerId, draft.sha256()).orElseThrow(() -> e);
+            // Or the pack was deleted after it was found; its foreign key refused the sticker.
+            throw alreadyKept(ownerId, draft.sha256()).or(() -> packGone(ownerId, packId)).orElseThrow(() -> e);
         }
+    }
+
+    /**
+     * Renames a sticker of the owner, puts it in another pack of the owner or in none, or both (SP-03). Its picture never
+     * changes. The name follows the rules of an upload ({@link StickerNames}: blank is {@code Sticker}, a long one is cut).
+     *
+     * @throws SinoException {@code STICKER_NOT_FOUND}; {@code STICKER_PACK_NOT_FOUND} when the pack is not the owner's,
+     *         also when it is deleted between the look and the write; nothing changes then
+     */
+    public Sticker change(UUID ownerId, UUID id, StickerChange change) {
+        UUID target = change.pack() instanceof StickerChange.PackMove.Into into ? into.packId() : null;
+        try {
+            return transaction.execute(status -> {
+                Sticker sticker = owned(ownerId, id);
+                if (change.name() != null) {
+                    sticker.rename(StickerNames.of(change.name(), null));
+                }
+                if (change.pack() != null) {
+                    if (target != null) {
+                        requirePack(ownerId, target);
+                    }
+                    sticker.moveTo(target);
+                }
+                // Flushed here so that a pack deleted after it was found fails in this transaction, where it is caught.
+                stickers.flush();
+                return sticker;
+            });
+        } catch (DataIntegrityViolationException e) {
+            throw packGone(ownerId, target).orElseThrow(() -> e);
+        }
+    }
+
+    private void requirePack(UUID ownerId, UUID packId) {
+        if (packs.findByIdAndOwnerId(packId, ownerId).isEmpty()) {
+            throw packNotFound();
+        }
+    }
+
+    /** After a write was refused: the refusal says the pack is gone, when it is. */
+    private Optional<SinoException> packGone(UUID ownerId, UUID packId) {
+        if (packId == null || transaction.execute(status -> packs.findByIdAndOwnerId(packId, ownerId)).isPresent()) {
+            return Optional.empty();
+        }
+        return Optional.of(packNotFound());
+    }
+
+    private static SinoException packNotFound() {
+        return new SinoException(StickerErrorCode.STICKER_PACK_NOT_FOUND, "There is no such sticker pack.");
     }
 
     private Sticker keep(Sticker draft, byte[] content) {
