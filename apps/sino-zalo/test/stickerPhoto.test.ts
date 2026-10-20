@@ -52,17 +52,17 @@ const photoOf = (content: unknown) => toZaloMessage(new UserMessage("7001", zcaD
 
 describe("a photo that is a Zalo sticker", () => {
   it("shows the address inside params.webp and keeps the address it used to show as the fallback", () => {
-    expect(photoOf(tiger())).toEqual({ url: WEBP, thumbUrl: HREF, caption: null });
+    expect(photoOf(tiger())).toEqual({ url: WEBP, thumbUrl: HREF, caption: null, sticker: true });
   });
 
   it("is read the same in a group", () => {
     const group = zcaData(tiger(), { idTo: "9001", uidFrom: "8002" });
 
-    expect(toZaloMessage(new GroupMessage("7001", group as never)).photo).toEqual({ url: WEBP, thumbUrl: HREF, caption: null });
+    expect(toZaloMessage(new GroupMessage("7001", group as never)).photo).toEqual({ url: WEBP, thumbUrl: HREF, caption: null, sticker: true });
   });
 
   it("is read from a content that arrives as JSON text", () => {
-    expect(photoOf(JSON.stringify(tiger()))).toEqual({ url: WEBP, thumbUrl: HREF, caption: null });
+    expect(photoOf(JSON.stringify(tiger()))).toEqual({ url: WEBP, thumbUrl: HREF, caption: null, sticker: true });
   });
 
   it("keeps the caption", () => {
@@ -87,13 +87,13 @@ describe("a photo that is a Zalo sticker", () => {
   });
 
   it("looks no deeper than one level below webp", () => {
-    expect(photoOf(tiger({ webp: { a: { b: { c: WEBP } } } }))).toEqual({ url: HREF, thumbUrl: null, caption: null });
+    expect(photoOf(tiger({ webp: { a: { b: { c: WEBP } } } }))).toEqual({ url: HREF, thumbUrl: null, caption: null, sticker: true });
   });
 
   it("falls back to the address it would have shown, not to the thumbnail", () => {
     const thumb = "https://b-f11-zpc.zdn.vn/1/thumb.jpg";
 
-    expect(photoOf(tiger({}, { thumb }))).toEqual({ url: WEBP, thumbUrl: HREF, caption: null });
+    expect(photoOf(tiger({}, { thumb }))).toEqual({ url: WEBP, thumbUrl: HREF, caption: null, sticker: true });
   });
 
   it("prefers the key url to another key", () => {
@@ -103,13 +103,13 @@ describe("a photo that is a Zalo sticker", () => {
   });
 
   it("gives no fallback when the webp is the address it would have shown", () => {
-    expect(photoOf(tiger({ webp: { url: HREF } }))).toEqual({ url: HREF, thumbUrl: null, caption: null });
+    expect(photoOf(tiger({ webp: { url: HREF } }))).toEqual({ url: HREF, thumbUrl: null, caption: null, sticker: true });
   });
 
   it("shows the webp when it is the only address in the content", () => {
     const content = { title: "", params: JSON.stringify({ pStickerType: 2, webp: { url: WEBP } }) };
 
-    expect(photoOf(content)).toEqual({ url: WEBP, thumbUrl: null, caption: null });
+    expect(photoOf(content)).toEqual({ url: WEBP, thumbUrl: null, caption: null, sticker: true });
   });
 
   it("does not look into webp when pStickerType is not a number", () => {
@@ -118,9 +118,9 @@ describe("a photo that is a Zalo sticker", () => {
     }
   });
 
-  it("leaves a photo as it was when webp names no web address", () => {
+  it("shows the address it would have shown when webp names no web address, still as a sticker", () => {
     for (const webp of [{}, { url: "javascript:alert(1)" }, { url: "ftp://zdn.vn/a.webp" }, { url: 3 }, "text", "{not json", null, 7, []]) {
-      expect(photoOf(tiger({ webp }))).toEqual({ url: HREF, thumbUrl: null, caption: null });
+      expect(photoOf(tiger({ webp }))).toEqual({ url: HREF, thumbUrl: null, caption: null, sticker: true });
     }
   });
 
@@ -134,6 +134,41 @@ describe("a photo that is a Zalo sticker", () => {
     const other = toZaloMessage(new UserMessage("7001", zcaData(tiger(), { msgType: "share.file" })));
 
     expect(other.photo).toBeUndefined();
+  });
+});
+
+// ZL-19: chat.zalo.me draws a photo as a sticker when it has a pStickerType or its bubble has no border
+// (propertyExt.type 3, MSG_BUBBLE_LAYOUT_TYPE_NO_BORDER); the stickers the user got on 2026-10-21 showed with a photo frame.
+describe("a photo Zalo draws as a sticker is marked sticker", () => {
+  const layout = (type: number) => ({ color: -1, size: -1, type, subType: 0, ext: "" });
+  const photoWith = (content: unknown, fields: Partial<TMessage>) =>
+    toZaloMessage(new UserMessage("7001", zcaData(content, fields))).photo;
+  const plain = { title: "", href: HREF, thumb: HREF, params: JSON.stringify({ width: 512, height: 512 }) };
+
+  it("when its bubble has no border, even without a pStickerType", () => {
+    expect(photoWith(plain, { propertyExt: layout(3) })).toEqual({ url: HREF, thumbUrl: null, caption: null, sticker: true });
+  });
+
+  it("not when its bubble has another layout or none", () => {
+    for (const propertyExt of [layout(0), layout(1), layout(2), undefined]) {
+      expect(photoWith(plain, { propertyExt })).not.toHaveProperty("sticker");
+    }
+  });
+
+  it("not when the pStickerType is not a whole number and the bubble has a border", () => {
+    expect(photoOf(tiger({ pStickerType: "1" }))).not.toHaveProperty("sticker");
+  });
+
+  it("in a group too", () => {
+    const group = zcaData(plain, { idTo: "9001", uidFrom: "8002", propertyExt: layout(3) });
+
+    expect(toZaloMessage(new GroupMessage("7001", group as never)).photo?.sticker).toBe(true);
+  });
+
+  it("in the JSON sino-api reads", () => {
+    expect(JSON.parse(JSON.stringify(toZaloMessage(new UserMessage("7001", zcaData(tiger())))))).toMatchObject({
+      photo: { url: WEBP, sticker: true },
+    });
   });
 });
 

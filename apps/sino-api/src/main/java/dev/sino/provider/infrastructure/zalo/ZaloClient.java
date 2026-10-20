@@ -490,10 +490,21 @@ class ZaloClient {
 
     /**
      * The picture of a photo message as Zalo named it (ZL-16): {@code url} is the one the chat shows, {@code thumbUrl}
-     * a smaller one or null, {@code caption} the text the sender typed with it or null. Nothing here is checked yet.
+     * a smaller one or null, {@code caption} the text the sender typed with it or null. {@code sticker} is true when
+     * Zalo draws the photo as a sticker (ZL-19); sino-zalo leaves it out otherwise, so it is a {@code Boolean}: Jackson
+     * reads a missing field as null, which a {@code boolean} refuses. Nothing here is checked yet.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Photo(String url, String thumbUrl, String caption) {
+    record Photo(String url, String thumbUrl, String caption, Boolean sticker) {
+
+        Photo(String url, String thumbUrl, String caption) {
+            this(url, thumbUrl, caption, null);
+        }
+
+        boolean drawnAsSticker() {
+            return Boolean.TRUE.equals(sticker);
+        }
+
     }
 
     /**

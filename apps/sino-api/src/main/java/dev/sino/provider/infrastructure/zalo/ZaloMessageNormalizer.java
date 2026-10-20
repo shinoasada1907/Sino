@@ -256,6 +256,9 @@ final class ZaloMessageNormalizer {
      * about, so a CDN missing from {@link #PICTURE_DOMAINS} shows in the log instead of as pictures that never come.
      */
     private static Body photoBody(Photo photo) {
+        if (photo != null && photo.drawnAsSticker()) {
+            return photoStickerBody(photo);
+        }
         Map<String, String> metadata = new LinkedHashMap<>();
         metadata.put(ZALO_TYPE_KEY, "chat.photo");
         if (photo != null) {
@@ -278,6 +281,26 @@ final class ZaloMessageNormalizer {
             }
         }
         return new Body(MessageType.IMAGE, "[Ảnh]", Map.copyOf(metadata));
+    }
+
+    /**
+     * A photo Zalo draws as a sticker (ZL-19) is an {@code IMAGE} like the stickers Sino sends (D-352), with the text
+     * {@code [Sticker]} and its picture as {@code stickerUrl}, so the web draws it without the photo frame. Its
+     * thumbnail stands in for a picture Sino refuses; a caption is not kept (a sticker has none). {@code zaloType}
+     * stays {@code chat.photo}, what Zalo sent.
+     */
+    private static Body photoStickerBody(Photo photo) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put(ZALO_TYPE_KEY, "chat.photo");
+        String picture = pictureAddress(photo.url());
+        if (picture == null) {
+            picture = pictureAddress(photo.thumbUrl());
+        }
+        if (picture == null) {
+            warnRefused("sticker", clean(photo.url()) != null ? photo.url() : photo.thumbUrl());
+        }
+        putIfPresent(metadata, NormalizedMessage.STICKER_URL, picture);
+        return new Body(MessageType.IMAGE, "[Sticker]", Map.copyOf(metadata));
     }
 
     /**

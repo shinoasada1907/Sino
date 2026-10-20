@@ -170,6 +170,11 @@ class ZaloPhotoTests {
     }
 
     @Test
+    void aPhotoMarkedAsNotAStickerIsAPhoto() {
+        assertThat(normalize(new Photo(FULL, null, null, false)).textContent()).isEqualTo("[Ảnh]");
+    }
+
+    @Test
     void theOlderNineAndTenValueConstructorsMakeAMessageWithoutAPhoto() {
         Message nine = new Message("1", FRIEND, "USER", FRIEND, "Bình", false, "chat.photo", null, SENT_AT);
         Message ten = new Message("1", FRIEND, "USER", FRIEND, "Bình", false, "chat.sticker", null, SENT_AT,
@@ -244,5 +249,66 @@ class ZaloPhotoTests {
         normalize(new Photo(null, null, null));
 
         assertThat(output.getAll()).doesNotContain("does not accept");
+    }
+
+    // ZL-19: a photo Zalo draws as a sticker is kept as a sticker, so the web draws it without the photo frame.
+
+    @Test
+    void aPhotoZaloDrawsAsAStickerIsAStickerWithItsPictureAsTheStickerAddress() {
+        NormalizedMessage message = normalize(new Photo(FULL, THUMB, "x", true));
+
+        assertThat(message.type()).isEqualTo(MessageType.IMAGE);
+        assertThat(message.textContent()).isEqualTo("[Sticker]");
+        assertThat(message.metadata()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "zaloType", "chat.photo",
+                NormalizedMessage.STICKER_URL, FULL));
+    }
+
+    @Test
+    void theThumbnailStandsInForAStickerPictureSinoRefuses() {
+        NormalizedMessage message = normalize(new Photo("https://evil.example.com/a.jpg", THUMB, null, true));
+
+        assertThat(message.metadata()).containsEntry(NormalizedMessage.STICKER_URL, THUMB)
+                .doesNotContainKey(NormalizedMessage.IMAGE_URL);
+    }
+
+    @Test
+    void aStickerWithNoSafeAddressIsTheTextAloneAndItsHostIsWarnedAbout(CapturedOutput output) {
+        NormalizedMessage message = normalize(new Photo("https://cdn.example.com/s/token-abc123/a.jpg", null, null, true));
+
+        assertThat(message.textContent()).isEqualTo("[Sticker]");
+        assertThat(message.metadata()).containsExactly(Map.entry("zaloType", "chat.photo"));
+        assertThat(output.getAll()).contains("Zalo gave a sticker whose address Sino does not accept")
+                .contains("host: cdn.example.com").doesNotContain("token-abc123");
+    }
+
+    @Test
+    void theStickerMarkOfSinoZaloIsReadAndAPhotoWithoutItIsAPhoto() throws Exception {
+        String json = """
+                {"msgId":"1001","threadId":"%s","threadType":"USER","fromId":"%s","fromName":"Bình","isSelf":false,
+                 "zaloType":"chat.photo","text":null,"sentAt":"%s",
+                 "photo":{"url":"%s","thumbUrl":null,"caption":null,"sticker":true}}
+                """.formatted(FRIEND, FRIEND, SENT_AT, FULL);
+        JsonMapper mapper = JsonMapper.builder().build();
+
+        Photo read = mapper.readValue(json, Message.class).photo();
+
+        assertThat(read).isEqualTo(new Photo(FULL, null, null, true));
+        assertThat(read.drawnAsSticker()).isTrue();
+        assertThat(new Photo(FULL, null, null).drawnAsSticker()).isFalse();
+        assertThat(new Photo(FULL, null, null, false).drawnAsSticker()).isFalse();
+    }
+
+    @Test
+    void aPhotoOfSinoZaloWithoutTheStickerMarkIsReadAsAPhoto() throws Exception {
+        String json = """
+                {"msgId":"1001","threadId":"%s","threadType":"USER","fromId":"%s","fromName":"Bình","isSelf":false,
+                 "zaloType":"chat.photo","text":null,"sentAt":"%s","photo":{"url":"%s","thumbUrl":null,"caption":null}}
+                """.formatted(FRIEND, FRIEND, SENT_AT, FULL);
+
+        Message read = JsonMapper.builder().build().readValue(json, Message.class);
+
+        assertThat(ZaloMessageNormalizer.normalize(read, SELF).metadata())
+                .containsEntry(NormalizedMessage.IMAGE_URL, FULL).doesNotContainKey(NormalizedMessage.STICKER_URL);
     }
 }

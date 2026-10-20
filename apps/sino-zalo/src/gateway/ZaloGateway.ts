@@ -76,6 +76,8 @@ export interface ZaloPhoto {
   readonly url: string;
   readonly thumbUrl: string | null;
   readonly caption: string | null;
+  /** true when Zalo draws the photo as a sticker, without the photo frame (ZL-19); absent for a plain photo. */
+  readonly sticker?: true | undefined;
 }
 
 /**

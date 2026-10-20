@@ -172,7 +172,8 @@ export function toZaloMessage(message: Message): ZaloMessage {
       : data.msgType === "chat.gif"
         ? gifStickerOf(data.msgId, data.content)
         : undefined;
-  const photo = data.msgType === "chat.photo" ? photoOf(data.content) : undefined;
+  const photo =
+    data.msgType === "chat.photo" ? photoOf(data.content, data.propertyExt?.type === NO_BORDER) : undefined;
   const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
   const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
   return {
@@ -224,8 +225,11 @@ function unseen(msgType: string, photo: ZaloPhoto | undefined, sticker: ZaloStic
  * `pStickerType` and `webp`, whose web address is the picture to show; the address the photo would have shown
  * becomes its fallback. Only a `pStickerType` that is a whole number switches to `webp`, so a photo without one is
  * read exactly as before.
+ *
+ * Such a photo is marked `sticker` (ZL-19), as is one Zalo draws in a bubble without a border (`borderless`, the
+ * `propertyExt.type` of the message): chat.zalo.me draws a photo with either as a sticker, so Sino does too.
  */
-function photoOf(content: unknown): ZaloPhoto | undefined {
+function photoOf(content: unknown, borderless: boolean): ZaloPhoto | undefined {
   const fields = objectOf(content);
   if (fields === null) {
     return undefined;
@@ -236,14 +240,20 @@ function photoOf(content: unknown): ZaloPhoto | undefined {
     webAddress(fields.href) ??
     ["rawUrl", "normalUrl", "oriUrl", "hdUrl", "hd"].map((key) => webAddress(params[key])).find((a) => a !== null) ??
     thumbUrl;
-  const sticker = Number.isSafeInteger(params.pStickerType) ? addressIn(params.webp, 2) : null;
+  const typed = Number.isSafeInteger(params.pStickerType);
+  const sticker = typed ? addressIn(params.webp, 2) : null;
   const url = sticker ?? shown;
   if (url === null) {
     return undefined;
   }
   const second = sticker === null ? thumbUrl : shown;
   const caption = typeof fields.title === "string" ? fields.title.trim() : "";
-  return { url, thumbUrl: second === url ? null : second, caption: caption === "" ? null : caption };
+  return {
+    url,
+    thumbUrl: second === url ? null : second,
+    caption: caption === "" ? null : caption,
+    ...(typed || borderless ? { sticker: true as const } : {}),
+  };
 }
 
 /**
@@ -551,7 +561,8 @@ export async function sendImage(
 /**
  * Zalo's own values for a picture that shows as a sticker, read in the code of chat.zalo.me (2026-10-20): the
  * `pStickerType` of an AI sticker, and the bubble layout without a border. Zalo draws a photo as a sticker when its
- * `pStickerType` is AI_STICKER and its layout is NO_BORDER, or it has both `contentId` and `webp`.
+ * `pStickerType` is AI_STICKER and its layout is NO_BORDER, or it has both `contentId` and `webp`. NO_BORDER also
+ * marks a received photo as a sticker (`photoOf`).
  */
 const AI_STICKER = 1;
 const NO_BORDER = 3;

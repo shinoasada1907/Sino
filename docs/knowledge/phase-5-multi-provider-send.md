@@ -2087,3 +2087,38 @@ Cả hai đều cho nội dung vai trò `dialog` tên "Sticker". Esc đóng khun
   - khung nổi từ 768 px, tấm dưới ở 390 px.
 - **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ ở `features/public`), `tsc -b`, `pnpm build`: đều qua. `pnpm test` 124 tệp, 1282/1286 test. 4 ca đỏ là các test tải lên đọc `request.formData()` (`client.test.ts`, `useStickers.test.tsx`). Chúng đỏ cả ở `549ae0a`, trước mọi commit của change này: lỗi của môi trường Node 26 + jsdom trên máy này.
 - **Chưa kiểm:** Chrome thật ở 1440 và 390 (Claude in Chrome mất kết nối trong phiên này); gửi thật qua Zalo (ZS-20).
+
+## 25. ZL-19 — Ảnh Zalo vẽ như sticker thì Sino cũng hiện như sticker
+
+**Ở đâu:** `apps/sino-zalo/src/gateway/ZaloGateway.ts` (`ZaloPhoto.sticker`), `ZcaGateway.ts` (`photoOf`), `sessions/SessionManager.ts` (log `photoSticker`); `apps/sino-api/.../provider/infrastructure/zalo/ZaloClient.java` (`Photo`), `ZaloMessageNormalizer.java` (`photoStickerBody`). Web không đổi.
+
+### 25.1 Triệu chứng và cách tìm lớp hỏng
+Sticker người khác gửi tới (sticker AI của Zalo) hiện trong Sino như một ảnh to có khung. Câu hỏi đầu tiên là lỗi ở web hay ở `sino-zalo`. Cách trả lời: đọc dữ liệu ở từng chỗ giao nhau, bắt đầu từ chỗ rẻ nhất là DB.
+
+```text
+Zalo          chat.photo, params.pStickerType = 1, propertyExt.type = 3
+sino-zalo     photoOf: thấy pStickerType, dùng để chọn địa chỉ   <- dấu "sticker" rơi ở đây
+              trả photo { url, thumbUrl, caption }               (không còn gì nói đây là sticker)
+sino-api      photoBody: IMAGE, [Ảnh], imageUrl                  <- không có cách nào biết
+DB            metadata = { zaloType, imageUrl, imageThumbUrl }
+sino-web      có stickerUrl -> StickerPicture (không khung)
+              có imageUrl   -> PhotoPicture  (có khung)          <- làm đúng với cái nó nhận
+```
+Web đã có sẵn cách vẽ sticker không khung; cái thiếu là một dấu đi từ `sino-zalo` qua `sino-api`. Sửa ở web (ví dụ đoán sticker theo tên miền ảnh) là chữa triệu chứng ở sai lớp.
+
+### 25.2 Cách sửa
+- `sino-zalo` gắn `photo.sticker = true` khi Zalo vẽ ảnh như sticker: `pStickerType` là số nguyên **hoặc** bong bóng không viền (`propertyExt.type` = 3). Đó là luật chính chat.zalo.me dùng (đọc trong mã của nó), nên Sino vẽ giống Zalo. Trường chỉ có mặt khi là `true`, nên JSON của ảnh thường không đổi.
+- `sino-api` đọc trường đó; ảnh-sticker được lưu là `IMAGE`, chữ `[Sticker]`, ảnh trong `stickerUrl`. Giữ `IMAGE` (không `UNKNOWN` như `chat.sticker`) vì sticker Sino gửi đi cũng là `IMAGE` (D-352): khi Zalo đẩy tin vọng lại, loại tin không bị đổi qua lại.
+
+### 25.3 Bài học Java: `boolean` hay `Boolean` trong record đọc từ JSON
+Bản đầu khai `record Photo(String url, String thumbUrl, String caption, boolean sticker)`. Test đọc JSON của một ảnh **thường** (không có trường `sticker`) đỏ với `Cannot map null into type boolean`.
+- Với record, Jackson gọi constructor đầy đủ; trường nào thiếu trong JSON thì nó đưa `null` vào tham số đó.
+- Kiểu nguyên thuỷ (`boolean`, `int`) không chứa được `null`; Jackson 3 mặc định từ chối thay vì lặng lẽ đổi thành `false` (cờ `FAIL_ON_NULL_FOR_PRIMITIVES`).
+- Cách sửa: khai `Boolean sticker` (có thể `null` = "không nói gì") và một hàm `drawnAsSticker()` trả `Boolean.TRUE.equals(sticker)`, để chỗ dùng không phải nghĩ tới `null`.
+
+Lỗi này không chỉ nằm trên giấy: `sino-api` bản `boolean` đã chạy thật 13 phút, và mọi lô tin có một ảnh thường đều không đọc được; các tin đến trong lúc đó chỉ vào DB khi bản sửa chạy. Một trường mới, tuỳ chọn, trong hợp đồng JSON giữa hai service cần đúng một test "JSON cũ không có trường này vẫn đọc được".
+
+### 25.4 Kiểm chứng và giới hạn
+- **Test tay trước** (máy người dùng): sticker AI nhận vào lưu `[Sticker]` + `stickerUrl` và hiện như sticker; ảnh thường vẫn `[Ảnh]` + `imageUrl`; sticker thường của Zalo không đổi.
+- **Test tự động sau:** `sino-zalo` 298 test, `tsc` 0, `oxlint` 0; `sino-api` 256 test của connector Zalo (chạy trong worktree riêng). Gài lỗi: 5/5 bị diệt ở mỗi bên.
+- **Giới hạn:** ảnh sticker trên CDN của Zalo là JPEG nền trắng, nên giao diện tối vẫn thấy ô vuông trắng. Tin lưu trước bản sửa giữ `[Ảnh]`, không backfill.
