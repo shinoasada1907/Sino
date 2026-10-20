@@ -7,13 +7,15 @@
 
 ## 1. `sino-zalo`
 
-- [ ] 1.1 **ZS-01 — `ZaloConnection.sendImage` (D-353)**
+- [x] 1.1 **ZS-01 — `ZaloConnection.sendImage` (D-353)**
   - **Goal:** gửi một ảnh vào chat đôi hoặc nhóm bằng `zca-js`.
   - **Files:** `src/gateway/{ZaloGateway,ZcaGateway,FakeZaloGateway}.ts`, `src/sessions/SessionManager.ts`; `test/sendImage.test.ts` (mới).
   - **Acceptance criteria:** spec `zalo-image-send` (gửi vào `USER` và `GROUP`, trả `msgId` của tin ảnh); lỗi của Zalo đổi như `sendText` (bị từ chối / không rõ).
   - **Test:** gateway giả kiểm thân gửi (`attachments` từ buffer, `metadata`), GIF đi đúng nhánh, `msgId` lấy từ `attachment[0]`.
   - **Depends on:** DN-2, DN-3.
   - **Hints:** **Level 1:** `zca-js` trả `msgId` ở đâu khi tin chỉ có ảnh? **Level 2:** `SendMessageResponse.attachment[]`, không phải `message`.
+  - **Thực hiện:** `ZaloImage` (`data` là `Buffer`, `fileName` kiểu `${string}.${string}`, rộng, cao) và `ZaloConnection.sendImage`. `ZcaGateway.sendImage` gọi `sendMessage({ msg: "", attachments: [{ data, filename, metadata: { totalSize, width, height } }] })` và lấy `msgId` từ `attachment[0]`. Đã đọc `sendMessage.js` của `zca-js` 2.2.0 thay vì tin vào thiết kế: tin chỉ có ảnh thì `message` là `null`; nhánh GIF được chọn theo **đuôi tên tệp** và đọc cỡ từ `metadata`, nên tên `.gif` và cả ba số phải đi cùng. `sendText` và `sendImage` dùng chung hàm `deliver`: chỉ mã lỗi của Zalo là từ chối (`ZaloRejectedError`), mọi lỗi khác để là chưa rõ, nên "lỗi đổi như `sendText`" là một luật ở một chỗ (sửa nhỏ này không đổi hành vi của `sendText`, các test cũ vẫn xanh). `FakeZaloGateway` ghi ảnh vào `sentImages` riêng và dùng chung `nextSend` với chữ, để ZS-02 thử được từ chối, đứt giữa chừng và giữ chờ. `SessionManager.sendImage` như `sendText`: ném đồng bộ khi không có phiên hay phiên đã chết.
+  - **Bằng chứng:** `test/sendImage.test.ts` 11 test viết trước, đỏ cả 11 (chưa có `sendImage`), xanh sau khi cài. `pnpm test` 18 tệp / 270 test, `pnpm lint` thoát 0, `pnpm exec tsc --noEmit` thoát 0; không tệp nào lẫn CRLF/LF. **Chưa kiểm:** gửi thật qua Zalo (ZS-20), kiểm bằng lỗi gài (chưa làm ở task này).
 
 - [ ] 1.2 **ZS-02 — Route gửi nhận `image`**
   - **Goal:** `sino-api` gửi được ảnh qua route sẵn có, với mọi bảo đảm của tin chữ.

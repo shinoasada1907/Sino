@@ -7,6 +7,7 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloImage,
   type ZaloListener,
   type ZaloMessage,
   ZaloRejectedError,
@@ -112,6 +113,16 @@ export class FakeConnection implements ZaloConnection {
 
   async sendText(threadId: string, threadType: ThreadType, text: string): Promise<string> {
     this.zalo.sent.push({ threadId, threadType, text });
+    return this.settleSend();
+  }
+
+  async sendImage(threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string> {
+    this.zalo.sentImages.push({ threadId, threadType, image });
+    return this.settleSend();
+  }
+
+  /** What Zalo does with the send just recorded, as `nextSend` says. */
+  private async settleSend(): Promise<string> {
     let outcome = this.zalo.nextSend;
     this.zalo.nextSend = "accept";
     await Promise.resolve();
@@ -157,6 +168,8 @@ export class FakeZaloGateway implements ZaloGateway {
   stickerFails = false;
   /** Every text sent, refused or not, in order. */
   readonly sent: { threadId: string; threadType: ThreadType; text: string }[] = [];
+  /** Every picture sent, refused or not, in order; the texts are in `sent`. `nextSend` rules both. */
+  readonly sentImages: { threadId: string; threadType: ThreadType; image: ZaloImage }[] = [];
   /** What Zalo does with the next send: take it, refuse it, break midway, or hold it until released. */
   nextSend: "accept" | "reject" | "fail" | "hold" = "accept";
   nextMsgId = 9000;

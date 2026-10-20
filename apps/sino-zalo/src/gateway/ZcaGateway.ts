@@ -16,6 +16,7 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloImage,
   type ZaloMessage,
   type ZaloPhoto,
   ZaloRejectedError,
@@ -132,6 +133,7 @@ export class ZcaGateway implements ZaloGateway {
         };
       },
       sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
+      sendImage: (threadId, threadType, image) => sendImage(api.sendMessage, threadId, threadType, image),
       stickerArt: async (stickerId, catId) => {
         try {
           // `await` here, or a rejection would pass the catch below.
@@ -491,30 +493,73 @@ function wholeNumber(value: unknown): number | null {
   return typeof number === "number" && Number.isSafeInteger(number) ? number : null;
 }
 
-/**
- * Sends a text through zca-js. Only a Zalo error code is a refusal (ZaloRejectedError); any other failure
- * (no answer, a 5xx, an answer it cannot read) may come after Zalo took the message, so it stays unknown (D-280).
- */
+/** Sends a text through zca-js; refusal and unknown as in `deliver` (D-280). */
 export async function sendText(
   send: API["sendMessage"],
   threadId: string,
   threadType: ThreadType,
   text: string,
 ): Promise<string> {
-  let response: Awaited<ReturnType<API["sendMessage"]>>;
+  const response = await deliver(send, text, threadId, threadType);
+  const msgId = response.message?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
+}
+
+/**
+ * Sends a picture alone through zca-js (D-353): `msg` is empty and the bytes go as the one attachment. The msgId is the
+ * one of the picture's message, in `attachment[0]`; `message` is null for a message that is only a picture. A name
+ * ending `.gif` makes zca-js use its own GIF branch, which takes the size from `metadata`. Refusal and unknown as in
+ * `deliver`.
+ */
+export async function sendImage(
+  send: API["sendMessage"],
+  threadId: string,
+  threadType: ThreadType,
+  image: ZaloImage,
+): Promise<string> {
+  const response = await deliver(
+    send,
+    {
+      msg: "",
+      attachments: [
+        {
+          data: image.data,
+          filename: image.fileName,
+          metadata: { totalSize: image.data.length, width: image.width, height: image.height },
+        },
+      ],
+    },
+    threadId,
+    threadType,
+  );
+  const msgId = response.attachment[0]?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
+}
+
+/**
+ * Hands a message to zca-js. Only a Zalo error code is a refusal (ZaloRejectedError); any other failure (no answer,
+ * a 5xx, an answer it cannot read) may come after Zalo took the message, so it stays unknown (D-280).
+ */
+async function deliver(
+  send: API["sendMessage"],
+  message: Parameters<API["sendMessage"]>[0],
+  threadId: string,
+  threadType: ThreadType,
+): Promise<Awaited<ReturnType<API["sendMessage"]>>> {
   try {
-    response = await send(text, threadId, zcaThreadType(threadType));
+    return await send(message, threadId, zcaThreadType(threadType));
   } catch (error) {
     if (error instanceof ZaloApiError && error.code !== null) {
       throw new ZaloRejectedError(reasonOf(error));
     }
     throw error;
   }
-  const msgId = response.message?.msgId;
-  if (msgId === undefined) {
-    throw new Error("Zalo answered the send without a msgId");
-  }
-  return String(msgId);
 }
 
 function threadTypeOf(type: ZcaThreadType): ThreadType {

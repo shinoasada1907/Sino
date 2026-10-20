@@ -4,6 +4,7 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloImage,
   type ZaloListener,
   type ZaloMessage,
   type ZaloSession,
@@ -173,6 +174,11 @@ export class SessionManager {
   /** Sends a text through the account's live session and resolves with Zalo's msgId. */
   sendText(accountId: string, threadId: string, threadType: ThreadType, text: string): Promise<string> {
     return this.liveSession(accountId).connection.sendText(threadId, threadType, text);
+  }
+
+  /** Sends a picture through the account's live session and resolves with the msgId of its message (D-353). */
+  sendImage(accountId: string, threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string> {
+    return this.liveSession(accountId).connection.sendImage(threadId, threadType, image);
   }
 
   /** The account's own messages in a thread with this text, sent after `after` (epoch ms). */

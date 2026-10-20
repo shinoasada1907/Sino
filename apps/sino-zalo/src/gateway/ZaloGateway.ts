@@ -78,6 +78,17 @@ export interface ZaloPhoto {
   readonly caption: string | null;
 }
 
+/**
+ * A picture to send (D-353): its bytes, a file name whose extension (`.png`, `.gif` or `.webp`) says what it is, and its
+ * size in pixels, which Zalo wants beside it. The bytes are never logged.
+ */
+export interface ZaloImage {
+  readonly data: Buffer;
+  readonly fileName: `${string}.${string}`;
+  readonly width: number;
+  readonly height: number;
+}
+
 /** A Zalo message in the shape sino-zalo hands to sino-api (design, Contract API). */
 export interface ZaloMessage {
   readonly msgId: string;
@@ -145,6 +156,11 @@ export interface ZaloConnection {
    * any other failure leaves it unknown whether the message went out.
    */
   sendText(threadId: string, threadType: ThreadType, text: string): Promise<string>;
+  /**
+   * Sends a picture alone, with no text, and resolves with the msgId of the picture's message. Throws ZaloRejectedError
+   * when Zalo refused it; any other failure leaves it unknown whether it went out (D-353).
+   */
+  sendImage(threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string>;
   /**
    * The still picture of a sticker and its sprite sheet, or null when Zalo does not know the sticker or names
    * no picture for it, also in its category (`catId`, from the message). Throws ZaloUnavailableError when Zalo
