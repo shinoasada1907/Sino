@@ -1816,3 +1816,51 @@ Chưa xếp bộ  2 STICKER
   - 390 cảm ứng: `scrollWidth` 390, hai cột; nút "Tạo bộ", "Tải lên", đổi tên, xóa bộ, chuyển, xóa sticker đều 44 × 44 và luôn hiện; tạo bộ "Gà" từ đầu trang điện thoại rồi chạm chuyển `dong` vào "Gà".
   - Lỗi trong console chỉ có hai lỗi đã biết trước: `401` của `/api/auth/me` trước khi đăng nhập và `409` của ca tên trùng cố ý.
 - Lỗi của kịch bản, không phải của màn: kịch bản nhấn mũi tên xuống khi Radix chưa kịp đặt tiêu điểm vào mục đầu (Radix làm việc đó một khung hình sau khi menu hiện), nên mục đầu được chọn. Đã cho kịch bản chờ tiêu điểm nằm trên một `menuitemradio`; người thật không bấm nhanh hơn một khung hình.
+
+### 23.13 Web: xuất ảnh đã chỉnh và quyết ảnh nào được cắt (SP-07)
+**Ở đâu** (tính từ `apps/sino-web/src/`): `features/stickers/editor/exportSticker.ts` (`exportSticker`, `outputSize`), `features/stickers/editor/editable.ts` (`inspectPicture`); `test/fakeCanvas.ts` (canvas giả cho test); `package.json` (`react-easy-crop` 6.2.4, MIT). `vite.config.ts` cho test đọc thư mục tệp mẫu của máy chủ. Test: `editor/exportSticker.test.ts`, `editor/editable.test.ts`.
+
+**`react-easy-crop` cho gì:** khi người dùng kéo, phóng to hay xoay, thư viện báo `croppedAreaPixels`: vùng cắt tính bằng điểm ảnh của **ảnh đã xoay** (ảnh 200 × 100 xoay 90° thành 100 × 200, và vùng cắt nằm trong khung 100 × 200 đó). Thư viện không xuất ảnh; việc đó là của `exportSticker`. SP-07 mới chỉ thêm thư viện và kiểu `Area`; khung cắt trên màn là SP-09.
+
+**Xoay 90° thì canvas phải rộng bao nhiêu** (câu gợi ý của task): ảnh xoay một phần tư thì đổi rộng và cao, nên hộp của ảnh đã xoay là `cao × rộng`. `exportSticker` không vẽ cả ảnh đã xoay lên một canvas lớn rồi mới cắt; nó vẽ một lần lên canvas đúng cỡ PNG, bằng một chuỗi biến đổi. Các lệnh `scale`, `translate`, `rotate` của canvas nhân dồn vào một ma trận, nên một điểm của ảnh đi qua chúng **từ lệnh cuối lên lệnh đầu**:
+
+```text
+lệnh viết ra (trên xuống)            điểm của ảnh đi qua (dưới lên)
+scale(cỡ PNG / cỡ vùng)              5. thu về cỡ PNG
+translate(-vùng.x, -vùng.y)          4. góc vùng cắt về góc canvas
+translate(hộpRộng/2, hộpCao/2)       3. đặt vào hộp của ảnh đã xoay
+rotate(góc)                          2. xoay quanh gốc (chiều kim đồng hồ)
+translate(-rộng/2, -cao/2)           1. tâm ảnh về gốc
+drawImage(ảnh, 0, 0, rộng, cao)
+```
+
+Vẽ một lần lên canvas nhỏ thì ảnh chụp 4000 × 3000 không cần một canvas 48 MB thứ hai. Canvas của trình duyệt xoay theo chiều kim đồng hồ (trục y hướng xuống), cùng chiều với `rotate` của CSS mà `react-easy-crop` dùng. Vì vậy góc trên bên trái của ảnh xoay 90° về góc trên bên phải.
+
+**Cỡ ra và trọng lượng (D-345):** cạnh dài nhất thu về 512 khi dài hơn, không bao giờ phóng to (vùng 300 × 300 ra đúng 300 × 300), mỗi cạnh ít nhất 1 điểm ảnh. PNG ra mà vẫn nặng hơn 1 MB thì vẽ lại nhỏ hơn 0,8 lần, tới khi không quá 1 MB. Bằng đúng 1 MB thì nhận, như máy chủ: máy chủ chỉ từ chối khi *lớn hơn*. Ảnh thật hiếm khi tới đó, vì 512 × 512 điểm ảnh, 4 byte mỗi điểm, chưa nén đã là đúng 1 MiB.
+
+**Test hình học không cần trình duyệt:** jsdom không có canvas vẽ được. `FakeCanvas` giữ ma trận biến đổi như canvas thật và ghi lại mỗi lần `drawImage`; `landsAt(drawing, x, y)` nói điểm `(x, y)` của ảnh rơi vào đâu trên canvas. Test hỏi "góc nào của ảnh thành góc nào của PNG", chứ không chép lại chuỗi lệnh, nên đổi cách vẽ mà kết quả vẫn đúng thì test vẫn xanh. `toBlob` giả trả một blob nặng `bytesFor(rộng, cao)` byte, để giả một PNG quá 1 MB. **Bẫy:** quay 180° có thể cho `-0`, và `toEqual` coi `-0` khác `0`; test làm tròn rồi cộng `0` để `-0` thành `0`.
+
+**Ảnh nào được cắt (D-346):** `inspectPicture(file)` đọc vài byte đầu của tệp, như máy chủ đọc, không tin tên tệp hay loại trình duyệt khai:
+
+| Byte đầu | Loại | Bước chỉnh |
+|---|---|---|
+| `89 50 4E 47 …` | PNG; có `acTL` trước `IDAT` đầu tiên là PNG động | cắt; PNG động thì lưu nguyên |
+| `FF D8 FF` | JPEG (máy chủ không nhận: luôn gửi dạng PNG đã xuất) | cắt |
+| `GIF87a`, `GIF89a` | GIF, mọi GIF (đếm khung chỉ để quyết thì không đáng) | lưu nguyên |
+| `RIFF …. WEBP`, chunk đầu `VP8X` có cờ `0x02` | WebP động | lưu nguyên |
+| `RIFF …. WEBP`, khác | WebP tĩnh | cắt |
+| khác (PDF, SVG, tệp rỗng) | không phải ảnh dùng được | `null` |
+
+**PNG động là chỗ khác kế hoạch:** D-346 chỉ nói GIF và WebP động. Nhưng máy chủ gọi PNG có `acTL` là `ANIMATED`, và cắt qua canvas thì chỉ còn khung đầu, nên PNG động cũng được lưu nguyên (đã ghi ở D-346 và spec). Để biết PNG có động không, trình duyệt đi qua các chunk: mỗi chunk chỉ đọc 8 byte đầu (độ dài và tên) bằng `Blob.slice`, rồi nhảy qua phần dữ liệu. Nhờ vậy một chunk màu 70 KB đứng trước `acTL` không phải đọc hết. **Bẫy với `>>> 0`:** độ dài 4 byte ghép bằng `<<` của JavaScript là số nguyên 32 bit **có dấu**; `>>> 0` đổi nó về số không dấu.
+
+**Đọc tệp mẫu thật trong test:** test của web đọc chính bốn tệp WebP mà test của máy chủ dùng (`apps/sino-api/src/test/resources/sticker`), không giữ bản sao. Vite chặn tệp ngoài thư mục dự án, nên `vite.config.ts` thêm đúng thư mục đó vào `server.fs.allow`, và test nạp mỗi tệp bằng `?inline` (Vite trả một địa chỉ `data:` base64). Không dùng `node:fs`, vì muốn vậy phải cho cả chương trình TypeScript của ứng dụng kiểu của Node, và code ứng dụng sẽ dùng nhầm API của Node mà không bị báo lỗi kiểu. Cũng không dùng `new URL(…, import.meta.url)` với tên tệp ghép: Vite biến dạng đó thành một lần nạp cả thư mục.
+
+### 23.14 Kiểm chứng (SP-07)
+- Test viết trước, đỏ vì chưa có `editor/exportSticker` và `editor/editable`; xanh: `exportSticker.test.ts` 15 (cỡ ra, không phóng to, 2000 × 1000 thành 512 × 512 lấy phần giữa, xoay 90°, 180°, 270°, vùng trong ảnh đã xoay, thu 512 rồi 410 khi quá 1 MB, đúng 1 MB thì nhận, quá nhỏ mà vẫn nặng thì lỗi, trình duyệt không cho PNG thì lỗi) và `editable.test.ts` 16 (PNG, PNG động sau chunk 70 KB, JPEG, GIF một khung, bốn tệp WebP thật, GIF đặt tên `.png`, năm thứ không phải ảnh).
+- Sửa trước khi xanh: `-0` sau khi xoay (làm tròn rồi cộng 0); `tsc -b` báo thiếu kiểu Node cho `node:fs` (đổi sang `?inline` + `server.fs.allow`), tham số trong constructor bị `erasableSyntaxOnly` cấm (đổi sang trường gán trong constructor), nguồn ảnh giả không phải `CanvasImageSource` (ép kiểu trong test).
+- `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` 114 tệp, 1204 test, `pnpm build`: đều qua.
+- Chromium thật, nạp đúng hai module qua Vite (không qua màn nào):
+  - Ảnh 2000 × 1000 bốn màu, cắt hình vuông giữa ra PNG 512 × 512 đúng bốn màu ở bốn góc; vùng 300 × 300 ra 300 × 300.
+  - Xoay 90° ra 256 × 512 với bốn góc xanh dương, đỏ, vàng, xanh lá (đúng chiều kim đồng hồ); xoay 180° đảo cả bốn góc.
+  - Ảnh nhiễu 512 × 512 có alpha ngẫu nhiên: lần đầu 1.053.146 B (quá 1 MB), lần hai 410 × 410, 660.572 B.
+  - `inspectPicture` trên tệp mẫu thật: `meo.png`, `anh.jpg`, WebP tĩnh thì cắt; `nhay.gif`, `animated.webp` thì lưu nguyên; `gia.png` (chữ đổi đuôi) thì `null`.
