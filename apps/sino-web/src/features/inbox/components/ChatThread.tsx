@@ -1,5 +1,5 @@
 import { Archive, ArchiveRestore, Calendar, ChevronLeft, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -15,7 +15,10 @@ import { ConversationAvatars } from './ConversationAvatars'
 import { LatestPreview } from './LatestPreview'
 import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
-import { pictureOf } from '../sticker'
+import { photoOf } from '../photo'
+import { pictureOf, spriteOf } from '../sticker'
+import { PhotoPicture } from './PhotoPicture'
+import { StickerPicture } from './StickerPicture'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
 
@@ -157,11 +160,31 @@ function Tool({ label, icon: Icon, className, onClick }: { label: string; icon: 
   )
 }
 
+function TextBubble({ own, children }: { own: boolean; children: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        'border px-3.5 py-2.5 text-sm',
+        own ? 'rounded-[16px_16px_6px_16px] border-primary bg-primary text-primary-foreground' : 'rounded-[16px_16px_16px_6px] bg-surface text-foreground',
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 // Canvas `.bubble-row`: someone else's message on the left with their picture (and name in a group), own on the right.
 function Bubble({ message, showName, members }: { message: ChatMessage; showName: boolean; members: Member[] | null }) {
   const own = message.direction === 'OUT'
-  const sticker = pictureOf(message.sticker)
   const [brokenSticker, setBrokenSticker] = useState(false)
+  const [brokenSprite, setBrokenSprite] = useState(false)
+  const [photoStep, setPhotoStep] = useState<'FULL' | 'THUMB' | 'BROKEN'>('FULL')
+  // A sticker that moves plays its sprite sheet; when that cannot load it shows the still picture, then the text.
+  const still = brokenSticker ? null : pictureOf(message.sticker)
+  const sprite = brokenSprite ? null : spriteOf(message.stickerSprite)
+  // A photo shows its picture; when that cannot load it shows the thumbnail, then the text. Its caption stays (ZL-16).
+  const photo = photoOf(message.image)
+  const photoSrc = photoStep === 'FULL' ? photo?.url : photoStep === 'THUMB' ? photo?.thumbUrl : null
   return (
     <div className={cn('flex max-w-[84%] items-end gap-2.5 md:max-w-[68%]', own ? 'flex-row-reverse self-end' : 'self-start')}>
       {!own && <Avatar aria-hidden="true" placeholder={memberPlaceholder(message.sender, members)} className="size-7" />}
@@ -171,25 +194,14 @@ function Bubble({ message, showName, members }: { message: ChatMessage; showName
             {message.sender}
           </span>
         )}
-        {sticker && !brokenSticker ? (
-          <img
-            src={sticker}
-            alt="Sticker"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setBrokenSticker(true)}
-            className="size-32 object-contain select-none"
-          />
+        {sprite || still ? (
+          <StickerPicture still={still} sprite={sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => setBrokenSticker(true)} />
+        ) : photoSrc ? (
+          <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
         ) : (
-          <div
-            className={cn(
-              'border px-3.5 py-2.5 text-sm',
-              own ? 'rounded-[16px_16px_6px_16px] border-primary bg-primary text-primary-foreground' : 'rounded-[16px_16px_16px_6px] bg-surface text-foreground',
-            )}
-          >
-            {message.text}
-          </div>
+          <TextBubble own={own}>{message.text}</TextBubble>
         )}
+        {photo?.caption && <TextBubble own={own}>{photo.caption}</TextBubble>}
         {message.attachments.map((file) =>
           file.image ? (
             <div

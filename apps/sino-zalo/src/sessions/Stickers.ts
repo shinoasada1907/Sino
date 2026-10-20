@@ -1,25 +1,29 @@
-import type { ZaloConnection, ZaloMessage } from "../gateway/ZaloGateway.ts";
+import type { ZaloConnection, ZaloMessage, ZaloSticker, ZaloStickerArt } from "../gateway/ZaloGateway.ts";
 
 export interface StickersOptions {
   readonly accountId: string;
-  readonly log: { warn(details: object, message: string): void };
+  readonly log: {
+    warn(details: object, message: string): void;
+    info(details: object, message: string): void;
+  };
   /** How long to wait for Zalo in one call of `fill`. */
   readonly timeoutMs?: number;
 }
 
 /**
- * Gives the sticker messages of a page their picture, asking Zalo once per sticker (D-279). A picture is
- * a nicety: Zalo that does not answer in time, errs, or does not know the sticker leaves the message
- * without one, and nothing is remembered about that, so the next page asks again.
+ * Gives the sticker messages of a page their still picture and, when the sticker moves, its sprite sheet,
+ * asking Zalo once per sticker (D-279). A picture is a nicety: Zalo that does not answer in time, errs, or
+ * does not know the sticker leaves the message without one, and nothing is remembered about that, so the
+ * next page asks again.
  */
 export class Stickers {
-  private readonly urls = new Map<string, string>();
-  private readonly connection: Pick<ZaloConnection, "stickerUrl">;
+  private readonly arts = new Map<string, ZaloStickerArt>();
+  private readonly connection: Pick<ZaloConnection, "stickerArt">;
   private readonly accountId: string;
   private readonly log: StickersOptions["log"];
   private readonly timeoutMs: number;
 
-  constructor(connection: Pick<ZaloConnection, "stickerUrl">, options: StickersOptions) {
+  constructor(connection: Pick<ZaloConnection, "stickerArt">, options: StickersOptions) {
     this.connection = connection;
     this.accountId = options.accountId;
     this.log = options.log;
@@ -28,29 +32,31 @@ export class Stickers {
 
   /** The messages with the sticker pictures known so far; a message is copied, never changed. */
   async fill(messages: readonly ZaloMessage[]): Promise<ZaloMessage[]> {
-    const wanted = new Set<string>();
+    const wanted = new Map<string, ZaloSticker>();
     for (const message of messages) {
       if (message.sticker !== undefined) {
         if (message.sticker.url) {
-          this.urls.set(message.sticker.id, message.sticker.url);
-        } else if (!this.urls.has(message.sticker.id)) {
-          wanted.add(message.sticker.id);
+          // A picture the message already carries (a gif) is still: it has no sprite sheet.
+          this.arts.set(message.sticker.id, { url: message.sticker.url, sprite: null });
+        } else if (!this.arts.has(message.sticker.id)) {
+          wanted.set(message.sticker.id, message.sticker);
         }
       }
     }
-    await this.ask([...wanted]);
+    await this.ask([...wanted.values()]);
 
     return messages.map((message) => {
       const sticker = message.sticker;
       if (sticker === undefined) {
         return message;
       }
-      return { ...message, sticker: { ...sticker, url: this.urls.get(sticker.id) ?? sticker.url ?? null } };
+      const art = this.arts.get(sticker.id);
+      return { ...message, sticker: { ...sticker, url: art?.url ?? sticker.url ?? null, sprite: art?.sprite ?? null } };
     });
   }
 
-  private async ask(ids: string[]): Promise<void> {
-    if (ids.length === 0) {
+  private async ask(stickers: ZaloSticker[]): Promise<void> {
+    if (stickers.length === 0) {
       return;
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,17 +65,34 @@ export class Stickers {
     });
     try {
       // Answers that come after the time is up still land in the cache for the next page.
-      await Promise.race([Promise.all(ids.map((id) => this.askOne(id))), timeUp]);
+      await Promise.race([Promise.all(stickers.map((sticker) => this.askOne(sticker))), timeUp]);
     } finally {
       clearTimeout(timer);
     }
   }
 
-  private async askOne(id: string): Promise<void> {
+  private async askOne(sticker: ZaloSticker): Promise<void> {
+    const id = sticker.id;
     try {
-      const url = await this.connection.stickerUrl(id);
-      if (url !== null) {
-        this.urls.set(id, url);
+      const art = await this.connection.stickerArt(id, sticker.catId);
+      if (art === null) {
+        // Ids only, so a sticker that never shows can be named; Zalo would not say more.
+        this.log.warn(
+          { accountId: this.accountId, stickerId: id, catId: sticker.catId, stickerType: sticker.type },
+          "Zalo gave no picture for the sticker",
+        );
+        return;
+      }
+      this.arts.set(id, art);
+      if (art.via === "category") {
+        this.log.info({ accountId: this.accountId, stickerId: id, via: "category" }, "Zalo gave the sticker through its category");
+      }
+      if (art.sprite !== null) {
+        // What Zalo gave, to check the unit of the duration on the first real stickers (ZL-15). Numbers only.
+        this.log.info(
+          { accountId: this.accountId, stickerId: id, frames: art.sprite.frames, durationMs: art.sprite.durationMs },
+          "Zalo gave an animated sticker",
+        );
       }
     } catch (error) {
       const reason = error instanceof Error ? `${error.name}: ${error.message}` : "Unknown error";

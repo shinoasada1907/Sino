@@ -168,3 +168,11 @@ function when(at: string, now: Date, timeZone?: string): string {
 function plain(text: string): string {
   return text.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLowerCase()
 }
+
+/**
+ * Whether any note is tied to something. Until one is, every note is standalone, and "Gắn tin nhắn" and the source line
+ * "Ghi chú độc lập" would only be noise on each of them (F15, D-178).
+ */
+export function hasAnchoredNotes(notes: NoteItem[]): boolean {
+  return notes.some((note) => note.anchor !== null)
+}

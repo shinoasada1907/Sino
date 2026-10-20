@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderApp } from '@/test/renderApp'
 
+// The canvas sample answers the requests of these tests (NT-01 to DG-04); the real API is tested in NotesOnApi.test.tsx (FE-90).
+vi.mock('./notes.api', async (importOriginal) => (await import('@/test/notesSampleApi')).sampleNotesApi(await importOriginal()))
+
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
 

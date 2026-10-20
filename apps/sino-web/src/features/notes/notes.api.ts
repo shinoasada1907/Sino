@@ -1,51 +1,36 @@
-import { createNotesSample } from './notes.sample'
+import { api } from '@/shared/api/client'
 import type { Diagram, NoteChange, NoteItem, NotesData } from './notes.types'
 
 /*
- * The requests of the Ghi chú screen. They return sample data until the backend has F15 (D-42); connecting the API means
- * changing only the bodies below. The changes take the whole note because the sample needs it; the API needs its id.
+ * The requests of the Ghi chú screen, on the F15 API (BE-91). A note of the API has the shape of `NoteItem` already,
+ * with its `version`; `anchor` and `quote` are null and `linked` is empty until notes are tied to messages (D-177). A
+ * save carries the version the editor read, and the server refuses an older one with 409 (D-172).
  */
 
-/** Later `GET /api/notes`. */
+const path = (note: NoteItem) => `/api/notes/${encodeURIComponent(note.id)}`
+
+/** `GET /api/notes`: every note, whole, the newest edit first. */
 export async function fetchNotes(): Promise<NotesData> {
-  return createNotesSample(new Date())
+  return api.get<NotesData>('/api/notes')
 }
 
 /**
- * Later `POST /api/notes` with `{ kind, title, body }` (D-203), or `{ kind: 'DIAGRAM', title, diagram }` for a diagram
- * (fe-ui-diagram-notes, D-211): a standalone note.
+ * `POST /api/notes` with `{ kind: 'TEXT', title, body }`, or `{ kind: 'DIAGRAM', title, diagram }` for a diagram, which
+ * has no body (D-179): a standalone note. An empty title is none.
  */
 export async function createNote({ title, body, diagram }: { title: string; body: string; diagram?: Diagram }): Promise<NoteItem> {
-  const now = new Date().toISOString()
-  return {
-    id: crypto.randomUUID(),
-    kind: diagram ? 'DIAGRAM' : 'TEXT',
-    title: title.trim() || null,
-    body: diagram ? '' : body,
-    diagram: diagram ?? null,
-    pinned: false,
-    createdAt: now,
-    updatedAt: now,
-    anchor: null,
-    quote: null,
-    linked: [],
-  }
+  return api.post<NoteItem>('/api/notes', diagram ? { kind: 'DIAGRAM', title, diagram } : { kind: 'TEXT', title, body })
 }
 
-/** Later `PATCH /api/notes/{id}`: an edit of the title, the text or the diagram is the newest edit; a pin is not an edit. */
+/**
+ * `PATCH /api/notes/{id}` over `note.version`, with only what changed (a field left out stays on the server; an empty
+ * title removes the title; a diagram replaces the whole diagram). The answer is the note with its new version.
+ */
 export async function saveNote(note: NoteItem, { title, body, pinned, diagram }: NoteChange): Promise<NoteItem> {
-  const edited = title !== undefined || body !== undefined || diagram !== undefined
-  return {
-    ...note,
-    ...(title !== undefined ? { title: title.trim() || null } : {}),
-    ...(body !== undefined ? { body } : {}),
-    ...(diagram !== undefined ? { diagram } : {}),
-    ...(pinned !== undefined ? { pinned } : {}),
-    updatedAt: edited ? new Date().toISOString() : note.updatedAt,
-  }
+  return api.patch<NoteItem>(path(note), { version: note.version, title, body, pinned, diagram })
 }
 
-/** Later `DELETE /api/notes/{id}`. */
+/** `DELETE /api/notes/{id}`: no version needed (D-176). */
 export async function deleteNote(note: NoteItem): Promise<void> {
-  void note
+  return api.delete<void>(path(note))
 }

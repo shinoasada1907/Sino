@@ -10,11 +10,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Conversation;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Participant;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.Photo;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sticker;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.StickerSprite;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
@@ -38,8 +43,21 @@ import dev.sino.provider.spi.SyncCursor;
 final class ZaloMessageNormalizer {
 
     static final int MAX_TEXT_LENGTH = 100_000;
+
+    /** The caption of a photo lives in {@code metadata}, which holds small values; Zalo's own limit is far lower. */
+    static final int MAX_CAPTION_LENGTH = 2_000;
     static final String ZALO_TYPE_KEY = "zaloType";
     static final int MAX_PICTURE_ADDRESS = 2_000;
+
+    /**
+     * What a sprite sheet may be (ZL-15): the frames of a Zalo sticker run from 2 up to a few dozen (7 and 19 seen),
+     * and one run lasts a fraction of a second to a few seconds. Outside these the whole sprite is left out and the
+     * sticker shows still, which also covers a duration whose unit turns out not to be milliseconds.
+     */
+    static final int MIN_SPRITE_FRAMES = 2;
+    static final int MAX_SPRITE_FRAMES = 300;
+    static final int MIN_SPRITE_DURATION_MS = 100;
+    static final int MAX_SPRITE_DURATION_MS = 10_000;
 
     /**
      * Domains Zalo serves sticker pictures from, as zca-js's sticker answers show (not yet seen on a real run, ZL-13:
@@ -53,6 +71,8 @@ final class ZaloMessageNormalizer {
             "tenor.com",
             "tenor.co",
             "giphy.com");
+
+    private static final Logger LOG = LoggerFactory.getLogger(ZaloMessageNormalizer.class);
 
     private ZaloMessageNormalizer() {
     }
@@ -218,9 +238,9 @@ final class ZaloMessageNormalizer {
                     throw new ProviderException(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED,
                             "The webchat message has no text");
                 }
-                yield new Body(MessageType.TEXT, cut(withoutNul(message.text())), Map.of());
+                yield new Body(MessageType.TEXT, cut(withoutNul(message.text()), MAX_TEXT_LENGTH), Map.of());
             }
-            case "chat.photo" -> new Body(MessageType.IMAGE, "[Ảnh]", Map.of(ZALO_TYPE_KEY, "chat.photo"));
+            case "chat.photo" -> photoBody(message.photo());
             case "chat.sticker" -> stickerBody("chat.sticker", "[Sticker]", message.sticker());
             case "chat.gif" -> stickerBody("chat.gif", "[GIF]", message.sticker());
             case "share.file" -> new Body(MessageType.FILE, "[Tệp]", Map.of(ZALO_TYPE_KEY, "share.file"));
@@ -229,15 +249,106 @@ final class ZaloMessageNormalizer {
         };
     }
 
+    /**
+     * A photo is an {@code IMAGE} whose text stays {@code [Ảnh]}; the picture rides in {@code metadata} when its address
+     * passes {@link #pictureAddress}. A thumbnail Sino refuses is left out; one Sino accepts stands in for a picture it
+     * refuses. With no safe address at all the message is the placeholder alone, and the host Zalo named is warned
+     * about, so a CDN missing from {@link #PICTURE_DOMAINS} shows in the log instead of as pictures that never come.
+     */
+    private static Body photoBody(Photo photo) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put(ZALO_TYPE_KEY, "chat.photo");
+        if (photo != null) {
+            String url = pictureAddress(photo.url());
+            String thumb = pictureAddress(photo.thumbUrl());
+            if (url == null) {
+                url = thumb;
+                thumb = null;
+            }
+            if (url != null) {
+                metadata.put(NormalizedMessage.IMAGE_URL, url);
+                if (thumb != null && !thumb.equals(url)) {
+                    metadata.put(NormalizedMessage.IMAGE_THUMB_URL, thumb);
+                }
+                String caption = clean(photo.caption());
+                putIfPresent(metadata, NormalizedMessage.IMAGE_CAPTION,
+                        caption == null ? null : cut(caption, MAX_CAPTION_LENGTH));
+            } else {
+                warnRefused("photo", clean(photo.url()) != null ? photo.url() : photo.thumbUrl());
+            }
+        }
+        return new Body(MessageType.IMAGE, "[Ảnh]", Map.copyOf(metadata));
+    }
+
+    /**
+     * Says what is known of an address of a picture Sino refused ({@code what}: a photo, a sticker, a gif, a sticker
+     * sprite), and nothing of its path (it can open the picture): the host and the scheme when the address can be
+     * read, its length, and whether it is plain printable ASCII. Enough to tell a Zalo CDN missing from
+     * {@link #PICTURE_DOMAINS} from an address refused for how it is written. Nothing is said for no address at all.
+     */
+    private static void warnRefused(String what, String raw) {
+        String address = clean(raw);
+        if (address != null) {
+            LOG.warn("Zalo gave a {} whose address Sino does not accept ({})", what, describe(address));
+        }
+    }
+
+    private static String describe(String address) {
+        String host = "unreadable";
+        String scheme = "unreadable";
+        try {
+            URI uri = new URI(address);
+            if (uri.getHost() != null && uri.getHost().matches("[A-Za-z0-9.-]{1,100}")) {
+                host = uri.getHost();
+            }
+            if (uri.getScheme() != null && uri.getScheme().matches("[A-Za-z][A-Za-z0-9+.-]{0,20}")) {
+                scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+            }
+        } catch (URISyntaxException invalid) {
+            // Both stay "unreadable".
+        }
+        boolean plain = address.chars().allMatch(c -> c > 0x20 && c < 0x7f);
+        return "host: " + host + ", scheme: " + scheme + ", length: " + address.length() + ", plain: " + plain;
+    }
+
     private static Body stickerBody(String zaloType, String placeholderText, Sticker sticker) {
         Map<String, String> metadata = new LinkedHashMap<>();
         metadata.put(ZALO_TYPE_KEY, zaloType);
         if (sticker != null) {
             putIfPresent(metadata, "stickerId", clean(sticker.id()));
             putIfPresent(metadata, "stickerCatId", clean(sticker.catId()));
-            putIfPresent(metadata, NormalizedMessage.STICKER_URL, pictureAddress(sticker.url()));
+            String picture = pictureAddress(sticker.url());
+            if (picture == null) {
+                warnRefused("chat.gif".equals(zaloType) ? "gif" : "sticker", sticker.url());
+            }
+            putIfPresent(metadata, NormalizedMessage.STICKER_URL, picture);
+            // Only a Zalo sticker moves by a sprite sheet; a gif is its own moving picture.
+            if ("chat.sticker".equals(zaloType)) {
+                putSprite(metadata, sticker.sprite());
+            }
         }
         return new Body(MessageType.UNKNOWN, placeholderText, Map.copyOf(metadata));
+    }
+
+    /** The sprite sheet with its frames and duration, or nothing at all when any of the three cannot be trusted. */
+    private static void putSprite(Map<String, String> metadata, StickerSprite sprite) {
+        if (sprite == null) {
+            return;
+        }
+        String address = pictureAddress(sprite.url());
+        if (address == null) {
+            warnRefused("sticker sprite", sprite.url());
+        }
+        Integer frames = sprite.frames();
+        Integer durationMs = sprite.durationMs();
+        if (address == null || frames == null || durationMs == null
+                || frames < MIN_SPRITE_FRAMES || frames > MAX_SPRITE_FRAMES
+                || durationMs < MIN_SPRITE_DURATION_MS || durationMs > MAX_SPRITE_DURATION_MS) {
+            return;
+        }
+        metadata.put(NormalizedMessage.STICKER_SPRITE_URL, address);
+        metadata.put(NormalizedMessage.STICKER_FRAMES, String.valueOf(frames));
+        metadata.put(NormalizedMessage.STICKER_DURATION_MS, String.valueOf(durationMs));
     }
 
     private static void putIfPresent(Map<String, String> metadata, String key, String value) {
@@ -324,13 +435,11 @@ final class ZaloMessageNormalizer {
         return value.indexOf('\0') < 0 ? value : value.replace("\0", "");
     }
 
-    private static String cut(String text) {
-        if (text.length() <= MAX_TEXT_LENGTH) {
+    private static String cut(String text, int max) {
+        if (text.length() <= max) {
             return text;
         }
-        int end = Character.isHighSurrogate(text.charAt(MAX_TEXT_LENGTH - 1))
-                ? MAX_TEXT_LENGTH - 1
-                : MAX_TEXT_LENGTH;
+        int end = Character.isHighSurrogate(text.charAt(max - 1)) ? max - 1 : max;
         return text.substring(0, end);
     }
 

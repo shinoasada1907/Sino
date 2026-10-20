@@ -499,3 +499,86 @@ Sau khi sửa `.env`, thư thử tiếp theo đi đường webhook:
 ### 6.5 Kiểm chứng (BE-53)
 - Đường lịch: đo trên dữ liệu thật như mục 6.1.
 - Đường webhook: chạy thật như mục 6.4; số đo là mốc thời gian, không đọc nội dung thư.
+
+## 7. Tin mới ngoài danh sách: dấu trên tab và thanh thông báo (change `inbox-notifications`)
+
+**Ở đâu:** `apps/sino-web/src/app/shell/` (`useTabUnread.ts`, `useArrivalNotices.ts`, `NoticeBar.tsx`, `AppShell.tsx`), `apps/sino-web/public/favicon-unread.svg`. Quyết định D-317…D-320 trong `openspec/changes/inbox-notifications/design.md`.
+
+### 7.1 Ba chỗ hở của "có tin mới"
+Mục 3 đưa sự kiện `conversations.changed` tới trình duyệt, và web đã dùng nó để đọc lại danh sách. Nhưng một sự kiện chỉ có ích khi có người nhìn thấy kết quả của nó:
+
+```text
+tin Zalo về
+   |
+   +-- người dùng đang xem danh sách Tin nhắn  -> dải "1 tin mới" (D-92), 6 giây   [đã có]
+   +-- người dùng ở Việc cần làm / Lịch / ...  -> chỉ một con số nhỏ ở thanh bên    [hở]
+   +-- người dùng ở tab khác của trình duyệt   -> tiêu đề tab vẫn là "Sino"          [hở]
+```
+Hai chỗ hở ở dưới là việc của change này: một **dấu trên tab** (nhìn thấy khi không ở trong app) và một **thanh thông báo** (nhìn thấy ở mọi màn của app).
+
+### 7.2 Dấu trên tab: `document.title` và biểu tượng, và cái `useEffect` biết trả lại
+`useTabUnread(total)` đặt `(3) Sino` và đổi `href` của `link rel="icon"`. Điểm đáng học là phần **dọn dẹp**:
+
+```ts
+useEffect(() => {
+  const before = { title: document.title, href: icon?.getAttribute('href') ?? null }
+  document.title = ...      // đặt
+  return () => {            // trả lại đúng cái đã thấy
+    document.title = before.title
+  }
+}, [total])
+```
+- Mỗi lần `total` đổi, React chạy hàm dọn dẹp của lần trước rồi mới chạy lần sau, nên `before` luôn là giá trị **gốc**, không phải giá trị trung gian. Đăng xuất (`AppShell` bị gỡ) cũng chạy hàm dọn dẹp, nên trang đăng nhập không mang theo `(3) Sino`.
+- `total === undefined` nghĩa là "số chưa về", khác với 0: lúc đó hook **không đụng** tiêu đề. Nếu coi `undefined` là 0 thì mỗi lần mở app, tab sẽ chớp "Sino" đè lên tiêu đề đang có.
+- Số nằm ở tiêu đề, chấm nằm ở biểu tượng. Biểu tượng tab chỉ 16 px, không đọc được chữ số, còn tiêu đề thì đọc được cả khi nhiều tab chen nhau.
+- Biểu tượng có chấm là **một file SVG tĩnh thứ hai**, không vẽ canvas: đổi `href` đủ, và nó kiểm thử được bằng cách đọc file.
+
+### 7.3 Từ sự kiện ra thanh: ba quyết định
+**Một. Đếm sự kiện, không đếm chênh lệch số chưa đọc.** Số chưa đọc theo loại đã có sẵn, nên cách ngắn nhất là so số mới với số cũ. Nhưng khi người dùng kết nối một Gmail, thư cũ được **nhập** vào và số chưa đọc nhảy hàng trăm: thanh sẽ báo "300 thư mới". Sự kiện thì có trường `source` (`import`, `sync`, `user`), nên chỉ `sync` có `newInbound > 0` mới đáng đếm, cùng luật với dải D-92.
+
+**Hai. Đổi `accountId` ra loại bằng frame có sẵn.** Sự kiện chỉ nói tài khoản nào. Frame của hộp thư (`fetchInbox`) có đủ tài khoản và nhà cung cấp, và `kindOfProvider` cho biết loại. Frame cũ vẫn đúng vì loại của một tài khoản không bao giờ đổi, nên chỉ khi tài khoản chưa có trong frame (mới thêm, hoặc chưa vào màn nào) mới tải một lần, và `staleTime` 30 giây chặn việc tải lại ở mỗi sự kiện của một tài khoản không tồn tại.
+
+**Ba. Đăng ký nghe một lần, đọc giá trị mới nhất qua `ref`.**
+```ts
+const where = useRef({ pathname, visible })
+useEffect(() => { where.current = { pathname, visible } })   // chạy sau mỗi lần render
+
+useEffect(() => onConversationsChanged((event) => {
+  ... where.current ...      // luôn là vị trí hiện tại, không phải vị trí lúc đăng ký
+}), [queryClient])
+```
+Nếu đưa `pathname` vào mảng phụ thuộc của effect đăng ký thì mỗi lần đổi màn phải hủy rồi đăng ký lại, và một sự kiện đến đúng lúc đó có thể lọt qua. Dùng `ref` thì đăng ký một lần, vẫn thấy vị trí mới nhất.
+
+### 7.4 Đặt state theo giá trị khác: trong lúc render, không trong effect
+Khi người dùng vào màn Tin nhắn thì dòng "tin mới" của nó phải tắt. Cách quen tay là một `useEffect` theo `pathname` gọi `setCounts`. Lint (`react/set-state-in-effect`) cảnh báo đúng: effect chạy **sau** khi màn đã vẽ, nên màn vẽ một lần với dòng cũ rồi vẽ lại. Cách React khuyên cho "state đi theo một giá trị":
+```ts
+const [shownAt, setShownAt] = useState(pathname)
+if (shownAt !== pathname) {
+  setShownAt(pathname)
+  setCounts(...)             // đặt ngay trong lúc render; React vẽ lại ngay, trước khi hiện ra
+}
+```
+Cái hẹn giờ 6 giây (sau khi tab hiện lại) thì **vẫn** là effect, vì nó đồng bộ với một thứ bên ngoài (`setTimeout`), và `setCounts` nằm trong hàm gọi lại của timer chứ không chạy ngay trong effect.
+
+### 7.5 Kiểm thử: ba lớp, lỗi gài, và một lỗi chỉ trình duyệt mới thấy
+- **Hook** (`useArrivalNotices.test.tsx`, 19 test): từng luật một: chỉ `sync`, không đếm khi đang ở đúng danh sách, tab ẩn thì đếm, 6 giây sau khi tab hiện lại, gộp, tắt khi mở màn, tải frame một lần.
+- **Thành phần** (`NoticeBar.test.tsx`): chữ, đường dẫn "Xem", nút đóng, vùng `role="status"` rỗng khi không có gì.
+- **Vỏ app** (`AppShell.test.tsx`): thanh nằm giữa thanh trên cùng và trang, "Xem" đi tới danh sách, không trùng với dải của danh sách.
+
+Test hook ban đầu xanh ngay lần chạy đầu thật sự, nên tôi gài 12 lỗi vào code để xem test có bắt được không: 10 bị bắt, **2 sống sót** và cả hai chỉ ra chỗ hở thật. Một: sự kiện `newInbound: 0` cho kết quả giống hệt (cộng 0) nên test kết quả không phân biệt được, nhưng nó gọi mạng vô ích để tìm loại; thêm test "không gọi gì". Hai: chưa có test nào kiểm dòng **còn đó** khi tab ẩn lâu hơn 6 giây; thêm test. Bài học: một mutant sống sót hoặc là test thiếu, hoặc là code thừa; phải đọc nó, không bỏ qua.
+
+**Lỗi mà jsdom không thấy được.** Mở thẳng `favicon-unread.svg` trong trình duyệt thì thấy "Double hyphen within comment": chú thích XML tôi viết có chứa `--danger`, mà `--` bị cấm trong chú thích XML. File không hợp lệ thì không được vẽ, nên tab sẽ không có biểu tượng đúng lúc có tin. Test của hook chỉ kiểm `href` là chuỗi đúng, không biết file đó có mở được không. Vì vậy có `favicon.test.ts`: đọc cả hai file và phân tích bằng `DOMParser` (`image/svg+xml`), kiểm không có `parsererror`. Cái test ấy đỏ đúng chỗ trước khi sửa: `favicon.svg` gốc xanh, `favicon-unread.svg` đỏ. Bài học: **một file tĩnh mà trình duyệt tự phân tích thì cần một test về tính hợp lệ của chính file đó.**
+
+Bản đầu của test này đọc file bằng `node:fs`, và `tsc -b` (nên cả `pnpm build`, nên cả `frontend-ci`) báo `Cannot find name 'node:fs'`, vì tsconfig của app chỉ nạp kiểu `vite/client`. Đổi sang `import favicon from '.../favicon.svg?raw'` của Vite thì test nhận chính chữ của file mà không cần Node, và không phụ thuộc thư mục chạy. Lần chạy cổng đó đáng nhớ vì log của tôi in "tsc exit 0" trong khi `tsc` hỏng: dòng ấy đến từ cách nối `lệnh | tail && echo`, vốn luôn thoát 0 vì `tail` thoát 0. Từ đó cổng lấy mã thoát thật của từng lệnh.
+
+Hai test cũ phải sửa vì hành vi mới đúng chạm vào chúng, và đáng ghi lại vì sao: `LiveInbox.test` khẳng định "không có nút nào tên `tin mới`" trên **cả màn hình**, trong khi ý của nó là dải của danh sách; thanh mới nằm ngoài danh sách nên giờ test phải hỏi trong vùng danh sách. `EventStream.test` phát sự kiện cho một tài khoản không có trong mẫu nên hook đi tải frame mà test không có handler; đổi sang tài khoản có thật.
+
+### 7.6 Một khoảng trống đã biết, ngoài change này
+Chuông thông báo ở thanh trên cùng đọc `shell.unreadNotifications`, và `navCounts.accountsNeedingAction`, `registrationsNew` cũng vậy: tất cả là **dữ liệu mẫu** (`shell.sample.ts`), nên chuông luôn có chấm. Chỉ số chưa đọc của Tin nhắn, Hộp thư và số việc là số thật. Làm chuông thật cần một mô hình "thông báo" ở backend; đó là một tính năng riêng và chưa có.
+
+### 7.7 Kiểm chứng
+- Đỏ trước: hook `useTabUnread` và `AppShell` (`expected 'Sino' to be '(3) Sino'`, 4 test), `useArrivalNotices` và `NoticeBar` (thiếu module), 5 test tích hợp của thanh; `favicon.test.ts` (`parsererror` của file SVG).
+- Lỗi gài: 12/12 bị bắt (sau khi thêm hai test cho hai mutant sống sót).
+- Cả bộ, mỗi bước lấy mã thoát thật: `pnpm lint` thoát 0 (0 lỗi, còn 2 cảnh báo cũ ở `features/public`), `tsc -b` thoát 0, `pnpm build` thoát 0, `pnpm test` thoát 0 với 97 file, 878 test.
+- Chrome thật (Vite thật, API giả có SSE thật, bắn sự kiện bằng một cửa `POST /__emit`) ở 1440, 1024 và 390, theme sáng và tối: tiêu đề tab `(2) Sino`, biểu tượng `/favicon-unread.svg`; thanh khít giữa thanh trên cùng và trang (đáy thanh trên 73 px, đỉnh trang 122 px ở 1440); không cuộn ngang ở 390; hai dòng cho hai loại; sự kiện `import` 300 thư không được đếm; "Xem" sang `/messages` và dòng tắt, dòng kia còn; đứng ở `/messages` thì thanh không thêm dòng chat còn danh sách có dải riêng; nút đóng một dòng; đọc hết thì tiêu đề về `Sino`, biểu tượng về `/favicon.svg`, vùng trạng thái cao 0 px. Tab ẩn: giả `visibilityState` là `hidden` bằng `Object.defineProperty` rồi bắn `visibilitychange` (cách duy nhất để giả một tab ẩn khi chỉ có một cửa sổ), đứng ngay ở `/messages`, bắn một tin Zalo: thanh hiện "1 tin mới", tiêu đề `(1) Sino`, và dòng **vẫn còn sau 9 giây** khi tab còn ẩn; cho tab hiện lại thì dòng còn ở giây thứ 3 và đã tắt ở giây thứ 8 (đo bằng `performance.now()`: 3052 ms và 8070 ms).
+- **Chưa kiểm:** một tab bị ẩn thật (người dùng chuyển tab thật; ở trên là tab giả ẩn bằng mã, chạy qua cùng `visibilitychange` nhưng không phải một lần chuyển tab bằng tay), và một tin Zalo thật đi hết đường từ webhook tới thanh (cần `sino-api` và `sino-zalo` chạy thật, thuộc ZL-13). API ở lượt Chrome là một server giả viết tạm, không có trong repo, chỉ có đúng những response mà shell và hai danh sách đọc.

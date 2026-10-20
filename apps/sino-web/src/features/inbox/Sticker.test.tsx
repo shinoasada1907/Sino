@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { renderApp } from '@/test/renderApp'
@@ -12,6 +12,7 @@ vi.mock('./inbox.api', async (importOriginal) => (await import('@/test/inboxSamp
 // Friday 2 October 2026, 14:05 in Vietnam.
 const NOW = new Date('2026-10-02T07:05:00Z')
 const PICTURE = 'https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236'
+const SPRITE = { url: 'https://zalo-api.zadn.vn/api/emoticon/sprite?eid=11236&size=130', frames: 7, durationMs: 700 }
 
 const chat = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện Gia đình' }))
 
@@ -92,6 +93,92 @@ describe('a sticker in a chat', () => {
     const picture = await chat().findByRole('img', { name: 'Sticker' })
 
     picture.dispatchEvent(new Event('error'))
+
+    expect(await chat().findByText('[Sticker]')).toBeInTheDocument()
+    expect(chat().queryByRole('img', { name: 'Sticker' })).toBeNull()
+  })
+})
+
+describe('a moving sticker in a chat (ZL-15)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('plays the sprite sheet, one frame at a time, in place of the still picture', async () => {
+    serve(stickerMessage('s-1', { sticker: PICTURE, stickerSprite: SPRITE }))
+
+    const picture = await chat().findByRole('img', { name: 'Sticker' })
+
+    expect(picture).toHaveAttribute('src', SPRITE.url)
+    expect(picture.style.getPropertyValue('--sticker-frames')).toBe('7')
+    expect(picture.style.getPropertyValue('--sticker-ms')).toBe('700ms')
+    // Seven frames side by side, each as wide as the box that shows one.
+    expect(picture.style.width).toBe('700%')
+  })
+
+  it('stops the movement for a reader who asked for less motion', async () => {
+    serve(stickerMessage('s-1', { sticker: PICTURE, stickerSprite: SPRITE }))
+
+    const picture = await chat().findByRole('img', { name: 'Sticker' })
+
+    expect(picture).toHaveClass('animate-sticker', 'motion-reduce:animate-none')
+  })
+
+  it('loads the sheet late and says nothing about Sino to Zalo', async () => {
+    serve(stickerMessage('s-1', { sticker: PICTURE, stickerSprite: SPRITE }))
+
+    const picture = await chat().findByRole('img', { name: 'Sticker' })
+
+    expect(picture).toHaveAttribute('src', SPRITE.url)
+    expect(picture).toHaveAttribute('loading', 'lazy')
+    expect(picture).toHaveAttribute('referrerpolicy', 'no-referrer')
+  })
+
+  it('shows the still picture when the address of the sheet is not one the page may show', async () => {
+    serve(stickerMessage('s-1', { sticker: PICTURE, stickerSprite: { ...SPRITE, url: 'http://zalo-api.zadn.vn/sprite.png' } }))
+
+    const picture = await chat().findByRole('img', { name: 'Sticker' })
+
+    expect(picture).toHaveAttribute('src', PICTURE)
+    expect(picture).not.toHaveClass('animate-sticker')
+  })
+
+  it('shows the still picture when the frames are out of range', async () => {
+    serve(stickerMessage('s-1', { sticker: PICTURE, stickerSprite: { ...SPRITE, frames: 1 } }))
+
+    expect(await chat().findByRole('img', { name: 'Sticker' })).toHaveAttribute('src', PICTURE)
+  })
+
+  it('falls back to the still picture when the sheet cannot load, then to the text', async () => {
+    serve(stickerMessage('s-1', { sticker: PICTURE, stickerSprite: SPRITE }))
+    const sheet = await chat().findByRole('img', { name: 'Sticker' })
+
+    sheet.dispatchEvent(new Event('error'))
+
+    await waitFor(() => expect(chat().getByRole('img', { name: 'Sticker' })).toHaveAttribute('src', PICTURE))
+    chat().getByRole('img', { name: 'Sticker' }).dispatchEvent(new Event('error'))
+    expect(await chat().findByText('[Sticker]')).toBeInTheDocument()
+    expect(chat().queryByRole('img', { name: 'Sticker' })).toBeNull()
+  })
+
+  it('plays the sheet of a sticker that has no still picture, and shows the text when it cannot load', async () => {
+    serve(stickerMessage('s-1', { stickerSprite: SPRITE }))
+    const sheet = await chat().findByRole('img', { name: 'Sticker' })
+    expect(sheet).toHaveAttribute('src', SPRITE.url)
+
+    sheet.dispatchEvent(new Event('error'))
+
+    expect(await chat().findByText('[Sticker]')).toBeInTheDocument()
+    expect(chat().queryByRole('img', { name: 'Sticker' })).toBeNull()
+  })
+
+  it('stays the placeholder text when neither the sheet nor a still picture is usable', async () => {
+    serve(stickerMessage('s-1', { stickerSprite: { ...SPRITE, frames: 1 } }))
 
     expect(await chat().findByText('[Sticker]')).toBeInTheDocument()
     expect(chat().queryByRole('img', { name: 'Sticker' })).toBeNull()

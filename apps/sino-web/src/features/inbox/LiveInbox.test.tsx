@@ -1,8 +1,9 @@
+import type { QueryClient } from '@tanstack/react-query'
 import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
-import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
+import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
 import { API_CONVERSATIONS } from '@/test/fixtures/inboxApi'
 import { lastStream } from '@/test/eventSource'
 import { server } from '@/test/msw/server'
@@ -18,6 +19,8 @@ function backend() {
   server.use(
     http.get('/api/accounts', () => HttpResponse.json(API_ACCOUNTS)),
     http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+    // The shell keeps the account list on every screen (NS-01): a stream that opens again reads it, with the imports, again.
+    http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
     http.get('/api/conversations/counts', () =>
       HttpResponse.json({ unread: unread(), byProvider: { gmail: unread() }, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0 }),
     ),
@@ -80,12 +83,13 @@ describe('the inbox while mail arrives (FE-54)', () => {
     expect(screen.queryByRole('button', { name: /thư mới/ })).toBeNull()
   })
 
-  it('says new mail may come late while the stream stays down for 30 s (FE-55, D-94)', () => {
+  it('says new mail may come late while the stream stays down for 30 s (FE-55, D-94)', async () => {
     // Opening again reads the inbox again, so the API answers too.
     backend()
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let queryClient: QueryClient | undefined
     try {
-      renderApp('/inbox')
+      queryClient = renderApp('/inbox').queryClient
       act(() => lastStream().open())
       act(() => lastStream().drop())
       act(() => vi.advanceTimersByTime(29_000))
@@ -99,6 +103,8 @@ describe('the inbox while mail arrives (FE-54)', () => {
     } finally {
       vi.useRealTimers()
     }
+    // The accounts are read again too (NS-01): leave no request in flight, or it lands in the next test and finds no handler.
+    await vi.waitFor(() => expect(queryClient?.isFetching()).toBe(0))
   })
 })
 
@@ -109,6 +115,7 @@ describe('the notice of each screen (f05c)', () => {
     server.use(
       http.get('/api/accounts', () => HttpResponse.json([...API_ACCOUNTS, { ...API_ACCOUNTS[0], id: 'acc-zalo', provider: 'zalo', address: '+84 9•• ••• 218' }])),
       http.get('/api/providers', () => HttpResponse.json([...API_PROVIDERS, { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: ['READ_MESSAGES'] }])),
+      http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
       http.get('/api/conversations/counts', () =>
         HttpResponse.json({ unread: 1, byProvider: {}, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0, unreadByKind: { EMAIL: 1, CHAT: 1 } }),
       ),
@@ -127,8 +134,8 @@ describe('the notice of each screen (f05c)', () => {
     lastStream().emit('conversations.changed', event('sync', 2))
     lastStream().emit('conversations.changed', { ...event('sync', 1), accountId: 'acc-zalo' })
 
-    expect(await screen.findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /thư mới/ })).toBeNull()
+    expect(await list().findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
+    expect(list().queryByRole('button', { name: /thư mới/ })).toBeNull()
   })
 
   it('says nothing on Hộp thư for new chats', async () => {
@@ -140,7 +147,9 @@ describe('the notice of each screen (f05c)', () => {
     lastStream().emit('conversations.changed', { ...event('sync', 1), accountId: 'acc-zalo' })
     lastStream().emit('conversations.changed', event('sync', 2))
 
-    expect(await screen.findByRole('button', { name: '2 thư mới' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /3 thư mới|tin mới/ })).toBeNull()
+    expect(await list().findByRole('button', { name: '2 thư mới' })).toBeInTheDocument()
+    expect(list().queryByRole('button', { name: /3 thư mới|tin mới/ })).toBeNull()
+    // The list stays silent about the chats; the bar of the shell, on every screen, tells them (NF-02).
+    expect(await within(shellPart('notice-bar')).findByText('1 tin mới')).toBeInTheDocument()
   })
 })

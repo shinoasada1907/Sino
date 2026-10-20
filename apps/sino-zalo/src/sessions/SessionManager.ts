@@ -237,6 +237,7 @@ export class SessionManager {
         },
         message: (message) => this.received(accountId, session, message),
         oldMessages: (messages, threadType) => {
+          for (const message of messages) this.logMessage(accountId, message, "catch-up");
           const resolve = session.pages.get(threadType);
           session.pages.delete(threadType);
           resolve?.(messages);
@@ -266,7 +267,23 @@ export class SessionManager {
     if (this.sessions.get(accountId) !== session) {
       return;
     }
-    // IDs, type and length only: never the text (D-282).
+    this.logMessage(accountId, message);
+    // Into the buffer first: whatever happens to the webhook, sino-api finds the message at its next pull.
+    if (session.buffer.add([message]).length > 0) {
+      this.notifier.messagesArrived(session.ownId);
+    }
+  }
+
+  /**
+   * One log line for a message Zalo gave: from the live listener, or (`source`) from the catch-up, which takes
+   * the messages sent while sino-zalo was off and so is where most of them come from after a restart.
+   */
+  private logMessage(accountId: string, message: ZaloMessage, source?: "catch-up"): void {
+    // IDs, type and length only: never the text (D-282). For a photo also whether a picture was found, never its
+    // address (it opens the picture) or its caption. For a sticker its ids, which are numbers. When the pipeline could
+    // not show the message as it means to (no picture, no sticker, a type nobody has handled): the keys of the content
+    // with the kind of each value, never a value, so a message that shows nowhere can be told apart: not understood
+    // here, or lost later (ZL-16).
     this.log.info(
       {
         accountId,
@@ -274,13 +291,16 @@ export class SessionManager {
         threadId: message.threadId,
         zaloType: message.zaloType,
         length: message.text?.length ?? 0,
+        ...(message.zaloType === "chat.photo" ? { photo: message.photo !== undefined } : {}),
+        ...(message.zaloType === "chat.sticker" && message.sticker !== undefined
+          ? { stickerId: message.sticker.id, stickerCatId: message.sticker.catId, stickerType: message.sticker.type }
+          : {}),
+        ...(message.contentShape === undefined ? {} : { contentShape: message.contentShape }),
+        ...(message.photoShape === undefined ? {} : { photoShape: message.photoShape }),
+        ...(source === undefined ? {} : { source }),
       },
       "Zalo message",
     );
-    // Into the buffer first: whatever happens to the webhook, sino-api finds the message at its next pull.
-    if (session.buffer.add([message]).length > 0) {
-      this.notifier.messagesArrived(session.ownId);
-    }
   }
 
   private async catchUpIfNeeded(accountId: string, session: LiveSession, cursor: bigint): Promise<void> {

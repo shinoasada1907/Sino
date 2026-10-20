@@ -36,12 +36,46 @@ export class ZaloRejectedError extends Error {}
 
 export type ThreadType = "USER" | "GROUP";
 
-/** The sticker of a `chat.sticker` message (D-279). `url` is null until sino-zalo asks Zalo for the picture. */
+/**
+ * How a sticker moves: a sprite sheet with all its frames side by side in one row, each frame as wide as the
+ * sheet is tall (checked on two stickers, 910x130 and 2470x130 for 130-pixel frames). `durationMs` is one run
+ * of all the frames: the milliseconds each frame lasts times `frames`.
+ */
+export interface ZaloStickerSprite {
+  readonly url: string;
+  readonly frames: number;
+  readonly durationMs: number;
+}
+
+/** What Zalo gives for a sticker id: the still picture, and the sprite sheet when the sticker moves. */
+export interface ZaloStickerArt {
+  readonly url: string | null;
+  readonly sprite: ZaloStickerSprite | null;
+  /** How the picture was found, for the log only: by the sticker itself or, failing that, through its category. */
+  readonly via?: "detail" | "category" | undefined;
+}
+
+/**
+ * The sticker of a `chat.sticker` message (D-279). `url` and `sprite` are null until sino-zalo asks Zalo for the
+ * picture; a `chat.gif` has a url and never a sprite.
+ */
 export interface ZaloSticker {
   readonly id: string;
   readonly catId: string;
   readonly type: number;
   readonly url: string | null;
+  readonly sprite?: ZaloStickerSprite | null | undefined;
+}
+
+/**
+ * The picture of a `chat.photo` message (ZL-16): the address Zalo shows it from, a smaller one when Zalo names a
+ * different one, and the caption the sender typed with it. Addresses are web addresses as Zalo gave them;
+ * sino-api decides which hosts it trusts.
+ */
+export interface ZaloPhoto {
+  readonly url: string;
+  readonly thumbUrl: string | null;
+  readonly caption: string | null;
 }
 
 /** A Zalo message in the shape sino-zalo hands to sino-api (design, Contract API). */
@@ -59,6 +93,19 @@ export interface ZaloMessage {
   readonly sentAt: string;
   /** Only on a `chat.sticker` message whose content names a sticker. */
   readonly sticker?: ZaloSticker | undefined;
+  /** Only on a `chat.photo` message whose content names a picture. */
+  readonly photo?: ZaloPhoto | undefined;
+  /**
+   * Only on a `chat.photo` message whose content named no picture: the keys of the content with the kind of each
+   * value, never a value, so the log can say what Zalo sent (ZL-16). sino-api ignores it.
+   */
+  readonly contentShape?: string | undefined;
+  /**
+   * Only on a `chat.photo` message, found or not: every key of the content (and of its `params`) with the kind of its
+   * value, and the host of each web address, never a path or a value, so the log can say which address of a photo
+   * that fails to load was chosen and where the others are (ZL-18). sino-api ignores it.
+   */
+  readonly photoShape?: string | undefined;
 }
 
 /** A thread's name and picture; null where Zalo gave none. */
@@ -99,10 +146,11 @@ export interface ZaloConnection {
    */
   sendText(threadId: string, threadType: ThreadType, text: string): Promise<string>;
   /**
-   * The address of a sticker's picture, or null when Zalo does not know the sticker. Throws
-   * ZaloUnavailableError when Zalo does not answer.
+   * The still picture of a sticker and its sprite sheet, or null when Zalo does not know the sticker or names
+   * no picture for it, also in its category (`catId`, from the message). Throws ZaloUnavailableError when Zalo
+   * does not answer.
    */
-  stickerUrl(stickerId: string): Promise<string | null>;
+  stickerArt(stickerId: string, catId?: string): Promise<ZaloStickerArt | null>;
 }
 
 /** Everything sino-zalo asks of Zalo. Tests use FakeZaloGateway and never reach Zalo. */

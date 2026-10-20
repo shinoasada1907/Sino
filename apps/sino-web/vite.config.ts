@@ -2,7 +2,7 @@
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, searchForWorkspaceRoot } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,6 +14,11 @@ export default defineConfig({
     // The browser talks to one origin only (D-36): cookies and CSRF work without CORS.
     proxy: {
       '/api/': 'http://localhost:8080',
+    },
+    fs: {
+      // The project as Vite allows it by default, and the real sticker files the server tests read: the web tests read
+      // the same ones (`?inline`) rather than keep copies (SP-07).
+      allow: [searchForWorkspaceRoot(process.cwd()), '../sino-api/src/test/resources/sticker'],
     },
   },
   test: {

@@ -3,7 +3,7 @@
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
 > **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai: Zalo cá nhân, `openspec/changes/zalo-personal`) mở 2026-10-14, bạn tự code ZL-01 (khung service `sino-zalo`, mục 5); từ ZL-02 (đăng nhập QR, mục 6) bạn chuyển change này sang AUTO.
-> **Cập nhật:** 2026-10-16. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
+> **Cập nhật:** 2026-10-20. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
 
 ---
 
@@ -1284,14 +1284,14 @@ Khi người dùng chat qua Zalo gửi một sticker, thư viện `zca-js` nhậ
 Trước ZL-14, Sino chỉ hiển thị văn bản đại diện `[Sticker]` hoặc `[GIF]` (theo bảng D-279). Người dùng kiểm tra thấy trong giao diện chat chỉ hiện chữ thay vì hình ảnh trực quan. Hơn nữa, với các sticker động, nếu chỉ lấy thumbnail WebP nén tĩnh (`webpc`) thì hình ảnh bị đứng yên, mất chuyển động.
 
 Để hiển thị hình ảnh sticker và GIF thật (bao gồm cả ảnh động):
-1. `sino-zalo` (Node.js): Phân giải `{ id, catId, type }` từ `data.content`, gọi API `getStickersDetail(id)` của `zca-js`. Ưu tiên lấy `detail.stickerUrl` (URL chứa ảnh động gốc GIF hoặc WebP động) trước `detail.stickerWebpUrl` (ảnh thumbnail tĩnh dạng WebP). Với `chat.gif`, trích xuất trực tiếp địa chỉ URL từ nội dung `data.content` hoặc trường `params`.
+1. `sino-zalo` (Node.js): Phân giải `{ id, catId, type }` từ `data.content`, gọi API `getStickersDetail(id)` của `zca-js`. Ưu tiên lấy `detail.stickerUrl` (ZL-14 tưởng đây là ảnh động; thực ra là PNG tĩnh, xem mục 18) trước `detail.stickerWebpUrl` (ảnh thumbnail tĩnh dạng WebP). Với `chat.gif`, trích xuất trực tiếp địa chỉ URL từ nội dung `data.content` hoặc trường `params`.
 2. `sino-api` (Spring Boot / Java): Xác thực URL an toàn (chấp nhận HTTPS, danh sách tên miền tin cậy gồm CDN Zalo và các nhà cung cấp GIF phổ biến như `tenor.com`, `giphy.com`), lưu vào trường `metadata.stickerUrl`, gán `textContent` là `[Sticker]` hoặc `[GIF]`, và trả trường `sticker` ở API tin nhắn (`GET /api/conversations/{id}/messages`).
 3. `sino-web` (React / TypeScript): Kiểm tra URL an toàn qua hàm `pictureOf`, kết xuất thẻ ảnh `<img>` với thuộc tính `loading="lazy"` và `referrerPolicy="no-referrer"`. Nếu ảnh bị lỗi khi tải hoặc URL không an toàn, tự động quay về khung tin nhắn chữ tương ứng `[Sticker]` hoặc `[GIF]`.
 
 ### 17.2 Phân giải URL sticker và xử lý tin nhắn GIF tại `sino-zalo` (`Stickers.ts` và `ZcaGateway.ts`)
 Việc gọi API ngoài để lấy chi tiết sticker có thể gặp độ trễ hoặc lỗi mạng tạm thời. Nếu gọi tuần tự cho từng tin nhắn mỗi lần đọc tin, toàn bộ lượt đồng bộ sẽ bị chậm lại.
 Giải pháp được thiết kế trong lớp `Stickers` và gateway:
-- Ưu tiên tài nguyên động: Trong `ZcaGateway`, thứ tự trích xuất URL chi tiết sticker là `detail?.stickerUrl || detail?.stickerWebpUrl || null`. Điều này đảm bảo sticker động hiển thị đầy đủ hoạt cảnh thay vì khung hình tĩnh.
+- Ưu tiên tài nguyên động: Trong `ZcaGateway`, thứ tự trích xuất URL chi tiết sticker là `detail?.stickerUrl || detail?.stickerWebpUrl || null`. Giả định của ZL-14 là thứ tự này giữ được hoạt cảnh của sticker động; giả định đó sai, xem mục 18.
 - Xử lý tin nhắn `chat.gif`: Hàm `gifStickerOf` và `gifUrlOf` phân tích cấu trúc đa dạng của tin nhắn GIF (dạng chuỗi URL, đối tượng JSON, hoặc chuỗi JSON lồng nhau trong `params` với các khóa `href`, `url`, `normalUrl`, `oriUrl`). Tin nhắn sau khi trích xuất được gắn sẵn `sticker: { id, catId, type, url }`.
 - Cache URL thông minh: Trong `Stickers.fill(messages)`, nếu tin nhắn đã có sẵn URL (như tin nhắn GIF), hệ thống nạp thẳng vào bộ nhớ cache mà không cần gửi truy vấn tới Zalo API. Với các sticker cần tra cứu qua `id`, hệ thống lưu cache khi thành công và không cache kết quả null để cho phép thử lại.
 - Giới hạn thời gian (Timeout 2 giây): Toàn bộ lời gọi phân giải sticker trong một mẻ tin nhắn bị chặn tối đa 2 giây bằng `Promise.race` và `AbortSignal`, đảm bảo API đọc tin nhắn `GET /accounts/{accountId}/messages` không bao giờ bị nghẽn quá lâu.
@@ -1325,4 +1325,709 @@ Tại giao diện web, tin nhắn sticker và GIF có hai yêu cầu quan trọn
 - `apps/sino-api`: 28 test trong `ZaloStickerTests` kiểm tra toàn bộ các trường hợp URL hợp lệ, không hợp lệ, URL độc hại, tin nhắn `chat.gif`, và các domain Tenor/GIPHY. Toàn bộ 28/28 test passed, `mvn test` thành công.
 - `apps/sino-web`: 11 test trong `sticker.test.ts` (bao gồm kiểm tra domain Tenor/GIPHY), 19 test trong `inbox.api.test.ts`, 6 test trong `Sticker.test.tsx` (kiểm tra đầy đủ việc hiển thị ảnh, các thuộc tính bảo mật, và fallback khi `onError`). Toàn bộ 799/799 test của `sino-web` đều passed, `oxlint` 0 lỗi, `tsc -b` và `pnpm build` thành công.
 
+## 18. ZL-15 — Sticker Zalo chuyển động bằng sprite sheet
 
+### 18.1 Vấn đề: ảnh đang hiển thị chỉ là khung đầu
+Sau ZL-14, sticker hiện ra nhưng đứng yên, và người dùng thấy nó "chỉ là ảnh thường". Nguyên nhân là ZL-14 tin rằng `detail.stickerUrl` là ảnh động. Kiểm tra thật (chỉ xin header và 33 byte đầu của PNG, hai sticker đã nhận):
+
+| Địa chỉ | Là gì | Kích thước |
+|---|---|---|
+| `.../sticker/webpc?eid=33784&size=130` | PNG tĩnh, một khung | 130 x 130, 8 KB |
+| `.../sprite?eid=33784&size=130` | PNG sprite sheet | 910 x 130 (7 khung), 75 KB |
+| `.../sprite?eid=45342&size=130` | PNG sprite sheet | 2470 x 130 (19 khung), 185 KB |
+
+Sticker chuyển động của Zalo vì vậy là **một tấm ảnh dài**, các khung xếp cạnh nhau trên một hàng, mỗi khung vuông bằng chiều cao tấm ảnh. `getStickersDetail` trả thêm `stickerSpriteUrl`, `totalFrames` và `duration`.
+
+```text
+sprite sheet 910 x 130, 7 khung:
++------+------+------+------+------+------+------+
+|  0   |  1   |  2   |  3   |  4   |  5   |  6   |   mỗi khung 130 x 130
++------+------+------+------+------+------+------+
+
+hộp hiển thị 128 x 128, overflow ẩn: chỉ thấy một khung.
+Tấm ảnh trượt sang trái từng bước: 0, -128, -256, ... -768 px, rồi về 0.
+```
+
+### 18.2 `sino-zalo`: lấy sprite cùng ảnh tĩnh trong một lời gọi
+`stickerArt(id)` thay `stickerUrl(id)` và trả `{ url, sprite }`, vẫn chỉ một lần gọi `getStickersDetail`. Hàm thuần `stickerArtOf` quyết định: ảnh tĩnh là `stickerUrl`, rồi `stickerWebpUrl`; sprite chỉ có khi Zalo nêu địa chỉ sprite, `totalFrames` là số nguyên lớn hơn 1 và `duration` làm tròn lớn hơn 0. Một điều chỉ biết được từ dữ liệu thật: `duration` là **mili giây mỗi khung**, không phải cả lượt. Hai sticker đầu tiên cho 7 khung với 150 và 19 khung với 100; nếu đó là cả lượt thì 19 khung chạy trong 100 ms. Vì vậy một lượt là `duration` nhân số khung (1050 ms và 1900 ms), và phép nhân nằm ở `stickerArtOf`, nơi duy nhất biết Zalo nghĩ gì, để `durationMs` trong phần còn lại của hệ thống luôn là cả một lượt. Nếu cả ảnh tĩnh lẫn sprite đều không có thì trả `null` (Zalo không biết sticker). `Stickers` cache cả hai và ghi một dòng log số khung và thời lượng lần đầu thấy mỗi sticker, chỉ có số, để kiểm đơn vị của `duration` trên dữ liệu thật.
+
+### 18.3 `sino-api`: kiểm tra và lưu
+Metadata là bảng chữ-sang-chữ, nên ba giá trị mới lưu dạng chữ: `stickerSpriteUrl`, `stickerFrames`, `stickerDurationMs`. Chỉ `chat.sticker` có sprite; GIF tự nó đã là ảnh động.
+- Địa chỉ sprite qua đúng `pictureAddress` của ảnh tĩnh (https, không user info, tên miền Zalo).
+- Số khung từ 2 đến 300, thời lượng cả một lượt từ 100 đến 10 000 ms. Ngoài khoảng đó **bỏ cả sprite** thay vì cắt cho vừa: nếu `duration` hóa ra không tính bằng mili giây, cắt sẽ cho một sticker chạy sai tốc độ mà không ai biết, còn bỏ thì sticker hiện ảnh tĩnh và dữ liệu thật cho thấy lỗi.
+- Đọc lại: `MessageHistory.spriteOf` phân tích chữ thành số có `try/catch`; thiếu một giá trị hoặc số hỏng thì không có sprite, sticker vẫn có ảnh tĩnh.
+- API tin nhắn giữ nguyên `sticker` (ảnh tĩnh) và thêm `stickerSprite { url, frames, durationMs }`. Thêm trường chứ không đổi trường cũ, nên web và sino-zalo cũ vẫn chạy với nhau.
+
+### 18.4 `sino-web`: chạy sprite bằng CSS
+`StickerPicture` đặt `<img>` rộng `frames x 100%` của hộp 128 x 128 (mỗi khung đúng bằng hộp) và gắn `animate-sticker`:
+
+```text
+animation: sticker-run var(--sticker-ms) steps(var(--sticker-frames), jump-none) infinite
+@keyframes sticker-run { to { transform: translateX(calc(-100% * (frames - 1) / frames)) } }
+```
+
+- `translateX` theo phần trăm tính trên bề rộng của chính phần tử, nên `-(frames-1)/frames` là đúng khung cuối.
+- `steps(N, jump-none)` cho đủ N vị trí từ đầu đến cuối; `steps(N)` thường chỉ cho N-1 vị trí đầu và bỏ khung cuối.
+- Số khung và thời lượng đi qua hai biến CSS `--sticker-frames`, `--sticker-ms` đặt trên chính thẻ `<img>`, nên CSS là một đoạn cố định.
+- `motion-reduce:animate-none`: người đọc bật giảm chuyển động thì sticker đứng ở khung đầu.
+- Sprite lỗi tải thì ảnh tĩnh, ảnh tĩnh lỗi thì chữ `[Sticker]`: ba tầng, mỗi tầng một state `brokenSprite`, `brokenSticker`.
+- `spriteOf` kiểm lại cùng giới hạn với backend: giá trị mà trang chạy đã qua hai lần kiểm.
+
+### 18.5 Kiểm chứng (ZL-15)
+- `jsdom` không chạy được CSS animation, nên phần chuyển động kiểm riêng trong trình duyệt thật với sprite thật: đọc `transform` sau khi đặt thời gian của animation bằng Web Animations API. Đồng hồ của tab nền trong khung xem trước đứng yên (`timeline = 0`), nên lấy mẫu theo thời gian thật không thấy gì dù CSS đúng; đặt `currentTime` cho kết quả xác định: 7 vị trí `0 … -768` px.
+- sino-zalo 165/165, sino-api 1796 test, sino-web 831/831 (trên worktree sạch). Kèm sửa một lỗi `TS18048` của ZL-14 trong `test/stickers.test.ts`.
+- Lần chạy thật đầu tiên (hai sticker, 2026-10-19) xác nhận tên trường và sprite, và sửa đơn vị của `duration` (mục 18.2). Bài học: một giá trị mà không ai kiểm bằng dữ liệu thật thì chỉ là giả định. Ở đây giả định sai không làm hỏng gì rõ ràng, chỉ làm hoạt cảnh nhanh gấp hàng chục lần, nên phải có dòng log số khung và thời lượng (mục 18.2) để thấy được. Hai dòng đã lưu với số sai được sửa tay một lần trong DB dev.
+- Người dùng xác nhận trên màn chat (2026-10-19): sau bản sửa đơn vị, hai sticker thật chạy đúng tốc độ. Sticker đã lưu trước ZL-15 giữ ảnh tĩnh, theo thiết kế.
+- Một sự cố đi kèm: sino-api chạy từ IDE có `spring-boot-devtools`, nên build vào `target/classes` khi nó đang chạy làm ứng dụng tự khởi động lại giữa chừng. Đồng bộ báo lỗi `INTERNAL` cho đến khi người dùng khởi động lại hẳn. Nguyên nhân chưa chứng minh được vì không có log, nhưng quy tắc rút ra thì rõ: build và chạy test ở bản copy, không ở thư mục mà ứng dụng đang chạy.
+
+## 19. ZL-16 — Ảnh Zalo hiện trong chat
+
+### 19.1 Vấn đề: ảnh bị bỏ ở cả ba tầng
+Sau ZL-14 và ZL-15 sticker hiện đúng, nhưng một tin ảnh (`chat.photo`) vẫn chỉ là chữ `[Ảnh]`. Không phải một chỗ làm hỏng mà là cả đường đi không mang địa chỉ ảnh:
+
+```text
+Zalo                 sino-zalo              sino-api                      sino-web
+content {            toZaloMessage          ZaloMessageNormalizer         Bubble
+  href, thumb,  -->  photo { url,      -->  metadata imageUrl,       -->  PhotoPicture
+  title, params }      thumbUrl,              imageThumbUrl,              (img + liên kết)
+                       caption }              imageCaption                + chú thích
+(trước ZL-16: bỏ)    (trước: không có)      (trước: chỉ chữ "[Ảnh]")      (trước: chỉ chữ)
+```
+
+Thiết kế theo đúng khuôn sticker: địa chỉ ảnh đi **thẳng từ CDN của Zalo tới trình duyệt**. Sino không tải ảnh về và không lưu ảnh; thứ duy nhất Sino lưu là một dòng chữ địa chỉ trong `metadata`. Lý do chọn: không phải lưu và phục vụ ảnh (dung lượng, quyền riêng tư, bản quyền), và nhất quán với sticker đã chạy. Cái giá: trình duyệt phải lấy được ảnh từ Zalo, và địa chỉ có thể hết hạn (mục 19.5).
+
+### 19.2 `sino-zalo`: đọc nội dung ảnh
+`photoOf` đọc `content` của tin `chat.photo`:
+- `href` là ảnh như khung chat Zalo hiện, `thumb` là ảnh nhỏ. Bằng chứng không phải từ ảnh thật mà từ chính zca-js: khi trích dẫn một ảnh nó gán `normalUrl = content.href` và `thumbUrl = content.thumb` (`sendMessage.js`).
+- Thiếu `href` thì tìm trong `content.params`, một **chuỗi JSON** (`rawUrl`, `normalUrl`, `oriUrl`, `hdUrl`, `hd`), rồi mới tới `thumb`. `paramsOf` bọc `JSON.parse` trong `try/catch` vì đây là dữ liệu từ ngoài: hỏng thì coi như không có.
+- `title` là chú thích người gửi gõ kèm ảnh; rỗng hoặc toàn khoảng trắng thì là `null`.
+- `webAddress` chỉ nhận chuỗi bắt đầu bằng `https://` hoặc `http://`. Việc quyết định tên miền nào đáng tin **không** làm ở đây mà ở `sino-api`, nơi duy nhất giữ danh sách tên miền Zalo.
+- Toán tử `??` nối các nguồn theo thứ tự ưu tiên: `webAddress(href) ?? (khóa trong params) ?? thumb`. Khác với `||`, nó chỉ đi tiếp khi vế trái là `null`/`undefined`, nên một chuỗi rỗng không bị coi là "có".
+- Chỉ `chat.photo` có `photo`; một tin khác dù content giống ảnh cũng không.
+
+Vì chưa ai thấy content của một ảnh thật, `SessionManager` ghi thêm một cờ vào dòng log "Zalo message" của tin `chat.photo`: `photo: true` nghĩa là đã tìm thấy địa chỉ, `photo: false` nghĩa là không. Cờ là một boolean, **không bao giờ** là địa chỉ hay chú thích (địa chỉ ảnh riêng tư mở được ảnh). Có cờ này thì khi ảnh không hiện, ta biết lỗi ở tầng nào chứ không phải đoán.
+
+Lần chạy thật đầu cho thấy một bài học về cách làm: ảnh vẫn là `[Ảnh]` mà không có dòng lỗi nào, vì mỗi tầng đều "an toàn" bằng cách bỏ qua điều nó không hiểu. Một đường đi chỉ bỏ qua lặng lẽ thì không tự cho biết nó hỏng ở đâu. Vì vậy thêm hai thứ. Thứ nhất, khi tin `chat.photo` không tìm được ảnh, `contentShape` ghi tên các khóa của nội dung với loại giá trị (`href:url`, `title:string(0)`, `params:string(143)`), không bao giờ ghi giá trị, nên nhìn dòng log là biết Zalo gửi gì mà không lộ địa chỉ. Thứ hai, `photoOf` cũng đọc nội dung dạng chuỗi JSON, một dạng có thể gặp mà chưa ai thấy. Hàm `objectOf` làm chung việc "lấy object từ một giá trị hoặc từ chuỗi JSON" cho cả nội dung lẫn `params`, thay hai đoạn `JSON.parse` viết riêng.
+
+### 19.3 `sino-api`: kiểm tra, lưu, đọc lại
+- `ZaloClient.Message` thêm thành phần `photo` kiểu `Photo(url, thumbUrl, caption)`. Một `record` Java có đúng một constructor chính tắc, và Jackson dùng nó để đọc JSON; mỗi thành phần thêm vào làm mọi chỗ `new Message(...)` cũ không biên dịch được. Vì vậy hai constructor cũ (9 và 10 tham số) được giữ, gọi constructor chính tắc với `null` cho phần còn thiếu. Một JSON không có `photo` (sino-zalo cũ) đọc ra `photo = null`.
+- `ZaloMessageNormalizer.photoBody` dùng lại `pictureAddress` của sticker: https, không user info, không ký tự lạ, độ dài tối đa 2000, tên miền là tên miền Zalo hoặc con của nó. Thứ tự quyết định:
+
+```text
+ảnh chính hợp lệ?      có  -> imageUrl = ảnh chính; ảnh nhỏ hợp lệ và khác ảnh chính -> imageThumbUrl
+                       không, ảnh nhỏ hợp lệ?  có -> imageUrl = ảnh nhỏ (đứng thay), không có imageThumbUrl
+                                               không -> không khóa nào; log WARN tên miền
+```
+- Chữ của tin vẫn là `[Ảnh]` và `type` vẫn là `IMAGE`: danh sách hội thoại và bản xem trước đọc `textContent`, nên không đổi gì ở đó.
+- Chú thích: `clean` (bỏ NUL, bỏ khoảng trắng hai đầu, rỗng thì `null`) rồi `cut` đến 2000 ký tự. `cut` được tổng quát hóa thành `cut(text, max)`; vẫn không cắt đôi một cặp thay thế UTF-16 (một emoji ngoài BMP là hai `char`), nếu ký tự thứ `max` là nửa đầu của cặp thì lùi một. `metadata` là nơi chứa giá trị nhỏ, nên chú thích có trần riêng, thấp hơn trần 100 000 ký tự của chữ tin.
+- WARN khi không còn địa chỉ nào: `warnRefused` ghi **tên miền** và giao thức (chỉ khi khớp mẫu an toàn, không thì "unreadable"), độ dài, và `plain` (chỉ ASCII in được, không dấu cách). Ba thứ sau giúp phân biệt một tên miền Zalo mà danh sách chưa có với một địa chỉ bị từ chối vì cách viết (ví dụ có dấu cách hay quá dài). Đường dẫn và chú thích không bao giờ vào log. Mục đích: nếu CDN ảnh của Zalo nằm ở một tên miền mà danh sách `PICTURE_DOMAINS` chưa có, ảnh sẽ lặng lẽ ở lại là `[Ảnh]`; dòng WARN cho biết tên miền nào cần thêm.
+- Đọc lại: `MessageHistory` thêm ba cột `image_url`, `image_thumb_url`, `image_caption` (toán tử `->>` của PostgreSQL lấy một khóa của cột jsonb ra dạng chữ). Tám tên khóa metadata giờ được gắn bằng một hàm `withMetadataKeys(StatementSpec)` dùng chung cho hai truy vấn (`page` và `message`), thay vì lặp lại từng dòng `.param(...)` ở cả hai nơi: thêm một khóa thì chỉ sửa một chỗ, và không thể quên chỗ thứ hai (một tham số có tên mà câu SQL dùng nhưng không được gắn sẽ làm cả endpoint lỗi).
+- `imageOf` trả `null` khi không có `image_url`, dù chú thích có hay không: ảnh không có địa chỉ thì không có `image`. `InboxMessage.Image` đi tới `MessageResponse.image`, thêm trường chứ không đổi trường cũ.
+
+### 19.4 `sino-web`: vẽ ảnh
+- `photoOf` (trong `photo.ts`) kiểm lại bằng `pictureOf` mà sticker đã dùng: giá trị mà trang tải đã qua hai lần kiểm (backend và web). Ảnh nhỏ hợp lệ đứng thay ảnh chính bị từ chối; ảnh nhỏ trùng ảnh chính thì bỏ; chú thích được cắt khoảng trắng.
+- `PhotoPicture` bọc `<img>` trong `<a target="_blank" rel="noopener noreferrer">`. `noopener` không cho tab mới điều khiển trang Sino qua `window.opener`; `noreferrer` không gửi địa chỉ trang Sino cho Zalo. `<img>` có `loading="lazy"` (chỉ tải khi cuộn tới) và `referrerPolicy="no-referrer"`.
+- Cỡ lấy từ ô `.photo` của canvas: bo 14 px, viền 1 px, rộng tối đa 280 px (220 px trên điện thoại). Khác khung gạch chéo của canvas, ảnh thật **giữ tỉ lệ**: `w-auto h-auto max-h-80 max-w-55 md:max-w-70`, nên ảnh dọc cao đến 320 px thay vì bị cắt thành ô 280 x 180. `min-h-20 min-w-20` giữ liên kết không co về 0 trong lúc ảnh chưa tải; cái giá là ảnh rất nhỏ (60 x 40) bị phóng lên 2 lần.
+- `Bubble` giữ trạng thái `photoStep` kiểu hợp `'FULL' | 'THUMB' | 'BROKEN'`: ảnh chính lỗi tải thì sang ảnh nhỏ (nếu có), ảnh nhỏ cũng lỗi thì ra chữ `[Ảnh]`. Dùng một hợp ba giá trị thay vì hai biến boolean vì ba trạng thái loại trừ nhau; ghép hai boolean cho ra một tổ hợp vô nghĩa. Chú thích tách khỏi chuỗi lùi này: ảnh hỏng hẳn thì vẫn còn chữ `[Ảnh]` và chú thích bên dưới, người đọc không mất chữ.
+- `TextBubble` được tách ra khỏi `Bubble` (cũ là một `<div>` viết thẳng) vì giờ có hai chỗ dùng: chữ của tin và chú thích.
+
+### 19.5 Kiểm chứng và những gì chưa kiểm
+- Viết test trước và thấy đỏ ở cả ba app, rồi xanh. Gài lỗi (mutation) vào `photoOf` của sino-zalo, cờ log, `photoBody`, `MessageHistory`, `MessageResponse`, `photo.ts`, `Bubble`, `PhotoPicture`: chỉ một mutant sống (nhánh `Array.isArray` thừa); nó tương đương nên mã được rút gọn thay vì thêm test. Bài học: một nhánh mà không test nào phân biệt được thường là nhánh không cần có.
+- Chrome thật chạy trên bản build với API và ảnh Zalo giả, vì cần đăng nhập mới vào được màn chat. Đo bằng script: ảnh ngang 280 x 187, vuông 280 x 280, dọc 214 x 320, và ba trường hợp lùi (ảnh nhỏ, chữ, chữ có chú thích).
+- Môi trường của phiên này không có JDK 25 và Docker, nên sino-api chạy bằng JDK 21 bật `--enable-preview` và PostgreSQL 16 cục bộ có hàm `uuidv7()` bù, trên một bản sao của cây. Hệ quả: một số test phụ thuộc thứ tự ID trong cùng một mili-giây đỏ ngẫu nhiên, y hệt trên mã chưa sửa. Một bộ test chạy trên môi trường khác nhà phát triển thường dùng thì chỉ chứng minh được phần nó chạm tới; so với mã gốc trong cùng môi trường mới nói được "tôi không làm hỏng gì thêm".
+- **Chưa kiểm trên ảnh thật:** tên trường trong `content` của một ảnh nhận về; CDN của Zalo có cho trình duyệt lấy ảnh mà không cần cookie và không có Referer hay không; địa chỉ ảnh có hết hạn sau một thời gian không (nếu có, ảnh cũ sẽ lùi về `[Ảnh]` khi mở lại). Cả ba chỉ biết được khi gửi một ảnh thật.
+- Tin ảnh đã lưu trước ZL-16 giữ chữ `[Ảnh]` vì metadata của chúng không có địa chỉ; không backfill, như sticker ở ZL-15. Ảnh mới gửi từ giờ sẽ hiện.
+
+## 20. ZL-17 — Sticker ngoài bộ chuẩn: đường lùi theo bộ, và log chỉ đúng chỗ rơi
+
+### 20.1 Vấn đề: một thư viện nuốt lỗi
+Sau khi ảnh hiện, người dùng báo sticker chuẩn của Zalo hiện còn "sticker khác" thì không. Nhìn vào `getStickersDetail` của zca-js thì thấy lý do có thể:
+
+```text
+getStickersDetail(ids)
+  -> với mỗi id gọi Zalo ("sticker_detail")
+  -> Promise.allSettled(...)         chờ tất cả, KHÔNG ném lỗi nào
+  -> chỉ giữ những cái "fulfilled"   cái bị từ chối bị bỏ im lặng
+  -> trả về mảng (có thể rỗng)
+```
+
+Sticker nào Zalo từ chối trả theo từng id (một sticker ngoài danh mục, hoặc thuộc một bộ mà dịch vụ này không phục vụ) làm mảng rỗng, và `sino-zalo` đọc "mảng rỗng" là "Zalo không biết sticker này": tin hiện chữ `[Sticker]` mà không một dòng log nào. Đây là cùng bài học của ảnh (mục 19): một tầng "an toàn" bằng cách bỏ qua điều nó không hiểu thì không tự cho biết nó hỏng ở đâu.
+
+### 20.2 Đường lùi: hỏi theo bộ
+zca-js có `getStickerCategoryDetail(cateId)`, trả **cả bộ** sticker của một `catId`. Tin sticker mang sẵn `catId`, nên khi hỏi theo từng sticker không ra ảnh, `findStickerArt` hỏi cả bộ và lấy sticker có đúng `id`:
+
+```text
+getStickersDetail(id) có ảnh?  có -> dùng (via: detail)
+                               không -> catId là số nguyên dương?  không -> không có ảnh
+                                        có -> bộ đã có trong bộ nhớ?  có -> dùng
+                                                                     không -> hỏi Zalo, nhớ lại
+                                        sticker có trong bộ và có ảnh?  có -> dùng (via: category)
+                                                                       không -> không có ảnh
+```
+- Một bộ chỉ hỏi một lần (`Map<number, StickerDetail[]>` trong phiên): các sticker khác của bộ đó lấy từ bộ nhớ. Bộ hỏi lỗi thì **không** nhớ, để sticker sau hỏi lại; nhớ lỗi sẽ làm cả bộ hỏng mãi.
+- `catId` là chữ, đọc bằng `wholeNumber`; `0`, số âm, chữ hay rỗng thì không hỏi bộ (không có bộ nào để hỏi).
+- Lỗi của lời hỏi thứ nhất vẫn đi lên như cũ; `findStickerArt` là hàm nhận `api` và bộ nhớ làm tham số, nên kiểm thử bằng một `api` giả mà không cần Zalo.
+- Đây là **một phỏng đoán có cơ sở, chưa kiểm trên sticker thật**: nếu "sticker khác" không thuộc loại này thì đường lùi không phí gì (chỉ chạy khi cách thứ nhất thất bại) nhưng cũng không giúp gì.
+
+### 20.3 Log chỉ đúng chỗ rơi
+Vì chưa biết "sticker khác" là gì, phần quan trọng hơn là làm cho mỗi chỗ có thể rơi đều để lại một dòng:
+- `sino-zalo` `Stickers`: WARN "Zalo gave no picture for the sticker" với `stickerId`, `catId`, `stickerType` (đều là số) khi cả hai cách đều không ra ảnh; INFO "through its category" khi phải lấy theo bộ. Chữ `via` chỉ để ghi log, không đi vào tin gửi cho `sino-api`.
+- `sino-zalo` `SessionManager`: dòng "Zalo message" của sticker có thêm ba số đó; của **mọi** tin mà đường ống không hiểu thì có thêm `contentShape` (tên khóa và loại giá trị, không bao giờ một giá trị). `unseen` quyết định tin nào: loại tin chưa ai xử lý (không nằm trong `KNOWN_TYPES`), ảnh không tìm được ảnh, sticker không đọc được, GIF không có địa chỉ. Một `switch` theo loại tin, mỗi loại có điều kiện "không hiểu" riêng.
+- `sino-api`: WARN khi từ chối địa chỉ ảnh tĩnh, sprite hay GIF của sticker, dùng chung một hàm `warnRefused(what, raw)` với ảnh. Trước đây một sticker ở tên miền lạ lặng lẽ ở lại là chữ.
+
+Một lỗ hổng của chính cách ghi log này đã lộ ra ở lần chạy đầu: dòng "Zalo message" chỉ có cho tin đến **trực tiếp** qua listener. Tin mà Zalo trả lại khi bù tin (`old_messages`: mọi thứ gửi lúc `sino-zalo` tắt hay đang nối lại, và đó là đường chính sau mỗi lần khởi động lại) đi thẳng vào bộ đệm mà không qua chỗ ghi log, nên người dùng tìm không thấy dòng nào dù tin đã về Sino. Sửa bằng cách tách việc ghi log thành một hàm `logMessage` dùng chung cho cả hai đường, tin bù có thêm `source: "catch-up"`. Bài học: khi thêm log để chẩn đoán, phải liệt kê **mọi đường** một tin có thể đi vào hệ thống, không chỉ đường quen thuộc nhất.
+
+```text
+Sticker không hiện. Xem lần lượt:
+  dòng "Zalo message" của nó      zaloType gì? có stickerId, stickerCatId không? contentShape?
+  WARN sino-zalo "no picture"     Zalo không có ảnh, kể cả theo bộ
+  WARN sino-zalo "did not give"   gọi Zalo bị lỗi (có lý do)
+  WARN sino-api "does not accept" địa chỉ bị từ chối: tên miền nào
+  không có WARN nào               địa chỉ đã qua sino-api; xem tab Network của trình duyệt
+```
+
+### 20.4 Kiểm chứng và giới hạn
+- Viết test trước (24 đỏ), rồi xanh. Gài lỗi tìm ra hai chỗ test yếu: không có ca nào kiểm "tin GIF không ghi mã sticker" (GIF mang một đối tượng `sticker` với `id` là mã tin, nên một điều kiện thiếu loại tin sẽ ghi sai), và không có ca "chỉ ảnh nhỏ bị từ chối". Cả hai đã thêm test.
+- Chưa có sticker thật nào của người dùng, và container này không với tới CDN của Zalo (proxy chặn), nên không thử được địa chỉ nào. Chưa xác nhận đường lùi cứu được sticker nào.
+- Sticker đã lưu trước đó giữ như cũ, không backfill (như ZL-15 và ZL-16).
+
+## 21. ZL-18 — Ảnh kiểu sticker: có địa chỉ, nhưng trình duyệt không tải được
+
+### 21.1 Triệu chứng và điều tưởng ban đầu
+Người dùng gửi từ Zalo hai "sticker" hổ cam và thấy Sino hiện chữ `[Ảnh]` không có hình, trong khi ảnh chụp thường hiện đúng. Giả thuyết đầu là sticker do chính tài khoản gửi đi bị rơi khỏi đường chuẩn hóa. Giả thuyết đó sai, và cách biết nó sai là điều đáng học: chữ `[Ảnh]` chỉ có một nơi sinh ra trong mã (`photoBody`, nhánh `chat.photo`), còn sticker thật cho `[Sticker]`. Một dòng chữ placeholder cho biết tin đã đi qua nhánh nào, nên đọc mã tìm nơi sinh ra chữ trước khi đoán loại tin.
+
+### 21.2 Đi tìm từng lớp
+```text
+trình duyệt   GET ảnh -> 404 (b-f11-zpc.zdn.vn)        <- lỗi lộ ra ở đây
+sino-web      <img> lỗi -> ảnh nhỏ -> chữ [Ảnh]
+sino-api      lưu địa chỉ, không WARN (tên miền được nhận)
+sino-zalo     photoOf chọn href; log: photo:true
+Zalo          chat.photo, href/thumb/params.hd cùng host
+```
+- Log của `sino-zalo` nói `photo: true` (tìm thấy địa chỉ), `sino-api` không cảnh báo gì, API trả `image`: địa chỉ đã qua hai lớp kiểm tra, nên lỗi nằm ở lớp cuối cùng, nơi trình duyệt tải ảnh.
+- Một đoạn lệnh chạy trong Console của trình duyệt đã thử tải cùng đường dẫn với và không có Referer, và với ba tên miền khác: tất cả đều lỗi. Vậy địa chỉ được chọn không có ảnh công khai, và ảnh thật (nếu có) nằm ở nơi khác trong `content`.
+- Không có tài liệu nào về dạng `content`, nên cách duy nhất là nhìn dữ liệu thật: thêm `photoShape` vào log (tên mọi khóa, loại giá trị và **tên miền** của từng địa chỉ, không bao giờ đường dẫn hay giá trị), rồi để người dùng gửi lại một ảnh. Dòng log thật cho thấy hai thứ chỉ ảnh hổ cam có: `params.pStickerType` (số) và `params.webp` (object). Đó là ảnh kiểu sticker của Zalo; `href`, `thumb` và `params.hd` của nó đều trỏ tới nơi trả 404.
+
+### 21.3 Cách sửa
+`photoOf` trong `ZcaGateway.ts`: khi `params.pStickerType` là số nguyên, địa chỉ web đầu tiên trong `params.webp` (khóa `url` trước, trong object, danh sách hay chuỗi JSON, sâu tới hai cấp) là ảnh chính, và địa chỉ mà ảnh đó vốn hiện trở thành ảnh dự phòng. Web đã có sẵn đường lùi ảnh chính, ảnh nhỏ, chữ `[Ảnh]`, nên không đổi gì ở `sino-api` và `sino-web`. Ảnh không có `pStickerType` đọc y như trước, nên ảnh thường không đổi hành vi. Điều kiện chặt như vậy là cố ý: dấu hiệu mới chỉ thấy ở ảnh hổ cam, nên chỉ nhánh có dấu hiệu đó mới đổi.
+
+### 21.4 Kiểm chứng và giới hạn
+- Viết test trước (12 test mới đỏ), rồi xanh: `sino-zalo` 259/259, oxlint 0, `tsc` 0. Gài lỗi 13: ba lỗi sống sót vì thiếu test (độ sâu tìm địa chỉ, đường lùi bị nhầm với `thumb`, danh sách bị coi như object); đã thêm test rồi diệt cả ba.
+- Kiểm trên ảnh thật, kết quả là bản sửa chưa chạm vào nguyên nhân thật: sáu tin sau bản sửa, chỉ hai tin chó hiện hình, hổ, mèo và dê vẫn `[Ảnh]`, trong khi bốn tin có `photoShape` y hệt nhau. Gọi thẳng CDN bằng `curl` cho cùng kết quả như trình duyệt: ảnh chó trả 200 (tệp có từ 15/10), ảnh hổ, mèo, dê trả 404 với thân rỗng, bất kể đổi đuôi tệp, tiền tố hay header. Tức là CDN không có tệp tại địa chỉ mà tin nêu, và Sino không có gì để hiện. Bài học: một cấu trúc `content` giống hệt nhau không có nghĩa là mọi tin dùng được như nhau, vì chỗ khác nhau có thể nằm ở dữ liệu bên ngoài (tệp có thật trên CDN hay không); và một giả thuyết hợp lý (`params.webp` giữ ảnh thật) vẫn phải được đo bằng đúng những tin lỗi trước khi coi là đã sửa. Còn mở: tệp có được tạo khi tài khoản nhận xem hay không, và `params.contentId` có phải mã sticker hay không.
+- Chưa làm: tin đã lưu trước bản sửa (ba ảnh 18:15–18:17, các tin 20:21, 20:31, 20:58, 21:18) giữ `[Ảnh]`, không backfill (như ZL-15 và ZL-16); chưa gửi một ảnh thường sau bản sửa để xem tận mắt (mã của nhánh ảnh thường không đổi và có test giữ nguyên).
+
+## 22. Thư viện sticker tự tạo (`custom-stickers`, ST-01 đến ST-20)
+
+**Ở đâu:** backend `sticker/` (`domain/StickerImage`, `PngHead`, `GifHead`, `WebpHead`, `Sticker`, `StickerContent`; `application/StickerService`, `StickerProperties`; `infrastructure/StickerRepository`, `StickerContentRepository`; `api/StickersController`), migration `V21__sticker_create_sticker.sql`; web `apps/sino-web/src/features/stickers/` (`StickersPage`, `useUploadQueue`, `format.ts`, `stickers.api.ts`) và `shared/api/client.ts` (`api.upload`). Change: `openspec/changes/custom-stickers`.
+
+**Là gì / để làm gì:** người dùng tải ảnh PNG, GIF hoặc WebP của riêng mình lên Sino để giữ, xem trong một lưới và xóa khi không cần. **Hôm nay chưa gửi sticker đi đâu cả** (D-328): gửi qua Zalo là change `custom-stickers-send`, mở bằng một spike đo xem Zalo nhận gì. Đừng lẫn với mục 17 đến 21: ở đó sticker do người khác gửi đến, ảnh nằm trên máy chủ Zalo và Sino không giữ byte nào; ở đây ảnh là dữ liệu của người dùng, không lấy lại được từ đâu, nên Sino phải lưu và sao lưu cùng database.
+
+```text
+web: màn Sticker (/stickers)                         sino-api: module sticker
+  chọn tệp / kéo thả -- api.upload(FormData) ----->  POST /api/stickers   (multipart)
+  lưới ô vuông      <-- GET /api/stickers ---------   |  StickerService.upload, kiểm theo thứ tự:
+  <img src=".../content"> <-- GET /api/stickers/{id}/content   tệp có / cỡ / loại thật / cạnh / trùng / hạn mức
+  nút xóa (có hỏi)  -- DELETE /api/stickers/{id} -->  |  chỉ ghi khi qua hết
+                                                      v
+                                       sticker (metadata)      sticker_content (byte, bảng riêng)
+```
+
+| Quyết định | Nội dung |
+|---|---|
+| D-328 | Làm hai change: thư viện trước, gửi qua Zalo sau (người dùng) |
+| D-329 | Nhận PNG, GIF, WebP; SVG để sau vì SVG là XML có thể mang script (người dùng) |
+| D-330 | Lưu byte trong PostgreSQL, cột `bytea` (người dùng) |
+| DN-1 | 1 MiB mỗi tệp, 1024 điểm ảnh mỗi cạnh, 300 sticker mỗi người |
+| DN-2 | Ảnh đã có thì từ chối `409 STICKER_DUPLICATE` |
+| D-331 | Hai bảng: `sticker` và `sticker_content` |
+| D-332 | Nhận loại và đo cỡ từ phần đầu tệp, không giải mã ảnh |
+| D-333 | Giới hạn chính xác nằm trong ứng dụng; multipart chỉ là hàng rào |
+| D-335 | Phục vụ ảnh với `nosniff`, cache lâu, riêng tư |
+| D-336 | Sticker của người khác là `404` |
+| D-337 | Web có `api.upload`, không sửa `post` |
+| D-338, D-339 | Hạn mức đếm không khóa; "trùng" do chỉ mục duy nhất quyết, bắt lỗi ở ngoài giao dịch |
+
+### 22.1 Nhận ra loại bằng nội dung, không bằng tên hay `Content-Type`
+Tên tệp và `Content-Type` của phần multipart đều do client khai, nên ai cũng đặt được. `StickerImage.read` đọc vài byte đầu và hỏi lần lượt ba lớp đọc đầu tệp:
+
+| Loại | Chữ ký ở đầu tệp |
+|---|---|
+| PNG | 8 byte `89 50 4E 47 0D 0A 1A 0A` |
+| GIF | `GIF87a` hoặc `GIF89a` |
+| WebP | `RIFF`, 4 byte cỡ, rồi `WEBP` |
+
+Không khớp cái nào thì `415 STICKER_TYPE_UNSUPPORTED`. Khi chạy thật, một tệp chữ thường đổi tên thành `gia.png` (57 byte) bị `415` dù đuôi và loại do trình duyệt khai đều là PNG; một JPEG thật cũng bị `415` (D-329: không tự đổi định dạng hộ người dùng). Cái giá được chấp nhận (D-332): một tệp có phần đầu đúng mà thân hỏng vẫn lọt vào, nhưng không có đường nào cho nó gây hại vì Sino phục vụ lại đúng loại đã nhận ra cùng `nosniff` (mục 22.6); trình duyệt chỉ không vẽ được ảnh đó.
+
+### 22.2 Vì sao đo cỡ từ phần đầu tệp, không giải mã (D-332)
+Một PNG dưới 1 MiB có thể khai 60.000 x 60.000 điểm ảnh. Giải mã nó cần hàng chục gigabyte bộ nhớ và làm sập máy chủ (kiểu tấn công "decompression bomb"). Chiều rộng và cao nằm ngay ở đầu tệp, nên Sino đọc chúng và phán trước khi ai giải mã gì. Khi chạy thật, `rong.png` 1100 x 100 bị `422 STICKER_INVALID_IMAGE`, web nói "Không đọc được ảnh này, hoặc có cạnh dài hơn 1024 điểm ảnh". JDK không có bộ đọc WebP, nên tự đọc đầu tệp cũng là cách duy nhất chung cho cả ba loại.
+
+Mỗi loại một kiểu đầu tệp, và có những bẫy riêng của Java:
+- **PNG** (`PngHead`): chunk đầu là `IHDR`, 8 byte đầu của dữ liệu là rộng và cao, **số nguyên không dấu 32 bit, big-endian** (`ByteBuffer` mặc định big-endian). Java không có `int` không dấu: `bytes.getInt(i) & 0xFFFFFFFFL` đưa về `long`. Vị trí chunk cũng là `long` vì độ dài chunk do tệp khai; một độ dài giả cực lớn mà để trong `int` thì cộng vào sẽ tràn số và trỏ về đầu tệp. Ảnh động (APNG) có chunk `acTL` **trước** `IDAT` đầu tiên, nên chỉ đi qua các chunk tới `IDAT` là đủ.
+- **GIF** (`GifHead`): rộng và cao là hai số 16 bit **little-endian** ngay sau tiêu đề. Số khung phải đếm các khối ảnh (`0x2C`); một byte `0x2C` nằm trong dữ liệu khối con không phải khung mới, nên phải đi theo chuỗi "byte độ dài, rồi từng đó byte" chứ không dò byte. Thấy khối ảnh thứ hai là biết ảnh động, dừng ngay. Một GIF chỉ một khung vẫn là `STATIC`.
+- **WebP** (`WebpHead`): có ba kiểu chunk đầu: `VP8 ` (có mất dữ liệu), `VP8L` (không mất), `VP8X` (mở rộng: ảnh động, trong suốt, metadata). Cờ hoạt ảnh nằm ở `VP8X`.
+
+`kind` (`STATIC` hay `ANIMATED`) do máy chủ tự tính từ tệp, người dùng không khai được.
+
+### 22.3 Vì sao hai bảng: `sticker` và `sticker_content` (D-331)
+Lưới chỉ cần tên, cỡ và loại. Nếu byte nằm cùng dòng, một câu `SELECT` danh sách (hoặc một entity JPA nạp theo mặc định) kéo cả byte của mọi sticker vào bộ nhớ. Tách ra thì danh sách chạy trên bảng nhỏ và byte chỉ được đọc khi có đúng một yêu cầu `.../content`. Khi chạy thật với 300 sticker, `GET /api/stickers` mất 31 ms. Cái giá: lấy ảnh cần thêm một lần đọc, và xóa phải xóa cả hai bảng; `ON DELETE CASCADE` ở khóa ngoại lo việc đó, nên sau khi xóa không có dòng mồ côi nào (đã kiểm bằng `psql`). `ALTER TABLE ... SET STORAGE EXTERNAL` bảo PostgreSQL đừng nén lại cột này: PNG, GIF, WebP đã nén rồi, nén thêm tốn thời gian mà không được gì.
+
+### 22.4 Trùng thì do chỉ mục quyết, hạn mức thì chỉ đếm (D-338, D-339)
+Hai lần tải cùng một tệp đồng thời cùng qua phép kiểm "đã có chưa" rồi mới ghi. Chỉ mục duy nhất `(user_id, sha256)` là thứ thật sự chặn bản thứ hai: lần ghi sau bị `DataIntegrityViolationException`. Lỗi này chỉ lộ ra **lúc commit**, ngoài phương thức, nên `@Transactional` trên phương thức không bắt được; nếu để nó đi thẳng ra thì người dùng nhận `500`. `StickerService` dùng `TransactionTemplate` viết tay, bắt lỗi ở ngoài giao dịch, rồi **hỏi lại trong giao dịch mới** (giao dịch cũ đã hỏng) xem chủ đã có sticker này chưa: có thì là `STICKER_DUPLICATE` kèm `stickerId`; không thì lỗi gốc đi tiếp, để một ràng buộc khác không bị gọi nhầm là "trùng".
+
+Hạn mức (300) thì khác: chỉ đếm rồi ghi, không khóa. Hai lần tải cùng lúc ở sát hạn mức có thể cùng qua và vượt một hai sticker. Chấp nhận vì hạn mức là rào bảo vệ dung lượng chứ không phải ràng buộc toàn vẹn. Quy tắc chung rút ra: ràng buộc phải đúng thì để database giữ bằng chỉ mục; rào "gần đúng" thì kiểm trong ứng dụng.
+
+### 22.5 Sticker của người khác là `404` (D-336)
+Mọi truy vấn có `user_id = CurrentUser.requireOwnerId()` (`findByIdAndOwnerId`), như `ACCOUNT_NOT_FOUND`, `TASK_NOT_FOUND` và `NOTE_NOT_FOUND`. Sticker của người khác và sticker không tồn tại cho cùng `404 STICKER_NOT_FOUND`, nên không ai dò được id nào có thật. Hôm nay Sino chỉ có một chủ; ràng buộc này giữ cho thiết kế khỏi phải sửa khi có nhiều người.
+
+### 22.6 Hai tầng giới hạn và cách phục vụ ảnh (D-333, D-335)
+- Giới hạn **chính xác** (1 MiB, 1024 điểm ảnh, 300 sticker) nằm trong `StickerService` và đọc từ cấu hình `sino.stickers.*`. `spring.servlet.multipart.max-file-size` (2 MB) chỉ là hàng rào cho Tomcat khỏi đệm tệp khổng lồ, đặt cao hơn giới hạn của ứng dụng; một test canh hàng rào luôn cao hơn. Vượt hàng rào là lỗi chung `413 PAYLOAD_TOO_LARGE` (lúc đó chưa biết đây là sticker); web coi hai mã như nhau. Khi chạy thật: 1,6 MB vào `413 STICKER_TOO_LARGE`, 3 MB vào `413 PAYLOAD_TOO_LARGE`, và phiên vẫn dùng được ngay sau đó (`GET /api/auth/me` vẫn `200`).
+- `GET .../content` trả đúng loại đã nhận ra, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`, `Cache-Control: private, max-age=31536000, immutable`. Nội dung của một `id` không bao giờ đổi (thay là xóa rồi tạo mới, id khác) nên cache mãi là an toàn; `private` vì có cookie phiên. Chỉ có ba loại ảnh nên không đường nào cho nội dung chạy script.
+
+### 22.7 Web: tải tệp bằng `FormData` thì không tự đặt `Content-Type` (D-337)
+`api.post` luôn đặt `Content-Type: application/json` và `JSON.stringify` thân. Một thân `FormData` cần để **trình duyệt** tự đặt `Content-Type` vì nó thêm `boundary` (chuỗi ngăn các phần); đặt tay là gãy toàn bộ yêu cầu. Nên có hàm riêng `api.upload(path, form)` dùng chung phần CSRF, lỗi và phiên của `request`. Hai phương án bị bỏ: một nhánh `if (body instanceof FormData)` trong `post` (một hàm hai việc) và một `fetch` riêng cho sticker (nhân đôi xử lý CSRF và `401`).
+
+### 22.8 Web: hàng đợi tải lên, và câu chữ nằm ở web
+- `useUploadQueue` gửi **từng tệp một**: nhẹ cho máy chủ, và màn nói được tệp nào lỗi vì sao. Tệp web tự từ chối (`checkStickerFile`: sai loại, rỗng, quá 1 MB) không rời máy; một tệp lỗi không cản các tệp khác. Loại được xét **trước** cỡ: một JPEG nhỏ vẫn bị từ chối, nói "quá lớn" sẽ nói sai.
+- Lỗi từ máy chủ đọc theo `code` của Problem Details chứ không theo trạng thái HTTP, rồi đổi thành câu tiếng Việt (`uploadErrorMessage`); câu tiếng Anh của máy chủ chỉ để lập trình viên đọc. Lỗi không thể khác đi khi thử lại (trùng, sai loại, quá lớn) thì không có nút "Thử lại"; mất mạng hay máy chủ hỏng thì có.
+- Kéo thả dùng cùng đường với nút chọn tệp: một vùng thả bao cả trang, khung "Thả ảnh PNG, GIF hoặc WebP để tải lên" hiện khi kéo qua.
+
+### 22.9 Web: xóa có hỏi, tiêu điểm bàn phím, lưới và ảnh động
+- Xóa luôn hỏi "Xóa sticker này?" nêu tên. Radix ẩn phần còn lại của trang khỏi cây truy cập khi hộp mở, nên test truy vấn phải thêm `hidden: true`. Khi hộp đóng, tiêu điểm về nút đã mở nó; nếu sticker đã mất thì sang nút xóa của sticker kế (hoặc trước), và hết sạch thì về nút "Tải lên" của trạng thái trống. Không có hàm này thì người dùng bàn phím rơi tiêu điểm về đầu trang sau mỗi lần xóa.
+- Lưới là CSS thuần: `grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))`, nên số cột do trình duyệt tính (7 ở 1440, 5 ở 1024, 2 ở 390) và không có JavaScript nào để test. Nút xóa chỉ ẩn khi thiết bị có chuột (`@media (hover: hover)`); trên điện thoại nút luôn hiện, rộng 44 điểm ảnh.
+- GIF và WebP động chạy ngay trong thẻ `<img>`, không cần code. Cái giá (DN-4): CSS không dừng được ảnh động, nên `prefers-reduced-motion` không áp dụng được với ảnh trong lưới.
+- Mỗi `<img>` có `loading="lazy"`: với 300 sticker, mở trang chỉ gọi 126 lần `.../content` (không phải 300).
+
+### 22.10 Kiểm chứng (ST-20) và giới hạn
+Chạy thật trên backend thật (`spring-boot:run` với PostgreSQL 18 trong Docker, JDK 25), web bằng Vite dev server, trình duyệt Chromium do Playwright lái; tệp mẫu tạo bằng Pillow và canvas của trình duyệt. Các ca đã chạy qua giao diện:
+- Đăng nhập, mở `/stickers`: trạng thái trống đúng chữ. Chọn **bốn tệp cùng lúc** (PNG, GIF động, WebP động, WebP tĩnh): cả bốn `201`; `kind` và cỡ đúng; **GIF và WebP động đổi khung hình thật** trong lưới (bốn khung khác nhau trong tám lần chụp), PNG và WebP tĩnh thì không đổi. Byte tải về từ `.../content` có `sha1` bằng tệp gốc.
+- Từ chối đúng câu: tải lại ảnh đã có "Sticker này đã có trong thư viện."; JPEG và tệp chữ đổi đuôi `.png` "Chỉ nhận PNG, GIF, WebP."; PNG 1,5 MB "Tệp nặng hơn 1 MB; hãy chọn ảnh nhẹ hơn."; PNG 1100 điểm ảnh bề ngang "Không đọc được ảnh này, hoặc có cạnh dài hơn 1024 điểm ảnh. Hãy thử ảnh khác."
+- Xóa: hộp xác nhận rồi `204`; `psql` không còn dòng ở `sticker` lẫn `sticker_content`, không có dòng mồ côi; **cùng tệp tải lại được** sau khi xóa.
+- Đầy hạn mức: đủ 300, tải ảnh mới ra "Thư viện đã đầy (tối đa 300 sticker). Hãy xóa bớt sticker rồi tải lại."; xóa một sticker thì tải được tiếp. Trực tiếp vào API (web chặn từ trước tệp trên 1 MB): 1,6 MB `413 STICKER_TOO_LARGE`, 3 MB `413 PAYLOAD_TOO_LARGE`, tệp rỗng `422 STICKER_FILE_MISSING`.
+- Hai theme x ba cỡ (1440, 1024, 390; sáng và tối): không cuộn ngang ở cả sáu, số cột 7, 5, 2; mở trang 300 sticker mất khoảng 2,7 giây cho tới khi đủ thẻ.
+- Nhật ký ứng dụng: không có dòng `ERROR`; chỉ có các dòng `WARN` của những lần từ chối trên.
+
+Cổng kiểm tra: `./mvnw -B -ntp verify` 2403 test, 0 lỗi, 8 bỏ qua (có sẵn từ trước, không thuộc sticker); web `pnpm lint` 0 lỗi (hai cảnh báo có sẵn ở `features/public`), `tsc -b` 0, `pnpm test` 1092/1092 (109 file), `pnpm build` 0; `openspec validate custom-stickers --strict` hợp lệ với OpenSpec 1.6.0 (đúng bản đã sinh các skill của repo; bản mới nhất 1.14.3 thêm một cảnh báo "requirement quá dài" mà `f15-notes` cũng vướng, và `--strict` coi cảnh báo là lỗi).
+
+Lượt chạy toàn bộ lộ ra ba test đỏ không thuộc mã sticker, đã sửa ở ba commit riêng; cả ba cùng một họ lỗi "test chỉ xanh khi chạy đủ nhanh hoặc đúng thứ tự":
+- `NotesApiTests` (69 ca đỏ): lớp này xóa `app_user` của người khác mà không xóa trước các dòng con. `AdminApiTests` chạy trước để lại `connected_account` của người dùng khác, nên lần xóa `app_user` vi phạm khóa ngoại. Surefire chạy lớp theo thứ tự tệp của hệ thống, nên máy khác thứ tự thì không đỏ. Sửa: xóa theo thứ tự con trước cha, đủ mọi bảng trỏ vào `app_user` (`task`, `note`, `sticker`, `connected_account`) và các bảng con của `connected_account` (`conversation`, `sync_checkpoint`), như `AdminApiTests` đã làm. `TasksApiTests` và `StickersApiTests` có cùng điểm yếu (chỉ xóa bảng của mình) nhưng không đỏ ở thứ tự đã chạy; chưa sửa.
+- `StickersDelete` "still deletes when the server is slow" (ST-15): khi hộp xác nhận còn mở, Radix ẩn cả trang khỏi cây truy cập nên câu `waitFor(không còn ảnh 'meo')` đúng ngay từ lần kiểm đầu (đúng vì trang đang bị ẩn, không vì đã xóa), rồi `getByRole('img', 'nhay')` rơi vào lúc trang còn bị ẩn. Máy chậm hơn thì vô tình xanh. Sửa: chờ hộp đóng trước khi kiểm lưới.
+- `useShellData` "leave the other counts": so hai mẫu dữ liệu tạo bằng `new Date()` cách nhau một mili giây (`lastSyncedAt` lệch). Sửa: cố định một thời điểm cho mẫu, như `42f8908` đã làm với `AppShell.test.tsx`.
+
+Hai sai sót của chính phiên kiểm chứng này, ghi lại để khỏi lặp: (1) ảnh mẫu tôi sinh ra lặp lại sau 256 lần nên ~40 ảnh bị `409` và thư viện chỉ đầy 261/300, đúng là lỗi trùng của chính ứng dụng nhưng do dữ liệu thử không duy nhất; (2) ảnh thử "thứ 301" dùng lại một tệp đã lưu nên gặp "trùng" chứ không gặp "đầy". Dữ liệu thử phải mới hoàn toàn mỗi lần chạy.
+
+**Chưa kiểm:** hộp chọn tệp thật của hệ điều hành và kéo thả thật từ Explorer (Playwright đặt tệp thẳng vào ô nhập); màn cảm ứng thật (chỉ giả lập cỡ và cảm ứng); Safari và Firefox; đối chiếu canvas (ST-00 bị bỏ qua theo lệnh người dùng: màn dựng theo Ghi chú và `index.css`, nên khi có khung canvas phải đối chiếu lại); gửi sticker qua Zalo (change sau). Người dùng chưa xem màn.
+
+### 22.11 Review sau nghiệm thu: lần đọc danh sách chạy chéo một thay đổi
+Ở đâu: `features/stickers/useStickers.ts`, hàm `setStickers`. Sau khi tải lên hoặc xóa, web **vá** danh sách trong cache (`setQueryData`) để lưới đổi ngay mà không đọc lại cả danh sách. Bẫy: một lần đọc danh sách có thể đang chạy (mở màn, hay về lại tab với `staleTime` 0), và câu trả lời của nó có thể đã được tính **trước** khi máy chủ ghi thay đổi:
+
+```text
+GET /api/stickers  ----------- máy chủ đọc bảng (chưa có st-new) ------------------> về: [st-dance, st-cat]
+POST /api/stickers   ---> 201 st-new ---> vá cache: [st-new, st-dance, st-cat]          |
+                                                                     ghi đè <-----------+
+kết quả: lưới mất st-new cho tới lần vào sau, dù dòng "Đã thêm" đã hiện
+```
+
+Cách sửa: trước khi vá, `cancelQueries` hủy lần đọc đang chạy (câu trả lời cũ không còn chỗ ghi); nếu chưa có danh sách nào thì không vá được, nên `invalidateQueries` đọc lại, và lần đọc mới có thay đổi. Một bẫy của TanStack Query lộ ra khi làm: với truy vấn **chưa có dữ liệu**, lần đọc mới không hủy lần đọc đầu mà chờ và dùng lại kết quả của nó, nên `invalidateQueries` một mình vẫn để lại danh sách cũ; phải `cancelQueries` trước trong cả hai trường hợp. Test tái hiện đường đua bằng MSW: câu trả lời của lần đọc chậm 60 ms, lần tải lên xong trước nó.
+
+## 23. Bộ sticker (`sticker-packs`)
+
+**Là gì / để làm gì:** sticker của thư viện (mục 22) được xếp thành **bộ** có tên, như các bộ sticker của Zalo; khung chọn sticker trong chat Zalo (change `zalo-send-images`) sẽ chia tab theo bộ. Change: `openspec/changes/sticker-packs`. Người dùng chốt mọi quyết định theo đề xuất (2026-10-20): xóa bộ thì sticker về "Chưa xếp bộ" (DN-1), tối đa 50 bộ, tên không trùng (DN-6).
+
+### 23.1 Dữ liệu: bảng `sticker_pack` và cột `sticker.pack_id` (SP-01)
+**Ở đâu:** migration `V22__sticker_create_sticker_pack.sql`; `sticker/domain/StickerPack`, `Sticker` (trường `packId`); `sticker/infrastructure/StickerPackRepository`. Test: `StickerPackTests`, `StickerPackSchemaTests`.
+
+```text
+app_user 1 ---- n sticker_pack (id, user_id, name)          UNIQUE (id, user_id)
+    |                    ^                                   UNIQUE INDEX (user_id, lower(name))
+    |                    | FOREIGN KEY (pack_id, user_id)
+    +---- n sticker -----+   pack_id NULL = "Chưa xếp bộ"    ON DELETE SET NULL (pack_id)
+```
+
+**Vì sao khóa ngoại trỏ cả `(pack_id, user_id)` (câu gợi ý của task):** một khóa ngoại thường `pack_id -> sticker_pack(id)` chỉ bảo đảm bộ **tồn tại**, không bảo đảm bộ đó là của **cùng chủ** với sticker. Dịch vụ đã kiểm điều đó, nhưng database là lưới cuối cho mọi đường ghi khác. Khi khóa ngoại so cả hai cột thì cặp `(pack_id, user_id)` của sticker phải là một cặp `(id, user_id)` có thật trong `sticker_pack`, tức là bộ của chính chủ sticker. Để trỏ tới một cặp cột, PostgreSQL cần một ràng buộc duy nhất trên đúng cặp đó, nên `sticker_pack` có thêm `UNIQUE (id, user_id)`; `id` đã là khóa chính nên ràng buộc này không chặn thêm gì, nó chỉ cho khóa ngoại một đích. Test `refusesAStickerInThePackOfAnotherOwner` và `refusesMovingAStickerIntoThePackOfAnotherOwner` chèn và sửa thẳng bằng SQL để thấy chính database từ chối.
+
+**`ON DELETE SET NULL (pack_id)`:** xóa bộ thì sticker phải còn, chỉ rời bộ (DN-1). `SET NULL` thường sẽ đặt **mọi** cột của khóa ngoại về `NULL`, tức cả `user_id`, mà `user_id` thì `NOT NULL`: lần xóa sẽ hỏng. Từ PostgreSQL 15 có thể ghi rõ danh sách cột: `SET NULL (pack_id)` chỉ xóa `pack_id` và giữ `user_id`. Khi `pack_id` là `NULL`, khóa ngoại không được kiểm (kiểu so `MATCH SIMPLE` mặc định), nên sticker chưa xếp bộ không cần bộ nào.
+
+**Tên không trùng, không phân biệt hoa thường:** ràng buộc `UNIQUE (user_id, name)` coi `Mèo` và `mèo` là khác nhau. Chỉ mục duy nhất trên **biểu thức** `(user_id, lower(name))` so theo chữ thường, và `lower` của PostgreSQL hiểu chữ có dấu (`MÈO` thành `mèo`). Dịch vụ (SP-02) kiểm trước bằng chính `lower()` của PostgreSQL (mục 23.3), và chỉ mục là nơi chặn thật khi hai yêu cầu tới cùng lúc, như "trùng" của sticker (mục 22.4).
+
+**Đếm ký tự:** tên tối đa 50 **code point**, như `varchar(50)` đếm; `String.length()` của Java đếm đơn vị UTF-16, một emoji ngoài bảng cơ bản là 2. `StickerPack` dùng `codePointCount`, và test có ca 50 emoji (được) và 50 emoji thêm một chữ (bị từ chối).
+
+### 23.2 Kiểm chứng (SP-01)
+- Test viết trước: `test-compile` đỏ vì chưa có `StickerPack`, `StickerPackRepository`, `Sticker.packId`; xanh ngay lần chạy đầu: `StickerPackTests` 13, `StickerPackSchemaTests` 13, các test lược đồ và repository cũ của sticker (36 + 23) không đổi, `ModularityTests` 2/2.
+- `./mvnw -B -ntp verify` toàn bộ (JDK 25, PostgreSQL 18 trong Docker): 2429 test, 0 lỗi, 8 bỏ qua (có từ trước).
+
+### 23.3 `StickerPackService`: tạo, đổi tên, xóa, liệt kê (SP-02)
+**Ở đâu:** `sticker/application/StickerPackService`, `StickerPackSummary`, `StickerProperties` (`maxPacksPerOwner`, cấu hình `sino.stickers.max-packs-per-owner`, mặc định 50); `sticker/infrastructure/StickerPackRepository` (`findNamed`, `deleteOwned`), `StickerRepository.packContents`; `sticker/domain/StickerErrorCode` (`STICKER_PACK_NOT_FOUND`, `STICKER_PACK_NAME_TAKEN`, `STICKER_PACK_LIMIT_REACHED`).
+
+```text
+StickerPackService (mọi hàm nhận ownerId từ web; bộ của người khác = STICKER_PACK_NOT_FOUND)
+  list(owner)              bộ cũ trước, mỗi bộ: số sticker + sticker mới nhất (bìa)
+  get(owner, id)
+  create(owner, name)      tên trùng -> NAME_TAKEN, đủ 50 bộ -> LIMIT_REACHED (maxPacks)
+  rename(owner, id, name)  đổi được hoa thường của chính tên mình; tên của bộ khác -> NAME_TAKEN
+  delete(owner, id)        sticker của bộ ở lại, pack_id về NULL (database lo)
+```
+
+**So tên bằng `lower()` của PostgreSQL, không bằng Java:** lần kiểm trước là `lower(p.name) = lower(:name)` trong JPQL, nên PostgreSQL so theo đúng một cách với chỉ mục `lower(name)`. Bản đầu của SP-01 có hàm Java `nameKey` (`toLowerCase(Locale.ROOT)`) cho việc này; nó đã được bỏ, vì Java và PostgreSQL đổi chữ thường giống nhau ở gần như mọi chữ nhưng không phải mọi chữ (một số ký tự đặc biệt). Hai cách so cho một luật là chỗ để chúng lệch nhau: lần kiểm nói "chưa có", chỉ mục nói "đã có".
+
+**Lỗi trùng chỉ lộ ra lúc ghi:** hai yêu cầu cùng tên tới cùng lúc đều qua lần kiểm, rồi một lần ghi bị chỉ mục từ chối. Như D-339 của sticker: `TransactionTemplate` viết tay, `saveAndFlush` để lỗi bật ra ngay trong giao dịch, bắt `DataIntegrityViolationException` ở ngoài, rồi hỏi lại tên trong một giao dịch mới (giao dịch cũ đã hỏng): có bộ mang tên đó thì là `STICKER_PACK_NAME_TAKEN`, không thì lỗi gốc đi tiếp để một ràng buộc khác không bị gọi nhầm là "trùng tên". Test `twoCreationsOfOneNameAtTheSameMomentKeepOneAndRefuseTheOther` bọc repository bằng một proxy (`Hooks`) và một `CyclicBarrier` giữ cả hai luồng sau lần tìm tên, nên đường đua xảy ra mỗi lần chạy chứ không phải lúc có lúc không.
+
+**Đổi tên chính mình:** "Mèo" thành "mèo" là cùng một bộ, nên `findNamed` trả lại chính nó và phải được bỏ qua (`self`); chỉ mục cũng không chặn vì câu `UPDATE` sửa đúng dòng giữ tên đó.
+
+**Số sticker và bìa tính khi đọc (D-341):** một câu SQL thuần nhóm `sticker` theo `pack_id`: `count(*)` và `(array_agg(id ORDER BY created_at DESC, id DESC))[1]` (lấy phần tử đầu của mảng id đã xếp mới nhất trước). JPQL không có `array_agg`, nên đây là `nativeQuery`; bí danh cột đặt trong ngoặc kép (`AS "packId"`), vì PostgreSQL đổi bí danh không ngoặc thành chữ thường, và phép ánh xạ sang interface `PackContents` (`getPackId()`…) đọc theo đúng tên.
+
+**Xóa bằng một câu `DELETE` có điều kiện chủ:** `deleteOwned` trả số dòng đã xóa; 0 là "không có bộ đó của bạn", nên không cần đọc trước rồi mới xóa. Sticker của bộ không cần dòng code nào: khóa ngoại `SET NULL (pack_id)` của SP-01 lo.
+
+**Bẫy khi thêm một bảng trỏ vào `app_user`:** nhiều test dọn dữ liệu bằng `deleteFromTables(jdbc, "sticker", "app_user")` hay `delete from app_user where email <> 'owner@sino.test'`. Một dòng `sticker_pack` còn sót của lớp test trước sẽ làm lần xóa người dùng vỡ vì khóa ngoại (như `NotesApiTests` ở mục 22.10). Các test của sticker và `NotesApiTests` giờ xóa cả `sticker_pack`.
+
+### 23.4 Kiểm chứng (SP-02)
+- Test viết trước, đỏ vì chưa có dịch vụ, kiểu tóm tắt, mã lỗi, cấu hình; một lỗi biên dịch của chính test (`singleElement()` trả `Object`) sửa ở test. Một lượt đỏ giả do Docker daemon tắt giữa chừng: chạy lại sau khi bật.
+- Xanh: `StickerPackServiceTests` 14, `StickerPropertiesTests` 18 (3 mới), `StickerPackTests` 12 (bỏ ca của `nameKey`), `StickerServiceTests` 37 và `StickerServiceFailuresTests` 4 không đổi, `ModularityTests` 2/2.
+- `./mvnw -B -ntp verify` toàn bộ: 2445 test, 0 lỗi, 8 bỏ qua.
+
+### 23.5 Sticker trong bộ: tải lên vào bộ, đổi tên, chuyển bộ (SP-03)
+**Ở đâu:** `sticker/application/StickerService` (`upload(…, packId, …)`, `change`), `StickerChange`; `sticker/domain/Sticker` (`rename`, `moveTo`; cột `name` giờ sửa được). Test: `StickerInPackTests`.
+
+**Vì sao "chuyển bộ" có kiểu riêng (câu gợi ý của task):** một thay đổi có ba ý khác nhau về bộ: để nguyên, bỏ khỏi mọi bộ, hay chuyển vào bộ X. Một trường `UUID packId` có thể `null` chỉ nói được hai ý: `null` là "để nguyên" hay là "bỏ khỏi bộ"? `StickerChange` có trường `pack` kiểu `PackMove`, một **sealed interface** chỉ có hai bản hiện thực:
+
+```java
+public sealed interface PackMove {
+    record Into(UUID packId) implements PackMove { }   // vào bộ X (packId bắt buộc)
+    record Out() implements PackMove { }                // bỏ khỏi mọi bộ
+}
+// pack == null trong StickerChange: để nguyên
+```
+
+`sealed` nói với trình biên dịch rằng ngoài `Into` và `Out` không có kiểu nào khác, nên một `switch` trên `PackMove` không cần nhánh `default`. Dịch vụ đọc bằng **pattern matching** của `instanceof`: `change.pack() instanceof PackMove.Into into ? into.packId() : null`. Ở API (SP-04), JSON không có `packId` thì `pack` là `null`; `"packId": null` là `Out`; `"packId": "…"` là `Into`.
+
+**Bộ bị xóa đúng giữa lúc kiểm và lúc ghi:** dịch vụ thấy bộ còn, một yêu cầu khác xóa bộ, rồi câu `INSERT` (hay `UPDATE`) của sticker mới tới. Khóa ngoại `(pack_id, user_id)` của SP-01 từ chối, và lỗi đó bật ra lúc `flush`. Như D-339: bắt ở ngoài giao dịch đã hỏng, hỏi lại bộ trong giao dịch mới, không còn thì trả `STICKER_PACK_NOT_FOUND`, còn thì để lỗi gốc đi tiếp. Với tải lên, câu hỏi lại chạy sau câu hỏi "có phải trùng không" (`alreadyKept(…).or(() -> packGone(…))`): `Optional.or` thử lời giải thích thứ hai chỉ khi lời thứ nhất không đúng.
+
+**Bẫy khi viết test cho đường đua này:** test bọc repository của bộ để xóa bộ ngay sau khi dịch vụ tìm thấy nó. Nếu lệnh xóa chạy bằng `JdbcTemplate` trên **cùng luồng**, Spring cho nó tham gia giao dịch đang mở của dịch vụ (cùng một kết nối): khóa ngoại vẫn từ chối, nhưng giao dịch rollback kéo theo cả lệnh xóa, bộ "sống lại", và dịch vụ thấy bộ còn nên ném lỗi gốc. Đó không phải điều thật xảy ra khi một yêu cầu khác xóa bộ. Test cho lệnh xóa chạy trên luồng khác (`CompletableFuture.runAsync(...).join()`): luồng đó không có giao dịch nào, lệnh tự commit ngay, đúng như một yêu cầu khác.
+
+**Tên khi đổi:** theo đúng luật của lần tải lên (`StickerNames.of`): bỏ ký tự điều khiển, cắt khoảng trắng, quá 50 code point thì cắt bớt, trống thì là `Sticker`. Nội dung ảnh (`sha256`, byte) không đổi: một sticker vẫn không bao giờ đổi hình (D-335, cache vĩnh viễn).
+
+### 23.6 Kiểm chứng (SP-03)
+- Test viết trước: đỏ vì chưa có `StickerChange`, `upload` có bộ, `change`; xanh: `StickerInPackTests` 13 (tải vào bộ, không bộ, bộ của người khác và bộ không có không ghi gì, bộ bị xóa giữa chừng khi tải và khi chuyển, chuyển bộ cập nhật số của hai bộ, bỏ khỏi bộ, đổi tên theo luật tải lên giữ hình và bộ, đổi tên và chuyển cùng lúc, sticker của người khác, `StickerChange` rỗng, danh sách có `packId`), `StickerServiceTests` 37 và `StickerServiceFailuresTests` 4 không đổi.
+- `rename` và `moveTo` của `Sticker` ban đầu trả `boolean` theo mẫu của `StickerPack`; không chỗ nào dùng giá trị đó nên đổi thành `void`.
+- `./mvnw -B -ntp verify` toàn bộ: 2458 test, 0 lỗi, 8 bỏ qua.
+
+### 23.7 API của bộ và `PATCH /api/stickers/{id}` (SP-04)
+**Ở đâu:** `sticker/api/StickerPacksController` (`/api/sticker-packs`: `GET`, `GET /{id}`, `POST`, `PATCH /{id}`, `DELETE /{id}`), `StickerPackRequest`, `StickerPackResponse`; `sticker/api/StickersController` (phần `packId` khi tải lên, `PATCH /{id}`), `ChangeStickerRequest`, `StickerResponse` (thêm `packId`); `sticker/domain/StickerPack.isAllowedName`. Test: `StickerPacksApiTests`, `StickersApiTests`.
+
+**Ba ý của `packId` trong một body JSON (câu gợi ý của task):** SP-03 đã có ba ý ở dịch vụ (để nguyên, bỏ khỏi bộ, vào bộ X). JSON cũng phải nói được ba ý đó:
+
+| Body gửi lên | Jackson đọc thành | `PackMove` |
+|---|---|---|
+| `{ "name": "Cún" }` (không có `packId`) | `null` của Java | `null`: để nguyên |
+| `{ "packId": null }` | `NullNode` | `Out`: bỏ khỏi mọi bộ |
+| `{ "packId": "0199…" }` | `StringNode` | `Into(id)`: vào bộ đó |
+
+Nếu `ChangeStickerRequest` có trường `UUID packId`, hai dòng đầu đều thành `null` và không còn phân biệt được. Trường kiểu `JsonNode` (Jackson 3: `tools.jackson.databind.JsonNode`) thì khác: với một trường không có trong body, Jackson hỏi bộ đọc của kiểu đó "giá trị khi vắng mặt" (`getAbsentValue`), và bộ đọc của `JsonNode` trả `null`; với `null` viết rõ trong JSON, nó hỏi "giá trị của null" (`getNullValue`), và bộ đọc của `JsonNode` trả `NullNode`. Vậy `has` ("có gửi") là `packId != null`, còn "bỏ khỏi bộ" là `packId.isNull()`.
+
+**Vì sao chỉ một trường là cây, không phải cả body:** kế hoạch (D-344) nói "đọc JSON thành cây". Đọc cả body thành `JsonNode` thì mất Bean Validation: `{}` hay `packId` sai phải tự kiểm và tự dựng câu trả lời `400 VALIDATION_FAILED` cho giống mọi chỗ khác. Giữ record, chỉ cho `packId` là cây, thì `@Valid` vẫn chạy và `GlobalExceptionHandler` vẫn trả đúng dạng lỗi có `errors`:
+
+```java
+record ChangeStickerRequest(String name, JsonNode packId) {
+    @AssertTrue(message = "give at least one of name, packId")
+    boolean isAnyFieldGiven() { return name != null || packId != null; }
+
+    @AssertTrue(message = "packId must be the ID of a pack, or null for no pack")
+    boolean isPackIdAnIdOrNull() { return packId == null || packId.isNull() || idIn(packId) != null; }
+}
+```
+
+`packId` là số, là object, hay chuỗi không phải UUID đều là `400 VALIDATION_FAILED`. **Bẫy:** `UUID.fromString("1-1-1-1-1")` không báo lỗi mà ra `00000001-0001-0001-0001-000000000001`; nên `idIn` so với mẫu 8-4-4-4-12 chữ số hex trước khi đổi.
+
+**Tên bộ: vì sao không dùng `@NotBlank` và `@Size(max = 50)`:** luật của bộ (SP-01) là "cắt khoảng trắng hai đầu bằng `strip()`, còn 1 đến 50 code point". `@NotBlank` cắt bằng `trim()`, chỉ bỏ ký tự từ U+0020 trở xuống, nên tên chỉ có dấu cách chữ Hán `U+3000` lọt qua; `@Size` đếm đơn vị UTF-16 trên chuỗi chưa cắt, nên 50 emoji (100 đơn vị) bị chặn oan. Tên lọt qua kiểm tra mà miền từ chối thì `StickerPack.create` ném `IllegalArgumentException`, thành `500`. Cách làm: miền có một hàm công khai `StickerPack.isAllowedName(String)`, `checkedName` dùng chính nó, và `StickerPackRequest` hỏi nó trong một `@AssertTrue`. Một luật, một chỗ viết; API trả `400` đúng với mọi tên mà miền không nhận. Ký tự NUL thì bị `@Pattern(regexp = "[^\\x00]*")` chặn như ghi chú (BE-71), vì PostgreSQL không lưu được U+0000 trong `varchar`. Tên sticker không cần chặn NUL: `StickerNames` bỏ mọi ký tự điều khiển.
+
+**`packId` trong `multipart`:** là một phần chữ, đọc bằng `@RequestParam(name = "packId", required = false) UUID packId`. Spring đổi chữ thành `UUID`: chữ rỗng thành `null` (không bộ, tiện cho một form luôn gửi phần này), chữ không phải UUID thành `MethodArgumentTypeMismatchException`, và `GlobalExceptionHandler` trả `400 MALFORMED_REQUEST` như với một ID sai trên đường dẫn.
+
+**Chia sẻ ngữ cảnh Spring giữa hai lớp test:** `StickerPacksApiTests` và `StickersApiTests` có đúng cùng `@TestPropertySource` (thêm `max-packs-per-owner=2` vào cả hai), nên Spring dựng ứng dụng một lần và lớp sau dùng lại từ cache ngữ cảnh: lớp đầu mất khoảng 18 giây (dựng ứng dụng), lớp sau khoảng 1,5 giây. Khác một thuộc tính là một ứng dụng nữa, thêm một lần dựng. Vì hai lớp dùng chung cơ sở dữ liệu, mỗi `@BeforeEach` xóa cả `sticker_pack` trước khi xóa người dùng lạ, nếu không khóa ngoại của bộ chặn lệnh xóa người dùng.
+
+### 23.8 Kiểm chứng (SP-04)
+- Test viết trước: đỏ 46 ca (chưa có `/api/sticker-packs`, chưa có `PATCH`, chưa có `packId` trong câu trả lời); xanh: `StickerPacksApiTests` 30, `StickersApiTests` 49 (thêm 17), `StickerPackTests` thêm 1 (`isAllowedName`), `ModularityTests` 2/2.
+- Hai lớp API dùng chung một ứng dụng nhờ cùng `@TestPropertySource`: lớp đầu khoảng 18 giây, lớp sau khoảng 1,5 giây.
+- `./mvnw -B -ntp verify` toàn bộ: 2506 test, 0 lỗi, 8 bỏ qua.
+
+### 23.9 Web: lớp dữ liệu của bộ (SP-05)
+**Ở đâu** (tính từ `apps/sino-web/src/`): `features/stickers/stickers.types.ts` (`StickerItem.packId`, `StickerPack`, `StickerChange`), `stickers.api.ts` (`fetchPacks`, `createPack`, `renamePack`, `deletePack`, `changeSticker`, `uploadSticker(file, name, packId)`), `stickersCache.ts` (khóa của hai cache và các hàm vá), `useStickers.ts` (thêm `useChangeSticker`), `usePacks.ts` (`usePacks`, `useCreatePack`, `useRenamePack`, `useDeletePack`); `test/fixtures/stickersApi.ts` (`pack()`, `API_PACKS`, `PACKED_STICKERS`). Test: `stickers.api.test.ts`, `useStickers.test.tsx`, `usePacks.test.tsx`.
+
+**Hai cache phụ thuộc nhau:** TanStack Query giữ danh sách sticker (khóa `['stickers']`) và danh sách bộ (khóa `['sticker-packs']`). Danh sách bộ có `stickerCount` và `coverStickerId`, là những thứ suy ra từ danh sách sticker. Vì vậy một thay đổi trên sticker cũng làm danh sách bộ cũ đi. Câu gợi ý của task hỏi chiều ngược lại: xóa một bộ thì danh sách sticker cũng đổi, vì các sticker của bộ đó giờ có `packId: null`. Bảng sau là mỗi thay đổi vá cache nào:
+
+| Thay đổi | Danh sách sticker | Danh sách bộ |
+|---|---|---|
+| Tải lên (có hay không có bộ) | thêm vào đầu | đếm lại |
+| Xóa sticker, hay máy chủ nói sticker đã mất | bỏ ra | đếm lại |
+| Đổi tên, chuyển bộ, bỏ khỏi bộ | thay bằng bản máy chủ trả về | đếm lại |
+| Tạo bộ | không đổi | thêm vào cuối (bộ mới nhất) |
+| Đổi tên bộ | không đổi | thay bằng bản máy chủ trả về |
+| Xóa bộ, hay máy chủ nói bộ đã mất (`STICKER_PACK_NOT_FOUND`) | `packId` của bộ đó về `null` | bỏ bộ ra |
+
+**Vì sao "đếm lại" mà không cộng một, trừ một:** cách cộng trừ phải đúng ở từng chỗ (tải lên một sticker mà danh sách đã có, chuyển từ bộ A sang B, xóa sticker đang làm ảnh bìa thì ảnh bìa là sticker nào?), và một chỗ sai thì số lệch mãi tới lần đọc sau. Đếm lại dùng một luật cho mọi thay đổi, đúng như máy chủ tính: số sticker có `packId` của bộ, ảnh bìa là sticker đầu tiên của bộ trong danh sách (danh sách sticker luôn mới nhất trước, như `ORDER BY created_at DESC` ở máy chủ). Thư viện có tối đa 300 sticker nên đếm lại mỗi lần là rẻ. Khi chưa có danh sách sticker để đếm, danh sách bộ được đánh dấu cũ (`invalidateQueries`) và đọc lại khi một màn cần nó.
+
+**Một hàm vá cho cả hai cache:** `setStickers` của ST-11 (hủy lần đọc đang chạy, chưa có danh sách thì đọc lại, có thì vá) giờ là `setList<T>` trong `stickersCache.ts`, một hàm **generic**: `T` là kiểu phần tử của danh sách, nên cùng một thân hàm dùng được cho `StickerItem[]` và `StickerPack[]`, và TypeScript vẫn kiểm đúng kiểu ở mỗi chỗ gọi. Nó nằm ở tệp riêng vì cả `useStickers.ts` và `usePacks.ts` đều cần (xóa bộ vá danh sách sticker, chuyển sticker vá danh sách bộ); đặt trong một trong hai tệp thì hai tệp nhập lẫn nhau. `useStickers.ts` vẫn xuất lại `STICKERS_QUERY_KEY` để chỗ cũ không phải sửa.
+
+**`onError` trả về một promise:** TanStack Query chờ promise mà `onSuccess` hay `onError` trả về rồi mới cho `mutateAsync` xong. Nhờ vậy, khi người gọi nhận lỗi `STICKER_PACK_NOT_FOUND`, cache đã bỏ bộ đó rồi. `useDeleteSticker` cũ gọi `remove(id)` mà không `return`. Lúc trước nó vẫn kịp vì việc vá ngắn; giờ việc vá có thêm bước đếm lại, nên đã thêm `return`.
+
+**Ba ý của `packId` đi qua JSON:** `changeSticker(id, change)` gửi nguyên `change` làm body. `JSON.stringify` bỏ trường có giá trị `undefined` và giữ trường `null`: `{ name: 'Cún' }` không có `packId` (máy chủ để nguyên bộ), `{ packId: null }` có `"packId": null` (bỏ khỏi bộ). Đây đúng là ba ý mà mục 23.7 đọc ở máy chủ. Khi tải lên, phần `packId` của form chỉ được thêm khi có bộ; không có phần đó là "Chưa xếp bộ".
+
+### 23.10 Kiểm chứng (SP-05)
+- Test viết trước, đỏ vì chưa có hàm và module mới; xanh: `stickers.api.test.ts` 16 (thêm 7), `useStickers.test.tsx` 25 (thêm 12: tải vào bộ, bộ đã mất khi tải và khi chuyển, xóa sticker làm đổi ảnh bìa, chuyển, bỏ khỏi bộ, đổi tên, sticker đã mất, lỗi khác không đổi gì, không tự dựng danh sách bộ, đánh dấu cũ khi không có sticker để đếm, hai ca lần đọc chạy chéo), `usePacks.test.tsx` 14 (đọc, thử lại, tạo, đổi tên, xóa, lỗi, bộ đã mất, ba ca lần đọc chạy chéo).
+- `pnpm lint` (2 cảnh báo cũ ở `features/public`, không phải tệp của task này), `tsc -b`, `pnpm test` 110 tệp, 1128 test, `pnpm build`: đều qua.
+- Không chạy Chrome thật: task này không đổi màn nào (lớp dữ liệu chưa được màn nào dùng; màn theo bộ là SP-06).
+
+### 23.11 Web: màn Sticker theo bộ (SP-06)
+**Ở đâu** (tính từ `apps/sino-web/src/features/stickers/`): `StickersPage.tsx` (gom phần, hộp thoại, tiêu điểm), `groupByPack.ts` (chia sticker theo bộ), `PackSection.tsx` (một phần, nút "Tạo bộ", nút đổi tên và xóa bộ), `PackDialogs.tsx` (hộp "Tạo bộ sticker", "Đổi tên bộ", "Xóa bộ …?"), `MoveStickerMenu.tsx` (menu "Chuyển tới"), `StickerCard.tsx` (thêm nút chuyển và câu lỗi của lần chuyển), `format.ts` (`isPackName`, `packErrorMessage`, `moveErrorMessage`). Test: `StickersPacks.test.tsx`, `groupByPack.test.ts`, `format.test.ts`.
+
+**Màn trông ra sao:** canvas không có khung cho màn này (DN-7 = A), nên màn dựng bằng những phần sẵn có của chính màn Sticker: hộp thoại, lưới, nút.
+
+```text
+Sticker  3 STICKER                            [Tạo bộ] [Tải lên]
+Mèo  1 STICKER                                     (sửa) (xóa)
+  [meo]
+Chó  0 STICKER                                     (sửa) (xóa)
+  Bộ này đang trống.
+Chưa xếp bộ  2 STICKER
+  [nhay] [dong]           mỗi ô: (chuyển bộ) (xóa) trên ảnh
+```
+
+**Chia phần là một hàm thuần:** `groupByPack(stickers, packs)` không đọc gì ngoài hai đối số và không đổi gì, nên test được không cần dựng màn. Nó cũng là chỗ sẽ được kiểm bằng lỗi gài (mutation) ở task cuối, theo quy ước của repo. Luật: mỗi bộ một phần, theo thứ tự của danh sách bộ, kể cả bộ trống. "Chưa xếp bộ" đứng cuối và chỉ hiện khi có sticker. Sticker giữ thứ tự của danh sách (mới nhất trước). Một sticker có `packId` mà danh sách bộ không có (bộ vừa tạo ở thẻ khác) được xếp vào "Chưa xếp bộ", để không sticker nào bị khuất.
+
+**Màn cần cả hai danh sách:** chỉ khi có cả sticker và bộ mới vẽ được lưới. Thiếu một trong hai thì hiện khung đang tải, hoặc báo lỗi nếu lần đọc hỏng. "Thử lại" chỉ đọc lại danh sách còn thiếu: danh sách đã có thì để yên.
+
+**Tiêu điểm bàn phím sau mỗi thao tác** (câu gợi ý của task):
+- Xóa một bộ: tiêu điểm về nút xóa của bộ kế bên (hết bộ sau thì bộ trước); không còn bộ nào thì về "Tạo bộ". Đây là cách ST-15 làm với sticker.
+- Có hai nút "Tạo bộ" trong DOM (đầu trang điện thoại và đầu trang máy tính), và CSS chỉ hiện một. `visibleOf` hỏi `element.checkVisibility()` của trình duyệt để chọn nút đang hiện. jsdom không có hàm này, nên khi chạy test nó lấy nút đầu tiên.
+- Chuyển một sticker: ô của nó rời phần cũ và hiện ở phần mới. Với React đó là **một phần tử mới**: `key` chỉ có nghĩa trong cùng một cha, nên đổi cha thì React gỡ ô cũ và gắn ô mới, và tiêu điểm trên nút cũ mất theo. Màn giữ một "lời nhờ" `{ id, packId }`: ô có đúng `id` và đúng `packId` mới thì lấy tiêu điểm khi gắn vào (`useEffect`), rồi báo lại để xóa lời nhờ. **Vì sao phải có `packId`:** lời nhờ được ghi ngay khi máy chủ trả lời, còn cache báo cho màn sau một nhịp (TanStack Query gom các thông báo rồi mới gửi). Chỉ so `id` thì ô cũ, vẫn còn ở phần cũ, có thể nhận lời nhờ trước rồi mất ngay sau đó. So cả `packId` thì chỉ ô ở phần mới khớp.
+
+**Menu "Chuyển tới" là một nhóm radio:** `DropdownMenuRadioGroup` của Radix cho mỗi mục vai trò `menuitemradio` với `aria-checked`, nên trình đọc màn hình đọc được "đang ở bộ nào". Menu mở bằng Enter, Space hay phím mũi tên, Esc đóng và trả tiêu điểm về nút. Chọn đúng chỗ sticker đang ở thì không gửi gì. **Bẫy 1:** khi menu (hay hộp thoại) mở, Radix gắn `aria-hidden` cho phần còn lại của trang. Test tìm theo vai trò phải thêm `hidden: true`, còn kịch bản Playwright phải tìm nút bằng CSS (`[aria-label="…"]`). **Bẫy 2:** các nút trên ảnh chỉ hiện khi rê chuột hay khi có tiêu điểm bên trong ô (`group-focus-within`). Lúc menu mở, tiêu điểm nằm trong menu, tức ngoài ô, nên nút sẽ tắt đi. `has-[[data-state=open]]:opacity-100` giữ chúng hiện khi nút của menu đang ở trạng thái mở.
+
+**Luật tên ở trình duyệt:** `isPackName` đếm `[...name.trim()].length`. Toán tử spread duyệt chuỗi theo code point, nên một emoji đếm là 1 như máy chủ; `name.length` thì đếm đơn vị UTF-16, emoji thành 2. `trim()` của JavaScript và `strip()` của Java bỏ những bộ ký tự hơi khác nhau. Máy chủ vẫn là nơi quyết định: một tên lọt qua trình duyệt mà máy chủ trả `400 VALIDATION_FAILED` vẫn ra đúng câu "Tên bộ có từ 1 đến 50 ký tự."
+
+**Một kiểu TypeScript đáng biết:** `PackDialog` là một union (hộp tên, hoặc hộp xóa). `Omit<PackDialog, 'open'>` **không** phân phối trên union: nó chỉ giữ các khóa chung của hai nhánh, nên mất `count` và `neighborId` của nhánh xóa. `PackDialogRequest` áp `Omit` cho từng nhánh bằng một kiểu điều kiện (`Member extends PackDialog ? Omit<Member, …> : never`), vì kiểu điều kiện trên một tham số kiểu thì phân phối trên từng nhánh của union.
+
+### 23.12 Kiểm chứng (SP-06)
+- Test viết trước, đỏ 41 ca (chưa có phần theo bộ, chưa có module); xanh: `StickersPacks.test.tsx` 28, `groupByPack.test.ts` 4, `format.test.ts` thêm 13. Test cũ của màn (`StickersPage`, `StickersDelete`, `StickersDrop`) và của `AppShell` thêm câu trả lời "chưa có bộ nào" cho `GET /api/sticker-packs`. Test đếm "2 sticker" giờ thấy 3 chỗ, vì phần "Chưa xếp bộ" cũng đếm.
+- `pnpm lint` (2 cảnh báo cũ ở `features/public`), `tsc -b`, `pnpm test` 112 tệp, 1173 test, `pnpm build`: đều qua. Lượt đầu của toàn bộ test có 4 ca đỏ ở `AppShell.test.tsx`: test cũ mở `/stickers` mà không trả lời danh sách bộ. Đã sửa test.
+- Chrome thật (Chromium do Playwright lái; backend thật trên PostgreSQL 18, V22; Vite), 28/28 kiểm tra:
+  - 1440 sáng: tải 3 ảnh, một phần "Chưa xếp bộ"; tạo "Mèo" (gõ có khoảng trắng hai đầu) thì ra phần trống và tiêu điểm về "Tạo bộ"; "mèo" ra câu tên trùng, tên trống ra câu luật, không còn `pointer-events` sót trên `body`.
+  - Chuột: nút của ô ẩn (độ mờ 0), hiện khi rê chuột, vẫn hiện khi menu mở. Menu "Mèo, Chó, Chưa xếp bộ", mục đang chọn được đánh dấu; chuyển `meo` thì tiêu điểm theo sang ô mới.
+  - Bàn phím: Enter, mũi tên xuống, Enter chuyển `nhay` sang "Chó", tiêu điểm theo. Máy chủ đếm `[["Mèo",1],["Chó",1]]` khớp màn.
+  - Đổi tên "Chó" thành "Chó con", tiêu điểm ở nút đổi tên. Xóa "Mèo": hộp nói "1 sticker của bộ sẽ về “Chưa xếp bộ”; không sticker nào bị xóa.", `meo` về "Chưa xếp bộ", tiêu điểm sang "Xóa bộ Chó con". `scrollWidth` 1440.
+  - 390 cảm ứng: `scrollWidth` 390, hai cột; nút "Tạo bộ", "Tải lên", đổi tên, xóa bộ, chuyển, xóa sticker đều 44 × 44 và luôn hiện; tạo bộ "Gà" từ đầu trang điện thoại rồi chạm chuyển `dong` vào "Gà".
+  - Lỗi trong console chỉ có hai lỗi đã biết trước: `401` của `/api/auth/me` trước khi đăng nhập và `409` của ca tên trùng cố ý.
+- Lỗi của kịch bản, không phải của màn: kịch bản nhấn mũi tên xuống khi Radix chưa kịp đặt tiêu điểm vào mục đầu (Radix làm việc đó một khung hình sau khi menu hiện), nên mục đầu được chọn. Đã cho kịch bản chờ tiêu điểm nằm trên một `menuitemradio`; người thật không bấm nhanh hơn một khung hình.
+
+### 23.13 Web: xuất ảnh đã chỉnh và quyết ảnh nào được cắt (SP-07)
+**Ở đâu** (tính từ `apps/sino-web/src/`): `features/stickers/editor/exportSticker.ts` (`exportSticker`, `outputSize`), `features/stickers/editor/editable.ts` (`inspectPicture`); `test/fakeCanvas.ts` (canvas giả cho test); `package.json` (`react-easy-crop` 6.2.4, MIT). `vite.config.ts` cho test đọc thư mục tệp mẫu của máy chủ. Test: `editor/exportSticker.test.ts`, `editor/editable.test.ts`.
+
+**`react-easy-crop` cho gì:** khi người dùng kéo, phóng to hay xoay, thư viện báo `croppedAreaPixels`: vùng cắt tính bằng điểm ảnh của **ảnh đã xoay** (ảnh 200 × 100 xoay 90° thành 100 × 200, và vùng cắt nằm trong khung 100 × 200 đó). Thư viện không xuất ảnh; việc đó là của `exportSticker`. SP-07 mới chỉ thêm thư viện và kiểu `Area`; khung cắt trên màn là SP-09.
+
+**Xoay 90° thì canvas phải rộng bao nhiêu** (câu gợi ý của task): ảnh xoay một phần tư thì đổi rộng và cao, nên hộp của ảnh đã xoay là `cao × rộng`. `exportSticker` không vẽ cả ảnh đã xoay lên một canvas lớn rồi mới cắt; nó vẽ một lần lên canvas đúng cỡ PNG, bằng một chuỗi biến đổi. Các lệnh `scale`, `translate`, `rotate` của canvas nhân dồn vào một ma trận, nên một điểm của ảnh đi qua chúng **từ lệnh cuối lên lệnh đầu**:
+
+```text
+lệnh viết ra (trên xuống)            điểm của ảnh đi qua (dưới lên)
+scale(cỡ PNG / cỡ vùng)              5. thu về cỡ PNG
+translate(-vùng.x, -vùng.y)          4. góc vùng cắt về góc canvas
+translate(hộpRộng/2, hộpCao/2)       3. đặt vào hộp của ảnh đã xoay
+rotate(góc)                          2. xoay quanh gốc (chiều kim đồng hồ)
+translate(-rộng/2, -cao/2)           1. tâm ảnh về gốc
+drawImage(ảnh, 0, 0, rộng, cao)
+```
+
+Vẽ một lần lên canvas nhỏ thì ảnh chụp 4000 × 3000 không cần một canvas 48 MB thứ hai. Canvas của trình duyệt xoay theo chiều kim đồng hồ (trục y hướng xuống), cùng chiều với `rotate` của CSS mà `react-easy-crop` dùng. Vì vậy góc trên bên trái của ảnh xoay 90° về góc trên bên phải.
+
+**Cỡ ra và trọng lượng (D-345):** cạnh dài nhất thu về 512 khi dài hơn, không bao giờ phóng to (vùng 300 × 300 ra đúng 300 × 300), mỗi cạnh ít nhất 1 điểm ảnh. PNG ra mà vẫn nặng hơn 1 MB thì vẽ lại nhỏ hơn 0,8 lần, tới khi không quá 1 MB. Bằng đúng 1 MB thì nhận, như máy chủ: máy chủ chỉ từ chối khi *lớn hơn*. Ảnh thật hiếm khi tới đó, vì 512 × 512 điểm ảnh, 4 byte mỗi điểm, chưa nén đã là đúng 1 MiB.
+
+**Test hình học không cần trình duyệt:** jsdom không có canvas vẽ được. `FakeCanvas` giữ ma trận biến đổi như canvas thật và ghi lại mỗi lần `drawImage`; `landsAt(drawing, x, y)` nói điểm `(x, y)` của ảnh rơi vào đâu trên canvas. Test hỏi "góc nào của ảnh thành góc nào của PNG", chứ không chép lại chuỗi lệnh, nên đổi cách vẽ mà kết quả vẫn đúng thì test vẫn xanh. `toBlob` giả trả một blob nặng `bytesFor(rộng, cao)` byte, để giả một PNG quá 1 MB. **Bẫy:** quay 180° có thể cho `-0`, và `toEqual` coi `-0` khác `0`; test làm tròn rồi cộng `0` để `-0` thành `0`.
+
+**Ảnh nào được cắt (D-346):** `inspectPicture(file)` đọc vài byte đầu của tệp, như máy chủ đọc, không tin tên tệp hay loại trình duyệt khai:
+
+| Byte đầu | Loại | Bước chỉnh |
+|---|---|---|
+| `89 50 4E 47 …` | PNG; có `acTL` trước `IDAT` đầu tiên là PNG động | cắt; PNG động thì lưu nguyên |
+| `FF D8 FF` | JPEG (máy chủ không nhận: luôn gửi dạng PNG đã xuất) | cắt |
+| `GIF87a`, `GIF89a` | GIF, mọi GIF (đếm khung chỉ để quyết thì không đáng) | lưu nguyên |
+| `RIFF …. WEBP`, chunk đầu `VP8X` có cờ `0x02` | WebP động | lưu nguyên |
+| `RIFF …. WEBP`, khác | WebP tĩnh | cắt |
+| khác (PDF, SVG, tệp rỗng) | không phải ảnh dùng được | `null` |
+
+**PNG động là chỗ khác kế hoạch:** D-346 chỉ nói GIF và WebP động. Nhưng máy chủ gọi PNG có `acTL` là `ANIMATED`, và cắt qua canvas thì chỉ còn khung đầu, nên PNG động cũng được lưu nguyên (đã ghi ở D-346 và spec). Để biết PNG có động không, trình duyệt đi qua các chunk: mỗi chunk chỉ đọc 8 byte đầu (độ dài và tên) bằng `Blob.slice`, rồi nhảy qua phần dữ liệu. Nhờ vậy một chunk màu 70 KB đứng trước `acTL` không phải đọc hết. **Bẫy với `>>> 0`:** độ dài 4 byte ghép bằng `<<` của JavaScript là số nguyên 32 bit **có dấu**; `>>> 0` đổi nó về số không dấu.
+
+**Đọc tệp mẫu thật trong test:** test của web đọc chính bốn tệp WebP mà test của máy chủ dùng (`apps/sino-api/src/test/resources/sticker`), không giữ bản sao. Vite chặn tệp ngoài thư mục dự án, nên `vite.config.ts` thêm đúng thư mục đó vào `server.fs.allow`, và test nạp mỗi tệp bằng `?inline` (Vite trả một địa chỉ `data:` base64). Không dùng `node:fs`, vì muốn vậy phải cho cả chương trình TypeScript của ứng dụng kiểu của Node, và code ứng dụng sẽ dùng nhầm API của Node mà không bị báo lỗi kiểu. Cũng không dùng `new URL(…, import.meta.url)` với tên tệp ghép: Vite biến dạng đó thành một lần nạp cả thư mục.
+
+### 23.14 Kiểm chứng (SP-07)
+- Test viết trước, đỏ vì chưa có `editor/exportSticker` và `editor/editable`; xanh: `exportSticker.test.ts` 15 (cỡ ra, không phóng to, 2000 × 1000 thành 512 × 512 lấy phần giữa, xoay 90°, 180°, 270°, vùng trong ảnh đã xoay, thu 512 rồi 410 khi quá 1 MB, đúng 1 MB thì nhận, quá nhỏ mà vẫn nặng thì lỗi, trình duyệt không cho PNG thì lỗi) và `editable.test.ts` 16 (PNG, PNG động sau chunk 70 KB, JPEG, GIF một khung, bốn tệp WebP thật, GIF đặt tên `.png`, năm thứ không phải ảnh).
+- Sửa trước khi xanh: `-0` sau khi xoay (làm tròn rồi cộng 0); `tsc -b` báo thiếu kiểu Node cho `node:fs` (đổi sang `?inline` + `server.fs.allow`), tham số trong constructor bị `erasableSyntaxOnly` cấm (đổi sang trường gán trong constructor), nguồn ảnh giả không phải `CanvasImageSource` (ép kiểu trong test).
+- `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` 114 tệp, 1204 test, `pnpm build`: đều qua.
+- Chromium thật, nạp đúng hai module qua Vite (không qua màn nào):
+  - Ảnh 2000 × 1000 bốn màu, cắt hình vuông giữa ra PNG 512 × 512 đúng bốn màu ở bốn góc; vùng 300 × 300 ra 300 × 300.
+  - Xoay 90° ra 256 × 512 với bốn góc xanh dương, đỏ, vàng, xanh lá (đúng chiều kim đồng hồ); xoay 180° đảo cả bốn góc.
+  - Ảnh nhiễu 512 × 512 có alpha ngẫu nhiên: lần đầu 1.053.146 B (quá 1 MB), lần hai 410 × 410, 660.572 B.
+  - `inspectPicture` trên tệp mẫu thật: `meo.png`, `anh.jpg`, WebP tĩnh thì cắt; `nhay.gif`, `animated.webp` thì lưu nguyên; `gia.png` (chữ đổi đuôi) thì `null`.
+
+### 23.15 Web: bước "Thêm sticker" (SP-08)
+**Ở đâu** (tính từ `apps/sino-web/src/features/stickers/`):
+- `editor/useBatch.ts`: các ảnh của một lượt.
+- `editor/AddStickers.tsx`: bước "Thêm sticker".
+- `editor/BatchList.tsx`: danh sách ảnh của lượt.
+- `editor/BatchRefusals.tsx`: tệp bị từ chối và lý do.
+- `editor/fileToSend.ts`: tệp nào được gửi lên cho mỗi ảnh.
+- `format.ts` (`batchRefusal`, `PICTURE_UNREADABLE`); `StickersPage.tsx`, `UploadButton.tsx`, `DropZone.tsx`, `StickerStates.tsx` (đường vào và câu chữ).
+- Test: `editor/AddStickers.test.tsx`, `editor/useBatch.test.tsx`, `editor/fileToSend.test.ts`. Bản giả cho test: `src/test/objectUrls.ts`, `src/test/pictureDecoding.ts`.
+
+**Luồng mới:** trước đây chọn hay thả tệp là gửi ngay. Giờ chọn hay thả mở bước "Thêm sticker", và không gì được gửi trước khi bấm "Lưu":
+
+```text
+chọn / thả tệp ─► inspectPicture (đọc byte đầu) ─► batchRefusal
+                                                   ├─ không dùng được ─► "tệp: lý do" (ngay, không gửi)
+                                                   └─ dùng được ──────► vào lượt (URL xem trước)
+"Lưu N sticker" ─► fileToSend mỗi ảnh ─► hàng đợi tải lên sẵn có (từng tệp một)
+                     ├─ ảnh động: chính tệp gốc
+                     └─ ảnh tĩnh: PNG của hình vuông lớn nhất ở giữa (khung mặc định)
+```
+
+**Chặn tại chỗ:** tệp không phải PNG, JPEG, GIF hay WebP thì bị từ chối, như mọi tệp rỗng. Ảnh động nặng hơn 1 MB cũng bị từ chối, vì nó được gửi nguyên. Ảnh tĩnh thì nặng bao nhiêu cũng nhận, vì khi lưu nó được xuất lại nhỏ hơn (mục 23.13). Lý do nói kèm tên tệp. Nếu cả lần chọn đều bị từ chối, bước không mở, và câu báo hiện ngay trên màn.
+
+**URL xem trước phải thu hồi lúc nào** (câu gợi ý của task): `URL.createObjectURL(file)` cho một địa chỉ `blob:` để `<img>` hiện được tệp. Địa chỉ đó **giữ tệp trong bộ nhớ** cho tới khi gọi `URL.revokeObjectURL`, kể cả khi không còn ai dùng: một lượt hai mươi ảnh chụp là hàng chục MB. `useBatch` thu hồi ở ba chỗ: khi một ảnh rời lượt (bỏ ra, hay đã gửi đi), khi bước đóng, và khi màn bị gỡ đi lúc bước vẫn mở (hàm dọn dẹp của `useEffect`). Địa chỉ được tạo trong hàm xử lý sự kiện, không trong lúc render, vì render có thể chạy nhiều lần.
+
+**Mỗi ảnh có `id` riêng của lượt** (để SP-09 lưu phần chỉnh theo `id`). Danh sách ảnh và ảnh đang chọn nằm trong **một** state, vì bỏ một ảnh đang chọn thì phải chuyển chọn sang ảnh kế bên, và hai thứ phải đổi cùng lúc. Ban đầu tôi gọi `setSelectedId` bên trong hàm cập nhật của `setItems`. Test vẫn xanh, nhưng làm vậy là sai: hàm cập nhật phải thuần, và React có thể gọi nó hai lần.
+
+**Hộp thoại trên máy tính, "trang riêng" trên điện thoại:** cùng một hộp thoại Radix. Dưới 768 px các lớp `max-md:` cho nó phủ kín màn (`top-0 left-0 h-dvh`, không bo góc), nên trông như một trang riêng. Nhờ vẫn là hộp thoại, tiêu điểm vẫn bị giữ trong bước và Esc vẫn đóng được. Một trang có đường dẫn riêng (`/stickers/add`) thì phải chuyển các tệp đang giữ trong bộ nhớ qua lần đổi trang.
+
+**Tiêu điểm khi đóng: một lỗi chỉ Chrome thật mới thấy.** Radix trả tiêu điểm về phần tử đang có tiêu điểm lúc hộp thoại mở. Nhưng bước này mở *sau khi* hộp chọn tệp của hệ điều hành đóng lại, lúc đó tiêu điểm đã không còn trên nút "Tải lên", nên Esc trả tiêu điểm về `body`. jsdom không có hộp chọn tệp nên test cũ không thấy. Cách sửa giống các hộp thoại khác của màn: `UploadButton` đưa chính nó ra khi được bấm, màn ghi nhớ nút đó, và `onCloseAutoFocus` của bước đặt tiêu điểm lại vào nó. Sau một lần thả tệp (không có nút nào mở bước), tiêu điểm về nút "Tải lên" đang hiện. Test mới tái hiện lỗi bằng cách bỏ tiêu điểm khỏi nút trước khi bước mở.
+
+**Hai bẫy của sự kiện:**
+1. **Sự kiện của portal vẫn nổi lên theo cây React.** Hộp thoại được Radix vẽ ở cuối `body` (portal), nhưng sự kiện React của nó vẫn nổi lên các component cha trong cây React. Lúc đầu bước nằm trong `DropZone`, nên thả tệp vào bước thì `DropZone` cũng nhận, và tệp vào lượt hai lần. Cách sửa: đưa bước ra ngoài `DropZone`, và gọi `stopPropagation()` khi bước đã nhận cú thả.
+2. **Thả trúng nền mờ quanh hộp thoại** thì trình duyệt mở tệp trong thẻ và mất cả lượt. Vì vậy, lúc bước mở, `window` chặn mặc định (`preventDefault`) của `dragover` và `drop` với các cú kéo có tệp.
+
+**"Lưu" tạm thời, cho tới SP-10:** bước này nối "Lưu" vào hàng đợi tải lên sẵn có (D-347), để màn không mất khả năng tải lên giữa các task. Ảnh tĩnh được gửi dưới dạng PNG của khung mặc định, tức hình vuông lớn nhất ở giữa; ảnh động được gửi nguyên. Ảnh mà trình duyệt không giải mã được thì ở lại trong bước, kèm câu báo. Trạng thái từng ảnh ngay trong bước, bộ của lượt và việc hỏi trước khi đóng là SP-10; khung chỉnh bằng tay là SP-09.
+
+**Test không có trình duyệt:** jsdom không có `URL.createObjectURL`, `createImageBitmap` hay canvas vẽ được.
+- `objectUrls.ts` thay `createObjectURL` và `revokeObjectURL` trước mỗi test và ghi lại các địa chỉ còn sống, để test kiểm được câu gợi ý ("không còn URL nào sau khi đóng").
+- `pictureDecoding.ts` cho mỗi ảnh "giải mã" ra một cỡ định trước, canvas không vẽ gì, và PNG chỉ là vài byte.
+- **Bẫy:** trong jsdom, tệp gửi qua `fetch` tới MSW mất tên (`filename="blob"`). Vì vậy test lưu đọc thẳng `FormData` mà `api.upload` nhận, không đọc ở máy chủ giả.
+- **Bẫy:** lúc hộp thoại mở, Radix đặt `pointer-events: none` cho phần ngoài hộp, nên `user.upload` không bấm được vào ô nhập tệp ẩn; test phát thẳng sự kiện `change`. Ở trình duyệt thật, nút "Thêm ảnh" gọi `input.click()` bằng code nên không vướng.
+
+**Định dạng code:** repo không có cấu hình Prettier. Chạy `prettier --write` với cấu hình mặc định sẽ đổi cả tệp sang dấu chấm phẩy và nháy kép, và tôi đã lỡ chạy như vậy một lần. Bộ tùy chọn tạo lại đúng từng ký tự tệp đã commit là `--no-semi --single-quote --trailing-comma all --print-width 180`. Ngay cả với bộ đó, Prettier vẫn giữ một object đã bị tách nhiều dòng (nếu sau `{` có xuống dòng). Vì vậy tệp được dựng lại từ bản HEAD rồi áp lại các thay đổi, không định dạng lại đè lên.
+
+### 23.16 Kiểm chứng (SP-08)
+- **Test viết trước:** đỏ vì chưa có `useBatch`, `fileToSend`, `batchRefusal` và bước "Thêm sticker". Xanh:
+  - `AddStickers.test.tsx` 15: mở với ba ảnh và ảnh đầu được chọn; PDF bị từ chối có tên; chỉ có PDF thì không mở; GIF quá 1 MB bị từ chối còn JPEG 3 MB được nhận; thả tệp lên màn; chọn ảnh; bỏ ảnh làm URL được thu hồi và tiêu điểm sang ảnh kế bên; bỏ ảnh cuối thì tiêu điểm về "Thêm ảnh"; "Thêm ảnh" và thả tệp lên bước đều thêm vào cuối lượt; tiêu điểm về "Tải lên" sau Esc (cả sau một lần thả); "Hủy" thu hồi mọi URL; "Lưu" gửi JPEG thành PNG và GIF nguyên; ảnh không đọc được thì ở lại.
+  - `useBatch.test.tsx` 12, `fileToSend.test.ts` 5, `format.test.ts` thêm 3.
+- **Test cũ sửa theo luồng mới:** 18 test ở `StickersPage.test.tsx` và `StickersDrop.test.tsx` giờ đi qua bước và bấm "Lưu". Tệp PNG mẫu có đủ 8 byte chữ ký. Tệp sai loại giờ là PDF, vì JPEG đã được nhận. Tệp "quá nặng" giờ là một GIF. Câu ở trạng thái trống và chữ ở khung thả đã đổi.
+- **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` 117 tệp, 1239 test, `pnpm build`: đều qua.
+- **Chrome thật** (backend thật, PostgreSQL 18, Vite, Chromium qua Playwright), 26/26 kiểm tra:
+  - 1440 sáng:
+    - Năm tệp chọn một lần: bốn ảnh vào lượt, PDF bị báo kèm tên, chưa có yêu cầu nào, bốn URL xem trước.
+    - Chọn GIF thì hiện câu "lưu nguyên". Bỏ `dong.webp` thì còn ba URL, tiêu điểm sang "Bỏ tinh.webp khỏi lượt". "Thêm ảnh" mở hộp chọn tệp thật và thêm `meo.png` vào cuối.
+    - Tab mười hai lần mà tiêu điểm vẫn ở trong bước.
+    - "Lưu 4 sticker" gửi bốn yêu cầu, không còn URL nào. Ảnh JPEG 2000 × 1000 bốn màu thành PNG 512 × 512 với đúng bốn màu ở bốn góc (phần giữa của ảnh). GIF lưu nguyên, `ANIMATED`. WebP tĩnh thành PNG.
+    - Mở bằng Enter trên "Tải lên" rồi Esc: không gửi gì, không còn URL nào, tiêu điểm về "Tải lên", không còn `pointer-events` sót trên `body`.
+  - 390 cảm ứng: bước phủ đúng 390 × 844, không cuộn ngang, dải ảnh cuộn ngang, nút bỏ ảnh 44 × 44, nút chọn ảnh cao 56, "Thêm ảnh" cao 44, nút "Lưu" nằm trong màn.
+  - Chạy lại hai lần liền đều qua. Một lần hết giờ trước đó là do Vite nạp lại trang giữa chừng, ngay sau khi tôi dựng lại `StickersPage.tsx`.
+
+### 23.17 Web: khung chỉnh của một ảnh (SP-09)
+**Ở đâu** (tính từ `apps/sino-web/src/features/stickers/`):
+- `editor/ImageEditor.tsx`: khung `react-easy-crop`, hoặc ảnh động chạy nguyên.
+- `editor/EditorControls.tsx`: phóng to, xoay 90°, "Vuông"/"Theo ảnh", ô tên.
+- `editor/pictureEdit.ts`: phần chỉnh của một ảnh, khung mặc định.
+- Đổi thêm: `useBatch.ts` (`edit`, `rename`), `fileToSend.ts` (dùng phần chỉnh và tên), `useUploadQueue.ts` (`NamedFile`: tệp kèm tên).
+- Test: `editor/ImageEditor.test.tsx`, `editor/pictureEdit.test.ts`, cùng phần thêm ở `useBatch.test.tsx` và `fileToSend.test.ts`.
+
+**Phần chỉnh lưu theo gì** (câu gợi ý của task): theo `id` của mục trong lượt, không theo vị trí trong danh sách. Nếu lưu theo vị trí, bỏ ảnh thứ nhất thì ảnh thứ hai lùi lên chỗ số 1 và nhận nhầm phần xoay của ảnh đã bỏ. Ở đây phần chỉnh (`PictureEdit`) nằm ngay trên mục: `{ crop, zoom, rotation, shape, area }`. Thao tác nào cũng đi qua `batch.edit(id, …)`. Test của `useBatch` bỏ ảnh A rồi kiểm rằng ảnh B vẫn giữ phần xoay và tên của nó.
+
+**Mỗi ảnh một trình chỉnh** (`key={item.id}`): `react-easy-crop` giữ bên trong cỡ ảnh và cỡ khung đã đo. Dùng chung một trình chỉnh cho mọi ảnh thì khi chuyển ảnh, các số đo cũ còn lại một nhịp. Cho `key` theo ảnh, React gắn một trình chỉnh mới mỗi lần đổi ảnh. Trình chỉnh được điều khiển hoàn toàn từ ngoài (`crop`, `zoom`, `rotation` đều là prop), nên quay lại một ảnh là thấy đúng như lúc rời đi.
+
+**`react-easy-crop` báo vùng cắt thế nào:**
+- Thư viện tự đo và báo `croppedAreaPixels` (vùng tính bằng điểm ảnh của ảnh đã xoay) sau mỗi lần kéo, nhả phím, đổi tỉ lệ, xoay hay phóng to. Trình chỉnh lưu nó vào `area`, và lúc lưu, `fileToSend` cắt đúng vùng đó.
+- Một ảnh chưa từng mở trong trình chỉnh thì chưa có `area`. Khi đó `defaultArea` tính ra đúng vùng mà thư viện sẽ đo lúc đầu: hình vuông lớn nhất ở giữa ảnh đã xoay, hoặc cả ảnh nếu chọn "Theo ảnh".
+- Khi xoay hay đổi hình khung, ảnh được đưa về giữa và `area` xóa về `null`, chờ thư viện đo lại. Đổi hình khung còn đặt lại độ phóng về 1, để ảnh lấp đầy khung mới.
+
+**"Tự do" thành "Theo ảnh" (khác kế hoạch):** khung của `react-easy-crop` có **một tỉ lệ cố định** (`aspect`); người dùng dời và phóng ảnh dưới khung, chứ không kéo giãn được cạnh khung. Vì vậy lựa chọn thứ hai của spec không thể là khung tự do. Nó là khung theo tỉ lệ của ảnh đã xoay: `frameAspect` tính rộng chia cao của ảnh, và đổi chiều khi xoay một phần tư. Tên nút là "Theo ảnh" cho đúng việc nó làm; spec và D-345 đã ghi lại.
+
+**Bàn phím:** vùng khung của thư viện có `tabIndex=0` và nhận phím mũi tên. Trình chỉnh đặt cho nó `role="group"` và tên "Vùng cắt: kéo ảnh, hoặc dùng phím mũi tên để dời ảnh" qua `cropperProps`. Mặc định mỗi lần bấm chỉ dời 1 điểm ảnh của màn, phải bấm hàng trăm lần mới thấy, nên trình chỉnh đặt `keyboardStep={10}` (Shift dời một phần năm). Mọi điều khiển khác là điều khiển thường có tên: thanh trượt "Phóng to" (1 đến 3, đọc là "2,5 lần"), nút "Xoay 90°" kèm dòng trạng thái `aria-live` ("Đã xoay 90°"), nhóm "Hình khung", ô "Tên sticker".
+
+**Ảnh chụp có EXIF:** điện thoại thường lưu ảnh nằm ngang và ghi vào EXIF rằng ảnh phải xoay khi hiện. `<img>` (nên cả trình chỉnh) và `createImageBitmap` (lúc xuất) mặc định đều dựng ảnh theo EXIF. Hai bên cùng một chiều, nên vùng mà người dùng thấy đúng là vùng được cắt. Lượt Chrome thật kiểm điều này bằng một ảnh lưu 400 × 200 có EXIF Orientation 6.
+
+**Tên đi lên máy chủ:** mỗi ảnh có ô tên, mặc định là tên tệp bỏ đuôi. Hàng đợi tải lên giờ nhận `{ file, name }` (`NamedFile`) và gửi tên trong phần `name` của form; máy chủ cắt khoảng trắng, giữ 50 ký tự, trống thì lấy tên tệp. Tệp PNG xuất ra cũng mang tên đó (trống thì mang tên tệp gốc), để thông báo "Đã thêm …" đọc được.
+
+### 23.18 Kiểm chứng (SP-09)
+- **Test viết trước:** đỏ vì chưa có `pictureEdit`, `edit`, `rename` và trình chỉnh. Xanh:
+  - `pictureEdit.test.ts` 6, `ImageEditor.test.tsx` 8 (giá trị mặc định; mỗi ảnh giữ phần chỉnh khi chuyển qua lại; đổi hình khung đặt lại độ phóng; bốn lần xoay về lại "Không xoay"; lưu theo khung và chiều xoay kèm tên; mặc định 512 × 512; ảnh động không có khung nhưng có tên, gửi nguyên tệp).
+  - `fileToSend.test.ts` +3, bỏ 1 (hàm `centredSquare` trùng với `defaultArea`); `useBatch.test.tsx` +1.
+  - Một test tôi viết sai thứ tự (phóng to rồi mới đổi hình khung, trong khi đổi hình khung đặt lại độ phóng), đã sửa thứ tự và thêm một test riêng cho việc đặt lại đó.
+- **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` 119 tệp, 1256 test, `pnpm build`: đều qua.
+- **Chrome thật** (backend thật; ảnh mẫu 2000 × 1000 có bốn màu và một ảnh EXIF), 18/18 kiểm tra. PNG đã lưu được đọc lại và soi điểm ảnh:
+  - **Chuột:** kéo ảnh sang trái thì PNG là nửa phải (xanh lá trên, vàng dưới).
+  - **Phím:** mười lần ArrowLeft dời đường ranh đỏ/xanh lá từ 256 về 41 trên 512, đúng như tính (100 điểm ảnh màn, khoảng 420 điểm ảnh ảnh). Vùng khung nhận tiêu điểm.
+  - **Bánh xe chuột:** thanh trượt lên 3, PNG 333 × 333 (không phóng to lên 512), đường ranh vẫn ở giữa.
+  - **Xoay và "Theo ảnh":** khung trên màn 220 × 439, PNG 256 × 512 với góc xanh dương, đỏ, vàng, xanh lá.
+  - **Ảnh EXIF:** ảnh lưu 400 × 200 hiện 200 × 400, PNG 200 × 200 đỏ trên xanh dưới.
+  - Quay lại ảnh đã xoay thấy vẫn "Đã xoay 90°". GIF được lưu nguyên với tên đã gõ ("Nhảy múa").
+  - **390, chạm:** kéo bằng ngón tay (CDP `Input.dispatchTouchEvent`) thì PNG là nửa trái. Không cuộn ngang; nút xoay, thanh trượt và ô tên đều cao 44.
+- **Sai sót của kịch bản, đã sửa:**
+  - Lượt đầu, kéo chuột và bấm phím đều dời khung tới đúng nửa phải, nên hai PNG giống nhau từng byte và máy chủ trả `409` cho tệp thứ hai (thực ra điều đó cũng cho thấy phím đã dời khung). Tôi cho phím dời ngắn hơn và đo vị trí đường ranh.
+  - Một ca kiểm tra bị viết luôn đúng (`|| true`). Tôi thay bằng một ca kiểm thật.
+
+### 23.19 Web: lưu lượt (SP-10)
+**Ở đâu** (tính từ `apps/sino-web/src/features/stickers/`):
+- `editor/useSaveBatch.ts`: tạo bộ mới, rồi gửi từng ảnh.
+- `editor/PackPicker.tsx`: ô chọn "Lưu vào bộ".
+- `editor/AddStickers.tsx`: dòng tiến độ, câu hỏi trước khi đóng.
+- `editor/useBatch.ts`: bộ của lượt, `status` của từng ảnh.
+- `editor/BatchList.tsx`: trạng thái và lý do lỗi dưới mỗi ảnh.
+- `PackSection.tsx`: nút "Thêm ảnh vào bộ …".
+- `StickersPage.tsx`: bộ mặc định của lượt, câu "Đã lưu …".
+- Đã bỏ: `useUploadQueue.ts`, `UploadList.tsx`, `checkStickerFile`, `isRetryableUpload`.
+- Test: `editor/SaveBatch.test.tsx`, cùng các test cũ đã sửa theo luồng mới.
+
+**Thứ tự khi bấm "Lưu N sticker":**
+
+```text
+"Bộ mới…"? ── có ──► POST /api/sticker-packs ──lỗi──► báo ở ô chọn bộ, KHÔNG gửi ảnh nào, lượt giữ nguyên
+     │                        │ được
+     │                        └──► ô chọn bộ chuyển sang bộ vừa tạo (lần "Lưu" sau không tạo lại)
+     ▼
+mỗi ảnh, theo thứ tự danh sách:  đang chờ ─► đang gửi… ─► fileToSend ─► POST /api/stickers (name, packId)
+     ├─ được: rời lượt, vào lưới ngay (cache)
+     ├─ lỗi: ở lại, câu lỗi tiếng Việt dưới ảnh
+     └─ bộ đã bị xóa (404 STICKER_PACK_NOT_FOUND): dừng, báo ở ô chọn bộ, về "Chưa xếp bộ"
+tất cả được ─► đóng bước, màn nói "Đã lưu N sticker vào bộ …"
+```
+
+**Tạo bộ mới lỗi thì có gửi ảnh nào không** (câu gợi ý của task): không. Bộ được tạo *trước* ảnh đầu tiên. Nếu tạo hỏng (trùng tên, đủ 50 bộ, mất mạng) mà vẫn gửi ảnh, ảnh sẽ vào "Chưa xếp bộ" trong khi người dùng muốn vào bộ mới, và họ phải đi chuyển từng ảnh. Vì vậy `useSaveBatch` dừng ngay, nói lý do dưới ô chọn bộ (`packErrorMessage`), và để nguyên lượt. Khi tạo được, ô chọn bộ chuyển sang chính bộ vừa tạo; nếu một ảnh lỗi và người dùng bấm "Lưu" lần nữa, bộ không bị tạo lần thứ hai (lần đó sẽ báo trùng tên).
+
+**Vì sao bỏ hàng đợi cũ (khác D-347):** kế hoạch là dùng lại `useUploadQueue`. Nhưng hàng đợi đó có danh sách trạng thái và nút "Thử lại" của riêng nó, hiện trên màn. Còn lượt giờ có trạng thái của từng ảnh ngay trong bước. Giữ cả hai thì mỗi ảnh có hai trạng thái ở hai nơi và hai cách thử lại. Vòng gửi của lượt chỉ khoảng 40 dòng: một vòng `for … of` với `await`, nên một lúc chỉ gửi một ảnh. Thứ được dùng lại là câu lỗi tiếng Việt (`uploadErrorMessage`). Ảnh lỗi thì ở lại, và lần "Lưu" sau gửi lại nó; không còn nút "Thử lại" riêng. Hai hàm chỉ hàng đợi dùng (`checkStickerFile`, `isRetryableUpload`) đã bỏ cùng test của chúng, vì bước "Thêm sticker" có hàng rào riêng (`batchRefusal`).
+
+**Bộ mặc định của lượt (D-348):** mỗi bộ trên màn có nút "Thêm ảnh vào bộ …"; mở lượt bằng nút đó thì ô chọn bộ bắt đầu ở bộ ấy. Mở bằng "Tải lên" thì bắt đầu ở bộ mà lượt trước của lần mở màn này đã lưu vào, nếu bộ đó còn; không thì "Chưa xếp bộ". Bộ được đặt khi lượt *mở* (`batch.add(files, { pack })`). Thêm ảnh vào một lượt đang mở thì giữ bộ người dùng đã chọn. Một bộ bị xóa ở thẻ khác trong lúc lượt đang mở sẽ không còn trong danh sách bộ: ô chọn bộ hiện, và lượt lưu vào, "Chưa xếp bộ".
+
+**Đóng khi còn ảnh thì hỏi:** "Hủy", nút đóng và Esc đều đi qua `onOpenChange(false)` của Radix. Hàm đó không đóng ngay mà hỏi "Bỏ N ảnh chưa lưu?" trong một hộp thoại thứ hai, có `role="alertdialog"`. Radix cho phép mở hộp thoại lồng trong hộp thoại: tiêu điểm ở trong hộp sau, Esc đóng hộp sau trước. Không còn ảnh nào thì đóng luôn. Đang lưu thì không đóng được.
+
+**Trạng thái cho trình đọc màn hình:** dòng tiến độ ở chân bước có `role="status"` ("Đang lưu ảnh 1 trên 2…", rồi "Đã lưu 2 sticker. 1 ảnh chưa lưu được."). Câu "Đã lưu N sticker vào bộ …" trên màn cũng là `status`, nên trình đọc màn hình đọc lên khi bước đóng. Lý do lỗi của từng ảnh nằm ngay dưới ảnh, *ngoài* nút chọn ảnh, để tên truy cập của nút vẫn chỉ là tên tệp.
+
+**Bẫy khi viết test:** lúc bước còn mở, Radix ẩn cả màn khỏi cây trợ năng. Một hàm như `library()` gọi `getByRole('region', …)` ngay lập tức sẽ hỏng, và `findBy…` không cứu được vì phần tìm vùng chạy trước khi `findBy` bắt đầu chờ. Vì vậy test chờ bước đóng (`waitFor(() => … dialog … not.toBeInTheDocument())`) rồi mới đọc màn, hoặc tìm với `hidden: true`.
+
+### 23.20 Kiểm chứng (SP-10)
+- **Test viết trước:** đỏ vì chưa có `useSaveBatch`, `PackPicker`, bộ và trạng thái của lượt. Xanh: `SaveBatch.test.tsx` 16, gồm các ca:
+  - ô chọn bộ có các bộ, "Chưa xếp bộ" và "Bộ mới…"; mở từ một bộ thì bắt đầu ở bộ đó và lưu vào bộ đó; lượt sau bắt đầu ở bộ vừa dùng;
+  - "Bộ mới…" tạo một lần trước mọi ảnh; tên trùng thì không gửi ảnh nào và lượt giữ nguyên; tên trống bị chặn tại chỗ;
+  - bộ bị xóa giữa chừng thì dừng, báo, và về "Chưa xếp bộ";
+  - lưu theo thứ tự rồi đóng, kèm câu kết quả trên màn; ảnh bị từ chối ở lại với lý do, các ảnh khác vào lưới;
+  - "Đang gửi…" và "Đang chờ" trong lúc lưu; mất mạng thì gửi lại bằng lần "Lưu" sau; không bao giờ gửi hai ảnh cùng lúc;
+  - hỏi trước khi đóng: "Tiếp tục chỉnh" giữ lượt, "Bỏ ảnh" đóng mà không gửi gì; không còn ảnh thì đóng luôn.
+  - lượt sau mở ra không còn câu tiến độ hay lỗi của lượt trước. Ca này viết sau khi rà diff: bước không bị gỡ khi đóng, nên state của `useSaveBatch` còn lại cho lượt sau. `reset()` được gọi mỗi khi bước đóng.
+- **Test cũ:**
+  - Bảy test nhiều tệp ở `StickersDrop.test.tsx` giờ kiểm trạng thái ngay trong bước, thay cho danh sách tiến trình cũ.
+  - Ba test của SP-08 giờ phải xác nhận "Bỏ ảnh" khi đóng.
+  - Test "ẩn thông báo" của danh sách cũ thành test "câu kết quả mất khi chọn ảnh mới".
+  - Bỏ các test của `checkStickerFile` và `isRetryableUpload`.
+  - `useBatch.test.tsx` thêm 2 ca.
+- **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` 120 tệp, 1248 test, `pnpm build`: đều qua. Tổng số test ít hơn SP-09 vì đã bỏ test của phần không còn.
+- **Chrome thật** (backend thật), 17/17 kiểm tra:
+  - 1440:
+    - Tạo bộ "Mèo"; "Thêm ảnh vào bộ Mèo" thì ô chọn bộ bắt đầu ở "Mèo" (các lựa chọn: Mèo, Chưa xếp bộ, Bộ mới…). Hai ảnh vào "Mèo", màn nói "Đã lưu 2 sticker vào bộ Mèo."
+    - Lượt sau mở bằng "Tải lên" bắt đầu ở "Mèo". "Bộ mới…" với tên "mèo" thì chỉ có một yêu cầu `POST /api/sticker-packs` bị `409`, không ảnh nào được gửi.
+    - Với tên "Thú vui": thứ tự yêu cầu là `sticker-packs 201`, `stickers 409` (meo.png đã có), `stickers 201`, `stickers 201`. `meo.png` ở lại với "Sticker này đã có trong thư viện.", dòng tiến độ "Đã lưu 2 sticker. 1 ảnh chưa lưu được.", ô chọn bộ giờ là "Thú vui", và máy chủ có `dong` và `tinh` trong bộ mới.
+    - "Hủy" thì hỏi "Bỏ 1 ảnh chưa lưu?"; "Tiếp tục chỉnh" giữ ảnh; Esc rồi "Bỏ ảnh" đóng bước mà không gửi gì, không còn `pointer-events` sót trên `body`.
+  - 390 cảm ứng: nút "Thêm ảnh vào bộ Thú vui" 44 × 44; ô chọn bộ cao 44; không cuộn ngang; lưu vào "Thú vui" từ điện thoại.
+- **Sai sót khi dựng môi trường:** `pgrep -f SinoApiApplication` khớp với chính dòng lệnh của shell (vốn chứa chữ đó), nên backend không được bật lại sau một lần container khởi động lại; vòng chờ treo cho tới lúc tôi dừng nó. Sửa bằng cách bật backend trực tiếp.

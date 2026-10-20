@@ -26,6 +26,8 @@ export interface NoteItem {
   pinned: boolean
   createdAt: Instant
   updatedAt: Instant
+  /** What the server counts every saved change with; a save carries the one it read, and an older one is refused (D-172). */
+  version: number
   /** What the note is tied to; null for a standalone note. */
   anchor: NoteAnchor | null
   /** A passage of the message it is tied to, read only. */

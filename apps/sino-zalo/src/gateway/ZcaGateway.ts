@@ -3,6 +3,7 @@ import {
   type Credentials,
   LoginQRCallbackEventType,
   type Message,
+  type StickerDetail,
   ThreadType as ZcaThreadType,
   Zalo,
   ZaloApiError,
@@ -16,9 +17,11 @@ import {
   type ZaloConnection,
   type ZaloGateway,
   type ZaloMessage,
+  type ZaloPhoto,
   ZaloRejectedError,
   type ZaloSession,
   type ZaloSticker,
+  type ZaloStickerArt,
   ZaloUnavailableError,
 } from "./ZaloGateway.ts";
 
@@ -102,6 +105,9 @@ export class ZcaGateway implements ZaloGateway {
         : new ZaloUnavailableError(reasonOf(error));
     }
 
+    // The stickers of a category, once Zalo has given them, for the stickers of that category that come later.
+    const categories = new Map<number, StickerDetail[]>();
+
     return {
       ownId: api.getOwnId(),
       listener: (events) => {
@@ -126,11 +132,10 @@ export class ZcaGateway implements ZaloGateway {
         };
       },
       sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
-      stickerUrl: async (stickerId) => {
+      stickerArt: async (stickerId, catId) => {
         try {
           // `await` here, or a rejection would pass the catch below.
-          const [detail] = await api.getStickersDetail(Number(stickerId));
-          return detail?.stickerUrl || detail?.stickerWebpUrl || null;
+          return await findStickerArt(api, categories, stickerId, catId);
         } catch (error) {
           throw new ZaloUnavailableError(reasonOf(error));
         }
@@ -149,7 +154,7 @@ export class ZcaGateway implements ZaloGateway {
   }
 }
 
-/** A zca-js message in the contract's shape (D-279 reads `zaloType`, `text` and the sticker). */
+/** A zca-js message in the contract's shape (D-279 reads `zaloType`, `text`, the sticker and the photo). */
 export function toZaloMessage(message: Message): ZaloMessage {
   const data = message.data;
   const ts = Number(data.ts);
@@ -159,6 +164,9 @@ export function toZaloMessage(message: Message): ZaloMessage {
       : data.msgType === "chat.gif"
         ? gifStickerOf(data.msgId, data.content)
         : undefined;
+  const photo = data.msgType === "chat.photo" ? photoOf(data.content) : undefined;
+  const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
+  const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -170,7 +178,249 @@ export function toZaloMessage(message: Message): ZaloMessage {
     text: typeof data.content === "string" ? data.content : null,
     sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
     ...(sticker === undefined ? {} : { sticker }),
+    ...(photo === undefined ? {} : { photo }),
+    ...(contentShape === undefined ? {} : { contentShape }),
+    ...(photoShape === undefined ? {} : { photoShape }),
   };
+}
+
+/** The types of message the pipeline knows what to do with (D-279); any other is shown as a placeholder. */
+const KNOWN_TYPES = new Set(["webchat", "chat.photo", "chat.sticker", "chat.gif", "share.file", "chat.voice"]);
+
+/**
+ * Whether a message is one the pipeline could not show as it means to: a type nobody has handled, or a photo, a sticker
+ * or a gif whose content named nothing to show. Its content is then described in the log (`contentShapeOf`).
+ */
+function unseen(msgType: string, photo: ZaloPhoto | undefined, sticker: ZaloSticker | undefined): boolean {
+  switch (msgType) {
+    case "chat.photo":
+      return photo === undefined;
+    case "chat.sticker":
+      return sticker === undefined;
+    case "chat.gif":
+      return !sticker?.url;
+    default:
+      return !KNOWN_TYPES.has(msgType);
+  }
+}
+
+/**
+ * The picture a `chat.photo` content names (ZL-16). `href` is the picture as the chat shows it and `thumb` its
+ * thumbnail (zca-js reads them so when it quotes a photo, `sendMessage.js`); when `href` is missing the same
+ * addresses may be in `params`, a JSON text. `title` is the caption the sender typed, empty for none. undefined
+ * when the content names no web address at all; the message then stays the text `[Ảnh]` in Sino. Not yet seen on
+ * a real photo (ZL-16): the log line of SessionManager says whether a picture was found.
+ *
+ * A photo that is a Zalo sticker (the tigers the user sends, ZL-18) has `href`, `thumb` and `params.hd` on
+ * b-f11-zpc.zdn.vn and the browser gets 404 from all three. What marks it is in `params`: a whole number
+ * `pStickerType` and `webp`, whose web address is the picture to show; the address the photo would have shown
+ * becomes its fallback. Only a `pStickerType` that is a whole number switches to `webp`, so a photo without one is
+ * read exactly as before.
+ */
+function photoOf(content: unknown): ZaloPhoto | undefined {
+  const fields = objectOf(content);
+  if (fields === null) {
+    return undefined;
+  }
+  const params = objectOf(fields.params) ?? {};
+  const thumbUrl = webAddress(fields.thumb) ?? webAddress(params.thumbUrl);
+  const shown =
+    webAddress(fields.href) ??
+    ["rawUrl", "normalUrl", "oriUrl", "hdUrl", "hd"].map((key) => webAddress(params[key])).find((a) => a !== null) ??
+    thumbUrl;
+  const sticker = Number.isSafeInteger(params.pStickerType) ? addressIn(params.webp, 2) : null;
+  const url = sticker ?? shown;
+  if (url === null) {
+    return undefined;
+  }
+  const second = sticker === null ? thumbUrl : shown;
+  const caption = typeof fields.title === "string" ? fields.title.trim() : "";
+  return { url, thumbUrl: second === url ? null : second, caption: caption === "" ? null : caption };
+}
+
+/**
+ * The first web address in a value: the value itself, or one inside it, in an object (the key `url` first, then the
+ * others in order), in a list, or in JSON text, down `depth` levels. null when there is none.
+ */
+function addressIn(value: unknown, depth: number): string | null {
+  const own = webAddress(value);
+  if (own !== null || depth === 0) {
+    return own;
+  }
+  const inner = Array.isArray(value)
+    ? value
+    : Object.entries(objectOf(value) ?? {})
+        .sort(([a], [b]) => Number(b === "url") - Number(a === "url"))
+        .map(([, field]) => field);
+  for (const field of inner) {
+    const found = addressIn(field, depth - 1);
+    if (found !== null) {
+      return found;
+    }
+  }
+  return null;
+}
+
+/** The fields of a value that is an object, or of JSON text that holds one; null for anything else (an array too). */
+function objectOf(value: unknown): Record<string, unknown> | null {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+}
+
+/**
+ * What a content looks like, for the log when no picture was found in it (ZL-16): up to 20 keys, each with the kind of
+ * its value (`url` for a web address, the length for other text) and never the value itself, since an address can open
+ * the picture. A content that is no object is described as a whole.
+ */
+function contentShapeOf(content: unknown): string {
+  const fields = objectOf(content);
+  if (fields === null) {
+    return `content:${kindOf(content)}`;
+  }
+  return (
+    Object.entries(fields)
+      .slice(0, 20)
+      .map(([key, value]) => `${key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30)}:${kindOf(value)}`)
+      .join(",") || "empty"
+  );
+}
+
+/**
+ * Where a photo's content keeps its addresses, for the log (ZL-18). The photos that load come from photo-stal-*.zdn.vn
+ * and the ones that do not (404) from b-f11-zpc.zdn.vn, so which address was chosen, and whether another one is in
+ * the content or in `params`, is what the log has to say. Each key of the content (up to 20), then each of `params`
+ * (up to 20, `params.` before the name), with the kind of its value and, for a web address, its host: a host opens
+ * nothing, the path does. Last the numbers Zalo puts beside the content (`propertyExt`, `paramsExt`), which may say
+ * what sort of image it is; their text is left out.
+ */
+function photoShapeOf(data: Message["data"]): string {
+  const content = objectOf(data.content);
+  const parts =
+    content === null ? [`content:${kindOf(data.content)}`] : keysOf("", content);
+  const params = content === null ? null : objectOf(content.params);
+  if (params !== null) {
+    parts.push(...keysOf("params.", params));
+    // One object deeper (up to three objects, ten keys each): `params.webp` is where the picture of a Zalo sticker is.
+    const objects = Object.entries(params)
+      .slice(0, 20)
+      .filter(([, value]) => typeof value === "object" && value !== null && !Array.isArray(value))
+      .slice(0, 3);
+    for (const [key, value] of objects) {
+      parts.push(...keysOf(`params.${safeKey(key)}.`, value as Record<string, unknown>, 10));
+    }
+  }
+  for (const [name, ext] of [["propertyExt", data.propertyExt], ["paramsExt", data.paramsExt]] as const) {
+    for (const [key, value] of Object.entries(typeof ext === "object" && ext !== null ? ext : {}).slice(0, 10)) {
+      if (typeof value === "number" && Number.isSafeInteger(value)) {
+        parts.push(`${name}.${safeKey(key)}:${value}`);
+      }
+    }
+  }
+  return parts.join(",");
+}
+
+function keysOf(prefix: string, fields: Record<string, unknown>, limit = 20): string[] {
+  return Object.entries(fields)
+    .slice(0, limit)
+    .map(([key, value]) => `${prefix}${safeKey(key)}:${kindWithHostOf(value)}`);
+}
+
+function safeKey(key: string): string {
+  return key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30);
+}
+
+/** `kindOf`, but a web address says its host: `url(photo-stal-11.zdn.vn)`, or `url(unreadable)`. */
+function kindWithHostOf(value: unknown): string {
+  const kind = kindOf(value);
+  if (kind !== "url") {
+    return kind;
+  }
+  try {
+    const host = new URL(value as string).hostname;
+    return /^[A-Za-z0-9.-]{1,100}$/.test(host) ? `url(${host})` : "url(unreadable)";
+  } catch {
+    return "url(unreadable)";
+  }
+}
+
+function kindOf(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  if (typeof value === "string") {
+    return webAddress(value) === null ? `string(${value.length})` : "url";
+  }
+  return typeof value;
+}
+
+/** The text of a web address, trimmed, or null when the value is anything else. */
+function webAddress(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.startsWith("https://") || trimmed.startsWith("http://") ? trimmed : null;
+}
+
+/**
+ * The picture of a sticker: what Zalo names for the sticker itself and, when it names nothing (zca-js drops a sticker
+ * Zalo refuses, so a sticker of a pack it does not serve comes back as no answer at all), what the sticker's category
+ * lists for it. Null when neither has a picture or the category cannot be named. A category is asked for once and
+ * kept in `categories`; one that failed is not kept, so the next sticker asks again. A failure of either question
+ * is the caller's to handle.
+ */
+export async function findStickerArt(
+  api: Pick<API, "getStickersDetail" | "getStickerCategoryDetail">,
+  categories: Map<number, StickerDetail[]>,
+  stickerId: string,
+  catId: string | undefined,
+): Promise<ZaloStickerArt | null> {
+  const [detail] = await api.getStickersDetail(Number(stickerId));
+  const own = detail === undefined ? null : stickerArtOf(detail);
+  if (own !== null) {
+    return { ...own, via: "detail" };
+  }
+  const category = wholeNumber(catId);
+  if (category === null || category <= 0) {
+    return null;
+  }
+  let stickers = categories.get(category);
+  if (stickers === undefined) {
+    stickers = await api.getStickerCategoryDetail(category);
+    categories.set(category, stickers);
+  }
+  const listed = stickers.find((candidate) => String(candidate.id) === String(Number(stickerId)));
+  const art = listed === undefined ? null : stickerArtOf(listed);
+  return art === null ? null : { ...art, via: "category" };
+}
+
+/**
+ * The still picture and the sprite sheet of a sticker out of Zalo's detail. `stickerUrl` is a still 130x130 PNG,
+ * not a moving picture; the sticker moves only when Zalo names a sprite sheet with more than one frame and a
+ * duration. Zalo's `duration` is the milliseconds each frame lasts (7 frames at 150, 19 at 100 on the first real
+ * stickers), so one run lasts `duration` times the frames. null when the detail names no picture at all.
+ */
+export function stickerArtOf(
+  detail: Pick<StickerDetail, "stickerUrl" | "stickerSpriteUrl" | "stickerWebpUrl" | "totalFrames" | "duration">,
+): ZaloStickerArt | null {
+  const url = detail.stickerUrl || detail.stickerWebpUrl || null;
+  const frames = detail.totalFrames;
+  const frameMs = Math.round(detail.duration);
+  const sprite =
+    detail.stickerSpriteUrl && Number.isSafeInteger(frames) && frames > 1 && frameMs > 0
+      ? { url: detail.stickerSpriteUrl, frames, durationMs: frames * frameMs }
+      : null;
+  return url === null && sprite === null ? null : { url, sprite };
 }
 
 /** The sticker a `chat.gif` content names (D-279). */

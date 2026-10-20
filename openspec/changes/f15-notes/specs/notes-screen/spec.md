@@ -36,14 +36,22 @@ Chọn một thẻ MUST mở `/notes/{id}`: từ 768 px ở cột phải, dướ
 ## ADDED Requirements
 
 ### Requirement: Ghi chú lưu trên máy chủ
-Danh sách MUST đọc từ `GET /api/notes`; tạo, tự lưu, ghim và xóa MUST gọi API (`POST`, `PATCH` kèm `version` của ghi chú đang mở, `DELETE`), và tải lại trang MUST thấy đúng những gì đã lưu. Khi danh sách được đọc lại, ô soạn MUST NOT thay chữ người dùng đang gõ mà chưa lưu.
+Danh sách MUST đọc từ `GET /api/notes`; tạo, tự lưu, ghim và xóa MUST gọi API (`POST`, `PATCH` kèm `version` của ghi chú đang mở, `DELETE`), cho cả ghi chú chữ lẫn ghi chú sơ đồ (sơ đồ gửi `kind: "DIAGRAM"` và `diagram`), và tải lại trang MUST thấy đúng những gì đã lưu. Khi danh sách được đọc lại, ô soạn và vùng vẽ MUST NOT thay chữ hay sơ đồ người dùng đang sửa mà chưa lưu.
 
 #### Scenario: Tải lại sau khi sửa
 - **WHEN** người dùng sửa nội dung một ghi chú, chân ô soạn đã ghi giờ sửa mới, rồi tải lại trang
 - **THEN** ô soạn có nội dung đã sửa
 
+#### Scenario: Tải lại sau khi sửa sơ đồ
+- **WHEN** người dùng thêm một khối vào một sơ đồ, dòng tự lưu của sơ đồ báo đã lưu, rồi tải lại trang
+- **THEN** vùng vẽ có đủ các khối và đường nối cũ và cả khối mới, mỗi khối ở đúng vị trí
+
+#### Scenario: Sơ đồ mới còn lại sau khi tải lại
+- **WHEN** người dùng tạo một sơ đồ mới, vẽ hai khối rồi nối chúng, đợi tự lưu xong và tải lại trang
+- **THEN** danh sách có sơ đồ đó (thẻ sơ đồ) và mở ra thấy hai khối đã nối
+
 ### Requirement: Ghi chú vừa được sửa ở nơi khác
-Khi lưu bị từ chối với `409 CONCURRENT_MODIFICATION`, ô soạn MUST dừng tự lưu cho ghi chú đó, MUST giữ chữ đang gõ, và MUST báo "Ghi chú này vừa được sửa ở nơi khác. Chữ bạn đang gõ chưa được lưu." với "Tải bản mới" (nhận bản của máy chủ) và "Lưu bản của tôi" (lưu chữ đang gõ lên bản mới nhất). Khi lưu bị từ chối với `404 NOTE_NOT_FOUND`, ô soạn MUST giữ chữ và báo "Ghi chú này đã bị xóa ở nơi khác." với "Lưu thành ghi chú mới".
+Khi lưu bị từ chối với `409 CONCURRENT_MODIFICATION`, ô soạn (hoặc vùng vẽ) MUST dừng tự lưu cho ghi chú đó, MUST giữ chữ đang gõ (hoặc sơ đồ đang vẽ), và MUST báo "Ghi chú này vừa được sửa ở nơi khác. Chữ bạn đang gõ chưa được lưu." (với sơ đồ: "Ghi chú này vừa được sửa ở nơi khác. Thay đổi bạn vừa vẽ chưa được lưu.") với "Tải bản mới" (nhận bản của máy chủ) và "Lưu bản của tôi" (lưu chữ đang gõ, hoặc sơ đồ đang vẽ, lên bản mới nhất). Khi lưu bị từ chối với `404 NOTE_NOT_FOUND`, ô soạn (hoặc vùng vẽ) MUST giữ chữ (hoặc sơ đồ) và báo "Ghi chú này đã bị xóa ở nơi khác." với "Lưu thành ghi chú mới".
 
 #### Scenario: Hai tab cùng sửa
 - **WHEN** người dùng sửa một ghi chú ở tab A, rồi gõ vào cùng ghi chú đó ở tab B chưa đọc lại
@@ -53,9 +61,21 @@ Khi lưu bị từ chối với `409 CONCURRENT_MODIFICATION`, ô soạn MUST d�
 - **WHEN** ở tab B người dùng bấm "Lưu bản của tôi"
 - **THEN** chữ của tab B được lưu, dòng báo biến mất và tự lưu chạy lại
 
+#### Scenario: Hai tab cùng sửa một sơ đồ
+- **WHEN** người dùng thêm một khối ở tab A (đã lưu), rồi kéo một khối ở tab B chưa đọc lại
+- **THEN** tab B báo "Ghi chú này vừa được sửa ở nơi khác", vùng vẽ tab B giữ nguyên chỗ vừa kéo, và sơ đồ đã lưu của tab A không bị ghi đè
+
+#### Scenario: Tải bản mới của sơ đồ
+- **WHEN** ở tab B người dùng bấm "Tải bản mới"
+- **THEN** vùng vẽ hiện sơ đồ của máy chủ (có khối mới của tab A), thay đổi chưa lưu của tab B bị bỏ và dòng báo biến mất
+
 ### Requirement: Không lưu được thay đổi
-Khi tạo, lưu, ghim hay xóa thất bại vì lý do khác (mạng, lỗi máy chủ), màn MUST giữ chữ đang gõ, MUST trả ghim / xóa về như cũ, và MUST báo tại chỗ ("Không lưu được thay đổi." kèm "Thử lại" ở ô soạn); ghi chú mới không tạo được MUST ở lại `/notes/new` với chữ còn nguyên.
+Khi tạo, lưu, ghim hay xóa thất bại vì lý do khác (mạng, lỗi máy chủ), màn MUST giữ chữ đang gõ (hoặc sơ đồ đang vẽ), MUST trả ghim / xóa về như cũ, và MUST báo tại chỗ ("Không lưu được thay đổi." kèm "Thử lại" ở ô soạn hoặc vùng vẽ); ghi chú mới không tạo được MUST ở lại `/notes/new` với chữ (hoặc sơ đồ) còn nguyên.
 
 #### Scenario: Mất mạng khi tự lưu
 - **WHEN** người dùng ngừng gõ trong lúc máy chủ không trả lời
 - **THEN** ô soạn báo "Không lưu được thay đổi." với "Thử lại", chữ còn nguyên, và lần ngừng gõ sau thử lưu lại
+
+#### Scenario: Mất mạng khi tự lưu sơ đồ
+- **WHEN** người dùng kéo một khối trong lúc máy chủ không trả lời
+- **THEN** vùng vẽ báo "Không lưu được thay đổi." với "Thử lại", sơ đồ trên màn còn nguyên, và "Thử lại" lưu sơ đồ đó lên máy chủ

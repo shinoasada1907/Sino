@@ -438,22 +438,49 @@ class ZaloClient {
 
     /**
      * {@code text} is null when the message is not text; {@code sentAt} is ISO-8601; {@code sticker} is null unless
-     * the message is a sticker whose content named one.
+     * the message is a sticker whose content named one; {@code photo} is null unless the message is a photo whose
+     * content named a picture.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
-            String zaloType, String text, String sentAt, Sticker sticker) {
+            String zaloType, String text, String sentAt, Sticker sticker, Photo photo) {
+
+        Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
+                String zaloType, String text, String sentAt, Sticker sticker) {
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, null);
+        }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
                 String zaloType, String text, String sentAt) {
-            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, null);
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, null, null);
         }
 
     }
 
-    /** {@code url} is null when sino-zalo could not get the picture from Zalo. */
+    /**
+     * The picture of a photo message as Zalo named it (ZL-16): {@code url} is the one the chat shows, {@code thumbUrl}
+     * a smaller one or null, {@code caption} the text the sender typed with it or null. Nothing here is checked yet.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Sticker(String id, String catId, Integer type, String url) {
+    record Photo(String url, String thumbUrl, String caption) {
+    }
+
+    /**
+     * {@code url} is null when sino-zalo could not get the picture from Zalo; {@code sprite} is null unless the
+     * sticker moves.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Sticker(String id, String catId, Integer type, String url, StickerSprite sprite) {
+
+        Sticker(String id, String catId, Integer type, String url) {
+            this(id, catId, type, url, null);
+        }
+
+    }
+
+    /** The sprite sheet of a sticker that moves: frames side by side in one row, one run lasting {@code durationMs}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record StickerSprite(String url, Integer frames, Integer durationMs) {
     }
 
 }

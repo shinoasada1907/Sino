@@ -102,6 +102,7 @@ describe('the owner menu and the end of a session', () => {
     expect(others.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
       '/calendar',
       '/notes',
+      '/stickers',
       '/accounts',
       '/services',
       '/registrations',

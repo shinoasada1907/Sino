@@ -1,27 +1,26 @@
 import { ReactFlowProvider, useReactFlow, useStore } from '@xyflow/react'
 import { Maximize, Minus, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useState } from 'react'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { Button } from '@/shared/ui/button'
 import { Spec } from '@/shared/ui/spec'
 import { DeleteNoteDialog } from '../components/DeleteNoteDialog'
 import { PinButton } from '../components/PinButton'
+import { SyncNotice } from '../components/SyncNotice'
 import { editedLine, savedLine } from '../format'
 import type { Diagram, NoteItem } from '../notes.types'
-import { FROM_NEW, useCreateNote, useSaveNote } from '../useNotes'
+import { useAutosave } from '../useAutosave'
 import { addBlock, diagramFootLine, diagramSummary, freeSpot, newBlock, newDiagram } from './diagram'
 import { DiagramCanvas } from './DiagramCanvas'
 import { FIT_VIEW } from './flow'
 
-/** How long the changes must stop before the diagram is saved (D-210). */
-const SAVE_AFTER_MS = 600
-
 /**
  * An open diagram (fe-ui-diagram-notes), loaded on its own so that React Flow weighs only on a diagram (D-208): its
  * name with "+ Khối", Ghim and Xóa, the canvas, and the foot. Every change saves the whole diagram once the changes
- * stop, and when the diagram is left (D-210). Without `note` it is a new diagram (`/notes/new?kind=diagram`): one main
- * block "Ý chính", made only at its first change, then under its own address with the same canvas (D-209).
+ * stop, and when the diagram is left (D-210); `useAutosave` sends it over the version the editor started from, and says
+ * at the top when the note was saved or deleted from another place or could not be saved, keeping what was drawn
+ * (D-178). Without `note` it is a new diagram (`/notes/new?kind=diagram`): one main block "Ý chính", made only at its
+ * first change, then under its own address with the same canvas (D-209).
  */
 export function DiagramEditor(props: { note: NoteItem | undefined; search: string; now: Date }) {
   return (
@@ -36,53 +35,22 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
   const [diagram, setDiagram] = useState<Diagram>(() => note?.diagram ?? newDiagram())
   // The block being written: one just added, or one double-clicked.
   const [editing, setEditing] = useState<string | null>(null)
-  const { mutate: save } = useSaveNote()
-  const { mutateAsync: create } = useCreateNote()
-  const navigate = useNavigate()
+  const sync = useAutosave({
+    kind: 'DIAGRAM',
+    note,
+    content: { title, body: '', diagram },
+    adopt: (fresh) => {
+      setTitle(fresh.title ?? '')
+      setDiagram(fresh.diagram ?? newDiagram())
+      setEditing(null)
+    },
+    search,
+  })
   const { screenToFlowPosition } = useReactFlow()
   const canvas = useStore((state) => state.domNode)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const changed = useRef(false)
-  const creating = useRef(false)
-  // What a save made later (a timer, leaving the name, leaving the diagram) must see.
-  const latest = useRef({ title, diagram, note })
-  const flush = useRef(() => {})
-
-  useEffect(() => {
-    latest.current = { title, diagram, note }
-    flush.current = () => {
-      clearTimeout(timer.current)
-      const current = latest.current
-      if (!current.note) {
-        if (changed.current && !creating.current) {
-          creating.current = true
-          void create({ title: current.title, body: '', diagram: current.diagram }).then((created) => {
-            latest.current = { ...latest.current, note: created }
-            navigate({ pathname: `/notes/${created.id}`, search }, { replace: true, state: FROM_NEW })
-          })
-        }
-        return
-      }
-      const change = {
-        ...(current.title !== (current.note.title ?? '') ? { title: current.title } : {}),
-        ...(current.diagram !== current.note.diagram ? { diagram: current.diagram } : {}),
-      }
-      if (Object.keys(change).length > 0) {
-        save({ note: current.note, change })
-      }
-    }
-  })
-  // Leaving the diagram saves what is left to save.
-  useEffect(() => () => flush.current(), [])
-
-  const later = () => {
-    changed.current = true
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => flush.current(), SAVE_AFTER_MS)
-  }
   const change = (next: Diagram) => {
     setDiagram(next)
-    later()
+    sync.later()
   }
   // "+ Khối": a block in the middle of what the canvas shows, or below the blocks there.
   const addInMiddle = () => {
@@ -93,7 +61,6 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
     setEditing(block.id)
     change(addBlock(diagram, block))
   }
-  const togglePin = () => note && save({ note, change: { pinned: !note.pinned } })
 
   return (
     <>
@@ -101,9 +68,12 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
         back={{ to: `/notes${search}`, label: 'Quay lại Ghi chú' }}
         title="Sơ đồ"
         subtitle={note ? savedLine(note.updatedAt, now) : 'Sơ đồ mới'}
-        action={<PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={togglePin} size="icon" />}
+        action={<PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={sync.pin} size="icon" />}
       />
       <main aria-label="Sơ đồ đang mở" className="flex min-h-0 flex-1 flex-col">
+        <div className="flex flex-col gap-3 px-5 empty:hidden">
+          <SyncNotice sync={sync} kind="DIAGRAM" />
+        </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-5 pt-4 pb-3">
           <input
             type="text"
@@ -113,9 +83,9 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
             value={title}
             onChange={(event) => {
               setTitle(event.target.value)
-              later()
+              sync.later()
             }}
-            onBlur={() => flush.current()}
+            onBlur={sync.flush}
             className="min-w-0 flex-[1_1_160px] bg-transparent p-0 text-xl leading-7 font-bold tracking-[-0.018em] text-ellipsis text-foreground outline-none placeholder:text-subtle-foreground xl:text-2xl xl:leading-8"
           />
           {/* One group: on a narrow column it goes to a line of its own as a whole, never Ghim and Xóa alone. */}
@@ -126,7 +96,7 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
             </Button>
             <ZoomControls />
             <div className="flex shrink-0 items-center gap-0.5 max-md:hidden">
-              <PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={togglePin} size="icon-sm" />
+              <PinButton pinned={note?.pinned ?? false} disabled={!note} onClick={sync.pin} size="icon-sm" />
               {note ? (
                 <DeleteNoteDialog
                   note={note}

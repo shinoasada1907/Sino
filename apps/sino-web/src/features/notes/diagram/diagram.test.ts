@@ -14,6 +14,7 @@ import {
   newDiagram,
   removeBlock,
   removeLink,
+  sameDiagram,
   setBlockColor,
   setBlockText,
   setLinkLabel,
@@ -144,5 +145,46 @@ describe('the sample diagram, as the spec diagram-notes tells it (DG-01)', () =>
     const date = named('Chốt ngày trước 15/11')
     const toSide = nearestSide({ x: date.x, y: date.y, width: 160, height: 48 }, { x: date.x + 70, y: date.y - 10 })
     expect(connect(plan(), bus.id, 'RIGHT', date.id, toSide).links.at(-1)).toMatchObject({ from: bus.id, fromSide: 'RIGHT', to: date.id, toSide: 'TOP' })
+  })
+})
+
+describe('sameDiagram (FE-90)', () => {
+  // What the server sends back has the same fields in another order and is another object: still the same diagram.
+  const reordered = (source: Diagram): Diagram => ({
+    links: source.links.map((link) => ({ label: link.label, toSide: link.toSide, to: link.to, fromSide: link.fromSide, from: link.from, id: link.id })),
+    blocks: source.blocks.map((item) => ({ main: item.main, color: item.color, text: item.text, y: item.y, x: item.x, id: item.id })),
+  })
+
+  it('is true for the same content, whatever the object and the order of its fields', () => {
+    expect(sameDiagram(diagram(), diagram())).toBe(true)
+    expect(sameDiagram(diagram(), reordered(diagram()))).toBe(true)
+  })
+
+  it('tells any change of a block: its words, place, colour or mark', () => {
+    const changes: ((blocks: DiagramBlock[]) => DiagramBlock[])[] = [
+      (blocks) => blocks.map((item) => (item.id === 'b' ? { ...item, text: 'bb' } : item)),
+      (blocks) => blocks.map((item) => (item.id === 'b' ? { ...item, x: 1 } : item)),
+      (blocks) => blocks.map((item) => (item.id === 'b' ? { ...item, y: 1 } : item)),
+      (blocks) => blocks.map((item) => (item.id === 'b' ? { ...item, color: 'RED' } : item)),
+      (blocks) => blocks.map((item) => (item.id === 'b' ? { ...item, main: true } : item)),
+    ]
+    for (const change of changes) {
+      expect(sameDiagram(diagram(), { ...diagram(), blocks: change(diagram().blocks) })).toBe(false)
+    }
+  })
+
+  it('tells any change of a link: its ends, its sides or its words', () => {
+    const link = diagram().links[1]
+    const changes: Partial<typeof link>[] = [{ from: 'a' }, { to: 'a' }, { fromSide: 'LEFT' }, { toSide: 'LEFT' }, { label: 'sau đó' }, { label: null }]
+    for (const change of changes) {
+      expect(sameDiagram(diagram(), { ...diagram(), links: [diagram().links[0], { ...link, ...change }] })).toBe(false)
+    }
+  })
+
+  it('tells a block or a link more or less, and another order of the blocks', () => {
+    expect(sameDiagram(diagram(), removeBlock(diagram(), 'c'))).toBe(false)
+    expect(sameDiagram(diagram(), removeLink(diagram(), 'ab'))).toBe(false)
+    expect(sameDiagram(diagram(), addBlock(diagram(), block('d')))).toBe(false)
+    expect(sameDiagram(diagram(), { ...diagram(), blocks: [...diagram().blocks].reverse() })).toBe(false)
   })
 })

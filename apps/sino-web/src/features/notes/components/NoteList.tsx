@@ -5,7 +5,7 @@ import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { filterNotes, groupNotes, noteCounts, notePreview, noteSource, noteTime, noteTitle } from '../format'
+import { filterNotes, groupNotes, hasAnchoredNotes, noteCounts, notePreview, noteSource, noteTime, noteTitle } from '../format'
 import type { NoteItem, NotesFilter } from '../notes.types'
 import { NewNoteMenu } from './NewNoteMenu'
 
@@ -54,7 +54,12 @@ export function NoteList({
   className?: string
 }) {
   const counts = noteCounts(notes)
-  const { pinned, recent } = groupNotes(filterNotes(notes, filter, query))
+  // "Gắn tin nhắn" and the source line "Ghi chú độc lập" say something only once a note is tied to a message; until then
+  // every note is standalone and they would be noise (F15, D-178). A filter the list does not offer shows every note.
+  const anchored = hasAnchoredNotes(notes)
+  const filters = FILTERS.filter((option) => anchored || option.value !== 'linked')
+  const shown = anchored || filter !== 'linked' ? filter : 'all'
+  const { pinned, recent } = groupNotes(filterNotes(notes, shown, query))
   const groups = [
     { label: 'ĐÃ GHIM', items: pinned },
     { label: 'GẦN ĐÂY', items: recent },
@@ -95,8 +100,8 @@ export function NoteList({
           />
         </span>
         <div role="group" aria-label="Lọc ghi chú" className="flex flex-wrap gap-2">
-          {FILTERS.map((option) => (
-            <button key={option.value} type="button" aria-pressed={filter === option.value} onClick={() => onFilter(option.value)} className={CHIP}>
+          {filters.map((option) => (
+            <button key={option.value} type="button" aria-pressed={shown === option.value} onClick={() => onFilter(option.value)} className={CHIP}>
               {option.label} · {counts[option.value]}
             </button>
           ))}
@@ -123,7 +128,7 @@ export function NoteList({
         <div key={group.label} className="flex flex-col gap-0.5 pb-1">
           <div className="px-4 pt-4 pb-1.5 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] text-muted-foreground md:px-5.5">{group.label}</div>
           {group.items.map((note) => (
-            <NoteCard key={note.id} note={note} search={search} selected={note.id === selectedId} now={now} />
+            <NoteCard key={note.id} note={note} search={search} selected={note.id === selectedId} now={now} showStandalone={anchored} />
           ))}
         </div>
       ))}
@@ -133,7 +138,7 @@ export function NoteList({
 
 // Canvas `.ncard`: pin, title and time; two lines of the text (a diagram: its first blocks); where it comes from, a
 // diagram with its mark (D-206).
-function NoteCard({ note, search, selected, now }: { note: NoteItem; search: string; selected: boolean; now: Date }) {
+function NoteCard({ note, search, selected, now, showStandalone }: { note: NoteItem; search: string; selected: boolean; now: Date; showStandalone: boolean }) {
   const source = noteSource(note)
   return (
     <Link
@@ -169,9 +174,9 @@ function NoteCard({ note, search, selected, now }: { note: NoteItem; search: str
             <Link2Off className="size-3" strokeWidth={1.6} />
             {source.text}
           </span>
-        ) : (
+        ) : showStandalone ? (
           <Spec>{source.text}</Spec>
-        )}
+        ) : null}
       </span>
     </Link>
   )

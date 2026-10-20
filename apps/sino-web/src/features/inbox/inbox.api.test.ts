@@ -320,6 +320,54 @@ describe('the sticker of a message (ZL-14)', () => {
   })
 })
 
+describe('the sprite sheet of a moving sticker (ZL-15)', () => {
+  it('gives a message the sprite sheet of its sticker, and one without a sprite none', async () => {
+    const sprite = { url: 'https://zalo-api.zadn.vn/api/emoticon/sprite?eid=11236&size=130', frames: 7, durationMs: 700 }
+    server.use(
+      http.get('/api/conversations/:id/messages', () =>
+        HttpResponse.json({
+          items: [
+            { ...API_MESSAGES[0], id: 'sp-1', text: '[Sticker]', sticker: 'https://zalo-api.zadn.vn/a.png', stickerSprite: sprite },
+            { ...API_MESSAGES[0], id: 'sp-2', stickerSprite: null },
+            { ...API_MESSAGES[0], id: 'sp-3' },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    )
+
+    const { items } = await fetchMessages('c-1', null)
+
+    expect(items[0]).toMatchObject({ id: 'sp-1', sticker: 'https://zalo-api.zadn.vn/a.png', stickerSprite: sprite })
+    expect(items[1]).not.toHaveProperty('stickerSprite')
+    expect(items[2]).not.toHaveProperty('stickerSprite')
+  })
+})
+
+describe('the picture of a photo message (ZL-16)', () => {
+  it('gives a message the picture of its photo, and one without a photo none', async () => {
+    const image = { url: 'https://f21-zpc.zdn.vn/jpg/1234/full.jpg', thumbUrl: 'https://b-f21-zpc.zdn.vn/jpg/1234/thumb.jpg', caption: 'Chuyến đi' }
+    server.use(
+      http.get('/api/conversations/:id/messages', () =>
+        HttpResponse.json({
+          items: [
+            { ...API_MESSAGES[0], id: 'ph-1', text: '[Ảnh]', image },
+            { ...API_MESSAGES[0], id: 'ph-2', image: null },
+            { ...API_MESSAGES[0], id: 'ph-3' },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    )
+
+    const { items } = await fetchMessages('c-1', null)
+
+    expect(items[0]).toMatchObject({ id: 'ph-1', image })
+    expect(items[1]).not.toHaveProperty('image')
+    expect(items[2]).not.toHaveProperty('image')
+  })
+})
+
 describe('a message without a known sender (BE-54)', () => {
   it('names the sender as unknown, or as the reader for an own message, instead of failing', async () => {
     server.use(

@@ -11,6 +11,7 @@ import {
   type ZaloMessage,
   ZaloRejectedError,
   type ZaloSession,
+  type ZaloStickerArt,
   ZaloUnavailableError,
 } from "./ZaloGateway.ts";
 
@@ -126,12 +127,12 @@ export class FakeConnection implements ZaloConnection {
     return String(this.zalo.nextMsgId++);
   }
 
-  async stickerUrl(stickerId: string): Promise<string | null> {
+  async stickerArt(stickerId: string, _catId?: string): Promise<ZaloStickerArt | null> {
     await Promise.resolve();
     if (this.zalo.stickerFails) {
       throw new ZaloUnavailableError("TypeError: fetch failed");
     }
-    return this.zalo.stickerUrls.get(stickerId) ?? null;
+    return this.zalo.stickerArts.get(stickerId) ?? null;
   }
 }
 
@@ -152,7 +153,7 @@ export class FakeZaloGateway implements ZaloGateway {
   readonly threadInfoCalls: string[] = [];
   threadInfoFails = false;
   /** The pictures Zalo gives stickers, by sticker id; any other sticker has none. */
-  readonly stickerUrls = new Map<string, string>();
+  readonly stickerArts = new Map<string, ZaloStickerArt>();
   stickerFails = false;
   /** Every text sent, refused or not, in order. */
   readonly sent: { threadId: string; threadType: ThreadType; text: string }[] = [];

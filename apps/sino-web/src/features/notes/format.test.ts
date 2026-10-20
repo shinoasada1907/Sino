@@ -5,6 +5,7 @@ import {
   editedLine,
   filterNotes,
   groupNotes,
+  hasAnchoredNotes,
   lengthLine,
   linkedDue,
   noteCounts,
@@ -36,6 +37,7 @@ function note(extra: Partial<NoteItem>): NoteItem {
     quote: null,
     linked: [],
     kind: 'TEXT',
+    version: 0,
     diagram: null,
     ...extra,
   }
@@ -211,5 +213,17 @@ describe('the editor', () => {
     // A whole day stays that day for a reader 14 hours ahead of UTC (found by a mutation check, NT-03).
     expect(linkedDue({ dueAt: null, dueDate: '2026-10-09' }, 'Pacific/Kiritimati')).toBe('hạn T6 09/10')
     expect(linkedDue({ dueAt: null, dueDate: null }, TZ)).toBeNull()
+  })
+})
+
+describe('hasAnchoredNotes (FE-90, D-178)', () => {
+  it('is true when at least one note is tied to something', () => {
+    expect(hasAnchoredNotes(createNotesSample(new Date('2026-10-02T07:05:00Z')).notes)).toBe(true)
+  })
+
+  it('is false when every note is standalone, and for no notes at all', () => {
+    const notes = createNotesSample(new Date('2026-10-02T07:05:00Z')).notes.map((note) => ({ ...note, anchor: null }))
+    expect(hasAnchoredNotes(notes)).toBe(false)
+    expect(hasAnchoredNotes([])).toBe(false)
   })
 })

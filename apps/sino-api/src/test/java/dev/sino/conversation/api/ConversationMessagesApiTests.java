@@ -214,6 +214,55 @@ class ConversationMessagesApiTests {
     }
 
     @Test
+    void aMovingStickerListsItsSpriteSheetWithFramesAndDurationAndAnyOtherMessageListsNone() throws Exception {
+        String picture = "https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236&size=130";
+        String sprite = "https://zalo-api.zadn.vn/api/emoticon/sprite?eid=11236&size=130";
+        store(gmail, thread("report"), fromAlice("m-1", MONDAY, "Chữ"),
+                new NormalizedMessage("m-2", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.UNKNOWN, "[Sticker]", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(),
+                        Map.of("zaloType", "chat.sticker", NormalizedMessage.STICKER_URL, picture,
+                                NormalizedMessage.STICKER_SPRITE_URL, sprite,
+                                NormalizedMessage.STICKER_FRAMES, "7",
+                                NormalizedMessage.STICKER_DURATION_MS, "700"),
+                        null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].sticker").value(picture))
+                .andExpect(jsonPath("$.items[0].stickerSprite.url").value(sprite))
+                .andExpect(jsonPath("$.items[0].stickerSprite.frames").value(7))
+                .andExpect(jsonPath("$.items[0].stickerSprite.durationMs").value(700))
+                .andExpect(jsonPath("$.items[1].stickerSprite").value(nullValue()));
+    }
+
+    @Test
+    void aStickerWhoseStoredSpriteCannotBeReadListsNoSpriteButKeepsItsPicture() throws Exception {
+        String picture = "https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236&size=130";
+        String sprite = "https://zalo-api.zadn.vn/api/emoticon/sprite?eid=11236&size=130";
+        store(gmail, thread("report"),
+                new NormalizedMessage("m-1", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.UNKNOWN, "[Sticker]", MessageStatus.UNKNOWN, false, null, MONDAY, List.of(),
+                        Map.of("zaloType", "chat.sticker", NormalizedMessage.STICKER_URL, picture,
+                                NormalizedMessage.STICKER_SPRITE_URL, sprite,
+                                NormalizedMessage.STICKER_FRAMES, "abc",
+                                NormalizedMessage.STICKER_DURATION_MS, "700"),
+                        null, null),
+                new NormalizedMessage("m-2", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.UNKNOWN, "[Sticker]", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(),
+                        Map.of("zaloType", "chat.sticker", NormalizedMessage.STICKER_URL, picture,
+                                NormalizedMessage.STICKER_SPRITE_URL, sprite,
+                                NormalizedMessage.STICKER_FRAMES, "7"),
+                        null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].sticker").value(picture))
+                .andExpect(jsonPath("$.items[0].stickerSprite").value(nullValue()))
+                .andExpect(jsonPath("$.items[1].sticker").value(picture))
+                .andExpect(jsonPath("$.items[1].stickerSprite").value(nullValue()));
+    }
+
+    @Test
     void aStickerWithoutAPictureListsNoneAndTheMetadataStaysOutOfTheAnswer() throws Exception {
         store(gmail, thread("report"), new NormalizedMessage("m-1", "report", "alice@example.test",
                 MessageDirection.INBOUND, MessageType.UNKNOWN, "[Sticker]", MessageStatus.UNKNOWN, false, null, MONDAY,
@@ -223,6 +272,56 @@ class ConversationMessagesApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].sticker").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].metadata").doesNotExist());
+    }
+
+    @Test
+    void aPhotoMessageListsItsPictureThumbnailAndCaptionAndAnyOtherMessageListsNone() throws Exception {
+        String full = "https://f21-zpc.zdn.vn/jpg/1234/full.jpg";
+        String thumb = "https://b-f21-zpc.zdn.vn/jpg/1234/thumb.jpg";
+        store(gmail, thread("report"), fromAlice("m-1", MONDAY, "Chữ"),
+                new NormalizedMessage("m-2", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.IMAGE, "[Ảnh]", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(),
+                        Map.of("zaloType", "chat.photo", NormalizedMessage.IMAGE_URL, full,
+                                NormalizedMessage.IMAGE_THUMB_URL, thumb,
+                                NormalizedMessage.IMAGE_CAPTION, "Chuyến đi Đà Lạt"),
+                        null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].text").value("[Ảnh]"))
+                .andExpect(jsonPath("$.items[0].image.url").value(full))
+                .andExpect(jsonPath("$.items[0].image.thumbUrl").value(thumb))
+                .andExpect(jsonPath("$.items[0].image.caption").value("Chuyến đi Đà Lạt"))
+                .andExpect(jsonPath("$.items[0].metadata").doesNotExist())
+                .andExpect(jsonPath("$.items[1].image").value(nullValue()));
+    }
+
+    @Test
+    void aPhotoWithOnlyItsAddressListsNoThumbnailAndNoCaption() throws Exception {
+        String full = "https://f21-zpc.zdn.vn/jpg/1234/full.jpg";
+        store(gmail, thread("report"),
+                new NormalizedMessage("m-1", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.IMAGE, "[Ảnh]", MessageStatus.UNKNOWN, false, null, MONDAY, List.of(),
+                        Map.of("zaloType", "chat.photo", NormalizedMessage.IMAGE_URL, full), null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].image.url").value(full))
+                .andExpect(jsonPath("$.items[0].image.thumbUrl").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].image.caption").value(nullValue()));
+    }
+
+    @Test
+    void aPhotoWithoutAnAddressListsNoImageAndStaysItsPlaceholderText() throws Exception {
+        store(gmail, thread("report"),
+                new NormalizedMessage("m-1", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.IMAGE, "[Ảnh]", MessageStatus.UNKNOWN, false, null, MONDAY, List.of(),
+                        Map.of("zaloType", "chat.photo", NormalizedMessage.IMAGE_CAPTION, "Chữ thừa"), null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].text").value("[Ảnh]"))
+                .andExpect(jsonPath("$.items[0].image").value(nullValue()));
     }
 
     @Test

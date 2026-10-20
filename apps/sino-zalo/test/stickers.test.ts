@@ -3,8 +3,8 @@ import { type FastifyInstance } from "fastify";
 import { UserMessage, type TMessage } from "zca-js";
 import { buildApp } from "../src/app.ts";
 import { FakeZaloGateway } from "../src/gateway/FakeZaloGateway.ts";
-import { toZaloMessage } from "../src/gateway/ZcaGateway.ts";
-import type { ZaloMessage } from "../src/gateway/ZaloGateway.ts";
+import { stickerArtOf, toZaloMessage } from "../src/gateway/ZcaGateway.ts";
+import type { ZaloMessage, ZaloStickerArt, ZaloStickerSprite } from "../src/gateway/ZaloGateway.ts";
 import type { Notifier } from "../src/notify.ts";
 import { Stickers } from "../src/sessions/Stickers.ts";
 
@@ -16,7 +16,17 @@ const SESSION = {
   imei: "imei-one",
   userAgent: "Mozilla/5.0",
 };
-const silent = { warn: () => {} };
+const silent = { warn: () => {}, info: () => {} };
+const STILL = "https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236&size=130";
+const SPRITE: ZaloStickerSprite = {
+  url: "https://zalo-api.zadn.vn/api/emoticon/sprite?eid=11236&size=130",
+  frames: 7,
+  durationMs: 700,
+};
+
+function art(url: string | null, sprite: ZaloStickerSprite | null = null): ZaloStickerArt {
+  return { url, sprite };
+}
 
 function zcaData(fields: Partial<TMessage>): TMessage {
   return {
@@ -107,13 +117,86 @@ describe("toZaloMessage for a sticker", () => {
   });
 });
 
+describe("stickerArtOf", () => {
+  const detail = {
+    stickerUrl: STILL,
+    stickerSpriteUrl: SPRITE.url,
+    stickerWebpUrl: null,
+    totalFrames: 7,
+    // Zalo's duration is the milliseconds each frame lasts (ZL-15): 100 ms for 7 frames is a run of 700 ms.
+    duration: 100,
+  };
+
+  it("gives the still picture and the sprite sheet with its frames and the length of one run", () => {
+    expect(stickerArtOf(detail)).toEqual({ url: STILL, sprite: SPRITE });
+  });
+
+  it.each([
+    [7, 150, 1050],
+    [19, 100, 1900],
+  ])("counts a run as the milliseconds of a frame times the frames (%i frames at %i ms: %i ms)", (totalFrames, duration, run) => {
+    // 7 at 150 and 19 at 100 are what Zalo gave for the two stickers of 2026-10-19; read as a whole run they would
+    // play 19 frames in 100 ms.
+    expect(stickerArtOf({ ...detail, totalFrames, duration })?.sprite?.durationMs).toBe(run);
+  });
+
+  it("gives no sprite when Zalo names no sprite sheet", () => {
+    for (const stickerSpriteUrl of ["", undefined as never]) {
+      expect(stickerArtOf({ ...detail, stickerSpriteUrl })).toEqual({ url: STILL, sprite: null });
+    }
+  });
+
+  it("gives no sprite for a sticker with one frame or none", () => {
+    for (const totalFrames of [1, 0, -3]) {
+      expect(stickerArtOf({ ...detail, totalFrames })?.sprite).toBeNull();
+    }
+  });
+
+  it("gives no sprite when the frames or the duration are not usable numbers", () => {
+    const bads = [
+      { totalFrames: Number.NaN },
+      { totalFrames: 2.5 },
+      { duration: 0 },
+      { duration: -1 },
+      { duration: Number.NaN },
+      { duration: undefined as never },
+    ];
+    for (const bad of bads) {
+      expect(stickerArtOf({ ...detail, ...bad })?.sprite).toBeNull();
+    }
+  });
+
+  it("rounds the milliseconds of a frame before counting the run", () => {
+    expect(stickerArtOf({ ...detail, duration: 99.6 })?.sprite?.durationMs).toBe(700);
+  });
+
+  it("falls back to the webp address for the still picture", () => {
+    const webp = "https://zalo-api.zadn.vn/api/emoticon/sticker/webp?eid=11236";
+
+    expect(stickerArtOf({ ...detail, stickerUrl: "", stickerWebpUrl: webp })?.url).toBe(webp);
+  });
+
+  it("gives nothing when Zalo names no picture at all", () => {
+    const empty = { ...detail, stickerUrl: "", stickerWebpUrl: null, stickerSpriteUrl: "" };
+
+    expect(stickerArtOf(empty)).toBeNull();
+  });
+
+  it("still gives the sprite when the still picture is missing", () => {
+    expect(stickerArtOf({ ...detail, stickerUrl: "", stickerWebpUrl: null })).toEqual({
+      url: null,
+      sprite: SPRITE,
+    });
+  });
+});
+
 describe("Stickers", () => {
-  function connection(answer: (id: string) => Promise<string | null>) {
+  function connection(answer: (id: string) => Promise<ZaloStickerArt | null>) {
     const calls: string[] = [];
     return {
       calls,
       source: {
-        stickerUrl: (id: string) => {
+        stickerArt: (id: string) => {
           calls.push(id);
           return answer(id);
         },
@@ -121,17 +204,28 @@ describe("Stickers", () => {
     };
   }
 
-  it("fills in the picture of each sticker", async () => {
-    const zalo = connection(async (id) => `https://zalo-api.zadn.vn/s/${id}.webp`);
+  it("fills in the still picture and the animation of each sticker", async () => {
+    const zalo = connection(async () => art(STILL, SPRITE));
     const stickers = new Stickers(zalo.source, { accountId: "a1", log: silent });
 
     const [filled] = await stickers.fill([stickerMessage("100")]);
 
-    expect(filled?.sticker?.url).toBe("https://zalo-api.zadn.vn/s/11236.webp");
+    expect(filled?.sticker?.url).toBe(STILL);
+    expect(filled?.sticker?.sprite).toEqual(SPRITE);
+  });
+
+  it("gives a sticker with no animation a null sprite", async () => {
+    const zalo = connection(async () => art(STILL));
+    const stickers = new Stickers(zalo.source, { accountId: "a1", log: silent });
+
+    const [filled] = await stickers.fill([stickerMessage("100")]);
+
+    expect(filled?.sticker?.url).toBe(STILL);
+    expect(filled?.sticker?.sprite).toBeNull();
   });
 
   it("leaves messages that are not stickers as they are, and asks Zalo nothing", async () => {
-    const zalo = connection(async () => "https://x");
+    const zalo = connection(async () => art("https://x"));
     const stickers = new Stickers(zalo.source, { accountId: "a1", log: silent });
     const text = { ...stickerMessage("100"), zaloType: "webchat", text: "hi", sticker: undefined };
 
@@ -141,8 +235,8 @@ describe("Stickers", () => {
     expect(zalo.calls).toEqual([]);
   });
 
-  it("keeps a sticker url that is already known and asks Zalo nothing", async () => {
-    const zalo = connection(async () => "https://zalo-api.zadn.vn/s/a.webp");
+  it("keeps a sticker url that is already known (a gif) with no sprite and asks Zalo nothing", async () => {
+    const zalo = connection(async () => art("https://zalo-api.zadn.vn/s/a.webp"));
     const stickers = new Stickers(zalo.source, { accountId: "a1", log: silent });
     const prefilled = {
       ...stickerMessage("100"),
@@ -151,25 +245,27 @@ describe("Stickers", () => {
 
     const [filled] = await stickers.fill([prefilled]);
 
-    expect(filled.sticker?.url).toBe("https://media.tenor.com/a.gif");
+    expect(filled?.sticker?.url).toBe("https://media.tenor.com/a.gif");
+    expect(filled?.sticker?.sprite).toBeNull();
     expect(zalo.calls).toEqual([]);
   });
 
-  it("asks Zalo once for a sticker however many messages carry it", async () => {
-    const zalo = connection(async () => "https://zalo-api.zadn.vn/s/a.webp");
+  it("asks Zalo once for a sticker however many messages carry it, and gives each its animation", async () => {
+    const zalo = connection(async () => art(STILL, SPRITE));
     const stickers = new Stickers(zalo.source, { accountId: "a1", log: silent });
 
     await stickers.fill([stickerMessage("100"), stickerMessage("101")]);
-    await stickers.fill([stickerMessage("102")]);
+    const [later] = await stickers.fill([stickerMessage("102")]);
 
     expect(zalo.calls).toEqual(["11236"]);
+    expect(later?.sticker?.sprite).toEqual(SPRITE);
   });
 
   it("does not remember an answer that failed: the next page asks again", async () => {
     let fail = true;
     const zalo = connection(async () => {
       if (fail) throw new Error("Zalo is down");
-      return "https://zalo-api.zadn.vn/s/a.webp";
+      return art(STILL, SPRITE);
     });
     const stickers = new Stickers(zalo.source, { accountId: "a1", log: silent });
 
@@ -178,7 +274,9 @@ describe("Stickers", () => {
     const [second] = await stickers.fill([stickerMessage("100")]);
 
     expect(first?.sticker?.url).toBeNull();
-    expect(second?.sticker?.url).toBe("https://zalo-api.zadn.vn/s/a.webp");
+    expect(first?.sticker?.sprite).toBeNull();
+    expect(second?.sticker?.url).toBe(STILL);
+    expect(second?.sticker?.sprite).toEqual(SPRITE);
   });
 
   it("does not let a picture that never comes hold the messages back", async () => {
@@ -189,6 +287,7 @@ describe("Stickers", () => {
 
     expect(filled?.msgId).toBe("100");
     expect(filled?.sticker?.url).toBeNull();
+    expect(filled?.sticker?.sprite).toBeNull();
   });
 
   it("keeps the picture of a sticker Zalo does not know as none", async () => {
@@ -198,6 +297,7 @@ describe("Stickers", () => {
     const [filled] = await stickers.fill([stickerMessage("100")]);
 
     expect(filled?.sticker?.url).toBeNull();
+    expect(filled?.sticker?.sprite).toBeNull();
   });
 
   it("never logs more than the account and the sticker id when Zalo fails", async () => {
@@ -207,12 +307,26 @@ describe("Stickers", () => {
     });
     const stickers = new Stickers(zalo.source, {
       accountId: "a1",
-      log: { warn: (details) => void lines.push(details) },
+      log: { warn: (details) => void lines.push(details), info: () => {} },
     });
 
     await stickers.fill([stickerMessage("100")]);
 
     expect(lines).toEqual([{ accountId: "a1", stickerId: "11236", reason: "Error: secret-token-in-error" }]);
+  });
+
+  it("logs the frames and duration Zalo gave an animated sticker, once, so the unit can be checked", async () => {
+    const lines: object[] = [];
+    const zalo = connection(async () => art(STILL, SPRITE));
+    const stickers = new Stickers(zalo.source, {
+      accountId: "a1",
+      log: { warn: () => {}, info: (details) => void lines.push(details) },
+    });
+
+    await stickers.fill([stickerMessage("100")]);
+    await stickers.fill([stickerMessage("101")]);
+
+    expect(lines).toEqual([{ accountId: "a1", stickerId: "11236", frames: 7, durationMs: 700 }]);
   });
 });
 
@@ -244,8 +358,8 @@ describe("GET /accounts/{accountId}/messages with stickers", () => {
 
   const read = () => app.inject({ method: "GET", url: "/accounts/a1/messages", headers: AUTH });
 
-  it("gives the picture of a sticker with the message", async () => {
-    gateway.stickerUrls.set("11236", "https://zalo-api.zadn.vn/s/11236.webp");
+  it("gives the picture and the animation of a sticker with the message", async () => {
+    gateway.stickerArts.set("11236", art(STILL, SPRITE));
     const listener = await connect();
     listener.receive(stickerMessage("100"));
 
@@ -255,8 +369,19 @@ describe("GET /accounts/{accountId}/messages with stickers", () => {
       id: "11236",
       catId: "3341",
       type: 7,
-      url: "https://zalo-api.zadn.vn/s/11236.webp",
+      url: STILL,
+      sprite: SPRITE,
     });
+  });
+
+  it("gives a sticker with no animation a null sprite", async () => {
+    gateway.stickerArts.set("11236", art(STILL));
+    const listener = await connect();
+    listener.receive(stickerMessage("100"));
+
+    const body = (await read()).json();
+
+    expect(body.messages[0].sticker.sprite).toBeNull();
   });
 
   it("still gives the message, with no picture, when Zalo cannot tell it", async () => {
@@ -271,7 +396,7 @@ describe("GET /accounts/{accountId}/messages with stickers", () => {
   });
 
   it("does not change the buffered message: the picture is added to the answer only", async () => {
-    gateway.stickerUrls.set("11236", "https://zalo-api.zadn.vn/s/11236.webp");
+    gateway.stickerArts.set("11236", art(STILL, SPRITE));
     const listener = await connect();
     const original = stickerMessage("100");
     listener.receive(original);
@@ -279,5 +404,6 @@ describe("GET /accounts/{accountId}/messages with stickers", () => {
     await read();
 
     expect(original.sticker?.url).toBeNull();
+    expect(original.sticker?.sprite).toBeUndefined();
   });
 });

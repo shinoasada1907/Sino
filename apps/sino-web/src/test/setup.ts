@@ -3,6 +3,7 @@ import { cleanup, configure } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
 import { stubEventSource } from './eventSource'
 import { stubOsColorScheme } from './matchMedia'
+import { stubObjectUrls } from './objectUrls'
 import { server } from './msw/server'
 
 // jsdom has no ResizeObserver; every browser does. Radix measures the hidden input of a form control with it (a Switch
@@ -33,10 +34,12 @@ beforeAll(() =>
 )
 
 // The OS states no dark-mode preference unless a test says otherwise, and every signed-in screen opens the event stream
-// (F08), which jsdom lacks; `unstubGlobals` resets both after each test.
+// (F08), which jsdom lacks; `unstubGlobals` resets both after each test. jsdom has no object URLs either, which the
+// previews of the "Thêm sticker" step use (SP-08); each test starts with none.
 beforeEach(() => {
   stubOsColorScheme('light')
   stubEventSource()
+  stubObjectUrls()
 })
 
 afterEach(() => {

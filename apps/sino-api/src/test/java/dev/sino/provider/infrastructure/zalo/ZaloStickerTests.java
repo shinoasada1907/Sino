@@ -5,23 +5,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sticker;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.StickerSprite;
 import dev.sino.provider.spi.MessageType;
 import dev.sino.provider.spi.NormalizedMessage;
 import tools.jackson.databind.json.JsonMapper;
 
 /** The picture of a Zalo sticker message reaches {@code metadata}, and only when its address is safe to show (D-279). */
+@ExtendWith(OutputCaptureExtension.class)
 class ZaloStickerTests {
 
     private static final String SELF = "100000000000000001";
     private static final String FRIEND = "200000000000000002";
     private static final String SENT_AT = "2026-10-17T08:30:00Z";
     private static final String PICTURE = "https://zalo-api.zadn.vn/api/emoticon/sticker/webpc?eid=11236";
+    private static final String SPRITE = "https://zalo-api.zadn.vn/api/emoticon/sprite?eid=11236&size=130";
 
     private static Message sticker(Sticker sticker) {
         return new Message("1001", FRIEND, "USER", FRIEND, "Bình", false, "chat.sticker", null, SENT_AT, sticker);
@@ -148,5 +155,150 @@ class ZaloStickerTests {
         NormalizedMessage message = ZaloMessageNormalizer.normalize(gifMsg, SELF);
 
         assertThat(message.metadata()).containsEntry(NormalizedMessage.STICKER_URL, url);
+    }
+
+    private static Sticker moving(String sprite, Integer frames, Integer durationMs) {
+        return new Sticker("11236", "3341", 7, PICTURE, new StickerSprite(sprite, frames, durationMs));
+    }
+
+    @Test
+    void aMovingStickerKeepsItsSpriteSheetFramesAndDurationInMetadataBesidesTheStillPicture() {
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(sticker(moving(SPRITE, 7, 700)), SELF);
+
+        assertThat(message.textContent()).isEqualTo("[Sticker]");
+        assertThat(message.metadata()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "zaloType", "chat.sticker",
+                NormalizedMessage.STICKER_URL, PICTURE,
+                NormalizedMessage.STICKER_SPRITE_URL, SPRITE,
+                NormalizedMessage.STICKER_FRAMES, "7",
+                NormalizedMessage.STICKER_DURATION_MS, "700",
+                "stickerId", "11236",
+                "stickerCatId", "3341"));
+    }
+
+    @Test
+    void aStickerWithNoSpriteHasNoSpriteKeys() {
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(sticker(moving(null, null, null)), SELF);
+
+        assertThat(message.metadata()).doesNotContainKeys(NormalizedMessage.STICKER_SPRITE_URL,
+                NormalizedMessage.STICKER_FRAMES, NormalizedMessage.STICKER_DURATION_MS)
+                .containsEntry(NormalizedMessage.STICKER_URL, PICTURE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "http://zalo-api.zadn.vn/api/emoticon/sprite?eid=1",
+        "javascript:alert(1)",
+        "https://evil.example.com/sprite.png",
+        "https://zadn.vn.evil.com/sprite.png",
+        "https://user:pw@zalo-api.zadn.vn/sprite.png",
+        "not a url" })
+    void aSpriteOnAnAddressThatIsNotSafeIsLeftOutWhole(String url) {
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(sticker(moving(url, 7, 700)), SELF);
+
+        assertThat(message.metadata()).doesNotContainKeys(NormalizedMessage.STICKER_SPRITE_URL,
+                NormalizedMessage.STICKER_FRAMES, NormalizedMessage.STICKER_DURATION_MS)
+                .containsEntry(NormalizedMessage.STICKER_URL, PICTURE);
+    }
+
+    @ParameterizedTest
+    @CsvSource({ "1,700", "0,700", "-5,700", "301,700", "7,99", "7,0", "7,-1", "7,10001" })
+    void aSpriteWithFramesOrDurationOutOfRangeIsLeftOutWhole(int frames, int durationMs) {
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(sticker(moving(SPRITE, frames, durationMs)),
+                SELF);
+
+        assertThat(message.metadata()).doesNotContainKeys(NormalizedMessage.STICKER_SPRITE_URL,
+                NormalizedMessage.STICKER_FRAMES, NormalizedMessage.STICKER_DURATION_MS);
+    }
+
+    @Test
+    void aSpriteMissingItsFramesOrItsDurationIsLeftOutWhole() {
+        for (Sticker partial : new Sticker[] { moving(SPRITE, null, 700), moving(SPRITE, 7, null) }) {
+            NormalizedMessage message = ZaloMessageNormalizer.normalize(sticker(partial), SELF);
+
+            assertThat(message.metadata()).doesNotContainKeys(NormalizedMessage.STICKER_SPRITE_URL,
+                    NormalizedMessage.STICKER_FRAMES, NormalizedMessage.STICKER_DURATION_MS);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({ "2,100", "300,10000" })
+    void theLimitsOfFramesAndDurationAreKept(int frames, int durationMs) {
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(sticker(moving(SPRITE, frames, durationMs)),
+                SELF);
+
+        assertThat(message.metadata()).containsEntry(NormalizedMessage.STICKER_FRAMES, String.valueOf(frames))
+                .containsEntry(NormalizedMessage.STICKER_DURATION_MS, String.valueOf(durationMs));
+    }
+
+    @Test
+    void aGifNeverGetsASprite() {
+        Message gif = new Message("1004", FRIEND, "USER", FRIEND, "Bình", false, "chat.gif", null, SENT_AT,
+                new Sticker("1004", "0", 0, "https://media.tenor.com/a.gif", new StickerSprite(SPRITE, 7, 700)));
+
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(gif, SELF);
+
+        assertThat(message.metadata()).doesNotContainKeys(NormalizedMessage.STICKER_SPRITE_URL,
+                NormalizedMessage.STICKER_FRAMES, NormalizedMessage.STICKER_DURATION_MS);
+    }
+
+    @Test
+    void theSpriteOfSinoZaloIsReadAndAnOlderStickerWithoutOneStillReads() throws Exception {
+        String moving = """
+                {"msgId":"1001","threadId":"%s","threadType":"USER","fromId":"%s","fromName":"Bình","isSelf":false,
+                 "zaloType":"chat.sticker","text":null,"sentAt":"%s",
+                 "sticker":{"id":"11236","catId":"3341","type":7,"url":"%s",
+                            "sprite":{"url":"%s","frames":7,"durationMs":700,"future":1}}}
+                """.formatted(FRIEND, FRIEND, SENT_AT, PICTURE, SPRITE);
+        String still = """
+                {"msgId":"1001","threadId":"%s","threadType":"USER","fromId":"%s","fromName":"Bình","isSelf":false,
+                 "zaloType":"chat.sticker","text":null,"sentAt":"%s",
+                 "sticker":{"id":"11236","catId":"3341","type":7,"url":"%s","sprite":null}}
+                """.formatted(FRIEND, FRIEND, SENT_AT, PICTURE);
+        JsonMapper mapper = JsonMapper.builder().build();
+
+        assertThat(mapper.readValue(moving, Message.class).sticker().sprite())
+                .isEqualTo(new StickerSprite(SPRITE, 7, 700));
+        assertThat(mapper.readValue(still, Message.class).sticker().sprite()).isNull();
+    }
+    @Test
+    void aStickerPictureSinoRefusesIsWarnedAboutByHostAndSchemeNeverByPath(CapturedOutput output) {
+        ZaloMessageNormalizer.normalize(sticker(new Sticker("1", "2", 7, "https://cdn.example.com/private/token-abc123/a.webp")),
+                SELF);
+
+        assertThat(output.getAll()).contains("Zalo gave a sticker whose address Sino does not accept")
+                .contains("host: cdn.example.com, scheme: https").doesNotContain("token-abc123");
+    }
+
+    @Test
+    void aGifPictureSinoRefusesIsWarnedAbout(CapturedOutput output) {
+        Message gif = new Message("1004", FRIEND, "USER", FRIEND, "Bình", false, "chat.gif", null, SENT_AT,
+                new Sticker("1004", "0", 0, "https://evil.example.com/a.gif"));
+
+        ZaloMessageNormalizer.normalize(gif, SELF);
+
+        assertThat(output.getAll()).contains("Zalo gave a gif whose address Sino does not accept")
+                .contains("host: evil.example.com");
+    }
+
+    @Test
+    void aSpriteSheetSinoRefusesIsWarnedAboutAndTheStillPictureIsKept(CapturedOutput output) {
+        NormalizedMessage message = ZaloMessageNormalizer.normalize(
+                sticker(moving("https://cdn.example.com/sprite/token-xyz/s.png", 7, 700)), SELF);
+
+        assertThat(output.getAll()).contains("Zalo gave a sticker sprite whose address Sino does not accept")
+                .contains("host: cdn.example.com").doesNotContain("token-xyz");
+        assertThat(message.metadata()).containsEntry(NormalizedMessage.STICKER_URL, PICTURE)
+                .doesNotContainKey(NormalizedMessage.STICKER_SPRITE_URL);
+    }
+
+    @Test
+    void aStickerWhoseAddressesSinoKeepsOrWhichHasNoneIsNotWarnedAbout(CapturedOutput output) {
+        ZaloMessageNormalizer.normalize(sticker(moving(SPRITE, 7, 700)), SELF);
+        ZaloMessageNormalizer.normalize(sticker(new Sticker("1", "2", 7, null)), SELF);
+        ZaloMessageNormalizer.normalize(sticker(null), SELF);
+        ZaloMessageNormalizer.normalize(sticker(moving(null, null, null)), SELF);
+
+        assertThat(output.getAll()).doesNotContain("does not accept");
     }
 }

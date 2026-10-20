@@ -1,9 +1,9 @@
-# Kiến thức Phase 4 — Việc cần làm và Lịch
+# Kiến thức Phase 4 — Việc cần làm, Lịch và Ghi chú
 
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71.
-> **Cập nhật:** 2026-10-12. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
+> **Phạm vi:** phần lõi của F16 + F17, `openspec/changes/f16-f17-tasks-calendar` (việc cần làm có hạn và lặp lại, lịch hẹn, xem lịch theo khoảng ngày; chưa có nhắc nhở, chưa gắn tin nhắn): BE-70, BE-71, BE-72, FE-70, FE-71. Phần lõi của F15, `openspec/changes/f15-notes` (ghi chú chữ và ghi chú dạng sơ đồ lưu trong database, chưa gắn tin nhắn), nằm ở phần cuối, mục "Ghi chú (F15)": BE-90, BE-91, FE-90.
+> **Cập nhật:** 2026-10-19. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`.
 
 ---
 
@@ -479,3 +479,202 @@ Hai bẫy gặp khi viết `TaskForm.test.tsx`:
 - RED 19 test và một file không nạp được (chưa có `taskForm.ts`); GREEN; ca "Back không mở lại biểu mẫu" viết sau nên gài lỗi một lần (`navigate(-1)` thành `replace`): test đỏ, trả code lại.
 - `pnpm lint` 0 cảnh báo (tách `fieldProps.ts` vì file component không nên export hàm thường), `tsc -b` 0, `vitest` 590/590, `pnpm build` 0.
 - Chrome với backend thật: "Tùy chỉnh…" mỗi 2 tuần thứ Hai và thứ Năm sau 6 lần (máy chủ lưu đúng); dời hạn sang thứ Ba → 422 hiện cạnh ô Lặp lại; Esc không đổi gì; bỏ hạn → việc về "KHÔNG CÓ HẠN"; xóa có hỏi lại; 768 (hộp thoại) và 390 (trang riêng, thu chip để bảy thứ nằm một dòng); không lỗi console.
+
+---
+
+## Ghi chú (F15)
+
+Màn Ghi chú của web (ghi chú chữ và ghi chú dạng sơ đồ) dựng xong trên dữ liệu mẫu, nên tải lại trang là mất hết. F15 cho nó một chỗ lưu thật: module mới `notes`, đứng riêng như `planner`, chỉ phụ thuộc `identity` (ai đang gọi) và `common`. Change: `openspec/changes/f15-notes`.
+
+| Quyết định | Nội dung |
+|---|---|
+| D-170 | Ghi chú độc lập trước, gắn tin nhắn đợt sau (người dùng) |
+| D-172 | Lưu phải kèm `version` đã đọc; lệch thì `409`, không ghi gì (người dùng) |
+| D-173 | Danh sách trả đủ nội dung; tìm và lọc ở trình duyệt (người dùng) |
+| D-174 | Ghi chú chữ bắt buộc có nội dung; tiêu đề tùy chọn (người dùng) |
+| D-175 | Ghim không phải một lần sửa: không đổi `updated_at` (người dùng duyệt) |
+| D-179 | Ghi chú sơ đồ nằm cùng bảng `note`: cột `kind` và `diagram jsonb` (người dùng, 2026-10-19; thay D-171 "sơ đồ là change riêng") |
+
+### F15.1 Bảng `note`, `Note`, `Diagram` và `NoteService` (BE-90)
+
+**Ở đâu:** `notes/domain/{Note, NoteKind, Diagram, DiagramBlock, DiagramLink, Side, BlockColor, NotesErrorCode}`; `notes/application/{NoteService, NewNote, NoteChange}`; `notes/infrastructure/NoteRepository`; `db/migration/V20__notes_create_note.sql`.
+
+```text
+note
+  id  user_id  kind  title  body  diagram  pinned  created_at  updated_at  version
+                |             |       |
+                |             |       +-- jsonb: cả sơ đồ {"blocks":[...], "links":[...]}
+                |             +---------- chữ của ghi chú chữ; rỗng ('') với sơ đồ
+                +------------------------ TEXT | DIAGRAM, chọn lúc tạo, không bao giờ đổi
+
+TEXT    : body có chữ, diagram = NULL
+DIAGRAM : body = '',   diagram là một object JSON
+```
+
+**Vì sao một bảng và một cột jsonb (D-179).** Web luôn gửi và nhận cả sơ đồ: mỗi lần tự lưu là thay toàn bộ. Không có chỗ nào cần đọc hay sửa một khối riêng. Một cột jsonb giữ sơ đồ nhất quán trong một lần ghi (không có chuyện đã lưu 3 khối trong 5 rồi lỗi), và dùng chung `version`, `409`, ghim, xóa, danh sách với ghi chú chữ. **Phương án bỏ:** hai bảng `note_block` và `note_link`: nhiều lệnh mỗi lần lưu, sơ đồ có thể dở dang khi lỗi giữa chừng, mà chưa ai truy vấn theo khối. Khi F11 (tìm toàn văn) cần tìm trong khối thì tách sau.
+
+**`Diagram` là một `record` biết các luật nhìn xuyên.** Mỗi khối và mỗi nối tự kiểm phần của mình (`DiagramBlock`: chữ tối đa 2.000 ký tự, tọa độ là số hữu hạn; `DiagramLink`: nhãn tối đa 80 ký tự). Những luật cần nhìn cả sơ đồ nằm một chỗ, trong compact constructor của `Diagram`:
+
+```text
+1 .. 300 khối, tối đa 600 nối
+mã khối không trùng, mã nối không trùng
+một nối nối hai khối KHÁC nhau, cả hai nằm trong sơ đồ
+một cặp (từ, tới) có tối đa một nối      (từ A tới B và từ B tới A là hai nối khác nhau)
+```
+
+Nhờ vậy không tạo được một `Diagram` hỏng ở bất kỳ đâu: API (BE-91) chỉ việc dựng nó, lỗi nào cũng ra từ một chỗ. `List.copyOf` trong constructor làm hai việc: sơ đồ không đổi được qua danh sách đã dùng để dựng nó, và `null` bị chặn ngay (NullPointerException).
+
+**`equals` theo nội dung, và vì sao nó quan trọng.** `record` so từng thành phần. Web gửi lại cả sơ đồ ở mỗi lần tự lưu, kể cả lần chẳng có gì đổi (ví dụ đổi tiêu đề). `Note.edit` so sơ đồ mới với sơ đồ đang lưu bằng `Objects.equals`: bằng nhau thì không phải một lần sửa, `updated_at` và `version` giữ nguyên. Nếu so bằng tham chiếu (`==`), mọi lần tự lưu đều tăng `version`, và tab thứ hai sẽ bị `409` oan.
+
+**Hibernate lưu `record` lồng nhau vào jsonb.** Chỉ cần hai dòng trên trường (`@JdbcTypeCode(SqlTypes.JSON)` và `@Column(name = "diagram")`), như `AccountCredential.scopes`. Điều chưa chắc là danh sách các record lồng nhau có đi qua Jackson 3 (Spring Boot 4) và quay lại đúng không, nên test `NoteServiceTests` lưu một sơ đồ có chữ Việt, emoji, dấu nháy kép, xuống dòng và số thập phân dài, đọc lại bằng một lần mở EntityManager khác, và so `equals` với bản gốc. Test còn hỏi thẳng jsonb bằng SQL (`diagram -> 'links' -> 0 ->> 'fromSide'`) để chắc dạng JSON khớp hợp đồng D-211, không chỉ khớp với chính Java.
+
+**`kind` không đổi, và dùng `STRING` chứ không `ORDINAL`.** `@Column(updatable = false)`: Hibernate không bao giờ ghi lại cột này. `@Enumerated(EnumType.STRING)` lưu chữ `TEXT` / `DIAGRAM`; `ORDINAL` lưu số thứ tự, và thêm một giá trị vào giữa enum sau này sẽ làm mọi hàng cũ đổi nghĩa trong im lặng.
+
+**Hai tầng chặn khi nhầm loại.** Trong `Note.edit` (domain): gửi `body` cho ghi chú sơ đồ, hay `diagram` cho ghi chú chữ, ném `IllegalArgumentException`: người gọi code sai. `NoteService.update` kiểm trước, và ném `SinoException(NOTE_KIND_MISMATCH)`, mã `422`. Thứ tự: không có ghi chú → `404`; nhầm loại → `422`; `version` lệch → `409`. Nhầm loại được xét trước `version` vì không phiên bản nào làm cho yêu cầu đó đúng. **Vì sao `422` mà không `400`:** ở app này `400 VALIDATION_FAILED` chỉ đến từ Bean Validation trên request, tức là lỗi thấy được chỉ nhìn request. Nhầm loại phụ thuộc vào ghi chú đã lưu: request đúng dạng nhưng trái luật nghiệp vụ, đúng nhóm `INVALID` (`422`) của `ErrorCategory`. (`POST` có `body` cho sơ đồ thì chỉ nhìn request cũng thấy sai, nên đó là `400`, kiểm ở BE-91 và ở `NewNote`.)
+
+**Database giữ sàn dưới.** `V20` có các CHECK, mỗi cái một tên để test kiểm đúng cái bị chặn:
+
+```text
+note_kind_ck          kind IN ('TEXT','DIAGRAM')
+note_text_ck          kind <> 'TEXT'    OR (diagram IS NULL AND btrim(body) <> '')
+note_diagram_ck       kind <> 'DIAGRAM' OR (diagram IS NOT NULL AND jsonb_typeof(diagram) = 'object' AND body = '')
+note_body_length_ck   char_length(body) <= 20000
+note_title_blank_ck   title IS NULL OR btrim(title) <> ''
+```
+
+`kind <> 'TEXT' OR (...)` là cách viết "nếu là TEXT thì ..." trong SQL: chỉ khi `kind` là `TEXT` thì vế phải mới phải đúng. Bên trong sơ đồ (số khối, nối trỏ đúng) do ứng dụng kiểm, database không cố hiểu JSON. **Bẫy:** `insert ... values (?)` với một chuỗi cho cột jsonb báo lỗi kiểu ("column is of type jsonb but expression is of type character varying"); phải viết `?::jsonb`. Test dùng `insertRow` để chèn thẳng hàng hỏng nên gặp bẫy này.
+
+**Câu gợi ý của task: "vì sao so `version` trong service mà vẫn cần `@Version` của JPA?"** Hai thứ bắt hai tình huống khác nhau:
+- Service so `version` gửi lên với `version` đang lưu: bắt **tab cũ**. Tab A đọc ở version 3, tab B lưu thành 4, một lúc sau tab A lưu với version 3: service thấy 3 khác 4 và từ chối. Hai request cách nhau, JPA không thấy gì sai, vì nó chỉ biết version nó vừa đọc.
+- `@Version` bắt **hai request cùng lúc**, cùng đọc version 3 và cùng qua được bước so. Câu `UPDATE ... WHERE version = 3` của request thứ hai không còn hàng nào để sửa, JPA ném `OptimisticLockingFailureException`. Test `twoSavesOfTheSameVersionAtTheSameTimeEndInOneRefusal` dựng đúng tình huống này bằng đồng hồ chỉnh tay có thể dừng lại giữa chừng.
+
+Cả hai cùng ném `OptimisticLockingFailureException`, nên handler sẵn có trả cùng một `409 CONCURRENT_MODIFICATION`.
+
+**Kiểm chứng (BE-90).**
+- Xuất phát từ bản WIP `f43fdd6` (ghi chú chữ, chưa ai chạy): trong worktree mới, 49 test (`NoteTests` 25, `NoteServiceTests` 22, `ModularityTests` 2) xanh trước khi sửa gì, nên phần chữ là nền chắc.
+- ĐỎ đúng lý do: test mới viết trước, `test-compile` chỉ báo thiếu `Diagram`, `DiagramBlock`, `DiagramLink`, `BlockColor`, `Side`, `NoteKind`, `Note.diagram()`, `Note.kind()`, `NewNote.text(...)`: không có lỗi nào khác.
+- XANH: `NoteTests` 34, `DiagramTests` 21, `NewNoteTests` 5, `NoteServiceTests` 40, `ModularityTests` 2 (module `notes` được nhận). Sơ đồ có chữ Việt, emoji, dấu nháy kép, xuống dòng và số thập phân dài lưu rồi đọc lại bằng EntityManager khác đều `equals` bản gốc.
+- `./mvnw -B -ntp verify` trong worktree: 1873 test, 0 lỗi, 0 error, 8 bỏ qua (sẵn có), BUILD SUCCESS.
+- Gài lỗi (một lần cho `Diagram` và `Note`): 13 lỗi gài, cả 13 làm đỏ đúng test của luật đó, rồi trả code lại. `Diagram`: bỏ kiểm tự nối, trùng cặp, 301 khối, nối tới khối không có, sơ đồ rỗng, mã khối trùng, NUL trong chữ khối. `Note`: `edit` bỏ qua sơ đồ, `edit` coi sơ đồ bằng nhau là đã đổi, bỏ chặn `body` cho sơ đồ, ghim đổi `updated_at`. `NoteService`: bỏ so `version`, bỏ chuyển `diagram` xuống `edit`. Một lỗi gài đầu (mã khối trùng) làm đỏ cả những test không liên quan vì nó bỏ luôn lệnh `add` vào tập mã; viết lại chỉ tắt phần báo lỗi thì chỉ còn `twoBlocksCannotShareAnId` đỏ.
+- Bài học: lỗi gài tốt chỉ tắt một nhánh, không xóa lệnh có tác dụng phụ trong cùng điều kiện, nếu không "đỏ" không còn nói lên điều gì.
+
+### F15.2 REST `/api/notes` cho ghi chú chữ và sơ đồ (BE-91)
+
+**Ở đâu:** `notes/api/{NotesController, CreateNoteRequest, UpdateNoteRequest, NoteResponse, DiagramBody, FollowsDiagramRules, DiagramRules, Texts}`; `apps/sino-api/README.md` (năm dòng `/api/notes`).
+
+```text
+GET    /api/notes           -> { generatedAt, notes: [NoteItem ...] }   mọi ghi chú, sửa gần nhất trước
+GET    /api/notes/{id}      -> NoteItem
+POST   /api/notes           -> 201 + Location + NoteItem                { kind?, title?, body? | diagram }
+PATCH  /api/notes/{id}      -> NoteItem                                 { version, title?, body?, pinned?, diagram? }
+DELETE /api/notes/{id}      -> 204
+
+NoteItem = { id, kind, title, body, diagram, pinned, createdAt, updatedAt, version, anchor, quote, linked }
+```
+
+**Ba lớp kiểm, mỗi lớp một loại lỗi (như F16 mục 3.1).** Một yêu cầu đi qua ba chỗ, và chỗ nào bắt thì mã lỗi như thế:
+
+| Chỗ | Bắt gì | Trả |
+|---|---|---|
+| Jackson (đọc JSON) | giá trị không đọc được: `kind` / màu / cạnh lạ, mã khối không phải UUID, tọa độ là chữ | `400 MALFORMED_REQUEST` |
+| Bean Validation trên request | thiếu trường, quá dài, có NUL, `PATCH` rỗng hoặc thiếu `version`, và **mọi luật của sơ đồ** | `400 VALIDATION_FAILED` |
+| `NoteService` (cần đọc ghi chú) | không có / của người khác, nhầm loại, `version` lệch | `404`, `422 NOTE_KIND_MISMATCH`, `409` |
+
+Quy tắc chọn: lỗi nào chỉ nhìn request là thấy thì thuộc 400; lỗi cần biết ghi chú đang lưu thế nào thì thuộc service.
+
+**Vì sao `DiagramBody` là bản sao của `Diagram` chứ không để Jackson dựng thẳng `Diagram`.** Có hai lý do, và cả hai đều là lỗi im lặng:
+- Jackson gọi constructor của `record`. Nếu một luật bị phạm, `IllegalArgumentException` bị bọc thành lỗi đọc JSON, nên người dùng nhận `MALFORMED_REQUEST` và mất tên luật ("nối tới khối không có trong sơ đồ").
+- Với `double x` (kiểu nguyên thủy), một khối thiếu `x` được đọc thành `0.0` chứ không báo thiếu. `DiagramBody` dùng `Double` và `@NotNull`, nên thiếu là lỗi có tên trường.
+
+**Một ràng buộc tự viết, `@FollowsDiagramRules`, để luật chỉ viết một lần.** Luật của sơ đồ (300 khối, nối không tự nối, không trùng cặp...) đã nằm trong `Diagram` từ BE-90. Viết lại chúng thành annotation Bean Validation là viết hai lần, rồi hai bản sẽ lệch nhau. Nên `DiagramRules` (một `ConstraintValidator`) chỉ thử dựng `Diagram` từ `DiagramBody`; nếu `IllegalArgumentException` thì dùng đúng câu của luật làm câu báo lỗi:
+
+```java
+catch (IllegalArgumentException broken) {
+    context.disableDefaultConstraintViolation();
+    context.buildConstraintViolationWithTemplate(broken.getMessage()).addConstraintViolation();
+    return false;
+}
+```
+
+Hai chi tiết: (1) trường thiếu làm `toDiagram()` ném `NullPointerException`; validator trả `true` ở nhánh đó vì `@NotNull` đã báo đúng trường rồi, báo hai lần chỉ làm rối. (2) `buildConstraintViolationWithTemplate` coi chuỗi là *mẫu* (có thể chứa `${...}`); câu của domain do ta viết và không chứa chữ của người dùng nên an toàn, nhưng đây là chỗ không bao giờ được nối chữ người dùng vào.
+
+**`@AssertTrue` trên `record`, và quy tắc theo loại.** Như `CreateTaskRequest`, các luật nhiều trường là phương thức `isXxx()` có `@AssertTrue`: "ghi chú chữ cần chữ và không có sơ đồ", "ghi chú sơ đồ cần sơ đồ và không có chữ". `kind` thiếu coi là `TEXT` để web cũ không đổi. `body: ""` cho một sơ đồ cũng bị từ chối: với sơ đồ, `body` phải vắng hẳn, nên chỉ có một cách đúng để gửi. `UpdateNoteRequest` không biết loại của ghi chú (chưa đọc nó), nên chỉ kiểm phần chắc chắn: `version` bắt buộc và không âm, ít nhất một trường, `body` nếu có thì có chữ; còn nhầm loại để `NoteService` trả `422` (xem F15.1).
+
+**`NoteResponse` khớp `NoteItem` của web.** `anchor`, `quote` luôn `null` và `linked` luôn `[]` (D-177); khai báo là `Object` và `List<Object>` để khi có neo thật chỉ đổi kiểu, không đổi hình dạng JSON. `body` của sơ đồ là `""` và `diagram` của ghi chú chữ là `null`: web cần phân biệt hai loại nên gửi cả hai trường chứ không bỏ trường nào.
+
+**Câu gợi ý của task: "vì sao `version` nằm trong body của `PATCH` mà không ở header `If-Match`?"** `If-Match` là cách chuẩn của HTTP: máy chủ so với `ETag` của tài nguyên, lệch thì trả `412 Precondition Failed`. Nó đòi hai thứ ta chưa có: mỗi mục trong danh sách mang một `ETag` riêng (danh sách trả cả mảng ghi chú, web lấy `version` từ từng phần tử), và web phải đọc, giữ và gửi thêm một header. Lệch còn đi đường lỗi `412` mới, trong khi cả app đã dùng `409 CONCURRENT_MODIFICATION` cho cùng chuyện. Đặt `version` trong JSON cho web một chỗ duy nhất (`NoteItem.version`) và dùng lại đường `409` sẵn có (D-172).
+
+**Bẫy khi viết test.**
+- `@SpringBootTest` + `MockMvc` chạy cả ứng dụng, nên mỗi test phải xóa `note` và người dùng phụ trước (`@BeforeEach`), nếu không ghi chú của test trước lẫn vào danh sách.
+- Mã khối trong test là UUID cố định (`new UUID(0x7000L, 0x8000000000000000L | n)`), để biết chắc mã nào có ở đâu; 301 khối và 601 nối được sinh bằng vòng lặp, không gõ tay.
+- Biểu thức chính quy chặn NUL là `[^\x00]*` (mọi ký tự trừ NUL), không phải `.*`: dấu `.` không khớp xuống dòng, và ghi chú nhiều dòng là chuyện bình thường. Lỗi gài đổi `[^\x00]*` thành `.*` làm đỏ cả test "giữ nguyên nội dung như đã gõ" (xuống dòng bị từ chối) lẫn các ca NUL (trả `500` thay vì `400`, vì PostgreSQL từ chối NUL).
+- Test bảng (`@ParameterizedTest`) đặt tên cho từng dòng (`"a link to a block that is not there"`): khi một ca đỏ, báo cáo nói ngay ca nào, không phải đếm chỉ số.
+- Lỗi gài làm lộ một bẫy của chính việc gài lỗi: sau khi thử một lỗi gài, trả file nguồn lại bằng `mv` cho nó **giờ sửa cũ**. Maven thấy class đã biên dịch (từ bản gài lỗi) mới hơn nguồn nên không biên dịch lại, và lần `verify` sau chạy trên class còn gài lỗi, đỏ đúng những test của lỗi gài mà nguồn thì sạch. Dấu hiệu: nguồn đúng mà test đỏ như lúc gài. Cách chữa: `clean`, hoặc `touch` file sau khi trả.
+
+**Kiểm chứng (BE-91).**
+- ĐỎ đúng lý do: 69 test viết trước, chạy khi chưa có controller: 66 đỏ và 2 lỗi, tất cả vì `404 RESOURCE_NOT_FOUND` (không có đường dẫn).
+- XANH: `NotesApiTests` 69, `ModularityTests` 2. `./mvnw -B -ntp clean verify` trong worktree: 1965 test, 0 lỗi, 8 bỏ qua (sẵn có), BUILD SUCCESS.
+- Gài lỗi: 10 lỗi ở lớp API, cả 10 làm đỏ đúng test của nó: bỏ luật ghi chú chữ, bỏ luật ghi chú sơ đồ, tắt `@FollowsDiagramRules`, `PATCH` không cần trường nào, `version` không bắt buộc, `version` âm, cho phép NUL, response bỏ `diagram`, `body` trắng ở `PATCH`, bỏ `Location`.
+- Chưa kiểm: gọi API trên backend chạy thật; làm ở FE-90 cùng Chrome thật.
+
+### F15.3 Màn Ghi chú trên API, lưu có phiên bản (FE-90)
+
+**Ở đâu:** `apps/sino-web/src/features/notes/`: `notes.api.ts`, `useNotes.ts`, `useAutosave.ts` (mới), `components/{NoteEditor, SyncNotice, NoteList}.tsx`, `diagram/{DiagramEditor.tsx, diagram.ts}` (`sameDiagram`), `format.ts` (`hasAnchoredNotes`). Test: `NotesOnApi.test.tsx`, `notes.api.test.ts`, `src/test/{notesBackend.ts, notesSampleApi.ts, fixtures/notesApi.ts}`.
+
+**Hợp đồng không đổi, chỉ đổi thân hàm (D-42).** Màn dựng trên dữ liệu mẫu từ NT-01; `notes.api.ts` là chỗ duy nhất gọi mạng, nên chuyển sang API thật chỉ là viết lại bốn hàm (`fetchNotes`, `createNote`, `saveNote`, `deleteNote`) và thêm `version` vào `NoteItem`. `saveNote` chỉ gửi trường đã đổi cùng `version` (`JSON.stringify` bỏ trường `undefined`, nên trường không gửi thì máy chủ giữ nguyên; `title: ''` được gửi để xóa tiêu đề). Ghi chú sơ đồ gửi `{ kind: 'DIAGRAM', title, diagram }` và không có `body`.
+
+```text
+gõ chữ / kéo khối
+   |  ngừng 600 ms, hoặc rời ô, hoặc rời ghi chú
+   v
+hàng đợi (mỗi lần một việc, theo thứ tự) --> PATCH { version: base.version, ...phần đã đổi }
+                                                  |
+   200  --> base = bản máy chủ trả về
+   409  --> "Ghi chú này vừa được sửa ở nơi khác."  --> [Tải bản mới] [Lưu bản của tôi]
+   404  --> "Ghi chú này đã bị xóa ở nơi khác."     --> [Lưu thành ghi chú mới]
+   khác --> "Không lưu được thay đổi."              --> [Thử lại]   (lần ngừng gõ sau cũng tự thử)
+```
+
+**Khái niệm chính: `base`, bản mà trình soạn xuất phát từ đó, khác với bản trong cache.** Cache của danh sách (`useNotes`) đọc lại mỗi khi tab trở lại phía trước. Nếu một lần lưu lấy `version` từ cache, thì: người dùng đang gõ dở, tab khác vừa sửa cùng ghi chú, danh sách đọc lại mang `version` mới của tab kia vào cache, lần tự lưu kế tiếp gửi `version` mới đó và **thắng im lặng**, ghi đè đoạn vừa sửa ở tab kia. Đúng cái mà D-172 sinh ra để chặn. Vì vậy `useAutosave` giữ `base` riêng:
+- `base` bắt đầu từ ghi chú lúc mở; mỗi lần lưu thành công đổi `base` thành bản máy chủ trả về;
+- danh sách đọc lại **không** đổi `base` khi còn thay đổi chưa lưu (`changeOf(base, nội dung) !== null`), nên lần lưu sau đi với `version` cũ và nhận `409`, còn chữ đang gõ vẫn nằm trong ô;
+- khi không còn gì chưa lưu, trình soạn nhận bản mới (`adopt`), nên không ai phải bấm gì chỉ để thấy chữ từ tab kia.
+
+Cache chỉ để hiển thị ("Sửa lúc ...", chip, thẻ); `base` mới là cái để lưu. Test `does not take the typing away when the list is read again, and the save that follows is refused, not silent` kiểm đúng chuyện này: lần lưu đi với `version` 2, không phải 3 vừa đọc.
+
+**Hàng đợi, vì một lần lưu chồng lên lần lưu trước sẽ tự gây `409` cho chính mình.** Gõ, rời ô (lưu bắt đầu), gõ tiếp, rời ô lần nữa trong lúc lần đầu chưa xong: hai `PATCH` cùng mang `version` cũ, cái sau bị `409`. Mọi yêu cầu mạng của trình soạn (lưu, ghim, tải bản mới, lưu bản của tôi) đi qua một chuỗi `Promise`:
+
+```ts
+queue.current = queue.current.then(task).catch(() => undefined).finally(() => { pending.current -= 1 })
+```
+
+Mỗi việc đọc nội dung và `base` **lúc đến lượt**, không lúc được xếp hàng, nên hai lần "lưu" liên tiếp thành một lần lưu thật và một lần không có gì để lưu. `.catch(() => undefined)` giữ chuỗi sống khi một việc lỗi (nếu không, mọi việc sau sẽ không bao giờ chạy). Đếm `pending` để biết lúc nào là "đang có lần lưu trên đường đi": lúc đó lần đọc lại danh sách chưa được nhận làm `base`.
+
+**So nội dung, không so tham chiếu.** Sau mỗi lần lưu, máy chủ trả một bản sao sơ đồ (đối tượng khác, khóa có thể khác thứ tự). Nếu trình soạn so `diagram !== base.diagram`, mọi lần ngừng gõ đều thấy "đã đổi" và lại `PATCH`. `sameDiagram` so từng khối và nối theo trường; tiêu đề so sau khi bỏ khoảng trắng hai đầu, vì máy chủ lưu tiêu đề đã cắt.
+
+**`409`, `404`, lỗi khác: ba trạng thái, ba lối ra.** `SyncNotice` hiện dòng báo ở đầu trình soạn (cả chữ lẫn sơ đồ; chữ báo khác một câu: "Chữ bạn đang gõ chưa được lưu" và "Thay đổi bạn vừa vẽ chưa được lưu"). Trong lúc `409` hoặc `404`, tự lưu dừng hẳn (`blocked()`), nhưng nội dung vẫn ở trong ô. "Tải bản mới" đọc lại danh sách và nạp bản máy chủ; "Lưu bản của tôi" đọc lại để lấy `version` mới rồi lưu nội dung đang có lên đó (ghi đè có chủ ý, người dùng đã chọn); "Lưu thành ghi chú mới" xóa `base` và tạo ghi chú mới từ chữ hoặc sơ đồ đang có. Lỗi mạng hay `5xx` chỉ hiện dòng báo, không dừng gì: lần ngừng gõ sau tự thử lại.
+
+**Một ghi chú đã bị xóa ở nơi khác thì coi như đã xóa.** `deleteNote` trả `404` khi ghi chú không còn; nếu hiện "Không xóa được ghi chú" thì người dùng kẹt, vì thử lại cũng `404` mãi. `useDeleteNote` nuốt đúng `404` (và chỉ `404`) nên màn đi về danh sách như bình thường.
+
+**Ẩn phần chưa có dữ liệu.** `hasAnchoredNotes` là hàm thuần: chip "Gắn tin nhắn" và dòng nguồn "Ghi chú độc lập" chỉ hiện khi có ít nhất một ghi chú có neo (D-178); `?filter=linked` khi chưa có neo hiện tất cả thay vì một danh sách rỗng khó hiểu. "Thêm thao tác" bỏ hẳn khỏi trình soạn chữ, như FE-70 với việc.
+
+**Hạ tầng test.**
+- `notesBackend` (MSW) giữ ghi chú trong bộ nhớ **với luật của máy chủ thật**: `PATCH` đi với `version`, cũ hơn thì `409`, không đổi gì thì giữ `version`, ghim giữ giờ sửa. Có "tay" để làm như tab khác: `editElsewhere`, `removeElsewhere`, `fail(n)`, `setDown(true)` (lỗi mạng), `slowSaves(ms)` (để hai lần lưu có thể chồng nhau).
+- Các test cũ (NT-01 đến DG-04) viết trên dữ liệu mẫu, nên dùng `vi.mock('./notes.api', ...)` với `sampleNotesApi`, cùng cách `sampleTasksApi` của FE-70. Một test bên ngoài thư mục `notes` cũng mở màn Ghi chú thật (`MobileSubPage.test.tsx`) và phải mock tương tự: lỗi hiện ra là "Requests without an MSW handler: GET /api/notes".
+- Đọc lại danh sách trong test: `await act(() => queryClient.invalidateQueries({ queryKey: NOTES_QUERY_KEY }))`.
+
+**Câu gợi ý của task: "khi danh sách đọc lại trong lúc đang gõ, ô soạn nên tin bản nào, và vì sao?"** Tin **chữ của chính nó** và **`base` của chính nó**, không tin danh sách. Danh sách chỉ nói "máy chủ đang có gì"; ô soạn cần biết "tôi xuất phát từ đâu". Khi hai điều đó khác nhau mà còn chữ chưa lưu thì đó chính là xung đột, và chỉ máy chủ (bằng `409`) hay người dùng (bằng hai nút) mới có quyền quyết ai thắng.
+
+**Bẫy khi chạy trình duyệt thật.**
+- Chuyển sang tab khác rồi quay lại kích hoạt đọc lại danh sách, và trình soạn không còn gì chưa lưu sẽ nhận bản mới: đúng ý, nhưng nghĩa là muốn thấy `409` thì phải để máy chủ đổi **sau** khi tab này đã đọc xong và **trước** khi nó lưu. Cách làm: `fetch` một `PATCH` từ chính trang (có token `X-XSRF-TOKEN` đọc từ cookie) rồi gõ vào ô.
+- Nếu ngăn trình duyệt của ứng dụng bị ẩn, thao tác bấm báo "không vẽ được trang"; thử lại, hoặc nhờ người dùng đưa ngăn đó lên.
+- Backend thử dùng `./mvnw spring-boot:test-run -Dspring-boot.run.arguments=--server.port=18080` (PostgreSQL tạm bằng Testcontainers, hồ sơ `test` có sẵn tài khoản thử) và Vite chạy bằng một cấu hình tạm đổi cổng và địa chỉ proxy, nên không đụng backend trên cổng 8080 của người dùng.
+
+**Kiểm chứng (FE-90).**
+- ĐỎ đúng lý do: viết trước 41 test mới, chạy khi chưa có cài đặt: 39 đỏ (adapter 7, `sameDiagram` 4, `hasAnchoredNotes` 2, màn trên API 26), 2 xanh sẵn (chúng kiểm điều chưa từng xảy ra, như "không gọi API khi chữ trống"); 81 test cũ vẫn xanh nhờ mock dữ liệu mẫu.
+- XANH: thư mục `notes` 122/122 (11 file). Cả dự án: 998 test, 994 xanh và 4 đỏ ngoài phạm vi: `client.test.ts` (2) và `useStickers.test.tsx` (1) về tải tệp multipart (cũng đỏ trên bản không có thay đổi của mình, trong thư mục dùng chung), và `useShellData.test.tsx` (1) so hai `new Date()` lệch 1 ms (chạy riêng 7/7 xanh).
+- `pnpm lint`: 0 lỗi, 2 cảnh báo có sẵn ở `features/public/*` (không đụng); `tsc -b` 0; `pnpm build` thành công.
+- Gài lỗi (một lần, cho logic lưu): 10 lỗi, cả 10 làm đỏ đúng test của chúng: nhận bản mới của danh sách dù còn chữ chưa lưu, bỏ hàng đợi, `409` không thành "xung đột", không bao giờ chặn, không đổi `base` sau khi lưu, "Lưu bản của tôi" không lấy `version` mới, `hasAnchoredNotes` luôn đúng, xóa `404` bị coi là lỗi, `sameDiagram` bỏ qua nhãn nối, `saveNote` quên gửi `version`.
+- Chrome thật (backend `test-run` cổng 18080, 1440 và 375): tạo ghi chú chữ rồi tải lại vẫn còn; sửa từ tab khác rồi quay lại tab này (không còn chữ chưa lưu) thì ô soạn nhận chữ mới; `PATCH` từ ngoài trang rồi gõ thêm: dòng báo đúng chữ, hai nút, chữ đang gõ còn nguyên, máy chủ chưa bị ghi đè (version 2 vẫn là bản của "điện thoại"); "Lưu bản của tôi" cho version 3 chứa chữ của tab này và dòng báo biến mất; sơ đồ tạo ở thay đổi đầu tiên, tải lại thấy đủ khối, thẻ "Sơ đồ · 2 khối · 0 nối", ghim (version 2, chip "Đã ghim · 1"), xóa về `/notes`; ở 375 dòng báo nằm gọn một khối trên trang với hai nút; chip chỉ có "Tất cả", "Đã ghim", "Sơ đồ" và thẻ không có "Ghi chú độc lập"; console chỉ có `401` trước khi đăng nhập và `409` do chính mình gây ra.
+- `NOT VERIFIED`: kéo và nối khối, nhấn giữ trên cảm ứng thật (như DG-04); "Tải bản mới", `404` ("Lưu thành ghi chú mới") và lỗi mạng chỉ kiểm bằng test jsdom, chưa trên Chrome thật; 2 thiết bị thật; mọi cỡ màn × 2 theme (để dành cho nghiệm thu).
+- Hạn chế đã biết: rời trình soạn khi dòng báo xung đột còn đó thì chữ chưa lưu mất (dòng báo đã nói "chưa được lưu", nhưng không có hộp hỏi khi rời).
