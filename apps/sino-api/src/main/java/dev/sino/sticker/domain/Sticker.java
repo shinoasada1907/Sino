@@ -20,7 +20,7 @@ import org.hibernate.annotations.UuidGenerator;
  * A sticker in the library of a Sino user (custom-stickers): an image the user keeps, with what the application worked
  * out from the file. Only the metadata; the bytes are in {@link StickerContent}, so that reading a list of stickers never
  * reads an image (D-331). A sticker never changes once it is kept: to replace it, delete it and keep another. Mapped onto
- * table {@code sticker} (V21).
+ * table {@code sticker} (V21; its pack, V22).
  * <p>
  * The limits that move with the configuration (size, side, how many) are the service's; here are the invariants the
  * database checks too, so that a caller that is not the REST layer cannot keep what the database would refuse. Lengths
@@ -65,6 +65,10 @@ public class Sticker {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    /** The pack the sticker is in, or {@code null} when it is in none yet (sticker-packs, D-340). */
+    @Column(name = "pack_id")
+    private UUID packId;
 
     protected Sticker() {
     }
@@ -149,6 +153,11 @@ public class Sticker {
     /** A copy: the digest of a kept sticker cannot be changed from outside. */
     public byte[] sha256() {
         return sha256.clone();
+    }
+
+    /** {@code null} when the sticker is in no pack. */
+    public UUID packId() {
+        return packId;
     }
 
     public Instant createdAt() {

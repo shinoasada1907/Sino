@@ -6,13 +6,15 @@
 
 ## 1. Backend
 
-- [ ] 1.1 **SP-01 — Migration `V22`, `StickerPack`, `Sticker.packId` (D-340)**
+- [x] 1.1 **SP-01 — Migration `V22`, `StickerPack`, `Sticker.packId` (D-340)** — XONG 2026-10-20 (AUTO, phiên cloud)
   - **Goal:** dữ liệu của bộ sticker, với database tự chặn sticker nằm trong bộ của người khác.
   - **Files:** `db/migration/V22__sticker_create_sticker_pack.sql` (kiểm số kế tiếp trên `dev` trước khi viết); `sticker/domain/{StickerPack,Sticker}`; `sticker/infrastructure/StickerPackRepository`; test.
   - **Acceptance criteria:** spec `sticker-packs` phần dữ liệu (tên 1–50, không trùng không phân biệt hoa thường); `sticker.pack_id` cho phép `NULL`; khóa ngoại `(pack_id, user_id)`; xóa bộ để `pack_id` về `NULL` mà `user_id` giữ nguyên.
   - **Test:** Testcontainers: chèn thẳng bằng SQL các hàng sai (tên trống, tên trùng khác hoa thường, sticker trỏ bộ của người khác) và kiểm tên ràng buộc; xóa bộ thì sticker còn với `pack_id` `NULL`; `StickerPack.create` dạng bảng (cắt khoảng trắng, 50/51 ký tự).
   - **Depends on:** DN-1, DN-6.
   - **Hints:** **Level 1:** khóa ngoại nào bảo đảm "bộ và sticker cùng một chủ" mà không cần trigger? **Level 2:** `UNIQUE (id, user_id)` ở `sticker_pack` để khóa ngoại kép trỏ tới; `ON DELETE SET NULL (pack_id)` của PostgreSQL 15+; chỉ mục duy nhất trên biểu thức `lower(name)`.
+  - **Thực hiện:** `V22__sticker_create_sticker_pack.sql` (V22 còn trống trên `dev` lúc viết): bảng `sticker_pack` (`sticker_pack_name_ck`, `sticker_pack_id_user_uq`, chỉ mục duy nhất `sticker_pack_user_name_uq` trên `(user_id, lower(name))`), cột `sticker.pack_id` với khóa ngoại `sticker_pack_fk` `(pack_id, user_id)` `ON DELETE SET NULL (pack_id)`, chỉ mục `sticker_user_pack_idx`. `StickerPack` (tên cắt khoảng trắng, 1–50 code point, `rename` trả `false` khi không đổi, `nameKey` = cắt + chữ thường `Locale.ROOT`), `Sticker.packId` (chỉ đọc ở task này; chuyển bộ là SP-03), `StickerPackRepository` (`findByIdAndOwnerId`, `findByOwnerIdOrderByCreatedAtAscIdAsc`, `countByOwnerId`).
+  - **Bằng chứng:** test viết trước, `test-compile` đỏ (thiếu `StickerPack`, `StickerPackRepository`, `packId`); xanh lần chạy đầu: `StickerPackTests` 13, `StickerPackSchemaTests` 13 (tên trống, quá 50, trùng khác hoa thường, hai chủ cùng tên, sticker trong bộ của người khác khi chèn và khi sửa, xóa bộ giữ sticker với `user_id`, entity đọc `packId`, repository theo chủ và thứ tự), `StickerSchemaTests` 36 và `StickerRepositoryTests` 23 không đổi, `ModularityTests` 2/2; `./mvnw -B -ntp verify` toàn bộ: **2429 test, 0 lỗi, 8 bỏ qua**. Kiến thức: mục 23.1, 23.2 của `docs/knowledge/phase-5-multi-provider-send.md` (`.docx` chưa sinh lại: không có GenOffice trên máy cloud).
 
 - [ ] 1.2 **SP-02 — `StickerPackService`: tạo, đổi tên, xóa, liệt kê (D-341, D-343)**
   - **Goal:** mọi lệnh trên bộ, theo chủ, với lỗi rõ.

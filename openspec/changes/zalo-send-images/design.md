@@ -41,7 +41,9 @@ Web giữ một hàng chờ gửi sticker cho mỗi cuộc trò chuyện: gửi 
 ### D-356 — Ẩn nút khi không gửi được ảnh · agent chốt
 Chi tiết cuộc trò chuyện (`reply`) đã có trạng thái gửi được hay không theo capability (BE-58); thêm cờ `canSendImages` theo `SEND_IMAGES` của tài khoản. Không có cờ thì không có nút.
 
-## Decision Needed (người dùng chốt trước ZS-01)
+## Decision Needed (đã chốt: tất cả theo đề xuất A, người dùng 2026-10-20 "duyệt theo đề xuất"; trước ZS-01)
+
+**Chốt 2026-10-20:** DN-1…DN-5 = **A** (đề xuất), người dùng: "duyệt theo đề xuất". Các phương án khác giữ lại bên dưới để biết đã bỏ gì.
 
 ### DN-1 — Phạm vi: chỉ sticker, hay cả ảnh từ máy
 - **A (đề xuất): chỉ sticker** ở change này. Đường gửi làm chung, nên thêm ảnh từ máy sau chỉ còn phần web (chọn tệp, dán ảnh).

@@ -67,7 +67,9 @@ Bước "Thêm sticker" giữ trạng thái của lượt (danh sách ảnh, ph�
 ### D-348 — Bộ mặc định của một lượt · agent chốt
 Mỗi phần bộ trên màn có nút "Thêm vào bộ này", mở lượt với bộ đó; nút "Tải lên" ở đầu màn mở lượt với bộ dùng ở lượt trước trong phiên này, hoặc "Chưa xếp bộ".
 
-## Decision Needed (người dùng chốt trước SP-01)
+## Decision Needed (đã chốt: tất cả theo đề xuất A, người dùng 2026-10-20 "duyệt theo đề xuất"; trước SP-01)
+
+**Chốt 2026-10-20:** DN-1…DN-7 = **A** (đề xuất), người dùng: "duyệt theo đề xuất". Các phương án khác giữ lại bên dưới để biết đã bỏ gì.
 
 ### DN-1 — Xóa một bộ thì sticker của bộ ra sao
 - **A (đề xuất): về "Chưa xếp bộ".** Không mất ảnh nào vì một cú bấm; muốn xóa hết thì xóa từng sticker.

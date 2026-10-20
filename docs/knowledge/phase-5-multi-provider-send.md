@@ -3,7 +3,7 @@
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
 > **Phạm vi:** F10, `openspec/changes/f10-reply` (trả lời một thư ngay trong Sino), được kéo lên làm ngay sau F06 vì bạn ưu tiên "kết nối và nhắn tin" (2026-10-09). Đã xong: BE-58, BE-59, BE-60 (chạy thật với Gmail; đối chiếu thư "chưa rõ" theo thread vì Gmail thay `Message-ID`), BE-62 (thư Sino gửi mang tên người gửi). F09 (provider thứ hai: Zalo cá nhân, `openspec/changes/zalo-personal`) mở 2026-10-14, bạn tự code ZL-01 (khung service `sino-zalo`, mục 5); từ ZL-02 (đăng nhập QR, mục 6) bạn chuyển change này sang AUTO.
-> **Cập nhật:** 2026-10-19. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
+> **Cập nhật:** 2026-10-20. Đường dẫn backend tính từ `apps/sino-api/src/main/java/dev/sino/`; đường dẫn của `sino-zalo` tính từ `apps/sino-zalo/`.
 
 ---
 
@@ -1628,3 +1628,29 @@ kết quả: lưới mất st-new cho tới lần vào sau, dù dòng "Đã thê
 ```
 
 Cách sửa: trước khi vá, `cancelQueries` hủy lần đọc đang chạy (câu trả lời cũ không còn chỗ ghi); nếu chưa có danh sách nào thì không vá được, nên `invalidateQueries` đọc lại, và lần đọc mới có thay đổi. Một bẫy của TanStack Query lộ ra khi làm: với truy vấn **chưa có dữ liệu**, lần đọc mới không hủy lần đọc đầu mà chờ và dùng lại kết quả của nó, nên `invalidateQueries` một mình vẫn để lại danh sách cũ; phải `cancelQueries` trước trong cả hai trường hợp. Test tái hiện đường đua bằng MSW: câu trả lời của lần đọc chậm 60 ms, lần tải lên xong trước nó.
+
+## 23. Bộ sticker (`sticker-packs`)
+
+**Là gì / để làm gì:** sticker của thư viện (mục 22) được xếp thành **bộ** có tên, như các bộ sticker của Zalo; khung chọn sticker trong chat Zalo (change `zalo-send-images`) sẽ chia tab theo bộ. Change: `openspec/changes/sticker-packs`. Người dùng chốt mọi quyết định theo đề xuất (2026-10-20): xóa bộ thì sticker về "Chưa xếp bộ" (DN-1), tối đa 50 bộ, tên không trùng (DN-6).
+
+### 23.1 Dữ liệu: bảng `sticker_pack` và cột `sticker.pack_id` (SP-01)
+**Ở đâu:** migration `V22__sticker_create_sticker_pack.sql`; `sticker/domain/StickerPack`, `Sticker` (trường `packId`); `sticker/infrastructure/StickerPackRepository`. Test: `StickerPackTests`, `StickerPackSchemaTests`.
+
+```text
+app_user 1 ---- n sticker_pack (id, user_id, name)          UNIQUE (id, user_id)
+    |                    ^                                   UNIQUE INDEX (user_id, lower(name))
+    |                    | FOREIGN KEY (pack_id, user_id)
+    +---- n sticker -----+   pack_id NULL = "Chưa xếp bộ"    ON DELETE SET NULL (pack_id)
+```
+
+**Vì sao khóa ngoại trỏ cả `(pack_id, user_id)` (câu gợi ý của task):** một khóa ngoại thường `pack_id -> sticker_pack(id)` chỉ bảo đảm bộ **tồn tại**, không bảo đảm bộ đó là của **cùng chủ** với sticker. Dịch vụ đã kiểm điều đó, nhưng database là lưới cuối cho mọi đường ghi khác. Khi khóa ngoại so cả hai cột thì cặp `(pack_id, user_id)` của sticker phải là một cặp `(id, user_id)` có thật trong `sticker_pack`, tức là bộ của chính chủ sticker. Để trỏ tới một cặp cột, PostgreSQL cần một ràng buộc duy nhất trên đúng cặp đó, nên `sticker_pack` có thêm `UNIQUE (id, user_id)`; `id` đã là khóa chính nên ràng buộc này không chặn thêm gì, nó chỉ cho khóa ngoại một đích. Test `refusesAStickerInThePackOfAnotherOwner` và `refusesMovingAStickerIntoThePackOfAnotherOwner` chèn và sửa thẳng bằng SQL để thấy chính database từ chối.
+
+**`ON DELETE SET NULL (pack_id)`:** xóa bộ thì sticker phải còn, chỉ rời bộ (DN-1). `SET NULL` thường sẽ đặt **mọi** cột của khóa ngoại về `NULL`, tức cả `user_id`, mà `user_id` thì `NOT NULL`: lần xóa sẽ hỏng. Từ PostgreSQL 15 có thể ghi rõ danh sách cột: `SET NULL (pack_id)` chỉ xóa `pack_id` và giữ `user_id`. Khi `pack_id` là `NULL`, khóa ngoại không được kiểm (kiểu so `MATCH SIMPLE` mặc định), nên sticker chưa xếp bộ không cần bộ nào.
+
+**Tên không trùng, không phân biệt hoa thường:** ràng buộc `UNIQUE (user_id, name)` coi `Mèo` và `mèo` là khác nhau. Chỉ mục duy nhất trên **biểu thức** `(user_id, lower(name))` so theo chữ thường, và `lower` của PostgreSQL hiểu chữ có dấu (`MÈO` thành `mèo`). Phía Java, `StickerPack.nameKey` dùng `toLowerCase(Locale.ROOT)` cho phép kiểm trước ở dịch vụ (SP-02): `Locale.ROOT` để kết quả không đổi theo ngôn ngữ của máy (ví dụ tiếng Thổ Nhĩ Kỳ đổi `I` khác). Chỉ mục mới là nơi chặn thật khi hai yêu cầu tới cùng lúc, như "trùng" của sticker (mục 22.4).
+
+**Đếm ký tự:** tên tối đa 50 **code point**, như `varchar(50)` đếm; `String.length()` của Java đếm đơn vị UTF-16, một emoji ngoài bảng cơ bản là 2. `StickerPack` dùng `codePointCount`, và test có ca 50 emoji (được) và 50 emoji thêm một chữ (bị từ chối).
+
+### 23.2 Kiểm chứng (SP-01)
+- Test viết trước: `test-compile` đỏ vì chưa có `StickerPack`, `StickerPackRepository`, `Sticker.packId`; xanh ngay lần chạy đầu: `StickerPackTests` 13, `StickerPackSchemaTests` 13, các test lược đồ và repository cũ của sticker (36 + 23) không đổi, `ModularityTests` 2/2.
+- `./mvnw -B -ntp verify` toàn bộ (JDK 25, PostgreSQL 18 trong Docker): 2429 test, 0 lỗi, 8 bỏ qua (có từ trước).
