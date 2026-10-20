@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.sino.common.error.SinoException;
+import dev.sino.sticker.StickerPictureForSending;
+import dev.sino.sticker.StickerPictures;
 import dev.sino.sticker.domain.Sticker;
 import dev.sino.sticker.domain.StickerContent;
 import dev.sino.sticker.domain.StickerErrorCode;
@@ -23,10 +25,11 @@ import dev.sino.sticker.infrastructure.StickerRepository;
 
 /**
  * The sticker library of a user (custom-stickers). Every method takes the owner from the web layer; a sticker of another
- * user is reported as not found (D-336).
+ * user is reported as not found (D-336). It is also what answers {@link StickerPictures}, the one door the module that
+ * sends a sticker may use (D-350).
  */
 @Service
-public class StickerService {
+public class StickerService implements StickerPictures {
 
     private final StickerRepository stickers;
     private final StickerContentRepository contents;
@@ -189,6 +192,23 @@ public class StickerService {
         StickerContent content = contents.findById(sticker.id())
                 .orElseThrow(() -> new IllegalStateException("The sticker " + id + " has no bytes."));
         return new StickerPicture(sticker.mediaType(), content.bytes());
+    }
+
+    /**
+     * The picture of a sticker of the owner to send (D-350). The sticker is found for its owner first, so a sticker of
+     * another owner is never read, and it gives the same empty answer as one that is not there.
+     *
+     * @throws IllegalStateException when the sticker has no bytes, which the one transaction of {@link #upload} rules out
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<StickerPictureForSending> forOwner(UUID ownerId, UUID stickerId) {
+        return stickers.findByIdAndOwnerId(stickerId, ownerId).map(sticker -> {
+            StickerContent content = contents.findById(sticker.id())
+                    .orElseThrow(() -> new IllegalStateException("The sticker " + stickerId + " has no bytes."));
+            return new StickerPictureForSending(content.bytes(), sticker.mediaType().value(), sticker.width(),
+                    sticker.height());
+        });
     }
 
     /**

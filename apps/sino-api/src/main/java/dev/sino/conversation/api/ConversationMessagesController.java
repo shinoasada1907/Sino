@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -65,12 +65,16 @@ class ConversationMessagesController {
     }
 
     /**
-     * Sends a reply (F10): {@code 201} with the message, or {@code 200} with it when this {@code clientMessageId} was
-     * sent before (D-131). The addressees are worked out here, never taken from the request (D-133).
+     * Sends a reply (F10), a text or a sticker of the user's library (ZS-05): {@code 201} with the message, or {@code 200}
+     * with it when this {@code clientMessageId} was sent before (D-131). The addressees are worked out here, never taken
+     * from the request (D-133).
      */
     @PostMapping
     ResponseEntity<MessageResponse> send(@PathVariable UUID id, @Valid @RequestBody SendRequest request) {
-        Sent sent = replies.send(currentUser.requireOwnerId(), id, request.text(), request.clientMessageId());
+        Sent sent = request.stickerId() == null
+                ? replies.send(currentUser.requireOwnerId(), id, request.text(), request.clientMessageId())
+                : replies.sendSticker(currentUser.requireOwnerId(), id, request.stickerId(),
+                        request.clientMessageId());
         return ResponseEntity.status(sent.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(MessageResponse.from(sent.message()));
     }
@@ -140,8 +144,17 @@ class ConversationMessagesController {
     record MessagePageResponse(List<MessageResponse> items, String nextCursor) {
     }
 
-    /** {@code clientMessageId}: made by the web for each message and sent again unchanged when it retries. */
-    record SendRequest(@NotBlank @Size(max = 100_000) String text, @NotNull UUID clientMessageId) {
+    /**
+     * {@code clientMessageId}: made by the web for each message and sent again unchanged when it retries. Exactly one of
+     * {@code text} and {@code stickerId}: a text, or a sticker of the library (ZS-05, D-351).
+     */
+    record SendRequest(@Size(max = 100_000) String text, UUID stickerId, @NotNull UUID clientMessageId) {
+
+        @AssertTrue(message = "send either a text or a sticker, not both and not neither")
+        boolean isTextOrSticker() {
+            return stickerId == null ? text != null && !text.isBlank() : text == null;
+        }
+
     }
 
     record MessageBodyResponse(String format, String html, boolean remoteImages) {

@@ -33,6 +33,7 @@ import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageStatus;
+import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -61,6 +62,14 @@ class ZaloSendTests {
             ConversationType.DIRECT, "Em nhận được rồi ạ.", "1001", List.of(), CLIENT_MESSAGE_ID, null);
     private static final SendMessageCommand GROUP_REPLY = new SendMessageCommand("g-900000000000000001",
             ConversationType.GROUP, "Ok mình tới ngay", "1002", List.of(), CLIENT_MESSAGE_ID, null);
+
+    // In base64 these are AQIDBPv//g==: with a plus-or-slash-making byte in it, base64url would not pass for base64.
+    private static final byte[] PICTURE_BYTES = {1, 2, 3, 4, (byte) 0xfb, (byte) 0xff, (byte) 0xfe};
+    private static final OutgoingImage PICTURE = new OutgoingImage(PICTURE_BYTES, "image/png", "sticker.png", 128, 96);
+    private static final SendMessageCommand DIRECT_PICTURE = new SendMessageCommand("200000000000000002",
+            ConversationType.DIRECT, null, null, List.of(), CLIENT_MESSAGE_ID, null, PICTURE);
+    private static final SendMessageCommand GROUP_PICTURE = new SendMessageCommand("g-900000000000000001",
+            ConversationType.GROUP, null, null, List.of(), CLIENT_MESSAGE_ID, null, PICTURE);
 
     private static WireMockServer sinoZalo;
 
@@ -124,6 +133,108 @@ class ZaloSendTests {
                           "threadType": "GROUP",
                           "text": "Ok mình tới ngay",
                           "clientMessageId": "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+                        }
+                        """)));
+    }
+
+    @Test
+    void zaloSendsPicturesAndSaysSo() {
+        assertThat(zalo.capabilities().supports(ProviderCapability.SEND_IMAGES)).isTrue();
+    }
+
+    // D-353: the bytes go in base64 under image, and the message has no text at all.
+    @Test
+    void aPictureInADirectConversationGoesToZaloUserThreadWithoutText() {
+        sinoZalo.stubFor(post(urlPathEqualTo(MESSAGES)).willReturn(created("8372265733150")));
+
+        SendMessageResult result = zalo.sendMessage(CONTEXT, DIRECT_PICTURE);
+
+        assertThat(result.externalMessageId()).isEqualTo("8372265733150");
+        assertThat(result.status()).isEqualTo(MessageStatus.SENT);
+        sinoZalo.verify(postRequestedFor(urlPathEqualTo(MESSAGES))
+                .withHeader("Authorization", equalTo("Bearer " + SECRET))
+                .withRequestBody(equalToJson("""
+                        {
+                          "threadId": "200000000000000002",
+                          "threadType": "USER",
+                          "image": {"data": "AQIDBPv//g==", "fileName": "sticker.png", "width": 128, "height": 96},
+                          "clientMessageId": "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+                        }
+                        """)));
+    }
+
+    @Test
+    void aPictureInAGroupConversationGoesToZaloGroupThread() {
+        sinoZalo.stubFor(post(urlPathEqualTo(MESSAGES)).willReturn(created("8372265733151")));
+
+        SendMessageResult result = zalo.sendMessage(CONTEXT, GROUP_PICTURE);
+
+        assertThat(result.externalMessageId()).isEqualTo("8372265733151");
+        sinoZalo.verify(postRequestedFor(urlPathEqualTo(MESSAGES))
+                .withRequestBody(equalToJson("""
+                        {
+                          "threadId": "g-900000000000000001",
+                          "threadType": "GROUP",
+                          "image": {"data": "AQIDBPv//g==", "fileName": "sticker.png", "width": 128, "height": 96},
+                          "clientMessageId": "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+                        }
+                        """)));
+    }
+
+    // sino-zalo takes a text or a picture, not both (ZS-02): Sino says so before asking.
+    @Test
+    void aTextBesideAPictureIsRefusedWithoutCallingSinoZalo() {
+        SendMessageCommand both = new SendMessageCommand("200000000000000002", ConversationType.DIRECT, "xem này", null,
+                List.of(), CLIENT_MESSAGE_ID, null, PICTURE);
+
+        assertThatExceptionOfType(ProviderException.class).isThrownBy(() -> zalo.sendMessage(CONTEXT, both))
+                .extracting(ProviderException::errorCode).isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+        assertThat(sinoZalo.getAllServeEvents()).isEmpty();
+    }
+
+    // D-281 holds for a picture too, and a 400 of sino-zalo (a picture it cannot take) is a refusal: nothing was sent.
+    @ParameterizedTest
+    @CsvSource({
+        "400, INVALID_IMAGE, REQUEST_REJECTED",
+        "429, RATE_LIMITED, RATE_LIMITED",
+        "422, REJECTED, REQUEST_REJECTED",
+        "504, OUTCOME_UNKNOWN, OUTCOME_UNKNOWN"
+    })
+    void aPictureSendFailsAsATextSendDoes(int status, String zaloCode, ProviderErrorCode expected) {
+        sinoZalo.stubFor(post(urlPathEqualTo(MESSAGES)).willReturn(error(status, zaloCode)));
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> zalo.sendMessage(CONTEXT, DIRECT_PICTURE))
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(expected);
+    }
+
+    // The bytes are the user's picture: a failure, a request's text, a log line never carry them.
+    @Test
+    void theBytesOfAPictureNeverShowInAFailureOrInTheTextOfTheRequest() {
+        sinoZalo.stubFor(post(urlPathEqualTo(MESSAGES)).willReturn(error(500, "BOOM")));
+
+        assertThatExceptionOfType(ProviderException.class).isThrownBy(() -> zalo.sendMessage(CONTEXT, DIRECT_PICTURE))
+                .withMessageNotContaining("AQIDBPv//g==");
+        String request = new ZaloClient.SendRequest("200000000000000002", ZaloClient.ThreadType.USER, null,
+                ZaloClient.ImageRequest.of(PICTURE), CLIENT_MESSAGE_ID.toString()).toString();
+        assertThat(request).doesNotContain("AQIDBPv//g==").contains("sticker.png");
+    }
+
+    // A picture has no text to find it by: sino-zalo finds it from what it sent under this clientMessageId.
+    @Test
+    void findSentMessagesForAPictureAsksWithoutAText() {
+        sinoZalo.stubFor(post(urlPathEqualTo(LOOKUP)).willReturn(okJson("{\"msgIds\": [\"8372265733150\"]}")));
+
+        List<String> found = zalo.findSentMessages(CONTEXT, DIRECT_PICTURE, STARTED_AT);
+
+        assertThat(found).containsExactly("8372265733150");
+        sinoZalo.verify(postRequestedFor(urlPathEqualTo(LOOKUP))
+                .withRequestBody(equalToJson("""
+                        {
+                          "threadId": "200000000000000002",
+                          "clientMessageId": "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+                          "after": "2026-10-17T08:00:00Z"
                         }
                         """)));
     }

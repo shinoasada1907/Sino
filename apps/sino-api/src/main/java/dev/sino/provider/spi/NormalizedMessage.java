@@ -66,6 +66,14 @@ public record NormalizedMessage(
     public static final String IMAGE_CAPTION = "imageCaption";
 
     /**
+     * Metadata key, the ID (as text) of the sticker of the library that a message Sino sent carries (ZS-05, D-352). Sino
+     * writes it itself, no connector does, and the store keeps it when the connector brings the same message in again,
+     * so the message stays the user's own sticker whatever address the provider gives its copy. Not the
+     * {@code stickerId} the Zalo connector writes for a sticker of Zalo's own, which is a number of Zalo's.
+     */
+    public static final String LIBRARY_STICKER_ID = "libraryStickerId";
+
+    /**
      * Metadata key, the {@code Message-ID} of an email: the same in every mailbox that holds the message, so Sino finds
      * its copies in the other accounts of the owner (F05b, D-180). Left out when there is none.
      */

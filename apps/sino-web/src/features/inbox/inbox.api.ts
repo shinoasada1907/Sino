@@ -88,6 +88,8 @@ interface ReplyResponse {
   /** `OPENING_NOT_SENT`: the opening mail of a new conversation has not gone yet (f10-new-mail, D-195). */
   state: 'READY' | 'NEEDS_PERMISSION' | 'ACCOUNT_UNAVAILABLE' | 'NOT_SUPPORTED' | 'OPENING_NOT_SENT'
   to: PersonResponse[]
+  /** A sticker of the library can be sent here (zalo-send-images, D-356); absent on a backend before it. */
+  canSendImages?: boolean
 }
 
 const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = {
@@ -144,6 +146,8 @@ interface MessageResponse {
   stickerSprite?: StickerSprite | null
   /** The picture of a photo (ZL-16); absent or null for any other message. */
   image?: MessageImage | null
+  /** The sticker of the library that a message Sino sent is (zalo-send-images); absent or null for any other. */
+  libraryStickerId?: string | null
 }
 
 function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse): ConversationItem {
@@ -212,7 +216,7 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image }: MessageResponse): Mail {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -232,6 +236,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     ...(sticker ? { sticker } : {}),
     ...(stickerSprite ? { stickerSprite } : {}),
     ...(image ? { image } : {}),
+    ...(libraryStickerId ? { libraryStickerId } : {}),
   }
 }
 
@@ -296,6 +301,8 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       // A state this web does not know yet does not open the reply box.
       canSend: reply ? (CAN_SEND[reply.state] ?? null) : null,
       replyTo: reply ? reply.to.map(({ name, address }) => ({ name, address })) : null,
+      // Only where the backend tells about replies at all; a missing flag is a button that does not show.
+      ...(reply ? { canSendImages: reply.canSendImages === true } : {}),
       previousCursor: null,
       ...(reply?.state === 'OPENING_NOT_SENT' ? { opening: true } : {}),
     },
@@ -336,6 +343,16 @@ export async function updateConversation(conversationId: string, change: { read?
  */
 export async function sendMessage(conversationId: string, text: string, clientMessageId: string): Promise<Mail> {
   const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, { text, clientMessageId })
+  return toMessage(conversationId, sent)
+}
+
+/**
+ * `POST /api/conversations/{id}/messages` with a sticker of the library (zalo-send-images, D-351): the server reads its
+ * picture and sends it as an image, and returns the message as it stored it. Sending again with the same
+ * `clientMessageId` never sends twice.
+ */
+export async function sendSticker(conversationId: string, stickerId: string, clientMessageId: string): Promise<Mail> {
+  const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, { stickerId, clientMessageId })
   return toMessage(conversationId, sent)
 }
 

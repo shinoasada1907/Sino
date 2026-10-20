@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { type ThreadType, ZaloRejectedError } from "../gateway/ZaloGateway.ts";
+import { type ThreadType, type ZaloImage, ZaloRejectedError } from "../gateway/ZaloGateway.ts";
 import type { OwnMessages, SessionManager } from "../sessions/SessionManager.ts";
 import { sendSessionError } from "../sessions/routes.ts";
 import { RateLimiter } from "./RateLimiter.ts";
@@ -16,36 +16,66 @@ interface AccountParams {
   accountId: string;
 }
 
+/** A picture as sino-api sends it: the bytes in base64 and a name whose extension says the type (D-353). */
+interface ImageBody {
+  data: string;
+  fileName: ZaloImage["fileName"];
+  width: number;
+  height: number;
+}
+
 interface SendBody {
   threadId: string;
   threadType: ThreadType;
-  text: string;
+  /** The text of a text message; empty or missing beside a picture. */
+  text?: string;
+  image?: ImageBody;
   clientMessageId: string;
 }
 
 interface LookupBody {
   threadId: string;
   clientMessageId: string;
-  text: string;
+  /** Missing for a picture, which has no text to be found by: the sent log alone speaks for it (ZS-03). */
+  text?: string;
   after: string;
 }
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
 
+// Whether there is a text or a picture, and not both, is for `contentOf`: the schema cannot say it.
 const sendBodySchema = {
   type: "object",
-  required: ["threadId", "threadType", "text", "clientMessageId"],
+  required: ["threadId", "threadType", "clientMessageId"],
   properties: {
     threadId: id,
     threadType: { type: "string", enum: ["USER", "GROUP"] },
-    text: { type: "string", minLength: 1 },
+    text: { type: "string" },
+    image: {
+      type: "object",
+      required: ["data", "fileName", "width", "height"],
+      properties: {
+        data: { type: "string", minLength: 1 },
+        // No path in the name, and the extension is what zca-js picks its GIF branch by.
+        fileName: { type: "string", pattern: "^[^/\\\\]{1,100}\\.(png|gif|webp)$" },
+        width: { type: "integer", minimum: 1, maximum: 16384 },
+        height: { type: "integer", minimum: 1, maximum: 16384 },
+      },
+    },
     clientMessageId: id,
   },
 };
 
+/** The largest picture, after the base64 is undone: the limit of a sticker in the library. */
+const MAX_IMAGE_BYTES = 1024 * 1024;
+/** Its base64 text: four characters for every three bytes, rounded up. Longer text is not decoded at all. */
+const MAX_IMAGE_BASE64_LENGTH = Math.ceil(MAX_IMAGE_BYTES / 3) * 4;
+/** What the send route reads: a picture of 1 MiB is about 1.4 MiB of base64 (D-353). */
+const SEND_BODY_LIMIT = 2 * 1024 * 1024;
+
 const lookupBodySchema = {
   type: "object",
-  required: ["threadId", "clientMessageId", "text", "after"],
+  required: ["threadId", "clientMessageId", "after"],
   properties: {
     threadId: id,
     clientMessageId: id,
@@ -69,10 +99,27 @@ export function registerSendRoutes(
 
   app.post<{ Params: AccountParams; Body: SendBody }>(
     "/accounts/:accountId/messages",
-    { schema: { body: sendBodySchema } },
+    {
+      schema: { body: sendBodySchema },
+      bodyLimit: SEND_BODY_LIMIT,
+      errorHandler: (error, _request, reply) => {
+        // Fastify refuses a body past the limit with 413 before the route reads it. A picture too big to be read is
+        // the same fault as one that is only too big to send, so it gets the same 400.
+        if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
+          return reply
+            .code(400)
+            .send({ code: "PAYLOAD_TOO_LARGE", message: "The request is larger than the route reads" });
+        }
+        return reply.send(error);
+      },
+    },
     async (request, reply) => {
       const { accountId } = request.params;
-      const { threadId, threadType, text, clientMessageId } = request.body;
+      const { threadId, threadType, clientMessageId } = request.body;
+      const content = contentOf(request.body);
+      if ("code" in content) {
+        return reply.code(400).send(content);
+      }
       // What happened to an earlier send is true whatever the session is now: a 410 here would let
       // sino-api mark a message that went out as failed.
       const known = sentLog.get(accountId, clientMessageId);
@@ -94,12 +141,21 @@ export function registerSendRoutes(
           .send({ code: "RATE_LIMITED", message: "At most one message per second per account" });
       }
 
-      // IDs and length only: never the text (D-282).
-      const details = { accountId, threadId, clientMessageId, length: text.length };
+      // IDs and sizes only: never the text, the bytes or the name of the file (D-282, D-353).
+      const details = {
+        accountId,
+        threadId,
+        clientMessageId,
+        ...(content.kind === "text"
+          ? { length: content.text.length }
+          : { imageType: content.type, imageBytes: content.image.data.length }),
+      };
       const sending = sentLog.track(
         accountId,
         clientMessageId,
-        sessions.sendText(accountId, threadId, threadType, text),
+        content.kind === "text"
+          ? sessions.sendText(accountId, threadId, threadType, content.text)
+          : sessions.sendImage(accountId, threadId, threadType, content.image),
       );
       try {
         const record = await within(sending, sendTimeoutMs);
@@ -158,6 +214,49 @@ export function registerSendRoutes(
       return { msgIds };
     },
   );
+}
+
+/** What a request sends: a text, or a picture read out of its base64 with the extension of its name as its type. */
+type Content =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "image"; readonly image: ZaloImage; readonly type: string };
+
+/** Why a request cannot be sent, as the 400 answers it. */
+interface Refusal {
+  readonly code: string;
+  readonly message: string;
+}
+
+const IMAGE_TOO_LARGE: Refusal = { code: "IMAGE_TOO_LARGE", message: "A picture is at most 1 MiB" };
+
+/** A message is a text or a picture: not both, and not neither (a picture's text is empty or missing). */
+function contentOf(body: SendBody): Content | Refusal {
+  const { text, image } = body;
+  const hasText = text !== undefined && text !== "";
+  if (image === undefined) {
+    return hasText
+      ? { kind: "text", text }
+      : { code: "INVALID_MESSAGE", message: "A message needs a text or a picture" };
+  }
+  if (hasText) {
+    return { code: "INVALID_MESSAGE", message: "A message is a text or a picture, not both" };
+  }
+  if (image.data.length > MAX_IMAGE_BASE64_LENGTH) {
+    return IMAGE_TOO_LARGE;
+  }
+  const data = Buffer.from(image.data, "base64");
+  // Buffer.from skips whatever is not base64, so only text that encodes back to itself is taken.
+  if (data.toString("base64") !== image.data) {
+    return { code: "INVALID_IMAGE", message: "image.data is not base64" };
+  }
+  if (data.length > MAX_IMAGE_BYTES) {
+    return IMAGE_TOO_LARGE;
+  }
+  return {
+    kind: "image",
+    image: { data, fileName: image.fileName, width: image.width, height: image.height },
+    type: image.fileName.slice(image.fileName.lastIndexOf(".") + 1),
+  };
 }
 
 function sendOutcomeUnknown(reply: FastifyReply) {

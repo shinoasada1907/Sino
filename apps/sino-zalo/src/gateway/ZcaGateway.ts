@@ -5,6 +5,7 @@ import {
   type Message,
   type StickerDetail,
   ThreadType as ZcaThreadType,
+  type UploadAttachmentImageResponse,
   Zalo,
   ZaloApiError,
 } from "zca-js";
@@ -16,6 +17,7 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloImage,
   type ZaloMessage,
   type ZaloPhoto,
   ZaloRejectedError,
@@ -107,6 +109,7 @@ export class ZcaGateway implements ZaloGateway {
 
     // The stickers of a category, once Zalo has given them, for the stickers of that category that come later.
     const categories = new Map<number, StickerDetail[]>();
+    const photoUrl = photoUrlSender(api);
 
     return {
       ownId: api.getOwnId(),
@@ -132,6 +135,11 @@ export class ZcaGateway implements ZaloGateway {
         };
       },
       sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
+      // A GIF keeps zca-js's own GIF branch; a still picture goes as a sticker without the photo frame.
+      sendImage: (threadId, threadType, image) =>
+        image.fileName.endsWith(".gif")
+          ? sendImage(api.sendMessage, threadId, threadType, image)
+          : sendPhotoSticker(api.uploadAttachment, photoUrl, threadId, threadType, image),
       stickerArt: async (stickerId, catId) => {
         try {
           // `await` here, or a rejection would pass the catch below.
@@ -491,30 +499,188 @@ function wholeNumber(value: unknown): number | null {
   return typeof number === "number" && Number.isSafeInteger(number) ? number : null;
 }
 
-/**
- * Sends a text through zca-js. Only a Zalo error code is a refusal (ZaloRejectedError); any other failure
- * (no answer, a 5xx, an answer it cannot read) may come after Zalo took the message, so it stays unknown (D-280).
- */
+/** Sends a text through zca-js; refusal and unknown as in `deliver` (D-280). */
 export async function sendText(
   send: API["sendMessage"],
   threadId: string,
   threadType: ThreadType,
   text: string,
 ): Promise<string> {
-  let response: Awaited<ReturnType<API["sendMessage"]>>;
+  const response = await deliver(send, text, threadId, threadType);
+  const msgId = response.message?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
+}
+
+/**
+ * Sends a picture alone through zca-js (D-353): `msg` is empty and the bytes go as the one attachment. The msgId is the
+ * one of the picture's message, in `attachment[0]`; `message` is null for a message that is only a picture. A name
+ * ending `.gif` makes zca-js use its own GIF branch, which takes the size from `metadata`. Refusal and unknown as in
+ * `deliver`.
+ */
+export async function sendImage(
+  send: API["sendMessage"],
+  threadId: string,
+  threadType: ThreadType,
+  image: ZaloImage,
+): Promise<string> {
+  const response = await deliver(
+    send,
+    {
+      msg: "",
+      attachments: [
+        {
+          data: image.data,
+          filename: image.fileName,
+          metadata: { totalSize: image.data.length, width: image.width, height: image.height },
+        },
+      ],
+    },
+    threadId,
+    threadType,
+  );
+  const msgId = response.attachment[0]?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
+}
+
+/**
+ * Zalo's own values for a picture that shows as a sticker, read in the code of chat.zalo.me (2026-10-20): the
+ * `pStickerType` of an AI sticker, and the bubble layout without a border. Zalo draws a photo as a sticker when its
+ * `pStickerType` is AI_STICKER and its layout is NO_BORDER, or it has both `contentId` and `webp`.
+ */
+const AI_STICKER = 1;
+const NO_BORDER = 3;
+
+/** Posts the params of a photo sent by its address, as chat.zalo.me's `sendPhotoByUrl` does; Zalo's answer. */
+export type PhotoUrlSend = (group: boolean, params: Record<string, unknown>) => Promise<unknown>;
+
+/**
+ * `photo_url` is not in zca-js: it is added with `api.custom`, which gives the session's own URL builder, AES
+ * encryption and request, once per connection (a second `custom` of one name throws).
+ */
+function photoUrlSender(api: API): PhotoUrlSend {
+  api.custom<unknown, { group: boolean; params: Record<string, unknown> }>("sinoPhotoUrl", async ({ utils, props }) => {
+    const url = utils.makeURL(`${api.zpwServiceMap.file[0]}/api/${props.group ? "group" : "message"}/photo_url`, {
+      nretry: 0,
+    });
+    const encrypted = utils.encodeAES(JSON.stringify(props.params));
+    if (!encrypted) {
+      throw new Error("zca-js could not encrypt the photo sticker");
+    }
+    return utils.resolve(
+      await utils.request(url, { method: "POST", body: new URLSearchParams({ params: encrypted }) }),
+    );
+  });
+  const send = (api as unknown as { sinoPhotoUrl: (props: { group: boolean; params: Record<string, unknown> }) => Promise<unknown> })
+    .sinoPhotoUrl;
+  return (group, params) => send({ group, params });
+}
+
+/**
+ * Sends a still picture as a sticker (zalo-send-images, DN-2 = B since 2026-10-20): the picture is uploaded as a
+ * photo, then sent by its address with the fields chat.zalo.me gives an AI sticker, so Zalo shows it without the
+ * photo frame. An upload alone puts nothing in the chat, so any failure before the send is a refusal; the send
+ * itself is a refusal or unknown as in `deliver`.
+ */
+export async function sendPhotoSticker(
+  upload: API["uploadAttachment"],
+  photoUrl: PhotoUrlSend,
+  threadId: string,
+  threadType: ThreadType,
+  image: ZaloImage,
+): Promise<string> {
+  let uploaded: UploadAttachmentImageResponse;
   try {
-    response = await send(text, threadId, zcaThreadType(threadType));
+    const [result] = await upload(
+      [
+        {
+          data: image.data,
+          filename: image.fileName,
+          metadata: { totalSize: image.data.length, width: image.width, height: image.height },
+        },
+      ],
+      threadId,
+      zcaThreadType(threadType),
+    );
+    if (result?.fileType !== "image") {
+      throw new Error("Zalo did not take the picture as a photo");
+    }
+    uploaded = result;
+  } catch (error) {
+    throw new ZaloRejectedError(`Upload failed: ${reasonOf(error)}`);
+  }
+  try {
+    const answer = await photoUrl(threadType === "GROUP", photoStickerParams(threadId, threadType, image, uploaded));
+    const msgId = (answer as { msgId?: unknown } | null)?.msgId;
+    if (msgId === undefined || msgId === null) {
+      throw new Error("Zalo answered the photo sticker without a msgId");
+    }
+    return String(msgId);
   } catch (error) {
     if (error instanceof ZaloApiError && error.code !== null) {
       throw new ZaloRejectedError(reasonOf(error));
     }
     throw error;
   }
-  const msgId = response.message?.msgId;
-  if (msgId === undefined) {
-    throw new Error("Zalo answered the send without a msgId");
+}
+
+/** What chat.zalo.me posts to `photo_url` for an AI sticker, with the uploaded photo in place of Zalo's sticker. */
+export function photoStickerParams(
+  threadId: string,
+  threadType: ThreadType,
+  image: ZaloImage,
+  uploaded: UploadAttachmentImageResponse,
+): Record<string, unknown> {
+  const width = uploaded.width || image.width;
+  const height = uploaded.height || image.height;
+  const picture = uploaded.hdUrl || uploaded.normalUrl;
+  return {
+    clientId: Date.now(),
+    title: "",
+    oriUrl: uploaded.normalUrl,
+    thumbUrl: uploaded.thumbUrl,
+    hdUrl: uploaded.hdUrl,
+    width,
+    height,
+    properties: JSON.stringify({
+      subType: 0,
+      color: -1,
+      size: -1,
+      type: NO_BORDER,
+      ext: JSON.stringify({ sSrcStr: "", sSrcType: -1 }),
+    }),
+    contentId: uploaded.photoId,
+    thumb_width: width,
+    thumb_height: height,
+    webp: JSON.stringify({ width, height, url: picture }),
+    jcp: JSON.stringify({ pStickerType: AI_STICKER }),
+    ...(threadType === "GROUP" ? { grid: threadId, visibility: 0 } : { toId: threadId }),
+  };
+}
+
+/**
+ * Hands a message to zca-js. Only a Zalo error code is a refusal (ZaloRejectedError); any other failure (no answer,
+ * a 5xx, an answer it cannot read) may come after Zalo took the message, so it stays unknown (D-280).
+ */
+async function deliver(
+  send: API["sendMessage"],
+  message: Parameters<API["sendMessage"]>[0],
+  threadId: string,
+  threadType: ThreadType,
+): Promise<Awaited<ReturnType<API["sendMessage"]>>> {
+  try {
+    return await send(message, threadId, zcaThreadType(threadType));
+  } catch (error) {
+    if (error instanceof ZaloApiError && error.code !== null) {
+      throw new ZaloRejectedError(reasonOf(error));
+    }
+    throw error;
   }
-  return String(msgId);
 }
 
 function threadTypeOf(type: ZcaThreadType): ThreadType {

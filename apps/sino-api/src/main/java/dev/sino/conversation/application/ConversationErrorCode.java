@@ -58,7 +58,16 @@ public enum ConversationErrorCode implements ErrorCode {
     SEND_OUTCOME_STILL_UNKNOWN(ErrorCategory.CONFLICT, "SEND_OUTCOME_UNKNOWN"),
 
     /** Only a message Sino failed to send can be discarded (F10). */
-    MESSAGE_NOT_DELETABLE(ErrorCategory.CONFLICT);
+    MESSAGE_NOT_DELETABLE(ErrorCategory.CONFLICT),
+
+    /**
+     * No sticker with this ID in the caller's library: one of another user is reported the same way (ZS-05). The same code
+     * as the sticker module's own, which the web already tells.
+     */
+    STICKER_NOT_FOUND(ErrorCategory.NOT_FOUND),
+
+    /** A sticker the library keeps but a message cannot carry, such as one above 1 MiB (ZS-05, D-349). */
+    STICKER_NOT_SENDABLE(ErrorCategory.INVALID);
 
     private final ErrorCategory category;
     private final String code;
@@ -118,6 +127,14 @@ public enum ConversationErrorCode implements ErrorCode {
     static SinoException replyNotAllowed(ReplyState state) {
         return new SinoException(REPLY_NOT_ALLOWED, "This account cannot send a reply now.",
                 Map.of("state", state.name()));
+    }
+
+    static SinoException stickerNotFound() {
+        return new SinoException(STICKER_NOT_FOUND, "There is no such sticker in the library.");
+    }
+
+    static SinoException stickerNotSendable(String why) {
+        return new SinoException(STICKER_NOT_SENDABLE, "This sticker cannot be sent as a picture: " + why);
     }
 
     static SinoException noRecipient() {

@@ -42,6 +42,7 @@ public class MessageHistory {
                    m.metadata ->> :imageUrl AS image_url,
                    m.metadata ->> :imageThumbUrl AS image_thumb_url,
                    m.metadata ->> :imageCaption AS image_caption,
+                   m.metadata ->> :libraryStickerId AS library_sticker_id,
                    p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
             """;
@@ -117,7 +118,8 @@ public class MessageHistory {
                 .param("stickerDurationMs", NormalizedMessage.STICKER_DURATION_MS)
                 .param("imageUrl", NormalizedMessage.IMAGE_URL)
                 .param("imageThumbUrl", NormalizedMessage.IMAGE_THUMB_URL)
-                .param("imageCaption", NormalizedMessage.IMAGE_CAPTION);
+                .param("imageCaption", NormalizedMessage.IMAGE_CAPTION)
+                .param("libraryStickerId", NormalizedMessage.LIBRARY_STICKER_ID);
     }
 
     private static InboxMessage messageOf(ResultSet row) throws SQLException {
@@ -135,7 +137,20 @@ public class MessageHistory {
                 spriteOf(row.getString("sticker_sprite_url"), row.getString("sticker_frames"),
                         row.getString("sticker_duration_ms")),
                 imageOf(row.getString("image_url"), row.getString("image_thumb_url"),
-                        row.getString("image_caption")));
+                        row.getString("image_caption")),
+                libraryStickerOf(row.getString("library_sticker_id")));
+    }
+
+    /** The sticker of the library a message Sino sent carries (ZS-05): none when the key is missing or is no ID. */
+    private static UUID libraryStickerOf(String id) {
+        if (id == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(id);
+        } catch (IllegalArgumentException notAnId) {
+            return null;
+        }
     }
 
     /** The picture of a photo as the connector stored it (ZL-16): none without its address, whatever else is there. */
@@ -178,7 +193,7 @@ public class MessageHistory {
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
                 List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId(), m.sticker(),
-                m.stickerSprite(), m.image())).toList();
+                m.stickerSprite(), m.image(), m.libraryStickerId())).toList();
     }
 
 }

@@ -20,6 +20,7 @@ class SendMessageTests {
 
     private static final UUID CLIENT_MESSAGE_ID = UUID.fromString("6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b");
     private static final List<Address> TO = List.of(new Address("An", "an@example.test"));
+    private static final OutgoingImage PICTURE = new OutgoingImage(new byte[] {1, 2, 3}, "image/png", "sticker.png", 64, 64);
 
     @Test
     void aCommandCarriesItsAddresseesTheIdSinoGaveItAndTheSendersName() {
@@ -72,6 +73,42 @@ class SendMessageTests {
     @ValueSource(strings = "   ")
     void aResultNeedsTheProviderMessageId(String externalMessageId) {
         assertRejectedAsInvalidPayload(() -> new SendMessageResult(externalMessageId, MessageStatus.SENT, null));
+    }
+
+    // A picture is a message by itself (D-349): its text is empty, which is a fault only for a command without one.
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "   ")
+    void aPictureNeedsNoText(String blank) {
+        SendMessageCommand command = new SendMessageCommand("c-1", ConversationType.DIRECT, blank, null, null,
+                CLIENT_MESSAGE_ID, null, PICTURE);
+
+        assertThat(command.image()).isEqualTo(PICTURE);
+        assertThat(command.textContent()).isNull();
+    }
+
+    @Test
+    void aPictureMayComeWithATextAndTheCommandKeepsBoth() {
+        SendMessageCommand command = new SendMessageCommand("c-1", ConversationType.GROUP, "look", null, null,
+                CLIENT_MESSAGE_ID, null, PICTURE);
+
+        assertThat(command.textContent()).isEqualTo("look");
+        assertThat(command.image()).isEqualTo(PICTURE);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "   ")
+    void aCommandWithNeitherATextNorAPictureIsRefused(String blank) {
+        assertThatThrownBy(() -> new SendMessageCommand("c-1", ConversationType.DIRECT, blank, null, null,
+                CLIENT_MESSAGE_ID, null, null)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aCommandBuiltTheOldWaysHasNoPicture() {
+        assertThat(new SendMessageCommand("c-1", "hello", null, TO, CLIENT_MESSAGE_ID, null).image()).isNull();
+        assertThat(new SendMessageCommand("c-1", ConversationType.GROUP, "hello", null, TO, CLIENT_MESSAGE_ID, null)
+                .image()).isNull();
     }
 
     @Test

@@ -19,6 +19,7 @@ public class SendingProviders {
     public static final String MAIL = "fake-mail";
     public static final String READER = "fake-read";
     public static final String CHAT = "fake-chat";
+    public static final String PICTURE_CHAT = "fake-picture-chat";
     public static final String READ_SCOPE = "mail.read";
     public static final String SEND_SCOPE = "mail.send";
     // The Google client MAIL connects with; fake values, not secrets.
@@ -39,6 +40,15 @@ public class SendingProviders {
     @Bean
     FakeMessageProvider readerProvider() {
         return FakeMessageProvider.builder(READER).build();
+    }
+
+    /** Sends text and pictures without OAuth2 (D-349). */
+    @Bean
+    FakeMessageProvider pictureChatProvider() {
+        return FakeMessageProvider.builder(PICTURE_CHAT)
+                .capabilities(ProviderCapability.READ_MESSAGES, ProviderCapability.SEND_MESSAGES,
+                        ProviderCapability.SEND_IMAGES)
+                .build();
     }
 
     /** Sends without OAuth2, so without any scope to check. */

@@ -1,10 +1,11 @@
 import { CalendarClock, ChevronDown, Paperclip, Send } from 'lucide-react'
-import { useId, useState, type KeyboardEvent } from 'react'
+import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { useOnline } from '@/shared/lib/useOnline'
 import { Button } from '@/shared/ui/button'
 import { Kbd } from '@/shared/ui/kbd'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
+import { StickerPicker } from './StickerPicker'
 
 /**
  * The reply box of the canvas (`.composer`): an email has the sending account and "Gửi lúc…" and sends with Ctrl Enter
@@ -15,6 +16,7 @@ import { Status } from '@/shared/ui/status'
  * 1279px the bar drops the account and the shortcut, as the tablet reply box of the canvas. Offline, the bar says the
  * message waits for the network and the button queues it (`InboxState` offline, D-55). When the server says who the
  * reply goes to, a "Tới" line names them above the box at every width (no canvas; D-134: a wrong recipient is worse).
+ * A chat that can send pictures has a "Sticker" button after the attach button (zalo-send-images ZS-08, D-356).
  */
 export function Composer({
   kind,
@@ -25,6 +27,7 @@ export function Composer({
   from,
   to,
   onSend,
+  onSendSticker,
 }: {
   kind: 'EMAIL' | 'CHAT'
   label: string
@@ -40,8 +43,11 @@ export function Composer({
   /** "Trần Minh Anh <minhanh@acme.vn>": who the reply goes to. */
   to?: string
   onSend: (text: string) => void
+  /** Given only where a sticker can be sent (a chat whose account sends pictures): then the "Sticker" button shows. */
+  onSendSticker?: (stickerId: string) => void
 }) {
   const id = useId()
+  const box = useRef<HTMLTextAreaElement>(null)
   const email = kind === 'EMAIL'
   const [text, setText] = useState('')
   const empty = text.trim() === ''
@@ -83,6 +89,7 @@ export function Composer({
           {label}
         </label>
         <textarea
+          ref={box}
           id={id}
           rows={email ? 2 : 1}
           placeholder={placeholder}
@@ -101,6 +108,7 @@ export function Composer({
           >
             <Paperclip strokeWidth={1.6} />
           </Button>
+          {!email && onSendSticker && <StickerPicker onPick={onSendSticker} focusAfterPick={box} className="max-md:order-first max-md:size-11" />}
           {!online ? (
             <Status tone="err" className="min-w-0 max-md:hidden">
               Sẽ gửi khi có mạng

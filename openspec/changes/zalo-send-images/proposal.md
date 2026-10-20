@@ -30,6 +30,6 @@ Sticker của người dùng đã nằm trong thư viện (`custom-stickers`) v�
 ## Non-goals
 
 - **Gửi ảnh chụp từ máy hay dán ảnh vào khung soạn** (đường gửi giống hệt; làm sau nếu người dùng muốn, theo DN-1).
-- **Gửi dưới dạng "sticker" thật của Zalo** (`chat.sticker` hay ảnh kiểu sticker có `pStickerType`): `zca-js` 2.2.0 không có API, giao thức không có tài liệu (xem ZL-18). Change này gửi như một ảnh (DN-2).
+- ~~**Gửi dưới dạng "sticker" thật của Zalo** (`chat.sticker` hay ảnh kiểu sticker có `pStickerType`): `zca-js` 2.2.0 không có API, giao thức không có tài liệu (xem ZL-18). Change này gửi như một ảnh (DN-2).~~ **Đổi 2026-10-20 (người dùng: "sửa đi"):** ảnh tĩnh đi như AI sticker của Zalo (ảnh có `pStickerType`, D-359, ZS-09). Vẫn ngoài phạm vi: sticker trong kho của Zalo (`chat.sticker`), và GIF dạng sticker.
 - **Gửi sticker qua Gmail** (thư); **gửi nhiều sticker trong một tin**; **"Gần đây"** trong khung chọn; **hẹn giờ gửi sticker**.
 - **Hiện sticker người khác gửi đến như sticker:** đó là phía nhận của `zalo-personal` (ZL-14…ZL-18).

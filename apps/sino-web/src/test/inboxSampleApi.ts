@@ -55,6 +55,25 @@ export function sampleInboxApi(api: typeof InboxApi): typeof InboxApi {
       sample.conversations = sample.conversations.map((conversation) => (conversation.id === conversationId ? stored : conversation))
       return stored
     }),
+    // The same for a sticker of the library (zalo-send-images), and a discard has nothing to do.
+    sendSticker: vi.fn(async (_conversationId: string, stickerId: string, clientMessageId: string) => {
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      return {
+        id: crypto.randomUUID(),
+        kind: 'MESSAGE' as const,
+        direction: 'OUT' as const,
+        sender: 'Bạn',
+        to: null,
+        at: new Date().toISOString(),
+        text: '[Sticker]',
+        attachments: [],
+        status: 'SENT' as const,
+        linked: [],
+        clientMessageId,
+        libraryStickerId: stickerId,
+      }
+    }),
+    discardMessage: vi.fn(async () => {}),
     // Long enough to see "Đang gửi"; the sample has no server to keep it.
     sendMessage: vi.fn(async (_conversationId: string, text: string, clientMessageId: string) => {
       await new Promise((resolve) => setTimeout(resolve, 800))

@@ -4,6 +4,7 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloImage,
   type ZaloListener,
   type ZaloMessage,
   type ZaloSession,
@@ -175,16 +176,25 @@ export class SessionManager {
     return this.liveSession(accountId).connection.sendText(threadId, threadType, text);
   }
 
+  /** Sends a picture through the account's live session and resolves with the msgId of its message (D-353). */
+  sendImage(accountId: string, threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string> {
+    return this.liveSession(accountId).connection.sendImage(threadId, threadType, image);
+  }
+
   /** The account's own messages in a thread with this text, sent after `after` (epoch ms). */
-  ownMessages(accountId: string, threadId: string, text: string, after: number): OwnMessages {
+  ownMessages(accountId: string, threadId: string, text: string | undefined, after: number): OwnMessages {
     const session = this.liveSession(accountId);
-    const messages = session.buffer.filter(
-      (message) =>
-        message.isSelf &&
-        message.threadId === threadId &&
-        message.text === text &&
-        Date.parse(message.sentAt) > after,
-    );
+    // A picture has no text to match: only the sent log can say it went out.
+    const messages =
+      text === undefined
+        ? []
+        : session.buffer.filter(
+            (message) =>
+              message.isSelf &&
+              message.threadId === threadId &&
+              message.text === text &&
+              Date.parse(message.sentAt) > after,
+          );
     return { msgIds: messages.map((message) => message.msgId), liveSince: session.liveSince };
   }
 

@@ -14,10 +14,13 @@ import dev.sino.provider.spi.MessageStatus;
  * the address of a sticker's picture, as its connector checked it (NormalizedMessage.STICKER_URL), null for any other.
  * {@code stickerSprite} is the sprite sheet of a sticker that moves (ZL-15), null for a still sticker or any other message.
  * {@code image} is the picture of a photo (ZL-16), null for any other message and for a photo with no safe address.
+ * {@code libraryStickerId} is the sticker of the user's library that a message Sino sent carries (ZS-05), null for any
+ * other: the web shows it from {@code /api/stickers/{id}/content}, whatever address the provider gives its copy.
  */
 public record InboxMessage(UUID id, MessageDirection direction, MessageStatus status, Instant sentAt, Sender sender,
         List<Address> to, List<Address> cc, String subject, String text, BodyFormat bodyFormat, boolean read,
-        List<File> attachments, UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image) {
+        List<File> attachments, UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image,
+        UUID libraryStickerId) {
 
     /** Frames side by side in one row of the sheet at {@code url}, one run of them lasting {@code durationMs}. */
     public record StickerSprite(String url, int frames, int durationMs) {

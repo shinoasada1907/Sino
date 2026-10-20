@@ -17,6 +17,7 @@ import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
 import { photoOf } from '../photo'
 import { pictureOf, spriteOf } from '../sticker'
+import { stickerContentUrl } from '@/features/stickers/stickers.api'
 import { PhotoPicture } from './PhotoPicture'
 import { StickerPicture } from './StickerPicture'
 
@@ -126,7 +127,7 @@ export function ChatThread({
               {message.kind === 'SYSTEM' ? (
                 <span className="self-center rounded-full border px-3 py-1 text-xs leading-4 font-medium text-muted-foreground">{message.text}</span>
               ) : (
-                <Bubble message={message} showName={group} members={members} />
+                <Bubble message={message} showName={group} members={members} sending={sendMessage} providerName={name} />
               )}
             </Fragment>
           )
@@ -146,6 +147,7 @@ export function ChatThread({
           account={account.address}
           via={`${name} · ${account.address}`}
           onSend={sendMessage.send}
+          onSendSticker={detail.canSendImages ? sendMessage.sendSticker : undefined}
         />
       ) : null}
     </section>
@@ -174,13 +176,29 @@ function TextBubble({ own, children }: { own: boolean; children: ReactNode }) {
 }
 
 // Canvas `.bubble-row`: someone else's message on the left with their picture (and name in a group), own on the right.
-function Bubble({ message, showName, members }: { message: ChatMessage; showName: boolean; members: Member[] | null }) {
+function Bubble({
+  message,
+  showName,
+  members,
+  sending,
+  providerName,
+}: {
+  message: ChatMessage
+  showName: boolean
+  members: Member[] | null
+  sending: ReturnType<typeof useSendMessage>
+  providerName: string
+}) {
   const own = message.direction === 'OUT'
+  const [brokenLibrary, setBrokenLibrary] = useState(false)
   const [brokenSticker, setBrokenSticker] = useState(false)
   const [brokenSprite, setBrokenSprite] = useState(false)
   const [photoStep, setPhotoStep] = useState<'FULL' | 'THUMB' | 'BROKEN'>('FULL')
   // A sticker that moves plays its sprite sheet; when that cannot load it shows the still picture, then the text.
-  const still = brokenSticker ? null : pictureOf(message.sticker)
+  // A sticker of the user's library (zalo-send-images, D-352) is shown from the library, whatever address Zalo gives its own copy;
+  // when the library cannot give it, the address Zalo gave, if any, then the text.
+  const library = message.libraryStickerId && !brokenLibrary ? stickerContentUrl(message.libraryStickerId) : null
+  const still = library ?? (brokenSticker ? null : pictureOf(message.sticker))
   const sprite = brokenSprite ? null : spriteOf(message.stickerSprite)
   // A photo shows its picture; when that cannot load it shows the thumbnail, then the text. Its caption stays (ZL-16).
   const photo = photoOf(message.image)
@@ -195,7 +213,7 @@ function Bubble({ message, showName, members }: { message: ChatMessage; showName
           </span>
         )}
         {sprite || still ? (
-          <StickerPicture still={still} sprite={sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => setBrokenSticker(true)} />
+          <StickerPicture still={still} sprite={library ? null : sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => (library ? setBrokenLibrary(true) : setBrokenSticker(true))} />
         ) : photoSrc ? (
           <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
         ) : (
@@ -220,6 +238,26 @@ function Bubble({ message, showName, members }: { message: ChatMessage; showName
           {message.status === 'SENDING' && <Clock className="size-3" strokeWidth={1.6} />}
           {bubbleMeta(message)}
         </span>
+        {message.status === 'UNKNOWN' && (
+          <p role="status" className="text-xs leading-4 text-muted-foreground">
+            {message.local ? 'Mất kết nối khi gửi. Gửi lại không làm tin bị gửi hai lần.' : `Sino đang kiểm tra với ${providerName}.`}
+          </p>
+        )}
+        {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(message)}>
+              Gửi lại
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => sending.discard(message)}>
+              Bỏ
+            </Button>
+          </div>
+        )}
+        {sending.discardFailed !== undefined && sending.discardFailed === message.clientMessageId && (
+          <p role="alert" className="text-xs leading-4 text-danger-ink">
+            Không bỏ được tin này. Hãy thử lại.
+          </p>
+        )}
         {message.linked.map((linked) => {
           const { icon: Icon, to, name } = LINKED[linked.kind]
           return (

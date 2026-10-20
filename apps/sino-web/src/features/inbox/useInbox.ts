@@ -5,7 +5,8 @@ import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
 import type { ProviderKind } from '@/shared/domain'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, withOutbox, type InboxFilter } from './format'
-import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, sendMessage, updateConversation } from './inbox.api'
+import { stickerTurns } from './stickerQueue'
+import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, sendMessage, sendSticker, updateConversation } from './inbox.api'
 import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation, UnreadByKind } from './inbox.types'
 import { LEAVE_FREELY, rememberSender, type NewMailDraft } from './newMail'
 import { SCREENS } from './screen'
@@ -297,12 +298,18 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
  * Sends a message. It shows at once at the end of the conversation as "Đang gửi", becomes the stored message when the
  * server answers (and the row's preview), or is marked "Không gửi được" when sending fails.
  */
-// What a reply on its way needs: a resend carries the ID of the first try; `attempt` tells this try from a later one.
-interface Outgoing {
-  text: string
-  clientMessageId: string
-  attempt: number
-}
+// What a reply on its way needs: a resend carries the ID of the first try; `attempt` tells this try from a later one. It is
+// a text, or a sticker of the library (zalo-send-images), which the server turns into a picture.
+type Try =
+  | { kind: 'TEXT'; text: string; clientMessageId: string }
+  | { kind: 'STICKER'; stickerId: string; clientMessageId: string }
+type Outgoing = Try & { attempt: number }
+
+/** The text the server stores a sticker with; shown while the sticker has no picture to show. */
+const STICKER_TEXT = '[Sticker]'
+
+/** Stickers of every conversation go through one queue (D-355): the limit of sino-zalo is per account. */
+const STICKER_SCOPE = 'stickers'
 
 const storedId = (error: unknown) => (error instanceof ApiError && typeof error.extra.messageId === 'string' ? error.extra.messageId : null)
 
@@ -321,9 +328,10 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
   // The latest try of each message: an older try that ends late must not let go of a newer one.
   const attempts = useRef(new Map<string, number>())
 
-  const mutation = useMutation({
-    mutationFn: ({ text, clientMessageId }: Outgoing) => sendMessage(conversationId, text, clientMessageId),
-    onMutate: ({ text, clientMessageId }: Outgoing) => {
+  // What happens before, after and instead of the answer is the same for a text and for a sticker; they differ in the request.
+  const callbacks = {
+    onMutate: (outgoing: Outgoing) => {
+      const { clientMessageId } = outgoing
       const pending: Mail = {
         id: `local-${clientMessageId}`,
         kind: 'MESSAGE',
@@ -331,11 +339,12 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
         sender: 'Bạn',
         to: null,
         at: new Date().toISOString(),
-        text,
+        text: outgoing.kind === 'STICKER' ? STICKER_TEXT : outgoing.text,
         attachments: [],
         status: 'SENDING',
         linked: [],
         clientMessageId,
+        ...(outgoing.kind === 'STICKER' ? { libraryStickerId: outgoing.stickerId } : {}),
         local: true,
       }
       editOutbox((mails) =>
@@ -344,7 +353,7 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
           : [...mails, pending],
       )
     },
-    onSuccess: (sent, { clientMessageId }) => {
+    onSuccess: (sent: Mail, { clientMessageId }: Outgoing) => {
       editMail(clientMessageId, () => ({ ...sent, clientMessageId }))
       updateItem(queryClient, conversationId, (item) => ({
         ...item,
@@ -353,7 +362,7 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
         lastMessageAt: sent.at,
       }))
     },
-    onError: (error, { clientMessageId }) => {
+    onError: (error: unknown, { clientMessageId }: Outgoing) => {
       const code = error instanceof ApiError ? error.code : null
       if (code === 'SEND_IN_PROGRESS') {
         // Another try with this ID is still running; the server's copy tells how it ends (see onSettled).
@@ -367,13 +376,26 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
         void queryClient.invalidateQueries({ queryKey: conversationKey(conversationId), exact: true })
       }
     },
-    onSettled: async (_sent, _error, { clientMessageId, attempt }) => {
+    onSettled: async (_sent: Mail | undefined, _error: unknown, { clientMessageId, attempt }: Outgoing) => {
       await queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) })
       const pages = queryClient.getQueryData<MessagePages>(messagesKey(conversationId))
       const stored = pages?.pages.some((page) => page.items.some((message) => message.kind === 'MESSAGE' && message.clientMessageId === clientMessageId))
       if (stored && attempts.current.get(clientMessageId) === attempt) {
         editOutbox((mails) => mails.filter((mail) => mail.clientMessageId !== clientMessageId))
       }
+    },
+  }
+  const request = (outgoing: Outgoing) =>
+    outgoing.kind === 'STICKER' ? sendSticker(conversationId, outgoing.stickerId, outgoing.clientMessageId) : sendMessage(conversationId, outgoing.text, outgoing.clientMessageId)
+  const texts = useMutation({ ...callbacks, mutationFn: request })
+  // One at a time, in the order they were clicked, and a little over a second apart (D-355, stickerQueue). Each shows at
+  // once (`onMutate` does not wait for its turn), and one that is refused does not hold back the next.
+  const stickers = useMutation({
+    ...callbacks,
+    scope: { id: STICKER_SCOPE },
+    mutationFn: async (outgoing: Outgoing) => {
+      await stickerTurns.wait()
+      return request(outgoing)
     },
   })
 
@@ -396,17 +418,28 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) }),
   })
-  const sendTry = (text: string, clientMessageId: string) => {
-    const attempt = (attempts.current.get(clientMessageId) ?? 0) + 1
-    attempts.current.set(clientMessageId, attempt)
-    mutation.mutate({ text, clientMessageId, attempt })
+  const sendTry = (next: Try) => {
+    const attempt = (attempts.current.get(next.clientMessageId) ?? 0) + 1
+    attempts.current.set(next.clientMessageId, attempt)
+    const outgoing: Outgoing = { ...next, attempt }
+    if (outgoing.kind === 'STICKER') {
+      stickers.mutate(outgoing)
+    } else {
+      texts.mutate(outgoing)
+    }
   }
 
   return {
-    send: (text: string) => sendTry(text, crypto.randomUUID()),
+    send: (text: string) => sendTry({ kind: 'TEXT', text, clientMessageId: crypto.randomUUID() }),
+    /** Sends a sticker of the user's library as a picture (zalo-send-images); it shows at once and goes in its turn. */
+    sendSticker: (stickerId: string) => sendTry({ kind: 'STICKER', stickerId, clientMessageId: crypto.randomUUID() }),
     resend: (mail: Mail) => {
       if (mail.clientMessageId) {
-        sendTry(mail.text, mail.clientMessageId)
+        sendTry(
+          mail.libraryStickerId
+            ? { kind: 'STICKER', stickerId: mail.libraryStickerId, clientMessageId: mail.clientMessageId }
+            : { kind: 'TEXT', text: mail.text, clientMessageId: mail.clientMessageId },
+        )
       }
     },
     /** Throws away a failed reply: in this browser only, or on the server too when it kept it. */

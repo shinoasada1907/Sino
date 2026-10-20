@@ -44,7 +44,18 @@ public class Replies {
 
     /** From one copy of the conversation, and the account of that copy. */
     Reply of(UUID ownerId, InboxItem conversation, UUID copy) {
-        return new Reply(stateOf(ownerId, conversation, conversation.accountOf(copy)), recipientsOf(copy));
+        UUID accountId = conversation.accountOf(copy);
+        ReplyState state = stateOf(ownerId, conversation, accountId);
+        return new Reply(state, recipientsOf(copy),
+                state == ReplyState.READY && sendsImages(ownerId, conversation, accountId));
+    }
+
+    // Both the connector and the account must send pictures; a picture is a message, so the reply is READY first (D-356).
+    private boolean sendsImages(UUID ownerId, InboxItem conversation, UUID accountId) {
+        boolean providerSends = providers.find(conversation.provider())
+                .map(connector -> connector.capabilities().supports(ProviderCapability.SEND_IMAGES)).orElse(false);
+        return providerSends && directory.find(ownerId, accountId).map(directory::capabilitiesOf)
+                .map(capabilities -> capabilities.supports(ProviderCapability.SEND_IMAGES)).orElse(false);
     }
 
     // In this order: reconnecting cannot help a provider that never sends, and a reconnect also grants the scopes.

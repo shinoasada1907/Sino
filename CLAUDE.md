@@ -38,8 +38,14 @@ Vị trí hiện tại chỉ ghi trong `PROJECT_STATE.md`; file này không lặ
 - Nhánh làm việc `dev`. Không commit thẳng `main`. Ở AUTO agent commit lên `dev` sau mỗi task đã kiểm chứng; ở TRAINING/HYBRID agent chỉ commit khi người dùng yêu cầu. **Push, merge, mở PR chỉ khi người dùng yêu cầu**.
 - Làm khác kế hoạch thì gạch task cũ trong `tasks.md` và ghi **LÝ DO** ngay tại đó. Xong feature thì `openspec archive <change> -y`.
 - Không chạy thêm bước kiểm tra chậm ngoài phạm vi được giao mà chưa hỏi.
+- **Test tay trước, test tự động sau** (người dùng, 2026-10-20). Áp cho mọi task, backend lẫn frontend, ở mọi mode:
+  1. Viết code.
+  2. Test tay cho tới khi chạy đúng: frontend thì chạy app và thao tác trên Chrome thật; backend thì chạy app và gọi API thật (curl, Postman), xem DB và log khi cần.
+  3. Chỉ khi test tay xong mới viết unit test (và các test tự động khác), để kiểm lại một lần nữa đúng hành vi vừa test tay.
+
+  Không viết test trước code nữa (bỏ "đỏ rồi xanh"). Luật này ghi đè skill `superpowers:test-driven-development` và các dòng "test viết trước" còn trong `tasks.md` của các change đang làm. Ở TRAINING/HYBRID, hướng dẫn cho người dùng cũng theo đúng thứ tự này. Bằng chứng trong `tasks.md` ghi cả lượt test tay: đã làm gì, thấy gì.
 - Kiểm chứng mỗi task **frontend** khi agent tự làm ở AUTO (người dùng chọn 2026-10-09 để làm nhanh hơn):
-  - Giữ: test viết trước (đỏ rồi xanh); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build` trước khi commit; đối chiếu canvas.
+  - Giữ: thứ tự test ở mục trên (Chrome thật trước, test tự động sau); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build` trước khi commit; đối chiếu canvas.
   - Chrome thật: một lượt mỗi task, chỉ ở các cỡ màn task đó đụng tới. Đủ các cỡ × 2 theme để dành cho task nghiệm thu của màn.
   - Kiểm tra bằng lỗi gài (mutation): không chạy ở mỗi task; chỉ một lần cho hàm logic thuần của màn (như `format.ts`), ở task cuối trước nghiệm thu.
   - File kiến thức: sinh lại `.docx` và chạy `genoffice docs check`; không render thành ảnh.
