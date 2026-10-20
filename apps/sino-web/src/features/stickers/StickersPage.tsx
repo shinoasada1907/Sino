@@ -8,21 +8,20 @@ import { DeleteStickerDialog } from './DeleteStickerDialog'
 import { DropZone } from './DropZone'
 import { AddStickers } from './editor/AddStickers'
 import { BatchRefusals } from './editor/BatchRefusals'
-import { useBatch } from './editor/useBatch'
+import { NO_PACK, useBatch, type PackChoice } from './editor/useBatch'
+import type { SavedBatch } from './editor/useSaveBatch'
 import { groupByPack } from './groupByPack'
 import { DeletePackDialog, PackNameDialog } from './PackDialogs'
 import { CreatePackButton, EmptyPack, PackButtons, PackSection } from './PackSection'
 import { FilePicker, UploadButton } from './UploadButton'
-import { UploadList } from './UploadList'
 import type { StickerItem, StickerPack } from './stickers.types'
 import { usePacks } from './usePacks'
 import { useStickers } from './useStickers'
-import { useUploadQueue } from './useUploadQueue'
 
 /**
  * The Sticker screen (custom-stickers and sticker-packs, spec web-sticker-library): the library of the owner as a grid in
  * parts, one per pack and "Chưa xếp bộ" last (SP-06), with "Tạo bộ" and "Tải lên". Choosing or dropping pictures opens the
- * "Thêm sticker" step (SP-08), and what it saves goes through the upload queue. The canvas has no frame for it (DN-7),
+ * "Thêm sticker" step (SP-08), which saves into a pack (SP-10). The canvas has no frame for it (DN-7),
  * so it follows Ghi chú: a title with the count, and on a phone (like `MobileNotes`) the header with a way back to Thêm.
  * Loading, empty and failed lists each say so; the screen needs both the stickers and the packs.
  */
@@ -55,10 +54,14 @@ function visibleOf(selector: string): HTMLElement | undefined {
 export function StickersPage() {
   const { stickers, error: stickersError, retry: retryStickers } = useStickers()
   const { packs, error: packsError, retry: retryPacks } = usePacks()
-  const uploads = useUploadQueue()
   const batch = useBatch()
   // The "Tải lên" that opened the picker, for the focus when the step closes; none after a drop.
   const picker = useRef<HTMLElement | null>(null)
+  // D-348: the pack whose "Thêm ảnh vào bộ" opened the picker, else the pack the last batch of this visit went into.
+  const intendedPack = useRef<string | null>(null)
+  const lastPack = useRef<string | null>(null)
+  // What the last save did, said on the screen once the step has closed.
+  const [saved, setSaved] = useState<SavedBatch | null>(null)
   const [deletion, setDeletion] = useState<Deletion | null>(null)
   const [packDialog, setPackDialog] = useState<PackDialog | null>(null)
   // The sticker that has just moved, and the pack it moved to: its new cell takes the focus on its move button.
@@ -138,16 +141,34 @@ export function StickersPage() {
     target?.focus()
   }
 
+  /** The pack a new batch starts on: one the owner still has, else none. */
+  const openingPack = (): PackChoice => {
+    const id = intendedPack.current ?? lastPack.current
+    intendedPack.current = null
+    return id !== null && packs?.some((pack) => pack.id === id) ? { kind: 'existing', id } : NO_PACK
+  }
+
+  const chosen = (files: File[]) => {
+    setSaved(null)
+    void batch.add(files, { pack: openingPack() })
+  }
+
   const dropped = (files: File[]) => {
     picker.current = null
-    void batch.add(files)
+    chosen(files)
+  }
+
+  const savedBatch = (result: SavedBatch) => {
+    lastPack.current = result.pack?.id ?? null
+    setSaved(result)
   }
 
   return (
-    <FilePicker onFiles={(files) => void batch.add(files)}>
+    <FilePicker onFiles={chosen}>
       {(openPicker) => {
-        const pickFrom = (opener: HTMLElement) => {
+        const pickFrom = (opener: HTMLElement, packId: string | null = null) => {
           picker.current = opener
+          intendedPack.current = packId
           openPicker()
         }
         return (
@@ -179,7 +200,11 @@ export function StickersPage() {
                   <BatchRefusals refusals={batch.refusals} onDismiss={batch.dismissRefusals} />
                 </div>
               )}
-              <UploadList entries={uploads.entries} active={uploads.active} onRetry={uploads.retry} onDismiss={uploads.dismiss} />
+              {saved && (
+                <p role="status" aria-label="Kết quả lưu" className="px-4 pt-4 text-sm text-muted-foreground md:px-6">
+                  Đã lưu {saved.count} sticker{saved.pack ? ` vào bộ ${saved.pack.name}` : ''}.
+                </p>
+              )}
               {parts === undefined ? (
                 failed ? (
                   <StickersLoadFailed onRetry={retry} />
@@ -197,7 +222,16 @@ export function StickersPage() {
                       key={pack?.id ?? 'no-pack'}
                       name={pack?.name ?? 'Chưa xếp bộ'}
                       count={held.length}
-                      actions={pack && <PackButtons pack={pack} onRename={(item, opener) => openPackDialog({ kind: 'name', pack: item, opener })} onDelete={askToDeletePack} />}
+                      actions={
+                        pack && (
+                          <PackButtons
+                            pack={pack}
+                            onAddTo={(item, opener) => pickFrom(opener, item.id)}
+                            onRename={(item, opener) => openPackDialog({ kind: 'name', pack: item, opener })}
+                            onDelete={askToDeletePack}
+                          />
+                        )
+                      }
                     >
                       {held.length === 0 ? (
                         <EmptyPack />
@@ -242,7 +276,7 @@ export function StickersPage() {
               )}
             </DropZone>
             {/* Outside the drop zone: a drop on the step is the step's, and React would carry it on to the zone too. */}
-            <AddStickers batch={batch} onAddMore={openPicker} onSend={uploads.add} onCloseAutoFocus={placeStepFocus} />
+            <AddStickers batch={batch} packs={packs ?? []} onAddMore={openPicker} onSaved={savedBatch} onCloseAutoFocus={placeStepFocus} />
           </>
         )
       }}

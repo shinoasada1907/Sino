@@ -121,11 +121,11 @@ describe('useBatch (SP-08)', () => {
 
     act(() => {
       result.current.take([a.id, c.id])
-      result.current.setProblem(b.id, 'Không đọc được ảnh này.')
+      result.current.fail(b.id, 'Không đọc được ảnh này.')
     })
 
     expect(names(result.current)).toEqual(['b.png'])
-    expect(result.current.items[0].problem).toBe('Không đọc được ảnh này.')
+    expect(result.current.items[0]).toMatchObject({ status: 'failed', problem: 'Không đọc được ảnh này.' })
     expect(liveObjectUrls()).toEqual([b.previewUrl])
   })
 
@@ -171,5 +171,29 @@ describe('useBatch (SP-08)', () => {
     expect(kept?.edit).toMatchObject({ rotation: 90, zoom: 2, shape: 'square' })
     expect(kept?.name).toBe('Bé mèo')
     expect(result.current.items.find((item) => item.id === c.id)?.edit).toEqual({ crop: { x: 0, y: 0 }, zoom: 1, rotation: 0, shape: 'square', area: null })
+  })
+
+  it('takes the pack from the choice that opens the step, and keeps the one chosen since for later choices (SP-10)', async () => {
+    const { result } = renderHook(() => useBatch())
+    await act(() => result.current.add([png('a.png')], { pack: { kind: 'existing', id: 'pk-cats' } }))
+    expect(result.current.pack).toEqual({ kind: 'existing', id: 'pk-cats' })
+
+    act(() => result.current.setPack({ kind: 'new', name: 'Gà' }))
+    await act(() => result.current.add([png('b.png')], { pack: { kind: 'existing', id: 'pk-dogs' } }))
+    expect(result.current.pack).toEqual({ kind: 'new', name: 'Gà' })
+
+    act(() => result.current.close())
+    expect(result.current.pack).toEqual({ kind: 'none' })
+  })
+
+  it('says where each picture stands in a save, and forgets a failure when it is sent again (SP-10)', async () => {
+    const { result } = await setup(png('a.png'))
+    const [a] = result.current.items
+    expect(a.status).toBe('idle')
+
+    act(() => result.current.fail(a.id, 'Sticker này đã có trong thư viện.'))
+    act(() => result.current.setStatus(a.id, 'sending'))
+
+    expect(result.current.items[0]).toMatchObject({ status: 'sending', problem: undefined })
   })
 })

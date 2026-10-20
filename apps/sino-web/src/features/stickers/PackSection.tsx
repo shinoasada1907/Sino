@@ -1,4 +1,4 @@
-import { FolderPlus, Pencil, Trash2 } from 'lucide-react'
+import { FolderPlus, ImagePlus, Pencil, Trash2 } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
 import { Button } from '@/shared/ui/button'
 import { Spec } from '@/shared/ui/spec'
@@ -31,20 +31,26 @@ export function EmptyPack() {
 }
 
 /**
- * "Đổi tên" and "Xóa" of a pack, as icons named after it. Each hands over the pack and itself, so the screen can give the
- * focus back to it when the dialog closes (`data-pack-delete` finds the one of the next part after a delete).
+ * "Thêm ảnh", "Đổi tên" and "Xóa" of a pack, as icons named after it. "Thêm ảnh" opens the picker and starts the batch on
+ * this pack (D-348). Each hands over the pack and itself, so the screen can give the focus back to it when the dialog
+ * closes (`data-pack-delete` finds the one of the next part after a delete).
  */
 export function PackButtons({
   pack,
+  onAddTo,
   onRename,
   onDelete,
 }: {
   pack: StickerPack
+  onAddTo: (pack: StickerPack, opener: HTMLElement) => void
   onRename: (pack: StickerPack, opener: HTMLElement) => void
   onDelete: (pack: StickerPack, opener: HTMLElement) => void
 }) {
   return (
     <>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label={`Thêm ảnh vào bộ ${pack.name}`} onClick={(event) => onAddTo(pack, event.currentTarget)} className="max-md:size-11">
+        <ImagePlus strokeWidth={1.6} />
+      </Button>
       <Button type="button" variant="ghost" size="icon-sm" aria-label={`Đổi tên bộ ${pack.name}`} onClick={(event) => onRename(pack, event.currentTarget)} className="max-md:size-11">
         <Pencil strokeWidth={1.6} />
       </Button>

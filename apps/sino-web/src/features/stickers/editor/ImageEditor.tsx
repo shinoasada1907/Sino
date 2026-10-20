@@ -62,11 +62,6 @@ export function ImageEditor({
         <p className="text-sm text-muted-foreground">Ảnh động được lưu nguyên: không cắt, không xoay.</p>
       )}
       <NameField value={item.name} onChange={onRename} />
-      {item.problem && (
-        <p role="alert" className="text-sm text-danger-ink">
-          {item.problem}
-        </p>
-      )}
     </div>
   )
 }

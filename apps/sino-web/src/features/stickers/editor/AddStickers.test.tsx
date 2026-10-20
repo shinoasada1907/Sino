@@ -199,6 +199,7 @@ describe('the "Thêm sticker" step: the list (SP-08)', () => {
     await screen.findByRole('dialog', { name: 'Thêm sticker' })
 
     await user.keyboard('{Escape}')
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Bỏ ảnh' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(upload).toHaveFocus()
@@ -211,6 +212,7 @@ describe('the "Thêm sticker" step: the list (SP-08)', () => {
     await screen.findByRole('dialog', { name: 'Thêm sticker' })
 
     await user.keyboard('{Escape}')
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Bỏ ảnh' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(library().getAllByRole('button', { name: 'Tải lên' })).toContainEqual(document.activeElement)
@@ -220,6 +222,7 @@ describe('the "Thêm sticker" step: the list (SP-08)', () => {
     const user = await openWith(png('a.png'), png('b.png'))
 
     await user.click(step().getByRole('button', { name: 'Hủy' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Bỏ ảnh' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(posts).toEqual([])

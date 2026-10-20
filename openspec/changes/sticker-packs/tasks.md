@@ -98,13 +98,27 @@
   - **Thực hiện:** `ImageEditor` (khung `react-easy-crop` cho ảnh tĩnh, mỗi ảnh một trình chỉnh với `key` theo `id`, được điều khiển hoàn toàn từ phần chỉnh của ảnh; ảnh động chạy nguyên, có ghi chú); `EditorControls` (thanh trượt "Phóng to" 1 đến 3, "Xoay 90°" kèm trạng thái `aria-live`, nhóm "Hình khung", ô "Tên sticker"); `pictureEdit` (`DEFAULT_EDIT`, `frameAspect`, `defaultArea`); phần chỉnh và tên nằm trên mục của lượt (`batch.edit`, `batch.rename`); `fileToSend` cắt theo `area` và chiều xoay; hàng đợi gửi tên trong phần `name` (`NamedFile`). Vùng khung có `role="group"` và tên truy cập, phím mũi tên dời 10 px. **Khác kế hoạch:** "Tự do" thành **"Theo ảnh"**, vì khung của `react-easy-crop` không kéo giãn được (spec và D-345 đã sửa). **Thêm tệp ngoài danh sách:** `editor/pictureEdit.ts`, `useUploadQueue.ts` (tên, vốn thuộc SP-10), `src/test/pictureDecoding.ts` (ghi cỡ PNG xuất ra).
   - **Bằng chứng:** test viết trước, đỏ; xanh: `ImageEditor.test.tsx` 8, `pictureEdit.test.ts` 6, `fileToSend.test.ts` +3 −1, `useBatch.test.tsx` +1; `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` **119 tệp, 1256 test**, `pnpm build` đều qua. **Chrome thật** (backend thật, PNG đã lưu được đọc lại và soi màu) **18/18**: kéo chuột thì được nửa phải; 10 lần ArrowLeft dời đường ranh màu từ 256 về 41 trên 512; bánh xe chuột phóng tới 3, PNG 333 × 333 không phóng to lên; xoay cùng "Theo ảnh" ra 256 × 512 đúng góc; ảnh lưu 400 × 200 có EXIF Orientation 6 hiện 200 × 400 và lưu đứng (đỏ trên, xanh dưới); quay lại ảnh vẫn giữ phần chỉnh; GIF lưu nguyên với tên đã gõ; ở 390 kéo bằng chạm (CDP) thì được nửa trái, không cuộn ngang, điều khiển cao 44. Kiến thức: mục 23.17, 23.18.
 
-- [ ] 2.6 **SP-10 — Lưu lượt: bộ của lượt, bộ mới, gửi lần lượt, ảnh lỗi ở lại (D-347, D-348)**
+- [x] 2.6 **SP-10 — Lưu lượt: bộ của lượt, bộ mới, gửi lần lượt, ảnh lỗi ở lại (D-347, D-348)**
   - **Goal:** "Lưu N sticker" gửi đúng phần đã chỉnh vào đúng bộ.
   - **Files:** `features/stickers/editor/{PackPicker,useSaveBatch}.tsx|ts`, `useUploadQueue.ts` (+ test).
   - **Acceptance criteria:** spec `sticker-upload-editor` (tên và bộ của lượt, "Bộ mới…" tạo trước, lưu lần lượt, trạng thái từng ảnh, ảnh lỗi ở lại, hỏi khi đóng còn ảnh).
   - **Test:** Vitest + MSW: thứ tự yêu cầu (`POST /api/sticker-packs` rồi các `POST /api/stickers` có `packId`), ảnh thứ hai bị `409`, đóng khi còn ảnh.
   - **Depends on:** SP-09.
   - **Hints:** **Level 1:** tạo bộ mới lỗi (trùng tên) thì có gửi ảnh nào không? **Level 2:** không: báo ở ô chọn bộ, lượt giữ nguyên.
+  - **Thực hiện:** `PackPicker` ("Lưu vào bộ": các bộ, "Chưa xếp bộ", "Bộ mới…" với ô "Tên bộ mới"); `useSaveBatch`:
+    - "Bộ mới…" được tạo trước; lỗi thì không gửi ảnh nào, lượt giữ nguyên; tạo được thì ô chọn bộ chuyển sang bộ đó.
+    - Sau đó gửi từng ảnh theo thứ tự, mỗi ảnh có trạng thái `waiting`, `sending`, `failed`. Ảnh lưu được rời lượt; ảnh lỗi ở lại với câu tiếng Việt; bộ bị xóa giữa chừng thì dừng và về "Chưa xếp bộ".
+    - Tất cả lưu được thì đóng bước, và màn nói "Đã lưu N sticker vào bộ …".
+    - Đóng khi còn ảnh thì hỏi "Bỏ N ảnh chưa lưu?".
+    - D-348: mỗi bộ có nút "Thêm ảnh vào bộ …"; "Tải lên" bắt đầu ở bộ của lượt trước.
+    - **Khác kế hoạch:** không dùng lại `useUploadQueue` (lý do ở D-347); `useUploadQueue.ts`, `UploadList.tsx`, `checkStickerFile`, `isRetryableUpload` đã bỏ.
+    - **Thêm tệp ngoài danh sách:** `PackSection.tsx`, `StickersPage.tsx`, `BatchList.tsx`, `useBatch.ts`.
+  - **Bằng chứng:** test viết trước, đỏ; xanh: `SaveBatch.test.tsx` 16, `useBatch.test.tsx` +2; test cũ (`StickersDrop`, `StickersPage`, `AddStickers`) đã sửa theo luồng mới. `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` **120 tệp, 1248 test**, `pnpm build` đều qua. **Chrome thật** (backend thật) **17/17**:
+    - Bắt đầu đúng bộ khi mở từ một bộ, lượt sau dùng lại bộ vừa lưu.
+    - "Bộ mới…" trùng tên thì chỉ có một `409`, không ảnh nào được gửi; tên hợp lệ thì thứ tự yêu cầu là tạo bộ `201` rồi các ảnh `409`/`201`/`201`; ảnh trùng ở lại với lý do; hai ảnh kia vào bộ mới.
+    - Hỏi trước khi đóng, cả hai lựa chọn đều đúng.
+    - Ở 390: nút 44 px, không cuộn ngang, lưu vào bộ từ điện thoại.
+  - Kiến thức: mục 23.19, 23.20.
 
 - [ ] 2.7 **SP-11 — Trạng thái, bàn phím, máy tính bảng và điện thoại**
   - **Goal:** bước "Thêm sticker" và lưới theo bộ đúng ở mọi cỡ.

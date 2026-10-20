@@ -3,12 +3,16 @@ import { useEffect, useRef } from 'react'
 import { Button } from '@/shared/ui/button'
 import type { BatchItem } from './useBatch'
 
+/** What a picture says under it during a save; a failed one says why instead. */
+const STATES: Partial<Record<BatchItem['status'], string>> = { waiting: 'Đang chờ', sending: 'Đang gửi…' }
+
 /** Where the focus goes after a picture is taken out: the remove button of a picture, or "Thêm ảnh". */
 export type BatchFocus = { removeOf: number } | 'add' | null
 
 /**
  * The pictures of the batch (SP-08): a small picture and the file name of each, the selected one marked
- * (`aria-current`), a button to take each out, and "Thêm ảnh" last. Below 768 px it is a strip that scrolls sideways above
+ * (`aria-current`), a button to take each out, and "Thêm ảnh" last. During a save each says whether it waits or is being
+ * sent, and one that failed says why (SP-10). Below 768 px it is a strip that scrolls sideways above
  * the picture shown; from 768 px a column beside it. Taking a picture out removes its buttons, so the step asks for the
  * focus to go to the next one (`focus`), and hears when it has (`onFocused`).
  */
@@ -49,7 +53,7 @@ export function BatchList({
         {items.map((item) => (
           <li
             key={item.id}
-            className="relative flex shrink-0 items-center gap-1 rounded-lg border bg-surface pr-1 has-aria-[current=true]:border-foreground max-md:w-44"
+            className="relative flex shrink-0 flex-wrap items-center gap-x-1 rounded-lg border bg-surface pr-1 has-aria-[current=true]:border-foreground max-md:w-44"
           >
             <button
               type="button"
@@ -68,7 +72,7 @@ export function BatchList({
                 Động
               </span>
             )}
-            {item.problem && <TriangleAlert role="img" aria-label="Có lỗi" className="size-4 shrink-0 text-danger" strokeWidth={1.6} />}
+            {item.status === 'failed' && <TriangleAlert role="img" aria-label="Có lỗi" className="size-4 shrink-0 text-danger" strokeWidth={1.6} />}
             <Button
               type="button"
               variant="ghost"
@@ -81,6 +85,9 @@ export function BatchList({
             >
               <X strokeWidth={1.6} />
             </Button>
+            {item.status !== 'idle' && (
+              <p className={`w-full px-2 pb-1.5 text-xs leading-4 ${item.status === 'failed' ? 'text-danger-ink' : 'text-muted-foreground'}`}>{STATES[item.status] ?? item.problem}</p>
+            )}
           </li>
         ))}
       </ul>

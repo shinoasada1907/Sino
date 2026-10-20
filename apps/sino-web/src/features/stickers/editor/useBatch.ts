@@ -14,9 +14,16 @@ export interface BatchItem {
   edit: PictureEdit
   /** The address of the file for an `<img>`, made when the picture came in and let go when it leaves. */
   previewUrl: string
+  /** Where it stands in a save (SP-10): not asked yet, waiting for its turn, being sent, or failed (`problem` says why). */
+  status: 'idle' | 'waiting' | 'sending' | 'failed'
   /** Why it could not be sent the last time, if it could not. */
   problem?: string
 }
+
+/** The pack the batch goes into (SP-10): one of the owner's, none ("Chưa xếp bộ"), or a new one made before the first picture. */
+export type PackChoice = { kind: 'none' } | { kind: 'existing'; id: string } | { kind: 'new'; name: string }
+
+export const NO_PACK: PackChoice = { kind: 'none' }
 
 /** A file of the last choice that did not go in, and why. */
 export interface Refusal {
@@ -42,8 +49,13 @@ const stemOf = (fileName: string) => {
  */
 export function useBatch() {
   const [open, setOpen] = useState(false)
-  // The pictures and the one selected change together (a picture taken out may hand on the selection), so one state.
-  const [{ items, selectedId }, setBatch] = useState<{ items: BatchItem[]; selectedId: number | null }>({ items: [], selectedId: null })
+  // The pictures, the one selected and the pack change together (a picture taken out may hand on the selection, the first
+  // choice of a closed step sets the pack), so one state.
+  const [{ items, selectedId, pack }, setBatch] = useState<{ items: BatchItem[]; selectedId: number | null; pack: PackChoice }>({
+    items: [],
+    selectedId: null,
+    pack: NO_PACK,
+  })
   const [refusals, setRefusals] = useState<Refusal[]>([])
   const nextId = useRef(0)
   // The preview addresses not revoked yet, by picture; read when the screen goes away, after the last render.
@@ -69,8 +81,11 @@ export function useBatch() {
     }
   }
 
-  /** Takes the files of one choice; what cannot be used is said, and the refusals of the last choice go. */
-  async function add(files: File[]) {
+  /**
+   * Takes the files of one choice; what cannot be used is said, and the refusals of the last choice go. The choice that
+   * opens the step sets the pack of the batch (`pack`, D-348); a later one keeps the pack the owner has chosen since.
+   */
+  async function add(files: File[], { pack: opening = NO_PACK }: { pack?: PackChoice } = {}) {
     const kinds = await Promise.all(files.map((file) => inspectPicture(file).catch(() => null)))
     const made: BatchItem[] = []
     const refused: Refusal[] = []
@@ -84,11 +99,15 @@ export function useBatch() {
       }
       const previewUrl = URL.createObjectURL(file)
       previews.current.set(id, previewUrl)
-      made.push({ id, file, name: stemOf(file.name), kind, edit: DEFAULT_EDIT, previewUrl })
+      made.push({ id, file, name: stemOf(file.name), kind, edit: DEFAULT_EDIT, previewUrl, status: 'idle' })
     })
     setRefusals(refused)
     if (made.length > 0) {
-      setBatch((batch) => ({ items: [...batch.items, ...made], selectedId: batch.selectedId ?? made[0].id }))
+      setBatch((batch) => ({
+        items: [...batch.items, ...made],
+        selectedId: batch.selectedId ?? made[0].id,
+        pack: batch.items.length === 0 ? opening : batch.pack,
+      }))
       setOpen(true)
     }
   }
@@ -97,21 +116,21 @@ export function useBatch() {
   function take(ids: number[]) {
     const gone = new Set(ids)
     letGo(gone)
-    setBatch(({ items: list, selectedId: current }) => {
+    setBatch(({ items: list, selectedId: current, pack: chosen }) => {
       const kept = list.filter((item) => !gone.has(item.id))
       if (current === null || !gone.has(current)) {
-        return { items: kept, selectedId: current }
+        return { items: kept, selectedId: current, pack: chosen }
       }
       const at = list.findIndex((item) => item.id === current)
       const after = list.slice(at + 1).find((item) => !gone.has(item.id))
       const before = list.slice(0, at).reverse().find((item) => !gone.has(item.id))
-      return { items: kept, selectedId: (after ?? before)?.id ?? null }
+      return { items: kept, selectedId: (after ?? before)?.id ?? null, pack: chosen }
     })
   }
 
   function close() {
     letGo([...previews.current.keys()])
-    setBatch({ items: [], selectedId: null })
+    setBatch({ items: [], selectedId: null, pack: NO_PACK })
     setRefusals([])
     setOpen(false)
   }
@@ -125,11 +144,15 @@ export function useBatch() {
     refusals,
     selectedId,
     selected: items.find((item) => item.id === selectedId),
+    pack,
+    setPack: (choice: PackChoice) => setBatch((batch) => ({ ...batch, pack: choice })),
     add,
     select: (id: number) => setBatch((batch) => ({ ...batch, selectedId: id })),
     remove: (id: number) => take([id]),
     take,
-    setProblem: (id: number, problem: string) => change(id, (item) => ({ ...item, problem })),
+    /** Puts a picture where it stands in a save; anything but a failure forgets why the last one failed. */
+    setStatus: (id: number, status: 'idle' | 'waiting' | 'sending') => change(id, (item) => ({ ...item, status, problem: undefined })),
+    fail: (id: number, problem: string) => change(id, (item) => ({ ...item, status: 'failed', problem })),
     /** Changes what was done to a picture; by its id, never by where it is in the list (the hint of SP-09). */
     edit: (id: number, edit: Partial<PictureEdit>) => change(id, (item) => ({ ...item, edit: { ...item.edit, ...edit } })),
     rename: (id: number, name: string) => change(id, (item) => ({ ...item, name })),

@@ -1,9 +1,9 @@
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
 import type { PictureKind } from './editor/editable'
 
-// What the Sticker screen can tell about a file before the server sees it, and how it says what the server refused (spec
-// web-sticker-library). The server is the one that decides in the end: it reads the content, not the name or the type the
-// browser claims.
+// What the Sticker screen can tell about a file before the server sees it (`batchRefusal`), and how it says what the
+// server refused (spec web-sticker-library). The server is the one that decides in the end: it reads the content, not the
+// name or the type the browser claims.
 
 /** DN-1: 1 MiB a file, the same number as `sino.stickers.max-file-size` of the API (its default); the server still checks. */
 export const STICKER_MAX_BYTES = 1_048_576
@@ -12,38 +12,6 @@ export const STICKER_LIMIT_LABEL = '1 MB'
 /** DN-1: the longest side, and how many stickers a person may keep; the defaults of `sino.stickers.max-side` and `max-per-owner`. */
 const DEFAULT_MAX_SIDE = 1024
 const DEFAULT_MAX_PER_OWNER = 300
-/** The types of picture the library takes (D-329). */
-export const STICKER_TYPES = ['image/png', 'image/gif', 'image/webp']
-
-const TYPE_OF_EXTENSION: Record<string, string> = { png: 'image/png', gif: 'image/gif', webp: 'image/webp' }
-
-export type FileCheck = { ok: true } | { ok: false; reason: string }
-
-// "meo.png" → "png"; a name with no dot has none.
-function extensionOf(name: string): string {
-  const dot = name.lastIndexOf('.')
-  return dot === -1 ? '' : name.slice(dot + 1).toLowerCase()
-}
-
-/**
- * Whether a file may be sent: a PNG, GIF or WebP (by its type, or by its extension when the browser gives no type), not
- * empty, not over the limit. The type goes first: a smaller JPEG is still refused, so telling it is too big would mislead.
- * The reason is a sentence for the screen, without the name of the file (the screen adds it).
- */
-export function checkStickerFile(file: Pick<File, 'name' | 'type' | 'size'>): FileCheck {
-  const type = file.type !== '' ? file.type : (TYPE_OF_EXTENSION[extensionOf(file.name)] ?? '')
-  if (!STICKER_TYPES.includes(type)) {
-    return { ok: false, reason: 'Chỉ nhận PNG, GIF, WebP.' }
-  }
-  if (file.size === 0) {
-    return { ok: false, reason: 'Tệp này trống.' }
-  }
-  if (file.size > STICKER_MAX_BYTES) {
-    return { ok: false, reason: `Tệp nặng hơn ${STICKER_LIMIT_LABEL}; hãy chọn ảnh nhẹ hơn.` }
-  }
-  return { ok: true }
-}
-
 // 1572864 → "1,5 MB", 524288 → "512 KB".
 function formatBytes(bytes: number): string {
   const mib = bytes / 1_048_576
@@ -84,22 +52,6 @@ export function uploadErrorMessage(error: unknown): string {
     default:
       return 'Không tải lên được. Hãy thử lại.'
   }
-}
-
-// The refusals that would come again for the same file; everything else (no network, a server that failed) may work the second time.
-const FINAL_REFUSALS = new Set([
-  'STICKER_TYPE_UNSUPPORTED',
-  'STICKER_TOO_LARGE',
-  'PAYLOAD_TOO_LARGE',
-  'STICKER_INVALID_IMAGE',
-  'STICKER_DUPLICATE',
-  'STICKER_LIMIT_REACHED',
-  'STICKER_FILE_MISSING',
-])
-
-/** Whether trying the same file again may work: a lost network or a failed server yes, a refusal of the file itself no. */
-export function isRetryableUpload(error: unknown): boolean {
-  return !(error instanceof ApiError && FINAL_REFUSALS.has(error.code))
 }
 
 /** The longest name of a pack, in characters as the server counts them (code points, so an emoji is one; D-344). */

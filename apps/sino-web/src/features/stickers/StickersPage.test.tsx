@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -169,7 +169,7 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     expect(listReads).toBe(1)
   })
 
-  it('says each file is loading, then that it is added', async () => {
+  it('says the file is being sent, then that it is saved', async () => {
     const user = pickerUser()
     let release!: () => void
     const gate = new Promise<void>((resolve) => (release = resolve))
@@ -186,11 +186,13 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     await user.upload(input(), pngFile('moi.png'))
     await saveStep()
 
-    const progress = within(await library().findByRole('status', { name: 'Tiến trình tải lên' }))
-    expect(await progress.findByText('Đang tải moi.png…')).toBeInTheDocument()
+    // In the step while it is sent (SP-10), then on the screen once the step has closed.
+    const step = within(screen.getByRole('dialog', { name: 'Thêm sticker' }))
+    expect(await step.findByText('Đang gửi…')).toBeInTheDocument()
+    expect(step.getByRole('status')).toHaveTextContent('Đang lưu ảnh 1 trên 1…')
     release()
-    expect(await progress.findByText('Đã thêm moi.png')).toBeInTheDocument()
-    expect(progress.queryByText('Đang tải moi.png…')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(library().getByRole('status', { name: 'Kết quả lưu' })).toHaveTextContent('Đã lưu 1 sticker.')
   })
 
   it('refuses a file of another type on the spot: it says so with the name, and no request goes out', async () => {
@@ -255,7 +257,8 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
 
     await user.upload(input(), file)
     await saveStep()
-    await library().findByText('Đã thêm moi.png')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await library().findByRole('status', { name: 'Kết quả lưu' })
     await user.upload(input(), file)
     await saveStep()
 
@@ -287,23 +290,18 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     expect(library().getAllByRole('button', { name: 'Tải lên' })).toHaveLength(3)
   })
 
-  it('hides the notices once nothing is loading any more, when the owner closes them', async () => {
+  it('says what the last save did until new pictures are chosen', async () => {
     const user = pickerUser()
-    let calls = 0
-    server.use(
-      list(API_STICKERS),
-      http.post('/api/stickers', () => (calls++ === 0 ? HttpResponse.json(made(), { status: 201 }) : problem(409, 'STICKER_DUPLICATE'))),
-    )
+    server.use(list(API_STICKERS), http.post('/api/stickers', () => HttpResponse.json(made(), { status: 201 })))
     renderApp('/stickers')
     await library().findByRole('img', { name: 'meo' })
-    await user.upload(input(), [pngFile('moi.png'), pngFile('trung.png')])
+    await user.upload(input(), pngFile('moi.png'))
     await saveStep()
-    await library().findByText('Đã thêm moi.png')
-    expect(await library().findByRole('alert')).toHaveTextContent('trung.png')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await library().findByRole('status', { name: 'Kết quả lưu' })).toHaveTextContent('Đã lưu 1 sticker.')
 
-    await user.click(library().getByRole('button', { name: 'Ẩn thông báo tải lên' }))
+    await user.upload(input(), pngFile('moi-nua.png'))
 
-    expect(library().queryByText('Đã thêm moi.png')).not.toBeInTheDocument()
-    expect(library().queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Thư viện sticker', hidden: true }).querySelector('[aria-label="Kết quả lưu"]')).toBeNull()
   })
 })

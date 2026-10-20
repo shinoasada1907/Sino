@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -78,7 +78,8 @@ describe('Sticker screen: drag and drop (ST-14)', () => {
     fireEvent.drop(region(), dragOf([pngFile()]))
     expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
     await saveStep()
-    await library().findByText('Đã thêm moi.png')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await library().findByRole('status', { name: 'Kết quả lưu' })).toHaveTextContent('Đã lưu 1 sticker.')
   })
 
   it('keeps the hint while the pointer crosses from one element of the screen to another', async () => {
@@ -131,12 +132,21 @@ describe('Sticker screen: drag and drop (ST-14)', () => {
     fireEvent.drop(region(), dragOf([]))
 
     expect(library().queryByRole('alert')).not.toBeInTheDocument()
-    expect(library().getByRole('status', { name: 'Tiến trình tải lên' })).toBeEmptyDOMElement()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
 
-describe('Sticker screen: several files and the words of the refusals (ST-14)', () => {
-  it('goes on with the other files when the server refuses one, and names that file with the cause in Vietnamese', async () => {
+// Since SP-10 a failed picture stays in the "Thêm sticker" step, with why under it, and goes again with the next "Lưu".
+const step = () => within(screen.getByRole('dialog', { name: 'Thêm sticker' }))
+/** The picture of the batch with this file name, as the step lists it. */
+const inBatch = (fileName: string) =>
+  within(step().getByRole('list', { name: 'Ảnh trong lượt' }))
+    .getAllByRole('listitem')
+    .find((item) => within(item).getAllByRole('button')[0].textContent === fileName)!
+const closed = () => waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+describe('Sticker screen: several files and the words of the refusals (ST-14, SP-10)', () => {
+  it('goes on with the other files when the server refuses one, and keeps that one in the step with the cause in Vietnamese', async () => {
     const user = pickerUser()
     let calls = 0
     server.use(
@@ -149,19 +159,19 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), [pngFile('a.png'), pngFile('b.png'), pngFile('c.png')])
-
     await saveStep()
 
-    expect(await library().findByText('Đã thêm c.png')).toBeInTheDocument()
-    expect(library().getByText('Đã thêm a.png')).toBeInTheDocument()
-    const alert = library().getByRole('alert')
-    expect(alert).toHaveTextContent('b.png')
-    expect(alert).toHaveTextContent('Sticker này đã có trong thư viện.')
-    expect(alert).not.toHaveTextContent('STICKER_DUPLICATE')
-    // The last one sent is the newest, so it is first.
-    expect(library().getAllByRole('img').map((picture) => picture.getAttribute('alt'))).toEqual(['c', 'a', 'nhay', 'meo'])
-    // The same file would be refused again, so no second try is offered.
-    expect(library().queryByRole('button', { name: /^Thử lại tải/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(within(step().getByRole('list', { name: 'Ảnh trong lượt' })).getAllByRole('listitem')).toHaveLength(1))
+    const kept = inBatch('b.png')
+    expect(kept).toHaveTextContent('Sticker này đã có trong thư viện.')
+    expect(kept).not.toHaveTextContent('STICKER_DUPLICATE')
+    // The last one sent is the newest, so it is first; the step is open, so Radix hides the grid from the tree.
+    expect(
+      within(screen.getByRole('region', { name: 'Thư viện sticker', hidden: true }))
+        .getAllByRole('img', { hidden: true })
+        .map((picture) => picture.getAttribute('alt'))
+        .filter((alt) => alt && !alt.startsWith('Xem trước')),
+    ).toEqual(['c', 'a', 'nhay', 'meo'])
   })
 
   it('sends them one after the other, never two at once', async () => {
@@ -182,14 +192,14 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), [pngFile('a.png'), pngFile('b.png'), pngFile('c.png')])
-
     await saveStep()
-    await library().findByText('Đã thêm c.png')
+    await closed()
 
     expect(mostInFlight).toBe(1)
+    expect(ids).toBe(3)
   })
 
-  it('says a file is waiting for its turn while the one before it is loading', async () => {
+  it('says a file is waiting for its turn while the one before it is sent', async () => {
     const user = pickerUser()
     let release!: () => void
     const gate = new Promise<void>((resolve) => (release = resolve))
@@ -204,14 +214,13 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), [pngFile('a.png'), pngFile('b.png')])
-
     await saveStep()
 
-    const progress = within(await library().findByRole('status', { name: 'Tiến trình tải lên' }))
-    expect(await progress.findByText('Đang tải a.png…')).toBeInTheDocument()
-    expect(progress.getByText('b.png: đang chờ')).toBeInTheDocument()
+    await waitFor(() => expect(inBatch('a.png')).toHaveTextContent('Đang gửi…'))
+    expect(inBatch('b.png')).toHaveTextContent('Đang chờ')
     release()
-    expect(await progress.findByText('Đã thêm b.png')).toBeInTheDocument()
+    await closed()
+    expect(library().getByRole('status', { name: 'Kết quả lưu' })).toHaveTextContent('Đã lưu 2 sticker.')
   })
 
   it('says the library is full and to delete some', async () => {
@@ -220,13 +229,11 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), pngFile())
-
     await saveStep()
 
-    const alert = await library().findByRole('alert')
-    expect(alert).toHaveTextContent(/thư viện đã đầy/i)
-    expect(alert).toHaveTextContent(/xóa bớt/i)
-    expect(alert).not.toHaveTextContent('STICKER_LIMIT_REACHED')
+    await waitFor(() => expect(inBatch('moi.png')).toHaveTextContent(/thư viện đã đầy/i))
+    expect(inBatch('moi.png')).toHaveTextContent(/xóa bớt/i)
+    expect(inBatch('moi.png')).not.toHaveTextContent('STICKER_LIMIT_REACHED')
   })
 
   it('says the picture could not be read when the server cannot', async () => {
@@ -235,13 +242,12 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), pngFile('hong.png'))
-
     await saveStep()
 
-    expect(await library().findByRole('alert')).toHaveTextContent(/hong\.png.*không đọc được/i)
+    await waitFor(() => expect(inBatch('hong.png')).toHaveTextContent(/không đọc được/i))
   })
 
-  it('says there is no connection and lets that file be tried again, which then goes through', async () => {
+  it('says there is no connection, and sends that file again with the next "Lưu", which then goes through', async () => {
     const user = pickerUser()
     let calls = 0
     server.use(
@@ -254,12 +260,11 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
     await user.upload(input(), pngFile('moi.png'))
     await saveStep()
-    expect(await library().findByRole('alert')).toHaveTextContent(/moi\.png.*không kết nối được/i)
+    await waitFor(() => expect(inBatch('moi.png')).toHaveTextContent(/không kết nối được/i))
 
-    await user.click(library().getByRole('button', { name: 'Thử lại tải moi.png' }))
+    await saveStep()
 
-    expect(await library().findByText('Đã thêm moi.png')).toBeInTheDocument()
-    expect(library().queryByRole('alert')).not.toBeInTheDocument()
+    await closed()
     expect(library().getByRole('img', { name: 'moi' })).toBeInTheDocument()
     expect(calls).toBe(2)
   })
@@ -270,12 +275,10 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), pngFile('moi.png'))
-
     await saveStep()
 
-    const alert = await library().findByRole('alert')
-    expect(alert).toHaveTextContent('Không tải lên được. Hãy thử lại.')
-    expect(alert).not.toHaveTextContent('INTERNAL')
-    expect(library().getByRole('button', { name: 'Thử lại tải moi.png' })).toBeInTheDocument()
+    await waitFor(() => expect(inBatch('moi.png')).toHaveTextContent('Không tải lên được. Hãy thử lại.'))
+    expect(inBatch('moi.png')).not.toHaveTextContent('INTERNAL')
+    expect(step().getByRole('button', { name: 'Lưu 1 sticker' })).toBeEnabled()
   })
 })

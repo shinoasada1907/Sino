@@ -1968,3 +1968,66 @@ chọn / thả tệp ─► inspectPicture (đọc byte đầu) ─► batchRefu
 - **Sai sót của kịch bản, đã sửa:**
   - Lượt đầu, kéo chuột và bấm phím đều dời khung tới đúng nửa phải, nên hai PNG giống nhau từng byte và máy chủ trả `409` cho tệp thứ hai (thực ra điều đó cũng cho thấy phím đã dời khung). Tôi cho phím dời ngắn hơn và đo vị trí đường ranh.
   - Một ca kiểm tra bị viết luôn đúng (`|| true`). Tôi thay bằng một ca kiểm thật.
+
+### 23.19 Web: lưu lượt (SP-10)
+**Ở đâu** (tính từ `apps/sino-web/src/features/stickers/`):
+- `editor/useSaveBatch.ts`: tạo bộ mới, rồi gửi từng ảnh.
+- `editor/PackPicker.tsx`: ô chọn "Lưu vào bộ".
+- `editor/AddStickers.tsx`: dòng tiến độ, câu hỏi trước khi đóng.
+- `editor/useBatch.ts`: bộ của lượt, `status` của từng ảnh.
+- `editor/BatchList.tsx`: trạng thái và lý do lỗi dưới mỗi ảnh.
+- `PackSection.tsx`: nút "Thêm ảnh vào bộ …".
+- `StickersPage.tsx`: bộ mặc định của lượt, câu "Đã lưu …".
+- Đã bỏ: `useUploadQueue.ts`, `UploadList.tsx`, `checkStickerFile`, `isRetryableUpload`.
+- Test: `editor/SaveBatch.test.tsx`, cùng các test cũ đã sửa theo luồng mới.
+
+**Thứ tự khi bấm "Lưu N sticker":**
+
+```text
+"Bộ mới…"? ── có ──► POST /api/sticker-packs ──lỗi──► báo ở ô chọn bộ, KHÔNG gửi ảnh nào, lượt giữ nguyên
+     │                        │ được
+     │                        └──► ô chọn bộ chuyển sang bộ vừa tạo (lần "Lưu" sau không tạo lại)
+     ▼
+mỗi ảnh, theo thứ tự danh sách:  đang chờ ─► đang gửi… ─► fileToSend ─► POST /api/stickers (name, packId)
+     ├─ được: rời lượt, vào lưới ngay (cache)
+     ├─ lỗi: ở lại, câu lỗi tiếng Việt dưới ảnh
+     └─ bộ đã bị xóa (404 STICKER_PACK_NOT_FOUND): dừng, báo ở ô chọn bộ, về "Chưa xếp bộ"
+tất cả được ─► đóng bước, màn nói "Đã lưu N sticker vào bộ …"
+```
+
+**Tạo bộ mới lỗi thì có gửi ảnh nào không** (câu gợi ý của task): không. Bộ được tạo *trước* ảnh đầu tiên. Nếu tạo hỏng (trùng tên, đủ 50 bộ, mất mạng) mà vẫn gửi ảnh, ảnh sẽ vào "Chưa xếp bộ" trong khi người dùng muốn vào bộ mới, và họ phải đi chuyển từng ảnh. Vì vậy `useSaveBatch` dừng ngay, nói lý do dưới ô chọn bộ (`packErrorMessage`), và để nguyên lượt. Khi tạo được, ô chọn bộ chuyển sang chính bộ vừa tạo; nếu một ảnh lỗi và người dùng bấm "Lưu" lần nữa, bộ không bị tạo lần thứ hai (lần đó sẽ báo trùng tên).
+
+**Vì sao bỏ hàng đợi cũ (khác D-347):** kế hoạch là dùng lại `useUploadQueue`. Nhưng hàng đợi đó có danh sách trạng thái và nút "Thử lại" của riêng nó, hiện trên màn. Còn lượt giờ có trạng thái của từng ảnh ngay trong bước. Giữ cả hai thì mỗi ảnh có hai trạng thái ở hai nơi và hai cách thử lại. Vòng gửi của lượt chỉ khoảng 40 dòng: một vòng `for … of` với `await`, nên một lúc chỉ gửi một ảnh. Thứ được dùng lại là câu lỗi tiếng Việt (`uploadErrorMessage`). Ảnh lỗi thì ở lại, và lần "Lưu" sau gửi lại nó; không còn nút "Thử lại" riêng. Hai hàm chỉ hàng đợi dùng (`checkStickerFile`, `isRetryableUpload`) đã bỏ cùng test của chúng, vì bước "Thêm sticker" có hàng rào riêng (`batchRefusal`).
+
+**Bộ mặc định của lượt (D-348):** mỗi bộ trên màn có nút "Thêm ảnh vào bộ …"; mở lượt bằng nút đó thì ô chọn bộ bắt đầu ở bộ ấy. Mở bằng "Tải lên" thì bắt đầu ở bộ mà lượt trước của lần mở màn này đã lưu vào, nếu bộ đó còn; không thì "Chưa xếp bộ". Bộ được đặt khi lượt *mở* (`batch.add(files, { pack })`). Thêm ảnh vào một lượt đang mở thì giữ bộ người dùng đã chọn. Một bộ bị xóa ở thẻ khác trong lúc lượt đang mở sẽ không còn trong danh sách bộ: ô chọn bộ hiện, và lượt lưu vào, "Chưa xếp bộ".
+
+**Đóng khi còn ảnh thì hỏi:** "Hủy", nút đóng và Esc đều đi qua `onOpenChange(false)` của Radix. Hàm đó không đóng ngay mà hỏi "Bỏ N ảnh chưa lưu?" trong một hộp thoại thứ hai, có `role="alertdialog"`. Radix cho phép mở hộp thoại lồng trong hộp thoại: tiêu điểm ở trong hộp sau, Esc đóng hộp sau trước. Không còn ảnh nào thì đóng luôn. Đang lưu thì không đóng được.
+
+**Trạng thái cho trình đọc màn hình:** dòng tiến độ ở chân bước có `role="status"` ("Đang lưu ảnh 1 trên 2…", rồi "Đã lưu 2 sticker. 1 ảnh chưa lưu được."). Câu "Đã lưu N sticker vào bộ …" trên màn cũng là `status`, nên trình đọc màn hình đọc lên khi bước đóng. Lý do lỗi của từng ảnh nằm ngay dưới ảnh, *ngoài* nút chọn ảnh, để tên truy cập của nút vẫn chỉ là tên tệp.
+
+**Bẫy khi viết test:** lúc bước còn mở, Radix ẩn cả màn khỏi cây trợ năng. Một hàm như `library()` gọi `getByRole('region', …)` ngay lập tức sẽ hỏng, và `findBy…` không cứu được vì phần tìm vùng chạy trước khi `findBy` bắt đầu chờ. Vì vậy test chờ bước đóng (`waitFor(() => … dialog … not.toBeInTheDocument())`) rồi mới đọc màn, hoặc tìm với `hidden: true`.
+
+### 23.20 Kiểm chứng (SP-10)
+- **Test viết trước:** đỏ vì chưa có `useSaveBatch`, `PackPicker`, bộ và trạng thái của lượt. Xanh: `SaveBatch.test.tsx` 16, gồm các ca:
+  - ô chọn bộ có các bộ, "Chưa xếp bộ" và "Bộ mới…"; mở từ một bộ thì bắt đầu ở bộ đó và lưu vào bộ đó; lượt sau bắt đầu ở bộ vừa dùng;
+  - "Bộ mới…" tạo một lần trước mọi ảnh; tên trùng thì không gửi ảnh nào và lượt giữ nguyên; tên trống bị chặn tại chỗ;
+  - bộ bị xóa giữa chừng thì dừng, báo, và về "Chưa xếp bộ";
+  - lưu theo thứ tự rồi đóng, kèm câu kết quả trên màn; ảnh bị từ chối ở lại với lý do, các ảnh khác vào lưới;
+  - "Đang gửi…" và "Đang chờ" trong lúc lưu; mất mạng thì gửi lại bằng lần "Lưu" sau; không bao giờ gửi hai ảnh cùng lúc;
+  - hỏi trước khi đóng: "Tiếp tục chỉnh" giữ lượt, "Bỏ ảnh" đóng mà không gửi gì; không còn ảnh thì đóng luôn.
+  - lượt sau mở ra không còn câu tiến độ hay lỗi của lượt trước. Ca này viết sau khi rà diff: bước không bị gỡ khi đóng, nên state của `useSaveBatch` còn lại cho lượt sau. `reset()` được gọi mỗi khi bước đóng.
+- **Test cũ:**
+  - Bảy test nhiều tệp ở `StickersDrop.test.tsx` giờ kiểm trạng thái ngay trong bước, thay cho danh sách tiến trình cũ.
+  - Ba test của SP-08 giờ phải xác nhận "Bỏ ảnh" khi đóng.
+  - Test "ẩn thông báo" của danh sách cũ thành test "câu kết quả mất khi chọn ảnh mới".
+  - Bỏ các test của `checkStickerFile` và `isRetryableUpload`.
+  - `useBatch.test.tsx` thêm 2 ca.
+- **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` 120 tệp, 1248 test, `pnpm build`: đều qua. Tổng số test ít hơn SP-09 vì đã bỏ test của phần không còn.
+- **Chrome thật** (backend thật), 17/17 kiểm tra:
+  - 1440:
+    - Tạo bộ "Mèo"; "Thêm ảnh vào bộ Mèo" thì ô chọn bộ bắt đầu ở "Mèo" (các lựa chọn: Mèo, Chưa xếp bộ, Bộ mới…). Hai ảnh vào "Mèo", màn nói "Đã lưu 2 sticker vào bộ Mèo."
+    - Lượt sau mở bằng "Tải lên" bắt đầu ở "Mèo". "Bộ mới…" với tên "mèo" thì chỉ có một yêu cầu `POST /api/sticker-packs` bị `409`, không ảnh nào được gửi.
+    - Với tên "Thú vui": thứ tự yêu cầu là `sticker-packs 201`, `stickers 409` (meo.png đã có), `stickers 201`, `stickers 201`. `meo.png` ở lại với "Sticker này đã có trong thư viện.", dòng tiến độ "Đã lưu 2 sticker. 1 ảnh chưa lưu được.", ô chọn bộ giờ là "Thú vui", và máy chủ có `dong` và `tinh` trong bộ mới.
+    - "Hủy" thì hỏi "Bỏ 1 ảnh chưa lưu?"; "Tiếp tục chỉnh" giữ ảnh; Esc rồi "Bỏ ảnh" đóng bước mà không gửi gì, không còn `pointer-events` sót trên `body`.
+  - 390 cảm ứng: nút "Thêm ảnh vào bộ Thú vui" 44 × 44; ô chọn bộ cao 44; không cuộn ngang; lưu vào "Thú vui" từ điện thoại.
+- **Sai sót khi dựng môi trường:** `pgrep -f SinoApiApplication` khớp với chính dòng lệnh của shell (vốn chứa chữ đó), nên backend không được bật lại sau một lần container khởi động lại; vòng chờ treo cho tới lúc tôi dừng nó. Sửa bằng cách bật backend trực tiếp.
