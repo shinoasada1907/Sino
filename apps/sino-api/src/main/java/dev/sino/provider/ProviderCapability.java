@@ -19,6 +19,13 @@ public enum ProviderCapability {
      */
     SEND_IMAGES,
 
+    /**
+     * Send a picture or a file from the user's computer as a message (zalo-send-files, D-372): {@code sendMessage}
+     * takes a command with an {@link dev.sino.provider.spi.OutgoingFile}. A connector with it also has
+     * {@link #SEND_MESSAGES}.
+     */
+    SEND_FILES,
+
     /** Normalized messages carry attachment metadata. */
     ATTACHMENTS,
 

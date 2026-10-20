@@ -122,6 +122,10 @@ class ZaloProvider implements MessageProvider {
 
     @Override
     public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
+        if (command.file() != null) {
+            // Files from the computer go through sino-zalo's file route from ZF-07 (zalo-send-files).
+            capabilities().require(ProviderCapability.SEND_FILES);
+        }
         OutgoingImage image = command.image();
         if (image != null && command.textContent() != null) {
             // sino-zalo sends a text or a picture, not both: zca-js would send two messages and name two IDs (ZS-02).

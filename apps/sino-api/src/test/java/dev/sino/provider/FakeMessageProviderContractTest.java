@@ -4,6 +4,7 @@ import static dev.sino.provider.FakeMessageProvider.message;
 import static dev.sino.provider.FakeMessageProvider.messageWithoutSentAt;
 import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
 import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
+import static dev.sino.provider.ProviderCapability.SEND_FILES;
 import static dev.sino.provider.ProviderCapability.SEND_IMAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -94,6 +95,42 @@ class FakeMessageProviderContractTest {
 
         private final FakeMessageProvider provider = FakeMessageProvider.builder("fake-chat")
                 .capabilities(SEND_MESSAGES, SEND_IMAGES)
+                .page(message("m-1"))
+                .build();
+
+        @Override
+        protected MessageProvider provider() {
+            return provider;
+        }
+
+        @Override
+        protected MessageProvider providerWithOneBrokenMessage() {
+            return provider;
+        }
+
+        @Override
+        protected ProviderContext context() {
+            return CONTEXT;
+        }
+
+        @Override
+        protected Set<String> expectedMessageIds() {
+            return Set.of();
+        }
+
+        @Override
+        protected Instant since() {
+            return BETWEEN;
+        }
+
+    }
+
+    // A connector that sends files too (zalo-send-files): the kit's file checks that run only with SEND_FILES run on it.
+    @Nested
+    class SendingFiles extends MessageProviderContractTest {
+
+        private final FakeMessageProvider provider = FakeMessageProvider.builder("fake-files")
+                .capabilities(SEND_MESSAGES, SEND_FILES)
                 .page(message("m-1"))
                 .build();
 

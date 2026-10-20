@@ -2,6 +2,7 @@ package dev.sino.provider.spi;
 
 import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
 import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
+import static dev.sino.provider.ProviderCapability.SEND_FILES;
 import static dev.sino.provider.ProviderCapability.SEND_IMAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,6 +61,14 @@ public abstract class MessageProviderContractTest {
                 new OutgoingImage(new byte[] {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4}, "image/png", "sticker.png", 64, 64));
     }
 
+    /** What the file checks send (zalo-send-files); override when the fake provider needs a known conversation. */
+    protected SendMessageCommand fileCommand() {
+        return new SendMessageCommand("conversation-1", ConversationType.DIRECT, null, null, List.of(),
+                UUID.randomUUID(), null, null,
+                new OutgoingFile("%PDF-1.7 contract".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                        "application/pdf", "contract.pdf", OutgoingFile.Kind.FILE));
+    }
+
     @Test
     void declaresWhoItIsAndWhatItCanDo() {
         assertThat(provider().type()).isNotNull();
@@ -111,6 +120,34 @@ public abstract class MessageProviderContractTest {
     @Test
     void aConnectorThatSendsPicturesAlsoSendsMessages() {
         assumeTrue(provider().capabilities().supports(SEND_IMAGES), "the connector cannot send pictures");
+
+        assertThat(provider().capabilities().supports(SEND_MESSAGES)).isTrue();
+    }
+
+    // A file from the user's computer is refused where the connector cannot send one (Gmail today), and nothing is sent.
+    @Test
+    void refusesToSendAFileWithoutTheCapability() {
+        assumeFalse(provider().capabilities().supports(SEND_FILES), "the connector sends files");
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> provider().sendMessage(context(), fileCommand()))
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    @Test
+    void sendsAFileWhenItDeclaresTheCapability() {
+        assumeTrue(provider().capabilities().supports(SEND_FILES), "the connector cannot send files");
+
+        SendMessageResult result = provider().sendMessage(context(), fileCommand());
+
+        assertThat(result.externalMessageId()).isNotBlank();
+        assertThat(result.status()).isNotEqualTo(MessageStatus.FAILED);
+    }
+
+    @Test
+    void aConnectorThatSendsFilesAlsoSendsMessages() {
+        assumeTrue(provider().capabilities().supports(SEND_FILES), "the connector cannot send files");
 
         assertThat(provider().capabilities().supports(SEND_MESSAGES)).isTrue();
     }
