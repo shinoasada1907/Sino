@@ -1864,3 +1864,64 @@ Vẽ một lần lên canvas nhỏ thì ảnh chụp 4000 × 3000 không cần m
   - Xoay 90° ra 256 × 512 với bốn góc xanh dương, đỏ, vàng, xanh lá (đúng chiều kim đồng hồ); xoay 180° đảo cả bốn góc.
   - Ảnh nhiễu 512 × 512 có alpha ngẫu nhiên: lần đầu 1.053.146 B (quá 1 MB), lần hai 410 × 410, 660.572 B.
   - `inspectPicture` trên tệp mẫu thật: `meo.png`, `anh.jpg`, WebP tĩnh thì cắt; `nhay.gif`, `animated.webp` thì lưu nguyên; `gia.png` (chữ đổi đuôi) thì `null`.
+
+### 23.15 Web: bước "Thêm sticker" (SP-08)
+**Ở đâu** (tính từ `apps/sino-web/src/features/stickers/`):
+- `editor/useBatch.ts`: các ảnh của một lượt.
+- `editor/AddStickers.tsx`: bước "Thêm sticker".
+- `editor/BatchList.tsx`: danh sách ảnh của lượt.
+- `editor/BatchRefusals.tsx`: tệp bị từ chối và lý do.
+- `editor/fileToSend.ts`: tệp nào được gửi lên cho mỗi ảnh.
+- `format.ts` (`batchRefusal`, `PICTURE_UNREADABLE`); `StickersPage.tsx`, `UploadButton.tsx`, `DropZone.tsx`, `StickerStates.tsx` (đường vào và câu chữ).
+- Test: `editor/AddStickers.test.tsx`, `editor/useBatch.test.tsx`, `editor/fileToSend.test.ts`. Bản giả cho test: `src/test/objectUrls.ts`, `src/test/pictureDecoding.ts`.
+
+**Luồng mới:** trước đây chọn hay thả tệp là gửi ngay. Giờ chọn hay thả mở bước "Thêm sticker", và không gì được gửi trước khi bấm "Lưu":
+
+```text
+chọn / thả tệp ─► inspectPicture (đọc byte đầu) ─► batchRefusal
+                                                   ├─ không dùng được ─► "tệp: lý do" (ngay, không gửi)
+                                                   └─ dùng được ──────► vào lượt (URL xem trước)
+"Lưu N sticker" ─► fileToSend mỗi ảnh ─► hàng đợi tải lên sẵn có (từng tệp một)
+                     ├─ ảnh động: chính tệp gốc
+                     └─ ảnh tĩnh: PNG của hình vuông lớn nhất ở giữa (khung mặc định)
+```
+
+**Chặn tại chỗ:** tệp không phải PNG, JPEG, GIF hay WebP thì bị từ chối, như mọi tệp rỗng. Ảnh động nặng hơn 1 MB cũng bị từ chối, vì nó được gửi nguyên. Ảnh tĩnh thì nặng bao nhiêu cũng nhận, vì khi lưu nó được xuất lại nhỏ hơn (mục 23.13). Lý do nói kèm tên tệp. Nếu cả lần chọn đều bị từ chối, bước không mở, và câu báo hiện ngay trên màn.
+
+**URL xem trước phải thu hồi lúc nào** (câu gợi ý của task): `URL.createObjectURL(file)` cho một địa chỉ `blob:` để `<img>` hiện được tệp. Địa chỉ đó **giữ tệp trong bộ nhớ** cho tới khi gọi `URL.revokeObjectURL`, kể cả khi không còn ai dùng: một lượt hai mươi ảnh chụp là hàng chục MB. `useBatch` thu hồi ở ba chỗ: khi một ảnh rời lượt (bỏ ra, hay đã gửi đi), khi bước đóng, và khi màn bị gỡ đi lúc bước vẫn mở (hàm dọn dẹp của `useEffect`). Địa chỉ được tạo trong hàm xử lý sự kiện, không trong lúc render, vì render có thể chạy nhiều lần.
+
+**Mỗi ảnh có `id` riêng của lượt** (để SP-09 lưu phần chỉnh theo `id`). Danh sách ảnh và ảnh đang chọn nằm trong **một** state, vì bỏ một ảnh đang chọn thì phải chuyển chọn sang ảnh kế bên, và hai thứ phải đổi cùng lúc. Ban đầu tôi gọi `setSelectedId` bên trong hàm cập nhật của `setItems`. Test vẫn xanh, nhưng làm vậy là sai: hàm cập nhật phải thuần, và React có thể gọi nó hai lần.
+
+**Hộp thoại trên máy tính, "trang riêng" trên điện thoại:** cùng một hộp thoại Radix. Dưới 768 px các lớp `max-md:` cho nó phủ kín màn (`top-0 left-0 h-dvh`, không bo góc), nên trông như một trang riêng. Nhờ vẫn là hộp thoại, tiêu điểm vẫn bị giữ trong bước và Esc vẫn đóng được. Một trang có đường dẫn riêng (`/stickers/add`) thì phải chuyển các tệp đang giữ trong bộ nhớ qua lần đổi trang.
+
+**Tiêu điểm khi đóng: một lỗi chỉ Chrome thật mới thấy.** Radix trả tiêu điểm về phần tử đang có tiêu điểm lúc hộp thoại mở. Nhưng bước này mở *sau khi* hộp chọn tệp của hệ điều hành đóng lại, lúc đó tiêu điểm đã không còn trên nút "Tải lên", nên Esc trả tiêu điểm về `body`. jsdom không có hộp chọn tệp nên test cũ không thấy. Cách sửa giống các hộp thoại khác của màn: `UploadButton` đưa chính nó ra khi được bấm, màn ghi nhớ nút đó, và `onCloseAutoFocus` của bước đặt tiêu điểm lại vào nó. Sau một lần thả tệp (không có nút nào mở bước), tiêu điểm về nút "Tải lên" đang hiện. Test mới tái hiện lỗi bằng cách bỏ tiêu điểm khỏi nút trước khi bước mở.
+
+**Hai bẫy của sự kiện:**
+1. **Sự kiện của portal vẫn nổi lên theo cây React.** Hộp thoại được Radix vẽ ở cuối `body` (portal), nhưng sự kiện React của nó vẫn nổi lên các component cha trong cây React. Lúc đầu bước nằm trong `DropZone`, nên thả tệp vào bước thì `DropZone` cũng nhận, và tệp vào lượt hai lần. Cách sửa: đưa bước ra ngoài `DropZone`, và gọi `stopPropagation()` khi bước đã nhận cú thả.
+2. **Thả trúng nền mờ quanh hộp thoại** thì trình duyệt mở tệp trong thẻ và mất cả lượt. Vì vậy, lúc bước mở, `window` chặn mặc định (`preventDefault`) của `dragover` và `drop` với các cú kéo có tệp.
+
+**"Lưu" tạm thời, cho tới SP-10:** bước này nối "Lưu" vào hàng đợi tải lên sẵn có (D-347), để màn không mất khả năng tải lên giữa các task. Ảnh tĩnh được gửi dưới dạng PNG của khung mặc định, tức hình vuông lớn nhất ở giữa; ảnh động được gửi nguyên. Ảnh mà trình duyệt không giải mã được thì ở lại trong bước, kèm câu báo. Trạng thái từng ảnh ngay trong bước, bộ của lượt và việc hỏi trước khi đóng là SP-10; khung chỉnh bằng tay là SP-09.
+
+**Test không có trình duyệt:** jsdom không có `URL.createObjectURL`, `createImageBitmap` hay canvas vẽ được.
+- `objectUrls.ts` thay `createObjectURL` và `revokeObjectURL` trước mỗi test và ghi lại các địa chỉ còn sống, để test kiểm được câu gợi ý ("không còn URL nào sau khi đóng").
+- `pictureDecoding.ts` cho mỗi ảnh "giải mã" ra một cỡ định trước, canvas không vẽ gì, và PNG chỉ là vài byte.
+- **Bẫy:** trong jsdom, tệp gửi qua `fetch` tới MSW mất tên (`filename="blob"`). Vì vậy test lưu đọc thẳng `FormData` mà `api.upload` nhận, không đọc ở máy chủ giả.
+- **Bẫy:** lúc hộp thoại mở, Radix đặt `pointer-events: none` cho phần ngoài hộp, nên `user.upload` không bấm được vào ô nhập tệp ẩn; test phát thẳng sự kiện `change`. Ở trình duyệt thật, nút "Thêm ảnh" gọi `input.click()` bằng code nên không vướng.
+
+**Định dạng code:** repo không có cấu hình Prettier. Chạy `prettier --write` với cấu hình mặc định sẽ đổi cả tệp sang dấu chấm phẩy và nháy kép, và tôi đã lỡ chạy như vậy một lần. Bộ tùy chọn tạo lại đúng từng ký tự tệp đã commit là `--no-semi --single-quote --trailing-comma all --print-width 180`. Ngay cả với bộ đó, Prettier vẫn giữ một object đã bị tách nhiều dòng (nếu sau `{` có xuống dòng). Vì vậy tệp được dựng lại từ bản HEAD rồi áp lại các thay đổi, không định dạng lại đè lên.
+
+### 23.16 Kiểm chứng (SP-08)
+- **Test viết trước:** đỏ vì chưa có `useBatch`, `fileToSend`, `batchRefusal` và bước "Thêm sticker". Xanh:
+  - `AddStickers.test.tsx` 15: mở với ba ảnh và ảnh đầu được chọn; PDF bị từ chối có tên; chỉ có PDF thì không mở; GIF quá 1 MB bị từ chối còn JPEG 3 MB được nhận; thả tệp lên màn; chọn ảnh; bỏ ảnh làm URL được thu hồi và tiêu điểm sang ảnh kế bên; bỏ ảnh cuối thì tiêu điểm về "Thêm ảnh"; "Thêm ảnh" và thả tệp lên bước đều thêm vào cuối lượt; tiêu điểm về "Tải lên" sau Esc (cả sau một lần thả); "Hủy" thu hồi mọi URL; "Lưu" gửi JPEG thành PNG và GIF nguyên; ảnh không đọc được thì ở lại.
+  - `useBatch.test.tsx` 12, `fileToSend.test.ts` 5, `format.test.ts` thêm 3.
+- **Test cũ sửa theo luồng mới:** 18 test ở `StickersPage.test.tsx` và `StickersDrop.test.tsx` giờ đi qua bước và bấm "Lưu". Tệp PNG mẫu có đủ 8 byte chữ ký. Tệp sai loại giờ là PDF, vì JPEG đã được nhận. Tệp "quá nặng" giờ là một GIF. Câu ở trạng thái trống và chữ ở khung thả đã đổi.
+- **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` 117 tệp, 1239 test, `pnpm build`: đều qua.
+- **Chrome thật** (backend thật, PostgreSQL 18, Vite, Chromium qua Playwright), 26/26 kiểm tra:
+  - 1440 sáng:
+    - Năm tệp chọn một lần: bốn ảnh vào lượt, PDF bị báo kèm tên, chưa có yêu cầu nào, bốn URL xem trước.
+    - Chọn GIF thì hiện câu "lưu nguyên". Bỏ `dong.webp` thì còn ba URL, tiêu điểm sang "Bỏ tinh.webp khỏi lượt". "Thêm ảnh" mở hộp chọn tệp thật và thêm `meo.png` vào cuối.
+    - Tab mười hai lần mà tiêu điểm vẫn ở trong bước.
+    - "Lưu 4 sticker" gửi bốn yêu cầu, không còn URL nào. Ảnh JPEG 2000 × 1000 bốn màu thành PNG 512 × 512 với đúng bốn màu ở bốn góc (phần giữa của ảnh). GIF lưu nguyên, `ANIMATED`. WebP tĩnh thành PNG.
+    - Mở bằng Enter trên "Tải lên" rồi Esc: không gửi gì, không còn URL nào, tiêu điểm về "Tải lên", không còn `pointer-events` sót trên `body`.
+  - 390 cảm ứng: bước phủ đúng 390 × 844, không cuộn ngang, dải ảnh cuộn ngang, nút bỏ ảnh 44 × 44, nút chọn ảnh cao 56, "Thêm ảnh" cao 44, nút "Lưu" nằm trong màn.
+  - Chạy lại hai lần liền đều qua. Một lần hết giờ trước đó là do Vite nạp lại trang giữa chừng, ngay sau khi tôi dựng lại `StickersPage.tsx`.

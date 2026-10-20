@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { cn } from '@/shared/lib/utils'
 import { Spec } from '@/shared/ui/spec'
@@ -6,6 +6,9 @@ import { GRID, StickerCard } from './StickerCard'
 import { StickersEmpty, StickersLoadFailed, StickersSkeleton } from './StickerStates'
 import { DeleteStickerDialog } from './DeleteStickerDialog'
 import { DropZone } from './DropZone'
+import { AddStickers } from './editor/AddStickers'
+import { BatchRefusals } from './editor/BatchRefusals'
+import { useBatch } from './editor/useBatch'
 import { groupByPack } from './groupByPack'
 import { DeletePackDialog, PackNameDialog } from './PackDialogs'
 import { CreatePackButton, EmptyPack, PackButtons, PackSection } from './PackSection'
@@ -18,7 +21,8 @@ import { useUploadQueue } from './useUploadQueue'
 
 /**
  * The Sticker screen (custom-stickers and sticker-packs, spec web-sticker-library): the library of the owner as a grid in
- * parts, one per pack and "Chưa xếp bộ" last (SP-06), with "Tạo bộ" and "Tải lên". The canvas has no frame for it (DN-7),
+ * parts, one per pack and "Chưa xếp bộ" last (SP-06), with "Tạo bộ" and "Tải lên". Choosing or dropping pictures opens the
+ * "Thêm sticker" step (SP-08), and what it saves goes through the upload queue. The canvas has no frame for it (DN-7),
  * so it follows Ghi chú: a title with the count, and on a phone (like `MobileNotes`) the header with a way back to Thêm.
  * Loading, empty and failed lists each say so; the screen needs both the stickers and the packs.
  */
@@ -52,6 +56,9 @@ export function StickersPage() {
   const { stickers, error: stickersError, retry: retryStickers } = useStickers()
   const { packs, error: packsError, retry: retryPacks } = usePacks()
   const uploads = useUploadQueue()
+  const batch = useBatch()
+  // The "Tải lên" that opened the picker, for the focus when the step closes; none after a drop.
+  const picker = useRef<HTMLElement | null>(null)
   const [deletion, setDeletion] = useState<Deletion | null>(null)
   const [packDialog, setPackDialog] = useState<PackDialog | null>(null)
   // The sticker that has just moved, and the pack it moved to: its new cell takes the focus on its move button.
@@ -123,94 +130,122 @@ export function StickersPage() {
 
   const createPack = (opener: HTMLElement) => openPackDialog({ kind: 'name', pack: null, opener })
 
+  // The step opens once the browser's picker has answered, and by then the focus may be anywhere (the picker took it), so
+  // the step does not leave it to Radix: back to the "Tải lên" that was pressed, or after a drop to the one CSS shows.
+  const placeStepFocus = (event: Event) => {
+    event.preventDefault()
+    const target = picker.current?.isConnected ? picker.current : visibleOf('[data-upload-button]')
+    target?.focus()
+  }
+
+  const dropped = (files: File[]) => {
+    picker.current = null
+    void batch.add(files)
+  }
+
   return (
-    <FilePicker onFiles={uploads.add}>
-      {(openPicker) => (
-        <DropZone label="Thư viện sticker" onFiles={uploads.add}>
-          <MobilePageHeader
-            back={{ to: '/more', label: 'Quay lại Thêm' }}
-            title="Sticker"
-            subtitle={count === undefined ? undefined : `${count} sticker`}
-            action={
-              <>
-                <CreatePackButton iconOnly onClick={createPack} />
-                <UploadButton iconOnly onClick={openPicker} />
-              </>
-            }
-          />
-          <header className="flex items-center justify-between gap-3 px-6 pt-6 max-md:hidden">
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Sticker</h1>
-              {count !== undefined && <Spec>{count} sticker</Spec>}
-            </div>
-            <div className="flex items-center gap-2">
-              <CreatePackButton onClick={createPack} />
-              <UploadButton onClick={openPicker} />
-            </div>
-          </header>
-          <UploadList entries={uploads.entries} active={uploads.active} onRetry={uploads.retry} onDismiss={uploads.dismiss} />
-          {parts === undefined ? (
-            failed ? (
-              <StickersLoadFailed onRetry={retry} />
-            ) : (
-              <StickersSkeleton />
-            )
-          ) : parts.length === 0 ? (
-            <StickersEmpty>
-              <UploadButton variant="secondary" onClick={openPicker} />
-            </StickersEmpty>
-          ) : (
-            <div className="flex flex-col pb-4 md:pb-6">
-              {parts.map(({ pack, stickers: held }) => (
-                <PackSection
-                  key={pack?.id ?? 'no-pack'}
-                  name={pack?.name ?? 'Chưa xếp bộ'}
-                  count={held.length}
-                  actions={pack && <PackButtons pack={pack} onRename={(item, opener) => openPackDialog({ kind: 'name', pack: item, opener })} onDelete={askToDeletePack} />}
-                >
-                  {held.length === 0 ? (
-                    <EmptyPack />
-                  ) : (
-                    // `role="list"`: Safari drops the list semantics of a list with `list-style: none`.
-                    <ul role="list" aria-label={pack ? `Sticker trong bộ ${pack.name}` : 'Sticker chưa xếp bộ'} className={cn(GRID, 'pt-2 pb-2 md:pt-2 md:pb-2')}>
-                      {held.map((sticker) => (
-                        <StickerCard
-                          key={sticker.id}
-                          sticker={sticker}
-                          packs={packs ?? []}
-                          onDelete={askToDelete}
-                          onMoved={(item) => setMoved({ id: item.id, packId: item.packId })}
-                          focusMove={moved?.id === sticker.id && moved.packId === sticker.packId}
-                          onMoveFocused={clearMoved}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </PackSection>
-              ))}
-            </div>
-          )}
-          <DeleteStickerDialog
-            sticker={deletion?.sticker ?? null}
-            open={deletion?.open ?? false}
-            onClose={() => setDeletion((current) => current && { ...current, open: false })}
-            onCloseAutoFocus={placeFocus}
-          />
-          {packDialog?.kind === 'name' && (
-            <PackNameDialog key={packDialog.seq} pack={packDialog.pack} open={packDialog.open} onClose={closePackDialog} onCloseAutoFocus={placePackFocus} />
-          )}
-          {packDialog?.kind === 'delete' && (
-            <DeletePackDialog
-              key={packDialog.seq}
-              pack={packDialog.pack}
-              count={packDialog.count}
-              open={packDialog.open}
-              onClose={closePackDialog}
-              onCloseAutoFocus={placePackFocus}
-            />
-          )}
-        </DropZone>
-      )}
+    <FilePicker onFiles={(files) => void batch.add(files)}>
+      {(openPicker) => {
+        const pickFrom = (opener: HTMLElement) => {
+          picker.current = opener
+          openPicker()
+        }
+        return (
+          <>
+            <DropZone label="Thư viện sticker" onFiles={dropped}>
+              <MobilePageHeader
+                back={{ to: '/more', label: 'Quay lại Thêm' }}
+                title="Sticker"
+                subtitle={count === undefined ? undefined : `${count} sticker`}
+                action={
+                  <>
+                    <CreatePackButton iconOnly onClick={createPack} />
+                    <UploadButton iconOnly onClick={pickFrom} />
+                  </>
+                }
+              />
+              <header className="flex items-center justify-between gap-3 px-6 pt-6 max-md:hidden">
+                <div className="flex items-baseline gap-3">
+                  <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Sticker</h1>
+                  {count !== undefined && <Spec>{count} sticker</Spec>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <CreatePackButton onClick={createPack} />
+                  <UploadButton onClick={pickFrom} />
+                </div>
+              </header>
+              {!batch.open && batch.refusals.length > 0 && (
+                <div className="px-4 pt-4 md:px-6">
+                  <BatchRefusals refusals={batch.refusals} onDismiss={batch.dismissRefusals} />
+                </div>
+              )}
+              <UploadList entries={uploads.entries} active={uploads.active} onRetry={uploads.retry} onDismiss={uploads.dismiss} />
+              {parts === undefined ? (
+                failed ? (
+                  <StickersLoadFailed onRetry={retry} />
+                ) : (
+                  <StickersSkeleton />
+                )
+              ) : parts.length === 0 ? (
+                <StickersEmpty>
+                  <UploadButton variant="secondary" onClick={pickFrom} />
+                </StickersEmpty>
+              ) : (
+                <div className="flex flex-col pb-4 md:pb-6">
+                  {parts.map(({ pack, stickers: held }) => (
+                    <PackSection
+                      key={pack?.id ?? 'no-pack'}
+                      name={pack?.name ?? 'Chưa xếp bộ'}
+                      count={held.length}
+                      actions={pack && <PackButtons pack={pack} onRename={(item, opener) => openPackDialog({ kind: 'name', pack: item, opener })} onDelete={askToDeletePack} />}
+                    >
+                      {held.length === 0 ? (
+                        <EmptyPack />
+                      ) : (
+                        // `role="list"`: Safari drops the list semantics of a list with `list-style: none`.
+                        <ul role="list" aria-label={pack ? `Sticker trong bộ ${pack.name}` : 'Sticker chưa xếp bộ'} className={cn(GRID, 'pt-2 pb-2 md:pt-2 md:pb-2')}>
+                          {held.map((sticker) => (
+                            <StickerCard
+                              key={sticker.id}
+                              sticker={sticker}
+                              packs={packs ?? []}
+                              onDelete={askToDelete}
+                              onMoved={(item) => setMoved({ id: item.id, packId: item.packId })}
+                              focusMove={moved?.id === sticker.id && moved.packId === sticker.packId}
+                              onMoveFocused={clearMoved}
+                            />
+                          ))}
+                        </ul>
+                      )}
+                    </PackSection>
+                  ))}
+                </div>
+              )}
+              <DeleteStickerDialog
+                sticker={deletion?.sticker ?? null}
+                open={deletion?.open ?? false}
+                onClose={() => setDeletion((current) => current && { ...current, open: false })}
+                onCloseAutoFocus={placeFocus}
+              />
+              {packDialog?.kind === 'name' && (
+                <PackNameDialog key={packDialog.seq} pack={packDialog.pack} open={packDialog.open} onClose={closePackDialog} onCloseAutoFocus={placePackFocus} />
+              )}
+              {packDialog?.kind === 'delete' && (
+                <DeletePackDialog
+                  key={packDialog.seq}
+                  pack={packDialog.pack}
+                  count={packDialog.count}
+                  open={packDialog.open}
+                  onClose={closePackDialog}
+                  onCloseAutoFocus={placePackFocus}
+                />
+              )}
+            </DropZone>
+            {/* Outside the drop zone: a drop on the step is the step's, and React would carry it on to the zone too. */}
+            <AddStickers batch={batch} onAddMore={openPicker} onSend={uploads.add} onCloseAutoFocus={placeStepFocus} />
+          </>
+        )
+      }}
     </FilePicker>
   )
 }

@@ -4,6 +4,7 @@ import { delay, http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_STICKERS, sticker } from '@/test/fixtures/stickersApi'
 import { server } from '@/test/msw/server'
+import { stubPictureDecoding } from '@/test/pictureDecoding'
 import { renderApp } from '@/test/renderApp'
 import { STICKER_MAX_BYTES } from './format'
 import type { StickerItem } from './stickers.types'
@@ -124,10 +125,20 @@ describe('Sticker screen: the library (ST-12, spec web-sticker-library)', () => 
 // can always choose "all files"), so the page must hold on its own against a file the picker would have hidden.
 const input = () => screen.getByLabelText('Chọn tệp sticker') as HTMLInputElement
 const pickerUser = () => userEvent.setup({ applyAccept: false })
-const pngFile = (name = 'moi.png') => new File([new Uint8Array([137, 80, 78, 71])], name, { type: 'image/png' })
+const pngFile = (name = 'moi.png') => new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], name, { type: 'image/png' })
+
+/** A choice opens the "Thêm sticker" step (SP-08); "Lưu" hands what it holds to the queue these tests are about. */
+async function saveStep() {
+  const step = await screen.findByRole('dialog', { name: 'Thêm sticker' })
+  await userEvent.click(within(step).getByRole('button', { name: /^Lưu \d+ sticker$/ }))
+}
 const made = (overrides: Partial<StickerItem> = {}) => sticker({ id: 'st-new', name: 'moi', createdAt: '2026-10-19T10:00:00Z', ...overrides })
 
 describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-library)', () => {
+  // jsdom decodes no picture: the step's PNG of each still one is a stand-in (SP-08).
+  beforeEach(() => {
+    stubPictureDecoding()
+  })
   afterEach(() => vi.restoreAllMocks())
 
   it('sends the chosen picture as a multipart form and puts the new sticker first in the grid, without reading the list again', async () => {
@@ -148,6 +159,7 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     await library().findByRole('img', { name: 'meo' })
 
     await user.upload(input(), pngFile())
+    await saveStep()
 
     expect(await library().findByRole('img', { name: 'moi' })).toBeInTheDocument()
     expect(library().getAllByRole('img').map((picture) => picture.getAttribute('alt'))).toEqual(['moi', 'nhay', 'meo'])
@@ -172,6 +184,7 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     await library().findByRole('img', { name: 'meo' })
 
     await user.upload(input(), pngFile('moi.png'))
+    await saveStep()
 
     const progress = within(await library().findByRole('status', { name: 'Tiến trình tải lên' }))
     expect(await progress.findByText('Đang tải moi.png…')).toBeInTheDocument()
@@ -193,16 +206,16 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     renderApp('/stickers')
     await library().findByRole('img', { name: 'meo' })
 
-    await user.upload(input(), new File(['x'], 'anh.jpg', { type: 'image/jpeg' }))
+    await user.upload(input(), new File(['%PDF-1.7'], 'ghi-chu.pdf', { type: 'application/pdf' }))
 
     const alert = await library().findByRole('alert')
-    expect(alert).toHaveTextContent('anh.jpg')
-    expect(alert).toHaveTextContent(/chỉ nhận PNG, GIF, WebP/i)
+    expect(alert).toHaveTextContent('ghi-chu.pdf')
+    expect(alert).toHaveTextContent('Không phải ảnh dùng được: chỉ nhận PNG, JPEG, GIF, WebP.')
     expect(posts).toBe(0)
     expect(library().getAllByRole('img')).toHaveLength(2)
   })
 
-  it('refuses a file over the limit on the spot, saying what the limit is', async () => {
+  it('refuses a moving picture over the limit on the spot, saying what the limit is', async () => {
     const user = pickerUser()
     let posts = 0
     server.use(
@@ -215,10 +228,13 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     renderApp('/stickers')
     await library().findByRole('img', { name: 'meo' })
 
-    await user.upload(input(), new File([new Uint8Array(STICKER_MAX_BYTES + 1)], 'nang.png', { type: 'image/png' }))
+    // A moving picture is sent as it is, so it must be within the limit already; a still one is made smaller (SP-08).
+    const heavy = new Uint8Array(STICKER_MAX_BYTES + 1)
+    heavy.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
+    await user.upload(input(), new File([heavy], 'nang.gif', { type: 'image/gif' }))
 
     const alert = await library().findByRole('alert')
-    expect(alert).toHaveTextContent('nang.png')
+    expect(alert).toHaveTextContent('nang.gif')
     expect(alert).toHaveTextContent('nặng hơn 1 MB')
     expect(posts).toBe(0)
   })
@@ -238,8 +254,10 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     const file = pngFile()
 
     await user.upload(input(), file)
+    await saveStep()
     await library().findByText('Đã thêm moi.png')
     await user.upload(input(), file)
+    await saveStep()
 
     await vi.waitFor(() => expect(posts).toBe(2))
   })
@@ -265,18 +283,23 @@ describe('Sticker screen: uploading with the button (ST-13, spec web-sticker-lib
     server.use(list([]))
     renderApp('/stickers')
 
-    expect(await library().findByText(/Bấm “Tải lên” để chọn ảnh PNG, GIF hoặc WebP, mỗi ảnh tối đa 1 MB/)).toBeInTheDocument()
+    expect(await library().findByText(/Bấm “Tải lên” để chọn ảnh PNG, JPEG, GIF hoặc WebP. Ảnh tĩnh được cắt và thu nhỏ trước khi lưu; ảnh động tối đa 1 MB./)).toBeInTheDocument()
     expect(library().getAllByRole('button', { name: 'Tải lên' })).toHaveLength(3)
   })
 
   it('hides the notices once nothing is loading any more, when the owner closes them', async () => {
     const user = pickerUser()
-    server.use(list(API_STICKERS), http.post('/api/stickers', () => HttpResponse.json(made(), { status: 201 })))
+    let calls = 0
+    server.use(
+      list(API_STICKERS),
+      http.post('/api/stickers', () => (calls++ === 0 ? HttpResponse.json(made(), { status: 201 }) : problem(409, 'STICKER_DUPLICATE'))),
+    )
     renderApp('/stickers')
     await library().findByRole('img', { name: 'meo' })
-    await user.upload(input(), [pngFile('moi.png'), new File(['x'], 'anh.jpg', { type: 'image/jpeg' })])
+    await user.upload(input(), [pngFile('moi.png'), pngFile('trung.png')])
+    await saveStep()
     await library().findByText('Đã thêm moi.png')
-    expect(await library().findByRole('alert')).toHaveTextContent('anh.jpg')
+    expect(await library().findByRole('alert')).toHaveTextContent('trung.png')
 
     await user.click(library().getByRole('button', { name: 'Ẩn thông báo tải lên' }))
 

@@ -4,6 +4,7 @@ import { delay, http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { API_STICKERS, sticker } from '@/test/fixtures/stickersApi'
 import { server } from '@/test/msw/server'
+import { stubPictureDecoding } from '@/test/pictureDecoding'
 import { renderApp } from '@/test/renderApp'
 import type { StickerItem } from './stickers.types'
 
@@ -18,20 +19,30 @@ const region = () => screen.getByRole('region', { name: 'Thư viện sticker' })
 const input = () => screen.getByLabelText('Chọn tệp sticker') as HTMLInputElement
 // `applyAccept: false`: `accept` only tunes the picker of the browser; the page must hold on its own.
 const pickerUser = () => userEvent.setup({ applyAccept: false })
-const pngFile = (name = 'moi.png') => new File([new Uint8Array([137, 80, 78, 71])], name, { type: 'image/png' })
+const pngFile = (name = 'moi.png') => new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], name, { type: 'image/png' })
 const made = (overrides: Partial<StickerItem> = {}) => sticker({ id: 'st-new', name: 'moi', createdAt: '2026-10-19T10:00:00Z', ...overrides })
 const dragOf = (files: File[]) => ({ dataTransfer: { files, types: ['Files'] } })
 const textDrag = { dataTransfer: { files: [], types: ['text/plain'] } }
-const DROP_HINT = 'Thả ảnh PNG, GIF hoặc WebP để tải lên'
+const DROP_HINT = 'Thả ảnh PNG, JPEG, GIF hoặc WebP để thêm sticker'
 
 async function openLibrary() {
   renderApp('/stickers')
   await library().findByRole('img', { name: 'meo' })
 }
 
+/** A choice or a drop opens the "Thêm sticker" step (SP-08); "Lưu" hands what it holds to the queue these tests are about. */
+async function saveStep() {
+  const step = await screen.findByRole('dialog', { name: 'Thêm sticker' })
+  await userEvent.click(within(step).getByRole('button', { name: /^Lưu \d+ sticker$/ }))
+}
 
-// The screen also reads the packs (SP-06); these tests are about a library in no pack, so there is none.
-beforeEach(() => server.use(http.get('/api/sticker-packs', () => HttpResponse.json({ items: [] }))))
+
+// The screen also reads the packs (SP-06); these tests are about a library in no pack, so there is none. jsdom decodes
+// no picture: the step's PNG of each still one is a stand-in (SP-08).
+beforeEach(() => {
+  server.use(http.get('/api/sticker-packs', () => HttpResponse.json({ items: [] })))
+  stubPictureDecoding()
+})
 
 describe('Sticker screen: drag and drop (ST-14)', () => {
   it('uploads a file dropped on the screen as one chosen with the button', async () => {
@@ -46,6 +57,7 @@ describe('Sticker screen: drag and drop (ST-14)', () => {
     await openLibrary()
 
     fireEvent.drop(region(), dragOf([pngFile('moi.png')]))
+    await saveStep()
 
     expect(await library().findByRole('img', { name: 'moi' })).toBeInTheDocument()
     expect(posts).toBe(1)
@@ -65,6 +77,7 @@ describe('Sticker screen: drag and drop (ST-14)', () => {
     await screen.findByText(DROP_HINT)
     fireEvent.drop(region(), dragOf([pngFile()]))
     expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+    await saveStep()
     await library().findByText('Đã thêm moi.png')
   })
 
@@ -104,9 +117,10 @@ describe('Sticker screen: drag and drop (ST-14)', () => {
     )
     await openLibrary()
 
-    fireEvent.drop(region(), dragOf([new File(['x'], 'anh.jpg', { type: 'image/jpeg' })]))
+    fireEvent.drop(region(), dragOf([new File(['%PDF-1.7'], 'ghi-chu.pdf', { type: 'application/pdf' })]))
 
-    expect(await library().findByRole('alert')).toHaveTextContent(/anh\.jpg.*chỉ nhận PNG, GIF, WebP/i)
+    expect(await library().findByRole('alert')).toHaveTextContent(/ghi-chu\.pdf.*không phải ảnh dùng được/i)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(posts).toBe(0)
   })
 
@@ -135,6 +149,8 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), [pngFile('a.png'), pngFile('b.png'), pngFile('c.png')])
+
+    await saveStep()
 
     expect(await library().findByText('Đã thêm c.png')).toBeInTheDocument()
     expect(library().getByText('Đã thêm a.png')).toBeInTheDocument()
@@ -166,6 +182,8 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), [pngFile('a.png'), pngFile('b.png'), pngFile('c.png')])
+
+    await saveStep()
     await library().findByText('Đã thêm c.png')
 
     expect(mostInFlight).toBe(1)
@@ -187,6 +205,8 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
 
     await user.upload(input(), [pngFile('a.png'), pngFile('b.png')])
 
+    await saveStep()
+
     const progress = within(await library().findByRole('status', { name: 'Tiến trình tải lên' }))
     expect(await progress.findByText('Đang tải a.png…')).toBeInTheDocument()
     expect(progress.getByText('b.png: đang chờ')).toBeInTheDocument()
@@ -201,6 +221,8 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
 
     await user.upload(input(), pngFile())
 
+    await saveStep()
+
     const alert = await library().findByRole('alert')
     expect(alert).toHaveTextContent(/thư viện đã đầy/i)
     expect(alert).toHaveTextContent(/xóa bớt/i)
@@ -213,6 +235,8 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), pngFile('hong.png'))
+
+    await saveStep()
 
     expect(await library().findByRole('alert')).toHaveTextContent(/hong\.png.*không đọc được/i)
   })
@@ -229,6 +253,7 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     )
     await openLibrary()
     await user.upload(input(), pngFile('moi.png'))
+    await saveStep()
     expect(await library().findByRole('alert')).toHaveTextContent(/moi\.png.*không kết nối được/i)
 
     await user.click(library().getByRole('button', { name: 'Thử lại tải moi.png' }))
@@ -245,6 +270,8 @@ describe('Sticker screen: several files and the words of the refusals (ST-14)', 
     await openLibrary()
 
     await user.upload(input(), pngFile('moi.png'))
+
+    await saveStep()
 
     const alert = await library().findByRole('alert')
     expect(alert).toHaveTextContent('Không tải lên được. Hãy thử lại.')

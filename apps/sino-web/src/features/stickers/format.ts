@@ -1,4 +1,5 @@
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
+import type { PictureKind } from './editor/editable'
 
 // What the Sticker screen can tell about a file before the server sees it, and how it says what the server refused (spec
 // web-sticker-library). The server is the one that decides in the end: it reads the content, not the name or the type the
@@ -149,3 +150,24 @@ export function moveErrorMessage(error: unknown): string {
       return 'Không chuyển được sticker. Hãy thử lại.'
   }
 }
+
+/**
+ * Why a file cannot go into the batch of the "Thêm sticker" step, or `null` when it can (SP-08). A still picture of any
+ * weight goes in, since it is exported smaller when saved (D-345); a moving one is sent as it is, so it must already be
+ * within the limit of the server.
+ */
+export function batchRefusal(file: Pick<File, 'size'>, kind: PictureKind | null): string | null {
+  if (file.size === 0) {
+    return 'Tệp này trống.'
+  }
+  if (kind === null) {
+    return 'Không phải ảnh dùng được: chỉ nhận PNG, JPEG, GIF, WebP.'
+  }
+  if (kind.editing === 'whole' && file.size > STICKER_MAX_BYTES) {
+    return `Ảnh động nặng hơn ${STICKER_LIMIT_LABEL}. Ảnh động được lưu nguyên, nên hãy chọn tệp nhẹ hơn.`
+  }
+  return null
+}
+
+/** A picture of the batch the browser could not decode when saving it (SP-08). */
+export const PICTURE_UNREADABLE = 'Không đọc được ảnh này. Hãy bỏ nó hoặc chọn ảnh khác.'

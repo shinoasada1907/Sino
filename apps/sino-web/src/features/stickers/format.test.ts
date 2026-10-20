@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
-import { checkStickerFile, isPackName, isRetryableUpload, moveErrorMessage, packErrorMessage, STICKER_MAX_BYTES, uploadErrorMessage } from './format'
+import { batchRefusal, checkStickerFile, isPackName, isRetryableUpload, moveErrorMessage, packErrorMessage, STICKER_MAX_BYTES, uploadErrorMessage } from './format'
 
 const file = (name: string, type: string, size = 1000) => ({ name, type, size })
 const TYPE_REASON = /chỉ nhận PNG, GIF, WebP/i
@@ -181,5 +181,26 @@ describe('moveErrorMessage: why a sticker did not move, in Vietnamese (SP-06)', 
     expect(moveErrorMessage(refusal('STICKER_PACK_NOT_FOUND'))).toBe('Bộ này không còn nữa. Có thể nó vừa bị xóa ở nơi khác.')
     expect(moveErrorMessage(new ApiError(0, NETWORK_ERROR, null))).toBe('Không kết nối được với máy chủ. Hãy kiểm tra mạng rồi thử lại.')
     expect(moveErrorMessage(refusal('INTERNAL'))).toBe('Không chuyển được sticker. Hãy thử lại.')
+  })
+})
+
+describe('batchRefusal: what cannot go into the "Thêm sticker" step, said at once (SP-08, spec sticker-upload-editor)', () => {
+  const still = { mediaType: 'image/png', editing: 'crop' } as const
+  const moving = { mediaType: 'image/gif', editing: 'whole' } as const
+
+  it('lets in a still picture of any weight, since it is made smaller when saved', () => {
+    expect(batchRefusal({ size: 1000 }, still)).toBeNull()
+    expect(batchRefusal({ size: 20 * STICKER_MAX_BYTES }, { mediaType: 'image/jpeg', editing: 'crop' })).toBeNull()
+  })
+
+  it('lets in a moving picture of up to 1 MB, and refuses a heavier one, which is sent as it is', () => {
+    expect(batchRefusal({ size: STICKER_MAX_BYTES }, moving)).toBeNull()
+    expect(batchRefusal({ size: STICKER_MAX_BYTES + 1 }, moving)).toBe('Ảnh động nặng hơn 1 MB. Ảnh động được lưu nguyên, nên hãy chọn tệp nhẹ hơn.')
+  })
+
+  it('refuses what is no picture it can use, and an empty file', () => {
+    expect(batchRefusal({ size: 1000 }, null)).toBe('Không phải ảnh dùng được: chỉ nhận PNG, JPEG, GIF, WebP.')
+    expect(batchRefusal({ size: 0 }, null)).toBe('Tệp này trống.')
+    expect(batchRefusal({ size: 0 }, still)).toBe('Tệp này trống.')
   })
 })

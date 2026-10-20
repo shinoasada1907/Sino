@@ -43,7 +43,7 @@ export function StickersEmpty({ children }: { children?: ReactNode }) {
   return (
     <div data-slot="stickers-empty" className="flex max-w-105 flex-col items-start gap-3 px-4 py-10 md:px-6">
       <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Thư viện sticker đang trống</h2>
-      <p className="text-sm text-muted-foreground">Bấm “Tải lên” để chọn ảnh PNG, GIF hoặc WebP, mỗi ảnh tối đa {STICKER_LIMIT_LABEL}.</p>
+      <p className="text-sm text-muted-foreground">Bấm “Tải lên” để chọn ảnh PNG, JPEG, GIF hoặc WebP. Ảnh tĩnh được cắt và thu nhỏ trước khi lưu; ảnh động tối đa {STICKER_LIMIT_LABEL}.</p>
       {children}
     </div>
   )

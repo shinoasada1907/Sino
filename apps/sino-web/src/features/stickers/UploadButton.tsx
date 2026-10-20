@@ -2,8 +2,8 @@ import { Upload } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Button } from '@/shared/ui/button'
 
-/** What the picker of the browser is asked to show. It only tunes the picker; `checkStickerFile` is the fence. */
-const ACCEPT = 'image/png,image/gif,image/webp'
+/** What the picker of the browser is asked to show; JPEG too, since the step sends it as a PNG (DN-4). It only tunes the picker: the fence is the step's own look at each file. */
+const ACCEPT = 'image/png,image/jpeg,image/gif,image/webp'
 
 /**
  * The hidden file input of the screen, one for all its upload buttons: `children` gets the function that opens the picker.
@@ -34,14 +34,25 @@ export function FilePicker({ onFiles, children }: { onFiles: (files: File[]) => 
   )
 }
 
-/** "Tải lên": the button with its icon and word, or (`iconOnly`, for the phone header) the icon with the word as its name. */
-export function UploadButton({ onClick, iconOnly = false, variant = 'primary' }: { onClick: () => void; iconOnly?: boolean; variant?: 'primary' | 'secondary' }) {
+/**
+ * "Tải lên": the button with its icon and word, or (`iconOnly`, for the phone header) the icon with the word as its name.
+ * It hands itself over, so the screen can give the focus back to it when the step it opens closes.
+ */
+export function UploadButton({
+  onClick,
+  iconOnly = false,
+  variant = 'primary',
+}: {
+  onClick: (opener: HTMLElement) => void
+  iconOnly?: boolean
+  variant?: 'primary' | 'secondary'
+}) {
   return iconOnly ? (
-    <Button type="button" variant="ghost" size="icon" aria-label="Tải lên" onClick={onClick}>
+    <Button type="button" variant="ghost" size="icon" aria-label="Tải lên" data-upload-button="" onClick={(event) => onClick(event.currentTarget)}>
       <Upload strokeWidth={1.6} />
     </Button>
   ) : (
-    <Button type="button" variant={variant} size="sm" onClick={onClick}>
+    <Button type="button" variant={variant} size="sm" data-upload-button="" onClick={(event) => onClick(event.currentTarget)}>
       <Upload strokeWidth={1.6} />
       Tải lên
     </Button>

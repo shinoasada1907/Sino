@@ -55,7 +55,7 @@ export function DropZone({ label, onFiles, children }: { label: string; onFiles:
           aria-hidden="true"
           className="pointer-events-none absolute inset-2 z-20 grid place-items-center rounded-2xl border-2 border-dashed border-foreground/50 bg-background/85 px-6 text-center text-base font-semibold"
         >
-          Thả ảnh PNG, GIF hoặc WebP để tải lên
+          Thả ảnh PNG, JPEG, GIF hoặc WebP để thêm sticker
         </div>
       )}
     </section>
