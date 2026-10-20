@@ -20,8 +20,11 @@ export function stubPictureDecoding({ size = { width: 256, height: 256 }, unread
     }),
   )
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => new FakeContext() as unknown as RenderingContext)
-  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (callback: BlobCallback, type?: string) {
+  // The size of each PNG made, as the canvas was when asked for it.
+  const exported: { width: number; height: number }[] = []
+  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, callback: BlobCallback, type?: string) {
+    exported.push({ width: this.width, height: this.height })
     queueMicrotask(() => callback(new Blob([new Uint8Array(FAKE_PNG_BYTES)], { type: type ?? 'image/png' })))
   })
-  return { decoded }
+  return { decoded, exported }
 }

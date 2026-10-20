@@ -133,7 +133,7 @@ describe('the "Thêm sticker" step: the list (SP-08)', () => {
 
   it('shows the picture chosen in the list, and says a moving one is kept whole', async () => {
     const user = await openWith(png('meo.png'), gif('nhay.gif'))
-    expect(step().getByText('Ảnh sẽ được lưu là hình vuông lớn nhất ở giữa ảnh, cạnh tối đa 512 điểm ảnh.')).toBeInTheDocument()
+    expect(step().getByText('Phần trong khung được lưu thành PNG, cạnh tối đa 512 điểm ảnh.')).toBeInTheDocument()
 
     await user.click(step().getByRole('button', { name: 'nhay.gif' }))
 

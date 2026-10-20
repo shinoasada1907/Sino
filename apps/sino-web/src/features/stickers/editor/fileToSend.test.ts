@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { FakeCanvas, landsAt } from '@/test/fakeCanvas'
-import { centredSquare, fileToSend } from './fileToSend'
+import { fileToSend } from './fileToSend'
+import { DEFAULT_EDIT } from './pictureEdit'
 
 // SP-08: what goes to the server for each picture of the batch until it is framed by hand (SP-09): a moving picture as
 // the very file; a still one as a PNG of the largest square in its middle, the default frame of the spec.
@@ -24,14 +25,6 @@ function seams(width: number, height: number) {
     },
   }
 }
-
-describe('centredSquare: the default frame (spec sticker-upload-editor)', () => {
-  it('is the largest square in the middle', () => {
-    expect(centredSquare(2000, 1000)).toEqual({ x: 500, y: 0, width: 1000, height: 1000 })
-    expect(centredSquare(300, 900)).toEqual({ x: 0, y: 300, width: 300, height: 300 })
-    expect(centredSquare(64, 64)).toEqual({ x: 0, y: 0, width: 64, height: 64 })
-  })
-})
 
 describe('fileToSend (SP-08)', () => {
   it('sends a moving picture as the very file, without decoding it', async () => {
@@ -71,5 +64,35 @@ describe('fileToSend (SP-08)', () => {
     })
 
     await expect(fileToSend({ file: file('hong.png'), name: 'hong', kind: { mediaType: 'image/png', editing: 'crop' } }, { decode })).rejects.toThrow(/decoded/)
+  })
+
+  it('sends the area the owner framed, turned as the owner turned it (SP-09)', async () => {
+    const { options, canvases } = seams(200, 100)
+    const edit = { ...DEFAULT_EDIT, rotation: 90 as const, area: { x: 0, y: 100, width: 100, height: 100 } }
+
+    await fileToSend({ file: file('meo.png'), name: 'meo', kind: { mediaType: 'image/png', editing: 'crop' }, edit }, options)
+
+    expect(canvases[0].blobs[0]).toMatchObject({ width: 100, height: 100 })
+    const [drawing] = canvases[0].context.drawings
+    // Turned a quarter clockwise, the right half of the picture is the bottom of the turned one.
+    expect(landsAt(drawing, 100, 100).map(Math.round)).toEqual([0, 0])
+    expect(landsAt(drawing, 200, 0).map(Math.round)).toEqual([100, 100])
+  })
+
+  it('sends the whole picture, turned, when the frame has its shape and was not measured (SP-09)', async () => {
+    const { options, canvases } = seams(2000, 1000)
+    const edit = { ...DEFAULT_EDIT, rotation: 90 as const, shape: 'picture' as const }
+
+    await fileToSend({ file: file('meo.png'), name: 'meo', kind: { mediaType: 'image/png', editing: 'crop' }, edit }, options)
+
+    expect(canvases[0].blobs[0]).toMatchObject({ width: 256, height: 512 })
+  })
+
+  it('names the PNG after its file when the name is left blank, so the server falls back to it (SP-09)', async () => {
+    const { options } = seams(100, 100)
+
+    const sent = await fileToSend({ file: file('meo.jpg', 'image/jpeg'), name: '   ', kind: { mediaType: 'image/jpeg', editing: 'crop' } }, options)
+
+    expect(sent.name).toBe('meo.png')
   })
 })

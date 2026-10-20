@@ -1925,3 +1925,46 @@ chọn / thả tệp ─► inspectPicture (đọc byte đầu) ─► batchRefu
     - Mở bằng Enter trên "Tải lên" rồi Esc: không gửi gì, không còn URL nào, tiêu điểm về "Tải lên", không còn `pointer-events` sót trên `body`.
   - 390 cảm ứng: bước phủ đúng 390 × 844, không cuộn ngang, dải ảnh cuộn ngang, nút bỏ ảnh 44 × 44, nút chọn ảnh cao 56, "Thêm ảnh" cao 44, nút "Lưu" nằm trong màn.
   - Chạy lại hai lần liền đều qua. Một lần hết giờ trước đó là do Vite nạp lại trang giữa chừng, ngay sau khi tôi dựng lại `StickersPage.tsx`.
+
+### 23.17 Web: khung chỉnh của một ảnh (SP-09)
+**Ở đâu** (tính từ `apps/sino-web/src/features/stickers/`):
+- `editor/ImageEditor.tsx`: khung `react-easy-crop`, hoặc ảnh động chạy nguyên.
+- `editor/EditorControls.tsx`: phóng to, xoay 90°, "Vuông"/"Theo ảnh", ô tên.
+- `editor/pictureEdit.ts`: phần chỉnh của một ảnh, khung mặc định.
+- Đổi thêm: `useBatch.ts` (`edit`, `rename`), `fileToSend.ts` (dùng phần chỉnh và tên), `useUploadQueue.ts` (`NamedFile`: tệp kèm tên).
+- Test: `editor/ImageEditor.test.tsx`, `editor/pictureEdit.test.ts`, cùng phần thêm ở `useBatch.test.tsx` và `fileToSend.test.ts`.
+
+**Phần chỉnh lưu theo gì** (câu gợi ý của task): theo `id` của mục trong lượt, không theo vị trí trong danh sách. Nếu lưu theo vị trí, bỏ ảnh thứ nhất thì ảnh thứ hai lùi lên chỗ số 1 và nhận nhầm phần xoay của ảnh đã bỏ. Ở đây phần chỉnh (`PictureEdit`) nằm ngay trên mục: `{ crop, zoom, rotation, shape, area }`. Thao tác nào cũng đi qua `batch.edit(id, …)`. Test của `useBatch` bỏ ảnh A rồi kiểm rằng ảnh B vẫn giữ phần xoay và tên của nó.
+
+**Mỗi ảnh một trình chỉnh** (`key={item.id}`): `react-easy-crop` giữ bên trong cỡ ảnh và cỡ khung đã đo. Dùng chung một trình chỉnh cho mọi ảnh thì khi chuyển ảnh, các số đo cũ còn lại một nhịp. Cho `key` theo ảnh, React gắn một trình chỉnh mới mỗi lần đổi ảnh. Trình chỉnh được điều khiển hoàn toàn từ ngoài (`crop`, `zoom`, `rotation` đều là prop), nên quay lại một ảnh là thấy đúng như lúc rời đi.
+
+**`react-easy-crop` báo vùng cắt thế nào:**
+- Thư viện tự đo và báo `croppedAreaPixels` (vùng tính bằng điểm ảnh của ảnh đã xoay) sau mỗi lần kéo, nhả phím, đổi tỉ lệ, xoay hay phóng to. Trình chỉnh lưu nó vào `area`, và lúc lưu, `fileToSend` cắt đúng vùng đó.
+- Một ảnh chưa từng mở trong trình chỉnh thì chưa có `area`. Khi đó `defaultArea` tính ra đúng vùng mà thư viện sẽ đo lúc đầu: hình vuông lớn nhất ở giữa ảnh đã xoay, hoặc cả ảnh nếu chọn "Theo ảnh".
+- Khi xoay hay đổi hình khung, ảnh được đưa về giữa và `area` xóa về `null`, chờ thư viện đo lại. Đổi hình khung còn đặt lại độ phóng về 1, để ảnh lấp đầy khung mới.
+
+**"Tự do" thành "Theo ảnh" (khác kế hoạch):** khung của `react-easy-crop` có **một tỉ lệ cố định** (`aspect`); người dùng dời và phóng ảnh dưới khung, chứ không kéo giãn được cạnh khung. Vì vậy lựa chọn thứ hai của spec không thể là khung tự do. Nó là khung theo tỉ lệ của ảnh đã xoay: `frameAspect` tính rộng chia cao của ảnh, và đổi chiều khi xoay một phần tư. Tên nút là "Theo ảnh" cho đúng việc nó làm; spec và D-345 đã ghi lại.
+
+**Bàn phím:** vùng khung của thư viện có `tabIndex=0` và nhận phím mũi tên. Trình chỉnh đặt cho nó `role="group"` và tên "Vùng cắt: kéo ảnh, hoặc dùng phím mũi tên để dời ảnh" qua `cropperProps`. Mặc định mỗi lần bấm chỉ dời 1 điểm ảnh của màn, phải bấm hàng trăm lần mới thấy, nên trình chỉnh đặt `keyboardStep={10}` (Shift dời một phần năm). Mọi điều khiển khác là điều khiển thường có tên: thanh trượt "Phóng to" (1 đến 3, đọc là "2,5 lần"), nút "Xoay 90°" kèm dòng trạng thái `aria-live` ("Đã xoay 90°"), nhóm "Hình khung", ô "Tên sticker".
+
+**Ảnh chụp có EXIF:** điện thoại thường lưu ảnh nằm ngang và ghi vào EXIF rằng ảnh phải xoay khi hiện. `<img>` (nên cả trình chỉnh) và `createImageBitmap` (lúc xuất) mặc định đều dựng ảnh theo EXIF. Hai bên cùng một chiều, nên vùng mà người dùng thấy đúng là vùng được cắt. Lượt Chrome thật kiểm điều này bằng một ảnh lưu 400 × 200 có EXIF Orientation 6.
+
+**Tên đi lên máy chủ:** mỗi ảnh có ô tên, mặc định là tên tệp bỏ đuôi. Hàng đợi tải lên giờ nhận `{ file, name }` (`NamedFile`) và gửi tên trong phần `name` của form; máy chủ cắt khoảng trắng, giữ 50 ký tự, trống thì lấy tên tệp. Tệp PNG xuất ra cũng mang tên đó (trống thì mang tên tệp gốc), để thông báo "Đã thêm …" đọc được.
+
+### 23.18 Kiểm chứng (SP-09)
+- **Test viết trước:** đỏ vì chưa có `pictureEdit`, `edit`, `rename` và trình chỉnh. Xanh:
+  - `pictureEdit.test.ts` 6, `ImageEditor.test.tsx` 8 (giá trị mặc định; mỗi ảnh giữ phần chỉnh khi chuyển qua lại; đổi hình khung đặt lại độ phóng; bốn lần xoay về lại "Không xoay"; lưu theo khung và chiều xoay kèm tên; mặc định 512 × 512; ảnh động không có khung nhưng có tên, gửi nguyên tệp).
+  - `fileToSend.test.ts` +3, bỏ 1 (hàm `centredSquare` trùng với `defaultArea`); `useBatch.test.tsx` +1.
+  - Một test tôi viết sai thứ tự (phóng to rồi mới đổi hình khung, trong khi đổi hình khung đặt lại độ phóng), đã sửa thứ tự và thêm một test riêng cho việc đặt lại đó.
+- **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ), `tsc -b`, `pnpm test` 119 tệp, 1256 test, `pnpm build`: đều qua.
+- **Chrome thật** (backend thật; ảnh mẫu 2000 × 1000 có bốn màu và một ảnh EXIF), 18/18 kiểm tra. PNG đã lưu được đọc lại và soi điểm ảnh:
+  - **Chuột:** kéo ảnh sang trái thì PNG là nửa phải (xanh lá trên, vàng dưới).
+  - **Phím:** mười lần ArrowLeft dời đường ranh đỏ/xanh lá từ 256 về 41 trên 512, đúng như tính (100 điểm ảnh màn, khoảng 420 điểm ảnh ảnh). Vùng khung nhận tiêu điểm.
+  - **Bánh xe chuột:** thanh trượt lên 3, PNG 333 × 333 (không phóng to lên 512), đường ranh vẫn ở giữa.
+  - **Xoay và "Theo ảnh":** khung trên màn 220 × 439, PNG 256 × 512 với góc xanh dương, đỏ, vàng, xanh lá.
+  - **Ảnh EXIF:** ảnh lưu 400 × 200 hiện 200 × 400, PNG 200 × 200 đỏ trên xanh dưới.
+  - Quay lại ảnh đã xoay thấy vẫn "Đã xoay 90°". GIF được lưu nguyên với tên đã gõ ("Nhảy múa").
+  - **390, chạm:** kéo bằng ngón tay (CDP `Input.dispatchTouchEvent`) thì PNG là nửa trái. Không cuộn ngang; nút xoay, thanh trượt và ô tên đều cao 44.
+- **Sai sót của kịch bản, đã sửa:**
+  - Lượt đầu, kéo chuột và bấm phím đều dời khung tới đúng nửa phải, nên hai PNG giống nhau từng byte và máy chủ trả `409` cho tệp thứ hai (thực ra điều đó cũng cho thấy phím đã dời khung). Tôi cho phím dời ngắn hơn và đo vị trí đường ranh.
+  - Một ca kiểm tra bị viết luôn đúng (`|| true`). Tôi thay bằng một ca kiểm thật.

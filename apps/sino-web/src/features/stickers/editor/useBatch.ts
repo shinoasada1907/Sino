@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { batchRefusal } from '../format'
 import { inspectPicture, type PictureKind } from './editable'
+import { DEFAULT_EDIT, type PictureEdit } from './pictureEdit'
 
 /** One picture of the batch. `id` is its own for the whole step, so what is done to it never moves to another one. */
 export interface BatchItem {
@@ -9,6 +10,8 @@ export interface BatchItem {
   /** The name of the sticker: the file name without its extension, until the owner types another (SP-09). */
   name: string
   kind: PictureKind
+  /** What the owner did to it in the editor (SP-09); a moving picture keeps the default, which it never uses. */
+  edit: PictureEdit
   /** The address of the file for an `<img>`, made when the picture came in and let go when it leaves. */
   previewUrl: string
   /** Why it could not be sent the last time, if it could not. */
@@ -81,7 +84,7 @@ export function useBatch() {
       }
       const previewUrl = URL.createObjectURL(file)
       previews.current.set(id, previewUrl)
-      made.push({ id, file, name: stemOf(file.name), kind, previewUrl })
+      made.push({ id, file, name: stemOf(file.name), kind, edit: DEFAULT_EDIT, previewUrl })
     })
     setRefusals(refused)
     if (made.length > 0) {
@@ -113,6 +116,9 @@ export function useBatch() {
     setOpen(false)
   }
 
+  const change = (id: number, update: (item: BatchItem) => BatchItem) =>
+    setBatch((batch) => ({ ...batch, items: batch.items.map((item) => (item.id === id ? update(item) : item)) }))
+
   return {
     open,
     items,
@@ -123,8 +129,10 @@ export function useBatch() {
     select: (id: number) => setBatch((batch) => ({ ...batch, selectedId: id })),
     remove: (id: number) => take([id]),
     take,
-    setProblem: (id: number, problem: string) =>
-      setBatch((batch) => ({ ...batch, items: batch.items.map((item) => (item.id === id ? { ...item, problem } : item)) })),
+    setProblem: (id: number, problem: string) => change(id, (item) => ({ ...item, problem })),
+    /** Changes what was done to a picture; by its id, never by where it is in the list (the hint of SP-09). */
+    edit: (id: number, edit: Partial<PictureEdit>) => change(id, (item) => ({ ...item, edit: { ...item.edit, ...edit } })),
+    rename: (id: number, name: string) => change(id, (item) => ({ ...item, name })),
     dismissRefusals: () => setRefusals([]),
     close,
   }

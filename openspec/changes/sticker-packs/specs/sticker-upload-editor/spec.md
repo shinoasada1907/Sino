@@ -12,7 +12,7 @@ Chọn tệp bằng nút "Tải lên" hoặc thả tệp vào màn Sticker MUST 
 - **THEN** chỉ `meo.png` vào lượt, và màn nói `ghi-chu.pdf` không phải ảnh dùng được
 
 ### Requirement: Chỉnh một ảnh tĩnh trước khi lưu
-Với ảnh tĩnh (PNG tĩnh, WebP tĩnh, JPEG), bước "Thêm sticker" MUST có khung cắt trên ảnh: mặc định là hình vuông lớn nhất ở giữa ảnh, kéo được để đổi chỗ, phóng to từ 1 đến 3 lần, xoay từng 90°, và chọn được "Vuông" hoặc "Tự do" cho tỉ lệ khung. Mỗi ảnh MUST giữ phần chỉnh của riêng nó khi người dùng chuyển qua lại giữa các ảnh. Khi lưu, ảnh MUST được xuất lại trên trình duyệt thành PNG chỉ gồm phần trong khung, cạnh dài nhất tối đa 512 điểm ảnh, và MUST không phóng to một vùng nhỏ hơn thế. Ảnh JPEG MUST được gửi dưới dạng PNG đã xuất, kể cả khi không chỉnh gì.
+Với ảnh tĩnh (PNG tĩnh, WebP tĩnh, JPEG), bước "Thêm sticker" MUST có khung cắt trên ảnh: mặc định là hình vuông lớn nhất ở giữa ảnh, kéo được để đổi chỗ, phóng to từ 1 đến 3 lần, xoay từng 90°, và chọn được "Vuông" hoặc "Theo ảnh" cho tỉ lệ khung ("Theo ảnh" là khung theo tỉ lệ của ảnh đã xoay; khung không kéo giãn bằng tay được). Mỗi ảnh MUST giữ phần chỉnh của riêng nó khi người dùng chuyển qua lại giữa các ảnh. Khi lưu, ảnh MUST được xuất lại trên trình duyệt thành PNG chỉ gồm phần trong khung, cạnh dài nhất tối đa 512 điểm ảnh, và MUST không phóng to một vùng nhỏ hơn thế. Ảnh JPEG MUST được gửi dưới dạng PNG đã xuất, kể cả khi không chỉnh gì.
 
 #### Scenario: Cắt rồi lưu
 - **WHEN** người dùng chọn ảnh 2000 × 1000, để khung vuông mặc định và bấm "Lưu"

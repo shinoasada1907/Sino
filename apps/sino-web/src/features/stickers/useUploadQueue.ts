@@ -16,6 +16,12 @@ export interface UploadEntry {
 
 const isActive = (entry: UploadEntry) => entry.state === 'waiting' || entry.state === 'uploading'
 
+/** A file and the name the owner gave its sticker in the "Thêm sticker" step (SP-09); a bare file is named by the server. */
+export interface NamedFile {
+  file: File
+  name?: string
+}
+
 /**
  * The files the owner chose, sent one after the other. One at a time because it is light for the server and lets the
  * screen say which file failed and why; a file the web refuses never leaves (`checkStickerFile`), and one that fails
@@ -24,11 +30,11 @@ const isActive = (entry: UploadEntry) => entry.state === 'waiting' || entry.stat
 export function useUploadQueue() {
   const upload = useUploadSticker()
   const [entries, setEntries] = useState<UploadEntry[]>([])
-  const pending = useRef<{ id: number; file: File }[]>([])
+  const pending = useRef<({ id: number } & NamedFile)[]>([])
   const running = useRef(false)
   const nextId = useRef(0)
   // The files by entry, for `retry`; a file is kept only while its entry is.
-  const kept = useRef(new Map<number, File>())
+  const kept = useRef(new Map<number, NamedFile>())
   useEffect(() => {
     for (const id of kept.current.keys()) {
       if (!entries.some((entry) => entry.id === id)) {
@@ -49,7 +55,7 @@ export function useUploadQueue() {
       for (let item = pending.current.shift(); item; item = pending.current.shift()) {
         update(item.id, { state: 'uploading' })
         try {
-          await upload.mutateAsync({ file: item.file })
+          await upload.mutateAsync({ file: item.file, name: item.name })
           update(item.id, { state: 'done' })
         } catch (error) {
           update(item.id, { state: 'failed', message: uploadErrorMessage(error), retryable: isRetryableUpload(error) })
@@ -61,14 +67,16 @@ export function useUploadQueue() {
   }
 
   /** Takes the files of one choice: the web refuses what it can at once, the rest wait for their turn. */
-  function add(files: File[]) {
+  function add(files: (File | NamedFile)[]) {
     const made: UploadEntry[] = []
-    for (const file of files) {
+    for (const chosen of files) {
+      const named = chosen instanceof File ? { file: chosen } : chosen
+      const { file } = named
       const id = nextId.current++
       const check = checkStickerFile(file)
       if (check.ok) {
-        kept.current.set(id, file)
-        pending.current.push({ id, file })
+        kept.current.set(id, named)
+        pending.current.push({ id, ...named })
         made.push({ id, name: file.name, state: 'waiting' })
       } else {
         made.push({ id, name: file.name, state: 'failed', message: check.reason })
@@ -81,12 +89,12 @@ export function useUploadQueue() {
 
   /** Puts a failed file back in the queue, at the end. */
   function retry(id: number) {
-    const file = kept.current.get(id)
-    if (!file) {
+    const named = kept.current.get(id)
+    if (!named) {
       return
     }
     update(id, { state: 'waiting', message: undefined, retryable: undefined })
-    pending.current.push({ id, file })
+    pending.current.push({ id, ...named })
     void drain()
   }
 

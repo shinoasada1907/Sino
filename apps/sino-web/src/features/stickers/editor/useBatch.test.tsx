@@ -155,4 +155,21 @@ describe('useBatch (SP-08)', () => {
 
     expect(result.current.refusals).toEqual([])
   })
+
+  it('keeps what was done to each picture by its id, through other changes to the batch (SP-09)', async () => {
+    const { result } = await setup(png('a.png'), png('b.png'), png('c.png'))
+    const [a, b, c] = result.current.items
+
+    act(() => {
+      result.current.edit(b.id, { rotation: 90, zoom: 2 })
+      result.current.rename(b.id, 'Bé mèo')
+    })
+    act(() => result.current.remove(a.id))
+    act(() => result.current.select(c.id))
+
+    const kept = result.current.items.find((item) => item.id === b.id)
+    expect(kept?.edit).toMatchObject({ rotation: 90, zoom: 2, shape: 'square' })
+    expect(kept?.name).toBe('Bé mèo')
+    expect(result.current.items.find((item) => item.id === c.id)?.edit).toEqual({ crop: { x: 0, y: 0 }, zoom: 1, rotation: 0, shape: 'square', area: null })
+  })
 })

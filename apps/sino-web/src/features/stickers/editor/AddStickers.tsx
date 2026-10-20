@@ -5,7 +5,9 @@ import { PICTURE_UNREADABLE } from '../format'
 import { BatchList, type BatchFocus } from './BatchList'
 import { BatchRefusals } from './BatchRefusals'
 import { fileToSend } from './fileToSend'
-import type { Batch, BatchItem } from './useBatch'
+import { ImageEditor } from './ImageEditor'
+import type { NamedFile } from '../useUploadQueue'
+import type { Batch } from './useBatch'
 
 const carriesFiles = (event: DragEvent | globalThis.DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
 
@@ -14,9 +16,9 @@ const carriesFiles = (event: DragEvent | globalThis.DragEvent) => Array.from(eve
  * large, pictures added or taken out, and nothing sent before "Lưu". A dialog from 768 px; below that it fills the screen
  * as a page of its own, still a dialog, so the focus stays in it and goes back to the button that opened it.
  *
- * "Lưu" hands the files to the upload queue of the screen (`onSend`): a moving picture as it is, a still one as the PNG
- * of its middle square. A picture the browser cannot read stays in the step, with why. Framing by hand is SP-09, the pack
- * of the batch and a state for each picture SP-10.
+ * Each picture is framed in its own editor (SP-09). "Lưu" hands the files and their names to the upload queue of the
+ * screen (`onSend`): a moving picture as it is, a still one as the PNG of what was framed. A picture the browser cannot
+ * read stays in the step, with why. The pack of the batch and a state for each picture are SP-10.
  */
 export function AddStickers({
   batch,
@@ -26,7 +28,7 @@ export function AddStickers({
 }: {
   batch: Batch
   onAddMore: () => void
-  onSend: (files: File[]) => void
+  onSend: (files: NamedFile[]) => void
   /** Where the focus goes once the step has closed; the screen knows which button opened it. */
   onCloseAutoFocus: (event: Event) => void
 }) {
@@ -63,11 +65,11 @@ export function AddStickers({
   const save = async () => {
     const chosen = batch.items
     setSaving(true)
-    const files: File[] = []
+    const files: NamedFile[] = []
     const sent: number[] = []
     for (const item of chosen) {
       try {
-        files.push(await fileToSend(item))
+        files.push({ file: await fileToSend(item), name: item.name })
         sent.push(item.id)
       } catch {
         batch.setProblem(item.id, PICTURE_UNREADABLE)
@@ -127,7 +129,16 @@ export function AddStickers({
             onFocused={clearFocus}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-            {batch.selected ? <Preview item={batch.selected} /> : <p className="text-sm text-muted-foreground">Chưa có ảnh nào trong lượt. Thêm ảnh để tiếp tục.</p>}
+            {batch.selected ? (
+              <ImageEditor
+                key={batch.selected.id}
+                item={batch.selected}
+                onEdit={(change) => batch.selected && batch.edit(batch.selected.id, change)}
+                onRename={(name) => batch.selected && batch.rename(batch.selected.id, name)}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Chưa có ảnh nào trong lượt. Thêm ảnh để tiếp tục.</p>
+            )}
             {batch.refusals.length > 0 && <BatchRefusals refusals={batch.refusals} />}
           </div>
         </div>
@@ -143,24 +154,5 @@ export function AddStickers({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/** The selected picture, large, with what "Lưu" will do with it, and why it failed the last time if it did. */
-function Preview({ item }: { item: BatchItem }) {
-  return (
-    <figure className="flex min-h-0 flex-col gap-3">
-      <div className="grid aspect-square max-h-[min(28rem,50svh)] w-full place-items-center overflow-hidden rounded-lg border bg-raised">
-        <img src={item.previewUrl} alt={`Xem trước ${item.file.name}`} className="max-h-full max-w-full object-contain" />
-      </div>
-      <figcaption className="text-sm text-muted-foreground">
-        {item.kind.editing === 'whole' ? 'Ảnh động được lưu nguyên: không cắt, không xoay.' : 'Ảnh sẽ được lưu là hình vuông lớn nhất ở giữa ảnh, cạnh tối đa 512 điểm ảnh.'}
-      </figcaption>
-      {item.problem && (
-        <p role="alert" className="text-sm text-danger-ink">
-          {item.problem}
-        </p>
-      )}
-    </figure>
   )
 }
