@@ -34,12 +34,13 @@ record ConversationDetailResponse(@JsonUnwrapped ConversationResponse conversati
 
     /**
      * {@code state}: {@code READY}, {@code NEEDS_PERMISSION}, {@code ACCOUNT_UNAVAILABLE} or {@code NOT_SUPPORTED};
-     * a {@code name} in {@code to} is null when the header gave none.
+     * a {@code name} in {@code to} is null when the header gave none. {@code canSendImages}: a sticker can be sent here
+     * (ZS-05, D-356); the web shows no sticker button without it.
      */
-    record ReplyResponse(String state, List<Address> to) {
+    record ReplyResponse(String state, List<Address> to, boolean canSendImages) {
 
         static ReplyResponse from(Reply reply) {
-            return new ReplyResponse(reply.state().name(), reply.to());
+            return new ReplyResponse(reply.state().name(), reply.to(), reply.canSendImages());
         }
 
     }

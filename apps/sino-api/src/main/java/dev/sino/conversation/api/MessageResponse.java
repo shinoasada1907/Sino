@@ -17,13 +17,13 @@ import dev.sino.conversation.application.InboxMessage.StickerSprite;
  */
 record MessageResponse(UUID id, String direction, String status, Instant sentAt, Sender sender, List<Address> to,
         List<Address> cc, String subject, String text, String bodyFormat, boolean read, List<File> attachments,
-        UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image) {
+        UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image, UUID libraryStickerId) {
 
     static MessageResponse from(InboxMessage message) {
         return new MessageResponse(message.id(), message.direction().name(), message.status().name(),
                 message.sentAt(), message.sender(), message.to(), message.cc(), message.subject(), message.text(),
                 message.bodyFormat().name(), message.read(), message.attachments(), message.clientMessageId(),
-                message.sticker(), message.stickerSprite(), message.image());
+                message.sticker(), message.stickerSprite(), message.image(), message.libraryStickerId());
     }
 
 }

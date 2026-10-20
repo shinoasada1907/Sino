@@ -2,6 +2,7 @@ package dev.sino.conversation.application;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,11 +23,15 @@ import dev.sino.conversation.SentMessages;
 import dev.sino.conversation.infrastructure.ConversationSummaries;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageStatus;
+import dev.sino.provider.spi.MessageType;
+import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedRecipients;
+import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SendMessageResult;
+import dev.sino.sticker.StickerPictures;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -42,6 +47,9 @@ public class ReplyService implements SentMessages {
     /** The provider's ID of a message Sino has not sent yet is not known: this prefix and the clientMessageId. */
     static final String UNSENT = "sino:";
 
+    /** The text a sticker Sino sent is stored with, as a photo of Zalo is stored as {@code [Ảnh]}. */
+    static final String STICKER_TEXT = "[Sticker]";
+
     private static final Logger log = LoggerFactory.getLogger(ReplyService.class);
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -54,10 +62,11 @@ public class ReplyService implements SentMessages {
     private final AccountDirectory directory;
     private final TransactionTemplate transactions;
     private final ApplicationEventPublisher events;
+    private final StickerPictures stickers;
 
     ReplyService(JdbcClient jdbc, InboxService inbox, Replies replies, MessageHistory history,
             ConversationSummaries summaries, ProviderAccess access, AccountDirectory directory,
-            TransactionTemplate transactions, ApplicationEventPublisher events) {
+            TransactionTemplate transactions, ApplicationEventPublisher events, StickerPictures stickers) {
         this.jdbc = jdbc;
         this.inbox = inbox;
         this.replies = replies;
@@ -67,6 +76,7 @@ public class ReplyService implements SentMessages {
         this.directory = directory;
         this.transactions = transactions;
         this.events = events;
+        this.stickers = stickers;
     }
 
     /**
@@ -80,8 +90,27 @@ public class ReplyService implements SentMessages {
      *         {@code REPLY_NO_RECIPIENT} or {@code SEND_FAILED}
      */
     public Sent send(UUID ownerId, UUID conversationId, String text, UUID clientMessageId) {
+        return send(ownerId, conversationId, new Text(text), clientMessageId);
+    }
+
+    /**
+     * Sends a sticker of the owner's library as a picture (ZS-05, D-351), with every guarantee of a text: one send for a
+     * {@code clientMessageId}, a retry of a message that went out answers it even if the sticker has been deleted
+     * since, and an outcome that is not known is settled later. The message is stored as an {@code IMAGE} that names its
+     * sticker, so the web shows it from the library (D-352).
+     *
+     * @return the message; {@code created} is false when this {@code clientMessageId} was already sent
+     * @throws SinoException the ones of {@link #send}, and {@code STICKER_NOT_FOUND} for a sticker that is not the
+     *         owner's, {@code STICKER_NOT_SENDABLE} for one a message cannot carry, and {@code REPLY_NOT_ALLOWED} with
+     *         the state {@code NOT_SUPPORTED} where the connector sends no pictures
+     */
+    public Sent sendSticker(UUID ownerId, UUID conversationId, UUID stickerId, UUID clientMessageId) {
+        return send(ownerId, conversationId, new Sticker(stickerId), clientMessageId);
+    }
+
+    private Sent send(UUID ownerId, UUID conversationId, Outgoing outgoing, UUID clientMessageId) {
         InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
-        Attempt attempt = transactions.execute(status -> begin(ownerId, conversation, text, clientMessageId));
+        Attempt attempt = transactions.execute(status -> begin(ownerId, conversation, outgoing, clientMessageId));
         if (attempt.alreadySent()) {
             return new Sent(read(attempt.conversationId(), attempt.messageId()), false);
         }
@@ -243,7 +272,7 @@ public class ReplyService implements SentMessages {
     // Transaction 1: what this clientMessageId already is decides; a new or failed message is written PENDING. A new
     // one goes in the primary copy (D-186). One sent before with it stays in the copy it was written to, even when
     // another copy has become the primary one since, so it is never sent twice nor from two accounts (D-131).
-    private Attempt begin(UUID ownerId, InboxItem conversation, String text, UUID clientMessageId) {
+    private Attempt begin(UUID ownerId, InboxItem conversation, Outgoing outgoing, UUID clientMessageId) {
         summaries.lockAll(conversation.accountIds());
         // Every copy of the group, those of accounts out of the inbox too.
         Optional<Existing> existing = jdbc.sql("""
@@ -277,6 +306,10 @@ public class ReplyService implements SentMessages {
         if (reply.state() != ReplyState.READY) {
             throw ConversationErrorCode.replyNotAllowed(reply.state());
         }
+        if (outgoing instanceof Sticker && !reply.canSendImages()) {
+            // The connector of this conversation sends text only (D-356): nothing is written or sent.
+            throw ConversationErrorCode.replyNotAllowed(ReplyState.NOT_SUPPORTED);
+        }
         if (reply.to().isEmpty()) {
             throw ConversationErrorCode.noRecipient();
         }
@@ -304,16 +337,26 @@ public class ReplyService implements SentMessages {
         List<NormalizedRecipients.Address> to = reply.to().stream()
                 .map(address -> new NormalizedRecipients.Address(address.name(), address.address())).toList();
         String recipients = JSON.writeValueAsString(new NormalizedRecipients(to, List.of(), List.of()));
-        UUID messageId = existing.isPresent() ? resend(existing.get().id(), text, answered, recipients)
-                : write(copy, clientMessageId, text, answered, recipients);
+        // Read only now, after a message already sent has been answered above: a retry of a sticker that went out must
+        // not fail because the sticker was deleted since. Nothing is written before it is known to be the owner's.
+        OutgoingImage picture = outgoing instanceof Sticker sticker ? pictureOf(ownerId, sticker.id()) : null;
+        UUID messageId = existing.isPresent() ? resend(existing.get().id(), outgoing, answered, recipients)
+                : write(copy, clientMessageId, outgoing, answered, recipients);
         changed(accountId, copy);
         return new Attempt(messageId, accountId, copy, clientMessageId,
-                new SendMessageCommand(target.externalConversationId(), target.type(), text, answered, to,
-                        clientMessageId, senderName),
+                new SendMessageCommand(target.externalConversationId(), target.type(),
+                        outgoing instanceof Text text ? text.text() : null, answered, to, clientMessageId, senderName,
+                        picture),
                 false);
     }
 
-    private UUID write(UUID conversationId, UUID clientMessageId, String text, String answered, String recipients) {
+    private OutgoingImage pictureOf(UUID ownerId, UUID stickerId) {
+        return stickers.forOwner(ownerId, stickerId).map(StickerImages::imageOf)
+                .orElseThrow(ConversationErrorCode::stickerNotFound);
+    }
+
+    private UUID write(UUID conversationId, UUID clientMessageId, Outgoing outgoing, String answered,
+            String recipients) {
         return jdbc.sql("""
                 INSERT INTO message (conversation_id, sender_participant_id, external_message_id, direction, type,
                                      text_content, status, sent_at, reply_to_external_message_id, is_read,
@@ -322,22 +365,25 @@ public class ReplyService implements SentMessages {
                 VALUES (:conversation,
                         (SELECT id FROM conversation_participant
                          WHERE conversation_id = :conversation AND is_self ORDER BY id LIMIT 1),
-                        :external, 'OUTBOUND', 'TEXT', :text, 'PENDING', now(), :answered, true, true, '{}',
-                        cast(:recipients AS jsonb), 'TEXT', :client, now(), now())
+                        :external, 'OUTBOUND', :type, :text, 'PENDING', now(), :answered, true, true,
+                        cast(:metadata AS jsonb), cast(:recipients AS jsonb), 'TEXT', :client, now(), now())
                 RETURNING id
                 """).param("conversation", conversationId).param("external", UNSENT + clientMessageId)
-                .param("text", text).param("answered", answered).param("recipients", recipients)
+                .param("type", outgoing.type().name()).param("text", outgoing.storedText())
+                .param("metadata", outgoing.metadata()).param("answered", answered).param("recipients", recipients)
                 .param("client", clientMessageId).query(UUID.class).single();
     }
 
     // Under the lock, so no other request sends it meanwhile; should another have taken it all the same, the row is
     // no longer FAILED and this request does not send it too.
-    private UUID resend(UUID messageId, String text, String answered, String recipients) {
+    private UUID resend(UUID messageId, Outgoing outgoing, String answered, String recipients) {
         int taken = jdbc.sql("""
-                UPDATE message SET status = 'PENDING', text_content = :text, reply_to_external_message_id = :answered,
+                UPDATE message SET status = 'PENDING', type = :type, text_content = :text,
+                                   reply_to_external_message_id = :answered, metadata = cast(:metadata AS jsonb),
                                    recipients = cast(:recipients AS jsonb), sent_at = now(), updated_at = now()
                 WHERE id = :message AND status = 'FAILED'
-                """).param("text", text).param("answered", answered).param("recipients", recipients)
+                """).param("type", outgoing.type().name()).param("text", outgoing.storedText())
+                .param("metadata", outgoing.metadata()).param("answered", answered).param("recipients", recipients)
                 .param("message", messageId).update();
         if (taken == 0) {
             throw ConversationErrorCode.sendInProgress();
@@ -362,11 +408,22 @@ public class ReplyService implements SentMessages {
                 .query(UUID.class).optional();
         UUID confirmed = messageId;
         if (imported.isPresent() && !imported.get().equals(messageId)) {
+            // The message the sync brought in knows nothing of the sticker Sino sent it as: it takes that over (D-352).
+            // A list, not a stream: the value is null for every message that is no sticker, and findFirst() refuses null.
+            List<String> stickers = jdbc.sql("SELECT metadata ->> :key FROM message WHERE id = :message")
+                    .param("key", NormalizedMessage.LIBRARY_STICKER_ID).param("message", messageId)
+                    .query((row, n) -> row.getString(1)).list();
+            String sticker = stickers.isEmpty() ? null : stickers.get(0);
             jdbc.sql("DELETE FROM message WHERE id = :message").param("message", messageId).update();
             int taken = jdbc.sql("""
-                    UPDATE message SET client_message_id = :client, updated_at = now()
+                    UPDATE message SET client_message_id = :client,
+                                       metadata = CASE WHEN cast(:sticker AS text) IS NULL THEN metadata
+                                                       ELSE metadata || jsonb_build_object(cast(:key AS text),
+                                                                                           cast(:sticker AS text)) END,
+                                       updated_at = now()
                     WHERE id = :message AND (client_message_id IS NULL OR client_message_id = :client)
-                    """).param("client", clientMessageId).param("message", imported.get()).update();
+                    """).param("client", clientMessageId).param("sticker", sticker)
+                    .param("key", NormalizedMessage.LIBRARY_STICKER_ID).param("message", imported.get()).update();
             if (taken == 0) {
                 // The transaction rolls the delete back: never take what another message of Sino holds.
                 throw new IllegalStateException("Message " + externalMessageId + " is held by another message of Sino");
@@ -430,6 +487,56 @@ public class ReplyService implements SentMessages {
 
     private record Uncertain(UUID id, UUID conversationId, UUID clientMessageId, boolean givenUp,
             SendMessageCommand command, Instant startedAt) {
+    }
+
+    /** What is sent: a text, or a sticker of the library (ZS-05); how each is stored. */
+    private sealed interface Outgoing permits Text, Sticker {
+
+        MessageType type();
+
+        String storedText();
+
+        /** The {@code metadata} of the stored message, as JSON. */
+        String metadata();
+
+    }
+
+    private record Text(String text) implements Outgoing {
+
+        @Override
+        public MessageType type() {
+            return MessageType.TEXT;
+        }
+
+        @Override
+        public String storedText() {
+            return text;
+        }
+
+        @Override
+        public String metadata() {
+            return "{}";
+        }
+
+    }
+
+    private record Sticker(UUID id) implements Outgoing {
+
+        @Override
+        public MessageType type() {
+            return MessageType.IMAGE;
+        }
+
+        @Override
+        public String storedText() {
+            return STICKER_TEXT;
+        }
+
+        @Override
+        public String metadata() {
+            return JSON.writeValueAsString(Map.of(NormalizedMessage.LIBRARY_STICKER_ID, id.toString()));
+        }
+
     }
 
     private record Attempt(UUID messageId, UUID accountId, UUID conversationId, UUID clientMessageId,

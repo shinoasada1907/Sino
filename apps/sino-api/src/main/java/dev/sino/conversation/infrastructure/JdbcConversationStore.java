@@ -226,7 +226,8 @@ public class JdbcConversationStore implements ConversationStore {
                     status = EXCLUDED.status,
                     sent_at = EXCLUDED.sent_at,
                     reply_to_external_message_id = EXCLUDED.reply_to_external_message_id,
-                    metadata = EXCLUDED.metadata,
+                    metadata = EXCLUDED.metadata || jsonb_strip_nulls(jsonb_build_object(cast(:libraryKey AS text),
+                                                                   m.metadata -> cast(:libraryKey AS text))),
                     recipients = coalesce(EXCLUDED.recipients, m.recipients),
                     html_content = coalesce(m.html_content, EXCLUDED.html_content),
                     body_format = CASE WHEN coalesce(m.html_content, EXCLUDED.html_content) IS NULL THEN 'TEXT'
@@ -239,7 +240,9 @@ public class JdbcConversationStore implements ConversationStore {
                        m.reply_to_external_message_id, m.metadata, m.recipients, m.body_format, m.provider_read)
                       IS DISTINCT FROM
                       (EXCLUDED.sender_participant_id, EXCLUDED.direction, EXCLUDED.type, EXCLUDED.text_content,
-                       EXCLUDED.status, EXCLUDED.sent_at, EXCLUDED.reply_to_external_message_id, EXCLUDED.metadata,
+                       EXCLUDED.status, EXCLUDED.sent_at, EXCLUDED.reply_to_external_message_id,
+                       EXCLUDED.metadata || jsonb_strip_nulls(jsonb_build_object(cast(:libraryKey AS text),
+                                                                   m.metadata -> cast(:libraryKey AS text))),
                        coalesce(EXCLUDED.recipients, m.recipients),
                        CASE WHEN coalesce(m.html_content, EXCLUDED.html_content) IS NULL THEN 'TEXT' ELSE 'HTML' END,
                        EXCLUDED.provider_read)
@@ -251,6 +254,7 @@ public class JdbcConversationStore implements ConversationStore {
                 .param("status", message.status().name()).param("sentAt", at(message.sentAt()))
                 .param("replyTo", message.replyToExternalMessageId()).param("read", message.read())
                 .param("metadata", JSON.writeValueAsString(message.metadata()))
+                .param("libraryKey", NormalizedMessage.LIBRARY_STICKER_ID)
                 .param("recipients", message.recipients() == null ? null
                         : JSON.writeValueAsString(message.recipients()))
                 .param("html", keptHtml(message.htmlContent()))
