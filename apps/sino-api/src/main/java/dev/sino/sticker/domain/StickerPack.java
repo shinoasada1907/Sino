@@ -62,15 +62,24 @@ public class StickerPack {
         return true;
     }
 
+    /**
+     * Whether a pack may have this name: 1 to {@value #MAX_NAME_LENGTH} code points once the whitespace at both ends is
+     * gone. The web layer asks it to refuse a name with a 400 before a pack is made.
+     */
+    public static boolean isAllowedName(String name) {
+        if (name == null) {
+            return false;
+        }
+        String trimmed = name.strip();
+        return !trimmed.isEmpty() && trimmed.codePointCount(0, trimmed.length()) <= MAX_NAME_LENGTH;
+    }
+
     private static String checkedName(String name) {
-        String trimmed = Objects.requireNonNull(name, "name").strip();
-        if (trimmed.isEmpty()) {
-            throw new IllegalArgumentException("a pack has a name");
+        Objects.requireNonNull(name, "name");
+        if (!isAllowedName(name)) {
+            throw new IllegalArgumentException("the name of a pack has 1 to " + MAX_NAME_LENGTH + " characters");
         }
-        if (trimmed.codePointCount(0, trimmed.length()) > MAX_NAME_LENGTH) {
-            throw new IllegalArgumentException("the name of a pack is at most " + MAX_NAME_LENGTH + " characters");
-        }
-        return trimmed;
+        return name.strip();
     }
 
     public UUID id() {

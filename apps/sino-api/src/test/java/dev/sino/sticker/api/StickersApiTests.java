@@ -10,11 +10,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,17 +47,20 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import dev.sino.TestcontainersConfiguration;
 import dev.sino.identity.infrastructure.AppUserRepository;
+import dev.sino.sticker.application.StickerPackService;
 import dev.sino.sticker.application.StickerService;
 
 /**
  * The sticker library through HTTP (ST-08, spec {@code custom-stickers}) on the whole application and a real PostgreSQL.
- * The limits are small (20 KB, 64 px, 3 stickers) so that their edges are cheap to reach.
+ * The limits are small (20 KB, 64 px, 3 stickers, 2 packs) so that their edges are cheap to reach; {@link StickerPacksApiTests}
+ * has the same, so both share one application.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
-@TestPropertySource(properties = { "sino.stickers.max-file-size=20KB", "sino.stickers.max-side=64", "sino.stickers.max-per-owner=3" })
+@TestPropertySource(properties = { "sino.stickers.max-file-size=20KB", "sino.stickers.max-side=64", "sino.stickers.max-per-owner=3",
+        "sino.stickers.max-packs-per-owner=2" })
 class StickersApiTests {
 
     private static final int MAX_BYTES = 20 * 1024;
@@ -71,6 +76,9 @@ class StickersApiTests {
 
     @Autowired
     private StickerService service;
+
+    @Autowired
+    private StickerPackService packs;
 
     private UUID owner;
 
@@ -107,6 +115,21 @@ class StickersApiTests {
         return service.upload(stranger, "theirs.png", null, bytes).id();
     }
 
+    private UUID strangersPack() {
+        UUID stranger = UUID.randomUUID();
+        jdbc.update("insert into app_user (id, email, display_name, status, created_at, updated_at) "
+                + "values (?, 'stranger@sino.test', 'Stranger', 'ACTIVE', now(), now())", stranger);
+        return packs.create(stranger, "Của người khác").id();
+    }
+
+    private UUID storedPackOf(UUID sticker) {
+        return jdbc.queryForObject("select pack_id from sticker where id = ?", UUID.class, sticker);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder change(UUID sticker, String body) {
+        return patch("/api/stickers/{id}", sticker).contentType(MediaType.APPLICATION_JSON).content(body);
+    }
+
     private int count(String table) {
         return jdbc.queryForObject("select count(*) from " + table, Integer.class);
     }
@@ -126,6 +149,7 @@ class StickersApiTests {
                 .andExpect(jsonPath("$.width").value(60))
                 .andExpect(jsonPath("$.height").value(40))
                 .andExpect(jsonPath("$.sizeBytes").value(png(60, 40).length))
+                .andExpect(jsonPath("$.packId").value(nullValue()))
                 .andExpect(jsonPath("$.createdAt").value(matchesPattern("\\d{4}-\\d{2}-\\d{2}T[0-9:.]+Z")));
     }
 
@@ -275,6 +299,48 @@ class StickersApiTests {
                 .andExpect(jsonPath("$.code").value("STICKER_LIMIT_REACHED"));
     }
 
+    @Test
+    void keepsAStickerInAPackOfTheOwner() throws Exception {
+        UUID cats = packs.create(owner, "Mèo").id();
+
+        MvcResult result = mvc.perform(upload(file("meo.png", "image/png", png(10, 10))).param("packId", cats.toString())
+                        .with(apiUser()).with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.packId").value(cats.toString()))
+                .andReturn();
+
+        assertThat(storedPackOf(UUID.fromString(JsonPath.read(result.getResponse().getContentAsString(), "$.id")))).isEqualTo(cats);
+        assertThat(packs.get(owner, cats).stickerCount()).isEqualTo(1);
+    }
+
+    @Test
+    void anUploadIntoAPackOfAnotherOwnerOrNoneAtAllKeepsNothing() throws Exception {
+        UUID theirs = strangersPack();
+
+        for (UUID pack : new UUID[] { theirs, UUID.randomUUID() }) {
+            mvc.perform(upload(file("meo.png", "image/png", png(10, 10))).param("packId", pack.toString()).with(apiUser()).with(csrf()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("STICKER_PACK_NOT_FOUND"));
+        }
+        assertThat(count("sticker")).isZero();
+    }
+
+    @Test
+    void aPackIdThatIsNotAnIdIsMalformedAndKeepsNothing() throws Exception {
+        mvc.perform(upload(file("meo.png", "image/png", png(10, 10))).param("packId", "meo").with(apiUser()).with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+        assertThat(count("sticker")).isZero();
+    }
+
+    @Test
+    void anEmptyPackIdIsNoPack() throws Exception {
+        // What a form sends for "Chưa xếp bộ" when it always has the part.
+        mvc.perform(upload(file("meo.png", "image/png", png(10, 10))).param("packId", "").with(apiUser()).with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.packId").value(nullValue()));
+    }
+
     // --- GET /api/stickers ---
 
     @Test
@@ -378,6 +444,104 @@ class StickersApiTests {
         mvc.perform(get("/api/stickers/{id}/content", "not-an-id").with(apiUser())).andExpect(status().isBadRequest());
     }
 
+    // --- PATCH /api/stickers/{id} ---
+
+    @Test
+    void movesAStickerIntoAPackAndKeepsItsName() throws Exception {
+        UUID id = uploadAsOwner("meo.png", png(10, 10));
+        UUID cats = packs.create(owner, "Mèo").id();
+
+        mvc.perform(change(id, "{\"packId\":\"" + cats + "\"}").with(apiUser()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(id.toString()))
+                .andExpect(jsonPath("$.name").value("meo"))
+                .andExpect(jsonPath("$.packId").value(cats.toString()));
+        assertThat(storedPackOf(id)).isEqualTo(cats);
+    }
+
+    @Test
+    void aNullPackIdTakesTheStickerOutOfItsPack() throws Exception {
+        UUID cats = packs.create(owner, "Mèo").id();
+        UUID id = service.upload(owner, "meo.png", null, cats, png(10, 10)).id();
+
+        mvc.perform(change(id, "{\"packId\":null}").with(apiUser()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.packId").value(nullValue()));
+        assertThat(storedPackOf(id)).isNull();
+    }
+
+    @Test
+    void aRenameKeepsThePackAndFollowsTheRulesOfAnUpload() throws Exception {
+        UUID cats = packs.create(owner, "Mèo").id();
+        UUID id = service.upload(owner, "meo.png", null, cats, png(10, 10)).id();
+
+        mvc.perform(change(id, "{\"name\":\"  Mèo vui  \"}").with(apiUser()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Mèo vui"))
+                .andExpect(jsonPath("$.packId").value(cats.toString()));
+        mvc.perform(change(id, "{\"name\":\"  \"}").with(apiUser()).with(csrf()))
+                .andExpect(jsonPath("$.name").value("Sticker"));
+        mvc.perform(change(id, "{\"name\":\"M\\u0000èo\"}").with(apiUser()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Mèo"));
+    }
+
+    @Test
+    void renamesAndMovesInOneChange() throws Exception {
+        UUID id = uploadAsOwner("meo.png", png(10, 10));
+        UUID dogs = packs.create(owner, "Chó").id();
+
+        mvc.perform(change(id, "{\"name\":\"Cún\",\"packId\":\"" + dogs + "\"}").with(apiUser()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Cún"))
+                .andExpect(jsonPath("$.packId").value(dogs.toString()));
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = { "{}", "{\"name\":null}", "{\"packId\":\"meo\"}", "{\"packId\":5}", "{\"packId\":{}}",
+            "{\"packId\":\"1-1-1-1-1\"}" })
+    void aChangeWithNothingToChangeOrAPackIdThatIsNotAnIdIsAValidationFailure(String body) throws Exception {
+        UUID id = uploadAsOwner("meo.png", png(10, 10));
+
+        mvc.perform(change(id, body).with(apiUser()).with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void aBodyThatIsNotJsonIsMalformed() throws Exception {
+        UUID id = uploadAsOwner("meo.png", png(10, 10));
+
+        mvc.perform(change(id, "{\"name\":").with(apiUser()).with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+    }
+
+    @Test
+    void changingAStickerOfAnotherOwnerIsNotFoundAndChangesNothing() throws Exception {
+        UUID theirs = strangerWithASticker(png(12, 10));
+
+        mvc.perform(change(theirs, "{\"name\":\"Của tôi\"}").with(apiUser()).with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("STICKER_NOT_FOUND"));
+        assertThat(jdbc.queryForObject("select name from sticker where id = ?", String.class, theirs)).isEqualTo("theirs");
+    }
+
+    @Test
+    void aStickerCannotMoveIntoAPackOfAnotherOwnerOrNoneAtAll() throws Exception {
+        UUID id = uploadAsOwner("meo.png", png(10, 10));
+        UUID theirs = strangersPack();
+
+        for (UUID pack : new UUID[] { theirs, UUID.randomUUID() }) {
+            mvc.perform(change(id, "{\"packId\":\"" + pack + "\"}").with(apiUser()).with(csrf()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("STICKER_PACK_NOT_FOUND"));
+        }
+        assertThat(storedPackOf(id)).isNull();
+    }
+
     // --- DELETE /api/stickers/{id} ---
 
     @Test
@@ -430,6 +594,7 @@ class StickersApiTests {
         mvc.perform(get("/api/stickers/{id}/content", id)).andExpect(status().isUnauthorized());
         mvc.perform(upload(file("meo.png", "image/png", png(11, 10))).with(csrf())).andExpect(status().isUnauthorized());
         mvc.perform(delete("/api/stickers/{id}", id).with(csrf())).andExpect(status().isUnauthorized());
+        mvc.perform(change(id, "{\"name\":\"Của tôi\"}").with(csrf())).andExpect(status().isUnauthorized());
         assertThat(count("sticker")).isEqualTo(1);
     }
 
@@ -441,7 +606,9 @@ class StickersApiTests {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
         mvc.perform(delete("/api/stickers/{id}", id).with(apiUser())).andExpect(status().isForbidden());
+        mvc.perform(change(id, "{\"name\":\"Của tôi\"}").with(apiUser())).andExpect(status().isForbidden());
         assertThat(count("sticker")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select name from sticker", String.class)).isEqualTo("meo");
     }
 
     @Test

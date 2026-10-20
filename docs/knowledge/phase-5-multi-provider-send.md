@@ -1709,3 +1709,41 @@ public sealed interface PackMove {
 - Test viết trước: đỏ vì chưa có `StickerChange`, `upload` có bộ, `change`; xanh: `StickerInPackTests` 13 (tải vào bộ, không bộ, bộ của người khác và bộ không có không ghi gì, bộ bị xóa giữa chừng khi tải và khi chuyển, chuyển bộ cập nhật số của hai bộ, bỏ khỏi bộ, đổi tên theo luật tải lên giữ hình và bộ, đổi tên và chuyển cùng lúc, sticker của người khác, `StickerChange` rỗng, danh sách có `packId`), `StickerServiceTests` 37 và `StickerServiceFailuresTests` 4 không đổi.
 - `rename` và `moveTo` của `Sticker` ban đầu trả `boolean` theo mẫu của `StickerPack`; không chỗ nào dùng giá trị đó nên đổi thành `void`.
 - `./mvnw -B -ntp verify` toàn bộ: 2458 test, 0 lỗi, 8 bỏ qua.
+
+### 23.7 API của bộ và `PATCH /api/stickers/{id}` (SP-04)
+**Ở đâu:** `sticker/api/StickerPacksController` (`/api/sticker-packs`: `GET`, `GET /{id}`, `POST`, `PATCH /{id}`, `DELETE /{id}`), `StickerPackRequest`, `StickerPackResponse`; `sticker/api/StickersController` (phần `packId` khi tải lên, `PATCH /{id}`), `ChangeStickerRequest`, `StickerResponse` (thêm `packId`); `sticker/domain/StickerPack.isAllowedName`. Test: `StickerPacksApiTests`, `StickersApiTests`.
+
+**Ba ý của `packId` trong một body JSON (câu gợi ý của task):** SP-03 đã có ba ý ở dịch vụ (để nguyên, bỏ khỏi bộ, vào bộ X). JSON cũng phải nói được ba ý đó:
+
+| Body gửi lên | Jackson đọc thành | `PackMove` |
+|---|---|---|
+| `{ "name": "Cún" }` (không có `packId`) | `null` của Java | `null`: để nguyên |
+| `{ "packId": null }` | `NullNode` | `Out`: bỏ khỏi mọi bộ |
+| `{ "packId": "0199…" }` | `StringNode` | `Into(id)`: vào bộ đó |
+
+Nếu `ChangeStickerRequest` có trường `UUID packId`, hai dòng đầu đều thành `null` và không còn phân biệt được. Trường kiểu `JsonNode` (Jackson 3: `tools.jackson.databind.JsonNode`) thì khác: với một trường không có trong body, Jackson hỏi bộ đọc của kiểu đó "giá trị khi vắng mặt" (`getAbsentValue`), và bộ đọc của `JsonNode` trả `null`; với `null` viết rõ trong JSON, nó hỏi "giá trị của null" (`getNullValue`), và bộ đọc của `JsonNode` trả `NullNode`. Vậy `has` ("có gửi") là `packId != null`, còn "bỏ khỏi bộ" là `packId.isNull()`.
+
+**Vì sao chỉ một trường là cây, không phải cả body:** kế hoạch (D-344) nói "đọc JSON thành cây". Đọc cả body thành `JsonNode` thì mất Bean Validation: `{}` hay `packId` sai phải tự kiểm và tự dựng câu trả lời `400 VALIDATION_FAILED` cho giống mọi chỗ khác. Giữ record, chỉ cho `packId` là cây, thì `@Valid` vẫn chạy và `GlobalExceptionHandler` vẫn trả đúng dạng lỗi có `errors`:
+
+```java
+record ChangeStickerRequest(String name, JsonNode packId) {
+    @AssertTrue(message = "give at least one of name, packId")
+    boolean isAnyFieldGiven() { return name != null || packId != null; }
+
+    @AssertTrue(message = "packId must be the ID of a pack, or null for no pack")
+    boolean isPackIdAnIdOrNull() { return packId == null || packId.isNull() || idIn(packId) != null; }
+}
+```
+
+`packId` là số, là object, hay chuỗi không phải UUID đều là `400 VALIDATION_FAILED`. **Bẫy:** `UUID.fromString("1-1-1-1-1")` không báo lỗi mà ra `00000001-0001-0001-0001-000000000001`; nên `idIn` so với mẫu 8-4-4-4-12 chữ số hex trước khi đổi.
+
+**Tên bộ: vì sao không dùng `@NotBlank` và `@Size(max = 50)`:** luật của bộ (SP-01) là "cắt khoảng trắng hai đầu bằng `strip()`, còn 1 đến 50 code point". `@NotBlank` cắt bằng `trim()`, chỉ bỏ ký tự từ U+0020 trở xuống, nên tên chỉ có dấu cách chữ Hán `U+3000` lọt qua; `@Size` đếm đơn vị UTF-16 trên chuỗi chưa cắt, nên 50 emoji (100 đơn vị) bị chặn oan. Tên lọt qua kiểm tra mà miền từ chối thì `StickerPack.create` ném `IllegalArgumentException`, thành `500`. Cách làm: miền có một hàm công khai `StickerPack.isAllowedName(String)`, `checkedName` dùng chính nó, và `StickerPackRequest` hỏi nó trong một `@AssertTrue`. Một luật, một chỗ viết; API trả `400` đúng với mọi tên mà miền không nhận. Ký tự NUL thì bị `@Pattern(regexp = "[^\\x00]*")` chặn như ghi chú (BE-71), vì PostgreSQL không lưu được U+0000 trong `varchar`. Tên sticker không cần chặn NUL: `StickerNames` bỏ mọi ký tự điều khiển.
+
+**`packId` trong `multipart`:** là một phần chữ, đọc bằng `@RequestParam(name = "packId", required = false) UUID packId`. Spring đổi chữ thành `UUID`: chữ rỗng thành `null` (không bộ, tiện cho một form luôn gửi phần này), chữ không phải UUID thành `MethodArgumentTypeMismatchException`, và `GlobalExceptionHandler` trả `400 MALFORMED_REQUEST` như với một ID sai trên đường dẫn.
+
+**Chia sẻ ngữ cảnh Spring giữa hai lớp test:** `StickerPacksApiTests` và `StickersApiTests` có đúng cùng `@TestPropertySource` (thêm `max-packs-per-owner=2` vào cả hai), nên Spring dựng ứng dụng một lần và lớp sau dùng lại từ cache ngữ cảnh: lớp đầu mất khoảng 18 giây (dựng ứng dụng), lớp sau khoảng 1,5 giây. Khác một thuộc tính là một ứng dụng nữa, thêm một lần dựng. Vì hai lớp dùng chung cơ sở dữ liệu, mỗi `@BeforeEach` xóa cả `sticker_pack` trước khi xóa người dùng lạ, nếu không khóa ngoại của bộ chặn lệnh xóa người dùng.
+
+### 23.8 Kiểm chứng (SP-04)
+- Test viết trước: đỏ 46 ca (chưa có `/api/sticker-packs`, chưa có `PATCH`, chưa có `packId` trong câu trả lời); xanh: `StickerPacksApiTests` 30, `StickersApiTests` 49 (thêm 17), `StickerPackTests` thêm 1 (`isAllowedName`), `ModularityTests` 2/2.
+- Hai lớp API dùng chung một ứng dụng nhờ cùng `@TestPropertySource`: lớp đầu khoảng 18 giây, lớp sau khoảng 1,5 giây.
+- `./mvnw -B -ntp verify` toàn bộ: 2506 test, 0 lỗi, 8 bỏ qua.

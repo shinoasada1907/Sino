@@ -6,14 +6,18 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -51,14 +55,16 @@ class StickersController {
 
     /**
      * Keeps a file as a sticker: a {@code multipart/form-data} request with the part {@code file} and, if the user typed
-     * one, the part {@code name}. The file part is not required here: a missing one is the service's
-     * {@code STICKER_FILE_MISSING}, the same answer as for an empty file.
+     * one, the part {@code name}, and the part {@code packId} for a sticker that goes into a pack (D-344; empty is no
+     * pack). The file part is not required here: a missing one is the service's {@code STICKER_FILE_MISSING}, the same
+     * answer as for an empty file.
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     ResponseEntity<StickerResponse> upload(@RequestPart(name = "file", required = false) MultipartFile file,
-            @RequestParam(name = "name", required = false) String name) {
+            @RequestParam(name = "name", required = false) String name,
+            @RequestParam(name = "packId", required = false) UUID packId) {
         Sticker kept = stickers.upload(currentUser.requireOwnerId(), file == null ? null : file.getOriginalFilename(), name,
-                file == null ? null : bytesOf(file));
+                packId, file == null ? null : bytesOf(file));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(kept.id()).toUri();
         return ResponseEntity.created(location).body(StickerResponse.from(kept));
     }
@@ -74,6 +80,12 @@ class StickersController {
     @GetMapping("/{id}")
     StickerResponse get(@PathVariable UUID id) {
         return StickerResponse.from(stickers.get(currentUser.requireOwnerId(), id));
+    }
+
+    /** Renames a sticker, moves it to another pack or out of every pack, or both; its picture stays (D-344). */
+    @PatchMapping("/{id}")
+    StickerResponse change(@PathVariable UUID id, @Valid @RequestBody ChangeStickerRequest request) {
+        return StickerResponse.from(stickers.change(currentUser.requireOwnerId(), id, request.toChange()));
     }
 
     /**

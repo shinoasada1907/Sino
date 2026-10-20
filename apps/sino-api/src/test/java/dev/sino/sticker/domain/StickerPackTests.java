@@ -50,6 +50,17 @@ class StickerPackTests {
     }
 
     @Test
+    void theRuleOfANameCanBeAskedWithoutMakingAPack() {
+        // The web layer asks it to answer 400 rather than let the constructor refuse with a 500 (SP-04).
+        assertThat(StickerPack.isAllowedName("  Mèo  ")).isTrue();
+        assertThat(StickerPack.isAllowedName("😀".repeat(50))).isTrue();
+        assertThat(StickerPack.isAllowedName("😀".repeat(50) + "x")).isFalse();
+        assertThat(StickerPack.isAllowedName("x".repeat(51))).isFalse();
+        assertThat(StickerPack.isAllowedName(" \n　")).isFalse();
+        assertThat(StickerPack.isAllowedName(null)).isFalse();
+    }
+
+    @Test
     void renamingToANewNameChangesIt() {
         StickerPack pack = StickerPack.create(OWNER, "Mèo", NOW);
 
