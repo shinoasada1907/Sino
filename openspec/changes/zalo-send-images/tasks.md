@@ -30,6 +30,15 @@
 
 ## 2. `sino-api`
 
+- [ ] 1.3 **ZS-09 — Ảnh tĩnh đi như AI sticker của Zalo (D-359, DN-2 = B)**
+  - **Goal:** sticker PNG / WebP gửi từ Sino hiện trong Zalo như sticker (không khung ảnh), không như ảnh.
+  - **Files:** `src/gateway/ZcaGateway.ts` (`sendPhotoSticker`, `photoStickerParams`, `photoUrlSender`); test mới sau lượt xem thật.
+  - **Acceptance criteria:** spec `zalo-image-send`, requirement "Ảnh tĩnh hiện như sticker của Zalo".
+  - **Thực hiện:** phiên "sino-web-ba" viết bản thử (đọc mã của chat.zalo.me, chưa gửi thật) rồi bàn giao cho phiên "sino-zalo-36" (người dùng: "sửa đi"). `ZcaGateway.sendImage` chọn theo đuôi tên: `.gif` đi `sendImage` cũ; còn lại đi `sendPhotoSticker`: `uploadAttachment` rồi `photo_url` (thêm vào phiên bằng `api.custom("sinoPhotoUrl")`, một lần cho mỗi kết nối) với các trường AI sticker của D-359. Phiên "sino-zalo-36" sửa thêm hai chỗ: mọi lỗi lúc upload là `ZaloRejectedError` (trước đó là chưa rõ, mà ảnh chưa rõ ở lại `UNKNOWN` mãi, D-357), và `clientId` là số như `zca-js`.
+  - **Làm khác kế hoạch (lý do):** (1) **Đổi DN-2 từ A sang B** sau ZS-08, theo yêu cầu của người dùng (design: D-359). (2) **Commit trước khi thử thật và trước test tự động:** Claude in Chrome không kết nối được trong phiên này, người dùng chọn đẩy lên `dev` và gộp vào `deploy/devtest` để xem trên đó; test tự động viết sau lượt xem, theo luật "test tay trước" (2026-10-20).
+  - **Bằng chứng (chưa đủ để tick):** `pnpm exec tsc --noEmit` thoát 0, `pnpm exec oxlint` thoát 0, `pnpm test` 20 tệp / 292 test xanh (không test nào gọi tới nhánh mới). `sino-zalo` cục bộ nạp lại bản này và có 1 phiên sống (`/health`). **Chưa kiểm:** gửi thật (devtest hay máy người dùng), các giả định của D-359, test cho `sendPhotoSticker` / `photoStickerParams`.
+  - **Depends on:** ZS-01, ZS-02.
+
 - [x] 2.1 **ZS-03 — `OutgoingImage`, `SEND_IMAGES`, `ZaloProvider` gửi ảnh (D-349)**
   - **Goal:** contract gửi tin mang được ảnh; Zalo gửi được, Gmail từ chối.
   - **Files:** `provider/ProviderCapability`, `provider/spi/{SendMessageCommand,OutgoingImage}`, `provider/infrastructure/zalo/{ZaloProvider,ZaloClient}`, `provider/infrastructure/gmail/GmailProvider` (từ chối ảnh), contract test kit; bảng capability trong design của change.
