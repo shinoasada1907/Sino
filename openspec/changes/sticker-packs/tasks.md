@@ -48,13 +48,15 @@
 
 ## 2. Web
 
-- [ ] 2.1 **SP-05 — Lớp dữ liệu: bộ, chuyển bộ, tải lên có `packId`**
+- [x] 2.1 **SP-05 — Lớp dữ liệu: bộ, chuyển bộ, tải lên có `packId`**
   - **Goal:** hook và request cho mọi lệnh mới, cache không bị lần đọc cũ ghi đè.
   - **Files:** `features/stickers/{stickers.types,stickers.api,useStickers,usePacks}.ts` (+ test), `test/fixtures/stickersApi.ts`, MSW.
   - **Acceptance criteria:** đọc được bộ và sticker có `packId`; tạo, đổi tên, xóa bộ; chuyển sticker; tải lên kèm `packId`; mọi thay đổi vá cache theo cách của `setStickers` (hủy lần đọc đang chạy trước khi vá).
   - **Test:** Vitest + MSW cho từng hook, cả ca lần đọc chạy chéo một thay đổi.
   - **Depends on:** SP-04 (hợp đồng; MSW đứng thay cho tới khi chạy thật).
   - **Hints:** **Level 1:** xóa một bộ thì cache nào phải đổi, ngoài danh sách bộ? **Level 2:** danh sách sticker cũng đổi (`packId` về `null`).
+  - **Thực hiện:** `stickers.types` (`packId`, `StickerPack`, `StickerChange`), `stickers.api` (bốn lệnh của bộ, `changeSticker`, `uploadSticker(file, name, packId)`), `usePacks` (đọc, tạo, đổi tên, xóa), `useStickers` (`useChangeSticker`; tải lên và xóa đếm lại bộ); fixture `pack()`, `API_PACKS`, `PACKED_STICKERS`. **Thêm tệp ngoài danh sách:** `stickersCache.ts`, vì `setStickers` thành `setList<T>` dùng cho cả hai cache, và đặt nó ở `useStickers` hay `usePacks` thì hai tệp nhập lẫn nhau. Số sticker và ảnh bìa của bộ được **đếm lại** từ danh sách sticker sau mỗi thay đổi (như máy chủ tính), không cộng trừ; không có danh sách sticker thì danh sách bộ được đánh dấu cũ. Bộ hay sticker mà máy chủ nói đã mất (`404`) được bỏ khỏi cache như khi xóa. MSW: mỗi test tự khai báo (như các test sticker sẵn có), không cần handler chung.
+  - **Bằng chứng:** test viết trước, đỏ vì chưa có module mới; xanh: `stickers.api.test.ts` 16 (+7), `useStickers.test.tsx` 25 (+12), `usePacks.test.tsx` 14 (mới), gồm 5 ca lần đọc chạy chéo một thay đổi; `pnpm lint` (2 cảnh báo cũ ở `features/public`), `tsc -b`, `pnpm test` **110 tệp, 1128 test**, `pnpm build` đều qua. Không chạy Chrome thật: không màn nào đổi. Kiến thức: mục 23.9, 23.10.
 
 - [ ] 2.2 **SP-06 — Lưới theo bộ và quản lý bộ**
   - **Goal:** màn Sticker chia theo bộ; tạo, đổi tên, xóa bộ; chuyển sticker.

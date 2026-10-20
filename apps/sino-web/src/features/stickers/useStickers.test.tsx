@@ -3,19 +3,23 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
-import { API_STICKERS, sticker } from '@/test/fixtures/stickersApi'
+import { API_PACKS, API_STICKERS, PACKED_STICKERS, sticker } from '@/test/fixtures/stickersApi'
 import { server } from '@/test/msw/server'
-import { fetchStickers } from './stickers.api'
-import type { StickerItem } from './stickers.types'
-import { STICKERS_QUERY_KEY, useDeleteSticker, useStickers, useUploadSticker } from './useStickers'
+import { fetchPacks, fetchStickers } from './stickers.api'
+import type { StickerItem, StickerPack } from './stickers.types'
+import { PACKS_QUERY_KEY } from './stickersCache'
+import { STICKERS_QUERY_KEY, useChangeSticker, useDeleteSticker, useStickers, useUploadSticker } from './useStickers'
 
 const problem = (status: number, code: string) =>
   HttpResponse.json({ title: 'Error', status, code, instance: '/api/stickers' }, { status, headers: { 'Content-Type': 'application/problem+json' } })
 
-function setup(cached?: StickerItem[]) {
+function setup(cached?: StickerItem[], packs?: StickerPack[]) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   if (cached) {
     queryClient.setQueryData(STICKERS_QUERY_KEY, cached)
+  }
+  if (packs) {
+    queryClient.setQueryData(PACKS_QUERY_KEY, packs)
   }
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   return { queryClient, wrapper }
@@ -228,5 +232,206 @@ describe('a read of the list that crosses an upload or a delete', () => {
     })
 
     expect(ids(queryClient)).toEqual(['st-dance'])
+  })
+})
+
+/** Each pack as `[id, stickerCount, coverStickerId]`. */
+const counts = (queryClient: QueryClient) =>
+  queryClient.getQueryData<StickerPack[]>(PACKS_QUERY_KEY)?.map((item) => [item.id, item.stickerCount, item.coverStickerId])
+const packOf = (queryClient: QueryClient, id: string) => queryClient.getQueryData<StickerItem[]>(STICKERS_QUERY_KEY)?.find((item) => item.id === id)?.packId
+
+describe('stickers in packs (SP-05)', () => {
+  it('uploads into a pack: the form has the pack, and the pack counts the new sticker as its newest', async () => {
+    let packId: FormDataEntryValue | null = null
+    const made = sticker({ id: 'st-new', packId: 'pk-cats', createdAt: '2026-10-20T10:00:00Z' })
+    server.use(
+      http.post('/api/stickers', async ({ request }) => {
+        packId = (await request.formData()).get('packId')
+        return HttpResponse.json(made, { status: 201 })
+      }),
+    )
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useUploadSticker(), { wrapper })
+
+    await act(() => result.current.mutateAsync({ file: PNG, packId: 'pk-cats' }))
+
+    expect(packId).toBe('pk-cats')
+    expect(counts(queryClient)).toEqual([
+      ['pk-cats', 2, 'st-new'],
+      ['pk-dogs', 0, null],
+    ])
+  })
+
+  it('forgets a pack an upload was refused for as gone, and keeps no sticker', async () => {
+    server.use(http.post('/api/stickers', () => problem(404, 'STICKER_PACK_NOT_FOUND')))
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useUploadSticker(), { wrapper })
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ file: PNG, packId: 'pk-cats' })).rejects.toMatchObject({ code: 'STICKER_PACK_NOT_FOUND' })
+    })
+
+    expect(counts(queryClient)).toEqual([['pk-dogs', 0, null]])
+    expect(queryClient.getQueryData<StickerItem[]>(STICKERS_QUERY_KEY)?.map((item) => [item.id, item.packId])).toEqual([
+      ['st-dance', null],
+      ['st-cat', null],
+    ])
+  })
+
+  it('a deleted sticker leaves the count of its pack, and the cover goes to the next newest or to none', async () => {
+    const older = sticker({ id: 'st-old', packId: 'pk-cats', createdAt: '2026-10-19T07:00:00Z' })
+    server.use(http.delete('/api/stickers/st-cat', () => new HttpResponse(null, { status: 204 })))
+    const { queryClient, wrapper } = setup([...PACKED_STICKERS, older], [{ ...API_PACKS[0], stickerCount: 2 }, API_PACKS[1]])
+    const { result } = renderHook(() => useDeleteSticker(), { wrapper })
+
+    await act(() => result.current.mutateAsync('st-cat'))
+
+    expect(counts(queryClient)).toEqual([
+      ['pk-cats', 1, 'st-old'],
+      ['pk-dogs', 0, null],
+    ])
+  })
+
+  it('moves a sticker to another pack: the sticker as the server gives it, and both packs counted again', async () => {
+    server.use(http.patch('/api/stickers/st-cat', () => HttpResponse.json({ ...PACKED_STICKERS[1], packId: 'pk-dogs' })))
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useChangeSticker(), { wrapper })
+
+    await act(() => result.current.mutateAsync({ id: 'st-cat', change: { packId: 'pk-dogs' } }))
+
+    expect(packOf(queryClient, 'st-cat')).toBe('pk-dogs')
+    expect(counts(queryClient)).toEqual([
+      ['pk-cats', 0, null],
+      ['pk-dogs', 1, 'st-cat'],
+    ])
+  })
+
+  it('takes a sticker out of its pack, and renames one in place', async () => {
+    server.use(
+      http.patch('/api/stickers/st-cat', () => HttpResponse.json({ ...PACKED_STICKERS[1], packId: null })),
+      http.patch('/api/stickers/st-dance', () => HttpResponse.json({ ...PACKED_STICKERS[0], name: 'nhảy múa' })),
+    )
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useChangeSticker(), { wrapper })
+
+    await act(() => result.current.mutateAsync({ id: 'st-cat', change: { packId: null } }))
+    await act(() => result.current.mutateAsync({ id: 'st-dance', change: { name: 'nhảy múa' } }))
+
+    const list = queryClient.getQueryData<StickerItem[]>(STICKERS_QUERY_KEY)
+    expect(list?.map((item) => [item.id, item.name, item.packId])).toEqual([
+      ['st-dance', 'nhảy múa', null],
+      ['st-cat', 'meo', null],
+    ])
+    expect(counts(queryClient)).toEqual([
+      ['pk-cats', 0, null],
+      ['pk-dogs', 0, null],
+    ])
+  })
+
+  it('takes a sticker out of the list that the server says is gone, and out of the count of its pack', async () => {
+    server.use(http.patch('/api/stickers/st-cat', () => problem(404, 'STICKER_NOT_FOUND')))
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useChangeSticker(), { wrapper })
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ id: 'st-cat', change: { packId: 'pk-dogs' } })).rejects.toMatchObject({ code: 'STICKER_NOT_FOUND' })
+    })
+
+    expect(queryClient.getQueryData<StickerItem[]>(STICKERS_QUERY_KEY)?.map((item) => item.id)).toEqual(['st-dance'])
+    expect(counts(queryClient)).toEqual([
+      ['pk-cats', 0, null],
+      ['pk-dogs', 0, null],
+    ])
+  })
+
+  it('forgets the pack a move was refused for as gone, and leaves the sticker where it was', async () => {
+    server.use(http.patch('/api/stickers/st-dance', () => problem(404, 'STICKER_PACK_NOT_FOUND')))
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useChangeSticker(), { wrapper })
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ id: 'st-dance', change: { packId: 'pk-dogs' } })).rejects.toMatchObject({ code: 'STICKER_PACK_NOT_FOUND' })
+    })
+
+    expect(counts(queryClient)).toEqual([['pk-cats', 1, 'st-cat']])
+    expect(packOf(queryClient, 'st-dance')).toBeNull()
+    expect(packOf(queryClient, 'st-cat')).toBe('pk-cats')
+  })
+
+  it('changes nothing when a change fails for another reason', async () => {
+    server.use(http.patch('/api/stickers/st-cat', () => problem(500, 'INTERNAL')))
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useChangeSticker(), { wrapper })
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ id: 'st-cat', change: { packId: 'pk-dogs' } })).rejects.toMatchObject({ status: 500 })
+    })
+
+    expect(queryClient.getQueryData(STICKERS_QUERY_KEY)).toEqual(PACKED_STICKERS)
+    expect(queryClient.getQueryData(PACKS_QUERY_KEY)).toEqual(API_PACKS)
+  })
+
+  it('does not start a list of packs when the packs were never read', async () => {
+    server.use(http.patch('/api/stickers/st-cat', () => HttpResponse.json({ ...PACKED_STICKERS[1], packId: 'pk-dogs' })))
+    const { queryClient, wrapper } = setup(PACKED_STICKERS)
+    const { result } = renderHook(() => useChangeSticker(), { wrapper })
+
+    await act(() => result.current.mutateAsync({ id: 'st-cat', change: { packId: 'pk-dogs' } }))
+
+    expect(queryClient.getQueryData(PACKS_QUERY_KEY)).toBeUndefined()
+  })
+
+  it('reads the packs again when it has them but not the stickers to count them by', async () => {
+    server.use(http.post('/api/stickers', () => HttpResponse.json(sticker({ id: 'st-new', packId: 'pk-cats' }), { status: 201 })))
+    const { queryClient, wrapper } = setup(undefined, API_PACKS)
+    const { result } = renderHook(() => useUploadSticker(), { wrapper })
+
+    await act(() => result.current.mutateAsync({ file: PNG, packId: 'pk-cats' }))
+
+    // Marked stale: read again as soon as a screen shows them, and not before.
+    expect(queryClient.getQueryState(PACKS_QUERY_KEY)?.isInvalidated).toBe(true)
+  })
+
+  it('keeps the counts of a move when a read of the packs that started before it ends after it', async () => {
+    server.use(
+      http.get('/api/sticker-packs', async () => {
+        await delay(60)
+        return HttpResponse.json({ items: API_PACKS })
+      }),
+      http.patch('/api/stickers/st-cat', () => HttpResponse.json({ ...PACKED_STICKERS[1], packId: 'pk-dogs' })),
+    )
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useChangeSticker(), { wrapper })
+    const reading = queryClient.fetchQuery({ queryKey: PACKS_QUERY_KEY, queryFn: fetchPacks })
+
+    await act(() => result.current.mutateAsync({ id: 'st-cat', change: { packId: 'pk-dogs' } }))
+    await act(async () => {
+      await reading.catch(() => undefined)
+    })
+
+    expect(counts(queryClient)).toEqual([
+      ['pk-cats', 0, null],
+      ['pk-dogs', 1, 'st-cat'],
+    ])
+  })
+
+  it('keeps a move when a read of the stickers that started before it ends after it', async () => {
+    server.use(
+      http.get('/api/stickers', async () => {
+        await delay(60)
+        return HttpResponse.json({ items: PACKED_STICKERS })
+      }),
+      http.patch('/api/stickers/st-cat', () => HttpResponse.json({ ...PACKED_STICKERS[1], packId: 'pk-dogs' })),
+    )
+    const { queryClient, wrapper } = setup(PACKED_STICKERS, API_PACKS)
+    const { result } = renderHook(() => useChangeSticker(), { wrapper })
+    const reading = queryClient.fetchQuery({ queryKey: STICKERS_QUERY_KEY, queryFn: fetchStickers })
+
+    await act(() => result.current.mutateAsync({ id: 'st-cat', change: { packId: 'pk-dogs' } }))
+    await act(async () => {
+      await reading.catch(() => undefined)
+    })
+
+    expect(packOf(queryClient, 'st-cat')).toBe('pk-dogs')
   })
 })

@@ -1747,3 +1747,30 @@ record ChangeStickerRequest(String name, JsonNode packId) {
 - Test viết trước: đỏ 46 ca (chưa có `/api/sticker-packs`, chưa có `PATCH`, chưa có `packId` trong câu trả lời); xanh: `StickerPacksApiTests` 30, `StickersApiTests` 49 (thêm 17), `StickerPackTests` thêm 1 (`isAllowedName`), `ModularityTests` 2/2.
 - Hai lớp API dùng chung một ứng dụng nhờ cùng `@TestPropertySource`: lớp đầu khoảng 18 giây, lớp sau khoảng 1,5 giây.
 - `./mvnw -B -ntp verify` toàn bộ: 2506 test, 0 lỗi, 8 bỏ qua.
+
+### 23.9 Web: lớp dữ liệu của bộ (SP-05)
+**Ở đâu** (tính từ `apps/sino-web/src/`): `features/stickers/stickers.types.ts` (`StickerItem.packId`, `StickerPack`, `StickerChange`), `stickers.api.ts` (`fetchPacks`, `createPack`, `renamePack`, `deletePack`, `changeSticker`, `uploadSticker(file, name, packId)`), `stickersCache.ts` (khóa của hai cache và các hàm vá), `useStickers.ts` (thêm `useChangeSticker`), `usePacks.ts` (`usePacks`, `useCreatePack`, `useRenamePack`, `useDeletePack`); `test/fixtures/stickersApi.ts` (`pack()`, `API_PACKS`, `PACKED_STICKERS`). Test: `stickers.api.test.ts`, `useStickers.test.tsx`, `usePacks.test.tsx`.
+
+**Hai cache phụ thuộc nhau:** TanStack Query giữ danh sách sticker (khóa `['stickers']`) và danh sách bộ (khóa `['sticker-packs']`). Danh sách bộ có `stickerCount` và `coverStickerId`, là những thứ suy ra từ danh sách sticker. Vì vậy một thay đổi trên sticker cũng làm danh sách bộ cũ đi. Câu gợi ý của task hỏi chiều ngược lại: xóa một bộ thì danh sách sticker cũng đổi, vì các sticker của bộ đó giờ có `packId: null`. Bảng sau là mỗi thay đổi vá cache nào:
+
+| Thay đổi | Danh sách sticker | Danh sách bộ |
+|---|---|---|
+| Tải lên (có hay không có bộ) | thêm vào đầu | đếm lại |
+| Xóa sticker, hay máy chủ nói sticker đã mất | bỏ ra | đếm lại |
+| Đổi tên, chuyển bộ, bỏ khỏi bộ | thay bằng bản máy chủ trả về | đếm lại |
+| Tạo bộ | không đổi | thêm vào cuối (bộ mới nhất) |
+| Đổi tên bộ | không đổi | thay bằng bản máy chủ trả về |
+| Xóa bộ, hay máy chủ nói bộ đã mất (`STICKER_PACK_NOT_FOUND`) | `packId` của bộ đó về `null` | bỏ bộ ra |
+
+**Vì sao "đếm lại" mà không cộng một, trừ một:** cách cộng trừ phải đúng ở từng chỗ (tải lên một sticker mà danh sách đã có, chuyển từ bộ A sang B, xóa sticker đang làm ảnh bìa thì ảnh bìa là sticker nào?), và một chỗ sai thì số lệch mãi tới lần đọc sau. Đếm lại dùng một luật cho mọi thay đổi, đúng như máy chủ tính: số sticker có `packId` của bộ, ảnh bìa là sticker đầu tiên của bộ trong danh sách (danh sách sticker luôn mới nhất trước, như `ORDER BY created_at DESC` ở máy chủ). Thư viện có tối đa 300 sticker nên đếm lại mỗi lần là rẻ. Khi chưa có danh sách sticker để đếm, danh sách bộ được đánh dấu cũ (`invalidateQueries`) và đọc lại khi một màn cần nó.
+
+**Một hàm vá cho cả hai cache:** `setStickers` của ST-11 (hủy lần đọc đang chạy, chưa có danh sách thì đọc lại, có thì vá) giờ là `setList<T>` trong `stickersCache.ts`, một hàm **generic**: `T` là kiểu phần tử của danh sách, nên cùng một thân hàm dùng được cho `StickerItem[]` và `StickerPack[]`, và TypeScript vẫn kiểm đúng kiểu ở mỗi chỗ gọi. Nó nằm ở tệp riêng vì cả `useStickers.ts` và `usePacks.ts` đều cần (xóa bộ vá danh sách sticker, chuyển sticker vá danh sách bộ); đặt trong một trong hai tệp thì hai tệp nhập lẫn nhau. `useStickers.ts` vẫn xuất lại `STICKERS_QUERY_KEY` để chỗ cũ không phải sửa.
+
+**`onError` trả về một promise:** TanStack Query chờ promise mà `onSuccess` hay `onError` trả về rồi mới cho `mutateAsync` xong. Nhờ vậy, khi người gọi nhận lỗi `STICKER_PACK_NOT_FOUND`, cache đã bỏ bộ đó rồi. `useDeleteSticker` cũ gọi `remove(id)` mà không `return`. Lúc trước nó vẫn kịp vì việc vá ngắn; giờ việc vá có thêm bước đếm lại, nên đã thêm `return`.
+
+**Ba ý của `packId` đi qua JSON:** `changeSticker(id, change)` gửi nguyên `change` làm body. `JSON.stringify` bỏ trường có giá trị `undefined` và giữ trường `null`: `{ name: 'Cún' }` không có `packId` (máy chủ để nguyên bộ), `{ packId: null }` có `"packId": null` (bỏ khỏi bộ). Đây đúng là ba ý mà mục 23.7 đọc ở máy chủ. Khi tải lên, phần `packId` của form chỉ được thêm khi có bộ; không có phần đó là "Chưa xếp bộ".
+
+### 23.10 Kiểm chứng (SP-05)
+- Test viết trước, đỏ vì chưa có hàm và module mới; xanh: `stickers.api.test.ts` 16 (thêm 7), `useStickers.test.tsx` 25 (thêm 12: tải vào bộ, bộ đã mất khi tải và khi chuyển, xóa sticker làm đổi ảnh bìa, chuyển, bỏ khỏi bộ, đổi tên, sticker đã mất, lỗi khác không đổi gì, không tự dựng danh sách bộ, đánh dấu cũ khi không có sticker để đếm, hai ca lần đọc chạy chéo), `usePacks.test.tsx` 14 (đọc, thử lại, tạo, đổi tên, xóa, lỗi, bộ đã mất, ba ca lần đọc chạy chéo).
+- `pnpm lint` (2 cảnh báo cũ ở `features/public`, không phải tệp của task này), `tsc -b`, `pnpm test` 110 tệp, 1128 test, `pnpm build`: đều qua.
+- Không chạy Chrome thật: task này không đổi màn nào (lớp dữ liệu chưa được màn nào dùng; màn theo bộ là SP-06).
