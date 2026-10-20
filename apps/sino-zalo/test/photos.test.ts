@@ -252,9 +252,18 @@ describe("SessionManager logs a photo", () => {
       zaloType: "chat.photo",
       length: 0,
       photo: true,
+      photoSticker: false,
     });
     expect(JSON.stringify(lines)).not.toContain("zdn.vn");
     expect(JSON.stringify(lines)).not.toContain("Chuyến đi");
+  });
+
+  it("says whether the photo is a sticker (ZL-19)", async () => {
+    const message = photoMessage("100");
+
+    const lines = await received({ ...message, photo: { ...message.photo!, sticker: true } });
+
+    expect(lines.find((l) => l.message === "Zalo message")?.details).toMatchObject({ photo: true, photoSticker: true });
   });
 
   it("says so when a photo message came without a usable picture", async () => {

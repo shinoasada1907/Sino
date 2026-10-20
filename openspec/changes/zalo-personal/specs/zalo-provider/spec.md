@@ -58,6 +58,17 @@ Với tin `zaloType` = `chat.photo`, `sino-zalo` MUST trả `photo { url, thumbU
 - **WHEN** `photo.url` là `https://evil.example.com/a.jpg` và không có ảnh nhỏ
 - **THEN** tin chuẩn hóa có `textContent` = `[Ảnh]`, `metadata` không có khóa ảnh nào, và log có `evil.example.com` mà không có đường dẫn
 
+### Requirement: Ảnh Zalo vẽ như sticker
+Tin `chat.photo` mà Zalo vẽ như sticker (`params.pStickerType` là số nguyên, hoặc bong bóng không viền: `propertyExt.type` = 3) MUST có `photo.sticker` = `true` từ `sino-zalo`; ảnh khác MUST không có trường này. Connector MUST lưu tin có `photo.sticker` là `IMAGE` với `textContent` = `[Sticker]` và ảnh trong `metadata.stickerUrl` (cùng luật địa chỉ như ảnh; ảnh nhỏ đứng thay khi ảnh chính bị từ chối), không có `imageUrl` hay chú thích, để web vẽ nó như sticker. Thiếu `photo.sticker` MUST được đọc là ảnh thường.
+
+#### Scenario: Sticker AI của Zalo
+- **WHEN** `sino-zalo` trả tin `chat.photo` với `photo.url` trên `zdn.vn` và `photo.sticker` = `true`
+- **THEN** tin chuẩn hóa có `type` = `IMAGE`, `textContent` = `[Sticker]`, `metadata` có `stickerUrl` và không có `imageUrl`
+
+#### Scenario: Ảnh thường không có dấu sticker
+- **WHEN** JSON của `photo` không có trường `sticker`
+- **THEN** tin được đọc và lưu như ảnh (`[Ảnh]`, `imageUrl`)
+
 ### Requirement: Webhook báo có tin Zalo
 `POST /api/webhooks/zalo` với `{ "ownId": ... }` và đúng khóa bí mật MUST phát `ProviderPushReceived(zalo, ownId)` và trả `204`. Sai hoặc thiếu khóa MUST trả `401` và không phát event. Endpoint MUST không cần session đăng nhập hay CSRF, và MUST đọc tối đa 1 KB body.
 

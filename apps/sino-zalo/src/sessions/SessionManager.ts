@@ -301,7 +301,9 @@ export class SessionManager {
         threadId: message.threadId,
         zaloType: message.zaloType,
         length: message.text?.length ?? 0,
-        ...(message.zaloType === "chat.photo" ? { photo: message.photo !== undefined } : {}),
+        ...(message.zaloType === "chat.photo"
+          ? { photo: message.photo !== undefined, photoSticker: message.photo?.sticker === true }
+          : {}),
         ...(message.zaloType === "chat.sticker" && message.sticker !== undefined
           ? { stickerId: message.sticker.id, stickerCatId: message.sticker.catId, stickerType: message.sticker.type }
           : {}),
