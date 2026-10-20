@@ -2031,3 +2031,59 @@ tất cả được ─► đóng bước, màn nói "Đã lưu N sticker vào b
     - "Hủy" thì hỏi "Bỏ 1 ảnh chưa lưu?"; "Tiếp tục chỉnh" giữ ảnh; Esc rồi "Bỏ ảnh" đóng bước mà không gửi gì, không còn `pointer-events` sót trên `body`.
   - 390 cảm ứng: nút "Thêm ảnh vào bộ Thú vui" 44 × 44; ô chọn bộ cao 44; không cuộn ngang; lưu vào "Thú vui" từ điện thoại.
 - **Sai sót khi dựng môi trường:** `pgrep -f SinoApiApplication` khớp với chính dòng lệnh của shell (vốn chứa chữ đó), nên backend không được bật lại sau một lần container khởi động lại; vòng chờ treo cho tới lúc tôi dừng nó. Sửa bằng cách bật backend trực tiếp.
+
+## 24. Gửi sticker trong chat Zalo (`zalo-send-images`)
+
+Mục này mới có phần ZS-08. Các phần ZS-01…ZS-07 chưa được viết vào file này vì phiên làm chúng đã dừng trước bước tài liệu: gửi ảnh qua `sino-zalo`, contract `OutgoingImage`, cổng `StickerPictures`, `POST …/messages` với `stickerId`, hàng chờ gửi sticker ở web. Ghi chú của từng task nằm trong `openspec/changes/zalo-send-images/tasks.md`.
+
+### 24.1 Web: nút "Sticker" và khung chọn (ZS-08)
+**Ở đâu** (tính từ `apps/sino-web/src/features/inbox/`):
+- `components/StickerPicker.tsx`: nút, khung nổi hay tấm dưới, tab, lưới.
+- `components/Composer.tsx`: đặt nút ngay sau nút đính kèm, giữ `ref` của ô soạn tin.
+- `components/ChatThread.tsx`: chỉ đưa `onSendSticker` khi `detail.canSendImages`.
+- Test: `StickerPicker.test.tsx`.
+
+**Màn trông ra sao:** canvas chưa có khung cho phần này (DN-5 = A), nên khung chọn dựng bằng những phần sẵn có: kiểu tab như `.seg`, tấm dưới theo `.sheet` của canvas mobile.
+
+```text
+Từ 768 px: khung nổi phía trên nút          Dưới 768 px: tấm kéo lên từ cạnh dưới
++---------------------------------+         +-------------------------------+
+| [Mèo] [Chó] [Chưa xếp bộ]       |         |             ----              |
+|---------------------------------|         | Sticker                       |
+| [meo] [nhay]                    |         | [Mèo] [Chó] [Chưa xếp bộ]     |
+|                                 |         | [meo] [nhay]                  |
++---------------------------------+         +-------------------------------+
+(đính kèm) (Sticker)  Gửi qua Zalo   [Gửi]  (đính kèm) (Sticker) [ô soạn tin] [Gửi]
+```
+
+**Nút chỉ có khi gửi được ảnh:** `Composer` không tự quyết. `ChatThread` chỉ đưa hàm `onSendSticker` khi máy chủ nói `reply.canSendImages` (D-356). Thư (`kind` là `EMAIL`) không bao giờ có nút. Nhờ vậy `Composer` vẫn dùng chung cho thư và chat mà không cần biết gì về capability.
+
+**Hai thành phần Radix cho hai cỡ màn:** `useMediaQuery('(min-width: 768px)')` chọn giữa hai thành phần:
+- `Popover` từ 768 px: khung nổi, không chặn phần còn lại của trang.
+- `Dialog` dưới 768 px: tấm dưới có lớp phủ, giữ tiêu điểm bên trong.
+
+Cả hai đều cho nội dung vai trò `dialog` tên "Sticker". Esc đóng khung và trả tiêu điểm về nút. Việc chọn làm bằng JavaScript chứ không bằng CSS vì đây là hai cây thành phần khác nhau (một cái định vị nổi, một cái cố định ở đáy), giống cách màn Lịch và màn Task đang làm.
+
+**Đọc thư viện lúc mở khung, không lúc mở chat (D-354):** `useStickers` và `usePacks` chỉ được gọi trong phần thân của khung, mà phần thân chỉ được gắn khi khung mở. TanStack Query giữ cache, nên lần mở sau hiện ngay rồi đọc lại ngầm. Không có API riêng cho khung chọn: khung dùng lại `groupByPack` của màn Sticker rồi bỏ các bộ trống, vì một tab trống không có gì để chọn.
+
+**Bàn phím:**
+- Các tab của Radix `Tabs` đi bằng mũi tên trái và phải.
+- Lưới dùng roving `tabIndex`: chỉ một sticker có `tabIndex=0`. Mũi tên trái và phải đi một ô; lên và xuống đi một hàng 4 ô và không ra khỏi lưới; Home và End về ô đầu và ô cuối. Mỗi ô là một nút, nên Enter gửi.
+- `TabsContent` của Radix tự đặt `tabIndex=0` cho mình. Khung đặt `-1` để phím Tab đi thẳng từ tab tới sticker.
+
+**Ai lấy tiêu điểm khi mở khung:** lưới đầu tiên lấy tiêu điểm một lần. Cờ này do khung giữ và cho con hỏi qua hàm `claimFocus`. Ở bản đầu, lưới tự sửa `ref` mà cha truyền xuống, và lint `react(immutability)` bắt lỗi đó: con không được đổi giá trị mà cha sở hữu. Nếu thư viện còn đang tải, Radix đặt tiêu điểm vào khung, rồi lưới lấy lại khi dữ liệu tới.
+
+**Gửi xong, tiêu điểm về ô soạn tin:** bấm một sticker thì gọi `sendSticker` (hàng chờ của ZS-07) rồi đóng khung. Trong `onCloseAutoFocus`, khung chặn việc Radix trả tiêu điểm về nút và đặt tiêu điểm vào ô soạn tin. Việc này phải làm ở đó chứ không làm ngay lúc bấm: trên điện thoại, `Dialog` giữ tiêu điểm bên trong cho tới khi được gỡ hẳn, nên đặt sớm sẽ bị Radix kéo về.
+
+### 24.2 Kiểm chứng (ZS-08)
+- **Test viết trước** (`StickerPicker.test.tsx`, 13 ca): 11 ca đỏ vì chưa có nút "Sticker". 2 ca còn lại là chốt chặn "không có nút", nên đúng ngay từ đầu. Sau đó người dùng bảo bỏ các vòng TDD tiếp theo; code được viết một lượt, và cả 13/13 xanh. Các ca:
+  - nút có hay không theo `canSendImages`; thư không có nút;
+  - thư viện chỉ được đọc khi khung mở;
+  - tab theo bộ, bỏ bộ trống, "Chưa xếp bộ" đứng cuối; ảnh lấy từ thư viện;
+  - thư viện trống có liên kết "Mở thư viện sticker"; tải lỗi có "Thử lại";
+  - bấm một sticker thì gửi với `clientMessageId` mới, khung đóng, tin hiện ngay, tiêu điểm về ô soạn tin;
+  - bàn phím: Enter mở khung với tiêu điểm trên sticker đầu, đi bằng mũi tên và End, Enter gửi; lên và xuống theo hàng 4 ô;
+  - Esc đóng khung và trả tiêu điểm về nút;
+  - khung nổi từ 768 px, tấm dưới ở 390 px.
+- **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ ở `features/public`), `tsc -b`, `pnpm build`: đều qua. `pnpm test` 124 tệp, 1282/1286 test. 4 ca đỏ là các test tải lên đọc `request.formData()` (`client.test.ts`, `useStickers.test.tsx`). Chúng đỏ cả ở `549ae0a`, trước mọi commit của change này: lỗi của môi trường Node 26 + jsdom trên máy này.
+- **Chưa kiểm:** Chrome thật ở 1440 và 390 (Claude in Chrome mất kết nối trong phiên này); gửi thật qua Zalo (ZS-20).

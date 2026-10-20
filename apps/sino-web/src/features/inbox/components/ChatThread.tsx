@@ -147,6 +147,7 @@ export function ChatThread({
           account={account.address}
           via={`${name} · ${account.address}`}
           onSend={sendMessage.send}
+          onSendSticker={detail.canSendImages ? sendMessage.sendSticker : undefined}
         />
       ) : null}
     </section>
