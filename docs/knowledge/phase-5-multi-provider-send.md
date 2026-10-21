@@ -2155,6 +2155,21 @@ photo_url (bản giữ lại)
 - **Test tự động sau** (worktree sạch ở `HEAD` cộng đúng hai tệp của bản sửa): `photoSticker.test.ts` 13 test, có ca mới "không bao giờ mang `jcp` hay `webp`" cho chat đôi và nhóm; toàn bộ `sino-zalo` 311/311, `tsc` 0, `oxlint` 0. Gài lỗi 4/4 bị diệt (gài lại `jcp`, gài lại `webp`, `webp` chỉ cho nhóm, bong bóng có viền).
 - **Chưa kiểm:** gửi vào nhóm, iPhone, và trên từng nơi tin trông như sticker hay như ảnh có khung.
 
+### 24.5 Nghiệm thu thật (ZS-20)
+**Làm gì:** từ Sino gửi sticker thật qua Zalo trên máy người dùng, rồi đối chiếu ba nguồn: điều người dùng thấy trên Zalo, bảng `message` trong DB, và tệp ảnh trên CDN của Zalo.
+
+| Gửi | Kết quả |
+|---|---|
+| PNG nền trong suốt | Hiện trên chat.zalo.me, Zalo PC và Android (sau mục 24.4). Zalo lưu thành JPEG nên nền trong suốt thành nền trắng |
+| GIF động | Người dùng báo đạt; tin vọng lại là `chat.gif` |
+| Tắt mạng rồi bật lại | Một dòng, `SENT`; bên Zalo chỉ một tin |
+
+Mỗi lần gửi chỉ có đúng một dòng `OUTBOUND` trong DB: tin vọng lại của Zalo (cùng `msgId`) gộp vào dòng đã gửi, nên không thành hai tin.
+
+**Bài học:** "người dùng báo đạt" là một bằng chứng, DB là một bằng chứng khác, và hai thứ có thể lệch nhau. Ở đây DB cho thấy chưa có lần gửi nào vào nhóm; hỏi lại thì người dùng chọn bỏ bước đó. Nếu chỉ dựa vào lời báo thì hồ sơ sẽ ghi sai là đã kiểm cả nhóm.
+
+**Kiểm tra cuối:** `sino-api` 2647 test, 0 lỗi; `sino-zalo` 311/311; `sino-web` lint, kiểm kiểu và build đều 0, `vitest` 1282/1286 (4 test đỏ đã có từ trước change). **Chưa kiểm:** gửi vào nhóm (người dùng bỏ), WebP động (thư viện chưa có tệp WebP), iPhone.
+
 ## 25. ZL-19 — Ảnh Zalo vẽ như sticker thì Sino cũng hiện như sticker
 
 **Ở đâu:** `apps/sino-zalo/src/gateway/ZaloGateway.ts` (`ZaloPhoto.sticker`), `ZcaGateway.ts` (`photoOf`), `sessions/SessionManager.ts` (log `photoSticker`); `apps/sino-api/.../provider/infrastructure/zalo/ZaloClient.java` (`Photo`), `ZaloMessageNormalizer.java` (`photoStickerBody`). Web không đổi.

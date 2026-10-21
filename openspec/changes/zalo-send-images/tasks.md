@@ -134,10 +134,21 @@
 
 ## 4. Nghiệm thu
 
-- [ ] 4.1 **ZS-20 — Chạy thật trên máy người dùng, tài liệu, kết thúc**
+- [x] 4.1 **ZS-20 — Chạy thật trên máy người dùng, tài liệu, kết thúc**
   - **Goal:** chứng minh gửi sticker qua Zalo thật, trả lời các câu hỏi của spike.
   - **Files:** `docs/knowledge/phase-5-multi-provider-send.md` (mục mới) và `.docx`; `PROJECT_STATE.md`; `tasks.md`.
   - **Acceptance criteria:** từ Sino gửi tới nick Zalo phụ: PNG trong suốt, GIF động, WebP động, vào chat đôi và một nhóm; ghi lại Zalo hiện ra sao (nền, chuyển động, cỡ); tin vọng lại không thành hai tin; gửi lại sau mạng chập chờn không gửi hai lần; mọi lệnh kiểm tra xanh; `openspec validate zalo-send-images --strict` hợp lệ; người dùng đã xem.
   - **Test:** như trên.
   - **Depends on:** ZS-08, DN-4.
   - **Hints:** **Level 1:** làm sao biết Zalo có giữ chuyển động mà không cần đoán? **Level 2:** mở tin trên ứng dụng Zalo của nick nhận và trên `chat.zalo.me`, ghi lại cả hai. Archive sau `custom-stickers`, `sticker-packs` và `zalo-personal`.
+  - **Làm khác kế hoạch (lý do):** ~~gửi vào một nhóm~~: bỏ, người dùng: "bỏ qua nhóm đi không sao đâu"; ~~WebP động~~: không kiểm, vì thư viện của người dùng không có tệp WebP nào (20 PNG, 4 GIF động); kịch bản agent đưa ghi bước này là tuỳ chọn, người dùng xem lại được. ~~mọi lệnh kiểm tra xanh~~ → xanh trừ 4 test web đã đỏ từ trước change này (xem Bằng chứng).
+  - **Kết quả chạy thật (máy người dùng, 2026-10-21, chat đôi; người dùng: "ok cả 5 cái đều được nhé"):**
+
+    | Gửi từ Sino | Bằng chứng trong DB | Zalo hiện ra sao |
+    |---|---|---|
+    | PNG nền trong suốt | 10:45:26, 10:58:07, 11:01:10, 11:14:12: mỗi lần một dòng, `SENT` | Từ bản sửa ZS-09 (11:01) hiện trên chat.zalo.me, Zalo PC và Android. Zalo lưu thành **JPEG** (đã kiểm chữ ký tệp trên CDN), nên **mất nền trong suốt**, thành nền trắng, như sticker AI của chính Zalo |
+    | GIF động | 11:07:14 (chat với "Nguyễn Thành Tiến") và 11:08:15 (một chat đôi khác), mỗi lần một dòng, `SENT`, tin vọng lại là `chat.gif` | Người dùng báo đạt |
+    | Mạng chập chờn | PNG tạo lúc 11:13:59, gửi được lúc 11:14:12: một dòng, `SENT` | Người dùng báo đạt, không gửi hai lần; không rõ Sino có hiện "Gửi lại" hay tự gửi khi có mạng lại |
+
+    Tin vọng lại không thành hai tin: mỗi lần gửi đúng một dòng `OUTBOUND` giữ `libraryStickerId`. **Câu hỏi của spike (DN-4):** `zca-js` gửi được PNG (qua `photo_url`, ZS-09) và GIF (đường GIF của nó); Zalo trả `msgId` ngay và tin vọng lại cùng mã, nên không thành hai tin; nhịp 1 tin/giây đủ khi web gửi cách nhau 1,1 giây; dung lượng trên 1 MiB không thử (thư viện chặn ở 1 MiB). **Chưa kiểm:** nhóm, WebP động, iPhone, và cỡ hay khung của sticker trên từng nơi.
+  - **Bằng chứng kiểm tra (ở `68d6f04`, worktree):** `sino-api` `./mvnw -B -ntp test` 2647 test, 0 lỗi, 15 bỏ qua, BUILD SUCCESS (ZS-06, ở `f672fd1`, không đổi Java sau đó); `sino-zalo` 311/311, `tsc` 0, `oxlint` 0; `sino-web` `oxlint` 0, `tsc -p` cho `tsconfig.app.json` và `tsconfig.node.json` 0 (thay `tsc -b` để không ghi `.tsbuildinfo` vào `node_modules` của cây chung qua junction), `vite build` 0, `vitest` 1282/1286: 4 test đỏ là đúng 4 test tải lên đọc `request.formData()` (`client.test.ts` 2, `useStickers.test.tsx` 2) đã đỏ từ `549ae0a` (ghi ở ZS-08). `openspec validate zalo-send-images --strict` hợp lệ. Kiến thức: mục 24.5 của `phase-5-multi-provider-send.md` và `.docx`. Chưa archive: theo kế hoạch, archive sau `custom-stickers`, `sticker-packs` và `zalo-personal` (còn ZL-13).
