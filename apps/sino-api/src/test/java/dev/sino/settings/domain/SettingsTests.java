@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -96,6 +97,50 @@ class SettingsTests {
         assertThatIllegalArgumentException().isThrownBy(() -> withZone(ZoneOffset.ofHours(7)));
         assertThatIllegalArgumentException().isThrownBy(() -> withZone(ZoneId.of("UTC+07:00")));
         assertThat(Settings.isKnownTimeZone("Asia/Hanoi_Not_A_Zone")).isFalse();
+    }
+
+    @Test
+    void aChangeSetsWhatItNamesAndKeepsTheRest() {
+        SettingsChange change = new SettingsChange(Theme.DARK, null, null,
+                new NotificationsChange(null, true, null, null, null, false), null, null, LocalTime.of(7, 0), null,
+                null);
+
+        Settings changed = D.with(change);
+
+        assertThat(changed).isEqualTo(new Settings(Theme.DARK, D.dateFormat(), D.motion(),
+                new Notifications(true, true, true, true, true, false), D.quietHours(), D.timeZone(),
+                LocalTime.of(7, 0), D.defaultReminderMinutes(), D.weekStart()));
+    }
+
+    @Test
+    void anEmptyOptionalTurnsQuietHoursAndTheReminderOff() {
+        SettingsChange off = new SettingsChange(null, null, null, null, Optional.empty(), null, null,
+                Optional.empty(), null);
+        SettingsChange on = new SettingsChange(null, null, null, null,
+                Optional.of(new QuietHours(LocalTime.of(13, 0), LocalTime.of(14, 0))), null, null, Optional.of(30),
+                null);
+
+        Settings quiet = D.with(off);
+        Settings back = quiet.with(on);
+
+        assertThat(quiet.quietHours()).isNull();
+        assertThat(quiet.defaultReminderMinutes()).isNull();
+        assertThat(back.quietHours()).isEqualTo(new QuietHours(LocalTime.of(13, 0), LocalTime.of(14, 0)));
+        assertThat(back.defaultReminderMinutes()).isEqualTo(30);
+    }
+
+    @Test
+    void aChangeOfNothingIsEmpty() {
+        assertThat(SettingsChange.NONE.isEmpty()).isTrue();
+        assertThat(new SettingsChange(null, null, null, NotificationsChange.NONE, null, null, null, null, null)
+                .isEmpty()).isTrue();
+        assertThat(new SettingsChange(null, null, null, new NotificationsChange(false, null, null, null, null, null),
+                null, null, null, null, null).isEmpty()).isFalse();
+        assertThat(new SettingsChange(null, null, null, null, Optional.empty(), null, null, null, null).isEmpty())
+                .isFalse();
+        assertThat(new SettingsChange(null, null, null, null, null, null, null, null, WeekStart.SUNDAY).isEmpty())
+                .isFalse();
+        assertThat(D.with(SettingsChange.NONE)).isEqualTo(D);
     }
 
     @Test

@@ -42,6 +42,21 @@ public record Settings(Theme theme, DateFormat dateFormat, Motion motion, Notifi
         }
     }
 
+    /** These settings with the parts {@code change} sets put in place; the rules hold for the result too. */
+    public Settings with(SettingsChange change) {
+        return new Settings(
+                change.theme() != null ? change.theme() : theme,
+                change.dateFormat() != null ? change.dateFormat() : dateFormat,
+                change.motion() != null ? change.motion() : motion,
+                change.notifications() != null ? change.notifications().applyTo(notifications) : notifications,
+                change.quietHours() != null ? change.quietHours().orElse(null) : quietHours,
+                change.timeZone() != null ? change.timeZone() : timeZone,
+                change.morningTime() != null ? change.morningTime() : morningTime,
+                change.defaultReminderMinutes() != null ? change.defaultReminderMinutes().orElse(null)
+                        : defaultReminderMinutes,
+                change.weekStart() != null ? change.weekStart() : weekStart);
+    }
+
     /**
      * Whether {@code id} names a time zone of the IANA database that {@code java.time} knows, such as
      * {@code Asia/Ho_Chi_Minh}; an offset such as {@code +07:00} is not one.

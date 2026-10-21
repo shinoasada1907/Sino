@@ -11,16 +11,27 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+
+import org.springframework.data.domain.Persistable;
 
 /**
  * The stored {@link Settings} of one user, mapped onto table {@code user_settings} (V23, D-404). The row is made by the
  * user's first change; until then the user has {@link Settings#DEFAULTS} and no row. Every setting is a column of its
  * own, so the database checks each value too. "Now" always comes from the caller.
+ * <p>
+ * The ID is the user's, set before saving, so Spring Data would take a new row for a stored one and merge it: read the
+ * row and, finding one that another change has just made, write over it. {@link Persistable} tells it that a row made
+ * by {@link #create} is new, so saving it inserts, and a row made at the same moment is refused by the primary key.
  */
 @Entity
 @Table(name = "user_settings")
-public class UserSettings {
+public class UserSettings implements Persistable<UUID> {
+
+    @Transient
+    private boolean created;
 
     @Id
     @Column(name = "user_id", nullable = false, updatable = false)
@@ -87,11 +98,27 @@ public class UserSettings {
         UserSettings row = new UserSettings();
         row.userId = Objects.requireNonNull(userId, "userId");
         row.replace(settings, now);
+        row.created = true;
         return row;
     }
 
     public UUID userId() {
         return userId;
+    }
+
+    @Override
+    public UUID getId() {
+        return userId;
+    }
+
+    @Override
+    public boolean isNew() {
+        return created;
+    }
+
+    @PostPersist
+    void stored() {
+        created = false;
     }
 
     public Instant updatedAt() {
