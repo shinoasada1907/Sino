@@ -2,7 +2,8 @@
 
 > **AUTO** (người dùng 2026-10-21). Mỗi task: viết code, **test tay trước** cho tới khi chạy đúng (web: Chrome thật; backend: chạy app và gọi API thật; Zalo: thao tác thật trên điện thoại hay chat.zalo.me), rồi mới viết test tự động; kiểm chứng; ghi chú thực hiện và bằng chứng tại task (cả lượt test tay: đã làm gì, thấy gì); commit lên `dev`. Push chỉ khi người dùng bảo.
 > **Lệnh kiểm tra.** `apps/sino-web`: `pnpm lint`, `pnpm exec tsc -b`, `pnpm test`, `pnpm build`. `apps/sino-api`: `./mvnw -B -ntp test` trong một worktree riêng (không build trong cây chính khi người dùng chạy app từ IntelliJ). `apps/sino-zalo`: `pnpm test`, `pnpm lint`, `pnpm exec tsc --noEmit`.
-> **Phối hợp với `zalo-send-files`:** change đó (phiên "sino-web-ba", không còn chạy lúc 2026-10-21) để lại thay đổi chưa commit trên `ChatThread.tsx`, `Composer.tsx`, `inbox.types.ts`, `inbox.api.ts`, `useInbox.ts`, `ZaloGateway.ts`, `ZcaGateway.ts`, `FakeZaloGateway.ts`, `SessionManager.ts`, `sendRoutes.ts`, `ZaloClient.java`, `ZaloMessageNormalizer.java`, `ZaloProvider.java`…, đúng những file change này phải sửa. **Chưa chốt cách phối hợp** (hỏi người dùng 2026-10-21); không task nào dưới đây sửa các file đó trước khi chốt.
+> **Phối hợp với `zalo-send-files`:** change đó để lại thay đổi chưa commit trên `ChatThread.tsx`, `inbox.types.ts`, `inbox.api.ts`, `ZcaGateway.ts`, `ZaloClient.java`… Người dùng (2026-10-21): change đó đã làm và test xong, không đụng tới; phiên "sino-web" này làm phần web của biểu cảm. Commit của phần web chỉ chứa phần biểu cảm: ba file chung được dựng lại thành `HEAD` + phần biểu cảm và kiểm riêng trên một worktree sạch trước khi đưa vào index; thay đổi của `zalo-send-files` vẫn nằm nguyên, chưa commit, trong cây làm việc.
+> **Thứ tự đổi (2026-10-21):** ~~RX-01 trước rồi mới dựng~~. **LÝ DO:** người dùng muốn phần thả biểu cảm trên web làm ngay trong phiên "sino-web"; RX-08 và RX-09 được dựng trước trên hợp đồng API của D-386/D-387 (dữ liệu mẫu, MSW), chưa có backend. Trên app thật, nút và chip chỉ hiện khi `sino-api` trả `reactionSet` và `reactions` (RX-07).
 > **Gợi ý** theo hai mức: **Level 1** (hướng nghĩ), **Level 2** (hướng làm).
 
 ## 1. Thử thật
@@ -69,7 +70,7 @@
 
 ## 4. Web
 
-- [ ] 4.1 **RX-08 — Kiểu, API và chip biểu cảm (D-387, D-390)**
+- [x] 4.1 **RX-08 — Kiểu, API và chip biểu cảm (D-387, D-390)** · làm cùng RX-09 trong một commit (cùng sửa `ChatThread.tsx`), trừ lượt xem trên Chrome thật
   - **Goal:** `Message.reactions`, `Message.canReact`, `ConversationDetail.reactionSet`; chip dưới bong bóng và danh sách ai thả.
   - **Files:** `features/inbox/{inbox.types.ts,inbox.api.ts}`, chip mới (`ReactionChips.tsx`), `components/ChatThread.tsx`, `test/inboxSampleApi.ts` (+ test).
   - **Acceptance criteria:** spec `chat-reactions-ui` phần "Chip biểu cảm dưới tin".
@@ -77,13 +78,15 @@
   - **Depends on:** RX-07 (hình dạng API); dựng được với MSW trước.
   - **Hints:** **Level 1:** chip nằm ở mép nào với tin đến và tin đi? **Level 2:** mép ngoài, như ảnh của Zalo.
 
-- [ ] 4.2 **RX-09 — Thanh chọn, bảng đầy đủ, nhấn giữ, thả hiện ngay (D-390, D-391)**
+- [x] 4.2 **RX-09 — Thanh chọn, bảng đầy đủ, nhấn giữ, thả hiện ngay (D-390, D-391)** · trừ lượt xem trên Chrome thật
   - **Goal:** nút mặt cười, thanh 6 biểu cảm và "+", bảng đầy đủ, nhấn giữ dưới 768px, `useReactToMessage` sửa cache ngay và trả về khi lỗi.
   - **Files:** thanh mới (`ReactionPicker.tsx`), `features/inbox/useInbox.ts` (hay hook mới), `components/ChatThread.tsx` (+ test).
   - **Acceptance criteria:** spec `chat-reactions-ui` phần "Thanh chọn biểu cảm" và "Thả hiện ngay, lỗi trả về".
   - **Test:** test tay trên Chrome thật (1440 và 390): thả, đổi, gỡ, "+", bàn phím, nhấn giữ (giả lập chạm), lỗi 429; rồi Vitest + MSW.
   - **Depends on:** RX-08.
   - **Hints:** **Level 1:** `StickerPicker` chọn Popover hay sheet theo gì? **Level 2:** cùng ngưỡng 768px.
+  - **Thực hiện (RX-08 + RX-09):** file mới `reactions.ts` (kiểu `Reaction`, `ReactionKind`; `afterPick`, `withoutMine`, `chipLabel`), `reactions.api.ts` (`PUT`/`DELETE …/reaction`), `useReactToMessage.ts` (sửa cache tin ngay; các lần chọn đi lần lượt trong một `scope`, lần chọn bị lần sau vượt trước khi gửi thì không gửi, chỉ giữ câu trả lời của lần chọn cuối; lỗi thì trả chip về trạng thái trước lúc bấm, báo dưới tin "Chậm lại một chút." với 429 hay "Không thả được biểu cảm. Hãy thử lại.", rồi đọc lại tin), `components/ReactionPicker.tsx` (nút `SmilePlus` hiện khi rê chuột hay focus, Popover neo vào bong bóng; thanh nhanh `role="toolbar"` và lưới đầy đủ với `tabIndex` xoay vòng; "+" đổi Popover thành lưới 8 cột từ 768px, mở sheet dưới 768px; nhấn giữ 500 ms bằng ngón tay, huỷ khi lệch quá 10 px, chặn menu ngữ cảnh), `components/ReactionChips.tsx` (chip tối đa 3 emoji và tổng số người khi lớn hơn 1, viền `primary` khi có của mình, Popover "Người đã thả biểu cảm"). Sửa nhỏ: `inbox.types.ts` (`Message.reactions`, `Message.canReact`, `ConversationDetail.reactionSet`), `inbox.api.ts` (đọc ba trường đó; rỗng hay thiếu thì không có), `ChatThread.tsx` (`Bubble` bọc cột bong bóng bằng thanh chọn khi có `reactionSet` và `canReact`, chip sau tệp đính kèm). Tin chỉ có trong trình duyệt (`local`) không có nút.
+  - **Bằng chứng:** **Chrome thật: NOT VERIFIED.** Claude in Chrome không kết nối trong phiên này, và `sino-api` chưa trả `reactionSet` / `reactions` (RX-07 chưa làm), nên trên app thật chưa có gì để thấy. Thay vào đó, 15 test mới bấm thật bằng `user-event` trên chat dựng với dữ liệu mẫu và MSW (`Reactions.test.tsx` 13: chip và danh sách người, không số khi một người, thả hiện ngay rồi lấy câu trả lời, thứ tự 6 nút và "+", gỡ của mình bằng `DELETE`, "+" ra đủ bộ, 429 trả chip về và báo, mũi tên / End / Escape trả focus, không nút khi không có bộ hay `canReact` false, nhấn giữ ở 390 px mở thanh rồi "+" mở sheet, ngón tay trượt thì không mở; `inbox.api.test.ts` thêm 2: đọc `reactions` / `canReact`, đọc `reactionSet`). Trong cây làm việc: `pnpm lint` 0 lỗi, `tsc -b` 0, `pnpm build` 0, `pnpm test` 1297/1301; 4 ca đỏ là upload `FormData` của `client.test.ts` và `useStickers.test.tsx`, đỏ y hệt trên worktree sạch ở `8d5fdf8` trước mọi thay đổi (máy chạy Node v26.1.0), không thuộc change này. Bản commit (`HEAD` + phần biểu cảm, không có thay đổi chưa commit của `zalo-send-files`) kiểm riêng trên worktree sạch: `tsc -b` 0, lint 0 lỗi, `vitest run src/features/inbox` 360/360, `pnpm build` 0.
 
 ## 5. Nghiệm thu
 

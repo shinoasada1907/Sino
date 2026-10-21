@@ -2204,3 +2204,68 @@ Lỗi này không chỉ nằm trên giấy: `sino-api` bản `boolean` đã ch�
 - **Test tay trước** (máy người dùng): sticker AI nhận vào lưu `[Sticker]` + `stickerUrl` và hiện như sticker; ảnh thường vẫn `[Ảnh]` + `imageUrl`; sticker thường của Zalo không đổi.
 - **Test tự động sau:** `sino-zalo` 298 test, `tsc` 0, `oxlint` 0; `sino-api` 256 test của connector Zalo (chạy trong worktree riêng). Gài lỗi: 5/5 bị diệt ở mỗi bên.
 - **Giới hạn:** ảnh sticker trên CDN của Zalo là JPEG nền trắng, nên giao diện tối vẫn thấy ô vuông trắng. Tin lưu trước bản sửa giữ `[Ảnh]`, không backfill.
+
+## 26. Thả biểu cảm lên tin trong chat (`zalo-reactions`, phần web RX-08, RX-09)
+
+Mục này mới có phần web. Phần `sino-zalo` và `sino-api` (RX-01…RX-07) chưa làm, nên trên app thật nút và chip chưa hiện: web chỉ vẽ chúng khi máy chủ trả `reactionSet` và `reactions`. Thiết kế và quyết định D-380…D-391 ở `openspec/changes/zalo-reactions/design.md`.
+
+### 26.1 Ở đâu và trông ra sao
+**Ở đâu** (tính từ `apps/sino-web/src/features/inbox/`):
+- `reactions.ts`: kiểu `Reaction`, `ReactionKind` và các bước thuần (`afterPick`, `withoutMine`, `chipLabel`).
+- `reactions.api.ts`: `PUT` và `DELETE …/messages/{id}/reaction`.
+- `useReactToMessage.ts`: sửa cache ngay khi bấm, gửi lần lượt, trả về khi lỗi.
+- `components/ReactionPicker.tsx`: nút mặt cười, thanh nhanh, bảng đầy đủ, nhấn giữ.
+- `components/ReactionChips.tsx`: chip dưới bong bóng và danh sách ai thả gì.
+- `components/ChatThread.tsx`: `Bubble` bọc cột bong bóng bằng thanh chọn và đặt chip sau tệp đính kèm.
+- Test: `Reactions.test.tsx`, hai ca trong `inbox.api.test.ts`.
+
+**Màn trông ra sao:** canvas chưa có khung cho phần này; người dùng chọn dựng theo ảnh thanh biểu cảm của Zalo rồi vẽ vào canvas sau (RX-21). Trong sơ đồ, mỗi biểu cảm ghi bằng chữ.
+
+```text
+              +-----------------------------------------------+
+              | (tim) (haha) (wow) (buon) (gian) (thich) (+)  |   thanh nhanh, mở trên bong bóng
+              +-----------------------------------------------+
+ (avatar) +------------------+
+          | Giảm cân à       |  (mặt cười)   <- nút hiện khi rê chuột hay focus
+          +------------------+
+            [ (tim)(haha) 3 ]   <- chip: tối đa 3 biểu cảm, tổng số người; viền màu nhấn khi có của mình
+```
+
+Bấm "+" từ 768 px thì khung nổi đổi thành lưới 8 cột của cả bộ; dưới 768 px thì mở tấm kéo lên từ đáy như khung chọn sticker.
+
+### 26.2 Vì sao web không biết gì về Zalo
+Máy chủ gửi mỗi biểu cảm với **mã của provider** (Zalo: `/-heart`, `:>`…), emoji để vẽ và nhãn tiếng Việt (`reactionSet`, D-387, D-388). Web chỉ vẽ `emoji` và gửi lại `code`. Có hai lý do:
+- **Thêm provider không phải sửa web.** Telegram sau này chỉ cần trả bộ của nó.
+- **Mã và emoji không một-một.** Ở Zalo, `COOL` và `SUNGLASSES` cùng vẽ thành một emoji. Nếu web chỉ giữ emoji thì lúc gỡ hay thả lại sẽ không biết phải gửi mã nào.
+
+### 26.3 Hiện ngay, gửi lần lượt, chỉ tin câu trả lời cuối (D-391)
+`useReactToMessage` dùng `useMutation` của TanStack Query, với bốn điểm:
+1. **`onMutate` sửa cache ngay:** tin trong `messagesKey` được thay `reactions` bằng kết quả của `afterPick`, nên chip đổi trước khi máy chủ trả lời. Trước đó nó gọi `cancelQueries`, vì một lượt đọc đang chạy có thể đè chip cũ trở lại.
+2. **`scope` cho các lần bấm đi lần lượt:** các mutation cùng một `scope.id` chạy nối đuôi nhau, nhưng `onMutate` của mỗi cái vẫn chạy ngay lúc bấm. Thứ tự tới máy chủ vì vậy đúng thứ tự bấm.
+3. **"Vé" cho mỗi tin:** mỗi lần bấm tăng một số đếm theo tin. Đến lượt mình mà đã có lần bấm sau thì mutation không gửi gì: mỗi `PUT` / `DELETE` đặt cả trạng thái, nên chỉ lần cuối là có nghĩa. Câu trả lời của một lần bấm cũ cũng bị bỏ qua.
+4. **Lỗi thì trả về ngay rồi đọc lại:** chip về đúng trạng thái trước lúc bấm (lưu sẵn trong lệnh), dưới tin hiện lỗi ngắn (429: "Chậm lại một chút."), rồi tin được đọc lại để khớp với máy chủ.
+
+### 26.4 Nhấn giữ trên điện thoại
+Không có thư viện nào cho việc này; `useHold` trong `ReactionPicker.tsx` dùng sự kiện con trỏ của React:
+- `onPointerDown` chỉ hẹn giờ 500 ms khi `pointerType` là `touch`. Chuột không tính, vì trên máy tính đã có nút.
+- `onPointerMove` huỷ hẹn giờ khi ngón tay lệch quá 10 px: người dùng đang cuộn, không phải đang giữ.
+- `onPointerUp` và `onPointerCancel` huỷ hẹn giờ.
+- `onContextMenu` gọi `preventDefault` khi đang chạm, để menu "sao chép, chia sẻ" của trình duyệt không bật ra cùng lúc. CSS `-webkit-touch-callout: none` làm điều tương tự trên Safari.
+
+**Neo khung nổi vào bong bóng, không vào nút:** Radix `Popover` cho đặt `Popover.Anchor` riêng với `Popover.Trigger`. Bong bóng nằm trong `Anchor`, nút mặt cười là `Trigger`. Nhờ vậy cùng một khung mở được bằng nút (máy tính, bàn phím) hay bằng nhấn giữ (điện thoại), và luôn hiện ngay trên bong bóng.
+
+### 26.5 Bàn phím và trình đọc màn hình
+- Nút mặt cười mờ hẳn (`opacity-0`) nhưng vẫn nằm trong thứ tự Tab, và hiện lên khi được focus. Người dùng bàn phím vẫn tới được nó dù không rê chuột.
+- Thanh nhanh có `role="toolbar"`, bảng đầy đủ là một `group`. Cả hai dùng roving `tabIndex` như lưới sticker (24.1): mũi tên, Home và End để đi; Enter để thả. Ô đầu tiên lấy focus là biểu cảm đang là của mình, nếu có.
+- Mỗi nút biểu cảm đọc bằng nhãn ("Tim") và có `aria-pressed` khi là của mình. Chip đọc thành câu, ví dụ "3 người đã thả biểu cảm: Tim 2, Haha 1". Emoji bên trong có `aria-hidden`, để trình đọc không đọc tên Unicode của từng hình.
+
+### 26.6 Commit chỉ chứa phần biểu cảm
+Lúc làm, `ChatThread.tsx`, `inbox.types.ts` và `inbox.api.ts` còn thay đổi chưa commit của change khác (`zalo-send-files`). Để commit không cuốn theo thay đổi của người khác, ba file được dựng lại thành "bản `HEAD` + phần biểu cảm" bằng một script, kiểm riêng trên một worktree sạch (`git worktree add --detach … HEAD`), rồi đưa vào index bằng `git hash-object -w` và `git update-index --cacheinfo`. Bản trong cây làm việc giữ nguyên cả hai phần.
+
+### 26.7 Kiểm chứng
+- **Chrome thật: chưa kiểm** (Claude in Chrome không kết nối, và máy chủ chưa trả biểu cảm).
+- **Test tự động** (bấm thật bằng `user-event` trên chat dựng từ dữ liệu mẫu và MSW): 15 ca mới. Chúng kiểm chip và danh sách người, thả hiện ngay rồi lấy câu trả lời, gỡ bằng `DELETE`, "+" ra đủ bộ, 429 trả chip về, bàn phím và trả focus, không có nút khi không có bộ hay tin không nhận, nhấn giữ ở 390 px mở thanh rồi "+" mở tấm, ngón tay trượt thì không mở, và đọc ba trường mới từ API.
+- **Cổng kiểm tra:**
+  - `pnpm lint` 0 lỗi; `tsc -b` 0; `pnpm build` 0.
+  - `pnpm test` 1297/1301. 4 ca đỏ là các test tải lên đã ghi ở 24.2, đỏ cả trên bản sạch trước change này.
+  - Riêng bản commit, kiểm trên worktree sạch: test của `features/inbox` 360/360, build 0.

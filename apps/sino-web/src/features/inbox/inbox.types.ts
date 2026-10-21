@@ -1,4 +1,5 @@
 import type { AccountStatus, Instant, ProviderInfo, ProviderKind, ProviderType } from '@/shared/domain'
+import type { Reaction, ReactionKind } from './reactions'
 
 /**
  * Data contract of the Hộp thư screens (D-42), handed to the backend for F05 and F06; see the change design.md.
@@ -130,6 +131,8 @@ export interface ConversationDetail {
   canSendImages?: boolean
   /** The opening mail of a new conversation has not gone yet: no reply box and no notice (f10-new-mail, D-195). */
   opening?: boolean
+  /** The emoji the provider lets the user drop (zalo-reactions, D-387); absent or empty: no emoji bar. */
+  reactionSet?: ReactionKind[]
   previousCursor: string | null
 }
 
@@ -217,6 +220,10 @@ export type Message =
       libraryStickerId?: string
       /** Only in this browser: the server never stored it (a send that did not reach it, or not allowed). */
       local?: boolean
+      /** The emoji on the message, most people first (zalo-reactions, D-387); absent when the backend does not tell. */
+      reactions?: Reaction[]
+      /** The user can drop an emoji on it: the bar shows (D-387). */
+      canReact?: boolean
     }
   | { id: string; kind: 'SYSTEM'; at: Instant; text: string }
 

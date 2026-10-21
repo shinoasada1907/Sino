@@ -20,6 +20,10 @@ import { pictureOf, spriteOf } from '../sticker'
 import { stickerContentUrl } from '@/features/stickers/stickers.api'
 import { PhotoPicture } from './PhotoPicture'
 import { StickerPicture } from './StickerPicture'
+import { mineOf, type ReactionKind } from '../reactions'
+import { useReactToMessage } from '../useReactToMessage'
+import { ReactionChips } from './ReactionChips'
+import { ReactionPicker } from './ReactionPicker'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
 
@@ -60,6 +64,7 @@ export function ChatThread({
   const name = nameOf(item.provider)
   const bodyRef = useRef<HTMLDivElement>(null)
   const sendMessage = useSendMessage(item.id)
+  const reacting = useReactToMessage(item.id)
   const placed = useRef(false)
   const messageCount = detail?.messages?.length ?? 0
   const block = sendBlock(account, detail?.canSend)
@@ -127,7 +132,15 @@ export function ChatThread({
               {message.kind === 'SYSTEM' ? (
                 <span className="self-center rounded-full border px-3 py-1 text-xs leading-4 font-medium text-muted-foreground">{message.text}</span>
               ) : (
-                <Bubble message={message} showName={group} members={members} sending={sendMessage} providerName={name} />
+                <Bubble
+                  message={message}
+                  showName={group}
+                  members={members}
+                  sending={sendMessage}
+                  providerName={name}
+                  reactionSet={detail?.reactionSet ?? []}
+                  reacting={reacting}
+                />
               )}
             </Fragment>
           )
@@ -182,14 +195,29 @@ function Bubble({
   members,
   sending,
   providerName,
+  reactionSet,
+  reacting,
 }: {
   message: ChatMessage
   showName: boolean
   members: Member[] | null
   sending: ReturnType<typeof useSendMessage>
   providerName: string
+  reactionSet: ReactionKind[]
+  reacting: ReturnType<typeof useReactToMessage>
 }) {
   const own = message.direction === 'OUT'
+  // zalo-reactions, D-390: the emoji bar where the provider has emoji and the message takes one; the chip wherever it has some.
+  const reactions = message.reactions ?? []
+  const reactable = reactionSet.length > 0 && message.canReact === true && !message.local
+  const withBar = (column: ReactNode) =>
+    reactable ? (
+      <ReactionPicker kinds={reactionSet} mine={mineOf(reactions)} own={own} onPick={(kind) => reacting.react(message.id, reactions, kind)}>
+        {column}
+      </ReactionPicker>
+    ) : (
+      column
+    )
   const [brokenLibrary, setBrokenLibrary] = useState(false)
   const [brokenSticker, setBrokenSticker] = useState(false)
   const [brokenSprite, setBrokenSprite] = useState(false)
@@ -204,76 +232,84 @@ function Bubble({
   const photo = photoOf(message.image)
   const photoSrc = photoStep === 'FULL' ? photo?.url : photoStep === 'THUMB' ? photo?.thumbUrl : null
   return (
-    <div className={cn('flex max-w-[84%] items-end gap-2.5 md:max-w-[68%]', own ? 'flex-row-reverse self-end' : 'self-start')}>
+    <div className={cn('group/bubble flex max-w-[84%] items-end gap-2.5 md:max-w-[68%]', own ? 'flex-row-reverse self-end' : 'self-start')}>
       {!own && <Avatar aria-hidden="true" placeholder={memberPlaceholder(message.sender, members)} className="size-7" />}
-      <div className={cn('flex min-w-0 flex-col gap-1', own ? 'items-end' : 'items-start')}>
-        {!own && showName && (
-          <span data-slot="bubble-name" className="pl-0.5 text-xs leading-4 font-semibold text-muted-foreground">
-            {message.sender}
-          </span>
-        )}
-        {sprite || still ? (
-          <StickerPicture still={still} sprite={library ? null : sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => (library ? setBrokenLibrary(true) : setBrokenSticker(true))} />
-        ) : photoSrc ? (
-          <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
-        ) : (
-          <TextBubble own={own}>{message.text}</TextBubble>
-        )}
-        {photo?.caption && <TextBubble own={own}>{photo.caption}</TextBubble>}
-        {message.attachments.map((file) =>
-          file.image ? (
-            <div
-              key={file.name}
-              className="flex h-35 w-55 items-end rounded-[14px] md:h-45 md:w-70 border bg-[repeating-linear-gradient(135deg,var(--surface)_0_10px,var(--raised)_10px_20px)] p-3"
-            >
-              <Spec className="text-foreground">{['Ảnh', file.caption, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}</Spec>
-            </div>
+      {withBar(
+        <div className={cn('flex min-w-0 flex-col gap-1', own ? 'items-end' : 'items-start')}>
+          {!own && showName && (
+            <span data-slot="bubble-name" className="pl-0.5 text-xs leading-4 font-semibold text-muted-foreground">
+              {message.sender}
+            </span>
+          )}
+          {sprite || still ? (
+            <StickerPicture still={still} sprite={library ? null : sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => (library ? setBrokenLibrary(true) : setBrokenSticker(true))} />
+          ) : photoSrc ? (
+            <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
           ) : (
-            <Spec key={file.name} className="text-foreground">
-              {[file.name, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}
-            </Spec>
-          ),
-        )}
-        <span className={cn('inline-flex items-center gap-1.5 font-mono text-[11px] leading-4 font-medium', message.status === 'FAILED' ? 'text-danger-ink' : 'text-muted-foreground')}>
-          {message.status === 'SENDING' && <Clock className="size-3" strokeWidth={1.6} />}
-          {bubbleMeta(message)}
-        </span>
-        {message.status === 'UNKNOWN' && (
-          <p role="status" className="text-xs leading-4 text-muted-foreground">
-            {message.local ? 'Mất kết nối khi gửi. Gửi lại không làm tin bị gửi hai lần.' : `Sino đang kiểm tra với ${providerName}.`}
-          </p>
-        )}
-        {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && (
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(message)}>
-              Gửi lại
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => sending.discard(message)}>
-              Bỏ
-            </Button>
-          </div>
-        )}
-        {sending.discardFailed !== undefined && sending.discardFailed === message.clientMessageId && (
-          <p role="alert" className="text-xs leading-4 text-danger-ink">
-            Không bỏ được tin này. Hãy thử lại.
-          </p>
-        )}
-        {message.linked.map((linked) => {
-          const { icon: Icon, to, name } = LINKED[linked.kind]
-          return (
-            <Link
-              key={linked.title}
-              to={to}
-              className="inline-flex h-7 max-w-full items-center gap-2 rounded-full border bg-surface pr-3 pl-2.5 text-xs leading-4 font-medium whitespace-nowrap text-foreground outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-            >
-              <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-              <span className="truncate">
-                {name}: {linked.title}
-              </span>
-            </Link>
-          )
-        })}
-      </div>
+            <TextBubble own={own}>{message.text}</TextBubble>
+          )}
+          {photo?.caption && <TextBubble own={own}>{photo.caption}</TextBubble>}
+          {message.attachments.map((file) =>
+            file.image ? (
+              <div
+                key={file.name}
+                className="flex h-35 w-55 items-end rounded-[14px] md:h-45 md:w-70 border bg-[repeating-linear-gradient(135deg,var(--surface)_0_10px,var(--raised)_10px_20px)] p-3"
+              >
+                <Spec className="text-foreground">{['Ảnh', file.caption, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}</Spec>
+              </div>
+            ) : (
+              <Spec key={file.name} className="text-foreground">
+                {[file.name, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}
+              </Spec>
+            ),
+          )}
+          <ReactionChips reactions={reactions} kinds={reactionSet} own={own} />
+          {reacting.failure?.messageId === message.id && (
+            <p role="alert" className="text-xs leading-4 text-danger-ink">
+              {reacting.failure.text}
+            </p>
+          )}
+          <span className={cn('inline-flex items-center gap-1.5 font-mono text-[11px] leading-4 font-medium', message.status === 'FAILED' ? 'text-danger-ink' : 'text-muted-foreground')}>
+            {message.status === 'SENDING' && <Clock className="size-3" strokeWidth={1.6} />}
+            {bubbleMeta(message)}
+          </span>
+          {message.status === 'UNKNOWN' && (
+            <p role="status" className="text-xs leading-4 text-muted-foreground">
+              {message.local ? 'Mất kết nối khi gửi. Gửi lại không làm tin bị gửi hai lần.' : `Sino đang kiểm tra với ${providerName}.`}
+            </p>
+          )}
+          {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(message)}>
+                Gửi lại
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => sending.discard(message)}>
+                Bỏ
+              </Button>
+            </div>
+          )}
+          {sending.discardFailed !== undefined && sending.discardFailed === message.clientMessageId && (
+            <p role="alert" className="text-xs leading-4 text-danger-ink">
+              Không bỏ được tin này. Hãy thử lại.
+            </p>
+          )}
+          {message.linked.map((linked) => {
+            const { icon: Icon, to, name } = LINKED[linked.kind]
+            return (
+              <Link
+                key={linked.title}
+                to={to}
+                className="inline-flex h-7 max-w-full items-center gap-2 rounded-full border bg-surface pr-3 pl-2.5 text-xs leading-4 font-medium whitespace-nowrap text-foreground outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+              >
+                <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+                <span className="truncate">
+                  {name}: {linked.title}
+                </span>
+              </Link>
+            )
+          })}
+        </div>,
+      )}
     </div>
   )
 }

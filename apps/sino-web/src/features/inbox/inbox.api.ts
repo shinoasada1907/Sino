@@ -2,6 +2,7 @@ import { api } from '@/shared/api/client'
 import { toProviderInfo, type ProviderEntry } from '@/shared/api/providers'
 import type { AccountStatus, Instant, ProviderKind } from '@/shared/domain'
 import type { InboxFilter } from './format'
+import type { Reaction, ReactionKind } from './reactions'
 import type {
   Attachment,
   ConversationItem,
@@ -148,6 +149,9 @@ interface MessageResponse {
   image?: MessageImage | null
   /** The sticker of the library that a message Sino sent is (zalo-send-images); absent or null for any other. */
   libraryStickerId?: string | null
+  /** The emoji on the message (zalo-reactions, D-387); absent on a backend before it. */
+  reactions?: Reaction[] | null
+  canReact?: boolean
 }
 
 function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse): ConversationItem {
@@ -216,7 +220,7 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId }: MessageResponse): Mail {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId, reactions, canReact }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -237,6 +241,8 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     ...(stickerSprite ? { stickerSprite } : {}),
     ...(image ? { image } : {}),
     ...(libraryStickerId ? { libraryStickerId } : {}),
+    ...(reactions?.length ? { reactions } : {}),
+    ...(canReact ? { canReact } : {}),
   }
 }
 
@@ -286,9 +292,9 @@ export async function fetchConversations({ view, source }: InboxFilter, cursor: 
 /** `GET /api/conversations/{id}`: the row, the people, and whether Sino can reply (F10); the messages come from `fetchMessages`. */
 export async function fetchConversation(conversationId: string): Promise<OpenConversation> {
   // `reply` is absent on a backend before F10.
-  const { participants, reply, ...item } = await api.get<ConversationResponse & { participants: ParticipantResponse[]; reply?: ReplyResponse }>(
-    `/api/conversations/${encodeURIComponent(conversationId)}`,
-  )
+  const { participants, reply, reactionSet, ...item } = await api.get<
+    ConversationResponse & { participants: ParticipantResponse[]; reply?: ReplyResponse; reactionSet?: ReactionKind[] | null }
+  >(`/api/conversations/${encodeURIComponent(conversationId)}`)
   return {
     item: toItem(item),
     detail: {
@@ -305,6 +311,8 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       ...(reply ? { canSendImages: reply.canSendImages === true } : {}),
       previousCursor: null,
       ...(reply?.state === 'OPENING_NOT_SENT' ? { opening: true } : {}),
+      // zalo-reactions, D-387: absent on a backend before it, and empty for a provider without emoji.
+      ...(reactionSet?.length ? { reactionSet } : {}),
     },
   }
 }

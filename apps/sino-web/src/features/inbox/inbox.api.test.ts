@@ -441,4 +441,40 @@ describe('a sticker of the library (zalo-send-images)', () => {
     expect(body).toEqual({ stickerId: 'lib-1', clientMessageId: 'cid-1' })
     expect(sent).toMatchObject({ id: 'm-9', direction: 'OUT', status: 'SENT', clientMessageId: 'cid-1', libraryStickerId: 'lib-1' })
   })
+
+  it('reads the emoji of each message and whether it takes one (zalo-reactions, D-387); a backend before it says nothing', async () => {
+    const heart = { code: '/-heart', emoji: '❤️', count: 2, mine: true, names: ['Lan', 'Bạn'] }
+    server.use(
+      http.get('/api/conversations/:id/messages', () =>
+        HttpResponse.json({
+          items: [
+            { ...API_MESSAGES[0], id: 'r-1', reactions: [heart], canReact: true },
+            { ...API_MESSAGES[0], id: 'r-2', reactions: [], canReact: false },
+            { ...API_MESSAGES[0], id: 'r-3' },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    )
+
+    const { items } = await fetchMessages('c-1', null)
+
+    expect(items[0]).toMatchObject({ id: 'r-1', reactions: [heart], canReact: true })
+    expect(items[1]).not.toHaveProperty('reactions')
+    expect(items[1]).not.toHaveProperty('canReact')
+    expect(items[2]).not.toHaveProperty('reactions')
+  })
+
+  it('reads the emoji a conversation offers; none told, or none, is no emoji bar', async () => {
+    const set = [{ code: '/-heart', emoji: '❤️', label: 'Tim', quick: true }]
+    const answer = (extra: object) =>
+      server.use(http.get('/api/conversations/:id', () => HttpResponse.json({ ...API_CONVERSATIONS[0], participants: API_PARTICIPANTS, ...extra })))
+
+    answer({ reactionSet: set })
+    expect((await fetchConversation('c-1')).detail.reactionSet).toEqual(set)
+    answer({ reactionSet: [] })
+    expect((await fetchConversation('c-1')).detail).not.toHaveProperty('reactionSet')
+    answer({})
+    expect((await fetchConversation('c-1')).detail).not.toHaveProperty('reactionSet')
+  })
 })
