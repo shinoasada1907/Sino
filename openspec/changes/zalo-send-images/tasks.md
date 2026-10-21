@@ -41,6 +41,17 @@
   - **Chưa kiểm:** gửi thật vào nhóm (`visibility: 0`), WebP động; GIF vẫn đi như ảnh động (D-359).
   - **Kiểm thêm, mở lại task (người dùng, 2026-10-21):** "zalo chat web và desktop đều hiện sticker của sino nhé nhưng mobile thì vẫn chưa hiện". Bên nhận: chat.zalo.me và Zalo desktop hiện như sticker; ứng dụng Zalo trên điện thoại chưa hiện. Đã đo (phiên "sino-zalo-90"): ba tin trong DB, sticker AI thật nhận lúc 00:33:34 và hai sticker Sino gửi lúc 00:33:59 và 01:12:38, đều có `stickerUrl` trên `b-f11-zpc.zdn.vn` đuôi `.jpg`, và cả ba tệp đều có trên CDN (`curl`: 200, `image/jpeg`, 41–53 KB). Vậy không phải tệp thiếu như ZL-18. Bộ đệm của `sino-zalo` không còn tin ảnh nào (đã khởi động lại), nên chưa so được `photoShape` của sticker AI thật với tin vọng lại của Sino. Giả thuyết dẫn đầu, chưa kiểm: ứng dụng điện thoại vẽ sticker AI theo `contentId` (tra trong kho sticker AI của Zalo), mà Sino đặt `contentId` là `photoId` của một ảnh upload thường (D-359), nên điện thoại không tìm ra; hình hổ, mèo, dê của ZL-18 (`contentId` 13 chữ số, không phải sticker AI) cũng không hiện trên điện thoại.
     - **Ảnh chụp điện thoại Android (người dùng, 10:42):** trong cuộc trò chuyện với "Tiến Nguyễn" (tài khoản nối Sino), mọi sticker AI là cùng một ô giữ chỗ: mặt cười mờ, góc có dấu ✦ của sticker AI. Đối chiếu DB của đúng cuộc trò chuyện này: bên trái là hai sticker Sino gửi (00:33:59, 01:12:38); bên phải là ba tin do tài khoản trên điện thoại gửi (00:21:41, 00:21:51, 00:33:34), tức sticker AI thật của Zalo, và chúng **cũng không hiện**. Vậy điện thoại không hiện mọi sticker AI của cuộc này, không riêng của Sino; giả thuyết `contentId` ở trên yếu đi (sticker AI thật có `contentId` thật mà vẫn không hiện). Giả thuyết kế tiếp, chưa kiểm: ứng dụng Android không vẽ sticker AI gửi từ web hay PC (chat.zalo.me, Zalo PC, và Sino vốn gửi đúng như chat.zalo.me). Cần biết ba tin bên phải được gửi từ máy nào.
+    - **So ở bốn nơi (người dùng, 10:45–10:46, ảnh chụp Zalo PC, chat.zalo.me, Sino, điện thoại):** một sticker AI gửi từ Zalo PC (hổ, 10:45:04) và một sticker gửi từ Sino (10:45:26):
+
+      | Nơi xem | Hổ, gửi từ Zalo PC | Sticker gửi từ Sino |
+      |---|---|---|
+      | Zalo PC (máy đã gửi hổ) | hiện | hiện |
+      | chat.zalo.me | ô giữ chỗ | hiện |
+      | Zalo trên Android | ô giữ chỗ | ô giữ chỗ |
+      | Sino | chữ `[Sticker]` | hiện |
+      | CDN (`curl` địa chỉ đã lưu) | 404 | 200, JPEG |
+
+      `photoShape` của hai tin (đọc từ bộ đệm `sino-zalo`): cùng khóa, cùng `pStickerType`, `webp`, `propertyExt.type` 3. Khác ở ba chỗ: `href` và `thumb` của Sino nằm trên CDN ảnh thường (`f120-zpc`, `t-f120-zpc`), của PC nằm trên `b-f11-zpc`; `contentId` dài 12 chữ số (Sino, `photoId`) và 13 (PC); `paramsExt.platformType` là 1 (Sino) và 2 (PC), còn ảnh gửi từ điện thoại mang 0. **Kết luận:** sticker của Sino hiện ở nhiều nơi hơn chính sticker AI của Zalo PC (tệp của sticker PC không có trên CDN, giống ZL-18, nên chỉ máy đã tạo ra nó hiện được). Điện thoại không hiện cả tin của Sino, dù mọi địa chỉ trong tin đều tải được; vậy điện thoại không vẽ từ các địa chỉ đó. Chưa có mẫu sticker AI gửi từ điện thoại, nên chưa biết điện thoại cần gì.
   - **Depends on:** ZS-01, ZS-02.
 
 - [x] 2.1 **ZS-03 — `OutgoingImage`, `SEND_IMAGES`, `ZaloProvider` gửi ảnh (D-349)**
