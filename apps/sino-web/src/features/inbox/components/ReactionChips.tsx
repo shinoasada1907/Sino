@@ -1,6 +1,7 @@
 import { Popover as PopoverPrimitive } from 'radix-ui'
 import { cn } from '@/shared/lib/utils'
 import { CHIP_EMOJI, chipLabel, peopleOf, type Reaction, type ReactionKind } from '../reactions'
+import { ReactionEmoji } from './ReactionEmoji'
 
 /**
  * The chip under a chat message with emoji on it (zalo-reactions, D-390): up to three different emoji, most people
@@ -23,11 +24,10 @@ export function ReactionChips({ reactions, kinds, own }: { reactions: Reaction[]
           mine && 'border-primary hover:border-primary',
         )}
       >
-        <span aria-hidden="true" className="tracking-[-0.1em]">
-          {reactions
-            .slice(0, CHIP_EMOJI)
-            .map((reaction) => reaction.emoji)
-            .join('')}
+        <span aria-hidden="true" className="inline-flex items-center gap-px">
+          {reactions.slice(0, CHIP_EMOJI).map((reaction) => (
+            <ReactionEmoji key={reaction.code} emoji={reaction.emoji} className="text-[14px]" />
+          ))}
         </span>
         {people > 1 && (
           <span aria-hidden="true" className="pl-0.5 font-mono text-[11px] font-medium text-muted-foreground">
@@ -50,9 +50,7 @@ export function ReactionChips({ reactions, kinds, own }: { reactions: Reaction[]
               reaction.names.map((name, index) => (
                 <li key={`${reaction.code}-${index}`} className="flex h-9 items-center justify-between gap-3 rounded-md px-2.5 text-sm">
                   <span className="truncate">{name}</span>
-                  <span className="text-lg leading-none" role="img" aria-label={kinds.find((kind) => kind.code === reaction.code)?.label ?? reaction.emoji}>
-                    {reaction.emoji}
-                  </span>
+                  <ReactionEmoji emoji={reaction.emoji} label={kinds.find((kind) => kind.code === reaction.code)?.label ?? reaction.emoji} className="text-lg" />
                 </li>
               )),
             )}

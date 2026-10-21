@@ -5,6 +5,7 @@ import { useMediaQuery } from '@/shared/lib/useMediaQuery'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import type { ReactionKind } from '../reactions'
+import { ReactionEmoji } from './ReactionEmoji'
 
 /** How long a finger rests on a bubble before the bar opens, and how far it may move meanwhile (D-390). */
 const HOLD_MS = 500
@@ -37,6 +38,7 @@ export function ReactionPicker({
   const [open, setOpen] = useState(false)
   const [full, setFull] = useState(false)
   const [sheet, setSheet] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
   const hold = useHold(() => setOpen(true))
 
   const changeOpen = (next: boolean) => {
@@ -67,22 +69,40 @@ export function ReactionPicker({
           {children}
         </div>
       </PopoverPrimitive.Anchor>
-      <PopoverPrimitive.Trigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Thả biểu cảm"
-          title="Thả biểu cảm"
-          className="shrink-0 self-center rounded-full text-muted-foreground opacity-0 transition-opacity duration-(--dur-hover) group-hover/bubble:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-        >
-          <SmilePlus strokeWidth={1.6} />
-        </Button>
-      </PopoverPrimitive.Trigger>
+      {/*
+        Not a Popover.Trigger: beside a custom Anchor, Radix first anchors to the trigger, then mounts the trigger again
+        without its anchor and keeps the old, detached node, so the bar opened at the corner of the screen. So this is a
+        plain button, and what the trigger did (toggle, aria, the focus coming back) is done here.
+      */}
+      <Button
+        ref={button}
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Thả biểu cảm"
+        title="Thả biểu cảm"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        data-state={open ? 'open' : 'closed'}
+        onClick={() => changeOpen(!open)}
+        className="shrink-0 self-center rounded-full text-muted-foreground opacity-0 transition-opacity duration-(--dur-hover) group-hover/bubble:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+      >
+        <SmilePlus strokeWidth={1.6} />
+      </Button>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           data-slot="reaction-bar"
           aria-label="Biểu cảm"
+          // A press on the button while open is its own toggle, not a press outside that closes and reopens.
+          onInteractOutside={(event) => {
+            if (event.target instanceof Node && button.current?.contains(event.target)) {
+              event.preventDefault()
+            }
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            button.current?.focus()
+          }}
           side="top"
           align={own ? 'end' : 'start'}
           sideOffset={6}
@@ -261,7 +281,7 @@ function EmojiButton({
         mine && 'bg-accent',
       )}
     >
-      <span aria-hidden="true">{kind.emoji}</span>
+      <ReactionEmoji emoji={kind.emoji} />
     </button>
   )
 }

@@ -20,6 +20,22 @@
 }
 
 /*
+ * The emoji of message reactions (zalo-reactions) in the line style of the app's icons, in the colour of the text:
+ * Noto Emoji (Google, SIL Open Font License 1.1, assets/fonts/OFL-noto-emoji.txt), cut to the emoji Sino offers
+ * (about 25 KB). Any other emoji falls back to the system's colour one.
+ */
+@font-face {
+  font-family: "Sino Emoji";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: block;
+  src: url("./assets/fonts/sino-emoji.woff2") format("woff2");
+  unicode-range: U+2600, U+2639, U+270C, U+2764, U+FE0F, U+1F339, U+1F37A, U+1F382, U+1F44A-1F44F, U+1F494, U+1F4A3, U+1F4A9,
+    U+1F601-1F602, U+1F604, U+1F606, U+1F609, U+1F60D-1F60E, U+1F610, U+1F613, U+1F615, U+1F618, U+1F61F-1F622, U+1F627-1F628,
+    U+1F62D-1F62F, U+1F633-1F634, U+1F64F, U+1F910-1F911, U+1F913, U+1F940;
+}
+
+/*
  * Design tokens copied from the "Sino UI" canvas (design/sino-ui/project/sino.css: .sino, .theme-light, .theme-dark).
  * Both themes use the same role names with different values. ThemeProvider puts theme-light or theme-dark on <html>.
  */
@@ -62,6 +78,7 @@
 @theme inline {
   --font-sans: "Inter Variable", "Inter", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --font-emoji: "Sino Emoji", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
 
   /* Canvas radii (--r-xs ... --r-lg). xl is the 12 px of menus, written out because lg is larger than Tailwind's. */
   --radius-xs: 6px;

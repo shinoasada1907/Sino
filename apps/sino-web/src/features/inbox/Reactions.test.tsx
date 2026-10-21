@@ -123,22 +123,23 @@ describe('the emoji of a chat message', () => {
   })
 
   it('shows a chip with up to three emoji and how many people, and lists who dropped which', async () => {
+    // The emoji are drawn in the app's line style (ReactionEmoji): the variation selector of the colour heart is left out.
     await open([fromDad('m1', { reactions: [reaction(HEART, ['Lan', 'Bạn'], true), reaction(HAHA, ['Minh'])] })])
     const user = userEvent.setup()
 
     expect(chip()).toHaveAccessibleName('3 người đã thả biểu cảm: Tim 2, Haha 1')
-    expect(chip()).toHaveTextContent('❤️😆3')
+    expect(chip()).toHaveTextContent('❤😆3')
 
     await user.click(chip())
 
     const people = within(await screen.findByRole('dialog', { name: 'Người đã thả biểu cảm' }))
-    expect(people.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Lan❤️', 'Bạn❤️', 'Minh😆'])
+    expect(people.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Lan❤', 'Bạn❤', 'Minh😆'])
   })
 
   it('shows no count for one person, and no chip without emoji', async () => {
     await open([fromDad('m1', { reactions: [reaction(HEART, ['Lan'])] }), fromDad('m2')])
 
-    expect(chip()).toHaveTextContent(/^❤️$/)
+    expect(chip()).toHaveTextContent(/^❤$/)
     expect(chat().getAllByRole('button', { name: /người đã thả biểu cảm/ })).toHaveLength(1)
   })
 
@@ -164,6 +165,29 @@ describe('the emoji of a chat message', () => {
     expect(screen.queryByRole('toolbar', { name: 'Biểu cảm nhanh' })).toBeNull()
     await waitFor(() => expect(chip()).toHaveAccessibleName('2 người đã thả biểu cảm: Tim 2'))
     expect(calls).toEqual([{ method: 'PUT', messageId: 'm1', code: '/-heart' }])
+  })
+
+  it('opens the bar over the bubble, not at the corner of the screen', async () => {
+    // As a browser lays it out: a window of 1440 × 900, every element on the page at 400, 300 (200 × 40), and one taken
+    // off the page at 0, 0, size 0.
+    const page = document.documentElement
+    vi.spyOn(page, 'clientWidth', 'get').mockReturnValue(1440)
+    vi.spyOn(page, 'clientHeight', 'get').mockReturnValue(900)
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this === page || this === document.body) {
+        return new DOMRect(0, 0, 1440, 900)
+      }
+      return this.isConnected ? new DOMRect(400, 300, 200, 40) : new DOMRect(0, 0, 0, 0)
+    })
+    await open([fromDad('m1')])
+    const user = userEvent.setup()
+
+    await user.click(chat().getByRole('button', { name: 'Thả biểu cảm' }))
+    const bar = await screen.findByRole('dialog', { name: 'Biểu cảm' })
+
+    // Above the bubble, its start edge on the bubble's: 300 − the bar's height (jsdom has no `offsetHeight`, so 0) − 6.
+    // Anchored to a node taken off the page, as when the smiley button was a Popover.Trigger, it was 0, 6.
+    await waitFor(() => expect(bar.closest<HTMLElement>('[data-radix-popper-content-wrapper]')?.style.transform).toBe('translate(400px, 294px)'))
   })
 
   it('takes the user’s own emoji off when it is picked again', async () => {

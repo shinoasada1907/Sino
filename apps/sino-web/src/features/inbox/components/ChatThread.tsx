@@ -22,6 +22,7 @@ import { PhotoPicture } from './PhotoPicture'
 import { StickerPicture } from './StickerPicture'
 import { mineOf, type ReactionKind } from '../reactions'
 import { useReactToMessage } from '../useReactToMessage'
+import { PREVIEW_SET, REACTIONS_PREVIEW } from '../reactionsPreview'
 import { ReactionChips } from './ReactionChips'
 import { ReactionPicker } from './ReactionPicker'
 
@@ -64,7 +65,9 @@ export function ChatThread({
   const name = nameOf(item.provider)
   const bodyRef = useRef<HTMLDivElement>(null)
   const sendMessage = useSendMessage(item.id)
-  const reacting = useReactToMessage(item.id)
+  // Dev server only, while the backend says nothing about emoji: Zalo's set, picks kept in this browser (reactionsPreview.ts).
+  const previewReactions = REACTIONS_PREVIEW && item.kind === 'CHAT' && detail !== undefined && detail.reactionSet === undefined
+  const reacting = useReactToMessage(item.id, previewReactions)
   const placed = useRef(false)
   const messageCount = detail?.messages?.length ?? 0
   const block = sendBlock(account, detail?.canSend)
@@ -138,7 +141,8 @@ export function ChatThread({
                   members={members}
                   sending={sendMessage}
                   providerName={name}
-                  reactionSet={detail?.reactionSet ?? []}
+                  reactionSet={previewReactions ? PREVIEW_SET : (detail?.reactionSet ?? [])}
+                  previewReactions={previewReactions}
                   reacting={reacting}
                 />
               )}
@@ -196,6 +200,7 @@ function Bubble({
   sending,
   providerName,
   reactionSet,
+  previewReactions,
   reacting,
 }: {
   message: ChatMessage
@@ -204,12 +209,13 @@ function Bubble({
   sending: ReturnType<typeof useSendMessage>
   providerName: string
   reactionSet: ReactionKind[]
+  previewReactions: boolean
   reacting: ReturnType<typeof useReactToMessage>
 }) {
   const own = message.direction === 'OUT'
   // zalo-reactions, D-390: the emoji bar where the provider has emoji and the message takes one; the chip wherever it has some.
   const reactions = message.reactions ?? []
-  const reactable = reactionSet.length > 0 && message.canReact === true && !message.local
+  const reactable = reactionSet.length > 0 && (message.canReact === true || previewReactions) && !message.local
   const withBar = (column: ReactNode) =>
     reactable ? (
       <ReactionPicker kinds={reactionSet} mine={mineOf(reactions)} own={own} onPick={(kind) => reacting.react(message.id, reactions, kind)}>

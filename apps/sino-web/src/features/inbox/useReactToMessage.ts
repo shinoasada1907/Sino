@@ -30,7 +30,7 @@ export interface ReactionFailure {
  * go one after another (the server sets the whole state each time, so a pick overtaken before it left is not sent), and
  * only the answer to the last pick of a message is kept. A refused pick puts the chip back and reads the messages again.
  */
-export function useReactToMessage(conversationId: string) {
+export function useReactToMessage(conversationId: string, previewOnly = false) {
   const queryClient = useQueryClient()
   const tickets = useRef(new Map<string, number>())
   const [failure, setFailure] = useState<ReactionFailure | null>(null)
@@ -54,6 +54,10 @@ export function useReactToMessage(conversationId: string) {
     mutationFn: async (pick: Pick): Promise<Reaction[] | null> => {
       if (!isLast(pick)) {
         return null
+      }
+      // The dev preview (reactionsPreview.ts) keeps the pick in this browser: there is no backend for it yet.
+      if (previewOnly) {
+        return pick.next
       }
       return pick.code ? putReaction(conversationId, pick.messageId, pick.code) : deleteReaction(conversationId, pick.messageId)
     },

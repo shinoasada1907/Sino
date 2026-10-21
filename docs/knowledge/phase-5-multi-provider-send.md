@@ -2269,3 +2269,27 @@ Lúc làm, `ChatThread.tsx`, `inbox.types.ts` và `inbox.api.ts` còn thay đổ
   - `pnpm lint` 0 lỗi; `tsc -b` 0; `pnpm build` 0.
   - `pnpm test` 1297/1301. 4 ca đỏ là các test tải lên đã ghi ở 24.2, đỏ cả trên bản sạch trước change này.
   - Riêng bản commit, kiểm trên worktree sạch: test của `features/inbox` 360/360, build 0.
+
+### 26.8 Sau lượt xem đầu tiên của người dùng
+**Bản xem trước trên máy dev:** khi chưa có backend, app thật không hiện gì, nên người dùng không xem được UI. `reactionsPreview.ts` bật một bộ biểu cảm mẫu (mã của Zalo) chỉ khi `import.meta.env.MODE === 'development'`. Vite đặt `MODE` là `development` khi chạy `vite`, là `test` trong Vitest và là `production` khi build, nên test và bản build không bị ảnh hưởng. Lần chọn chỉ giữ trong trình duyệt. Khi máy chủ gửi `reactionSet`, bản xem trước tự tắt.
+
+**Bài học Radix: `Popover.Trigger` cạnh một `Popover.Anchor` riêng.** Thanh mở ở góc trên bên trái màn hình. Radix (`react-popper` 1.3) ghi vật neo bằng callback ref, tức là chỉ lúc phần tử được gắn vào trang:
+1. Lần render đầu, `Trigger` vẫn tự bọc mình bằng một vật neo và được gắn sau `Anchor`, nên vật neo là nút.
+2. Radix thấy có `Anchor` riêng thì bỏ lớp bọc đó, và React dựng lại nút thành phần tử DOM mới.
+3. Vật neo vẫn là nút cũ đã rời trang. `getBoundingClientRect()` của nó là 0 × 0 ở (0, 0), nên floating-ui đặt thanh ở góc.
+
+Cách sửa: không dùng `Trigger`; nút mặt cười là nút thường tự mở và đóng khung, `Anchor` là vật neo duy nhất. Phải tự làm ba việc mà `Trigger` vốn làm: đặt `aria-expanded` / `aria-haspopup`, bỏ qua lần bấm nút trong `onInteractOutside` (nếu không, bấm nút khi đang mở sẽ đóng rồi mở lại ngay), và trả focus về nút trong `onCloseAutoFocus`.
+
+jsdom không có bố cục, nên test giả lập nó:
+- `getBoundingClientRect` trả (400, 300) cho phần tử còn trên trang, 0 × 0 cho phần tử đã rời trang;
+- `clientWidth` / `clientHeight` của `<html>` là 1440 × 900, vì floating-ui đo khung nhìn bằng hai giá trị này.
+
+Code cũ cho `translate(0px, 6px)`; bản sửa cho `translate(400px, 294px)`. Chiều cao của thanh là 0, vì jsdom không có `offsetHeight`.
+
+**Emoji theo phong cách của trang:** emoji màu của hệ thống lệch với icon nét mảnh, đơn sắc của Sino. Thay vào đó dùng font **Noto Emoji** (đơn sắc, có trục độ đậm, giấy phép OFL 1.1):
+- **Cắt font** bằng `fontTools.subset` còn đúng 43 ký tự của bộ, 24,8 KB thay vì 2 MB, và giữ trục độ đậm.
+- **Khai báo** `@font-face` tên "Sino Emoji" với `unicode-range` đúng các ký tự đó, và token `--font-emoji` trong `@theme`, nên Tailwind có lớp `font-emoji`.
+- **`ReactionEmoji`** đặt `font-light` để nét gần với icon Lucide nét 1.6, và lấy màu chữ của theme.
+- **Bỏ `U+FE0F`** (bộ chọn biến thể "hãy vẽ bản màu", đi sau trái tim đỏ). Nếu giữ, trình duyệt có thể chọn font emoji màu dù CSS đã chỉ font khác.
+
+Không thêm gói npm nào, vì `package.json` đang thuộc một change khác. Font nằm trong `src/assets/fonts/` cùng tệp giấy phép, và Vite đóng gói nó như mọi tài nguyên khác.
