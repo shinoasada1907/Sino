@@ -48,6 +48,8 @@ describe('the settings screen', () => {
       '#lich-nhac',
       '#rieng-tu',
       '#nguon',
+      // Not a section: the sticker library, inside Cài đặt (SE-04, D-397).
+      '/settings/stickers',
       '#bao-mat',
       '#ve-sino',
     ])

@@ -22,10 +22,12 @@
 
 ## 2. Sticker và điện thoại
 
-- [ ] 2.1 **SE-04 — Sticker trong Cài đặt (D-397)**
+- [x] 2.1 **SE-04 — Sticker trong Cài đặt (D-397)**
   - **Files:** `app/router.tsx`, `app/shell/{navItems.ts,MorePage.tsx}` và test của shell, `features/settings/**`.
   - **Acceptance criteria:** spec "Sticker trong Cài đặt".
   - **Test:** Chrome thật: thanh bên không còn "Sticker", `/stickers` chuyển, màn sticker trong khung Cài đặt; rồi Vitest.
+  - **Thực hiện:** `navItems.ts` bỏ mục "Sticker" (và icon) khỏi `NAV_ITEMS` và `MORE_PATHS` (`/settings/…` vẫn dưới tab "Thêm" nhờ `/settings`); `MorePage.tsx` bỏ `/stickers` khỏi "Đi tới". `router.tsx`: `settings/stickers` → `SettingsStickersPage` (mục lục từ 1280 px + `StickersPage` nguyên vẹn), `stickers` → `<Navigate to="/settings/stickers" replace />`; bỏ `/stickers` khỏi `SCREENS`. `SettingsNav` có `current="stickers"`: các mục thành liên kết `/settings#neo`, "Sticker" (sau "Nguồn đã kết nối") có `aria-current="page"`; `SettingsPage` tự cuộn tới `#neo` khi tới từ trang khác (router không cuộn). **Giới hạn:** trên điện thoại, nút quay lại của màn sticker vẫn về "Thêm" vì `StickersPage.tsx` (thuộc `sticker-packs`) đặt nó; đổi khi change đó nhả file.
+  - **Bằng chứng:** **Chrome thật: NOT VERIFIED** (Claude in Chrome không kết nối); dev server biên dịch (200). Test shell viết lại cho chỗ mới (5 ca: không còn mục riêng ở thanh bên, rail, "Thêm"; `/stickers` → `/settings/stickers` với "Sticker" là trang hiện tại trong mục lục và "Cài đặt" là mục hiện tại ở thanh bên; tab "Thêm" vẫn là hiện tại; mục "Sticker" của mục lục đứng sau "Nguồn đã kết nối" và mở màn sticker), `UserMenu.test.tsx` và `SettingsPage.test.tsx` cập nhật danh sách. Mọi test của `features/stickers` mở `/stickers` vẫn xanh qua đường chuyển. `tsc -b` 0, lint 0 lỗi, build 0, `pnpm test` 1306/1310 (4 ca `FormData` đỏ sẵn).
 
 - [ ] 2.2 **SE-05 — Điện thoại: danh sách, trang con (D-398)**
   - **Acceptance criteria:** spec "Cài đặt trên điện thoại".

@@ -9,6 +9,7 @@ import { createTasksSample } from '@/features/tasks/tasks.sample'
 import { publishConversationsChanged } from '@/shared/realtime/streamState'
 import { CANVAS_NOW } from '@/shared/time/canvasClock'
 import { accountsWithStatus } from '@/test/accountsWithStatus'
+import { stubViewport } from '@/test/matchMedia'
 import { server } from '@/test/msw/server'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
@@ -40,7 +41,6 @@ describe('sidebar (desktop)', () => {
       ['Lịch', '/calendar'],
       [/^Việc cần làm/, '/tasks'],
       ['Ghi chú', '/notes'],
-      ['Sticker', '/stickers'],
       [/^Tài khoản/, '/accounts'],
       ['Dịch vụ', '/services'],
       [/^Đăng ký/, '/registrations'],
@@ -168,8 +168,9 @@ describe('tab bar (mobile)', () => {
   })
 })
 
-// The Sticker screen of custom-stickers (ST-12, DN-3): in the plan group right after Ghi chú, a row on Thêm, and "Thêm" stays current on it.
-describe('the Sticker screen in the navigation (ST-12, DN-3)', () => {
+// The Sticker screen moved into Cài đặt (fe-ui-settings, D-397; it was in the plan group since ST-12, DN-3): no item
+// of its own in the sidebar, the rail or Thêm; `/stickers` leads to `/settings/stickers`, under the "Thêm" tab.
+describe('the Sticker screen inside Cài đặt (SE-04, D-397)', () => {
   // The screen reads its library when it opens; an empty one is all these tests need.
   // The screen reads the stickers and, since SP-06, the packs.
   beforeEach(() =>
@@ -179,44 +180,52 @@ describe('the Sticker screen in the navigation (ST-12, DN-3)', () => {
     ),
   )
 
-  it('sits after Ghi chú in the sidebar and the rail, and is marked as current on its screen', async () => {
-    renderApp('/stickers')
+  it('has no item of its own in the sidebar, the rail or Thêm', async () => {
+    renderApp('/overview')
     const sidebar = within(shellPart('sidebar'))
-    const rail = within(shellPart('rail'))
+    await sidebar.findByText('An Nguyễn')
 
-    const current = await sidebar.findByRole('link', { name: 'Sticker' })
-    expect(current).toHaveAttribute('href', '/stickers')
-    expect(current).toHaveAttribute('aria-current', 'page')
-    expect(sidebar.getByRole('link', { name: 'Ghi chú' })).not.toHaveAttribute('aria-current')
-    const order = (links: HTMLElement[]) => links.map((link) => link.getAttribute('href')).filter((href) => href === '/notes' || href === '/stickers' || href === '/accounts')
-    expect(order(sidebar.getAllByRole('link'))).toEqual(['/notes', '/stickers', '/accounts'])
-    expect(order(rail.getAllByRole('link'))).toEqual(['/notes', '/stickers', '/accounts'])
-    expect(rail.getByRole('link', { name: 'Sticker' })).toHaveAttribute('aria-current', 'page')
+    expect(sidebar.queryByRole('link', { name: 'Sticker' })).toBeNull()
+    expect(within(shellPart('rail')).queryByRole('link', { name: 'Sticker' })).toBeNull()
   })
 
-  it('has a row on Thêm after Ghi chú, which opens the screen', async () => {
-    const user = userEvent.setup()
-    const { router } = renderApp('/more')
+  it('is not on Thêm, which still leads to Cài đặt', async () => {
+    renderApp('/more')
     const others = within(await screen.findByRole('navigation', { name: 'Mục khác' }))
 
-    expect(others.getAllByRole('link').map((link) => link.getAttribute('href'))).toContain('/stickers')
-    const hrefs = others.getAllByRole('link').map((link) => link.getAttribute('href'))
-    expect(hrefs.indexOf('/stickers')).toBe(hrefs.indexOf('/notes') + 1)
-    await user.click(others.getByRole('link', { name: 'Sticker' }))
-
-    expect(router.state.location.pathname).toBe('/stickers')
+    expect(others.queryByRole('link', { name: 'Sticker' })).toBeNull()
+    expect(others.getByRole('link', { name: 'Cài đặt' })).toHaveAttribute('href', '/settings')
   })
 
-  it('keeps "Thêm" as the current tab on the screen, as on the other screens behind it', async () => {
-    renderApp('/stickers')
+  it('takes the old address to /settings/stickers, inside Cài đặt, with Sticker current in its table of contents', async () => {
+    stubViewport(1440)
+    const { router } = renderApp('/stickers')
+
+    expect(await screen.findAllByRole('heading', { level: 1, name: 'Sticker' })).not.toHaveLength(0)
+    expect(router.state.location.pathname).toBe('/settings/stickers')
+    const toc = within(screen.getByRole('navigation', { name: 'Mục cài đặt' }))
+    expect(toc.getByRole('link', { name: 'Sticker' })).toHaveAttribute('aria-current', 'page')
+    expect(toc.getByRole('link', { name: 'Bảo mật' })).toHaveAttribute('href', '/settings#bao-mat')
+    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Cài đặt' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('keeps "Thêm" as the current tab, as on the other screens behind it', async () => {
+    renderApp('/settings/stickers')
 
     expect(await within(shellPart('tabbar')).findByRole('link', { name: 'Thêm' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('titles the page "Sticker" in the top bar', async () => {
-    renderApp('/stickers')
+  it('opens from the "Sticker" item of the table of contents of Cài đặt', async () => {
+    stubViewport(1440)
+    const user = userEvent.setup()
+    const { router } = renderApp('/settings')
+    const toc = within(await screen.findByRole('navigation', { name: 'Mục cài đặt' }))
 
-    expect(await within(shellPart('topbar')).findAllByText('Sticker')).not.toHaveLength(0)
+    const links = toc.getAllByRole('link').map((link) => link.getAttribute('href'))
+    expect(links.indexOf('/settings/stickers')).toBe(links.indexOf('#nguon') + 1)
+    await user.click(toc.getByRole('link', { name: 'Sticker' }))
+
+    expect(router.state.location.pathname).toBe('/settings/stickers')
   })
 })
 

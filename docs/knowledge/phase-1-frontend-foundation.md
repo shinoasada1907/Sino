@@ -1870,7 +1870,14 @@ Mỗi dòng mục lục là một liên kết `#neo` thường; trình duyệt t
 
 jsdom không có `IntersectionObserver`, nên hook kiểm `typeof IntersectionObserver` trước khi dùng. Chấm đỏ của "Nguồn đã kết nối" chỉ là hình (`aria-hidden`), nên tên của liên kết nói thay: "Nguồn đã kết nối, 1 cần xử lý".
 
-### 26.5 Kiểm chứng
+### 26.5 Sticker trong Cài đặt (SE-04)
+Người dùng muốn quản lý sticker nằm trong Cài đặt. Màn sticker có lưới, bộ sticker và bước sửa ảnh, quá dài để làm một mục cuộn, nên nó thành một đường dẫn riêng `/settings/stickers` nằm cạnh mục lục:
+- **Thanh bên và trang "Thêm"** bỏ mục "Sticker". Tab "Thêm" vẫn là tab hiện tại trên trang này, vì `MORE_PATHS` so theo tiền tố: `/settings/stickers` bắt đầu bằng `/settings`.
+- **Địa chỉ cũ** `/stickers` là một `<Navigate replace>`. Liên kết cũ (như "Mở thư viện sticker" trong khung chọn sticker) và các test của màn sticker vẫn đi đúng chỗ mà không cần sửa. `replace` để nút Back của trình duyệt không quay về địa chỉ chỉ có nhiệm vụ chuyển tiếp.
+- **Mục lục trên trang sticker:** mỗi mục là một `Link` tới `/settings#neo`. React Router không tự cuộn tới `#neo` khi đổi trang, nên `SettingsPage` đọc `location.hash` trong một effect và gọi `scrollIntoView()`.
+- **Không sửa file nào của màn sticker**, vì chúng thuộc một change khác. Hệ quả: trên điện thoại, nút quay lại của màn sticker vẫn về "Thêm".
+
+### 26.6 Kiểm chứng
 - **Chrome thật:** chưa kiểm (Claude in Chrome không kết nối); người dùng xem trên `localhost:5173`.
 - **Test tự động:** 7 ca trong `SettingsPage.test.tsx`:
   - thứ tự 9 mục và mục lục;

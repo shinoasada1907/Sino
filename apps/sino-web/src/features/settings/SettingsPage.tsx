@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+import { useLocation } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { AboutSection, PrivacySection, SecuritySection, SourcesSection } from './components/DataSections'
 import { AppearanceSection, LanguageSection, MotionSection } from './components/LookSections'
@@ -9,6 +11,15 @@ import { SettingsNav } from './components/SettingsNav'
  * sample data except the theme and the connected accounts (D-392…D-396).
  */
 export function SettingsPage() {
+  const { hash } = useLocation()
+  // Coming from another page with an anchor (the table of contents of `/settings/stickers`): the router does not
+  // scroll to it, so the page does.
+  useEffect(() => {
+    if (hash) {
+      document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView()
+    }
+  }, [hash])
+
   return (
     <>
       <MobilePageHeader back={{ to: '/more', label: 'Quay lại Thêm' }} title="Cài đặt" />
