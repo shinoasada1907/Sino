@@ -29,6 +29,7 @@ export function SettingRow({
   control,
   stale,
   inline,
+  error,
 }: {
   title: ReactNode
   description?: ReactNode
@@ -37,6 +38,8 @@ export function SettingRow({
   stale?: boolean
   /** Keeps a small control (a switch, a button) on the right on a phone too. */
   inline?: boolean
+  /** Why the last change of this setting did not go through (settings-backend, D-405). */
+  error?: string | null
 }) {
   const Title = labelFor ? 'label' : 'span'
   return (
@@ -52,6 +55,11 @@ export function SettingRow({
           {title}
         </Title>
         {description && <span className="text-sm leading-5 text-muted-foreground">{description}</span>}
+        {error && (
+          <span role="alert" className="text-sm leading-5 text-danger-ink">
+            {error}
+          </span>
+        )}
       </div>
       {control}
     </div>
@@ -64,19 +72,22 @@ export function SettingSelect<T extends string>({
   value,
   options,
   onChange,
+  disabled,
 }: {
   id: string
   value: T
   options: { value: T; label: string }[]
   onChange: (value: T) => void
+  disabled?: boolean
 }) {
   return (
     <div className="relative w-full md:w-60">
       <select
         id={id}
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value as T)}
-        className="h-11 w-full cursor-pointer appearance-none rounded-sm border border-border bg-surface pr-10 pl-3.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16"
+        className="h-11 w-full cursor-pointer appearance-none rounded-sm border border-border bg-surface pr-10 pl-3.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -90,7 +101,21 @@ export function SettingSelect<T extends string>({
 }
 
 /** A row with a switch; the switch is named by the row's title. */
-export function SwitchRow({ title, description, checked, onChange }: { title: string; description?: string; checked: boolean; onChange: (checked: boolean) => void }) {
+export function SwitchRow({
+  title,
+  description,
+  checked,
+  onChange,
+  disabled,
+  error,
+}: {
+  title: string
+  description?: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+  error?: string | null
+}) {
   const id = useId()
   return (
     <SettingRow
@@ -98,7 +123,8 @@ export function SwitchRow({ title, description, checked, onChange }: { title: st
       description={description}
       labelFor={id}
       inline
-      control={<Switch id={id} checked={checked} onCheckedChange={onChange} />}
+      error={error}
+      control={<Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} />}
     />
   )
 }

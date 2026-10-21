@@ -6,6 +6,8 @@ export type ThemeContextValue = {
   theme: Theme
   /** What the user chose: a theme, or `system` to follow the OS (fe-ui-settings, D-395). */
   preference: ThemePreference
+  /** Whether the preference was chosen in this browser (now or on an earlier visit), not just the default. */
+  chosenHere: boolean
   choose: (preference: ThemePreference) => void
   /** Light to dark and back; leaves "follow the OS". */
   toggleTheme: () => void

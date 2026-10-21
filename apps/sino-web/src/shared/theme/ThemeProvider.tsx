@@ -1,9 +1,10 @@
 import { useCallback, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { applyTheme, initialPreference, resolveTheme, saveTheme, watchSystemTheme, type ThemePreference } from './theme'
+import { applyTheme, hasSavedPreference, initialPreference, resolveTheme, saveTheme, watchSystemTheme, type ThemePreference } from './theme'
 import { ThemeContext } from './themeContext'
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreference] = useState<ThemePreference>(initialPreference)
+  const [chosenHere, setChosenHere] = useState(hasSavedPreference)
   // "Theo hệ thống" follows the OS while the app is open (D-395); a chosen theme does not listen.
   const subscribe = useCallback((onChange: () => void) => (preference === 'system' ? watchSystemTheme(onChange) : () => {}), [preference])
   const theme = useSyncExternalStore(
@@ -18,11 +19,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   function choose(next: ThemePreference) {
     saveTheme(next)
     setPreference(next)
+    setChosenHere(true)
   }
 
   function toggleTheme() {
     choose(theme === 'dark' ? 'light' : 'dark')
   }
 
-  return <ThemeContext value={{ theme, preference, choose, toggleTheme }}>{children}</ThemeContext>
+  return <ThemeContext value={{ theme, preference, chosenHere, choose, toggleTheme }}>{children}</ThemeContext>
 }

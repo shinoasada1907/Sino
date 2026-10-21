@@ -16,6 +16,11 @@ export function initialPreference(): ThemePreference {
   return readSavedPreference() ?? 'system'
 }
 
+/** Whether this browser holds a choice of its own (settings-backend, D-405): then it wins over the one saved on the server. */
+export function hasSavedPreference(): boolean {
+  return readSavedPreference() !== null
+}
+
 /** The theme a choice comes to now: the OS setting for `system`. */
 export function resolveTheme(preference: ThemePreference): Theme {
   return preference === 'system' ? systemTheme() : preference

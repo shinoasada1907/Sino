@@ -5,7 +5,7 @@ import type { ThemePreference } from '@/shared/theme/theme'
 import { useTheme } from '@/shared/theme/themeContext'
 import { Segmented } from '@/shared/ui/segmented'
 import { DATE_FORMATS, MOTION_LEVELS } from '../settings.sample'
-import { useSettingsSample } from '../useSettingsSample'
+import { useSettingValues } from '../useSettings'
 import { SettingRow, SettingSection, SettingSelect } from './SettingRow'
 
 /**
@@ -57,7 +57,7 @@ export function AppearanceSection() {
 }
 
 export function LanguageSection() {
-  const { settings, update } = useSettingsSample()
+  const { values, disabled, update, errorOf } = useSettingValues()
   const dateId = useId()
   return (
     <SettingSection id="ngon-ngu" title="Ngôn ngữ">
@@ -66,16 +66,28 @@ export function LanguageSection() {
         title="Định dạng ngày giờ"
         description="Dùng trong danh sách, lịch sử và thông báo."
         labelFor={dateId}
-        control={<SettingSelect id={dateId} value={settings.dateFormat} options={DATE_FORMATS} onChange={(dateFormat) => update({ dateFormat })} />}
+        error={errorOf('dateFormat')}
+        control={
+          <SettingSelect id={dateId} value={values.dateFormat} options={DATE_FORMATS} disabled={disabled} onChange={(dateFormat) => update({ dateFormat })} />
+        }
       />
     </SettingSection>
   )
 }
 
-/** The level of motion; what the OS asks for is read for real, the choice itself is sample data. */
+/** The level of motion, saved (settings-backend); what the OS asks for is read in the sentence beside it. */
 export function MotionControl() {
-  const { settings, update } = useSettingsSample()
-  return <Segmented label="Mức chuyển động" value={settings.motion} options={MOTION_LEVELS} onChange={(motion) => update({ motion })} className="justify-self-start" />
+  const { values, disabled, update } = useSettingValues()
+  return (
+    <Segmented
+      label="Mức chuyển động"
+      value={values.motion}
+      options={MOTION_LEVELS}
+      disabled={disabled}
+      onChange={(motion) => update({ motion })}
+      className="justify-self-start"
+    />
+  )
 }
 
 export function MotionDescription() {
@@ -83,10 +95,15 @@ export function MotionDescription() {
   return <>Giảm: bỏ dịch chuyển, giữ hiệu ứng mờ dần. Máy của bạn đang {reduce ? '' : 'không '}yêu cầu giảm chuyển động.</>
 }
 
+function MotionRow() {
+  const { errorOf } = useSettingValues()
+  return <SettingRow title="Mức chuyển động" description={<MotionDescription />} error={errorOf('motion')} control={<MotionControl />} />
+}
+
 export function MotionSection() {
   return (
     <SettingSection id="chuyen-dong" title="Chuyển động">
-      <SettingRow title="Mức chuyển động" description={<MotionDescription />} control={<MotionControl />} />
+      <MotionRow />
     </SettingSection>
   )
 }

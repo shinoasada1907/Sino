@@ -12,6 +12,7 @@ import { TabBar } from './TabBar'
 import { Topbar } from './Topbar'
 import { useArrivalNotices } from './useArrivalNotices'
 import { useShellData } from './useShellData'
+import { ThemeSync } from '@/features/settings/ThemeSync'
 import { useTabUnread } from './useTabUnread'
 
 // The app frame around every screen. Sidebar >= 1280 px, Rail 768-1279 px, TabBar < 768 px (canvas `Breakpoints`).
@@ -51,6 +52,8 @@ export function AppShell() {
 
   return (
     <div className="grid h-svh grid-rows-[minmax(0,1fr)_auto] bg-background md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-1 xl:grid-cols-[248px_minmax(0,1fr)]">
+      {/* The theme follows the user to another browser, and a choice made here is saved (settings-backend, D-405). */}
+      <ThemeSync />
       <Sidebar shell={shell} className="hidden xl:flex" />
       <Rail shell={shell} className="hidden md:flex xl:hidden" />
       <div className="grid min-h-0 min-w-0 grid-rows-[auto_auto_minmax(0,1fr)]">

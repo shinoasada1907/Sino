@@ -1877,8 +1877,23 @@ Người dùng muốn quản lý sticker nằm trong Cài đặt. Màn sticker c
 - **Mục lục trên trang sticker:** mỗi mục là một `Link` tới `/settings#neo`. React Router không tự cuộn tới `#neo` khi đổi trang, nên `SettingsPage` đọc `location.hash` trong một effect và gọi `scrollIntoView()`.
 - **Không sửa file nào của màn sticker**, vì chúng thuộc một change khác. Hệ quả: trên điện thoại, nút quay lại của màn sticker vẫn về "Thêm".
 
-### 26.6 Kiểm chứng
+### 26.6 Cài đặt được lưu thật (`settings-backend`, SB-10, SB-11)
+Phiên `sino-api` làm `GET`/`PATCH /api/settings` và `GET /api/settings/storage`; phiên web nối màn vào hợp đồng đó, kiểm bằng MSW trong lúc chờ backend.
+- **Đổi hiện ngay, lỗi trả về:** `useUpdateSettings` sửa cache ngay khi bấm. Máy chủ trả lời thì cache lấy đúng bản của máy chủ; máy chủ từ chối thì cache trở về như trước, và câu "Không lưu được. Hãy thử lại." hiện dưới đúng dòng đó. Mỗi dòng hỏi một khoá trong cache (`['settings', 'failure']`); với một công tắc, khoá là `notifications.<tên công tắc>`, nên lỗi của một công tắc không hiện ở cả sáu.
+- **Trước khi có bản đã lưu:** control hiện giá trị mặc định nhưng bị khoá. Đọc lỗi thì đầu trang báo "Không tải được cài đặt đã lưu." kèm "Thử lại".
+- **Theme đi theo người dùng mà không đè lựa chọn cũ:** trình duyệt chưa từng chọn (không có `sino.theme`) thì lấy theme đã lưu trên máy chủ. Trình duyệt đã chọn thì giữ lựa chọn của nó và ghi nó lên máy chủ. API trả mặc định khi chưa lưu gì, nên nếu "máy chủ luôn thắng" thì người đã chọn Tối từ trước sẽ bị đẩy về "Theo hệ thống".
+
+**Bài học: một hook trong khung app có thể làm cả khung app đọc lại dữ liệu.** Hook đồng bộ theme cần truy vấn `/api/settings` ở mọi màn, nên lúc đầu được gọi thẳng trong `AppShell`. Test "phiên hết hạn" liền đỏ: khi một request trả 401, `forgetSession` xoá cache rồi đặt "chưa đăng nhập", và lẽ ra trang đổi sang đăng nhập ngay. Thử bỏ dần từng phần:
+- bỏ hook thì xanh;
+- giữ chỉ một `useQuery` có `queryFn` cục bộ vẫn đỏ.
+
+Vậy một truy vấn chưa có dữ liệu trong `AppShell` làm nó render lại sau khi cache bị xoá mà trước khi chuyển trang, và lần render đó dựng lại các truy vấn khác của khung app. Cách sửa: đặt hook trong một component con không vẽ gì (`<ThemeSync />`). Nó render lại thì chỉ mình nó render lại. Thêm vào đó, hook ghi theme bằng một lời gọi thường chứ không dùng `useMutation`, để khung app không phải theo dõi cache mutation.
+
+**Test luôn có một backend cài đặt giả.** Mọi màn đã đăng nhập đều đọc theme đã lưu, mà bộ test đánh hỏng mọi request không có handler. Vì vậy `test/fixtures/settingsApi.ts` luôn bật trong `msw/server.ts`; nó giữ những gì một test lưu, và được đặt lại trước mỗi test. Test cần lỗi thì đè bằng `server.use(...)` như thường.
+
+### 26.7 Kiểm chứng
 - **Chrome thật:** chưa kiểm (Claude in Chrome không kết nối); người dùng xem trên `localhost:5173`.
+- **SB-10, SB-11 (MSW):** 9 ca trong `SettingsOnApi.test.tsx`; `pnpm test` 1315/1319. Chưa kiểm trên backend thật: chờ phiên `sino-api` xong SB-02, SB-03.
 - **Test tự động:** 7 ca trong `SettingsPage.test.tsx`:
   - thứ tự 9 mục và mục lục;
   - mục lục đánh dấu mục được bấm;

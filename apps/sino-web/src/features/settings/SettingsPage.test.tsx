@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createAccountsSample } from '@/features/accounts/accounts.sample'
@@ -84,24 +84,26 @@ describe('the settings screen', () => {
     expect(localStorage.getItem('sino.theme')).toBe('system')
   })
 
-  it('keeps a change of the sample settings while the page is open, without sending it anywhere', async () => {
+  // Saving them is in SettingsOnApi.test.tsx (settings-backend).
+  it('changes the settings on screen at once', async () => {
     open()
     const user = userEvent.setup()
 
     const registrations = await screen.findByRole('switch', { name: 'Đăng ký mới được phát hiện' })
+    await waitFor(() => expect(registrations).toBeEnabled())
     expect(registrations).toBeChecked()
     await user.click(registrations)
     expect(registrations).not.toBeChecked()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Định dạng ngày giờ' }), '2026-10-02 · 14:05')
-    expect(screen.getByRole('combobox', { name: 'Định dạng ngày giờ' })).toHaveValue('iso')
+    expect(screen.getByRole('combobox', { name: 'Định dạng ngày giờ' })).toHaveValue('ISO')
 
     const motion = within(screen.getByRole('group', { name: 'Mức chuyển động' }))
     await user.click(motion.getByRole('button', { name: 'Giảm' }))
     expect(motion.getByRole('button', { name: 'Giảm' })).toHaveAttribute('aria-pressed', 'true')
 
-    expect(screen.getByRole('combobox', { name: 'Giờ yên lặng' })).toHaveValue('22-7')
-    expect(screen.getByRole('combobox', { name: 'Tuần bắt đầu từ' })).toHaveValue('monday')
+    expect(screen.getByRole('combobox', { name: 'Giờ yên lặng' })).toHaveValue('22:00-07:00')
+    expect(screen.getByRole('combobox', { name: 'Tuần bắt đầu từ' })).toHaveValue('MONDAY')
     expect(section('Quyền riêng tư và dữ liệu').getByText(/3\.912/)).toBeInTheDocument()
   })
 

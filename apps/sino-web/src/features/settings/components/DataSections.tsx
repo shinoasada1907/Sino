@@ -8,22 +8,28 @@ import { AccountAvatar } from '@/shared/ui/account-avatar'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Status } from '@/shared/ui/status'
-import { formatCount } from '../settings.sample'
-import { useSettingsSample } from '../useSettingsSample'
+import { formatCount, formatMegabytes, SETTINGS_SAMPLE } from '../settings.sample'
+import { useStorageUse } from '../useSettings'
 import { SettingRow, SettingSection } from './SettingRow'
 
-/** What Sino keeps; "Xuất dữ liệu" and "Xóa dữ liệu" do nothing yet (D-399). */
+/** What Sino keeps, counted by the server (settings-backend, D-406); "Xuất dữ liệu" and "Xóa dữ liệu" do nothing yet (D-399). */
 export function PrivacyRows() {
-  const { settings } = useSettingsSample()
+  const { storage, failed } = useStorageUse()
   return (
     <>
       <SettingRow
         title="Dữ liệu Sino đang lưu"
         description={
-          <>
-            <span className="tabular-nums">{formatCount(settings.stored.messages)}</span> thư và tin nhắn ·{' '}
-            <span className="tabular-nums">{formatCount(settings.stored.megabytes)} MB</span> · tệp đính kèm chỉ lưu tên và dung lượng
-          </>
+          storage ? (
+            <>
+              <span className="tabular-nums">{formatCount(storage.messages)}</span> thư và tin nhắn ·{' '}
+              <span className="tabular-nums">{formatMegabytes(storage.bytes)}</span> · tệp đính kèm chỉ lưu tên và dung lượng
+            </>
+          ) : failed ? (
+            'Chưa tính được.'
+          ) : (
+            'Đang tính…'
+          )
         }
         inline
         control={
@@ -107,7 +113,7 @@ function SourcesLink() {
 
 /** "Đăng xuất thiết bị khác" does nothing yet (D-399). */
 export function SecurityRows() {
-  const { settings } = useSettingsSample()
+  const { sessions } = SETTINGS_SAMPLE
   return (
     <>
       <SettingRow
@@ -118,7 +124,7 @@ export function SecurityRows() {
       />
       <SettingRow
         title="Phiên đăng nhập"
-        description={`${settings.sessions.count} thiết bị · ${settings.sessions.summary}`}
+        description={`${sessions.count} thiết bị · ${sessions.summary}`}
         inline
         control={
           <Button type="button" variant="ghost" size="sm">
@@ -140,14 +146,14 @@ export function SecuritySection() {
 
 /** The version is sample data: the web app has none yet (D-396). The privacy policy is the public page `/privacy`. */
 export function AboutSection() {
-  const { settings } = useSettingsSample()
+  const { version, build } = SETTINGS_SAMPLE
   return (
     <SettingSection id="ve-sino" title="Về Sino">
       <SettingRow
         title="Phiên bản"
         description={
           <span className="font-mono text-[11px] leading-4 font-medium">
-            Sino {settings.version} · bản dựng {settings.build}
+            Sino {version} · bản dựng {build}
           </span>
         }
         inline

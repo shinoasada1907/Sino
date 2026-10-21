@@ -7,12 +7,14 @@ function Segmented<T extends string>({
   options,
   onChange,
   className,
+  disabled,
 }: {
   label: string
   value: T
   options: { value: T; label: string }[]
   onChange: (value: T) => void
   className?: string
+  disabled?: boolean
 }) {
   return (
     <div role="group" aria-label={label} className={cn('inline-flex gap-1 rounded-xl border bg-surface p-1', className)}>
@@ -21,8 +23,9 @@ function Segmented<T extends string>({
           key={option.value}
           type="button"
           aria-pressed={option.value === value}
+          disabled={disabled}
           onClick={() => onChange(option.value)}
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-transparent px-3 text-[13px] leading-[18px] font-medium text-muted-foreground transition-[background-color,border-color,color] duration-(--dur-hover) ease-out outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring focus-visible:outline-solid aria-pressed:border-border-strong aria-pressed:bg-raised aria-pressed:text-foreground"
+          className="inline-flex h-9 cursor-pointer items-center disabled:cursor-not-allowed disabled:opacity-40 gap-2 rounded-[8px] border border-transparent px-3 text-[13px] leading-[18px] font-medium text-muted-foreground transition-[background-color,border-color,color] duration-(--dur-hover) ease-out outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring focus-visible:outline-solid aria-pressed:border-border-strong aria-pressed:bg-raised aria-pressed:text-foreground"
         >
           {option.label}
         </button>
