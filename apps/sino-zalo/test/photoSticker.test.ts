@@ -3,8 +3,9 @@ import { type API, ThreadType as ZcaThreadType, type UploadAttachmentImageRespon
 import { type ZaloImage, ZaloRejectedError } from "../src/gateway/ZaloGateway.ts";
 import { photoStickerParams, sendPhotoSticker, ZcaGateway } from "../src/gateway/ZcaGateway.ts";
 
-// ZS-09 (D-359): a still sticker goes to Zalo as an AI sticker: uploaded as a photo, then posted to photo_url with
-// the fields chat.zalo.me gives an AI sticker. The user saw it arrive as a sticker on 2026-10-21.
+// ZS-09 (D-359): a still sticker goes to Zalo as a photo in the bubble without a border: uploaded as a photo, then
+// posted to photo_url. Without the AI sticker marks (`jcp`, `webp`), since with them the Zalo phone app showed only a
+// placeholder; the user saw this one on the web, Zalo PC and the phone on 2026-10-21.
 
 const fake = vi.hoisted(() => ({ api: undefined as unknown }));
 
@@ -52,7 +53,7 @@ function uploader(result: unknown = [uploaded()]) {
 }
 
 describe("photoStickerParams", () => {
-  it("gives a direct chat the fields chat.zalo.me gives an AI sticker", () => {
+  it("gives a direct chat a photo in the bubble without a border, with no AI sticker mark", () => {
     const params = photoStickerParams("8001", "USER", picture(), uploaded());
 
     expect(params).toEqual({
@@ -67,8 +68,6 @@ describe("photoStickerParams", () => {
       contentId: "5550001",
       thumb_width: 512,
       thumb_height: 384,
-      webp: JSON.stringify({ width: 512, height: 384, url: HD }),
-      jcp: JSON.stringify({ pStickerType: 1 }),
       toId: "8001",
     });
     expect(JSON.parse(params.properties as string)).toEqual({
@@ -91,13 +90,16 @@ describe("photoStickerParams", () => {
     const params = photoStickerParams("8001", "USER", picture(), uploaded({ width: 0, height: 0 }));
 
     expect(params).toMatchObject({ width: 128, height: 96, thumb_width: 128, thumb_height: 96 });
-    expect(JSON.parse(params.webp as string)).toMatchObject({ width: 128, height: 96 });
   });
 
-  it("shows the normal address when Zalo gives no HD one", () => {
-    const params = photoStickerParams("8001", "USER", picture(), uploaded({ hdUrl: "" }));
-
-    expect(JSON.parse(params.webp as string).url).toBe(NORMAL);
+  it("never carries a mark that makes the Zalo phone app draw the photo as an AI sticker", () => {
+    for (const params of [
+      photoStickerParams("8001", "USER", picture(), uploaded()),
+      photoStickerParams("9001", "GROUP", picture(), uploaded({ hdUrl: "" })),
+    ]) {
+      expect(params).not.toHaveProperty("jcp");
+      expect(params).not.toHaveProperty("webp");
+    }
   });
 });
 
@@ -212,7 +214,7 @@ describe("a live connection sends a picture", () => {
     return { requests, sendMessage, uploadAttachment };
   }
 
-  it("sends a PNG as an AI sticker through photo_url", async () => {
+  it("sends a PNG through photo_url in the bubble without a border", async () => {
     const { requests, sendMessage, uploadAttachment } = liveApi();
     const connection = await new ZcaGateway().loginWithSession(SESSION);
 
@@ -224,9 +226,10 @@ describe("a live connection sends a picture", () => {
     expect(requests).toEqual([
       {
         url: "https://files.zalo.test/api/message/photo_url?nretry=0",
-        params: expect.objectContaining({ toId: "8001", jcp: JSON.stringify({ pStickerType: 1 }) }),
+        params: expect.objectContaining({ toId: "8001", properties: expect.stringContaining('"type":3') }),
       },
     ]);
+    expect(requests[0]?.params).not.toHaveProperty("jcp");
   });
 
   it("sends a WebP the same way, and into a group through the group's photo_url", async () => {

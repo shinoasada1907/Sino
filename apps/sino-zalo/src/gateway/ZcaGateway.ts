@@ -559,12 +559,11 @@ export async function sendImage(
 }
 
 /**
- * Zalo's own values for a picture that shows as a sticker, read in the code of chat.zalo.me (2026-10-20): the
- * `pStickerType` of an AI sticker, and the bubble layout without a border. Zalo draws a photo as a sticker when its
- * `pStickerType` is AI_STICKER and its layout is NO_BORDER, or it has both `contentId` and `webp`. NO_BORDER also
- * marks a received photo as a sticker (`photoOf`).
+ * The bubble layout without a border, read in the code of chat.zalo.me (2026-10-20). A still sticker goes out as a
+ * photo in this bubble but without the marks of a Zalo AI sticker (`pStickerType`, `webp`): the Zalo phone app draws
+ * a photo with those marks sent from the web or a PC as an empty placeholder, Zalo PC's own included (ZS-09,
+ * 2026-10-21). NO_BORDER also marks a received photo as a sticker (`photoOf`).
  */
-const AI_STICKER = 1;
 const NO_BORDER = 3;
 
 /** Posts the params of a photo sent by its address, as chat.zalo.me's `sendPhotoByUrl` does; Zalo's answer. */
@@ -594,9 +593,8 @@ function photoUrlSender(api: API): PhotoUrlSend {
 
 /**
  * Sends a still picture as a sticker (zalo-send-images, DN-2 = B since 2026-10-20): the picture is uploaded as a
- * photo, then sent by its address with the fields chat.zalo.me gives an AI sticker, so Zalo shows it without the
- * photo frame. An upload alone puts nothing in the chat, so any failure before the send is a refusal; the send
- * itself is a refusal or unknown as in `deliver`.
+ * photo, then sent by its address in the bubble without a border. An upload alone puts nothing in the chat, so any
+ * failure before the send is a refusal; the send itself is a refusal or unknown as in `deliver`.
  */
 export async function sendPhotoSticker(
   upload: API["uploadAttachment"],
@@ -640,7 +638,7 @@ export async function sendPhotoSticker(
   }
 }
 
-/** What chat.zalo.me posts to `photo_url` for an AI sticker, with the uploaded photo in place of Zalo's sticker. */
+/** What chat.zalo.me posts to `photo_url` for a photo, in the bubble without a border and with no AI sticker mark. */
 export function photoStickerParams(
   threadId: string,
   threadType: ThreadType,
@@ -649,7 +647,6 @@ export function photoStickerParams(
 ): Record<string, unknown> {
   const width = uploaded.width || image.width;
   const height = uploaded.height || image.height;
-  const picture = uploaded.hdUrl || uploaded.normalUrl;
   return {
     clientId: Date.now(),
     title: "",
@@ -668,8 +665,6 @@ export function photoStickerParams(
     contentId: uploaded.photoId,
     thumb_width: width,
     thumb_height: height,
-    webp: JSON.stringify({ width, height, url: picture }),
-    jcp: JSON.stringify({ pStickerType: AI_STICKER }),
     ...(threadType === "GROUP" ? { grid: threadId, visibility: 0 } : { toId: threadId }),
   };
 }

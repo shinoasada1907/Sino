@@ -12,11 +12,11 @@
 - **THEN** phản hồi `400`, và Zalo không nhận yêu cầu nào
 
 ### Requirement: Ảnh tĩnh hiện như sticker của Zalo
-Ảnh PNG hay WebP MUST được gửi thành một tin ảnh kiểu AI sticker của Zalo (`pStickerType` 1, bong bóng không viền), để Zalo vẽ nó như sticker chứ không như ảnh có khung. Ảnh GIF MUST đi đường ảnh GIF của `zca-js`. Lỗi trước khi tin được gửi đi (lúc tải ảnh lên) MUST là bị từ chối, không phải chưa rõ.
+Ảnh PNG hay WebP MUST được gửi thành một tin ảnh trong bong bóng không viền, và MUST NOT mang dấu AI sticker của Zalo (`jcp` / `pStickerType`, `webp`), vì ứng dụng Zalo trên điện thoại vẽ tin mang dấu đó thành ô giữ chỗ; tin không dấu hiện được trên web, PC và điện thoại. Ảnh GIF MUST đi đường ảnh GIF của `zca-js`. Lỗi trước khi tin được gửi đi (lúc tải ảnh lên) MUST là bị từ chối, không phải chưa rõ.
 
 #### Scenario: Gửi một sticker PNG
 - **WHEN** `sino-api` gửi một ảnh `sticker.png` vào chat đôi
-- **THEN** gateway tải ảnh lên rồi gửi nó qua `photo_url` với `pStickerType` 1 và bong bóng không viền, và phản hồi có `msgId`
+- **THEN** gateway tải ảnh lên rồi gửi nó qua `photo_url` trong bong bóng không viền, không có `jcp` hay `webp`, và phản hồi có `msgId`
 
 #### Scenario: Tải ảnh lên hỏng
 - **WHEN** Zalo không nhận lần tải ảnh lên

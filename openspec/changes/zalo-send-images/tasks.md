@@ -30,7 +30,7 @@
 
 ## 2. `sino-api`
 
-- [ ] 1.3 **ZS-09 — Ảnh tĩnh đi như AI sticker của Zalo (D-359, DN-2 = B)** (mở lại 2026-10-21: Zalo trên điện thoại chưa hiện, xem "Kiểm thêm")
+- [x] 1.3 **ZS-09 — Ảnh tĩnh đi như AI sticker của Zalo (D-359, DN-2 = B)** (mở lại 2026-10-21 vì Zalo trên điện thoại chưa hiện, xong lại cùng ngày: xem "Kiểm thêm" và "Sửa")
   - **Goal:** sticker PNG / WebP gửi từ Sino hiện trong Zalo như sticker (không khung ảnh), không như ảnh.
   - **Files:** `src/gateway/ZcaGateway.ts` (`sendPhotoSticker`, `photoStickerParams`, `photoUrlSender`); test mới sau lượt xem thật.
   - **Acceptance criteria:** spec `zalo-image-send`, requirement "Ảnh tĩnh hiện như sticker của Zalo".
@@ -52,6 +52,17 @@
       | CDN (`curl` địa chỉ đã lưu) | 404 | 200, JPEG |
 
       `photoShape` của hai tin (đọc từ bộ đệm `sino-zalo`): cùng khóa, cùng `pStickerType`, `webp`, `propertyExt.type` 3. Khác ở ba chỗ: `href` và `thumb` của Sino nằm trên CDN ảnh thường (`f120-zpc`, `t-f120-zpc`), của PC nằm trên `b-f11-zpc`; `contentId` dài 12 chữ số (Sino, `photoId`) và 13 (PC); `paramsExt.platformType` là 1 (Sino) và 2 (PC), còn ảnh gửi từ điện thoại mang 0. **Kết luận:** sticker của Sino hiện ở nhiều nơi hơn chính sticker AI của Zalo PC (tệp của sticker PC không có trên CDN, giống ZL-18, nên chỉ máy đã tạo ra nó hiện được). Điện thoại không hiện cả tin của Sino, dù mọi địa chỉ trong tin đều tải được; vậy điện thoại không vẽ từ các địa chỉ đó. Chưa có mẫu sticker AI gửi từ điện thoại, nên chưa biết điện thoại cần gì.
+  - **Sửa (2026-10-21; người dùng duyệt thử từng bước: "oke làm đi"). Làm khác D-359, lý do:** dấu ✦ cho thấy điện thoại nhận ra tin là sticker AI và đi đường vẽ riêng, còn ảnh thường thì điện thoại vẽ được. Vậy bỏ dần các dấu "sticker", mỗi lần một trường; mỗi lần Sino gửi một sticker và người dùng xem trên điện thoại và chat.zalo.me:
+
+    | Lần | Gửi lúc | Tin mang | Điện thoại | chat.zalo.me |
+    |---|---|---|---|---|
+    | Trước | 10:45:26 | `jcp.pStickerType` 1, `webp`, `contentId`, bong bóng không viền | ô giữ chỗ có ✦ | như sticker |
+    | 1 | 10:58:07 | bỏ `jcp` | ô giữ chỗ, mất ✦ | như sticker |
+    | 2 | 11:01:10 | bỏ thêm `webp` | **hiện** | **hiện** (Zalo PC cũng hiện; người dùng: "đã hiện được trên 3 nền tảng web desktop và mobile") |
+
+    Ảnh gửi từ điện thoại (10:42:20) cũng có `contentId` mà không có `webp`, nên `webp` là dấu sticker còn `contentId` là trường bình thường của ảnh. **Giữ bản lần 2:** `photoStickerParams` không còn `jcp` và `webp` (bỏ luôn hằng `AI_STICKER` và biến `picture` không còn dùng); bong bóng không viền, `properties.ext`, `contentId`, `thumb_width` / `thumb_height` giữ đúng như bản đã thử tay. Tin vọng lại của lần 2: `params` chỉ còn `width`, `height`, `hd` (Zalo tự bỏ `contentId`), ảnh chính trên CDN ảnh thường `f120-zpc`; Sino vẫn nhận là sticker nhờ bong bóng không viền (ZL-19). Spec `zalo-image-send` và D-359 sửa theo.
+  - **Bằng chứng của bản sửa (test tự động viết sau test tay):** chạy trong một worktree sạch ở `HEAD` cộng đúng hai tệp của bản sửa, vì `ZcaGateway.ts` của cây chung còn phần chưa commit của `zalo-send-files`. `test/photoSticker.test.ts` 13 test: ca đầu đòi đúng bộ trường (không `jcp`, không `webp`); ca mới "không bao giờ mang dấu" cho chat đôi và nhóm (nhóm không có HD); ca kết nối thật kiểm bong bóng không viền và không `jcp`; bỏ ca "địa chỉ `webp` khi thiếu HD" vì không còn `webp`. `pnpm test` 21 tệp / 311 test, `tsc --noEmit` 0, `oxlint` thoát 0 (10 cảnh báo, bằng đúng `HEAD`). Gài lỗi 4/4 bị diệt: gài lại `jcp`, gài lại `webp`, `webp` chỉ cho nhóm, bong bóng có viền.
+  - **Chưa kiểm sau bản sửa:** gửi vào nhóm, iPhone, và trên từng nơi tin trông như sticker hay như ảnh có khung (người dùng chỉ báo là đã hiện).
   - **Depends on:** ZS-01, ZS-02.
 
 - [x] 2.1 **ZS-03 — `OutgoingImage`, `SEND_IMAGES`, `ZaloProvider` gửi ảnh (D-349)**
