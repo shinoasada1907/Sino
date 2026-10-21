@@ -1,8 +1,13 @@
 import { createContext, useContext } from 'react'
-import type { Theme } from './theme'
+import type { Theme, ThemePreference } from './theme'
 
 export type ThemeContextValue = {
+  /** The theme in use now. */
   theme: Theme
+  /** What the user chose: a theme, or `system` to follow the OS (fe-ui-settings, D-395). */
+  preference: ThemePreference
+  choose: (preference: ThemePreference) => void
+  /** Light to dark and back; leaves "follow the OS". */
   toggleTheme: () => void
 }
 

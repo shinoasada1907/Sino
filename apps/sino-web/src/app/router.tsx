@@ -9,6 +9,7 @@ import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotesPage } from '@/features/notes/NotesPage'
 import { HomeGate } from '@/features/public/HomeGate'
 import { PrivacyRoute } from '@/features/public/PrivacyRoute'
+import { SettingsPage } from '@/features/settings/SettingsPage'
 import { StickersPage } from '@/features/stickers/StickersPage'
 import { TasksPage } from '@/features/tasks/TasksPage'
 import { NotFoundPage } from './NotFoundPage'
@@ -29,6 +30,7 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/stickers': { element: <StickersPage />, handle: { mobilePageHeader: true } },
   '/calendar': { element: <CalendarPage />, handle: { mobilePageHeader: true } },
   '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
+  '/settings': { element: <SettingsPage />, handle: { mobilePageHeader: true } },
 }
 
 // Every page sits behind RequireAuth except sign-in, 404 and the public pages (spec web-app-foundation, web-public-pages).
