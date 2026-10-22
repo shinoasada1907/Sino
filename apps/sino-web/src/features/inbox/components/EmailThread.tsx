@@ -357,8 +357,9 @@ function MailCard({
   )
 }
 
-// Canvas `.att`: a file of an email. From the API it downloads through Sino (D-125); the sample data has no address.
-function MailFile({ file }: { file: Attachment }) {
+// Canvas `.att`: a file of an email, or of a chat message (zalo-send-files, ZF-08). From the API it downloads through
+// Sino (D-125); the sample data, and a file still on its way, have no address.
+export function MailFile({ file }: { file: Attachment }) {
   const className =
     'inline-flex h-13 min-w-0 max-w-full cursor-pointer items-center gap-2.5 rounded-sm border bg-raised pr-3.5 pl-2 text-left text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid'
   const content = (

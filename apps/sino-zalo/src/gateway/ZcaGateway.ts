@@ -17,9 +17,11 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloFile,
   type ZaloImage,
   type ZaloMessage,
   type ZaloPhoto,
+  type ZaloSharedFile,
   ZaloRejectedError,
   type ZaloSession,
   type ZaloSticker,
@@ -140,6 +142,7 @@ export class ZcaGateway implements ZaloGateway {
         image.fileName.endsWith(".gif")
           ? sendImage(api.sendMessage, threadId, threadType, image)
           : sendPhotoSticker(api.uploadAttachment, photoUrl, threadId, threadType, image),
+      sendFile: (threadId, threadType, file) => sendFile(api.sendMessage, threadId, threadType, file),
       stickerArt: async (stickerId, catId) => {
         try {
           // `await` here, or a rejection would pass the catch below.
@@ -174,6 +177,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
         : undefined;
   const photo =
     data.msgType === "chat.photo" ? photoOf(data.content, data.propertyExt?.type === NO_BORDER) : undefined;
+  const file = data.msgType === "share.file" ? sharedFileOf(data.content) : undefined;
   const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
   const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
   return {
@@ -188,6 +192,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
     sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
     ...(sticker === undefined ? {} : { sticker }),
     ...(photo === undefined ? {} : { photo }),
+    ...(file === undefined ? {} : { file }),
     ...(contentShape === undefined ? {} : { contentShape }),
     ...(photoShape === undefined ? {} : { photoShape }),
   };
@@ -211,6 +216,25 @@ function unseen(msgType: string, photo: ZaloPhoto | undefined, sticker: ZaloStic
     default:
       return !KNOWN_TYPES.has(msgType);
   }
+}
+
+/**
+ * The file a `share.file` content names (zalo-send-files, ZF-08): `title` is its name and `href` where Zalo serves it,
+ * as zca-js reads them; `params`, a JSON text, says `fileSize` (a number or a numeric text). undefined without a name
+ * or a web address; the message then stays the text `[Tệp]` in Sino and its content is described in the log.
+ */
+function sharedFileOf(content: unknown): ZaloSharedFile | undefined {
+  const fields = objectOf(content);
+  if (fields === null) {
+    return undefined;
+  }
+  const name = typeof fields.title === "string" ? fields.title.trim() : "";
+  const url = webAddress(fields.href);
+  if (name === "" || url === null) {
+    return undefined;
+  }
+  const size = Number(objectOf(fields.params)?.fileSize);
+  return { name, url, sizeBytes: Number.isSafeInteger(size) && size >= 0 ? size : null };
 }
 
 /**
@@ -559,12 +583,11 @@ export async function sendImage(
 }
 
 /**
- * Zalo's own values for a picture that shows as a sticker, read in the code of chat.zalo.me (2026-10-20): the
- * `pStickerType` of an AI sticker, and the bubble layout without a border. Zalo draws a photo as a sticker when its
- * `pStickerType` is AI_STICKER and its layout is NO_BORDER, or it has both `contentId` and `webp`. NO_BORDER also
- * marks a received photo as a sticker (`photoOf`).
+ * The bubble layout without a border, read in the code of chat.zalo.me (2026-10-20). A still sticker goes out as a
+ * photo in this bubble but without the marks of a Zalo AI sticker (`pStickerType`, `webp`): the Zalo phone app draws
+ * a photo with those marks sent from the web or a PC as an empty placeholder, Zalo PC's own included (ZS-09,
+ * 2026-10-21). NO_BORDER also marks a received photo as a sticker (`photoOf`).
  */
-const AI_STICKER = 1;
 const NO_BORDER = 3;
 
 /** Posts the params of a photo sent by its address, as chat.zalo.me's `sendPhotoByUrl` does; Zalo's answer. */
@@ -594,9 +617,8 @@ function photoUrlSender(api: API): PhotoUrlSend {
 
 /**
  * Sends a still picture as a sticker (zalo-send-images, DN-2 = B since 2026-10-20): the picture is uploaded as a
- * photo, then sent by its address with the fields chat.zalo.me gives an AI sticker, so Zalo shows it without the
- * photo frame. An upload alone puts nothing in the chat, so any failure before the send is a refusal; the send
- * itself is a refusal or unknown as in `deliver`.
+ * photo, then sent by its address in the bubble without a border. An upload alone puts nothing in the chat, so any
+ * failure before the send is a refusal; the send itself is a refusal or unknown as in `deliver`.
  */
 export async function sendPhotoSticker(
   upload: API["uploadAttachment"],
@@ -640,7 +662,7 @@ export async function sendPhotoSticker(
   }
 }
 
-/** What chat.zalo.me posts to `photo_url` for an AI sticker, with the uploaded photo in place of Zalo's sticker. */
+/** What chat.zalo.me posts to `photo_url` for a photo, in the bubble without a border and with no AI sticker mark. */
 export function photoStickerParams(
   threadId: string,
   threadType: ThreadType,
@@ -649,7 +671,6 @@ export function photoStickerParams(
 ): Record<string, unknown> {
   const width = uploaded.width || image.width;
   const height = uploaded.height || image.height;
-  const picture = uploaded.hdUrl || uploaded.normalUrl;
   return {
     clientId: Date.now(),
     title: "",
@@ -668,10 +689,37 @@ export function photoStickerParams(
     contentId: uploaded.photoId,
     thumb_width: width,
     thumb_height: height,
-    webp: JSON.stringify({ width, height, url: picture }),
-    jcp: JSON.stringify({ pStickerType: AI_STICKER }),
     ...(threadType === "GROUP" ? { grid: threadId, visibility: 0 } : { toId: threadId }),
   };
+}
+
+/**
+ * Sends a picture or file from the computer alone through zca-js (zalo-send-files, D-375). zca-js picks the path by the
+ * ending of the name: a photo goes as Zalo's plain photo (with its frame, unlike a sticker's picture) with its size in
+ * pixels, a GIF down its GIF path, any other file is uploaded as a file, which waits for Zalo to say so on the
+ * session's websocket. The msgId is the one of that message, in `attachment[0]`. Refusal and unknown as in `deliver`.
+ */
+export async function sendFile(
+  send: API["sendMessage"],
+  threadId: string,
+  threadType: ThreadType,
+  file: ZaloFile,
+): Promise<string> {
+  const metadata =
+    file.kind === "PHOTO"
+      ? { totalSize: file.data.length, width: file.width, height: file.height }
+      : { totalSize: file.data.length };
+  const response = await deliver(
+    send,
+    { msg: "", attachments: [{ data: file.data, filename: file.fileName as `${string}.${string}`, metadata }] },
+    threadId,
+    threadType,
+  );
+  const msgId = response.attachment[0]?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
 }
 
 /**

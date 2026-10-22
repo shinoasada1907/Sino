@@ -6,7 +6,8 @@ import type { ProviderKind } from '@/shared/domain'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, withOutbox, type InboxFilter } from './format'
 import { stickerTurns } from './stickerQueue'
-import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, sendMessage, sendSticker, updateConversation } from './inbox.api'
+import { isPicture, outgoingFiles } from './outgoingFiles'
+import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, fileTypeOf, sendFile, sendMessage, sendSticker, updateConversation } from './inbox.api'
 import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation, UnreadByKind } from './inbox.types'
 import { LEAVE_FREELY, rememberSender, type NewMailDraft } from './newMail'
 import { SCREENS } from './screen'
@@ -299,17 +300,42 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
  * server answers (and the row's preview), or is marked "Không gửi được" when sending fails.
  */
 // What a reply on its way needs: a resend carries the ID of the first try; `attempt` tells this try from a later one. It is
-// a text, or a sticker of the library (zalo-send-images), which the server turns into a picture.
+// a text, a sticker of the library (zalo-send-images), which the server turns into a picture, or a picture or file from
+// the computer (zalo-send-files). `paced`: it waits its turn in the queue of stickers and files.
 type Try =
   | { kind: 'TEXT'; text: string; clientMessageId: string }
   | { kind: 'STICKER'; stickerId: string; clientMessageId: string }
-type Outgoing = Try & { attempt: number }
+  | { kind: 'FILE'; file: File; clientMessageId: string }
+type Outgoing = Try & { attempt: number; paced: boolean }
 
 /** The text the server stores a sticker with; shown while the sticker has no picture to show. */
 const STICKER_TEXT = '[Sticker]'
+/** The text the server stores a picture with (zalo-send-files, D-373); a file is stored with its name. */
+const PICTURE_TEXT = '[Ảnh]'
 
-/** Stickers of every conversation go through one queue (D-355): the limit of sino-zalo is per account. */
-const STICKER_SCOPE = 'stickers'
+/**
+ * Stickers, files and the text sent with files, of every conversation, go through one queue (D-355, D-377): the limit of
+ * sino-zalo is per account.
+ */
+const PACED_SCOPE = 'paced-sends'
+
+/** What a message on its way shows before the server has it. */
+function pendingContent(outgoing: Outgoing): Pick<Mail, 'text' | 'attachments'> & Partial<Pick<Mail, 'libraryStickerId'>> {
+  switch (outgoing.kind) {
+    case 'STICKER':
+      return { text: STICKER_TEXT, attachments: [], libraryStickerId: outgoing.stickerId }
+    case 'FILE': {
+      const { file } = outgoing
+      const picture = isPicture(file)
+      return {
+        text: picture ? PICTURE_TEXT : file.name,
+        attachments: [{ name: file.name, type: fileTypeOf(file), sizeBytes: file.size, image: picture, caption: null }],
+      }
+    }
+    default:
+      return { text: outgoing.text, attachments: [] }
+  }
+}
 
 const storedId = (error: unknown) => (error instanceof ApiError && typeof error.extra.messageId === 'string' ? error.extra.messageId : null)
 
@@ -339,12 +365,10 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
         sender: 'Bạn',
         to: null,
         at: new Date().toISOString(),
-        text: outgoing.kind === 'STICKER' ? STICKER_TEXT : outgoing.text,
-        attachments: [],
+        ...pendingContent(outgoing),
         status: 'SENDING',
         linked: [],
         clientMessageId,
-        ...(outgoing.kind === 'STICKER' ? { libraryStickerId: outgoing.stickerId } : {}),
         local: true,
       }
       editOutbox((mails) =>
@@ -385,14 +409,22 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
       }
     },
   }
-  const request = (outgoing: Outgoing) =>
-    outgoing.kind === 'STICKER' ? sendSticker(conversationId, outgoing.stickerId, outgoing.clientMessageId) : sendMessage(conversationId, outgoing.text, outgoing.clientMessageId)
+  const request = (outgoing: Outgoing) => {
+    switch (outgoing.kind) {
+      case 'STICKER':
+        return sendSticker(conversationId, outgoing.stickerId, outgoing.clientMessageId)
+      case 'FILE':
+        return sendFile(conversationId, outgoing.file, outgoing.clientMessageId)
+      default:
+        return sendMessage(conversationId, outgoing.text, outgoing.clientMessageId)
+    }
+  }
   const texts = useMutation({ ...callbacks, mutationFn: request })
-  // One at a time, in the order they were clicked, and a little over a second apart (D-355, stickerQueue). Each shows at
-  // once (`onMutate` does not wait for its turn), and one that is refused does not hold back the next.
-  const stickers = useMutation({
+  // One at a time, in the order they were sent, and a little over a second apart (D-355, D-377, stickerQueue). Each shows
+  // at once (`onMutate` does not wait for its turn), and one that is refused does not hold back the next.
+  const paced = useMutation({
     ...callbacks,
-    scope: { id: STICKER_SCOPE },
+    scope: { id: PACED_SCOPE },
     mutationFn: async (outgoing: Outgoing) => {
       await stickerTurns.wait()
       return request(outgoing)
@@ -418,33 +450,64 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) }),
   })
-  const sendTry = (next: Try) => {
+  const sendTry = (next: Try, inTurn = next.kind !== 'TEXT') => {
     const attempt = (attempts.current.get(next.clientMessageId) ?? 0) + 1
     attempts.current.set(next.clientMessageId, attempt)
-    const outgoing: Outgoing = { ...next, attempt }
-    if (outgoing.kind === 'STICKER') {
-      stickers.mutate(outgoing)
+    const outgoing: Outgoing = { ...next, attempt, paced: inTurn }
+    if (outgoing.paced) {
+      paced.mutate(outgoing)
     } else {
       texts.mutate(outgoing)
     }
+  }
+  // What a failed message is sent again as; null for a picture or file this page no longer holds (D-378).
+  const retryOf = (mail: Mail): Try | null => {
+    const clientMessageId = mail.clientMessageId
+    if (!clientMessageId) {
+      return null
+    }
+    const file = outgoingFiles.fileOf(clientMessageId)
+    if (file) {
+      return { kind: 'FILE', file, clientMessageId }
+    }
+    if (mail.libraryStickerId) {
+      return { kind: 'STICKER', stickerId: mail.libraryStickerId, clientMessageId }
+    }
+    return mail.attachments.length > 0 ? null : { kind: 'TEXT', text: mail.text, clientMessageId }
   }
 
   return {
     send: (text: string) => sendTry({ kind: 'TEXT', text, clientMessageId: crypto.randomUUID() }),
     /** Sends a sticker of the user's library as a picture (zalo-send-images); it shows at once and goes in its turn. */
     sendSticker: (stickerId: string) => sendTry({ kind: 'STICKER', stickerId, clientMessageId: crypto.randomUUID() }),
+    /**
+     * Sends pictures and files from the computer, one message each in their order, then `text` when there is some
+     * (zalo-send-files, D-377): all of them in turn, a little over a second apart. Each shows at once.
+     */
+    sendFiles: (files: File[], text = '') => {
+      for (const file of files) {
+        const clientMessageId = crypto.randomUUID()
+        outgoingFiles.keep(clientMessageId, file)
+        sendTry({ kind: 'FILE', file, clientMessageId })
+      }
+      if (text.trim() !== '') {
+        sendTry({ kind: 'TEXT', text: text.trim(), clientMessageId: crypto.randomUUID() }, true)
+      }
+    },
+    /** Whether "Gửi lại" can send a failed message again: not a picture or file this page no longer holds. */
+    canResend: (mail: Mail) => retryOf(mail) !== null,
     resend: (mail: Mail) => {
-      if (mail.clientMessageId) {
-        sendTry(
-          mail.libraryStickerId
-            ? { kind: 'STICKER', stickerId: mail.libraryStickerId, clientMessageId: mail.clientMessageId }
-            : { kind: 'TEXT', text: mail.text, clientMessageId: mail.clientMessageId },
-        )
+      const next = retryOf(mail)
+      if (next) {
+        sendTry(next)
       }
     },
     /** Throws away a failed reply: in this browser only, or on the server too when it kept it. */
     discard: (mail: Mail) => {
       editOutbox((mails) => mails.filter((entry) => entry.clientMessageId !== mail.clientMessageId))
+      if (mail.clientMessageId) {
+        outgoingFiles.forget(mail.clientMessageId)
+      }
       if (!mail.local) {
         discarding.mutate(mail)
       }

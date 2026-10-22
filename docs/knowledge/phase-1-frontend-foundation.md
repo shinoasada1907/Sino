@@ -1824,6 +1824,86 @@ Trước đây `AppShell` và `MorePage` mỗi nơi tự ghi đè một số. Go
 ### 25.4 Một test xanh ngay lần chạy đầu chưa chứng minh gì
 Test "chuông không có chấm" dùng `renderApp('/overview', { shell: null })` để chạy đường dữ liệu thật của app. Lần đầu nó xanh ngay, kể cả khi code còn trả 3: trước khi dữ liệu về, chuông vốn không có số nào, nên câu hỏi được trả lời bởi trạng thái chưa tải. Sửa: đợi dữ liệu có trong cache rồi mới khẳng định. Sau đó mới đỏ đúng chỗ (`Unable to find role="link" and name "Thông báo"`, vì chuông đang tên "Thông báo, 3 mới"). Cách tự hỏi: *nếu code sai, test này có đỏ không?* Chạy nó trên code cũ là cách rẻ nhất để biết.
 
+## 26. Màn Cài đặt (`fe-ui-settings`, SE-01…SE-03)
+
+Màn `/settings` dựng theo canvas `Settings`, gồm 9 mục. Theo lựa chọn của người dùng ("chỉ giao diện, dữ liệu mẫu"), chỉ hai thứ là thật: **theme** và **tài khoản** ở "Nguồn đã kết nối". Mọi thứ khác bấm được nhưng không lưu và không áp vào app.
+
+### 26.1 Ở đâu
+Tính từ `apps/sino-web/src/`:
+- `features/settings/SettingsPage.tsx`: khung trang, cột mục lục từ 1280 px, 9 mục.
+- `features/settings/sections.ts`: danh sách mục (neo `#giao-dien`…, icon) và lớp của một dòng mục lục.
+- `features/settings/components/SettingsNav.tsx`: mục lục dính khi cuộn, đánh dấu mục đang xem.
+- `features/settings/components/SettingRow.tsx`: `SettingSection`, `SettingRow`, `SettingSelect`, `SwitchRow`.
+- `features/settings/components/{LookSections,NotifySections,DataSections}.tsx`: các mục.
+- `features/settings/{settings.sample.ts,useSettingsSample.ts}`: dữ liệu mẫu và nơi giữ nó.
+- `shared/theme/**`: thêm lựa chọn "Theo hệ thống".
+- Test: `features/settings/SettingsPage.test.tsx`.
+
+```text
+ 1280 px trở lên                                  768 - 1279 px            dưới 768 px
++-----------+-------------------------------+     +-------------------+    (SE-05: danh sách
+| Cài đặt   | CÀI ĐẶT                       |     | CÀI ĐẶT           |     nhóm và trang con)
+| > Giao diện| Cài đặt                      |     | Cài đặt           |
+|   Ngôn ngữ |------------------------------|     |-------------------|
+|   ...      | Giao diện                    |     | Giao diện         |
+|   Nguồn  * | [Theo hệ thống][Tối][Sáng]   |     | ...               |
+|   ...      | Ngôn ngữ ...                 |     +-------------------+
++-----------+-------------------------------+
+  mục lục dính khi cuộn; * = có tài khoản cần xử lý
+```
+
+### 26.2 Theme có thêm "Theo hệ thống"
+Trước đây `ThemeProvider` chỉ có Sáng và Tối; lần đầu mở app thì lấy theo hệ điều hành, nhưng không theo dõi về sau. Canvas có ba thẻ, nên lựa chọn được tách khỏi theme đang dùng:
+- `preference` là cái người dùng chọn (`system`, `light` hoặc `dark`), lưu ở `localStorage` khoá `sino.theme`.
+- `theme` là sáng hay tối đang dùng thật.
+
+Khi `preference` là `system`, `theme` đọc `prefers-color-scheme` qua `useSyncExternalStore`, nên đổi theo ngay khi hệ điều hành đổi. Hàm `subscribe` được bọc trong `useCallback` theo `preference`: nếu mỗi lần render là một hàm mới, React sẽ huỷ rồi đăng ký lại lắng nghe ở mỗi lần render. `theme` và `toggleTheme` giữ nguyên tên, nên `MorePage`, `UserMenu` và `ThemeToggle` không phải sửa. Người dùng cũ chưa từng chọn gì nay rơi vào `system`, tức đúng như trước, chỉ khác là app theo được khi hệ điều hành đổi.
+
+### 26.3 Dữ liệu mẫu giữ trong cache của TanStack Query
+`useSettingsSample` đặt dữ liệu mẫu vào cache với `initialData` (có ngay, không có lúc "đang tải"), `staleTime: Infinity` và `gcTime: Infinity`, và đổi bằng `setQueryData`. Một `useState` trong trang sẽ mất giá trị khi sang trang con trên điện thoại (`/settings/notifications`); cache thì sống suốt phiên, và mất khi tải lại trang, đúng với "không lưu". Khi có backend, chỉ cần thay `queryFn` bằng lời gọi API và `update` bằng một mutation.
+
+### 26.4 Mục lục biết mục nào đang xem
+Mỗi dòng mục lục là một liên kết `#neo` thường; trình duyệt tự cuộn khung cuộn của app tới `section` có `id` đó. `scroll-mt-6` chừa một khoảng phía trên tiêu đề. Mục đang xem do `IntersectionObserver` quyết:
+- `rootMargin: '0px 0px -66% 0px'` nghĩa là chỉ một phần ba trên của màn hình được tính.
+- Trong các mục đang có mặt ở vùng đó, mục đầu tiên là mục hiện tại; dòng của nó có `aria-current="location"`.
+- Bấm một dòng thì dòng đó được đánh dấu ngay, không chờ cuộn xong.
+
+jsdom không có `IntersectionObserver`, nên hook kiểm `typeof IntersectionObserver` trước khi dùng. Chấm đỏ của "Nguồn đã kết nối" chỉ là hình (`aria-hidden`), nên tên của liên kết nói thay: "Nguồn đã kết nối, 1 cần xử lý".
+
+### 26.5 Sticker trong Cài đặt (SE-04)
+Người dùng muốn quản lý sticker nằm trong Cài đặt. Màn sticker có lưới, bộ sticker và bước sửa ảnh, quá dài để làm một mục cuộn, nên nó thành một đường dẫn riêng `/settings/stickers` nằm cạnh mục lục:
+- **Thanh bên và trang "Thêm"** bỏ mục "Sticker". Tab "Thêm" vẫn là tab hiện tại trên trang này, vì `MORE_PATHS` so theo tiền tố: `/settings/stickers` bắt đầu bằng `/settings`.
+- **Địa chỉ cũ** `/stickers` là một `<Navigate replace>`. Liên kết cũ (như "Mở thư viện sticker" trong khung chọn sticker) và các test của màn sticker vẫn đi đúng chỗ mà không cần sửa. `replace` để nút Back của trình duyệt không quay về địa chỉ chỉ có nhiệm vụ chuyển tiếp.
+- **Mục lục trên trang sticker:** mỗi mục là một `Link` tới `/settings#neo`. React Router không tự cuộn tới `#neo` khi đổi trang, nên `SettingsPage` đọc `location.hash` trong một effect và gọi `scrollIntoView()`.
+- **Không sửa file nào của màn sticker**, vì chúng thuộc một change khác. Hệ quả: trên điện thoại, nút quay lại của màn sticker vẫn về "Thêm".
+
+### 26.6 Cài đặt được lưu thật (`settings-backend`, SB-10, SB-11)
+Phiên `sino-api` làm `GET`/`PATCH /api/settings` và `GET /api/settings/storage`; phiên web nối màn vào hợp đồng đó, kiểm bằng MSW trong lúc chờ backend.
+- **Đổi hiện ngay, lỗi trả về:** `useUpdateSettings` sửa cache ngay khi bấm. Máy chủ trả lời thì cache lấy đúng bản của máy chủ; máy chủ từ chối thì cache trở về như trước, và câu "Không lưu được. Hãy thử lại." hiện dưới đúng dòng đó. Mỗi dòng hỏi một khoá trong cache (`['settings', 'failure']`); với một công tắc, khoá là `notifications.<tên công tắc>`, nên lỗi của một công tắc không hiện ở cả sáu.
+- **Trước khi có bản đã lưu:** control hiện giá trị mặc định nhưng bị khoá. Đọc lỗi thì đầu trang báo "Không tải được cài đặt đã lưu." kèm "Thử lại".
+- **Theme đi theo người dùng mà không đè lựa chọn cũ:** trình duyệt chưa từng chọn (không có `sino.theme`) thì lấy theme đã lưu trên máy chủ. Trình duyệt đã chọn thì giữ lựa chọn của nó và ghi nó lên máy chủ. API trả mặc định khi chưa lưu gì, nên nếu "máy chủ luôn thắng" thì người đã chọn Tối từ trước sẽ bị đẩy về "Theo hệ thống".
+
+**Bài học: một hook trong khung app có thể làm cả khung app đọc lại dữ liệu.** Hook đồng bộ theme cần truy vấn `/api/settings` ở mọi màn, nên lúc đầu được gọi thẳng trong `AppShell`. Test "phiên hết hạn" liền đỏ: khi một request trả 401, `forgetSession` xoá cache rồi đặt "chưa đăng nhập", và lẽ ra trang đổi sang đăng nhập ngay. Thử bỏ dần từng phần:
+- bỏ hook thì xanh;
+- giữ chỉ một `useQuery` có `queryFn` cục bộ vẫn đỏ.
+
+Vậy một truy vấn chưa có dữ liệu trong `AppShell` làm nó render lại sau khi cache bị xoá mà trước khi chuyển trang, và lần render đó dựng lại các truy vấn khác của khung app. Cách sửa: đặt hook trong một component con không vẽ gì (`<ThemeSync />`). Nó render lại thì chỉ mình nó render lại. Thêm vào đó, hook ghi theme bằng một lời gọi thường chứ không dùng `useMutation`, để khung app không phải theo dõi cache mutation.
+
+**Test luôn có một backend cài đặt giả.** Mọi màn đã đăng nhập đều đọc theme đã lưu, mà bộ test đánh hỏng mọi request không có handler. Vì vậy `test/fixtures/settingsApi.ts` luôn bật trong `msw/server.ts`; nó giữ những gì một test lưu, và được đặt lại trước mỗi test. Test cần lỗi thì đè bằng `server.use(...)` như thường.
+
+### 26.7 Kiểm chứng
+- **Chrome thật:** chưa kiểm (Claude in Chrome không kết nối); người dùng xem trên `localhost:5173`.
+- **SB-10, SB-11 (MSW):** 9 ca trong `SettingsOnApi.test.tsx`; `pnpm test` 1315/1319. Chưa kiểm trên backend thật: chờ phiên `sino-api` xong SB-02, SB-03.
+- **Test tự động:** 7 ca trong `SettingsPage.test.tsx`:
+  - thứ tự 9 mục và mục lục;
+  - mục lục đánh dấu mục được bấm;
+  - tên có "1 cần xử lý";
+  - theme đổi thật, lưu, và theo hệ điều hành;
+  - đổi công tắc, ô chọn, mức chuyển động thì giữ được giá trị mới;
+  - tài khoản thật kèm "Cần đăng nhập lại", và câu "Chưa kết nối tài khoản nào." khi không có tài khoản;
+  - "Chính sách quyền riêng tư" mở `/privacy`.
+- **Cổng kiểm tra:** `pnpm lint` 0 lỗi; `tsc -b` 0; `pnpm build` 0; `pnpm test` 1305/1309 (4 ca đỏ là các test tải lên `FormData` đã đỏ sẵn trên Node 26, ghi ở phase 5, mục 24.2).
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.

@@ -8,7 +8,6 @@ import {
   Plug,
   Settings2,
   SquareCheck,
-  Sticker,
   StickyNote,
   Users,
   type LucideIcon,
@@ -53,8 +52,6 @@ export const NAV_ITEMS: NavItem[] = [
     alert: tasksOverdue,
   },
   { to: '/notes', label: 'Ghi chú', icon: StickyNote, group: 'plan' },
-  // The library of the owner's own stickers (custom-stickers, DN-3); the canvas has no frame for it yet, so it sits in the plan group, after Ghi chú.
-  { to: '/stickers', label: 'Sticker', icon: Sticker, group: 'plan' },
   {
     to: '/accounts',
     label: 'Tài khoản',
@@ -86,7 +83,7 @@ export const TAB_ITEMS: Pick<NavItem, 'to' | 'label' | 'icon' | 'count' | 'alert
 ]
 
 /** On mobile these screens sit behind the "Thêm" tab (canvas `MobileMore`), which stays current on them and their sub-pages. */
-export const MORE_PATHS = ['/more', '/calendar', '/notes', '/stickers', '/accounts', '/services', '/registrations', '/notifications', '/settings']
+export const MORE_PATHS = ['/more', '/calendar', '/notes', '/accounts', '/services', '/registrations', '/notifications', '/settings']
 
 /** Every screen the shell can open, with its title; screens not built yet show the under-construction page. */
 export const PAGES: { to: string; title: string }[] = [

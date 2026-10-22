@@ -18,8 +18,13 @@ import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -52,9 +57,16 @@ class ZaloClient {
     private static final String ACCOUNT = "/accounts/{accountId}";
     static final String CANNOT_TELL_MESSAGE = "sino-zalo cannot tell whether the message went out (409)";
 
+    /**
+     * Until the answer to a picture or file from the computer is read (zalo-send-files, D-374): above the 100 s sino-zalo
+     * waits for Zalo to take up to 25 MB, so a slow upload comes back as its own 504.
+     */
+    static final Duration UPLOAD_TIMEOUT = Duration.ofSeconds(120);
+
     private final boolean enabled;
     private final RestClient reading;
     private final RestClient slow;
+    private final RestClient upload;
 
     /**
      * @param readTimeout until the whole answer is read, for every call but the slow ones
@@ -69,6 +81,7 @@ class ZaloClient {
                 .build();
         this.reading = clientOf(url, secret, client, readTimeout);
         this.slow = clientOf(url, secret, client, slowTimeout);
+        this.upload = clientOf(url, secret, client, UPLOAD_TIMEOUT);
     }
 
     private static RestClient clientOf(URI url, String secret, HttpClient client, Duration timeout) {
@@ -155,6 +168,37 @@ class ZaloClient {
             if (sent == null || sent.msgId() == null || sent.msgId().isBlank()) {
                 throw new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN,
                         "sino-zalo accepted the message but sent back no ID");
+            }
+            return sent;
+        });
+    }
+
+    /**
+     * Sends a picture or a file from the computer once per {@code clientMessageId} (zalo-send-files, D-374), as a
+     * {@code multipart/form-data} request with the part {@code meta} (JSON) and the part {@code file} (the bytes, which
+     * no log line or message shows). Refusals and outcomes as for {@link #send}.
+     */
+    Sent sendFile(ProviderContext context, FileMeta meta, byte[] bytes) {
+        UUID accountId = accountIdOf(context);
+        // The name goes in meta as JSON (UTF-8); the part itself is named in ASCII, so no header has to carry it.
+        HttpHeaders metaHeaders = new HttpHeaders();
+        metaHeaders.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders fileHeaders = new HttpHeaders();
+        fileHeaders.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("meta", new HttpEntity<>(meta, metaHeaders));
+        body.add("file", new HttpEntity<>(new ByteArrayResource(bytes) {
+            @Override
+            public String getFilename() {
+                return "file";
+            }
+        }, fileHeaders));
+        return inSession(context, Call.SEND, () -> {
+            Sent sent = upload.post().uri(ACCOUNT + "/messages/file", accountId)
+                    .contentType(MediaType.MULTIPART_FORM_DATA).body(body).retrieve().body(Sent.class);
+            if (sent == null || sent.msgId() == null || sent.msgId().isBlank()) {
+                throw new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN,
+                        "sino-zalo accepted the file but sent back no ID");
             }
             return sent;
         });
@@ -394,6 +438,15 @@ class ZaloClient {
 
     }
 
+    /** What goes with the bytes of a picture or file (zalo-send-files, D-374); every field is there, none is null. */
+    record FileMeta(String threadId, ThreadType threadType, String clientMessageId, Kind kind, String fileName) {
+
+        enum Kind {
+            PHOTO, FILE
+        }
+
+    }
+
     record LookupRequest(String threadId, String clientMessageId, String text, Instant after) {
     }
 
@@ -474,7 +527,12 @@ class ZaloClient {
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
-            String zaloType, String text, String sentAt, Sticker sticker, Photo photo) {
+            String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file) {
+
+        Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
+                String zaloType, String text, String sentAt, Sticker sticker, Photo photo) {
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, photo, null);
+        }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
                 String zaloType, String text, String sentAt, Sticker sticker) {
@@ -494,6 +552,14 @@ class ZaloClient {
      * Zalo draws the photo as a sticker (ZL-19); sino-zalo leaves it out otherwise, so it is a {@code Boolean}: Jackson
      * reads a missing field as null, which a {@code boolean} refuses. Nothing here is checked yet.
      */
+    /**
+     * The file of a {@code share.file} message as Zalo named it (zalo-send-files, ZF-08): its name, where Zalo serves it,
+     * and its size when Zalo said it ({@code Long}: sino-zalo writes null for none). Nothing here is checked yet.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SharedFile(String name, String url, Long sizeBytes) {
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Photo(String url, String thumbUrl, String caption, Boolean sticker) {
 

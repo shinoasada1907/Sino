@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Gửi một ảnh hay một tệp vào một cuộc trò chuyện
-`POST /api/conversations/{id}/messages` với thân `multipart/form-data` gồm phần `file` và phần `clientMessageId` MUST gửi tệp đó qua tài khoản của cuộc trò chuyện và trả tin đã gửi như khi gửi chữ (`201`, hoặc `200` khi `clientMessageId` này đã gửi rồi). Thiếu `file` hay `clientMessageId` MUST là `400 VALIDATION_FAILED`. Tin đi MUST được lưu với loại `IMAGE` (chữ `[Ảnh]`) cho ảnh, `FILE` (chữ là tên tệp) cho tệp, kèm một tệp đính kèm có tên, loại và cỡ; byte của tệp MUST không được lưu. Chi tiết cuộc trò chuyện MUST nói gửi được ảnh và tệp hay không bằng `reply.canSendFiles`.
+`POST /api/conversations/{id}/messages` với thân `multipart/form-data` gồm phần `file` và phần `clientMessageId` MUST gửi tệp đó qua tài khoản của cuộc trò chuyện và trả tin đã gửi như khi gửi chữ (`201`, hoặc `200` khi `clientMessageId` này đã gửi rồi). Thiếu `file` hay `clientMessageId` MUST là `400` và không gửi gì. Tin đi MUST được lưu với loại `IMAGE` (chữ `[Ảnh]`) cho ảnh, `FILE` (chữ là tên tệp) cho tệp, kèm một tệp đính kèm có tên, loại và cỡ; byte của tệp MUST không được lưu. Chi tiết cuộc trò chuyện MUST nói gửi được ảnh và tệp hay không bằng `reply.canSendFiles`.
 
 #### Scenario: Gửi một ảnh dán vào
 - **WHEN** người dùng gửi một PNG 300 KB tên `image.png` vào một chat Zalo
@@ -12,7 +12,7 @@
 - **THEN** connector nhận một lệnh có tệp loại tệp (không phải ảnh), và tin lưu loại `FILE`, chữ `bao-cao.pdf`
 
 ### Requirement: Loại theo nội dung, cỡ theo loại
-Loại MUST được xác định bằng các byte đầu của tệp, không theo tên hay `Content-Type`: JPEG, PNG, WebP và GIF là ảnh, mọi thứ khác là tệp. Ảnh quá 10 MB hay tệp quá 25 MB MUST là `413 FILE_TOO_LARGE` kèm giới hạn; tệp rỗng MUST là `400 FILE_EMPTY`; cả hai không gửi gì. Tên tệp MUST được làm sạch (không đường dẫn, không ký tự điều khiển, tối đa 255 ký tự); ảnh MUST được gửi với đuôi khớp loại thật, và một tệp không phải ảnh mà tên có đuôi ảnh MUST được thêm `.bin`.
+Loại MUST được xác định bằng các byte đầu của tệp, không theo tên hay `Content-Type`: JPEG, PNG, WebP và GIF là ảnh, mọi thứ khác là tệp. Ảnh quá 10 MB hay tệp quá 25 MB MUST là `413 FILE_TOO_LARGE` kèm giới hạn; tệp rỗng MUST là `422 FILE_EMPTY`; cả hai không gửi gì. Tên tệp MUST được làm sạch (không đường dẫn, không ký tự điều khiển, tối đa 255 ký tự); ảnh MUST được gửi với đuôi khớp loại thật, và một tệp không phải ảnh mà tên có đuôi ảnh MUST được thêm `.bin`.
 
 #### Scenario: JPEG mang tên PNG
 - **WHEN** người dùng gửi một JPEG tên `chup.png`

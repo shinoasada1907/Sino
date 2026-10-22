@@ -33,13 +33,15 @@
 
 ## 2. `sino-api`
 
-- [ ] 2.1 **ZF-04 — `OutgoingFile`, `SEND_FILES`, Gmail từ chối (D-372)**
+- [x] 2.1 **ZF-04 — `OutgoingFile`, `SEND_FILES`, Gmail từ chối (D-372)**
   - **Goal:** contract gửi tin mang được một tệp; connector không có `SEND_FILES` từ chối.
   - **Files:** `provider/ProviderCapability`, `provider/spi/{SendMessageCommand,OutgoingFile}`, `provider/infrastructure/gmail/GmailProvider`, contract test kit, connector giả; bảng ý nghĩa capability trong design của change.
   - **Acceptance criteria:** delta `provider-contract`.
   - **Test:** test tay không áp dụng (chưa có đường gọi); test tự động: `OutgoingFile` tự kiểm (loại, cỡ theo `Kind`, tên), Gmail ném không hỗ trợ, bộ test chung có ca tệp.
   - **Depends on:** —.
   - **Hints:** **Level 1:** `OutgoingImage` có gì nên chép, gì không? **Level 2:** sao chép byte vào và ra, `toString` không lộ byte; luật cỡ thì khác.
+  - **Thực hiện:** `SEND_FILES` khai ngay sau `SEND_IMAGES`. `OutgoingFile(bytes, mediaType, fileName, Kind)`: `PHOTO` là JPEG/PNG/WebP/GIF 1 byte tới 10 MiB, tên kết thúc đúng đuôi của loại (không phân biệt hoa thường); `FILE` là 1 byte tới 25 MiB, tên không được kết thúc bằng đuôi ảnh (người gọi thêm `.bin`, D-371); tên tối đa 255 ký tự, không đường dẫn, không ký tự điều khiển; byte sao chép vào và ra; `toString` chỉ nói loại, kiểu và số byte, **không nói tên tệp** (tên là chữ của người dùng). `SendMessageCommand` thêm `file`; tệp đi một mình (có chữ hay ảnh sticker kèm là `IllegalArgumentException`); hai constructor cũ và một constructor 8 tham số (có `image`) giữ nguyên nên không chỗ gọi nào phải sửa. Gmail, connector giả và **Zalo** từ chối tệp bằng `CAPABILITY_NOT_SUPPORTED` trước mọi lời gọi ra ngoài; Zalo sẽ khai `SEND_FILES` và gửi thật ở ZF-07. Bộ test chung có ba ca tệp; `FakeMessageProviderContractTest` có lớp `SendingFiles` để ca "gửi được khi có `SEND_FILES`" chạy trên ít nhất một connector.
+  - **Bằng chứng:** test tay không áp dụng (chưa có đường gọi tới contract). `./mvnw -B -ntp -q test -Dtest='dev/sino/provider/**/*'` trong worktree riêng ở `0af1b13` cộng các thay đổi của task: thoát 0; `OutgoingFileTests` 7, `SendMessageTests` 21 (thêm `aFileGoesAlone`), `ProviderCapabilitiesTests` 11 (thêm thứ tự `SEND_FILES`), các lớp contract của Fake, Gmail và Zalo xanh. **Chưa chạy:** toàn bộ `verify` (để ZF-05).
 
 - [ ] 2.2 **ZF-05 — `POST …/messages` multipart, nhận dạng loại, lưu tin (D-370, D-371, D-373)**
   - **Goal:** gửi ảnh hay tệp qua API như gửi chữ; lưu tin `IMAGE`/`FILE` kèm `attachment`; `reply.canSendFiles`.

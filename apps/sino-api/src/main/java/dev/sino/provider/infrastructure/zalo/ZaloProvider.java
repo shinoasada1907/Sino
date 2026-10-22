@@ -9,6 +9,7 @@ import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.FileMeta;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.ImageRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.LookupRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
@@ -16,9 +17,11 @@ import dev.sino.provider.infrastructure.zalo.ZaloClient.SendRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sent;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.ThreadType;
 import dev.sino.provider.spi.AccountProfile;
+import dev.sino.provider.spi.AttachmentContent;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
+import dev.sino.provider.spi.OutgoingFile;
 import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
@@ -59,11 +62,14 @@ class ZaloProvider implements MessageProvider {
             ProviderCapability.READ_MESSAGES,
             ProviderCapability.SEND_MESSAGES,
             ProviderCapability.SEND_IMAGES,
+            ProviderCapability.SEND_FILES,
+            ProviderCapability.ATTACHMENTS,
             ProviderCapability.PUSH_WEBHOOK);
 
     private final boolean turnedOn;
     private final ZaloClient client;
     private final ZaloQrLogin qrLogin;
+    private final ZaloFileDownloads files = new ZaloFileDownloads();
 
     ZaloProvider(ZaloProperties properties) {
         this(new ZaloClient(properties.url(), properties.secret(), properties.enabled(),
@@ -94,6 +100,16 @@ class ZaloProvider implements MessageProvider {
     @Override
     public ProviderCapabilities capabilities() {
         return CAPABILITIES;
+    }
+
+    /**
+     * The file of a Zalo message, read from where Zalo serves it, which is its attachment id (zalo-send-files, ZF-08);
+     * sino-zalo is not asked.
+     */
+    @Override
+    public AttachmentContent fetchAttachment(ProviderContext context, String externalMessageId,
+            String externalAttachmentId) {
+        return files.download(externalAttachmentId);
     }
 
     @Override
@@ -130,6 +146,15 @@ class ZaloProvider implements MessageProvider {
         }
         ThreadType threadType = command.conversationType() == ConversationType.GROUP
                 ? ThreadType.GROUP : ThreadType.USER;
+        OutgoingFile file = command.file();
+        if (file != null) {
+            // A picture or file from the computer goes through sino-zalo's file route (zalo-send-files, D-374).
+            Sent sent = client.sendFile(context, new FileMeta(command.externalConversationId(), threadType,
+                    command.clientMessageId().toString(),
+                    file.kind() == OutgoingFile.Kind.PHOTO ? FileMeta.Kind.PHOTO : FileMeta.Kind.FILE, file.fileName()),
+                    file.bytes());
+            return new SendMessageResult(sent.msgId(), MessageStatus.SENT, sent.sentAt());
+        }
         Sent sent = client.send(context, new SendRequest(
                 command.externalConversationId(),
                 threadType,

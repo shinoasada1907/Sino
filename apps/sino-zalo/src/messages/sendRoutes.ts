@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { type ThreadType, type ZaloImage, ZaloRejectedError } from "../gateway/ZaloGateway.ts";
+import { type ThreadType, type ZaloFile, type ZaloImage, ZaloRejectedError } from "../gateway/ZaloGateway.ts";
 import type { OwnMessages, SessionManager } from "../sessions/SessionManager.ts";
 import { sendSessionError } from "../sessions/routes.ts";
+import { pictureSize } from "./pictureSize.ts";
 import { RateLimiter } from "./RateLimiter.ts";
 import { type SentRecord, SentLog } from "./SentLog.ts";
 
@@ -10,6 +11,8 @@ export interface SendRoutesOptions {
   readonly now?: () => number;
   /** How long a send may take before its outcome counts as unknown (504). */
   readonly sendTimeoutMs?: number;
+  /** The same for a picture or file from the computer, which Zalo has to take whole first (zalo-send-files, D-375). */
+  readonly fileTimeoutMs?: number;
 }
 
 interface AccountParams {
@@ -184,6 +187,74 @@ export function registerSendRoutes(
     },
   );
 
+  // zalo-send-files, D-374: a picture or file comes as multipart/form-data, read by Node's own `Request.formData()` from
+  // the bytes Fastify hands over; no other route takes multipart.
+  app.addContentTypeParser("multipart/form-data", { parseAs: "buffer", bodyLimit: FILE_BODY_LIMIT }, (_request, body, done) =>
+    done(null, body),
+  );
+  const fileTimeoutMs = options.fileTimeoutMs ?? 100_000;
+
+  app.post<{ Params: AccountParams; Body: Buffer }>(
+    "/accounts/:accountId/messages/file",
+    {
+      bodyLimit: FILE_BODY_LIMIT,
+      errorHandler: (error, _request, reply) => {
+        if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
+          return reply.code(400).send({ code: "PAYLOAD_TOO_LARGE", message: "The request is larger than the route reads" });
+        }
+        return reply.send(error);
+      },
+    },
+    async (request, reply) => {
+      const { accountId } = request.params;
+      const parsed = await fileRequestOf(request.headers["content-type"], request.body);
+      if ("code" in parsed) {
+        return reply.code(400).send(parsed);
+      }
+      const { meta, file } = parsed;
+      const known = sentLog.get(accountId, meta.clientMessageId);
+      if (known?.state === "SENT") {
+        return reply.code(200).send(known.record);
+      }
+      if (known !== undefined) {
+        return sendOutcomeUnknown(reply);
+      }
+      try {
+        sessions.requireLive(accountId);
+      } catch (error) {
+        return sendSessionError(reply, error);
+      }
+      if (!rate.tryTake(accountId)) {
+        return reply.code(429).send({ code: "RATE_LIMITED", message: "At most one message per second per account" });
+      }
+
+      // IDs, the kind and the size only: never the bytes or the name of the file (D-282).
+      const details = { accountId, threadId: meta.threadId, clientMessageId: meta.clientMessageId, kind: file.kind, bytes: file.data.length };
+      const sending = sentLog.track(accountId, meta.clientMessageId, sessions.sendFile(accountId, meta.threadId, meta.threadType, file));
+      try {
+        const record = await within(sending, fileTimeoutMs);
+        if (record === TIME_UP) {
+          request.log.warn(details, "Zalo did not answer the file in time");
+          void sending.then(
+            (late) => request.log.info({ ...details, msgId: late.msgId }, "Zalo file sent after the timeout"),
+            (error: unknown) =>
+              request.log.warn({ ...details, reason: reasonOf(error), refused: error instanceof ZaloRejectedError }, "Zalo file failed after the timeout"),
+          );
+          return sendOutcomeUnknown(reply);
+        }
+        request.log.info({ ...details, msgId: record.msgId }, "Zalo file sent");
+        return reply.code(201).send(record);
+      } catch (error) {
+        if (error instanceof ZaloRejectedError) {
+          request.log.warn({ ...details, reason: error.message }, "Zalo refused the file");
+          return reply.code(422).send({ code: "REJECTED", message: "Zalo refused the file" });
+        }
+        request.log.warn({ ...details, reason: reasonOf(error) }, "Zalo file send broke midway");
+        return sendOutcomeUnknown(reply);
+      }
+    },
+  );
+
   app.post<{ Params: AccountParams; Body: LookupBody }>(
     "/accounts/:accountId/sent/lookup",
     { schema: { body: lookupBodySchema } },
@@ -257,6 +328,86 @@ function contentOf(body: SendBody): Content | Refusal {
     image: { data, fileName: image.fileName, width: image.width, height: image.height },
     type: image.fileName.slice(image.fileName.lastIndexOf(".") + 1),
   };
+}
+
+/** What goes with the bytes of a picture or file (D-374). */
+interface FileMeta {
+  readonly threadId: string;
+  readonly threadType: ThreadType;
+  readonly clientMessageId: string;
+  readonly kind: "PHOTO" | "FILE";
+  readonly fileName: string;
+}
+
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
+/** The bytes of the largest file and room for the meta part and the boundaries. */
+const FILE_BODY_LIMIT = 26 * 1024 * 1024;
+const PICTURE_NAME = /\.(jpe?g|png|webp|gif)$/i;
+
+const badFileRequest = (message: string): Refusal => ({ code: "INVALID_FILE_REQUEST", message });
+
+/** The meta part and the file of a multipart request, checked; or why it cannot be sent. */
+async function fileRequestOf(contentType: string | undefined, body: unknown): Promise<{ meta: FileMeta; file: ZaloFile } | Refusal> {
+  if (contentType === undefined || !contentType.startsWith("multipart/form-data") || !Buffer.isBuffer(body)) {
+    return badFileRequest("A file comes as multipart/form-data");
+  }
+  let form: FormData;
+  try {
+    form = await new Request("http://sino-zalo.local/", { method: "POST", headers: { "content-type": contentType }, body }).formData();
+  } catch {
+    return badFileRequest("The form cannot be read");
+  }
+  const metaPart = form.get("meta");
+  const filePart = form.get("file");
+  if (typeof metaPart !== "string" || !(filePart instanceof File)) {
+    return badFileRequest("A file request has the parts meta and file");
+  }
+  const meta = metaOf(metaPart);
+  if (meta === null) {
+    return badFileRequest("meta needs threadId, threadType, clientMessageId, kind and fileName");
+  }
+  const data = Buffer.from(await filePart.arrayBuffer());
+  if (data.length === 0) {
+    return { code: "INVALID_FILE", message: "The file is empty" };
+  }
+  if (data.length > (meta.kind === "PHOTO" ? MAX_PHOTO_BYTES : MAX_FILE_BYTES)) {
+    return { code: "FILE_TOO_LARGE", message: "A photo is at most 10 MiB and a file 25 MiB" };
+  }
+  if (meta.kind === "FILE") {
+    // zca-js would take a file named as a picture for one; sino-api renames those (D-371).
+    return PICTURE_NAME.test(meta.fileName)
+      ? badFileRequest("A file that is no photo is not named as a picture")
+      : { meta, file: { kind: "FILE", data, fileName: meta.fileName } };
+  }
+  const size = pictureSize(data);
+  if (size === null || !PICTURE_NAME.test(meta.fileName)) {
+    return { code: "INVALID_FILE", message: "A photo is a JPEG, PNG, WebP or GIF named as one" };
+  }
+  return { meta, file: { kind: "PHOTO", data, fileName: meta.fileName as `${string}.${string}`, ...size } };
+}
+
+function metaOf(text: string): FileMeta | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const { threadId, threadType, clientMessageId, kind, fileName } = value as Record<string, unknown>;
+  const isId = (field: unknown): field is string => typeof field === "string" && field.length >= 1 && field.length <= 200;
+  const isName =
+    typeof fileName === "string" && fileName.length >= 1 && fileName.length <= 255 && !/[/\\\u0000-\u001f]/.test(fileName);
+  if (!isId(threadId) || !isId(clientMessageId) || !isName) {
+    return null;
+  }
+  if ((threadType !== "USER" && threadType !== "GROUP") || (kind !== "PHOTO" && kind !== "FILE")) {
+    return null;
+  }
+  return { threadId, threadType, clientMessageId, kind, fileName };
 }
 
 function sendOutcomeUnknown(reply: FastifyReply) {

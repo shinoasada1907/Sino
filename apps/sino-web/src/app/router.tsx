@@ -1,4 +1,4 @@
-import type { RouteObject } from 'react-router'
+import { Navigate, type RouteObject } from 'react-router'
 import { AccountDetailPage } from '@/features/accounts/AccountDetailPage'
 import { AccountsPage } from '@/features/accounts/AccountsPage'
 import { CalendarPage } from '@/features/calendar/CalendarPage'
@@ -9,7 +9,8 @@ import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotesPage } from '@/features/notes/NotesPage'
 import { HomeGate } from '@/features/public/HomeGate'
 import { PrivacyRoute } from '@/features/public/PrivacyRoute'
-import { StickersPage } from '@/features/stickers/StickersPage'
+import { SettingsPage } from '@/features/settings/SettingsPage'
+import { SettingsStickersPage } from '@/features/settings/SettingsStickersPage'
 import { TasksPage } from '@/features/tasks/TasksPage'
 import { NotFoundPage } from './NotFoundPage'
 import { MorePage } from './shell/MorePage'
@@ -26,9 +27,9 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/accounts': { element: <AccountsPage />, handle: { mobilePageHeader: true } },
   '/tasks': { element: <TasksPage />, handle: { mobilePageHeader: true } },
   '/notes': { element: <NotesPage />, handle: { mobilePageHeader: true } },
-  '/stickers': { element: <StickersPage />, handle: { mobilePageHeader: true } },
   '/calendar': { element: <CalendarPage />, handle: { mobilePageHeader: true } },
   '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
+  '/settings': { element: <SettingsPage />, handle: { mobilePageHeader: true } },
 }
 
 // Every page sits behind RequireAuth except sign-in, 404 and the public pages (spec web-app-foundation, web-public-pages).
@@ -93,6 +94,13 @@ export const routes: RouteObject[] = [
             element: <AccountDetailPage />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
           },
+          // Sticker management lives in Cài đặt (fe-ui-settings, D-397); the old address still leads there.
+          {
+            path: 'settings/stickers',
+            element: <SettingsStickersPage />,
+            handle: { mobilePageHeader: true } satisfies ShellHandle,
+          },
+          { path: 'stickers', element: <Navigate to="/settings/stickers" replace /> },
         ],
       },
     ],

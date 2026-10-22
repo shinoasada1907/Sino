@@ -2,6 +2,7 @@ import { api } from '@/shared/api/client'
 import { toProviderInfo, type ProviderEntry } from '@/shared/api/providers'
 import type { AccountStatus, Instant, ProviderKind } from '@/shared/domain'
 import type { InboxFilter } from './format'
+import type { Reaction, ReactionKind } from './reactions'
 import type {
   Attachment,
   ConversationItem,
@@ -90,6 +91,8 @@ interface ReplyResponse {
   to: PersonResponse[]
   /** A sticker of the library can be sent here (zalo-send-images, D-356); absent on a backend before it. */
   canSendImages?: boolean
+  /** A picture or a file from the computer can be sent here (zalo-send-files, D-372); absent on a backend before it. */
+  canSendFiles?: boolean
 }
 
 const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = {
@@ -148,6 +151,9 @@ interface MessageResponse {
   image?: MessageImage | null
   /** The sticker of the library that a message Sino sent is (zalo-send-images); absent or null for any other. */
   libraryStickerId?: string | null
+  /** The emoji on the message (zalo-reactions, D-387); absent on a backend before it. */
+  reactions?: Reaction[] | null
+  canReact?: boolean
 }
 
 function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse): ConversationItem {
@@ -216,7 +222,7 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId }: MessageResponse): Mail {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId, reactions, canReact }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -237,6 +243,8 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     ...(stickerSprite ? { stickerSprite } : {}),
     ...(image ? { image } : {}),
     ...(libraryStickerId ? { libraryStickerId } : {}),
+    ...(reactions?.length ? { reactions } : {}),
+    ...(canReact ? { canReact } : {}),
   }
 }
 
@@ -286,9 +294,9 @@ export async function fetchConversations({ view, source }: InboxFilter, cursor: 
 /** `GET /api/conversations/{id}`: the row, the people, and whether Sino can reply (F10); the messages come from `fetchMessages`. */
 export async function fetchConversation(conversationId: string): Promise<OpenConversation> {
   // `reply` is absent on a backend before F10.
-  const { participants, reply, ...item } = await api.get<ConversationResponse & { participants: ParticipantResponse[]; reply?: ReplyResponse }>(
-    `/api/conversations/${encodeURIComponent(conversationId)}`,
-  )
+  const { participants, reply, reactionSet, ...item } = await api.get<
+    ConversationResponse & { participants: ParticipantResponse[]; reply?: ReplyResponse; reactionSet?: ReactionKind[] | null }
+  >(`/api/conversations/${encodeURIComponent(conversationId)}`)
   return {
     item: toItem(item),
     detail: {
@@ -302,9 +310,11 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       canSend: reply ? (CAN_SEND[reply.state] ?? null) : null,
       replyTo: reply ? reply.to.map(({ name, address }) => ({ name, address })) : null,
       // Only where the backend tells about replies at all; a missing flag is a button that does not show.
-      ...(reply ? { canSendImages: reply.canSendImages === true } : {}),
+      ...(reply ? { canSendImages: reply.canSendImages === true, canSendFiles: reply.canSendFiles === true } : {}),
       previousCursor: null,
       ...(reply?.state === 'OPENING_NOT_SENT' ? { opening: true } : {}),
+      // zalo-reactions, D-387: absent on a backend before it, and empty for a provider without emoji.
+      ...(reactionSet?.length ? { reactionSet } : {}),
     },
   }
 }
@@ -355,6 +365,21 @@ export async function sendSticker(conversationId: string, stickerId: string, cli
   const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, { stickerId, clientMessageId })
   return toMessage(conversationId, sent)
 }
+
+/**
+ * `POST /api/conversations/{id}/messages` with a picture or a file from the computer (zalo-send-files, D-370): a form with
+ * the file and the `clientMessageId`. The server tells a picture from a file by its bytes, sends it, and returns the
+ * message as it stored it; sending again with the same `clientMessageId` never sends twice.
+ */
+export async function sendFile(conversationId: string, file: File, clientMessageId: string): Promise<Mail> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  form.append('clientMessageId', clientMessageId)
+  return toMessage(conversationId, await api.upload<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, form))
+}
+
+/** "PDF", "PNG"… for a file this page sends, as for one the server lists. */
+export const fileTypeOf = (file: File) => fileType(file.name, file.type)
 
 /** `DELETE /api/conversations/{id}/messages/{messageId}` (F10): throws away a reply the provider refused. */
 export async function discardMessage(conversationId: string, messageId: string): Promise<void> {

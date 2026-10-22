@@ -6,6 +6,7 @@ import { stubEventSource } from './eventSource'
 import { stubOsColorScheme } from './matchMedia'
 import { stubObjectUrls } from './objectUrls'
 import { server } from './msw/server'
+import { resetSettingsBackend } from './fixtures/settingsApi'
 
 // jsdom has no ResizeObserver; every browser does. Radix measures the hidden input of a form control with it (a Switch
 // inside a <form>, as on the sign-in page). Nothing in the tests depends on sizes, so observing does nothing.
@@ -40,6 +41,8 @@ beforeAll(() =>
 beforeEach(() => {
   // The stickers wait a second between two sends (stickerQueue); no test does.
   stickerPacing.gapMs = 0
+  // What a test saves through the settings API lasts until the next test (settings-backend).
+  resetSettingsBackend()
   stubOsColorScheme('light')
   stubEventSource()
   stubObjectUrls()

@@ -46,16 +46,19 @@ public class Replies {
     Reply of(UUID ownerId, InboxItem conversation, UUID copy) {
         UUID accountId = conversation.accountOf(copy);
         ReplyState state = stateOf(ownerId, conversation, accountId);
+        boolean ready = state == ReplyState.READY;
         return new Reply(state, recipientsOf(copy),
-                state == ReplyState.READY && sendsImages(ownerId, conversation, accountId));
+                ready && sends(ownerId, conversation, accountId, ProviderCapability.SEND_IMAGES),
+                ready && sends(ownerId, conversation, accountId, ProviderCapability.SEND_FILES));
     }
 
-    // Both the connector and the account must send pictures; a picture is a message, so the reply is READY first (D-356).
-    private boolean sendsImages(UUID ownerId, InboxItem conversation, UUID accountId) {
+    // Both the connector and the account must send pictures, or files; each is a message, so the reply is READY first
+    // (D-356, zalo-send-files D-372).
+    private boolean sends(UUID ownerId, InboxItem conversation, UUID accountId, ProviderCapability what) {
         boolean providerSends = providers.find(conversation.provider())
-                .map(connector -> connector.capabilities().supports(ProviderCapability.SEND_IMAGES)).orElse(false);
+                .map(connector -> connector.capabilities().supports(what)).orElse(false);
         return providerSends && directory.find(ownerId, accountId).map(directory::capabilitiesOf)
-                .map(capabilities -> capabilities.supports(ProviderCapability.SEND_IMAGES)).orElse(false);
+                .map(capabilities -> capabilities.supports(what)).orElse(false);
     }
 
     // In this order: reconnecting cannot help a provider that never sends, and a reconnect also grants the scopes.

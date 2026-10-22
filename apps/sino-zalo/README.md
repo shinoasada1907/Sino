@@ -1,16 +1,17 @@
 # sino-zalo
 
-Node service that will sit between `sino-api` and Zalo for personal Zalo accounts, through the unofficial library
+Node service that sits between `sino-api` and Zalo for personal Zalo accounts, through the unofficial library
 zca-js (F09, D-273). Only `sino-api` may call it, with a shared secret (D-282). It keeps nothing on disk: Zalo sessions
 are stored encrypted by `sino-api` (D-274). The plan is `openspec/changes/zalo-personal` at the repository root.
 
-**Status (ZL-12):** this service is feature-complete for the change: configuration, the shared-secret check,
-`GET /health`, the QR login, sessions with their listeners (start, stop, kick, reconnect), reading (the message
-buffer, the cursor, the catch-up after a restart and the batched webhook), and sending text: one send per
+**Status (2026-10-21):** configuration, the shared-secret check, `GET /health`, the QR login, sessions with their
+listeners (start, stop, kick, reconnect), reading (the message buffer, the cursor, the catch-up after a restart and
+the batched webhook; stickers, GIFs and photos with their pictures), and sending text and stickers: one send per
 `clientMessageId`, one message per second per account, and the lookup of sent messages. The `sino-api` side is done
-too, through ZL-11 (connect by QR from the web, reading, replies, disconnect when an account is removed or turned
-off). All of it has run only against the fake gateway so far; the first run against Zalo itself is ZL-13, and the
-message types in `ZaloMessageNormalizer` of `sino-api` are the ones that run will confirm or correct.
+too (connect by QR from the web, reading, replies, stickers, disconnect when an account is removed or turned off).
+It has run against Zalo itself on the user's machine (zalo-personal ZL-14 to ZL-19, zalo-send-images ZS-09); the
+acceptance run of the whole change, with its measurements, is ZL-13, and the message types in
+`ZaloMessageNormalizer` of `sino-api` are the ones that run will confirm or correct.
 
 `zalo-ci` (`.github/workflows/zalo-ci.yml`) runs the lint, the type check and the tests of this folder on every push
 and pull request that touches it.
@@ -102,7 +103,7 @@ Two steps, in this order (D-286); the same list, with the settings spelled out, 
 | `PUT /accounts/{accountId}/session` `{ "session": { "cookie", "imei", "userAgent" } }` | `204` once the account runs one listener on this session; the same session while it lives changes nothing. `410 SESSION_ENDED` when Zalo refuses the session, or for the very session that was kicked (Zalo is not asked again). `502 ZALO_UNAVAILABLE` when Zalo does not answer (the session held so far stays). `400` for a body without a usable session |
 | `DELETE /accounts/{accountId}/session` | `204`, also when the account is unknown; stops the listener and forgets the account |
 | `GET /accounts/{accountId}/messages?after=<msgId>&limit=<n>` | `200 { "conversations", "messages", "nextCursor", "hasMore" }`: up to `limit` (1–1000, default 100) buffered messages with a `msgId` above `after` (all of them without `after`), their conversations, the last `msgId` given (or `after`; `null` with neither), and whether more wait. `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` for a cursor that is not a whole number |
-| `POST /accounts/{accountId}/messages` `{ "threadId", "threadType" (USER or GROUP), "text" or "image", "clientMessageId" }` | `201 { "msgId", "sentAt" }` once Zalo took the text, or the picture (`image` is `{ "data" (base64), "fileName" (a name without a path, ending `.png`, `.gif` or `.webp`), "width", "height" }`: at most 1 MiB once decoded, `text` then empty or missing; a text beside a picture is `400 INVALID_MESSAGE`, base64 that does not encode back to itself `400 INVALID_IMAGE`, more than 1 MiB `400 IMAGE_TOO_LARGE`, a request larger than the 2 MiB the route reads `400 PAYLOAD_TOO_LARGE`; the log carries the type and the size of a picture, never its bytes or its name). The same `clientMessageId` within 24 hours: `200` with the first result, nothing sent, also once the session has ended. `429 RATE_LIMITED` for a second message within a second (nothing sent); `422 REJECTED` when Zalo refused it; `504 OUTCOME_UNKNOWN` when Zalo gave no answer within 10 seconds or the send broke midway, also for a repeat of such a send (never sent twice); `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` |
+| `POST /accounts/{accountId}/messages` `{ "threadId", "threadType" (USER or GROUP), "text" or "image", "clientMessageId" }` | `201 { "msgId", "sentAt" }` once Zalo took the text, or the picture (`image` is `{ "data" (base64), "fileName" (a name without a path, ending `.png`, `.gif` or `.webp`), "width", "height" }`: at most 1 MiB once decoded, `text` then empty or missing; a text beside a picture is `400 INVALID_MESSAGE`, base64 that does not encode back to itself `400 INVALID_IMAGE`, more than 1 MiB `400 IMAGE_TOO_LARGE`, a request larger than the 2 MiB the route reads `400 PAYLOAD_TOO_LARGE`; the log carries the type and the size of a picture, never its bytes or its name). A PNG or WebP is uploaded, then sent through Zalo's `photo_url` as a photo in the bubble without a border, without the AI sticker marks (`pStickerType`, `webp`) that the Zalo phone app draws as an empty placeholder (ZS-09); a GIF goes down zca-js's own GIF path. The same `clientMessageId` within 24 hours: `200` with the first result, nothing sent, also once the session has ended. `429 RATE_LIMITED` for a second message within a second (nothing sent); `422 REJECTED` when Zalo refused it; `504 OUTCOME_UNKNOWN` when Zalo gave no answer within 10 seconds or the send broke midway, also for a repeat of such a send (never sent twice); `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` |
 | `POST /accounts/{accountId}/sent/lookup` `{ "threadId", "clientMessageId", "text" (missing for a picture), "after" (date-time with a zone) }` | `200 { "msgIds" }`: the `msgId` remembered for `clientMessageId`, then, for a text, the account's own buffered messages in that thread with the same text sent after `after` (a picture has no text, so only what was remembered speaks for it). `409 CANNOT_TELL` instead of an empty list when the session started after `after`, when `after` is more than 24 hours ago, or when the send of that `clientMessageId` has no known outcome yet. `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` |
 
 The secret is checked for every request, also on paths no route serves yet, so a route added later is protected
@@ -146,6 +147,7 @@ After a restart sino-zalo knows no earlier send, and the lookup answers `409 CAN
 | `src/sessions/MessageBuffer.ts` | The messages waiting for `sino-api`, ordered by `msgId` as a BigInt, with the 1,000 / 24 hour limits |
 | `src/sessions/CatchUp.ts` | Reads what Zalo kept after a cursor, page after page, within 10 pages per type and 5 seconds |
 | `src/sessions/Conversations.ts` | Names the conversations of a page of messages, one Zalo lookup per thread per hour |
+| `src/sessions/Stickers.ts` | Gives the sticker messages of a page their still picture and, for a sticker that moves, its sprite sheet, one Zalo lookup per sticker |
 | `src/sessions/routes.ts` | `PUT`, `DELETE /accounts/{accountId}/session`, and the `404` / `410` / `502` answers shared by account routes |
 | `src/messages/readRoutes.ts` | `GET /accounts/{accountId}/messages` |
 | `src/messages/sendRoutes.ts` | `POST /accounts/{accountId}/messages` (send) and `POST /accounts/{accountId}/sent/lookup` |

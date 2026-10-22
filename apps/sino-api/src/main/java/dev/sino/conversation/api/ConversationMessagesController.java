@@ -1,5 +1,7 @@
 package dev.sino.conversation.api;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -26,8 +28,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import dev.sino.conversation.application.MessageBodies;
 import dev.sino.conversation.application.MessageBody;
@@ -38,6 +42,7 @@ import dev.sino.conversation.application.MessageHistory;
 import dev.sino.conversation.application.MessagePage;
 import dev.sino.conversation.application.ReplyService;
 import dev.sino.conversation.application.ReplyService.Sent;
+import dev.sino.conversation.application.UploadedFiles;
 import dev.sino.identity.CurrentUser;
 
 /**
@@ -77,6 +82,28 @@ class ConversationMessagesController {
                         request.clientMessageId());
         return ResponseEntity.status(sent.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(MessageResponse.from(sent.message()));
+    }
+
+    /**
+     * Sends a picture or a file from the user's computer (zalo-send-files, D-370): a {@code multipart/form-data} request
+     * with the parts {@code file} and {@code clientMessageId}; the same answers as {@link #send}. The kind is told from
+     * the bytes, not from the name or the type the browser gave (D-371).
+     */
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ResponseEntity<MessageResponse> sendFile(@PathVariable UUID id, @RequestPart("file") MultipartFile file,
+            @RequestParam("clientMessageId") UUID clientMessageId) {
+        Sent sent = replies.sendFile(currentUser.requireOwnerId(), id,
+                UploadedFiles.of(file.getOriginalFilename(), file.getContentType(), bytesOf(file)), clientMessageId);
+        return ResponseEntity.status(sent.created() ? HttpStatus.CREATED : HttpStatus.OK)
+                .body(MessageResponse.from(sent.message()));
+    }
+
+    private static byte[] bytesOf(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException("The upload could not be read.", e);
+        }
     }
 
     /** Discards a message Sino failed to send. */

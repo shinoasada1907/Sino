@@ -256,6 +256,10 @@ class GmailProvider implements MessageProvider {
             // A picture is refused before anything is asked of Gmail (D-349).
             capabilities().require(ProviderCapability.SEND_IMAGES);
         }
+        if (command.file() != null) {
+            // Attachments for Gmail are a later change (zalo-send-files, non-goals).
+            capabilities().require(ProviderCapability.SEND_FILES);
+        }
         String accessToken = accessTokenOf(context);
         String from = api.profile(accessToken).emailAddress();
         Optional<Part> answered = Optional.ofNullable(command.replyToExternalMessageId())

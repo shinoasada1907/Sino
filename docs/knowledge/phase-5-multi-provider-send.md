@@ -1513,7 +1513,7 @@ Zalo          chat.photo, href/thumb/params.hd cùng host
 
 ### 21.4 Kiểm chứng và giới hạn
 - Viết test trước (12 test mới đỏ), rồi xanh: `sino-zalo` 259/259, oxlint 0, `tsc` 0. Gài lỗi 13: ba lỗi sống sót vì thiếu test (độ sâu tìm địa chỉ, đường lùi bị nhầm với `thumb`, danh sách bị coi như object); đã thêm test rồi diệt cả ba.
-- Kiểm trên ảnh thật, kết quả là bản sửa chưa chạm vào nguyên nhân thật: sáu tin sau bản sửa, chỉ hai tin chó hiện hình, hổ, mèo và dê vẫn `[Ảnh]`, trong khi bốn tin có `photoShape` y hệt nhau. Gọi thẳng CDN bằng `curl` cho cùng kết quả như trình duyệt: ảnh chó trả 200 (tệp có từ 15/10), ảnh hổ, mèo, dê trả 404 với thân rỗng, bất kể đổi đuôi tệp, tiền tố hay header. Tức là CDN không có tệp tại địa chỉ mà tin nêu, và Sino không có gì để hiện. Bài học: một cấu trúc `content` giống hệt nhau không có nghĩa là mọi tin dùng được như nhau, vì chỗ khác nhau có thể nằm ở dữ liệu bên ngoài (tệp có thật trên CDN hay không); và một giả thuyết hợp lý (`params.webp` giữ ảnh thật) vẫn phải được đo bằng đúng những tin lỗi trước khi coi là đã sửa. Còn mở: tệp có được tạo khi tài khoản nhận xem hay không, và `params.contentId` có phải mã sticker hay không.
+- Kiểm trên ảnh thật, kết quả là bản sửa chưa chạm vào nguyên nhân thật: sáu tin sau bản sửa, chỉ hai tin chó hiện hình, hổ, mèo và dê vẫn `[Ảnh]`, trong khi bốn tin có `photoShape` y hệt nhau. Gọi thẳng CDN bằng `curl` cho cùng kết quả như trình duyệt: ảnh chó trả 200 (tệp có từ 15/10), ảnh hổ, mèo, dê trả 404 với thân rỗng, bất kể đổi đuôi tệp, tiền tố hay header. Tức là CDN không có tệp tại địa chỉ mà tin nêu, và Sino không có gì để hiện. Bài học: một cấu trúc `content` giống hệt nhau không có nghĩa là mọi tin dùng được như nhau, vì chỗ khác nhau có thể nằm ở dữ liệu bên ngoài (tệp có thật trên CDN hay không); và một giả thuyết hợp lý (`params.webp` giữ ảnh thật) vẫn phải được đo bằng đúng những tin lỗi trước khi coi là đã sửa. Kết thúc (2026-10-21): chỉ Zalo desktop hiện các hình này, còn chat.zalo.me và điện thoại đều không. Vậy chính Zalo cũng không lấy được tệp từ CDN (khớp với 404 của `curl`); desktop hiện được có lẽ nhờ một bản lưu trên máy. Sino không có gì để hiện, nên người dùng bỏ task; sticker của chính Zalo đã hiện trong Sino. Bài học: khi nghi nguồn dữ liệu, thử trên chính ứng dụng gốc ở mọi nơi nó chạy (web, điện thoại, desktop) trước khi viết thêm mã, vì một nơi hiện được có thể chỉ đang dùng bản lưu cục bộ. Mã của mục này giữ nguyên: ZL-19 (mục 25) dùng cùng dấu `pStickerType`.
 - Chưa làm: tin đã lưu trước bản sửa (ba ảnh 18:15–18:17, các tin 20:21, 20:31, 20:58, 21:18) giữ `[Ảnh]`, không backfill (như ZL-15 và ZL-16); chưa gửi một ảnh thường sau bản sửa để xem tận mắt (mã của nhánh ảnh thường không đổi và có test giữ nguyên).
 
 ## 22. Thư viện sticker tự tạo (`custom-stickers`, ST-01 đến ST-20)
@@ -2088,6 +2088,88 @@ Cả hai đều cho nội dung vai trò `dialog` tên "Sticker". Esc đóng khun
 - **Cổng kiểm tra:** `pnpm lint` (2 cảnh báo cũ ở `features/public`), `tsc -b`, `pnpm build`: đều qua. `pnpm test` 124 tệp, 1282/1286 test. 4 ca đỏ là các test tải lên đọc `request.formData()` (`client.test.ts`, `useStickers.test.tsx`). Chúng đỏ cả ở `549ae0a`, trước mọi commit của change này: lỗi của môi trường Node 26 + jsdom trên máy này.
 - **Chưa kiểm:** Chrome thật ở 1440 và 390 (Claude in Chrome mất kết nối trong phiên này); gửi thật qua Zalo (ZS-20).
 
+### 24.3 Gửi sticker như sticker của Zalo, không như ảnh (ZS-09, D-359)
+**Ở đâu:** `apps/sino-zalo/src/gateway/ZcaGateway.ts` (`sendImage` của kết nối, `sendPhotoSticker`, `photoStickerParams`, `photoUrlSender`); test `test/photoSticker.test.ts`.
+
+**Vấn đề:** gửi bằng `sendMessage` có `attachments` của `zca-js` thì Zalo nhận một **tin ảnh**: người nhận thấy ảnh có khung, không phải sticker. `zca-js` 2.2.0 không có API nào gửi "sticker tự tạo"; `sendSticker` của nó chỉ gửi được sticker có sẵn trong kho của Zalo.
+
+**Cách tìm ra đường gửi:** đọc mã JavaScript của chat.zalo.me (bản tải về, chỉ tìm chuỗi, không chạy). Hàm `_sendAISticker` của Zalo gửi một sticker AI là một **ảnh** kèm vài trường đánh dấu, qua `sendPhotoByUrl` tới `/api/message/photo_url` (nhóm: `/api/group/photo_url`). Dạng này khớp với tin hổ cam thật đã đọc được ở ZL-18 (`pStickerType`, `webp`, `contentId`, `propertyExt.type: 3`).
+
+```text
+sino-zalo                                   Zalo
+  uploadAttachment(ảnh) ------------------>  photo_original/upload   (chưa có tin nào trong chat)
+                        <------------------  normalUrl, hdUrl, thumbUrl, photoId
+  photo_url (AES, qua api.custom) -------->  /api/message/photo_url
+     properties.type = 3   (bong bóng không viền)
+     properties.ext  = { sSrcStr: "", sSrcType: -1 }   (nguồn: AI)
+     jcp             = { pStickerType: 1 }             (AI_STICKER)
+     contentId = photoId, webp = { width, height, url = hdUrl }
+                        <------------------  { msgId }
+```
+Đây là bản đầu. Từ 2026-10-21 tin không còn `jcp` và `webp`, vì ứng dụng Zalo trên điện thoại không vẽ được (mục 24.4).
+- `photo_url` không có trong `zca-js`, nên được thêm vào phiên bằng `api.custom(...)`: hàm đó cho dùng lại cách dựng URL, mã hoá AES và gửi request của chính phiên đăng nhập. Mỗi kết nối gọi `custom` đúng một lần (gọi hai lần cùng tên thì `zca-js` ném lỗi).
+- GIF vẫn đi nhánh GIF cũ của `zca-js` (Zalo hiện như ảnh động).
+- **Lỗi:** chỉ upload thì chưa có tin nào trong chat, nên mọi lỗi trước lời gọi `photo_url` là "bị từ chối" (web hiện "Gửi lại"). Lỗi ở chính lời gọi gửi theo luật chung: có mã lỗi của Zalo là từ chối, còn lại là "chưa rõ" (không gửi lại mù, D-280).
+
+**Kiểm chứng:**
+- **Test tay** trên máy người dùng: bốn sticker đều `SENT`; tin vọng lại nằm trên CDN sticker của Zalo; người dùng thấy bên Zalo hiện đúng sticker. Zalo đổi PNG trong suốt thành JPEG nền trắng, giống sticker AI của chính Zalo.
+- **Test tự động sau:** 13 test (`photoSticker.test.ts`), trong đó có một kết nối thật với `zca-js` giả bằng `vi.mock` để thử cả nhánh chọn GIF hay sticker và URL `photo_url` của chat đôi lẫn nhóm. Gài lỗi 12/12 bị diệt.
+- **Rủi ro:** `photo_url` và các trường trên không có tài liệu. Zalo đổi thì đường này gãy; khi đó quay về gửi ảnh thường chỉ cần bỏ một nhánh trong `sendImage` của kết nối. Chưa gửi thử vào nhóm, chưa thử WebP động.
+
+### 24.4 Điện thoại không vẽ sticker AI: bỏ hai dấu, giữ bong bóng không viền (ZS-09, 2026-10-21)
+**Ở đâu:** `photoStickerParams` trong `apps/sino-zalo/src/gateway/ZcaGateway.ts`; test `test/photoSticker.test.ts`.
+
+**Triệu chứng:** chat.zalo.me và Zalo PC hiện sticker của Sino, còn ứng dụng Zalo trên Android chỉ hiện một ô mặt cười mờ, góc có dấu ngôi sao lấp lánh của sticker AI.
+
+**Đo trước khi sửa:**
+- Tệp ảnh có trên CDN (`curl` trả 200), nên không phải tệp thiếu như ZL-18.
+- So ở bốn nơi với một sticker AI gửi từ chính Zalo PC: sticker đó chỉ hiện trên máy PC đã gửi (CDN trả 404), và điện thoại cũng không hiện nó. Vậy lỗi không riêng gì Sino.
+- So `photoShape` (tên khóa, loại giá trị, tên miền, không bao giờ giá trị) của hai tin: gần như giống hệt.
+- Manh mối quyết định là dấu ngôi sao: điện thoại **đã nhận ra** tin là sticker AI và đi một đường vẽ riêng cho loại đó. Ảnh thường thì điện thoại vẽ được. Vậy cần bỏ những gì khiến tin bị coi là sticker.
+
+**Thử từng biến một** (mỗi lần Sino gửi một sticker, người dùng xem trên điện thoại và trên web):
+
+| Lần | Tin mang | Điện thoại | chat.zalo.me |
+|---|---|---|---|
+| Trước | `pStickerType`, `webp`, `contentId`, bong bóng không viền | ô mờ có dấu sao | như sticker |
+| 1 | bỏ `pStickerType` | ô mờ, mất dấu sao | như sticker |
+| 2 | bỏ thêm `webp` | hiện | hiện |
+
+Ảnh gửi từ điện thoại cũng có `contentId` nhưng không có `webp`. Vậy `webp` mới là dấu "đây là sticker", còn `contentId` là trường bình thường của ảnh; Zalo tự bỏ nó khi tin không có `webp`.
+
+```text
+photo_url (bản giữ lại)
+  properties.type = 3                               (bong bóng không viền)
+  properties.ext  = { sSrcStr: "", sSrcType: -1 }
+  contentId = photoId, thumb_width, thumb_height    (Zalo bỏ contentId khi không có webp)
+  không có jcp (pStickerType), không có webp
+```
+
+**Bài học:**
+- Một ký hiệu nhỏ trên giao diện (dấu sao) cho biết ứng dụng đã hiểu dữ liệu là gì; đó là bằng chứng, không phải trang trí.
+- Đổi một thứ mỗi lần thì biết chắc thứ nào gây ra kết quả. Lần 1 không sửa được lỗi nhưng cho biết `pStickerType` chỉ sinh ra dấu sao, còn `webp` mới giữ tin ở đường sticker.
+- Bắt chước đúng một client (chat.zalo.me) chưa đủ: các client khác của cùng dịch vụ có thể đọc cùng dữ liệu theo cách khác, nên phải xem ở mọi nơi người nhận có thể dùng.
+
+**Kiểm chứng:**
+- **Test tay** trên máy người dùng: tin 11:01 hiện được trên chat.zalo.me, Zalo PC và Android. Trong Sino tin vẫn là sticker nhờ bong bóng không viền (ZL-19, mục 25).
+- **Test tự động sau** (worktree sạch ở `HEAD` cộng đúng hai tệp của bản sửa): `photoSticker.test.ts` 13 test, có ca mới "không bao giờ mang `jcp` hay `webp`" cho chat đôi và nhóm; toàn bộ `sino-zalo` 311/311, `tsc` 0, `oxlint` 0. Gài lỗi 4/4 bị diệt (gài lại `jcp`, gài lại `webp`, `webp` chỉ cho nhóm, bong bóng có viền).
+- **Chưa kiểm:** gửi vào nhóm, iPhone, và trên từng nơi tin trông như sticker hay như ảnh có khung.
+
+### 24.5 Nghiệm thu thật (ZS-20)
+**Làm gì:** từ Sino gửi sticker thật qua Zalo trên máy người dùng, rồi đối chiếu ba nguồn: điều người dùng thấy trên Zalo, bảng `message` trong DB, và tệp ảnh trên CDN của Zalo.
+
+| Gửi | Kết quả |
+|---|---|
+| PNG nền trong suốt | Hiện trên chat.zalo.me, Zalo PC và Android (sau mục 24.4). Zalo lưu thành JPEG nên nền trong suốt thành nền trắng |
+| GIF động | Người dùng báo đạt; tin vọng lại là `chat.gif` |
+| Tắt mạng rồi bật lại | Một dòng, `SENT`; bên Zalo chỉ một tin |
+
+Mỗi lần gửi chỉ có đúng một dòng `OUTBOUND` trong DB: tin vọng lại của Zalo (cùng `msgId`) gộp vào dòng đã gửi, nên không thành hai tin.
+
+**Bài học:** "người dùng báo đạt" là một bằng chứng, DB là một bằng chứng khác, và hai thứ có thể lệch nhau. Ở đây DB cho thấy chưa có lần gửi nào vào nhóm; hỏi lại thì người dùng chọn bỏ bước đó. Nếu chỉ dựa vào lời báo thì hồ sơ sẽ ghi sai là đã kiểm cả nhóm.
+
+**Kiểm tra cuối:** `sino-api` 2647 test, 0 lỗi; `sino-zalo` 311/311; `sino-web` lint, kiểm kiểu và build đều 0, `vitest` 1282/1286 (4 test đỏ đã có từ trước change). **Chưa kiểm:** gửi vào nhóm (người dùng bỏ), WebP động (thư viện chưa có tệp WebP), iPhone.
+
 ## 25. ZL-19 — Ảnh Zalo vẽ như sticker thì Sino cũng hiện như sticker
 
 **Ở đâu:** `apps/sino-zalo/src/gateway/ZaloGateway.ts` (`ZaloPhoto.sticker`), `ZcaGateway.ts` (`photoOf`), `sessions/SessionManager.ts` (log `photoSticker`); `apps/sino-api/.../provider/infrastructure/zalo/ZaloClient.java` (`Photo`), `ZaloMessageNormalizer.java` (`photoStickerBody`). Web không đổi.
@@ -2122,3 +2204,92 @@ Lỗi này không chỉ nằm trên giấy: `sino-api` bản `boolean` đã ch�
 - **Test tay trước** (máy người dùng): sticker AI nhận vào lưu `[Sticker]` + `stickerUrl` và hiện như sticker; ảnh thường vẫn `[Ảnh]` + `imageUrl`; sticker thường của Zalo không đổi.
 - **Test tự động sau:** `sino-zalo` 298 test, `tsc` 0, `oxlint` 0; `sino-api` 256 test của connector Zalo (chạy trong worktree riêng). Gài lỗi: 5/5 bị diệt ở mỗi bên.
 - **Giới hạn:** ảnh sticker trên CDN của Zalo là JPEG nền trắng, nên giao diện tối vẫn thấy ô vuông trắng. Tin lưu trước bản sửa giữ `[Ảnh]`, không backfill.
+
+## 26. Thả biểu cảm lên tin trong chat (`zalo-reactions`, phần web RX-08, RX-09)
+
+Mục này mới có phần web. Phần `sino-zalo` và `sino-api` (RX-01…RX-07) chưa làm, nên trên app thật nút và chip chưa hiện: web chỉ vẽ chúng khi máy chủ trả `reactionSet` và `reactions`. Thiết kế và quyết định D-380…D-391 ở `openspec/changes/zalo-reactions/design.md`.
+
+### 26.1 Ở đâu và trông ra sao
+**Ở đâu** (tính từ `apps/sino-web/src/features/inbox/`):
+- `reactions.ts`: kiểu `Reaction`, `ReactionKind` và các bước thuần (`afterPick`, `withoutMine`, `chipLabel`).
+- `reactions.api.ts`: `PUT` và `DELETE …/messages/{id}/reaction`.
+- `useReactToMessage.ts`: sửa cache ngay khi bấm, gửi lần lượt, trả về khi lỗi.
+- `components/ReactionPicker.tsx`: nút mặt cười, thanh nhanh, bảng đầy đủ, nhấn giữ.
+- `components/ReactionChips.tsx`: chip dưới bong bóng và danh sách ai thả gì.
+- `components/ChatThread.tsx`: `Bubble` bọc cột bong bóng bằng thanh chọn và đặt chip sau tệp đính kèm.
+- Test: `Reactions.test.tsx`, hai ca trong `inbox.api.test.ts`.
+
+**Màn trông ra sao:** canvas chưa có khung cho phần này; người dùng chọn dựng theo ảnh thanh biểu cảm của Zalo rồi vẽ vào canvas sau (RX-21). Trong sơ đồ, mỗi biểu cảm ghi bằng chữ.
+
+```text
+              +-----------------------------------------------+
+              | (tim) (haha) (wow) (buon) (gian) (thich) (+)  |   thanh nhanh, mở trên bong bóng
+              +-----------------------------------------------+
+ (avatar) +------------------+
+          | Giảm cân à       |  (mặt cười)   <- nút hiện khi rê chuột hay focus
+          +------------------+
+            [ (tim)(haha) 3 ]   <- chip: tối đa 3 biểu cảm, tổng số người; viền màu nhấn khi có của mình
+```
+
+Bấm "+" từ 768 px thì khung nổi đổi thành lưới 8 cột của cả bộ; dưới 768 px thì mở tấm kéo lên từ đáy như khung chọn sticker.
+
+### 26.2 Vì sao web không biết gì về Zalo
+Máy chủ gửi mỗi biểu cảm với **mã của provider** (Zalo: `/-heart`, `:>`…), emoji để vẽ và nhãn tiếng Việt (`reactionSet`, D-387, D-388). Web chỉ vẽ `emoji` và gửi lại `code`. Có hai lý do:
+- **Thêm provider không phải sửa web.** Telegram sau này chỉ cần trả bộ của nó.
+- **Mã và emoji không một-một.** Ở Zalo, `COOL` và `SUNGLASSES` cùng vẽ thành một emoji. Nếu web chỉ giữ emoji thì lúc gỡ hay thả lại sẽ không biết phải gửi mã nào.
+
+### 26.3 Hiện ngay, gửi lần lượt, chỉ tin câu trả lời cuối (D-391)
+`useReactToMessage` dùng `useMutation` của TanStack Query, với bốn điểm:
+1. **`onMutate` sửa cache ngay:** tin trong `messagesKey` được thay `reactions` bằng kết quả của `afterPick`, nên chip đổi trước khi máy chủ trả lời. Trước đó nó gọi `cancelQueries`, vì một lượt đọc đang chạy có thể đè chip cũ trở lại.
+2. **`scope` cho các lần bấm đi lần lượt:** các mutation cùng một `scope.id` chạy nối đuôi nhau, nhưng `onMutate` của mỗi cái vẫn chạy ngay lúc bấm. Thứ tự tới máy chủ vì vậy đúng thứ tự bấm.
+3. **"Vé" cho mỗi tin:** mỗi lần bấm tăng một số đếm theo tin. Đến lượt mình mà đã có lần bấm sau thì mutation không gửi gì: mỗi `PUT` / `DELETE` đặt cả trạng thái, nên chỉ lần cuối là có nghĩa. Câu trả lời của một lần bấm cũ cũng bị bỏ qua.
+4. **Lỗi thì trả về ngay rồi đọc lại:** chip về đúng trạng thái trước lúc bấm (lưu sẵn trong lệnh), dưới tin hiện lỗi ngắn (429: "Chậm lại một chút."), rồi tin được đọc lại để khớp với máy chủ.
+
+### 26.4 Nhấn giữ trên điện thoại
+Không có thư viện nào cho việc này; `useHold` trong `ReactionPicker.tsx` dùng sự kiện con trỏ của React:
+- `onPointerDown` chỉ hẹn giờ 500 ms khi `pointerType` là `touch`. Chuột không tính, vì trên máy tính đã có nút.
+- `onPointerMove` huỷ hẹn giờ khi ngón tay lệch quá 10 px: người dùng đang cuộn, không phải đang giữ.
+- `onPointerUp` và `onPointerCancel` huỷ hẹn giờ.
+- `onContextMenu` gọi `preventDefault` khi đang chạm, để menu "sao chép, chia sẻ" của trình duyệt không bật ra cùng lúc. CSS `-webkit-touch-callout: none` làm điều tương tự trên Safari.
+
+**Neo khung nổi vào bong bóng, không vào nút:** Radix `Popover` cho đặt `Popover.Anchor` riêng với `Popover.Trigger`. Bong bóng nằm trong `Anchor`, nút mặt cười là `Trigger`. Nhờ vậy cùng một khung mở được bằng nút (máy tính, bàn phím) hay bằng nhấn giữ (điện thoại), và luôn hiện ngay trên bong bóng.
+
+### 26.5 Bàn phím và trình đọc màn hình
+- Nút mặt cười mờ hẳn (`opacity-0`) nhưng vẫn nằm trong thứ tự Tab, và hiện lên khi được focus. Người dùng bàn phím vẫn tới được nó dù không rê chuột.
+- Thanh nhanh có `role="toolbar"`, bảng đầy đủ là một `group`. Cả hai dùng roving `tabIndex` như lưới sticker (24.1): mũi tên, Home và End để đi; Enter để thả. Ô đầu tiên lấy focus là biểu cảm đang là của mình, nếu có.
+- Mỗi nút biểu cảm đọc bằng nhãn ("Tim") và có `aria-pressed` khi là của mình. Chip đọc thành câu, ví dụ "3 người đã thả biểu cảm: Tim 2, Haha 1". Emoji bên trong có `aria-hidden`, để trình đọc không đọc tên Unicode của từng hình.
+
+### 26.6 Commit chỉ chứa phần biểu cảm
+Lúc làm, `ChatThread.tsx`, `inbox.types.ts` và `inbox.api.ts` còn thay đổi chưa commit của change khác (`zalo-send-files`). Để commit không cuốn theo thay đổi của người khác, ba file được dựng lại thành "bản `HEAD` + phần biểu cảm" bằng một script, kiểm riêng trên một worktree sạch (`git worktree add --detach … HEAD`), rồi đưa vào index bằng `git hash-object -w` và `git update-index --cacheinfo`. Bản trong cây làm việc giữ nguyên cả hai phần.
+
+### 26.7 Kiểm chứng
+- **Chrome thật: chưa kiểm** (Claude in Chrome không kết nối, và máy chủ chưa trả biểu cảm).
+- **Test tự động** (bấm thật bằng `user-event` trên chat dựng từ dữ liệu mẫu và MSW): 15 ca mới. Chúng kiểm chip và danh sách người, thả hiện ngay rồi lấy câu trả lời, gỡ bằng `DELETE`, "+" ra đủ bộ, 429 trả chip về, bàn phím và trả focus, không có nút khi không có bộ hay tin không nhận, nhấn giữ ở 390 px mở thanh rồi "+" mở tấm, ngón tay trượt thì không mở, và đọc ba trường mới từ API.
+- **Cổng kiểm tra:**
+  - `pnpm lint` 0 lỗi; `tsc -b` 0; `pnpm build` 0.
+  - `pnpm test` 1297/1301. 4 ca đỏ là các test tải lên đã ghi ở 24.2, đỏ cả trên bản sạch trước change này.
+  - Riêng bản commit, kiểm trên worktree sạch: test của `features/inbox` 360/360, build 0.
+
+### 26.8 Sau lượt xem đầu tiên của người dùng
+**Bản xem trước trên máy dev:** khi chưa có backend, app thật không hiện gì, nên người dùng không xem được UI. `reactionsPreview.ts` bật một bộ biểu cảm mẫu (mã của Zalo) chỉ khi `import.meta.env.MODE === 'development'`. Vite đặt `MODE` là `development` khi chạy `vite`, là `test` trong Vitest và là `production` khi build, nên test và bản build không bị ảnh hưởng. Lần chọn chỉ giữ trong trình duyệt. Khi máy chủ gửi `reactionSet`, bản xem trước tự tắt.
+
+**Bài học Radix: `Popover.Trigger` cạnh một `Popover.Anchor` riêng.** Thanh mở ở góc trên bên trái màn hình. Radix (`react-popper` 1.3) ghi vật neo bằng callback ref, tức là chỉ lúc phần tử được gắn vào trang:
+1. Lần render đầu, `Trigger` vẫn tự bọc mình bằng một vật neo và được gắn sau `Anchor`, nên vật neo là nút.
+2. Radix thấy có `Anchor` riêng thì bỏ lớp bọc đó, và React dựng lại nút thành phần tử DOM mới.
+3. Vật neo vẫn là nút cũ đã rời trang. `getBoundingClientRect()` của nó là 0 × 0 ở (0, 0), nên floating-ui đặt thanh ở góc.
+
+Cách sửa: không dùng `Trigger`; nút mặt cười là nút thường tự mở và đóng khung, `Anchor` là vật neo duy nhất. Phải tự làm ba việc mà `Trigger` vốn làm: đặt `aria-expanded` / `aria-haspopup`, bỏ qua lần bấm nút trong `onInteractOutside` (nếu không, bấm nút khi đang mở sẽ đóng rồi mở lại ngay), và trả focus về nút trong `onCloseAutoFocus`.
+
+jsdom không có bố cục, nên test giả lập nó:
+- `getBoundingClientRect` trả (400, 300) cho phần tử còn trên trang, 0 × 0 cho phần tử đã rời trang;
+- `clientWidth` / `clientHeight` của `<html>` là 1440 × 900, vì floating-ui đo khung nhìn bằng hai giá trị này.
+
+Code cũ cho `translate(0px, 6px)`; bản sửa cho `translate(400px, 294px)`. Chiều cao của thanh là 0, vì jsdom không có `offsetHeight`.
+
+**Emoji theo phong cách của trang:** emoji màu của hệ thống lệch với icon nét mảnh, đơn sắc của Sino. Thay vào đó dùng font **Noto Emoji** (đơn sắc, có trục độ đậm, giấy phép OFL 1.1):
+- **Cắt font** bằng `fontTools.subset` còn đúng 43 ký tự của bộ, 24,8 KB thay vì 2 MB, và giữ trục độ đậm.
+- **Khai báo** `@font-face` tên "Sino Emoji" với `unicode-range` đúng các ký tự đó, và token `--font-emoji` trong `@theme`, nên Tailwind có lớp `font-emoji`.
+- **`ReactionEmoji`** đặt `font-light` để nét gần với icon Lucide nét 1.6, và lấy màu chữ của theme.
+- **Bỏ `U+FE0F`** (bộ chọn biến thể "hãy vẽ bản màu", đi sau trái tim đỏ). Nếu giữ, trình duyệt có thể chọn font emoji màu dù CSS đã chỉ font khác.
+
+Không thêm gói npm nào, vì `package.json` đang thuộc một change khác. Font nằm trong `src/assets/fonts/` cùng tệp giấy phép, và Vite đóng gói nó như mọi tài nguyên khác.

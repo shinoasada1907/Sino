@@ -26,6 +26,7 @@ import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.MessageType;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedRecipients;
+import dev.sino.provider.spi.OutgoingFile;
 import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -49,6 +50,9 @@ public class ReplyService implements SentMessages {
 
     /** The text a sticker Sino sent is stored with, as a photo of Zalo is stored as {@code [Ảnh]}. */
     static final String STICKER_TEXT = "[Sticker]";
+
+    /** The text a picture from the computer is stored with (zalo-send-files, D-373), as a photo of Zalo is. */
+    static final String PICTURE_TEXT = "[Ảnh]";
 
     private static final Logger log = LoggerFactory.getLogger(ReplyService.class);
     private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -106,6 +110,20 @@ public class ReplyService implements SentMessages {
      */
     public Sent sendSticker(UUID ownerId, UUID conversationId, UUID stickerId, UUID clientMessageId) {
         return send(ownerId, conversationId, new Sticker(stickerId), clientMessageId);
+    }
+
+    /**
+     * Sends a picture or a file from the user's computer (zalo-send-files, D-370), with every guarantee of a text. The
+     * bytes are not kept: the message is stored as an {@code IMAGE} ({@code [Ảnh]}) or a {@code FILE} (its name) with
+     * one attachment that names the file, its type and size (D-373); a retry of one that went out answers it without
+     * sending again.
+     *
+     * @return the message; {@code created} is false when this {@code clientMessageId} was already sent
+     * @throws SinoException the ones of {@link #send}, and {@code REPLY_NOT_ALLOWED} with the state
+     *         {@code NOT_SUPPORTED} where the connector or the account sends no files
+     */
+    public Sent sendFile(UUID ownerId, UUID conversationId, OutgoingFile file, UUID clientMessageId) {
+        return send(ownerId, conversationId, new Upload(file), clientMessageId);
     }
 
     private Sent send(UUID ownerId, UUID conversationId, Outgoing outgoing, UUID clientMessageId) {
@@ -310,6 +328,10 @@ public class ReplyService implements SentMessages {
             // The connector of this conversation sends text only (D-356): nothing is written or sent.
             throw ConversationErrorCode.replyNotAllowed(ReplyState.NOT_SUPPORTED);
         }
+        if (outgoing instanceof Upload && !reply.canSendFiles()) {
+            // The same for a file from the computer (zalo-send-files, D-372).
+            throw ConversationErrorCode.replyNotAllowed(ReplyState.NOT_SUPPORTED);
+        }
         if (reply.to().isEmpty()) {
             throw ConversationErrorCode.noRecipient();
         }
@@ -342,11 +364,14 @@ public class ReplyService implements SentMessages {
         OutgoingImage picture = outgoing instanceof Sticker sticker ? pictureOf(ownerId, sticker.id()) : null;
         UUID messageId = existing.isPresent() ? resend(existing.get().id(), outgoing, answered, recipients)
                 : write(copy, clientMessageId, outgoing, answered, recipients);
+        if (outgoing instanceof Upload upload) {
+            name(messageId, clientMessageId, upload.file());
+        }
         changed(accountId, copy);
         return new Attempt(messageId, accountId, copy, clientMessageId,
                 new SendMessageCommand(target.externalConversationId(), target.type(),
                         outgoing instanceof Text text ? text.text() : null, answered, to, clientMessageId, senderName,
-                        picture),
+                        picture, outgoing instanceof Upload upload ? upload.file() : null),
                 false);
     }
 
@@ -372,6 +397,20 @@ public class ReplyService implements SentMessages {
                 .param("type", outgoing.type().name()).param("text", outgoing.storedText())
                 .param("metadata", outgoing.metadata()).param("answered", answered).param("recipients", recipients)
                 .param("client", clientMessageId).query(UUID.class).single();
+    }
+
+    // The one attachment of a picture or file Sino sends (D-373): what the bubble names, never its bytes. A resend names it
+    // again, the same row.
+    private void name(UUID messageId, UUID clientMessageId, OutgoingFile file) {
+        jdbc.sql("""
+                INSERT INTO attachment (message_id, external_attachment_id, file_name, mime_type, size_bytes)
+                VALUES (:message, :external, :name, :type, :size)
+                ON CONFLICT (message_id, external_attachment_id)
+                DO UPDATE SET file_name = EXCLUDED.file_name, mime_type = EXCLUDED.mime_type,
+                              size_bytes = EXCLUDED.size_bytes
+                """).param("message", messageId).param("external", UNSENT + clientMessageId)
+                .param("name", file.fileName()).param("type", file.mediaType()).param("size", file.size())
+                .update();
     }
 
     // Under the lock, so no other request sends it meanwhile; should another have taken it all the same, the row is
@@ -489,8 +528,8 @@ public class ReplyService implements SentMessages {
             SendMessageCommand command, Instant startedAt) {
     }
 
-    /** What is sent: a text, or a sticker of the library (ZS-05); how each is stored. */
-    private sealed interface Outgoing permits Text, Sticker {
+    /** What is sent: a text, a sticker of the library (ZS-05), or a file from the computer (D-373); how each is stored. */
+    private sealed interface Outgoing permits Text, Sticker, Upload {
 
         MessageType type();
 
@@ -535,6 +574,25 @@ public class ReplyService implements SentMessages {
         @Override
         public String metadata() {
             return JSON.writeValueAsString(Map.of(NormalizedMessage.LIBRARY_STICKER_ID, id.toString()));
+        }
+
+    }
+
+    private record Upload(OutgoingFile file) implements Outgoing {
+
+        @Override
+        public MessageType type() {
+            return file.kind() == OutgoingFile.Kind.PHOTO ? MessageType.IMAGE : MessageType.FILE;
+        }
+
+        @Override
+        public String storedText() {
+            return file.kind() == OutgoingFile.Kind.PHOTO ? PICTURE_TEXT : file.fileName();
+        }
+
+        @Override
+        public String metadata() {
+            return "{}";
         }
 
     }
