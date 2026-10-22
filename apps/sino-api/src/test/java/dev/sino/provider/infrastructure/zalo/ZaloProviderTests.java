@@ -48,6 +48,8 @@ class ZaloProviderTests {
                 dev.sino.provider.ProviderCapability.READ_MESSAGES,
                 dev.sino.provider.ProviderCapability.SEND_MESSAGES,
                 dev.sino.provider.ProviderCapability.SEND_IMAGES,
+                dev.sino.provider.ProviderCapability.SEND_FILES,
+                dev.sino.provider.ProviderCapability.ATTACHMENTS,
                 dev.sino.provider.ProviderCapability.PUSH_WEBHOOK);
     }
 

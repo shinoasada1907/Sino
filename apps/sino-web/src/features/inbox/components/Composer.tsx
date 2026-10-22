@@ -1,10 +1,12 @@
 import { CalendarClock, ChevronDown, Paperclip, Send } from 'lucide-react'
-import { useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { useOnline } from '@/shared/lib/useOnline'
 import { Button } from '@/shared/ui/button'
 import { Kbd } from '@/shared/ui/kbd'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
+import type { AttachmentTray } from '../useAttachmentTray'
+import { AttachmentTrayView } from './AttachmentTray'
 import { StickerPicker } from './StickerPicker'
 
 /**
@@ -28,6 +30,8 @@ export function Composer({
   to,
   onSend,
   onSendSticker,
+  tray,
+  onSendFiles,
 }: {
   kind: 'EMAIL' | 'CHAT'
   label: string
@@ -45,19 +49,50 @@ export function Composer({
   onSend: (text: string) => void
   /** Given only where a sticker can be sent (a chat whose account sends pictures): then the "Sticker" button shows. */
   onSendSticker?: (stickerId: string) => void
+  /**
+   * Given only where pictures and files can be sent (zalo-send-files, D-376), with `onSendFiles`: pasting a file, the
+   * paperclip and a drop on the chat put files in this tray, and sending sends them before the text.
+   */
+  tray?: AttachmentTray
+  onSendFiles?: (files: File[], text: string) => void
 }) {
   const id = useId()
   const box = useRef<HTMLTextAreaElement>(null)
+  const picker = useRef<HTMLInputElement>(null)
   const email = kind === 'EMAIL'
   const [text, setText] = useState('')
-  const empty = text.trim() === ''
+  const files = tray && onSendFiles ? tray.items : []
+  const empty = text.trim() === '' && files.length === 0
+  // Files that came with the paperclip or a drop leave the focus elsewhere: the text box takes it, so Enter sends them.
+  const counted = useRef(files.length)
+  useEffect(() => {
+    if (files.length > counted.current) {
+      box.current?.focus()
+    }
+    counted.current = files.length
+  }, [files.length])
   const online = useOnline()
   const sendLabel = online ? 'Gửi' : 'Xếp hàng gửi'
 
   const send = () => {
-    if (!empty) {
+    if (files.length > 0 && onSendFiles) {
+      onSendFiles(
+        files.map((item) => item.file),
+        text.trim(),
+      )
+      tray?.clear()
+      setText('')
+    } else if (!empty) {
       onSend(text.trim())
       setText('')
+    }
+  }
+  // Only a paste that carries files goes to the tray; pasting text stays as it is.
+  const takePastedFiles = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = Array.from(event.clipboardData?.files ?? [])
+    if (tray && onSendFiles && pasted.length > 0) {
+      event.preventDefault()
+      tray.add(pasted)
     }
   }
   const sendOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -85,6 +120,7 @@ export function Composer({
         </p>
       )}
       <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-surface py-2.5 pr-3 pl-3.5 transition-[border-color,box-shadow] duration-(--dur-hover) ease-out focus-within:border-foreground focus-within:ring-3 focus-within:ring-foreground/14 max-md:contents">
+        {tray && onSendFiles && <AttachmentTrayView tray={tray} />}
         <label htmlFor={id} className="sr-only">
           {label}
         </label>
@@ -96,6 +132,7 @@ export function Composer({
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={sendOnShortcut}
+          onPaste={takePastedFiles}
           className="min-h-11 min-w-0 grow resize-none rounded-[22px] border border-border-strong bg-surface px-3.5 py-2.5 text-sm text-foreground outline-none placeholder:text-subtle-foreground max-md:transition-[border-color,box-shadow] max-md:duration-(--dur-hover) max-md:ease-out max-md:focus:border-foreground max-md:focus:ring-3 max-md:focus:ring-foreground/14 md:grow-0 md:rounded-none md:border-none md:bg-transparent md:p-0"
         />
         <div className="flex items-center gap-2 max-md:contents">
@@ -105,9 +142,24 @@ export function Composer({
             size="icon-sm"
             aria-label={email ? 'Đính kèm tệp' : 'Đính kèm tệp hoặc ảnh'}
             className="max-md:order-first max-md:size-11"
+            onClick={tray && onSendFiles ? () => picker.current?.click() : undefined}
           >
             <Paperclip strokeWidth={1.6} />
           </Button>
+          {tray && onSendFiles && (
+            <input
+              ref={picker}
+              type="file"
+              multiple
+              hidden
+              tabIndex={-1}
+              onChange={(event) => {
+                tray.add(Array.from(event.target.files ?? []))
+                // The same file can be chosen again after it was taken out.
+                event.target.value = ''
+              }}
+            />
+          )}
           {!email && onSendSticker && <StickerPicker onPick={onSendSticker} focusAfterPick={box} className="max-md:order-first max-md:size-11" />}
           {!online ? (
             <Status tone="err" className="min-w-0 max-md:hidden">

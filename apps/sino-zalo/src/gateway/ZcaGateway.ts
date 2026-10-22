@@ -17,9 +17,11 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloFile,
   type ZaloImage,
   type ZaloMessage,
   type ZaloPhoto,
+  type ZaloSharedFile,
   ZaloRejectedError,
   type ZaloSession,
   type ZaloSticker,
@@ -140,6 +142,7 @@ export class ZcaGateway implements ZaloGateway {
         image.fileName.endsWith(".gif")
           ? sendImage(api.sendMessage, threadId, threadType, image)
           : sendPhotoSticker(api.uploadAttachment, photoUrl, threadId, threadType, image),
+      sendFile: (threadId, threadType, file) => sendFile(api.sendMessage, threadId, threadType, file),
       stickerArt: async (stickerId, catId) => {
         try {
           // `await` here, or a rejection would pass the catch below.
@@ -174,6 +177,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
         : undefined;
   const photo =
     data.msgType === "chat.photo" ? photoOf(data.content, data.propertyExt?.type === NO_BORDER) : undefined;
+  const file = data.msgType === "share.file" ? sharedFileOf(data.content) : undefined;
   const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
   const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
   return {
@@ -188,6 +192,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
     sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
     ...(sticker === undefined ? {} : { sticker }),
     ...(photo === undefined ? {} : { photo }),
+    ...(file === undefined ? {} : { file }),
     ...(contentShape === undefined ? {} : { contentShape }),
     ...(photoShape === undefined ? {} : { photoShape }),
   };
@@ -211,6 +216,25 @@ function unseen(msgType: string, photo: ZaloPhoto | undefined, sticker: ZaloStic
     default:
       return !KNOWN_TYPES.has(msgType);
   }
+}
+
+/**
+ * The file a `share.file` content names (zalo-send-files, ZF-08): `title` is its name and `href` where Zalo serves it,
+ * as zca-js reads them; `params`, a JSON text, says `fileSize` (a number or a numeric text). undefined without a name
+ * or a web address; the message then stays the text `[Tệp]` in Sino and its content is described in the log.
+ */
+function sharedFileOf(content: unknown): ZaloSharedFile | undefined {
+  const fields = objectOf(content);
+  if (fields === null) {
+    return undefined;
+  }
+  const name = typeof fields.title === "string" ? fields.title.trim() : "";
+  const url = webAddress(fields.href);
+  if (name === "" || url === null) {
+    return undefined;
+  }
+  const size = Number(objectOf(fields.params)?.fileSize);
+  return { name, url, sizeBytes: Number.isSafeInteger(size) && size >= 0 ? size : null };
 }
 
 /**
@@ -667,6 +691,35 @@ export function photoStickerParams(
     thumb_height: height,
     ...(threadType === "GROUP" ? { grid: threadId, visibility: 0 } : { toId: threadId }),
   };
+}
+
+/**
+ * Sends a picture or file from the computer alone through zca-js (zalo-send-files, D-375). zca-js picks the path by the
+ * ending of the name: a photo goes as Zalo's plain photo (with its frame, unlike a sticker's picture) with its size in
+ * pixels, a GIF down its GIF path, any other file is uploaded as a file, which waits for Zalo to say so on the
+ * session's websocket. The msgId is the one of that message, in `attachment[0]`. Refusal and unknown as in `deliver`.
+ */
+export async function sendFile(
+  send: API["sendMessage"],
+  threadId: string,
+  threadType: ThreadType,
+  file: ZaloFile,
+): Promise<string> {
+  const metadata =
+    file.kind === "PHOTO"
+      ? { totalSize: file.data.length, width: file.width, height: file.height }
+      : { totalSize: file.data.length };
+  const response = await deliver(
+    send,
+    { msg: "", attachments: [{ data: file.data, filename: file.fileName as `${string}.${string}`, metadata }] },
+    threadId,
+    threadType,
+  );
+  const msgId = response.attachment[0]?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
 }
 
 /**

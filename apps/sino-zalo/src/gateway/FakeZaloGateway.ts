@@ -7,6 +7,7 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloFile,
   type ZaloImage,
   type ZaloListener,
   type ZaloMessage,
@@ -121,6 +122,11 @@ export class FakeConnection implements ZaloConnection {
     return this.settleSend();
   }
 
+  async sendFile(threadId: string, threadType: ThreadType, file: ZaloFile): Promise<string> {
+    this.zalo.sentFiles.push({ threadId, threadType, file });
+    return this.settleSend();
+  }
+
   /** What Zalo does with the send just recorded, as `nextSend` says. */
   private async settleSend(): Promise<string> {
     let outcome = this.zalo.nextSend;
@@ -170,6 +176,8 @@ export class FakeZaloGateway implements ZaloGateway {
   readonly sent: { threadId: string; threadType: ThreadType; text: string }[] = [];
   /** Every picture sent, refused or not, in order; the texts are in `sent`. `nextSend` rules both. */
   readonly sentImages: { threadId: string; threadType: ThreadType; image: ZaloImage }[] = [];
+  /** Every picture or file from the computer sent (zalo-send-files), refused or not, in order. */
+  readonly sentFiles: { threadId: string; threadType: ThreadType; file: ZaloFile }[] = [];
   /** What Zalo does with the next send: take it, refuse it, break midway, or hold it until released. */
   nextSend: "accept" | "reject" | "fail" | "hold" = "accept";
   nextMsgId = 9000;

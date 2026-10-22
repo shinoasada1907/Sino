@@ -80,6 +80,13 @@ export interface ZaloPhoto {
   readonly sticker?: true | undefined;
 }
 
+/** A file a `share.file` message carries, as Zalo names it: its name, where Zalo serves it, its size when said. */
+export interface ZaloSharedFile {
+  readonly name: string;
+  readonly url: string;
+  readonly sizeBytes: number | null;
+}
+
 /**
  * A picture to send (D-353): its bytes, a file name whose extension (`.png`, `.gif` or `.webp`) says what it is, and its
  * size in pixels, which Zalo wants beside it. The bytes are never logged.
@@ -90,6 +97,15 @@ export interface ZaloImage {
   readonly width: number;
   readonly height: number;
 }
+
+/**
+ * A picture or a file from the user's computer to send (zalo-send-files, D-375). A `PHOTO` goes as Zalo's plain photo,
+ * with the frame, and needs its size in pixels; a `FILE` goes as a file to download. zca-js picks its path by the ending
+ * of `fileName`, which sino-api made match the kind. The bytes and the name are never logged.
+ */
+export type ZaloFile =
+  | { readonly kind: "PHOTO"; readonly data: Buffer; readonly fileName: `${string}.${string}`; readonly width: number; readonly height: number }
+  | { readonly kind: "FILE"; readonly data: Buffer; readonly fileName: string };
 
 /** A Zalo message in the shape sino-zalo hands to sino-api (design, Contract API). */
 export interface ZaloMessage {
@@ -108,6 +124,8 @@ export interface ZaloMessage {
   readonly sticker?: ZaloSticker | undefined;
   /** Only on a `chat.photo` message whose content names a picture. */
   readonly photo?: ZaloPhoto | undefined;
+  /** Only on a `share.file` message whose content names a file and where Zalo serves it (zalo-send-files, ZF-08). */
+  readonly file?: ZaloSharedFile | undefined;
   /**
    * Only on a `chat.photo` message whose content named no picture: the keys of the content with the kind of each
    * value, never a value, so the log can say what Zalo sent (ZL-16). sino-api ignores it.
@@ -163,6 +181,11 @@ export interface ZaloConnection {
    * when Zalo refused it; any other failure leaves it unknown whether it went out (D-353).
    */
   sendImage(threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string>;
+  /**
+   * Sends a picture or file from the computer alone and resolves with its message's msgId (zalo-send-files, D-375).
+   * Throws ZaloRejectedError when Zalo refused it; any other failure leaves it unknown whether it went out.
+   */
+  sendFile(threadId: string, threadType: ThreadType, file: ZaloFile): Promise<string>;
   /**
    * The still picture of a sticker and its sprite sheet, or null when Zalo does not know the sticker or names
    * no picture for it, also in its category (`catId`, from the message). Throws ZaloUnavailableError when Zalo

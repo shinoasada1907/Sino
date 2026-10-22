@@ -25,8 +25,10 @@ class StickerUploadFenceConfigurationTests {
 
             assertThat(file).isGreaterThan(stickerLimit);
             assertThat(request).isGreaterThanOrEqualTo(file);
-            // The room for the other parts and the boundaries is small; a fence of ten times the limit would defeat its purpose.
-            assertThat(file).isLessThanOrEqualTo(DataSize.ofMegabytes(4));
+            // The fence is shared with the files sent in a chat (zalo-send-files, D-371: up to 25 MB), so it stays just above
+            // that largest limit; the sticker service still refuses anything above its own with STICKER_TOO_LARGE.
+            assertThat(file).isGreaterThan(DataSize.ofMegabytes(25));
+            assertThat(file).isLessThanOrEqualTo(DataSize.ofMegabytes(32));
         });
     }
 

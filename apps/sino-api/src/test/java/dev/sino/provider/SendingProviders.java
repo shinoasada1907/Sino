@@ -42,12 +42,12 @@ public class SendingProviders {
         return FakeMessageProvider.builder(READER).build();
     }
 
-    /** Sends text and pictures without OAuth2 (D-349). */
+    /** Sends text, pictures (D-349) and files from the computer (zalo-send-files, D-372) without OAuth2. */
     @Bean
     FakeMessageProvider pictureChatProvider() {
         return FakeMessageProvider.builder(PICTURE_CHAT)
                 .capabilities(ProviderCapability.READ_MESSAGES, ProviderCapability.SEND_MESSAGES,
-                        ProviderCapability.SEND_IMAGES)
+                        ProviderCapability.SEND_IMAGES, ProviderCapability.SEND_FILES)
                 .build();
     }
 

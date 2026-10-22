@@ -4,6 +4,7 @@ import {
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
+  type ZaloFile,
   type ZaloImage,
   type ZaloListener,
   type ZaloMessage,
@@ -179,6 +180,11 @@ export class SessionManager {
   /** Sends a picture through the account's live session and resolves with the msgId of its message (D-353). */
   sendImage(accountId: string, threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string> {
     return this.liveSession(accountId).connection.sendImage(threadId, threadType, image);
+  }
+
+  /** A picture or file from the computer (zalo-send-files), as `sendImage`: throws at once without a live session. */
+  sendFile(accountId: string, threadId: string, threadType: ThreadType, file: ZaloFile): Promise<string> {
+    return this.liveSession(accountId).connection.sendFile(threadId, threadType, file);
   }
 
   /** The account's own messages in a thread with this text, sent after `after` (epoch ms). */

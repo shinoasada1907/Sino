@@ -129,6 +129,8 @@ export interface ConversationDetail {
   replyTo: Recipient[] | null
   /** A sticker of the library can be sent here (zalo-send-images, D-356): the sticker button shows. False when the backend does not tell. */
   canSendImages?: boolean
+  /** A picture or a file from the computer can be sent here (zalo-send-files, D-372): the tray of the reply box shows. */
+  canSendFiles?: boolean
   /** The opening mail of a new conversation has not gone yet: no reply box and no notice (f10-new-mail, D-195). */
   opening?: boolean
   /** The emoji the provider lets the user drop (zalo-reactions, D-387); absent or empty: no emoji bar. */

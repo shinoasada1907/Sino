@@ -35,12 +35,13 @@ record ConversationDetailResponse(@JsonUnwrapped ConversationResponse conversati
     /**
      * {@code state}: {@code READY}, {@code NEEDS_PERMISSION}, {@code ACCOUNT_UNAVAILABLE} or {@code NOT_SUPPORTED};
      * a {@code name} in {@code to} is null when the header gave none. {@code canSendImages}: a sticker can be sent here
-     * (ZS-05, D-356); the web shows no sticker button without it.
+     * (ZS-05, D-356); the web shows no sticker button without it. {@code canSendFiles}: a picture or file from the
+     * computer can be sent here (zalo-send-files, D-372); the web has no tray without it.
      */
-    record ReplyResponse(String state, List<Address> to, boolean canSendImages) {
+    record ReplyResponse(String state, List<Address> to, boolean canSendImages, boolean canSendFiles) {
 
         static ReplyResponse from(Reply reply) {
-            return new ReplyResponse(reply.state().name(), reply.to(), reply.canSendImages());
+            return new ReplyResponse(reply.state().name(), reply.to(), reply.canSendImages(), reply.canSendFiles());
         }
 
     }

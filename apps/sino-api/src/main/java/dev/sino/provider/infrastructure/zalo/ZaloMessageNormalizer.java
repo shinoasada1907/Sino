@@ -2,6 +2,7 @@ package dev.sino.provider.infrastructure.zalo;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLConnection;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -18,12 +19,14 @@ import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Participant;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Photo;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.SharedFile;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sticker;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.StickerSprite;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.MessageType;
+import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedParticipant;
@@ -71,6 +74,15 @@ final class ZaloMessageNormalizer {
             "tenor.com",
             "tenor.co",
             "giphy.com");
+
+    /**
+     * The hosts Zalo serves the files of its messages from: dlfl.vn (seen on 2026-10-21: do37.dlfl.vn, ot145.dlfl.vn)
+     * and Zalo's own; the picture hosts of other services are not among them.
+     */
+    static final List<String> FILE_DOMAINS = List.of("dlfl.vn", "zadn.vn", "zdn.vn", "zaloapp.com", "zalo.me");
+
+    /** The longest file name kept, as a file sent from Sino may have (zalo-send-files, D-371). */
+    private static final int MAX_FILE_NAME = 255;
 
     private static final Logger LOG = LoggerFactory.getLogger(ZaloMessageNormalizer.class);
 
@@ -131,7 +143,7 @@ final class ZaloMessageNormalizer {
                 message.isSelf(),
                 null,
                 sentAt,
-                List.of(),
+                body.attachments(),
                 body.metadata(),
                 null,
                 null);
@@ -243,10 +255,38 @@ final class ZaloMessageNormalizer {
             case "chat.photo" -> photoBody(message.photo());
             case "chat.sticker" -> stickerBody("chat.sticker", "[Sticker]", message.sticker());
             case "chat.gif" -> stickerBody("chat.gif", "[GIF]", message.sticker());
-            case "share.file" -> new Body(MessageType.FILE, "[Tệp]", Map.of(ZALO_TYPE_KEY, "share.file"));
+            case "share.file" -> fileBody(message.file());
             case "chat.voice" -> new Body(MessageType.AUDIO, "[Tin nhắn thoại]", Map.of(ZALO_TYPE_KEY, "chat.voice"));
             default -> new Body(MessageType.UNKNOWN, "[Tin Zalo chưa hỗ trợ]", Map.of(ZALO_TYPE_KEY, zaloType));
         };
+    }
+
+    /**
+     * A file is a {@code FILE} named by its name, with one attachment: its name, a type guessed from the name, its size
+     * when Zalo said it, and where Zalo serves it, which is also its id, so {@code fetchAttachment} can read it
+     * (zalo-send-files, ZF-08). Only an address on Zalo's own hosts is kept ({@link #fileAddress}); without one, or
+     * without a name, the message stays the placeholder {@code [Tệp]}.
+     */
+    private static Body fileBody(SharedFile file) {
+        Map<String, String> metadata = Map.of(ZALO_TYPE_KEY, "share.file");
+        String name = file == null ? null : clean(file.name());
+        String url = file == null ? null : fileAddress(file.url());
+        if (name == null || url == null) {
+            if (file != null) {
+                warnRefused("file", file.url());
+            }
+            return new Body(MessageType.FILE, "[Tệp]", metadata);
+        }
+        name = cut(name, MAX_FILE_NAME);
+        Long size = file.sizeBytes() != null && file.sizeBytes() >= 0 ? file.sizeBytes() : null;
+        String type = URLConnection.getFileNameMap().getContentTypeFor(name);
+        return new Body(MessageType.FILE, name, metadata, List.of(new NormalizedAttachment(url, name,
+                type != null ? type : "application/octet-stream", size, url, null, null)));
+    }
+
+    /** Where Zalo serves a file: an https address on one of Zalo's own hosts, or null (zalo-send-files, ZF-08). */
+    static String fileAddress(String raw) {
+        return addressOn(raw, FILE_DOMAINS);
     }
 
     /**
@@ -388,6 +428,11 @@ final class ZaloMessageNormalizer {
      * answer and the browser would fetch it on every opening of the chat.
      */
     static String pictureAddress(String raw) {
+        return addressOn(raw, PICTURE_DOMAINS);
+    }
+
+    // An https address without user info, written in printable ASCII, on one of the domains or under one.
+    private static String addressOn(String raw, List<String> domains) {
         String address = clean(raw);
         if (address == null || address.length() > MAX_PICTURE_ADDRESS || !address.chars().allMatch(c -> c > 0x20 && c < 0x7f)) {
             return null;
@@ -403,7 +448,7 @@ final class ZaloMessageNormalizer {
             return null;
         }
         String lower = host.toLowerCase(Locale.ROOT);
-        boolean zalo = PICTURE_DOMAINS.stream().anyMatch(domain -> lower.equals(domain) || lower.endsWith("." + domain));
+        boolean zalo = domains.stream().anyMatch(domain -> lower.equals(domain) || lower.endsWith("." + domain));
         return zalo ? address : null;
     }
 
@@ -469,7 +514,13 @@ final class ZaloMessageNormalizer {
     private record KeptMessage(Message raw, NormalizedMessage normalized) {
     }
 
-    private record Body(MessageType type, String text, Map<String, String> metadata) {
+    private record Body(MessageType type, String text, Map<String, String> metadata,
+            List<NormalizedAttachment> attachments) {
+
+        Body(MessageType type, String text, Map<String, String> metadata) {
+            this(type, text, metadata, List.of());
+        }
+
     }
 
 }

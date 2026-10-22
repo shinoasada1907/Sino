@@ -23,10 +23,11 @@ spring:
   servlet:
     multipart:
       # The fence of an upload (custom-stickers, D-333): above it the server refuses the request before any module sees it,
-      # as 413 PAYLOAD_TOO_LARGE. The real rule is sino.stickers.max-file-size (1MB), which the sticker service checks
-      # exactly and answers with STICKER_TOO_LARGE; so this stays above it. Raise both when raising the limit.
-      max-file-size: 2MB
-      max-request-size: 2MB
+      # as 413 PAYLOAD_TOO_LARGE. The real rules are checked exactly by the modules and stay below it:
+      # sino.stickers.max-file-size (1MB, STICKER_TOO_LARGE) and a file sent in a chat (zalo-send-files, D-371: a picture
+      # 10 MB, any other file 25 MB, FILE_TOO_LARGE). 26MB leaves room for the other parts of the form.
+      max-file-size: 26MB
+      max-request-size: 26MB
 
 management:
   endpoints:

@@ -67,7 +67,14 @@ public enum ConversationErrorCode implements ErrorCode {
     STICKER_NOT_FOUND(ErrorCategory.NOT_FOUND),
 
     /** A sticker the library keeps but a message cannot carry, such as one above 1 MiB (ZS-05, D-349). */
-    STICKER_NOT_SENDABLE(ErrorCategory.INVALID);
+    STICKER_NOT_SENDABLE(ErrorCategory.INVALID),
+    /**
+     * A picture above 10 MB or a file above 25 MB from the computer (zalo-send-files, D-371); {@code maxBytes} says which
+     * limit. Nothing is written or sent.
+     */
+    FILE_TOO_LARGE(ErrorCategory.PAYLOAD_TOO_LARGE),
+    /** An empty file from the computer (zalo-send-files, D-371). Nothing is written or sent. */
+    FILE_EMPTY(ErrorCategory.INVALID);
 
     private final ErrorCategory category;
     private final String code;
@@ -135,6 +142,15 @@ public enum ConversationErrorCode implements ErrorCode {
 
     static SinoException stickerNotSendable(String why) {
         return new SinoException(STICKER_NOT_SENDABLE, "This sticker cannot be sent as a picture: " + why);
+    }
+
+    static SinoException fileTooLarge(boolean picture, long maxBytes) {
+        return new SinoException(FILE_TOO_LARGE, (picture ? "A picture" : "A file") + " is at most " + maxBytes
+                + " bytes.", Map.of("maxBytes", maxBytes));
+    }
+
+    static SinoException fileEmpty() {
+        return new SinoException(FILE_EMPTY, "The file is empty.");
     }
 
     static SinoException noRecipient() {

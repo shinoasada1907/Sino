@@ -56,6 +56,10 @@ class ZaloProviderContractTest extends MessageProviderContractTest {
         sinoZalo.stubFor(post(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/messages"))
                 .willReturn(aResponse().withStatus(201).withHeader("Content-Type", "application/json")
                         .withBody("{\"msgId\": \"1004\", \"sentAt\": \"2026-10-17T08:05:00Z\"}")));
+        // A picture or file from the computer (zalo-send-files, D-374): the same answer from the file route.
+        sinoZalo.stubFor(post(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/messages/file"))
+                .willReturn(aResponse().withStatus(201).withHeader("Content-Type", "application/json")
+                        .withBody("{\"msgId\": \"1005\", \"sentAt\": \"2026-10-17T08:06:00Z\"}")));
         sinoZalo.stubFor(get(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/messages"))
                 .willReturn(okJson("""
                         {

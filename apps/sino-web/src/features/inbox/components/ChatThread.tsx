@@ -1,5 +1,5 @@
 import { Archive, ArchiveRestore, Calendar, ChevronLeft, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -18,6 +18,9 @@ import { ThreadNotice } from './ThreadNotice'
 import { photoOf } from '../photo'
 import { pictureOf, spriteOf } from '../sticker'
 import { stickerContentUrl } from '@/features/stickers/stickers.api'
+import { outgoingFiles } from '../outgoingFiles'
+import { useAttachmentTray } from '../useAttachmentTray'
+import { MailFile } from './EmailThread'
 import { PhotoPicture } from './PhotoPicture'
 import { StickerPicture } from './StickerPicture'
 import { mineOf, type ReactionKind } from '../reactions'
@@ -68,6 +71,8 @@ export function ChatThread({
   // Dev server only, while the backend says nothing about emoji: Zalo's set, picks kept in this browser (reactionsPreview.ts).
   const previewReactions = REACTIONS_PREVIEW && item.kind === 'CHAT' && detail !== undefined && detail.reactionSet === undefined
   const reacting = useReactToMessage(item.id, previewReactions)
+  const tray = useAttachmentTray()
+  const sendsFiles = detail?.canSendFiles === true
   const placed = useRef(false)
   const messageCount = detail?.messages?.length ?? 0
   const block = sendBlock(account, detail?.canSend)
@@ -85,8 +90,28 @@ export function ChatThread({
     placed.current = true
   }, [messageCount])
 
+  // The previews of pictures sent from here are made again if the conversation opens again (zalo-send-files, D-378).
+  useEffect(() => () => outgoingFiles.releasePreviews(), [])
+
+  // Files dropped anywhere on the chat go to the tray of the reply box (D-376).
+  const carriesFiles = (event: DragEvent) => sendsFiles && event.dataTransfer.types.includes('Files')
+
   return (
-    <section aria-label={`Cuộc trò chuyện ${item.title}`} className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] md:grid-rows-[auto_minmax(0,1fr)_auto] xl:border-r">
+    <section
+      aria-label={`Cuộc trò chuyện ${item.title}`}
+      className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] md:grid-rows-[auto_minmax(0,1fr)_auto] xl:border-r"
+      onDragOver={(event) => {
+        if (carriesFiles(event)) {
+          event.preventDefault()
+        }
+      }}
+      onDrop={(event) => {
+        if (carriesFiles(event)) {
+          event.preventDefault()
+          tray.add(Array.from(event.dataTransfer.files))
+        }
+      }}
+    >
       <header className="hidden items-start justify-between gap-4 border-b md:flex md:px-5 md:py-4 xl:px-6 xl:py-5">
         <div className="flex min-w-0 flex-col gap-3">
           <Button asChild variant="ghost" size="sm" className="-ml-3 hidden self-start xl:inline-flex">
@@ -165,6 +190,8 @@ export function ChatThread({
           via={`${name} · ${account.address}`}
           onSend={sendMessage.send}
           onSendSticker={detail.canSendImages ? sendMessage.sendSticker : undefined}
+          tray={sendsFiles ? tray : undefined}
+          onSendFiles={sendsFiles ? sendMessage.sendFiles : undefined}
         />
       ) : null}
     </section>
@@ -236,7 +263,12 @@ function Bubble({
   const sprite = brokenSprite ? null : spriteOf(message.stickerSprite)
   // A photo shows its picture; when that cannot load it shows the thumbnail, then the text. Its caption stays (ZL-16).
   const photo = photoOf(message.image)
-  const photoSrc = photoStep === 'FULL' ? photo?.url : photoStep === 'THUMB' ? photo?.thumbUrl : null
+  // A picture sent from this page shows its preview until the message has Zalo's picture (zalo-send-files, D-378).
+  const preview = own && !photo && message.clientMessageId ? outgoingFiles.previewOf(message.clientMessageId) : null
+  const photoSrc = preview ?? (photoStep === 'FULL' ? photo?.url : photoStep === 'THUMB' ? photo?.thumbUrl : null)
+  // A message that is one file named by its text shows the file alone, not its name twice (zalo-send-files, ZF-08).
+  const [onlyFile] = message.attachments
+  const fileOnly = message.attachments.length === 1 && onlyFile !== undefined && !onlyFile.image && message.text === onlyFile.name
   return (
     <div className={cn('group/bubble flex max-w-[84%] items-end gap-2.5 md:max-w-[68%]', own ? 'flex-row-reverse self-end' : 'self-start')}>
       {!own && <Avatar aria-hidden="true" placeholder={memberPlaceholder(message.sender, members)} className="size-7" />}
@@ -247,7 +279,7 @@ function Bubble({
               {message.sender}
             </span>
           )}
-          {sprite || still ? (
+          {fileOnly ? null : sprite || still ? (
             <StickerPicture still={still} sprite={library ? null : sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => (library ? setBrokenLibrary(true) : setBrokenSticker(true))} />
           ) : photoSrc ? (
             <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
@@ -256,7 +288,7 @@ function Bubble({
           )}
           {photo?.caption && <TextBubble own={own}>{photo.caption}</TextBubble>}
           {message.attachments.map((file) =>
-            file.image ? (
+            file.image && preview ? null : file.image ? (
               <div
                 key={file.name}
                 className="flex h-35 w-55 items-end rounded-[14px] md:h-45 md:w-70 border bg-[repeating-linear-gradient(135deg,var(--surface)_0_10px,var(--raised)_10px_20px)] p-3"
@@ -264,9 +296,7 @@ function Bubble({
                 <Spec className="text-foreground">{['Ảnh', file.caption, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}</Spec>
               </div>
             ) : (
-              <Spec key={file.name} className="text-foreground">
-                {[file.name, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}
-              </Spec>
+              <MailFile key={file.url ?? file.name} file={file} />
             ),
           )}
           <ReactionChips reactions={reactions} kinds={reactionSet} own={own} />
@@ -284,11 +314,17 @@ function Bubble({
               {message.local ? 'Mất kết nối khi gửi. Gửi lại không làm tin bị gửi hai lần.' : `Sino đang kiểm tra với ${providerName}.`}
             </p>
           )}
+          {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && !sending.canResend(message) && (
+            // A picture or file this page no longer holds (the page was loaded again): it cannot be sent again from here.
+            <p className="text-xs leading-4 text-muted-foreground">Chọn lại tệp để gửi.</p>
+          )}
           {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && (
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(message)}>
-                Gửi lại
-              </Button>
+              {sending.canResend(message) && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(message)}>
+                  Gửi lại
+                </Button>
+              )}
               <Button type="button" variant="ghost" size="sm" onClick={() => sending.discard(message)}>
                 Bỏ
               </Button>

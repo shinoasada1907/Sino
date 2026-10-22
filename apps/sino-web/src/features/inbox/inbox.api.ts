@@ -91,6 +91,8 @@ interface ReplyResponse {
   to: PersonResponse[]
   /** A sticker of the library can be sent here (zalo-send-images, D-356); absent on a backend before it. */
   canSendImages?: boolean
+  /** A picture or a file from the computer can be sent here (zalo-send-files, D-372); absent on a backend before it. */
+  canSendFiles?: boolean
 }
 
 const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = {
@@ -308,7 +310,7 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       canSend: reply ? (CAN_SEND[reply.state] ?? null) : null,
       replyTo: reply ? reply.to.map(({ name, address }) => ({ name, address })) : null,
       // Only where the backend tells about replies at all; a missing flag is a button that does not show.
-      ...(reply ? { canSendImages: reply.canSendImages === true } : {}),
+      ...(reply ? { canSendImages: reply.canSendImages === true, canSendFiles: reply.canSendFiles === true } : {}),
       previousCursor: null,
       ...(reply?.state === 'OPENING_NOT_SENT' ? { opening: true } : {}),
       // zalo-reactions, D-387: absent on a backend before it, and empty for a provider without emoji.
@@ -363,6 +365,21 @@ export async function sendSticker(conversationId: string, stickerId: string, cli
   const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, { stickerId, clientMessageId })
   return toMessage(conversationId, sent)
 }
+
+/**
+ * `POST /api/conversations/{id}/messages` with a picture or a file from the computer (zalo-send-files, D-370): a form with
+ * the file and the `clientMessageId`. The server tells a picture from a file by its bytes, sends it, and returns the
+ * message as it stored it; sending again with the same `clientMessageId` never sends twice.
+ */
+export async function sendFile(conversationId: string, file: File, clientMessageId: string): Promise<Mail> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  form.append('clientMessageId', clientMessageId)
+  return toMessage(conversationId, await api.upload<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, form))
+}
+
+/** "PDF", "PNG"… for a file this page sends, as for one the server lists. */
+export const fileTypeOf = (file: File) => fileType(file.name, file.type)
 
 /** `DELETE /api/conversations/{id}/messages/{messageId}` (F10): throws away a reply the provider refused. */
 export async function discardMessage(conversationId: string, messageId: string): Promise<void> {

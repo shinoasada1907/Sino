@@ -72,6 +72,11 @@ public record OutgoingFile(byte[] bytes, String mediaType, String fileName, Kind
         return bytes.clone();
     }
 
+    /** How many bytes, without copying them. */
+    public int size() {
+        return bytes.length;
+    }
+
     @Override
     public boolean equals(Object other) {
         return other instanceof OutgoingFile that && Arrays.equals(bytes, that.bytes)
