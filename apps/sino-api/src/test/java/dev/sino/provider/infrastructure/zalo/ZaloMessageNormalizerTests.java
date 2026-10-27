@@ -170,6 +170,42 @@ class ZaloMessageNormalizerTests {
                 new NormalizedParticipant(SELF, "Tôi", null, true));
     }
 
+    @Test
+    void aParticipantKeepsThePictureSinoZaloGaveItLikeItsName() {
+        Message fromBinh = new Message("1001", GROUP, "GROUP", FRIEND, "Bình", false, "webchat", "Chào", SENT_AT);
+        Conversation conv = new Conversation(GROUP, "GROUP", "Nhóm", null, List.of(
+                new Participant(FRIEND, "Bình", "https://ava.zalo.test/binh.jpg"),
+                new Participant("200000000000000009", "Lan", null),
+                new Participant("200000000000000010", null, " \u0000 ")));
+        MessagePage page = new MessagePage(List.of(conv), List.of(fromBinh), "1001", false);
+
+        SyncBatch batch = ZaloMessageNormalizer.normalize(page, SELF, null, SyncCursor.initial());
+
+        assertThat(batch.conversations()).singleElement().satisfies(group -> assertThat(group.participants())
+                .as("the sender of the message has no picture of its own: the listed one stays")
+                .containsExactlyInAnyOrder(
+                        new NormalizedParticipant(FRIEND, "Bình", "https://ava.zalo.test/binh.jpg", false),
+                        new NormalizedParticipant("200000000000000009", "Lan", null, false),
+                        new NormalizedParticipant("200000000000000010", null, null, false),
+                        new NormalizedParticipant(SELF, null, null, true)));
+    }
+
+    @Test
+    void aParticipantListedTwiceTakesTheFirstPictureThatIsNotNull() {
+        Message fromBinh = new Message("1001", FRIEND, "USER", FRIEND, "Bình", false, "webchat", "Chào", SENT_AT);
+        Conversation conv = new Conversation(FRIEND, "USER", "Bình", null, List.of(
+                new Participant(FRIEND, null, null),
+                new Participant(FRIEND, "Bình", "https://ava.zalo.test/first.jpg"),
+                new Participant(FRIEND, "Binh", "https://ava.zalo.test/second.jpg")));
+        MessagePage page = new MessagePage(List.of(conv), List.of(fromBinh), "1001", false);
+
+        SyncBatch batch = ZaloMessageNormalizer.normalize(page, SELF, null, SyncCursor.initial());
+
+        assertThat(batch.conversations()).singleElement().satisfies(direct -> assertThat(direct.participants())
+                .filteredOn(p -> p.externalParticipantId().equals(FRIEND)).singleElement()
+                .isEqualTo(new NormalizedParticipant(FRIEND, "Bình", "https://ava.zalo.test/first.jpg", false)));
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = { "  ", "\u0000" })

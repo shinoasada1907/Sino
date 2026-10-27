@@ -13,6 +13,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.net.URI;
 import java.time.Duration;
@@ -28,6 +29,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
+import dev.sino.provider.spi.NormalizedParticipant;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -129,6 +131,36 @@ class ZaloFetchUpdatesTests {
         });
         assertThat(batch.hasMore()).isTrue();
         assertThat(batch.nextCursor()).isEqualTo(new SyncCursor("1003"));
+    }
+
+    @Test
+    void theJsonOfSinoZaloCarriesTheParticipantPictures() {
+        // One participant with a picture, one with null, one from a sino-zalo that has no such field yet (D-410).
+        sinoZalo.stubFor(get(urlPathEqualTo(MESSAGES_PATH)).willReturn(okJson("""
+                {
+                  "conversations": [
+                    {"threadId": "300000000000000003", "threadType": "GROUP", "title": "Nhóm A", "avatarUrl": null,
+                     "participants": [
+                       {"id": "200000000000000002", "name": "Bình", "avatarUrl": "https://ava.zalo.test/b.jpg"},
+                       {"id": "200000000000000003", "name": "Lan", "avatarUrl": null},
+                       {"id": "200000000000000004", "name": "Mai"}]}
+                  ],
+                  "messages": [
+                    {"msgId": "1003", "threadId": "300000000000000003", "threadType": "GROUP",
+                     "fromId": "200000000000000002", "fromName": "Bình", "isSelf": false,
+                     "zaloType": "webchat", "text": "Chào", "sentAt": "2026-10-17T08:10:00Z"}
+                  ],
+                  "nextCursor": "1003",
+                  "hasMore": false
+                }
+                """)));
+
+        SyncBatch batch = provider().fetchUpdates(context(), SyncCursor.initial());
+
+        assertThat(batch.conversations()).singleElement().satisfies(group -> assertThat(group.participants())
+                .extracting(NormalizedParticipant::externalParticipantId, NormalizedParticipant::avatarUrl)
+                .contains(tuple("200000000000000002", "https://ava.zalo.test/b.jpg"),
+                        tuple("200000000000000003", null), tuple("200000000000000004", null)));
     }
 
     @Test
