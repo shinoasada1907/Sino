@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { API_PACKS, API_STICKERS, PACKED_STICKERS, sticker } from '@/test/fixtures/stickersApi'
 import { server } from '@/test/msw/server'
+import { formDataOf } from '@/test/nodeFile'
 import { fetchPacks, fetchStickers } from './stickers.api'
 import type { StickerItem, StickerPack } from './stickers.types'
 import { PACKS_QUERY_KEY } from './stickersCache'
@@ -115,7 +116,7 @@ describe('useUploadSticker (ST-11)', () => {
     let name: FormDataEntryValue | null = null
     server.use(
       http.post('/api/stickers', async ({ request }) => {
-        name = (await request.formData()).get('name')
+        name = (await formDataOf(request)).get('name')
         return HttpResponse.json(sticker({ id: 'st-new' }), { status: 201 })
       }),
     )
@@ -246,7 +247,7 @@ describe('stickers in packs (SP-05)', () => {
     const made = sticker({ id: 'st-new', packId: 'pk-cats', createdAt: '2026-10-20T10:00:00Z' })
     server.use(
       http.post('/api/stickers', async ({ request }) => {
-        packId = (await request.formData()).get('packId')
+        packId = (await formDataOf(request)).get('packId')
         return HttpResponse.json(made, { status: 201 })
       }),
     )
