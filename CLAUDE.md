@@ -7,13 +7,15 @@ Sino Messages: gom nhiều tài khoản và nhiều nhà cung cấp tin nhắn (
 | Thư mục | Nội dung |
 |---|---|
 | `apps/sino-api` | Backend: Spring Boot 4, Java 25, PostgreSQL 18, Flyway, Spring Modulith. Lệnh chạy/test ở `apps/sino-api/README.md` |
-| `apps/sino-web` | Frontend: React + Vite + Tailwind + shadcn/ui. Lệnh chạy/test ở `apps/sino-web/README.md` |
+| `apps/sino-web` | Frontend: React + Vite + Tailwind + shadcn/ui; cả trang giới thiệu `/` và Privacy. Lệnh chạy/test ở `apps/sino-web/README.md` |
+| `apps/sino-zalo` | Dịch vụ Node giữa `sino-api` và Zalo cá nhân (zca-js). Lệnh chạy/test ở `apps/sino-zalo/README.md` |
+| `.claude/agents/` | Agent con của từng app: `sino-api`, `sino-web`, `sino-zalo` (xem mục *Phiên quản lý và agent con*) |
 | `design/sino-ui/project/` | Bản sao canvas thiết kế giao diện "Sino UI" (bản gốc và bản cuối cùng: https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB); phải khớp với link |
 | `openspec/roadmap.md` | Lộ trình Phase 0–5, feature F01–F12 |
 | `openspec/specs/` | Mô tả hệ thống **đang chạy** (gộp từ các feature đã xong) |
 | `openspec/changes/<feature>/` | Feature đang làm: `proposal.md`, `design.md`, `specs/`, `tasks.md` |
 | `openspec/changes/archive/` | Feature đã xong (F01 có decision register D-01…D-23 trong `design.md`) |
-| `.github/workflows/backend-ci.yml` | CI backend |
+| `.github/workflows/` | CI: `backend-ci.yml`, `frontend-ci.yml`, `zalo-ci.yml` |
 | `docs/knowledge/` | Kiến thức theo phase cho người học (`phase-0-backend-foundation.md`…): chỗ nào dùng gì của Java/Spring, để làm gì, vì sao |
 
 ## Đọc trước khi làm bất cứ việc gì
@@ -24,6 +26,17 @@ Sino Messages: gom nhiều tài khoản và nhiều nhà cung cấp tin nhắn (
 4. `openspec/roadmap.md` — đang ở phase nào.
 
 Vị trí hiện tại chỉ ghi trong `PROJECT_STATE.md`; file này không lặp lại để khỏi lệch.
+
+## Phiên quản lý và agent con (người dùng, 2026-10-27)
+
+- Phiên chính là **quản lý Sino**: đọc trạng thái, lên kế hoạch, chia việc theo app, giao cho agent con, xem lại kết quả, ghi `PROJECT_STATE.md` và commit.
+- Mỗi app một agent con trong `.claude/agents/`, chạy cùng model với phiên quản lý: `sino-api` (`apps/sino-api`), `sino-web` (`apps/sino-web`), `sino-zalo` (`apps/sino-zalo`). Agent con chỉ sửa thư mục app của nó và dòng task của nó trong `tasks.md`, rồi báo lại.
+- **Chỉ phiên quản lý commit** (lên `dev`, không push) **và ghi `PROJECT_STATE.md`**. Phiên quản lý cũng giữ các file chung: `CLAUDE.md`, `project-mode.yaml`, `openspec/roadmap.md`, `openspec/specs/` (qua archive), `design/`, `compose.yaml`, `README.md` ở gốc, `.github/`.
+- Trước khi commit, phiên quản lý xem diff của agent con, tự làm phần agent ghi **CHƯA KIỂM CHỨNG** (ví dụ lượt Chrome thật), rồi commit từng task riêng.
+- Brief giao cho agent con nêu: change, mã task, mode, phạm vi file, việc không làm.
+- Agent của hai app khác nhau được chạy song song; một app chỉ một agent một lúc. Đổi hợp đồng giữa hai app (API, webhook) thì làm theo thứ tự: `sino-api` trước, rồi app gọi nó.
+- Ở TRAINING/HYBRID, agent con không sửa code: nó soạn bản hướng dẫn từng bước, phiên quản lý chuyển cho người dùng.
+- `apps/sino-site` đã xóa 2026-10-27 (bản cuối ở tag `sino-site-v0`): trang giới thiệu và Privacy chỉ còn trong `sino-web`. Site chung của nhà Sino dựng lại khi có sản phẩm thứ hai.
 
 ## Quy ước làm việc
 

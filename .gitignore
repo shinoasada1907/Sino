@@ -6,5 +6,5 @@ client_secret*.json
 
 # Memory a review agent writes next to an app it reviewed (`apps/sino-web`, `apps/sino-zalo`): local to this
 # machine, not part of the project. The rest of `.claude/` is tracked on purpose (the OpenSpec commands and
-# skills at the root, `apps/sino-site/.claude/settings.json`), so only this one folder is ignored, at any depth.
+# skills at the root, the app agents in `.claude/agents/`), so only this one folder is ignored, at any depth.
 **/.claude/agent-memory/
