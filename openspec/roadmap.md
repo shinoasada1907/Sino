@@ -229,6 +229,14 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 - **FE:** badge/filter đa provider.
 - **Bạn sẽ học:** đánh giá API bên thứ ba, giữ core không đổi khi thêm provider.
 
+> **Hoàn thiện chat Zalo (người dùng, 2026-10-27):** "tag thành viên … ghi âm ngay trên thanh chat, quản lý file phương tiện … đặt biệt danh, lấy avatar của đối phương". Năm change, làm lần lượt, dễ trước khó sau (người dùng chọn), AUTO cho cả năm, đội ba kỹ sư làm theo dây chuyền:
+>
+> 1. `zalo-avatars`: ảnh đại diện thật của cuộc trò chuyện và người gửi (Zalo đã gửi, sino-api đã lưu; web chưa vẽ).
+> 2. `zalo-nicknames`: biệt danh = "tên gợi nhớ" của Zalo, đồng bộ hai chiều (`changeFriendAlias`, `getAliasList`); chỉ bạn bè chat 1-1 (người dùng chọn).
+> 3. `zalo-mentions`: gõ `@` trong nhóm để tag thành viên (`mentions` của `sendMessage`), tô tên mình khi bị tag; cần danh sách thành viên nhóm.
+> 4. `zalo-media-library`: đọc tin thoại, video, link (hôm nay thoại chỉ là `[Tin nhắn thoại]`), rồi kho Ảnh/Video, File, Link, Âm thanh của mỗi cuộc trò chuyện, từ tin Sino đã lưu; tin trước lúc kết nối thì không có (người dùng chọn).
+> 5. `zalo-voice-messages`: ghi âm trên thanh chat và gửi (`uploadAttachment` + `sendVoice`); thử định dạng trước trên nick phụ (trình duyệt ghi webm/opus, tin thoại Zalo là m4a).
+
 #### F10 — Send Message · ~M
 
 - **BE:** `POST /api/conversations/{id}/messages`; kiểm tra capability trước khi gửi (FR-06); **idempotency key** chống gửi trùng khi retry; message outbound `PENDING → SENT/FAILED`; map `ProviderException` ra HTTP; Gmail send (MIME, header threading `In-Reply-To`/`References`); event `MessageSent`.
