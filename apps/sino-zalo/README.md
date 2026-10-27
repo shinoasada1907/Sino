@@ -102,7 +102,7 @@ Two steps, in this order (D-286); the same list, with the settings spelled out, 
 | `DELETE /logins/{loginId}` | `204`, also when the login is unknown; stops the login at Zalo too |
 | `PUT /accounts/{accountId}/session` `{ "session": { "cookie", "imei", "userAgent" } }` | `204` once the account runs one listener on this session; the same session while it lives changes nothing. `410 SESSION_ENDED` when Zalo refuses the session, or for the very session that was kicked (Zalo is not asked again). `502 ZALO_UNAVAILABLE` when Zalo does not answer (the session held so far stays). `400` for a body without a usable session |
 | `DELETE /accounts/{accountId}/session` | `204`, also when the account is unknown; stops the listener and forgets the account |
-| `GET /accounts/{accountId}/messages?after=<msgId>&limit=<n>` | `200 { "conversations", "messages", "nextCursor", "hasMore" }`: up to `limit` (1–1000, default 100) buffered messages with a `msgId` above `after` (all of them without `after`), their conversations, the last `msgId` given (or `after`; `null` with neither), and whether more wait. `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` for a cursor that is not a whole number |
+| `GET /accounts/{accountId}/messages?after=<msgId>&limit=<n>` | `200 { "conversations", "messages", "nextCursor", "hasMore" }`: up to `limit` (1–1000, default 100) buffered messages with a `msgId` above `after` (all of them without `after`), their conversations, the last `msgId` given (or `after`; `null` with neither), and whether more wait. A conversation is `{ "threadId", "threadType", "title", "avatarUrl", "participants" }`, `participants` being `{ "id", "name", "avatarUrl" }` for each sender of the page, `avatarUrl` a web address or `null`. `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` for a cursor that is not a whole number |
 | `POST /accounts/{accountId}/messages` `{ "threadId", "threadType" (USER or GROUP), "text" or "image", "clientMessageId" }` | `201 { "msgId", "sentAt" }` once Zalo took the text, or the picture (`image` is `{ "data" (base64), "fileName" (a name without a path, ending `.png`, `.gif` or `.webp`), "width", "height" }`: at most 1 MiB once decoded, `text` then empty or missing; a text beside a picture is `400 INVALID_MESSAGE`, base64 that does not encode back to itself `400 INVALID_IMAGE`, more than 1 MiB `400 IMAGE_TOO_LARGE`, a request larger than the 2 MiB the route reads `400 PAYLOAD_TOO_LARGE`; the log carries the type and the size of a picture, never its bytes or its name). A PNG or WebP is uploaded, then sent through Zalo's `photo_url` as a photo in the bubble without a border, without the AI sticker marks (`pStickerType`, `webp`) that the Zalo phone app draws as an empty placeholder (ZS-09); a GIF goes down zca-js's own GIF path. The same `clientMessageId` within 24 hours: `200` with the first result, nothing sent, also once the session has ended. `429 RATE_LIMITED` for a second message within a second (nothing sent); `422 REJECTED` when Zalo refused it; `504 OUTCOME_UNKNOWN` when Zalo gave no answer within 10 seconds or the send broke midway, also for a repeat of such a send (never sent twice); `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` |
 | `POST /accounts/{accountId}/sent/lookup` `{ "threadId", "clientMessageId", "text" (missing for a picture), "after" (date-time with a zone) }` | `200 { "msgIds" }`: the `msgId` remembered for `clientMessageId`, then, for a text, the account's own buffered messages in that thread with the same text sent after `after` (a picture has no text, so only what was remembered speaks for it). `409 CANNOT_TELL` instead of an empty list when the session started after `after`, when `after` is more than 24 hours ago, or when the send of that `clientMessageId` has no known outcome yet. `404 UNKNOWN_ACCOUNT`, `410 SESSION_ENDED`, `400` |
 
@@ -122,8 +122,16 @@ message at its next pull. A read whose cursor is older than the buffer first ask
 (`requestOldMessages`, page after page until it joins the buffer, at most 10 pages per type and 5 seconds, once per
 cursor per session, and only once the listener can read Zalo's messages); stopping short logs a warning without
 message text. Conversation names come from Zalo, cached for an hour; a name that fails or takes over 2 seconds is left
-out, never the messages. The log carries message ids, types and lengths, never their text. The whole contract with
-`sino-api` is in the design of the change.
+out, never the messages.
+The picture of a participant (D-409): in a 1-1 chat the friend (`id` = `threadId`) has the picture of the conversation,
+already asked for, so nothing more is asked; in a group the senders of the page that are not remembered are asked for
+in one `getUserInfo` call (zca-js takes a list and sets no limit; Zalo's own limit per call is not known), beside the
+group names and under the same 2 seconds. Each sender's picture is remembered 24 hours per account, `null` too, so a
+sender without a picture is not asked about on every page. The account itself has `null`. A lookup that fails or
+takes over 2 seconds gives `null` for those senders on that page only (nothing is remembered), logs one warning with
+the account and the number of senders, never a name or an address, and the messages go out as usual.
+The log carries message ids, types and lengths, never their text. The whole contract with `sino-api` is in the design
+of the change.
 
 Sends are remembered by `clientMessageId` for 24 hours, in memory: the `msgId` is written the moment Zalo gives it,
 before the `201` and even after a `504`, so a send `sino-api` stopped waiting for is found by the lookup. Only an error
@@ -146,7 +154,7 @@ After a restart sino-zalo knows no earlier send, and the lookup answers `409 CAN
 | `src/sessions/SessionManager.ts` | One session, listener and buffer per account: fingerprints, kicks, reconnects, one task at a time per account, reads with catch-up |
 | `src/sessions/MessageBuffer.ts` | The messages waiting for `sino-api`, ordered by `msgId` as a BigInt, with the 1,000 / 24 hour limits |
 | `src/sessions/CatchUp.ts` | Reads what Zalo kept after a cursor, page after page, within 10 pages per type and 5 seconds |
-| `src/sessions/Conversations.ts` | Names the conversations of a page of messages, one Zalo lookup per thread per hour |
+| `src/sessions/Conversations.ts` | Names the conversations of a page of messages, one Zalo lookup per thread per hour, and gives each participant a picture: the 1-1 friend the conversation's, the senders of groups from one lookup per page, remembered 24 hours |
 | `src/sessions/Stickers.ts` | Gives the sticker messages of a page their still picture and, for a sticker that moves, its sprite sheet, one Zalo lookup per sticker |
 | `src/sessions/routes.ts` | `PUT`, `DELETE /accounts/{accountId}/session`, and the `404` / `410` / `502` answers shared by account routes |
 | `src/messages/readRoutes.ts` | `GET /accounts/{accountId}/messages` |

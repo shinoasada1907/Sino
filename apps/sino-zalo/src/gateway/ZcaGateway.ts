@@ -161,6 +161,14 @@ export class ZcaGateway implements ZaloGateway {
           throw new ZaloUnavailableError(reasonOf(error));
         }
       },
+      userAvatars: async (userIds) => {
+        try {
+          // `await` here, or a rejection would pass the catch below.
+          return await avatarsOf(api, userIds);
+        } catch (error) {
+          throw new ZaloUnavailableError(reasonOf(error));
+        }
+      },
     };
   }
 }
@@ -750,14 +758,32 @@ function zcaThreadType(threadType: ThreadType): ZcaThreadType {
   return threadType === "USER" ? ZcaThreadType.User : ZcaThreadType.Group;
 }
 
+type Profiles = Awaited<ReturnType<API["getUserInfo"]>>["changed_profiles"];
+
+/** zca-js asks for "<id>_0"; which key Zalo answers with is checked at ZL-13, so both are read. */
+function profileOf(profiles: Profiles, userId: string): Profiles[string] | undefined {
+  return profiles[userId] ?? profiles[`${userId}_0`];
+}
+
 async function userInfo(api: API, userId: string): Promise<ThreadInfo> {
   const { changed_profiles: profiles } = await api.getUserInfo(userId);
-  // zca-js asks for "<id>_0"; which key Zalo answers with is checked at ZL-13.
-  const profile = profiles[userId] ?? profiles[`${userId}_0`];
+  const profile = profileOf(profiles, userId);
   return {
     title: profile?.displayName || profile?.zaloName || null,
     avatarUrl: profile?.avatar || null,
   };
+}
+
+/**
+ * The picture of each user from one `getUserInfo` call: zca-js takes a list and puts no limit on it (`getUserInfo.js`).
+ * A user missing from Zalo's answer, or in it without a picture, maps to null.
+ */
+export async function avatarsOf(
+  api: Pick<API, "getUserInfo">,
+  userIds: readonly string[],
+): Promise<Map<string, string | null>> {
+  const { changed_profiles: profiles } = await api.getUserInfo([...userIds]);
+  return new Map(userIds.map((userId) => [userId, profileOf(profiles, userId)?.avatar || null]));
 }
 
 async function groupInfo(api: API, groupId: string): Promise<ThreadInfo> {

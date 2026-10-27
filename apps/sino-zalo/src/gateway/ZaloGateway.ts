@@ -172,6 +172,11 @@ export interface ZaloConnection {
   /** Throws ZaloUnavailableError when Zalo does not answer. */
   threadInfo(threadId: string, threadType: ThreadType): Promise<ThreadInfo>;
   /**
+   * The picture address of each user in `userIds`, asked of Zalo in one call. A user Zalo names no picture for is
+   * there with null. Throws ZaloUnavailableError when Zalo does not answer.
+   */
+  userAvatars(userIds: readonly string[]): Promise<ReadonlyMap<string, string | null>>;
+  /**
    * Sends a text and resolves with Zalo's msgId. Throws ZaloRejectedError when Zalo refused it;
    * any other failure leaves it unknown whether the message went out.
    */

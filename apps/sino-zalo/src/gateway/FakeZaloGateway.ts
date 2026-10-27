@@ -112,6 +112,15 @@ export class FakeConnection implements ZaloConnection {
     return this.zalo.threadInfos.get(threadId) ?? { title: null, avatarUrl: null };
   }
 
+  async userAvatars(userIds: readonly string[]): Promise<ReadonlyMap<string, string | null>> {
+    this.zalo.avatarCalls.push([...userIds]);
+    await Promise.resolve();
+    if (this.zalo.avatarsFail) {
+      throw new ZaloUnavailableError("TypeError: fetch failed");
+    }
+    return new Map(userIds.map((userId) => [userId, this.zalo.avatars.get(userId) ?? null]));
+  }
+
   async sendText(threadId: string, threadType: ThreadType, text: string): Promise<string> {
     this.zalo.sent.push({ threadId, threadType, text });
     return this.settleSend();
@@ -169,6 +178,11 @@ export class FakeZaloGateway implements ZaloGateway {
   readonly threadInfos = new Map<string, ThreadInfo>();
   readonly threadInfoCalls: string[] = [];
   threadInfoFails = false;
+  /** The pictures Zalo gives users, by user id; any other user has none. */
+  readonly avatars = new Map<string, string>();
+  /** The user ids of every picture lookup, one list per call. */
+  readonly avatarCalls: string[][] = [];
+  avatarsFail = false;
   /** The pictures Zalo gives stickers, by sticker id; any other sticker has none. */
   readonly stickerArts = new Map<string, ZaloStickerArt>();
   stickerFails = false;
