@@ -91,6 +91,8 @@ export interface ConversationItem {
   kind: ConversationKind
   /** The other person or the group. */
   title: string
+  /** The picture of the other person, or of the group when it has one of its own (zalo-avatars, D-411); null for mail, for no picture and for an address that is not https (D-413). */
+  avatarUrl: string | null
   /** Email subject; null for chats. */
   subject: string | null
   /** Size of a group chat; null otherwise. */
@@ -231,6 +233,8 @@ export type Message =
 
 export interface Member {
   name: string
+  /** The picture the provider gave for them (zalo-avatars, D-412); null when it gave none, for the account itself and for an address that is not https (D-413). */
+  avatarUrl: string | null
   owner: boolean
   joinedRecently: boolean
 }

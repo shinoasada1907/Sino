@@ -20,6 +20,7 @@ import type {
   UnreadByKind,
 } from './inbox.types'
 import type { NewMailDraft } from './newMail'
+import { pictureOf } from './sticker'
 
 /*
  * The requests of the Hộp thư screens, on the F05 and F06 APIs (D-56): what the API does not give yet is null. Sending
@@ -69,6 +70,8 @@ interface ConversationResponse {
   provider: string
   kind: ConversationKind
   title: string
+  /** The picture of the other person or of the group (zalo-avatars, D-411); absent on a backend before it. Kept by `pictureOf` (D-413). */
+  avatarUrl?: string | null
   subject: string | null
   memberCount: number | null
   snippetFrom: string | null
@@ -107,6 +110,7 @@ const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = {
 interface ParticipantResponse {
   externalId: string
   name: string | null
+  /** Zalo's picture of them since zalo-avatars (D-410); null before, and for the connected account. Kept by `pictureOf` (D-413). */
   avatarUrl: string | null
   self: boolean
 }
@@ -156,8 +160,8 @@ interface MessageResponse {
   canReact?: boolean
 }
 
-function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse): ConversationItem {
-  return { ...rest, accountIds: accountIds ?? [rest.accountId], snippet: snippet ?? '', linked: linked ?? [] }
+function toItem({ snippet, linked, accountIds, avatarUrl, ...rest }: ConversationResponse): ConversationItem {
+  return { ...rest, accountIds: accountIds ?? [rest.accountId], avatarUrl: pictureOf(avatarUrl), snippet: snippet ?? '', linked: linked ?? [] }
 }
 
 function toAccount(account: AccountResponse, providers: ProviderResponse[]): InboxAccount {
@@ -177,8 +181,8 @@ function sendingOf({ provider, status, capabilities }: AccountResponse, provider
 }
 
 // The API does not say who runs a group or who joined lately.
-function toMember({ externalId, name, self }: ParticipantResponse): Member {
-  return { name: self ? 'Bạn' : (name ?? externalId), owner: false, joinedRecently: false }
+function toMember({ externalId, name, avatarUrl, self }: ParticipantResponse): Member {
+  return { name: self ? 'Bạn' : (name ?? externalId), avatarUrl: pictureOf(avatarUrl), owner: false, joinedRecently: false }
 }
 
 // "PDF" from "hop-dong.pdf", otherwise from the type ("image/png" gives "PNG"), otherwise "TỆP".

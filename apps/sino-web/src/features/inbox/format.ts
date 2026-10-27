@@ -418,6 +418,11 @@ export function memberPlaceholder(name: string, members: Member[] | null): (type
   return index >= 0 ? PLACEHOLDERS[index % PLACEHOLDERS.length] : 'c'
 }
 
+/** The picture of a group member, by the name their messages carry; null for someone not in the list or without a picture. */
+export function memberAvatar(name: string, members: Member[] | null): string | null {
+  return members?.find((member) => member.name === name)?.avatarUrl ?? null
+}
+
 /** The messages of a chat, each with the day line to draw above it when the day changes. */
 export function withDayLines(messages: Message[], now: Date, timeZone?: string): { message: Message; dayLine: string | null }[] {
   return messages.map((message, index) => {

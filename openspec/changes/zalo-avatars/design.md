@@ -12,7 +12,7 @@
 
 ## Goals / Non-Goals
 
-**Goals:** ảnh thật ở mọi chỗ canvas vẽ `.avatar` cho chat Zalo; không chậm, không vỡ khi Zalo không trả ảnh.
+**Goals:** ảnh thật ở mọi chỗ canvas vẽ `.avatar` cho chat Zalo (đầu khung chat, cạnh tin của người khác trong nhóm, mục Thành viên; hàng danh sách không có `.avatar`, DN-2); không chậm, không vỡ khi Zalo không trả ảnh.
 
 **Non-Goals:** xem `proposal.md`.
 
@@ -36,12 +36,20 @@ Mỗi phần tử của `participants` thành `{ id, name, avatarUrl: string | n
 
 ### D-412 — `Avatar` vẽ ảnh · agent chốt
 `Avatar` nhận `src?: string | null`. Có `src`: vòng thay thế nằm dưới, `<img>` phủ kín vòng tròn (`object-cover`), `alt=""` (ảnh trang trí, như hôm nay), `referrerPolicy="no-referrer"`, `loading="lazy"`, `decoding="async"`; ảnh lỗi thì gỡ `<img>`, còn vòng thay thế. Không `src` thì như hôm nay. Hợp đồng web: `ConversationItem.avatarUrl` và `Member.avatarUrl` (`string | null`), map trong `inbox.api.ts`.
-Chỗ vẽ: danh sách cuộc trò chuyện và đầu khung chat (`ConversationAvatars`), ảnh cạnh tin của người khác trong nhóm (`ChatThread`, tìm người gửi trong `members` như vòng thay thế hôm nay), mục Thành viên (`ConversationInfo`).
+Chỗ vẽ: ~~danh sách cuộc trò chuyện và~~ đầu khung chat (`ConversationAvatars`; đầu trang chat ở điện thoại) (**LÝ DO:** DN-2 = A, hàng danh sách giữ ô nhà cung cấp của canvas), ảnh cạnh tin của người khác trong nhóm (`ChatThread`, tìm người gửi trong `members` như vòng thay thế hôm nay), mục Thành viên (`ConversationInfo`).
 
 ### DN-1 — Ảnh của nhóm · **người dùng chốt A** (2026-10-27, "DN-1 = A", cùng lúc duyệt đề án)
 Canvas vẽ nhóm bằng `.av-stack`: chồng tối đa 3 vòng của thành viên. Zalo có ảnh riêng của nhóm (`fullAvt`) khi nhóm đặt ảnh.
 - **A (đề xuất):** nhóm có ảnh riêng thì hiện một vòng với ảnh đó; nhóm không có ảnh thì chồng 3 ảnh thành viên như canvas. Người dùng nhận ra nhóm như trên Zalo. Khác canvas ở nhóm có ảnh; ghi vào canvas cùng đợt vẽ của `zalo-mentions`.
 - ~~**B:** luôn chồng 3 ảnh thành viên, đúng canvas; bỏ ảnh riêng của nhóm.~~ Không chọn.
+
+### D-413 — Ảnh đại diện chỉ nhận https · quản lý chốt (2026-10-28)
+Web đưa `avatarUrl` qua `pictureOf` như ảnh trong tin: chỉ `https:` không có user/password, còn lại là `null` và hiện vòng thay thế. Kỹ sư `sino-zalo` và `sino-api` cùng nêu là địa chỉ không được lọc; lọc ở web giữ một luật cho mọi ảnh của Zalo.
+
+### DN-2 — Ảnh ở hàng danh sách cuộc trò chuyện · **người dùng chốt A** (2026-10-28, "DN-2 = A: hàng danh sách giữ như canvas")
+D-412 ghi "danh sách cuộc trò chuyện", nhưng canvas (`Messages`, `MobileMessages`, `TabletMessages`) vẽ đầu mỗi hàng bằng ô biểu tượng nhà cung cấp (`.pmark`), không có vòng ảnh; kỹ sư AV-03 dừng ở đây và hỏi (đúng luật). Lỗi viết của quản lý.
+- **A (đề xuất):** hàng giữ như canvas; ảnh ở đầu khung chat, cạnh tin, mục Thành viên. Change xong ngay.
+- ~~**B:** hàng có vòng ảnh, dấu nhà cung cấp nhỏ ở góc (như `AccountAvatar`). Quản lý vẽ lại canvas trước, người dùng duyệt, rồi mới giao.~~ Không chọn.
 
 ## Risks / Trade-offs
 

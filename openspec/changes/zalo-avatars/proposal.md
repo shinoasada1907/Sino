@@ -8,7 +8,7 @@ Người dùng (2026-10-27): "lấy avatar của đối phương nhé hiện t�
 
 - **`sino-zalo`:** mỗi người trong `participants` của một cuộc trò chuyện mang thêm `avatarUrl`. Chat 1-1 lấy từ thông tin cuộc trò chuyện đã có. Nhóm thì gọi `getUserInfo` một lần cho những người gửi chưa biết ảnh trong trang tin, nhớ 24 giờ mỗi người. Lỗi hay quá giờ thì `null`, tin vẫn đi.
 - **`sino-api`:** nhận và lưu ảnh của người tham gia (cột `conversation_participant.avatar_url` đã có, không cần migration). `GET /api/conversations` và `GET /api/conversations/{id}` trả thêm `avatarUrl` của cuộc trò chuyện.
-- **Web:** `Avatar` vẽ ảnh thật, phủ kín vòng tròn của canvas; vòng màu thay thế hiện khi chưa có ảnh, đang tải hay tải lỗi. Ảnh hiện ở danh sách cuộc trò chuyện, đầu khung chat, cạnh tin của người khác trong nhóm, và mục Thành viên.
+- **Web:** `Avatar` vẽ ảnh thật, phủ kín vòng tròn của canvas; vòng màu thay thế hiện khi chưa có ảnh, đang tải hay tải lỗi. Ảnh hiện ở đầu khung chat, cạnh tin của người khác trong nhóm, và mục Thành viên; hàng danh sách giữ ô nhà cung cấp như canvas (DN-2 = A).
 
 ## Capabilities
 

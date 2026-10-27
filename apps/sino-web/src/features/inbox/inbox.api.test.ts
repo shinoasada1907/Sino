@@ -97,7 +97,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
 
     expect(asked).toEqual(['?view=unread&provider=gmail'])
     expect(page.nextCursor).toBe('MjAyNi0xMC0wMQ')
-    expect(page.items[0]).toEqual({ ...API_CONVERSATIONS[0], linked: [] })
+    expect(page.items[0]).toEqual({ ...API_CONVERSATIONS[0], avatarUrl: null, linked: [] })
     // An item without text (only a file) has no preview; an API before f05b has one account for each item.
     expect(page.items[1]).toEqual(expect.objectContaining({ id: 'c-2', snippet: '', linked: [], accountIds: ['acc-1'] }))
   })
@@ -209,7 +209,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
 
     const { item, detail } = await fetchConversation('c-1')
 
-    expect(item).toEqual({ ...API_CONVERSATIONS[0], linked: [] })
+    expect(item).toEqual({ ...API_CONVERSATIONS[0], avatarUrl: null, linked: [] })
     expect(item).not.toHaveProperty('participants')
     expect(detail).toEqual({
       id: 'c-1',
@@ -217,8 +217,8 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       firstUnreadId: null,
       linked: null,
       members: [
-        { name: 'Trần Minh Anh', owner: false, joinedRecently: false },
-        { name: 'Bạn', owner: false, joinedRecently: false },
+        { name: 'Trần Minh Anh', avatarUrl: null, owner: false, joinedRecently: false },
+        { name: 'Bạn', avatarUrl: null, owner: false, joinedRecently: false },
       ],
       files: null,
       canSend: null,
@@ -250,7 +250,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
 
     const { detail } = await fetchConversation('c-1')
 
-    expect(detail.members).toEqual([{ name: 'ai.do@example.com', owner: false, joinedRecently: false }])
+    expect(detail.members).toEqual([{ name: 'ai.do@example.com', avatarUrl: null, owner: false, joinedRecently: false }])
   })
 
   it('reports a conversation the API does not know as CONVERSATION_NOT_FOUND', async () => {
@@ -271,7 +271,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
     const item = await updateConversation('c-1', { read: true })
 
     expect(sent).toEqual([['c-1', { read: true }]])
-    expect(item).toEqual({ ...API_CONVERSATIONS[0], unreadCount: 0, linked: [] })
+    expect(item).toEqual({ ...API_CONVERSATIONS[0], avatarUrl: null, unreadCount: 0, linked: [] })
   })
 })
 
@@ -476,5 +476,114 @@ describe('a sticker of the library (zalo-send-images)', () => {
     expect((await fetchConversation('c-1')).detail).not.toHaveProperty('reactionSet')
     answer({})
     expect((await fetchConversation('c-1')).detail).not.toHaveProperty('reactionSet')
+  })
+})
+
+describe('the pictures of a chat (zalo-avatars, D-411, D-412)', () => {
+  const PICTURE = 'https://s120-ava-talk.zadn.vn/a/b/c/1/1/abc.jpg'
+  const GROUP_PICTURE = 'https://s120-ava-grp-talk.zadn.vn/a/b/c/2/2/def.jpg'
+
+  it('gives each item of the list the picture of its chat, and none to an item without one or from a backend before it', async () => {
+    server.use(
+      http.get('/api/conversations', () =>
+        HttpResponse.json({
+          items: [
+            { ...API_CONVERSATIONS[0], id: 'z-1', kind: 'CHAT', avatarUrl: PICTURE },
+            { ...API_CONVERSATIONS[0], id: 'z-2', kind: 'CHAT', avatarUrl: null },
+            { ...API_CONVERSATIONS[0], id: 'z-3', kind: 'EMAIL' },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    )
+
+    const { items } = await fetchConversations({ view: 'all', source: null }, null)
+
+    expect(items.map(({ id, avatarUrl }) => [id, avatarUrl])).toEqual([
+      ['z-1', PICTURE],
+      ['z-2', null],
+      ['z-3', null],
+    ])
+  })
+
+  it('gives an open conversation its own picture and a picture to each member that has one; the account itself has none', async () => {
+    const people = [
+      { externalId: 'u-1', name: 'Tuấn', avatarUrl: PICTURE, self: false },
+      { externalId: 'u-2', name: 'Hà', avatarUrl: null, self: false },
+      { externalId: 'me', name: null, avatarUrl: null, self: true },
+    ]
+    server.use(
+      http.get('/api/conversations/:id', () => HttpResponse.json({ ...API_CONVERSATIONS[0], kind: 'CHAT', avatarUrl: GROUP_PICTURE, participants: people })),
+    )
+
+    const { item, detail } = await fetchConversation('z-1')
+
+    expect(item.avatarUrl).toBe(GROUP_PICTURE)
+    expect(detail.members?.map(({ name, avatarUrl }) => [name, avatarUrl])).toEqual([
+      ['Tuấn', PICTURE],
+      ['Hà', null],
+      ['Bạn', null],
+    ])
+  })
+
+  it('reads a member without a picture field, from a backend before it, as one without a picture', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({ ...API_CONVERSATIONS[0], participants: [{ externalId: 'u-1', name: 'Tuấn', self: false }] }),
+      ),
+    )
+
+    const { item, detail } = await fetchConversation('z-1')
+
+    expect(item.avatarUrl).toBeNull()
+    expect(detail.members).toEqual([{ name: 'Tuấn', avatarUrl: null, owner: false, joinedRecently: false }])
+  })
+
+  // D-413: the page loads a picture only from an https address without user info, as for the pictures in a message (`pictureOf`).
+  it.each([
+    ['a plain http address', 'http://s120-ava-talk.zadn.vn/a.jpg'],
+    ['an address with a user name and a password', 'https://user:pw@s120-ava-talk.zadn.vn/a.jpg'],
+    ['an address with a user name', 'https://user@s120-ava-talk.zadn.vn/a.jpg'],
+    ['a script', 'javascript:alert(1)'],
+    ['inline data', 'data:image/svg+xml;base64,PHN2Zz4='],
+    ['a relative address', '/a.jpg'],
+    ['an empty text', ''],
+  ])('keeps no picture from %s, whether it is the chat\'s or a member\'s', async (_name, address) => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json({ items: [{ ...API_CONVERSATIONS[0], kind: 'CHAT', avatarUrl: address }], nextCursor: null })),
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          ...API_CONVERSATIONS[0],
+          kind: 'CHAT',
+          avatarUrl: address,
+          participants: [{ externalId: 'u-1', name: 'Tuấn', avatarUrl: address, self: false }],
+        }),
+      ),
+    )
+
+    const { items } = await fetchConversations({ view: 'all', source: null }, null)
+    const { item, detail } = await fetchConversation('z-1')
+
+    expect(items[0].avatarUrl).toBeNull()
+    expect(item.avatarUrl).toBeNull()
+    expect(detail.members?.[0].avatarUrl).toBeNull()
+  })
+
+  it('keeps an https address as it came, for the chat and for a member', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          ...API_CONVERSATIONS[0],
+          kind: 'CHAT',
+          avatarUrl: GROUP_PICTURE,
+          participants: [{ externalId: 'u-1', name: 'Tuấn', avatarUrl: PICTURE, self: false }],
+        }),
+      ),
+    )
+
+    const { item, detail } = await fetchConversation('z-1')
+
+    expect(item.avatarUrl).toBe(GROUP_PICTURE)
+    expect(detail.members?.[0].avatarUrl).toBe(PICTURE)
   })
 })

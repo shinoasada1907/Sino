@@ -7,7 +7,7 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
-import { bubbleMeta, disconnectedSince, formatFileSize, memberPlaceholder, notArrivedSince, sendBlock, threadSubtitle, withDayLines } from '../format'
+import { bubbleMeta, disconnectedSince, formatFileSize, memberAvatar, memberPlaceholder, notArrivedSince, sendBlock, threadSubtitle, withDayLines } from '../format'
 import type { ConversationDetail, ConversationItem, InboxAccount, LinkedKind, Member, Message } from '../inbox.types'
 import { useConversationActions, useSendMessage } from '../useInbox'
 import { Composer } from './Composer'
@@ -271,7 +271,7 @@ function Bubble({
   const fileOnly = message.attachments.length === 1 && onlyFile !== undefined && !onlyFile.image && message.text === onlyFile.name
   return (
     <div className={cn('group/bubble flex max-w-[84%] items-end gap-2.5 md:max-w-[68%]', own ? 'flex-row-reverse self-end' : 'self-start')}>
-      {!own && <Avatar aria-hidden="true" placeholder={memberPlaceholder(message.sender, members)} className="size-7" />}
+      {!own && <Avatar aria-hidden="true" src={memberAvatar(message.sender, members)} placeholder={memberPlaceholder(message.sender, members)} className="size-7" />}
       {withBar(
         <div className={cn('flex min-w-0 flex-col gap-1', own ? 'items-end' : 'items-start')}>
           {!own && showName && (

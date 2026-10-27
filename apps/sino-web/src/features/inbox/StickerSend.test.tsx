@@ -16,7 +16,7 @@ vi.mock('./inbox.api', async (importOriginal) => {
 })
 
 const now = new Date('2026-10-02T07:05:00Z')
-const [first] = API_CONVERSATIONS.map((item) => ({ ...item, snippet: item.snippet ?? '', linked: [] })) as ConversationItem[]
+const [first] = API_CONVERSATIONS.map((item) => ({ ...item, avatarUrl: null, snippet: item.snippet ?? '', linked: [] })) as ConversationItem[]
 const detail = { id: 'c-1', messages: null, firstUnreadId: null, linked: null, members: null, files: null, canSend: true, replyTo: null, previousCursor: null }
 const older: Message = { id: 'm-1', kind: 'MESSAGE', direction: 'IN', sender: 'An', to: null, at: '2026-10-01T02:00:00Z', text: 'Chào', attachments: [], status: null, linked: [] }
 type Mail = Message & { kind: 'MESSAGE' }

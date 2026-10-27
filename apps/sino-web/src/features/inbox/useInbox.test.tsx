@@ -27,7 +27,7 @@ vi.mock('./inbox.api', async (importOriginal) => {
 
 const now = new Date('2026-10-02T07:05:00Z')
 const ALL = { view: 'all', source: null } as const
-const [first, second] = API_CONVERSATIONS.map((item) => ({ ...item, snippet: item.snippet ?? '', linked: [] })) as ConversationItem[]
+const [first, second] = API_CONVERSATIONS.map((item) => ({ ...item, avatarUrl: null, snippet: item.snippet ?? '', linked: [] })) as ConversationItem[]
 const FRAME: InboxData = {
   generatedAt: now.toISOString(),
   providers: [{ type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' }],

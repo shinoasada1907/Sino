@@ -1,11 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: Ảnh đại diện thật trong chat
-Khi có địa chỉ ảnh, mỗi vòng ảnh đại diện của chat (danh sách cuộc trò chuyện, đầu khung chat, cạnh tin của người khác trong nhóm, mục Thành viên) MUST hiện ảnh đó phủ kín vòng tròn, tải với `referrerPolicy="no-referrer"`. Khi không có địa chỉ, khi ảnh đang tải, hay khi ảnh tải lỗi, vòng MUST hiện vòng màu thay thế như hôm nay. Ảnh MUST là trang trí (không đọc cho trình đọc màn hình).
+Khi có địa chỉ ảnh `https` (D-413), mỗi vòng ảnh đại diện của chat (đầu khung chat, cạnh tin của người khác trong nhóm, mục Thành viên) MUST hiện ảnh đó phủ kín vòng tròn, tải với `referrerPolicy="no-referrer"`. Khi không có địa chỉ, khi ảnh đang tải, hay khi ảnh tải lỗi, vòng MUST hiện vòng màu thay thế như hôm nay. Ảnh MUST là trang trí (không đọc cho trình đọc màn hình).
 
 #### Scenario: Chat 1-1 có ảnh
-- **WHEN** danh sách có một chat 1-1 với `avatarUrl`
-- **THEN** mục đó hiện ảnh của người kia trong vòng tròn
+- **WHEN** người dùng mở một chat 1-1 có `avatarUrl`
+- **THEN** đầu khung chat hiện ảnh của người kia trong vòng tròn
+
+#### Scenario: Hàng danh sách giữ như canvas
+- **WHEN** danh sách có một chat Zalo có `avatarUrl`
+- **THEN** đầu hàng vẫn là ô biểu tượng nhà cung cấp như canvas, không có vòng ảnh
 
 #### Scenario: Ảnh lỗi
 - **WHEN** địa chỉ ảnh không tải được
