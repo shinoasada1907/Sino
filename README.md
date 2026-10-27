@@ -1,7 +1,7 @@
 # Sino
 
 Sino Messages brings several accounts and several message providers (Gmail, Telegram…) into one shared inbox, next to
-notes, tasks and a calendar. This repository holds the backend, the web app, the public site, the plans and the
+notes, tasks and a calendar. This repository holds the backend, the web app, the Zalo service, the plans and the
 design.
 
 ## What is in this repository
@@ -10,20 +10,20 @@ design.
 |---|---|
 | [`apps/sino-api`](apps/sino-api/README.md) | Backend: Spring Boot 4 modular monolith (Java 25, Spring Modulith, PostgreSQL 18, Flyway) |
 | [`apps/sino-web`](apps/sino-web/README.md) | Web app: React 19 + TypeScript on Vite, Tailwind 4, shadcn/ui |
-| [`apps/sino-site`](apps/sino-site/README.md) | Public static site of the Sino family: brand page, Sino Messages home page, privacy policy |
+| [`apps/sino-zalo`](apps/sino-zalo/README.md) | Node service between `sino-api` and personal Zalo accounts (zca-js); only `sino-api` calls it |
 | [`openspec/roadmap.md`](openspec/roadmap.md) | Phase plan and features |
 | [`openspec/specs/`](openspec/specs) | How the running system behaves, merged from finished features |
 | [`openspec/changes/`](openspec/changes) | Features in progress (`proposal.md`, `design.md`, `specs/`, `tasks.md`); finished ones in `archive/` |
 | [`design/sino-ui/project/`](design/sino-ui/project) | Copy of the "Sino UI" design canvas (the source is the [claude.ai artifact](https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB)) |
 | [`docs/knowledge/`](docs/knowledge) | One learning guide per phase: which parts of Java, Spring and React are used where, and why (`.md` source, generated `.docx`) |
-| [`.github/workflows/`](.github/workflows) | CI: `backend-ci.yml` for `apps/sino-api`, `frontend-ci.yml` for `apps/sino-web` |
+| [`.github/workflows/`](.github/workflows) | CI: `backend-ci.yml` for `apps/sino-api`, `frontend-ci.yml` for `apps/sino-web`, `zalo-ci.yml` for `apps/sino-zalo` |
 
 Each app has its own README with the full setup, commands, tests and troubleshooting.
 
 ## Prerequisites
 
 - JDK 25 and Docker Desktop for the backend (the local database and the Testcontainers tests).
-- Node.js 26 and pnpm 11 for the web app and the site (`npm install -g pnpm@11`; the exact version is pinned in
+- Node.js 26 and pnpm 11 for the web app and sino-zalo (`npm install -g pnpm@11`; the exact version is pinned in
   `packageManager` of each `package.json`).
 
 ## Run it locally

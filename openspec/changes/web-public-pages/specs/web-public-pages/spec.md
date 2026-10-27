@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Trang giới thiệu ở `/`
-`/` MUST hiện trang giới thiệu Sino Messages (canvas `Landing`, chữ như trang `/messages` của `sino-site`) cho khách chưa đăng nhập, và MUST chuyển người đã đăng nhập tới `/overview` mà không thêm mục lịch sử. Trong lúc hỏi `GET /api/auth/me`, trang MUST NOT hiện nội dung giới thiệu. Khi không hỏi được máy chủ, trang MUST vẫn hiện nội dung giới thiệu.
+`/` MUST hiện trang giới thiệu Sino Messages (canvas `Landing`) cho khách chưa đăng nhập, và MUST chuyển người đã đăng nhập tới `/overview` mà không thêm mục lịch sử. Trong lúc hỏi `GET /api/auth/me`, trang MUST NOT hiện nội dung giới thiệu. Khi không hỏi được máy chủ, trang MUST vẫn hiện nội dung giới thiệu.
 
 #### Scenario: Khách chưa đăng nhập
 - **WHEN** `GET /api/auth/me` trả `401` và người dùng mở `/`
@@ -27,7 +27,7 @@
 - **THEN** chân trang không có link Điều khoản, Bảo mật hay Phần mềm nguồn mở
 
 ### Requirement: Chính sách quyền riêng tư trong app web
-`/privacy` MUST hiện Chính sách quyền riêng tư tiếng Việt và `/en/privacy` bản tiếng Anh, cùng nội dung với `sino-site`, công khai cho mọi người. Mỗi bản MUST có link sang bản kia. Thông tin chủ sở hữu (email liên hệ, người đứng tên, ngày hiệu lực, nhà cung cấp máy chủ) MUST lấy từ một chỗ trong code; khi còn trống, trang MUST hiện "[chưa điền: …]" ở chỗ của nó.
+`/privacy` MUST hiện Chính sách quyền riêng tư tiếng Việt và `/en/privacy` bản tiếng Anh, công khai cho mọi người. Mỗi bản MUST có link sang bản kia. Thông tin chủ sở hữu (email liên hệ, người đứng tên, ngày hiệu lực, nhà cung cấp máy chủ) MUST lấy từ một chỗ trong code; khi còn trống, trang MUST hiện "[chưa điền: …]" ở chỗ của nó.
 
 #### Scenario: Đổi ngôn ngữ
 - **WHEN** người dùng mở `/privacy` rồi bấm "English"

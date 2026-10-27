@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/pages/privacy/privacy.shared.ts (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/pages/privacy/privacy.shared.ts (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 /**
  * The app name the Google consent screen shows. Google wants the Limited Use statement to name that app, so this must
  * stay equal to the "App name" of the OAuth consent screen (check it at SI-06, before the site goes live).

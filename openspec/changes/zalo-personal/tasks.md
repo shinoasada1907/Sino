@@ -234,7 +234,7 @@
       - người dùng trả lời DN-1 nếu cửa sổ bù tin ngắn;
       - sửa câu Zalo PC trong chữ cảnh báo (DN-2) theo mục 6;
       - nếu listener bị đá cả khi chỉ dùng điện thoại: dừng và hỏi người dùng (giữ, sửa hay bỏ F09) trước khi archive.
-    - Sửa `apps/sino-site`: chính sách quyền riêng tư VI/EN nói Zalo (phiên mã hóa, chỉ tin từ lúc kết nối, rủi ro); trang Sino Messages đổi "Zalo sắp có".
+    - ~~Sửa `apps/sino-site`~~ Sửa `apps/sino-web/src/features/public/` (**LÝ DO:** `sino-site` đã xóa 2026-10-27 (người dùng; bản cuối ở tag `sino-site-v0`)): chính sách quyền riêng tư VI/EN nói Zalo (phiên mã hóa, chỉ tin từ lúc kết nối, rủi ro); trang Sino Messages đổi "Zalo sắp có".
     - Cập nhật roadmap F09.
     - `openspec archive zalo-personal -y`.
   - **Acceptance criteria:** mọi bước của kịch bản và mọi phép đo có bằng chứng ngắn trong mục này; bảng D-279 dùng tên `zaloType` thật; spec đã gộp vào `openspec/specs/`.

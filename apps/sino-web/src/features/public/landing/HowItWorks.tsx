@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/pages/messages/HowItWorks.tsx (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/pages/messages/HowItWorks.tsx (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 import { SectionHead, sectionClass } from './SectionHead'
 
 const STEPS = [

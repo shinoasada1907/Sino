@@ -1,6 +1,7 @@
 # Trang công khai trong sino-web (landing + privacy) · Implementation Plan
 
 > **AUTO mode** (frontend). Người dùng 2026-10-17: "trước mắt landing page tích hợp vào trong sino-web đi"; phạm vi "Landing + Privacy", cách "Chép sang, giữ sino-site"; D-310…D-315 duyệt ("làm đi").
+> **2026-10-27 (người dùng):** `apps/sino-site` đã xóa (tag `sino-site-v0`), nên bản trong `sino-web` là bản duy nhất của trang giới thiệu và Privacy. Chú thích "change both together" ở đầu các file chép đổi theo.
 > Mỗi task: test viết trước (đỏ rồi xanh); `pnpm lint`, `tsc -b`, `pnpm test`, `pnpm build`; Chrome một lượt ở 1440 và 390; file kiến thức phase 1 (mục 24) + `.docx`, `genoffice docs check`; commit riêng trên `dev`.
 
 ## 1. Nền
@@ -38,4 +39,4 @@
 
 ## 3. Nghiệm thu (để sau, như các màn khác)
 
-- [ ] 3.1 **WP-04 — Nghiệm thu, tài liệu, archive** (1440 / 1024 / 768 / 390 × 2 theme; nhắc người dùng điền `owner.ts` giống `sino-site/site.config.ts` trước khi nộp Google).
+- [ ] 3.1 **WP-04 — Nghiệm thu, tài liệu, archive** (1440 / 1024 / 768 / 390 × 2 theme; nhắc người dùng điền `owner.ts` ~~giống `sino-site/site.config.ts`~~ trước khi nộp Google; người dùng duyệt các cam kết của Privacy và `GOOGLE_APP_NAME`, chuyển từ SI-03a của `site-public-pages`). **LÝ DO:** `sino-site` đã xóa 2026-10-27 (người dùng; bản cuối ở tag `sino-site-v0`).

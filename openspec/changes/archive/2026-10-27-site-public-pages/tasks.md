@@ -2,6 +2,7 @@
 
 > **HYBRID mode:** frontend AUTO. Người dùng duyệt thiết kế 2026-10-13 ("duyệt"): D-240…D-247; D-248, D-249 agent chốt.
 > **Đổi sang React (2026-10-13):** người dùng thay site tĩnh bằng template Vite + React, yêu cầu landing "sử dụng react-bit theo như design" và duyệt D-250…D-252. SI-01 và SI-02 được làm lại trên React ở SI-01R và SI-02R. Từ SI-03 trở đi, mỗi trang là component React trong `src/pages/`, thay cho `src/pages/*.ts`.
+> **Dừng 2026-10-27 (người dùng):** xóa `apps/sino-site`; trang giới thiệu và Privacy chỉ còn ở `sino-web` (`web-public-pages`). Bản cuối của site, kèm file Docker, ở tag `sino-site-v0` (`git checkout sino-site-v0 -- apps/sino-site`). Khi Sino thành nhiều sản phẩm, site chung của nhà Sino dựng lại từ tag đó hoặc làm mới. Change được archive với `--skip-specs`: spec `public-site` tả một site không còn chạy.
 > Mỗi task gồm:
 > - test viết trước (đỏ rồi xanh);
 > - `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build:preview` trong `apps/sino-site`;
@@ -291,7 +292,7 @@
       - bản xem trước hiện 6 chỗ `[chưa điền: …]`.
     - File kiến thức phase 1 mục 21.13 + câu 132–134; `.docx` sinh lại, `genoffice docs check` 0 lỗi.
 
-- [ ] 2.2b **SI-03a — Người dùng duyệt nội dung Privacy** (người dùng 2026-10-13: "đưa vào change rồi mai làm")
+- [ ] 2.2b ~~**SI-03a — Người dùng duyệt nội dung Privacy**~~ (người dùng 2026-10-13: "đưa vào change rồi mai làm") → chuyển sang WP-04 của `web-public-pages`. **LÝ DO:** `sino-site` đã xóa 2026-10-27 (người dùng; bản cuối ở tag `sino-site-v0`); bản Privacy còn lại ở `apps/sino-web/src/features/public/privacy/`, cùng các cam kết dưới đây và `GOOGLE_APP_NAME` trong `privacy.shared.ts`.
   - Cam kết của chủ sở hữu trong `/privacy` và `/en/privacy`, chưa qua luật sư. Duyệt từng câu; câu nào đổi thì sửa cả `privacy.vi.tsx` lẫn `privacy.en.tsx`, chạy lại test:
     - [ ] xóa hẳn dữ liệu trong vòng 30 ngày khi có yêu cầu qua email (mục *Lưu giữ và xóa*);
     - [ ] trả lời yêu cầu xem, sửa, xóa trong vòng 30 ngày (mục *Quyền của bạn*);
@@ -299,7 +300,7 @@
     - [ ] câu "Sino xử lý dữ liệu cá nhân theo pháp luật Việt Nam về bảo vệ dữ liệu cá nhân" (mục *Quyền của bạn*);
     - [ ] App name trên OAuth consent screen của Google Cloud là "Sino Messages". Nếu khác, sửa `GOOGLE_APP_NAME` trong `apps/sino-site/src/pages/privacy/privacy.shared.ts`, vì câu Limited Use phải nêu đúng tên đó.
 
-- [ ] 2.3 **SI-04 — Điều khoản, tiếng Việt và tiếng Anh**
+- [ ] 2.3 ~~**SI-04 — Điều khoản, tiếng Việt và tiếng Anh**~~ **LÝ DO:** `sino-site` đã xóa 2026-10-27 (người dùng; bản cuối ở tag `sino-site-v0`). Nếu Google cần trang Điều khoản, làm trong `sino-web` ở một change mới.
   - **Thực hiện:**
     - ~~`src/pages/terms.ts` theo `SiteTerms`.~~ → theo khuôn của SI-03. **LÝ DO:** site đã sang React (D-250), và Privacy đã có khuôn trang pháp lý dùng chung:
       - `src/pages/terms/terms.vi.tsx`, `terms.en.tsx` là dữ liệu `PolicyDoc`; `TermsPages.tsx` dùng `PolicyPage` (đầu trang có ngày hiệu lực, mục lục, các mục), theo bố cục `SiteTerms`;
@@ -315,7 +316,7 @@
     - test: hai bản cùng các mục, mục lục khớp các mục, `hreflang`, link đổi ngôn ngữ, chỗ thiếu config ở bản xem trước, không khẳng định tính năng chưa có.
   - **Kiểm chứng:** lint, typecheck, test, `build:preview`; Chrome 1440 và 390, dark và light, cả hai ngôn ngữ.
 
-- [ ] 2.4 **SI-05 — Bảo mật và Phần mềm nguồn mở**
+- [ ] 2.4 ~~**SI-05 — Bảo mật và Phần mềm nguồn mở**~~ **LÝ DO:** `sino-site` đã xóa 2026-10-27 (người dùng; bản cuối ở tag `sino-site-v0`).
   - **Thực hiện:**
     - ~~`src/pages/security.ts`, `src/pages/open-source.ts`~~ → component React trong `src/pages/security/`, `src/pages/open-source/`, thanh trên `family`. **LÝ DO:** D-250.
     - Bảo mật theo `SiteSecurity`: chỉ giữ biện pháp có trong code, mỗi câu ghi nguồn đối chiếu ở phần "Đã làm". Privacy mục *Bảo mật* đã liệt kê bốn biện pháp có thật; trang này phải khớp với mục đó.
@@ -325,7 +326,7 @@
 
 ## 3. Nghiệm thu
 
-- [ ] 3.1 **SI-06 — Nghiệm thu, README, archive**
+- [ ] 3.1 ~~**SI-06 — Nghiệm thu, README, archive**~~ **LÝ DO:** `sino-site` đã xóa 2026-10-27 (người dùng; bản cuối ở tag `sino-site-v0`); không còn site để nghiệm thu hay đưa lên host. Change archive 2026-10-27 với `--skip-specs`.
   - **Thực hiện:**
     - Chrome mọi trang ở 1440 / 768 / 390 × dark / light, không cuộn ngang; ghi chỗ khác canvas.
     - Đọc lại bảng D-241, và đối chiếu lại Privacy với code: từ SI-03 (2026-10-13) có thể đã có tính năng mới, như ghi chú (F15), lịch (BE-73).

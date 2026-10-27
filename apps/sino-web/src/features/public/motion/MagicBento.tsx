@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/shared/motion/MagicBento.tsx (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/shared/motion/MagicBento.tsx (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 // Adapted from React Bits MagicBento (https://reactbits.dev, MIT + Commons Clause), cut to the canvas Motion map (D-252).
 import type { ComponentProps } from 'react'
 import { cn } from '@/shared/lib/utils'

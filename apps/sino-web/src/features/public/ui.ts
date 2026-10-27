@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/shared/ui/text.ts and icon.ts (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/shared/ui/text.ts and icon.ts (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 
 /** Canvas text styles the public pages repeat (`lp-h2`, `lp-lead`, `t-mono c-muted`, `micro-label`, `spec`). */
 export const heading2 =

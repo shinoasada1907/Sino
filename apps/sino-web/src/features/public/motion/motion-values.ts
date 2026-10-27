@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/shared/motion/motion-values.ts (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/shared/motion/motion-values.ts (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 /** Canvas FadeContent: fade in and rise 6 px in 240 ms; with less motion only fade, in 160 ms. */
 export function fadeMotion(reduce: boolean) {
   return reduce ? { y: 0, duration: 0.16 } : { y: 6, duration: 0.24 }
