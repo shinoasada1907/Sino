@@ -39,6 +39,8 @@ Người dùng chỉ đạo và giám sát. Phiên quản lý đưa ra đề án
 | Kỹ sư frontend | Phiên `sino-web` · `.claude/agents/sino-web.md` | `apps/sino-web` |
 | Kỹ sư Zalo | Phiên `sino-zalo` · `.claude/agents/sino-zalo.md` | `apps/sino-zalo` |
 
+Kỹ sư chạy model Sonnet (người dùng, 2026-10-27): `model: sonnet` trong file vai trò, và phiên kỹ sư được mở với Sonnet. Phiên quản lý dùng model người dùng chọn.
+
 Một phiên mở với brief "Bạn là kỹ sư …" là phiên kỹ sư: nó theo file vai trò của nó và *Luật chung cho kỹ sư* dưới đây, không làm việc của quản lý.
 
 ### Quy trình một feature
