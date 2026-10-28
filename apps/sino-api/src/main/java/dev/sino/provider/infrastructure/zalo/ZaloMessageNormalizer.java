@@ -188,7 +188,7 @@ final class ZaloMessageNormalizer {
                 for (Participant p : rawConv.participants()) {
                     String pid = clean(p.id());
                     if (pid != null) {
-                        mergeParticipant(participants, pid, clean(p.name()), pid.equals(selfId));
+                        mergeParticipant(participants, pid, clean(p.name()), clean(p.avatarUrl()), pid.equals(selfId));
                     }
                 }
             }
@@ -196,13 +196,13 @@ final class ZaloMessageNormalizer {
                 String senderId = item.normalized().senderExternalParticipantId();
                 String senderName = clean(item.raw().fromName());
                 boolean isSelf = item.raw().isSelf() || senderId.equals(selfId);
-                mergeParticipant(participants, senderId, senderName, isSelf);
+                mergeParticipant(participants, senderId, senderName, null, isSelf);
                 if (title == null && type == ConversationType.DIRECT && !isSelf && senderName != null) {
                     title = senderName;
                 }
             }
             if (selfId != null) {
-                mergeParticipant(participants, selfId, null, true);
+                mergeParticipant(participants, selfId, null, null, true);
             }
             result.add(new NormalizedConversation(
                     threadId,
@@ -215,16 +215,18 @@ final class ZaloMessageNormalizer {
         return result;
     }
 
+    // The name and the picture are the first one that is not null; self is true once any of them says so.
     private static void mergeParticipant(Map<String, NormalizedParticipant> participants, String id,
-            String displayName, boolean self) {
+            String displayName, String avatarUrl, boolean self) {
         NormalizedParticipant existing = participants.get(id);
         if (existing == null) {
-            participants.put(id, new NormalizedParticipant(id, displayName, null, self));
+            participants.put(id, new NormalizedParticipant(id, displayName, avatarUrl, self));
             return;
         }
         String mergedName = existing.displayName() != null ? existing.displayName() : displayName;
+        String mergedAvatar = existing.avatarUrl() != null ? existing.avatarUrl() : avatarUrl;
         boolean mergedSelf = existing.self() || self;
-        participants.put(id, new NormalizedParticipant(id, mergedName, null, mergedSelf));
+        participants.put(id, new NormalizedParticipant(id, mergedName, mergedAvatar, mergedSelf));
     }
 
     private static SyncCursor nextCursorOf(MessagePage page, SyncCursor current) {

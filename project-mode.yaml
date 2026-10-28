@@ -11,6 +11,10 @@ mode: AUTO
 # guide. It does not run the code first in a sandbox, build, run tests, write docs, update PROJECT_STATE/tasks.md
 # or commit, unless the user asks for that one action. In AUTO it does the work itself and follows the full process.
 # Areas not listed below follow `default`.
+# 2026-10-27 (user): team mode. The main session is the manager; three engineer sessions (roles in
+# `.claude/agents/sino-api.md`, `sino-web.md`, `sino-zalo.md`) do the work of their app. The modes below still decide
+# who codes: in AUTO the engineers code, in TRAINING/HYBRID they write the step-by-step guide. Two approvals by the
+# user: the plan before any task is handed out, and the result before the manager commits (CLAUDE.md, *Đội Sino*).
 default: AUTO
 areas:
   backend: AUTO           # TRAINING on the morning of 2026-10-15
@@ -36,6 +40,14 @@ task_overrides:
   settings-backend: AUTO    # 2026-10-21: AUTO (user: "Duyệt, AUTO"): saving the user's settings in sino-api (`/api/settings`, `/api/settings/storage`); backend by the session "sino-api-e0", web by "sino-web-03". Scope and the API contract chosen by the user in chat.
   fe-ui-settings: AUTO      # 2026-10-21: AUTO (user: "AUTO: Claude tự làm", asked because `new_features` is TRAINING): the Cài đặt screen on sample data ("Chỉ giao diện, dữ liệu mẫu"), sticker management moved into it; design approved ("duyệt").
   zalo-reactions: AUTO      # 2026-10-21: AUTO (user: "AUTO: Claude tự làm", asked because `new_features` is TRAINING): emoji reactions on Zalo chat messages, seen and dropped from Sino. Scope, emoji set, the path of incoming reactions (A: same feed as messages) and the canvas order were chosen by the user; the 5-part design was approved ("duyệt làm đi").
+  # 2026-10-27 (user, "AUTO: đội tự code", asked because `new_features` is TRAINING): the five changes that finish
+  # the Zalo chat, done one after the other by the team (roadmap F09, "Hoàn thiện chat Zalo"). Architecture
+  # decisions and the plan of each change still go to the user (approval 1), and each result before commit (approval 2).
+  zalo-avatars: AUTO
+  zalo-nicknames: AUTO
+  zalo-mentions: AUTO
+  zalo-media-library: AUTO
+  zalo-voice-messages: AUTO
   zalo-personal: AUTO       # 2026-10-15: AUTO from ZL-02 on ("chuyển sang mode AUTO tiếp tục phần tích hợp zalo"); 2026-10-14: TRAINING, the user coded ZL-01 ("Toàn bộ")
   # 2026-10-16: BE-110 of f05c-messages-inbox-split ran in TRAINING ("phần này tôi làm được không" → "oke step by step
   # nhé"): the user coded it in small steps, Claude wrote the tests from step 5 and, when asked, finished and committed it.

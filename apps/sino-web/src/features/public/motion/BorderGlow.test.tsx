@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/shared/motion/BorderGlow.test.tsx (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/shared/motion/BorderGlow.test.tsx (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { BorderGlow } from './BorderGlow'

@@ -516,8 +516,17 @@ class ZaloClient {
 
     }
 
+    /**
+     * {@code avatarUrl} is the picture of the person, or null when sino-zalo has none (zalo-avatars, D-410): a missing
+     * field reads as null too, so an older sino-zalo still works.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Participant(String id, String name) {
+    record Participant(String id, String name, String avatarUrl) {
+
+        Participant(String id, String name) {
+            this(id, name, null);
+        }
+
     }
 
     /**

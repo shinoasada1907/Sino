@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/pages/privacy/PolicyPage.tsx (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/pages/privacy/PolicyPage.tsx (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 import type { ReactNode } from 'react'
 import { OwnerValue } from './OwnerValue'
 import type { Lang } from '../layout/nav'

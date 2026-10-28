@@ -2293,3 +2293,56 @@ Code cũ cho `translate(0px, 6px)`; bản sửa cho `translate(400px, 294px)`. C
 - **Bỏ `U+FE0F`** (bộ chọn biến thể "hãy vẽ bản màu", đi sau trái tim đỏ). Nếu giữ, trình duyệt có thể chọn font emoji màu dù CSS đã chỉ font khác.
 
 Không thêm gói npm nào, vì `package.json` đang thuộc một change khác. Font nằm trong `src/assets/fonts/` cùng tệp giấy phép, và Vite đóng gói nó như mọi tài nguyên khác.
+
+## 27. Ảnh đại diện thật trong chat Zalo (`zalo-avatars`, AV-01 đến AV-03, AV-20)
+
+**Ở đâu:** `apps/sino-zalo/src/sessions/Conversations.ts`, `gateway/{ZaloGateway,ZcaGateway,FakeZaloGateway}.ts`; `apps/sino-api/.../provider/infrastructure/zalo/{ZaloClient,ZaloMessageNormalizer}.java`, `conversation/application/{InboxItem,InboxService}.java`, `conversation/api/ConversationResponse.java`; `apps/sino-web/src/shared/ui/avatar.tsx`, `features/inbox/{inbox.api.ts,format.ts}`, `components/{ConversationAvatars,ChatThread,ConversationInfo}.tsx`.
+
+Đây là change đầu tiên do cả đội làm (quản lý chia việc, ba kỹ sư làm song song, người dùng duyệt và nghiệm thu).
+
+### 27.1 Ảnh rơi ở đâu
+Người dùng thấy mọi ảnh đại diện trong chat là vòng màu. Như ở mục 25, đọc dữ liệu ở từng chỗ giao nhau:
+
+```text
+Zalo          getUserInfo / getGroupInfo trả ảnh
+sino-zalo     ảnh của cuộc trò chuyện: có      ảnh từng người gửi: không ai hỏi
+sino-api      conversation.avatar_url: có      conversation_participant.avatar_url: luôn null
+API           GET /api/conversations: không trả avatarUrl          <- rơi ở đây
+sino-web      Avatar chỉ biết vẽ vòng màu, không nhận ảnh          <- và ở đây
+```
+Phần lớn dữ liệu đã có sẵn, nên change này không cần migration: cột đã có từ V6, V7.
+
+### 27.2 `sino-zalo`: hỏi theo lô, nhớ có hạn, không nhớ lỗi
+- **Một lời gọi cho cả trang tin.** `getUserInfo` của zca-js nhận một mảng ID. Gọi từng người một trong nhóm đông là sai cách: tốn lượt và chậm.
+- **Chạy song song, chung một hạn giờ.** Tra tên nhóm và tra ảnh người gửi chạy cùng lúc bằng `Promise.all`. Mỗi bên đi qua `withinTime`: một `Promise.race` với đồng hồ, nên Zalo không trả lời cũng không giữ tin lại quá `infoTimeoutMs`.
+- **Ba trạng thái, không phải hai.** Bộ nhớ ảnh là `Map<id, { avatarUrl, until }>`. Khi đọc, kiểu `string | null | undefined` phân biệt: có ảnh, đã hỏi mà không có ảnh, chưa hỏi (hay đã hết hạn). Nhớ cả `null` để người không có ảnh không bị hỏi lại mỗi trang.
+- **Không nhớ lỗi.** Nếu nhớ một lần lỗi 24 giờ, một lần Zalo chập chờn sẽ giấu ảnh cả ngày. Chỉ câu trả lời thật mới được nhớ. Đây là quyết định của kỹ sư, tốt hơn bản đề án.
+- **Đồng hồ truyền vào.** `now()` là tham số, nên test đẩy giờ đi 24 giờ mà không cần fake timer.
+
+### 27.3 `sino-api`: thêm một trường mà không làm vỡ ai
+- `record Participant(String id, String name, String avatarUrl)` có thêm một hàm tạo hai tham số gọi `this(id, name, null)`, để test cũ vẫn biên dịch. Trường thiếu trong JSON thì Jackson đưa `null` vào, nên `sino-zalo` bản cũ vẫn chạy (khác với mục 25.3: ở đây là `String`, chứa được `null`).
+- `ConversationDetailResponse` bọc `ConversationResponse` bằng `@JsonUnwrapped`, nên thêm `avatarUrl` một chỗ là danh sách, chi tiết và PATCH đều có.
+- Luật "thư không có ảnh" nằm ở lớp trình bày: `email ? null : item.avatarUrl()`. Dữ liệu lưu có gì thì API vẫn đúng.
+- "Giữ ảnh cũ khi trang sau không có ảnh" đã nằm sẵn trong DB: `avatar_url = COALESCE(EXCLUDED.avatar_url, p.avatar_url)` trong `INSERT … ON CONFLICT DO UPDATE`.
+
+### 27.4 Web: vòng màu nằm dưới ảnh
+```text
+<span relative, vòng màu, kích thước cố định>
+    <img absolute inset-0 object-cover alt="" referrerPolicy="no-referrer" loading="lazy">
+</span>
+```
+- Ảnh đang tải, lỗi hay không có thì vẫn thấy vòng màu; không có trạng thái "đã tải xong" cần đổi, không nhảy bố cục.
+- `useState` lưu **địa chỉ đã lỗi**, không lưu cờ `failed`. Người ta đổi ảnh thì địa chỉ mới tự được thử lại, không cần `useEffect` để đặt lại cờ.
+- `alt=""` đánh dấu ảnh trang trí, trình đọc màn hình bỏ qua. Trong test, `<img alt="">` có role `presentation`, nên test tìm qua `[data-slot="avatar"]`.
+- Địa chỉ đi qua `pictureOf` như ảnh trong tin (D-413): chỉ `https`, không có user/password.
+- Khai `avatarUrl: string | null` là **bắt buộc** trong hợp đồng web, nên `tsc` chỉ ra mọi chỗ dựng dữ liệu còn thiếu trường.
+
+### 27.5 Bài học làm việc theo đội
+- **Hợp đồng trước, làm song song sau.** Đề án chốt hình dạng JSON giữa ba app (D-410, D-411, D-412), nên ba kỹ sư làm cùng lúc mà không phải chờ nhau.
+- **Dừng ở chỗ mâu thuẫn, không đoán.** Đề án ghi "ảnh ở danh sách cuộc trò chuyện", nhưng canvas vẽ đầu mỗi hàng bằng ô nhà cung cấp. Kỹ sư web dừng lại và hỏi (DN-2), người dùng giữ như canvas. Lỗi nằm ở người viết đề án: phải đối chiếu canvas trước khi viết một câu về giao diện.
+- **Gài lỗi để biết test có bắt được không.** Mỗi kỹ sư cố ý làm hỏng code vài chỗ và xem đúng một test đỏ; một test không bao giờ đỏ thì không chứng minh được gì.
+
+### 27.6 Kiểm chứng và giới hạn
+- **Test tự động:** `sino-zalo` 327 test; `sino-api` 211 test chọn lọc cùng `ModularityTests`; `sino-web` 1348 test (2 test `AppShell` đỏ theo đồng hồ thật, sửa ở `shell-real-counts` NS-05).
+- **Chạy thật (AV-20, máy người dùng):** chat 1-1 có ảnh của người kia, nhóm có ảnh riêng, đều là ảnh `https` trên CDN của Zalo; chính tài khoản không có ảnh, đúng thiết kế.
+- **Giới hạn:** ảnh cạnh tin tìm người gửi theo tên hiển thị, nên hai người trùng tên trong một nhóm có thể dùng nhầm ảnh của nhau. Zalo cá nhân chỉ đưa vào Sino tin từ lúc kết nối, nên ảnh của một thành viên chỉ có sau khi người đó gửi tin.

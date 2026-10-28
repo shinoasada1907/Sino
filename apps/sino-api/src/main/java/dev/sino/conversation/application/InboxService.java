@@ -64,8 +64,8 @@ public class InboxService implements InboxIds {
     // Each copy with what a row takes from its primary copy, and the newest message that copy holds as its summary
     // counts it (ConversationSummaries): the Message-ID and whether it came in, to find the primary copy (D-181).
     private static final String COPIES = """
-            SELECT c.id, c.account_id, c.type, c.title, c.counterpart, c.last_message_from, c.last_message_preview,
-                   c.last_message_at,
+            SELECT c.id, c.account_id, c.type, c.title, c.avatar_url, c.counterpart, c.last_message_from,
+                   c.last_message_preview, c.last_message_at,
                    CASE WHEN c.type IN ('GROUP', 'CHANNEL')
                         THEN (SELECT count(*) FROM conversation_participant p WHERE p.conversation_id = c.id) END
                        AS participants,
@@ -296,9 +296,10 @@ public class InboxService implements InboxIds {
                 .distinct().toList();
         return new InboxItem(group.id(), primary.id(), primary.accountId(), accountIds,
                 copies.stream().map(copy -> new InboxItem.Copy(copy.id(), copy.accountId())).toList(),
-                accounts.get(primary.accountId()), primary.type(), primary.title(), primary.counterpart(),
-                primary.lastMessageFrom(), primary.preview(), group.lastMessageAt(), group.unreadCount(),
-                group.needsReply(), group.hasAttachments(), group.archived(), primary.participants());
+                accounts.get(primary.accountId()), primary.type(), primary.title(), primary.avatarUrl(),
+                primary.counterpart(), primary.lastMessageFrom(), primary.preview(), group.lastMessageAt(),
+                group.unreadCount(), group.needsReply(), group.hasAttachments(), group.archived(),
+                primary.participants());
     }
 
     // D-181: the copy holding the newest message. Each mailbox dates its copy of a message on its own, so the copies
@@ -333,9 +334,9 @@ public class InboxService implements InboxIds {
             boolean hasAttachments, boolean archived) {
     }
 
-    private record Copy(UUID id, UUID accountId, ConversationType type, String title, String counterpart,
-            String lastMessageFrom, String preview, Instant lastMessageAt, int participants, String newestMessageId,
-            boolean newestInbound) {
+    private record Copy(UUID id, UUID accountId, ConversationType type, String title, String avatarUrl,
+            String counterpart, String lastMessageFrom, String preview, Instant lastMessageAt, int participants,
+            String newestMessageId, boolean newestInbound) {
     }
 
     private static Group group(ResultSet row) throws SQLException {
@@ -347,8 +348,8 @@ public class InboxService implements InboxIds {
 
     private static Copy copyOf(ResultSet row) throws SQLException {
         return new Copy(row.getObject("id", UUID.class), row.getObject("account_id", UUID.class),
-                ConversationType.valueOf(row.getString("type")), row.getString("title"), row.getString("counterpart"),
-                row.getString("last_message_from"), row.getString("last_message_preview"),
+                ConversationType.valueOf(row.getString("type")), row.getString("title"), row.getString("avatar_url"),
+                row.getString("counterpart"), row.getString("last_message_from"), row.getString("last_message_preview"),
                 row.getObject("last_message_at", OffsetDateTime.class).toInstant(), row.getInt("participants"),
                 row.getString("newest_message_id"), row.getBoolean("newest_inbound"));
     }

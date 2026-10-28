@@ -91,7 +91,7 @@ export function ConversationInfo({
           <Section title="Thành viên" count={members.length}>
             {shownMembers.map((member) => (
               <div key={member.name} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5">
-                <Avatar placeholder={memberPlaceholder(member.name, members)} className="size-7" />
+                <Avatar src={member.avatarUrl} placeholder={memberPlaceholder(member.name, members)} className="size-7" />
                 <span className="truncate text-sm">{member.name}</span>
                 {member.owner ? <Badge>Trưởng nhóm</Badge> : member.joinedRecently ? <Spec>mới</Spec> : <span />}
               </div>

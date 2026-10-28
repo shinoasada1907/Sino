@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/pages/messages/Privacy.tsx (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/pages/messages/Privacy.tsx (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 import { Eye, Key, Lock, SquareCheck } from 'lucide-react'
 import { Link } from 'react-router'
 import { eyebrow } from '../ui'

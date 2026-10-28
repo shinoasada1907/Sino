@@ -28,6 +28,21 @@ function shellWith(change: (shell: ShellData) => void): ShellData {
   return shell
 }
 
+// The sample tasks move with the clock (`createTasksSample`), and the counts of the navigation read the clock too, so a
+// test that counts the late or the due tasks stops it at the moment of the canvas, where the sample shows one late task
+// (the bill) and three due. Left to the real clock the count changes with the hour: the rent, due at 17:00, is the next
+// day once the test runs after 21:05 in Asia/Ho_Chi_Minh, and the reply due for the whole day moves by whole days
+// (`dayClockFrom`), so from 00:00 to 02:05 its day is over and the sample shows a second late task (NS-05).
+async function atCanvasMoment(test: () => Promise<void>) {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  try {
+    vi.setSystemTime(CANVAS_NOW)
+    await test()
+  } finally {
+    vi.useRealTimers()
+  }
+}
+
 describe('sidebar (desktop)', () => {
   it('links every main screen', async () => {
     renderApp('/overview')
@@ -63,12 +78,8 @@ describe('sidebar (desktop)', () => {
     expect(sidebar.getByRole('link', { name: /^Hộp thư/ })).not.toHaveAttribute('aria-current')
   })
 
-  // At the moment of the canvas: the sample's rent is due at 17:00 that day, which is the next day once the test runs
-  // after 21:05 in Asia/Ho_Chi_Minh.
-  it('takes the owner from the shell data, the inbox count from the inbox (D-93), the task count from the tasks (D-83) and the account count from the accounts (D-326)', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    try {
-      vi.setSystemTime(CANVAS_NOW)
+  it('takes the owner from the shell data, the inbox count from the inbox (D-93), the task count from the tasks (D-83) and the account count from the accounts (D-326)', () =>
+    atCanvasMoment(async () => {
       const tasks = createTasksSample(new Date())
       renderApp('/overview', {
         inbox: inboxWithUnread(5, 3),
@@ -90,10 +101,7 @@ describe('sidebar (desktop)', () => {
       expect(sidebar.getByRole('link', { name: 'Việc cần làm, 2 tới hạn' })).toBeInTheDocument()
       expect(sidebar.getByText('Bình Trần')).toBeInTheDocument()
       expect(sidebar.getByText('2 tài khoản')).toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
+    }))
 
   it('shows no count when it is zero', async () => {
     renderApp('/overview', { inbox: inboxWithUnread(0, 0), shell: shellWith((s) => (s.navCounts.inboxUnread = 0)) })
@@ -114,17 +122,18 @@ describe('sidebar (desktop)', () => {
 })
 
 describe('rail (tablet)', () => {
-  it('names each icon-only link, with what needs attention', async () => {
-    renderApp('/overview')
-    const rail = within(shellPart('rail'))
+  it('names each icon-only link, with what needs attention', () =>
+    atCanvasMoment(async () => {
+      renderApp('/overview')
+      const rail = within(shellPart('rail'))
 
-    expect(await rail.findByRole('link', { name: 'Hộp thư, 7 chưa đọc' })).toHaveAttribute('href', '/inbox')
-    expect(rail.getByRole('link', { name: 'Tin nhắn, 5 chưa đọc' })).toHaveAttribute('href', '/messages')
-    expect(rail.getByRole('link', { name: 'Việc cần làm, 1 quá hạn' })).toHaveAttribute('href', '/tasks')
-    expect(rail.getByRole('link', { name: 'Tài khoản, 1 cần xử lý' })).toHaveAttribute('href', '/accounts')
-    expect(rail.getByRole('link', { name: 'Lịch' })).toHaveAttribute('href', '/calendar')
-    expect(rail.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page')
-  })
+      expect(await rail.findByRole('link', { name: 'Hộp thư, 7 chưa đọc' })).toHaveAttribute('href', '/inbox')
+      expect(rail.getByRole('link', { name: 'Tin nhắn, 5 chưa đọc' })).toHaveAttribute('href', '/messages')
+      expect(rail.getByRole('link', { name: 'Việc cần làm, 1 quá hạn' })).toHaveAttribute('href', '/tasks')
+      expect(rail.getByRole('link', { name: 'Tài khoản, 1 cần xử lý' })).toHaveAttribute('href', '/accounts')
+      expect(rail.getByRole('link', { name: 'Lịch' })).toHaveAttribute('href', '/calendar')
+      expect(rail.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page')
+    }))
 
   it('says nothing extra when nothing needs attention', async () => {
     renderApp('/overview', {
@@ -147,17 +156,18 @@ describe('rail (tablet)', () => {
 })
 
 describe('tab bar (mobile)', () => {
-  it('has the five mobile tabs of the canvas, with the unread of Tin nhắn and Hộp thư (f05c, D-301)', async () => {
-    renderApp('/overview')
-    const tabbar = within(shellPart('tabbar'))
+  it('has the five mobile tabs of the canvas, with the unread of Tin nhắn and Hộp thư (f05c, D-301)', () =>
+    atCanvasMoment(async () => {
+      renderApp('/overview')
+      const tabbar = within(shellPart('tabbar'))
 
-    expect(await tabbar.findByRole('link', { name: 'Hộp thư, 7 chưa đọc' })).toHaveAttribute('href', '/inbox')
-    expect(tabbar.getByRole('link', { name: 'Tin nhắn, 5 chưa đọc' })).toHaveAttribute('href', '/messages')
-    expect(tabbar.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page')
-    expect(tabbar.getByRole('link', { name: 'Việc, 1 quá hạn' })).toHaveAttribute('href', '/tasks')
-    expect(tabbar.getByRole('link', { name: 'Thêm' })).toHaveAttribute('href', '/more')
-    expect(tabbar.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/overview', '/messages', '/inbox', '/tasks', '/more'])
-  })
+      expect(await tabbar.findByRole('link', { name: 'Hộp thư, 7 chưa đọc' })).toHaveAttribute('href', '/inbox')
+      expect(tabbar.getByRole('link', { name: 'Tin nhắn, 5 chưa đọc' })).toHaveAttribute('href', '/messages')
+      expect(tabbar.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page')
+      expect(tabbar.getByRole('link', { name: 'Việc, 1 quá hạn' })).toHaveAttribute('href', '/tasks')
+      expect(tabbar.getByRole('link', { name: 'Thêm' })).toHaveAttribute('href', '/more')
+      expect(tabbar.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/overview', '/messages', '/inbox', '/tasks', '/more'])
+    }))
 
   it('lists Lịch first among the screens behind Thêm', async () => {
     renderApp('/more')

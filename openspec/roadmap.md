@@ -229,6 +229,14 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 - **FE:** badge/filter đa provider.
 - **Bạn sẽ học:** đánh giá API bên thứ ba, giữ core không đổi khi thêm provider.
 
+> **Hoàn thiện chat Zalo (người dùng, 2026-10-27):** "tag thành viên … ghi âm ngay trên thanh chat, quản lý file phương tiện … đặt biệt danh, lấy avatar của đối phương". Năm change, làm lần lượt, dễ trước khó sau (người dùng chọn), AUTO cho cả năm, đội ba kỹ sư làm theo dây chuyền:
+>
+> 1. `zalo-avatars`: ảnh đại diện thật của cuộc trò chuyện và người gửi (Zalo đã gửi, sino-api đã lưu; web chưa vẽ).
+> 2. `zalo-nicknames`: biệt danh = "tên gợi nhớ" của Zalo, đồng bộ hai chiều (`changeFriendAlias`, `getAliasList`); chỉ bạn bè chat 1-1 (người dùng chọn).
+> 3. `zalo-mentions`: gõ `@` trong nhóm để tag thành viên (`mentions` của `sendMessage`), tô tên mình khi bị tag; cần danh sách thành viên nhóm.
+> 4. `zalo-media-library`: đọc tin thoại, video, link (hôm nay thoại chỉ là `[Tin nhắn thoại]`), rồi kho Ảnh/Video, File, Link, Âm thanh của mỗi cuộc trò chuyện, từ tin Sino đã lưu; tin trước lúc kết nối thì không có (người dùng chọn).
+> 5. `zalo-voice-messages`: ghi âm trên thanh chat và gửi (`uploadAttachment` + `sendVoice`); thử định dạng trước trên nick phụ (trình duyệt ghi webm/opus, tin thoại Zalo là m4a).
+
 #### F10 — Send Message · ~M
 
 - **BE:** `POST /api/conversations/{id}/messages`; kiểm tra capability trước khi gửi (FR-06); **idempotency key** chống gửi trùng khi retry; message outbound `PENDING → SENT/FAILED`; map `ProviderException` ra HTTP; Gmail send (MIME, header threading `In-Reply-To`/`References`); event `MessageSent`.
@@ -276,6 +284,7 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 
 > **Nhiều sản phẩm Sino (người dùng, 2026-10-13):** "sau này sẽ có nhiều sino khác nên tôi muốn cái landing page này là chung cho các sino luôn và admin cũng tương tự".
 > - **Landing chung:** `apps/sino-site` là site của cả nhà Sino. `/` là trang thương hiệu; mỗi sản phẩm một trang (`/messages` cho Sino Messages, là App home page khai với Google); Privacy/Terms chung, mỗi sản phẩm một mục (`site-public-pages` D-253, D-254).
+>   - **Tạm bỏ 2026-10-27 (người dùng):** xóa `apps/sino-site` (bản cuối ở tag `sino-site-v0`). Trước mắt `sino-web` lo trang giới thiệu Sino Messages và Privacy; site chung của nhà Sino dựng lại khi có sản phẩm thứ hai.
 > - **Admin chung:** `apps/sino-admin` (khi làm) là admin của mọi sản phẩm, mỗi sản phẩm một mục. Dữ liệu của mỗi sản phẩm ở lại backend của sản phẩm đó và đọc qua `/api/admin/**` của nó (như `sino-api` đã có); admin không đọc thẳng database.
 > - **Backend chung (nền tảng):** đăng nhập một lần cho mọi sản phẩm và cho admin (OIDC; ưu tiên Keycloak hoặc dịch vụ có sẵn hơn tự viết), danh sách sản phẩm, có thể cả nội dung landing. Dựng khi sản phẩm thứ hai bắt đầu, vì hôm nay chưa có gì dùng chung để đặt vào đó.
 > - **Câu còn mở:** các sản phẩm có dùng chung tài khoản người dùng không (một tài khoản Sino cho mọi sản phẩm). Trả lời trước khi dựng backend chung.

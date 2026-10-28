@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/pages/messages/MessagesPage.tsx (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/pages/messages/MessagesPage.tsx (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 import { FadeContent } from '../motion/FadeContent'
 import { Band } from './Band'
 import { Faq } from './Faq'

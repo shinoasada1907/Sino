@@ -9,6 +9,7 @@ const item: ConversationItem = {
   provider: 'gmail',
   kind: 'EMAIL',
   title: 'Trần Minh Anh',
+  avatarUrl: null,
   subject: 'Hợp đồng quý 4',
   memberCount: null,
   snippetFrom: null,

@@ -22,6 +22,7 @@ import {
   linkedMeta,
   mailSender,
   mailTime,
+  memberAvatar,
   memberPlaceholder,
   newMailText,
   notArrivedSince,
@@ -59,6 +60,7 @@ function item(extra: Partial<ConversationItem>): ConversationItem {
     provider: 'gmail',
     kind: 'EMAIL',
     title: 'Trần Minh Anh',
+    avatarUrl: null,
     subject: 'Hợp đồng',
     memberCount: null,
     snippetFrom: null,
@@ -339,9 +341,20 @@ describe('the open conversation', () => {
   })
 
   it('gives each member of a group the placeholder of their place, anyone else the striped one', () => {
-    const members = ['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => ({ name, owner: false, joinedRecently: false }))
+    const members = ['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => ({ name, avatarUrl: null, owner: false, joinedRecently: false }))
     expect(['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => memberPlaceholder(name, members))).toEqual(['a', 'd', 'c', 'b', 'a'])
     expect(memberPlaceholder('Lê Hoàng', null)).toBe('c')
+  })
+
+  it('finds the picture of a group member by name; someone not in the list, without a picture or no list has none', () => {
+    const members = [
+      { name: 'Mẹ', avatarUrl: 'https://ava.example/me.jpg', owner: true, joinedRecently: false },
+      { name: 'Bố', avatarUrl: null, owner: false, joinedRecently: false },
+    ]
+    expect(memberAvatar('Mẹ', members)).toBe('https://ava.example/me.jpg')
+    expect(memberAvatar('Bố', members)).toBeNull()
+    expect(memberAvatar('Lê Hoàng', members)).toBeNull()
+    expect(memberAvatar('Mẹ', null)).toBeNull()
   })
 
   it('says an email is still sending or failed, and nothing once it went out', () => {

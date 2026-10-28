@@ -182,8 +182,8 @@ describe("GET /accounts/{accountId}/messages", () => {
         title: "Bạn A",
         avatarUrl: "https://a/8001.jpg",
         participants: [
-          { id: "8001", name: "Bạn A" },
-          { id: "7001", name: "Tôi" },
+          { id: "8001", name: "Bạn A", avatarUrl: "https://a/8001.jpg" },
+          { id: "7001", name: "Tôi", avatarUrl: null },
         ],
       },
       {
@@ -191,7 +191,7 @@ describe("GET /accounts/{accountId}/messages", () => {
         threadType: "GROUP",
         title: "Nhóm B",
         avatarUrl: null,
-        participants: [{ id: "8002", name: "Bạn C" }],
+        participants: [{ id: "8002", name: "Bạn C", avatarUrl: null }],
       },
     ]);
   });
@@ -355,6 +355,7 @@ describe("Conversations", () => {
         if (fail) throw new Error("Zalo is down");
         return { title: `Tên ${threadId}`, avatarUrl: null };
       },
+      userAvatars: async () => new Map<string, string | null>(),
     };
     return { calls, connection, breakZalo: () => (fail = true) };
   }
@@ -375,7 +376,11 @@ describe("Conversations", () => {
   });
 
   it("does not let a thread name that never comes hold the messages back", async () => {
-    const silentZalo = { threadInfo: () => new Promise<never>(() => {}) };
+    const silentZalo = {
+      ownId: "7001",
+      threadInfo: () => new Promise<never>(() => {}),
+      userAvatars: () => new Promise<never>(() => {}),
+    };
     const conversations = new Conversations(silentZalo, { accountId: "a1", log: silent, infoTimeoutMs: 20 });
 
     const [direct] = await conversations.of([message("100")]);

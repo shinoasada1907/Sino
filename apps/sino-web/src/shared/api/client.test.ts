@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { server } from '@/test/msw/server'
+import { formDataOf } from '@/test/nodeFile'
 import { api, onSessionExpired } from './client'
 import { ApiError } from './problem'
 
@@ -164,7 +165,7 @@ describe('API client uploads', () => {
     let seen: { method: string; token: string | null; type: string | null; name: unknown; file: File } | undefined
     server.use(
       http.post('/api/stickers', async ({ request }) => {
-        const form = await request.formData()
+        const form = await formDataOf(request)
         seen = {
           method: request.method,
           token: request.headers.get('X-XSRF-TOKEN'),
@@ -196,7 +197,7 @@ describe('API client uploads', () => {
       http.post('/api/stickers', async ({ request }) => {
         const token = request.headers.get('X-XSRF-TOKEN')
         calls.push(`POST ${token}`)
-        files.push(((await request.formData()).get('file') as File).size)
+        files.push(((await formDataOf(request)).get('file') as File).size)
         return token === 'token-2' ? HttpResponse.json({ id: 'st-1' }, { status: 201 }) : problem(403, { code: 'CSRF_TOKEN_INVALID' })
       }),
       http.get('/api/auth/me', () => {

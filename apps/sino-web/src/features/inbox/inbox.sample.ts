@@ -9,6 +9,7 @@ import type { ConversationDetail, ConversationItem, InboxCounts, InboxData, Mess
 export type InboxSample = InboxData & { conversations: ConversationItem[]; countsByKind: Record<ProviderKind, InboxCounts> }
 
 const base = {
+  avatarUrl: null,
   memberCount: null,
   snippetFrom: null,
   unreadCount: 0,
@@ -348,12 +349,12 @@ export function createConversationSample(conversationId: string, now: Date): Con
           { id: 'note-list', kind: 'NOTE', title: 'Danh sách mua cho bà', at: null, allDay: false, remindAt: null, pinned: true },
         ],
         members: [
-          { name: 'Mẹ', owner: true, joinedRecently: false },
-          { name: 'Bố', owner: false, joinedRecently: false },
-          { name: 'Hà', owner: false, joinedRecently: true },
-          { name: 'Minh', owner: false, joinedRecently: false },
-          { name: 'Bà ngoại', owner: false, joinedRecently: false },
-          { name: 'Ông ngoại', owner: false, joinedRecently: false },
+          { name: 'Mẹ', avatarUrl: null, owner: true, joinedRecently: false },
+          { name: 'Bố', avatarUrl: null, owner: false, joinedRecently: false },
+          { name: 'Hà', avatarUrl: null, owner: false, joinedRecently: true },
+          { name: 'Minh', avatarUrl: null, owner: false, joinedRecently: false },
+          { name: 'Bà ngoại', avatarUrl: null, owner: false, joinedRecently: false },
+          { name: 'Ông ngoại', avatarUrl: null, owner: false, joinedRecently: false },
         ],
         files: {
           total: 14,

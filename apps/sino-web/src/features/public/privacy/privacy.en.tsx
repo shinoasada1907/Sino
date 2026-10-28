@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/pages/privacy/privacy.en.tsx (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/pages/privacy/privacy.en.tsx (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 import { OwnerValue } from './OwnerValue'
 import { A, Note, P, Summary, Ul, type PolicyDoc } from './PolicyPage'
 import { GOOGLE_APP_NAME, LIMITED_USE, POLICY_URL, SCOPES } from './privacy.shared'

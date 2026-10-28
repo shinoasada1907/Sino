@@ -152,6 +152,7 @@ class ConversationsApiTests {
                 .andExpect(jsonPath("$.items[0].provider").value("gmail"))
                 .andExpect(jsonPath("$.items[0].kind").value("EMAIL"))
                 .andExpect(jsonPath("$.items[0].title").value("Alice"))
+                .andExpect(jsonPath("$.items[0].avatarUrl").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].subject").value("Báo cáo tháng 9"))
                 .andExpect(jsonPath("$.items[0].memberCount").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].snippetFrom").value(nullValue()))
@@ -168,9 +169,9 @@ class ConversationsApiTests {
 
         Map<String, Object> item = JsonPath.read(body, "$.items[0]");
         assertThat(item.keySet()).as("no message text beyond the snippet, no HTML").containsExactlyInAnyOrder("id",
-                "accountId", "accountIds", "provider", "kind", "title", "subject", "memberCount", "snippetFrom",
-                "snippet", "lastMessageAt", "unreadCount", "needsReply", "hasAttachments", "archived", "snooze",
-                "scheduledSend", "linked");
+                "accountId", "accountIds", "provider", "kind", "title", "avatarUrl", "subject", "memberCount",
+                "snippetFrom", "snippet", "lastMessageAt", "unreadCount", "needsReply", "hasAttachments", "archived",
+                "snooze", "scheduledSend", "linked");
     }
 
     @Test
@@ -187,6 +188,71 @@ class ConversationsApiTests {
                 .andExpect(jsonPath("$.items[0].subject").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].memberCount").value(3))
                 .andExpect(jsonPath("$.items[0].snippetFrom").value("Bob"));
+    }
+
+    @Test
+    void aChatShowsItsPictureAndMailNeverDoes() throws Exception {
+        UUID zalo = connect(owner, "zalo", "100000000000000001");
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        NormalizedParticipant bob = new NormalizedParticipant("bob", "Bob", "https://ava.zalo.test/bob.jpg", false);
+        store(zalo, new NormalizedConversation("direct", ConversationType.DIRECT, "Bob",
+                "https://ava.zalo.test/bob.jpg", List.of(bob, OWNER), THURSDAY), message("direct", "m-1",
+                MessageDirection.INBOUND, "bob", THURSDAY, "Chào", false, Map.of()));
+        store(zalo, new NormalizedConversation("group", ConversationType.GROUP, "Nhóm", "https://ava.zalo.test/g.jpg",
+                List.of(bob, OWNER), WEDNESDAY), message("group", "m-1", MessageDirection.INBOUND, "bob", WEDNESDAY,
+                "Họp", false, Map.of()));
+        store(zalo, new NormalizedConversation("plain", ConversationType.DIRECT, "Lan", null, List.of(OWNER), TUESDAY),
+                message("plain", "m-1", MessageDirection.INBOUND, "lan", TUESDAY, "Hi", false, Map.of()));
+        // Gmail never stores a picture; even if a row had one, a mail thread has none to show (D-411).
+        store(gmail, new NormalizedConversation("mail", ConversationType.THREAD, "Báo cáo", "https://mail.test/x.png",
+                List.of(ALICE, OWNER), MONDAY), message("mail", "m-1", MessageDirection.INBOUND, "alice@example.test",
+                MONDAY, "Thư", false, Map.of()));
+
+        String body = mvc.perform(get("/api/conversations").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].kind").value("CHAT"))
+                .andExpect(jsonPath("$.items[0].avatarUrl").value("https://ava.zalo.test/bob.jpg"))
+                .andExpect(jsonPath("$.items[1].avatarUrl").value("https://ava.zalo.test/g.jpg"))
+                .andExpect(jsonPath("$.items[2].avatarUrl").value(nullValue()))
+                .andExpect(jsonPath("$.items[3].kind").value("EMAIL"))
+                .andExpect(jsonPath("$.items[3].avatarUrl").value(nullValue()))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<Map<String, Object>>read(body, "$.items[2]")).as("null, not left out")
+                .containsKey("avatarUrl");
+
+        mvc.perform(get("/api/conversations/{id}", conversationId(zalo, "group")).with(apiUser()))
+                .andExpect(jsonPath("$.avatarUrl").value("https://ava.zalo.test/g.jpg"))
+                .andExpect(jsonPath("$.participants[0].avatarUrl").value("https://ava.zalo.test/bob.jpg"));
+        mvc.perform(get("/api/conversations/{id}", conversationId(zalo, "plain")).with(apiUser()))
+                .andExpect(jsonPath("$.avatarUrl").value(nullValue()));
+        mvc.perform(get("/api/conversations/{id}", conversationId(gmail, "mail")).with(apiUser()))
+                .andExpect(jsonPath("$.avatarUrl").value(nullValue()));
+        mvc.perform(patch("/api/conversations/{id}", conversationId(zalo, "direct")).with(apiUser()).with(csrf())
+                .contentType(APPLICATION_JSON).content("{\"read\": true}"))
+                .andExpect(jsonPath("$.avatarUrl").value("https://ava.zalo.test/bob.jpg"));
+    }
+
+    @Test
+    void aPictureStaysWhenALaterPageGivesNone() throws Exception {
+        UUID zalo = connect(owner, "zalo", "100000000000000001");
+        NormalizedParticipant withPicture = new NormalizedParticipant("bob", "Bob", "https://ava.zalo.test/bob.jpg",
+                false);
+        store(zalo, new NormalizedConversation("group", ConversationType.GROUP, "Nhóm", "https://ava.zalo.test/g.jpg",
+                List.of(withPicture, OWNER), TUESDAY), message("group", "m-1", MessageDirection.INBOUND, "bob",
+                TUESDAY, "Họp", false, Map.of()));
+
+        NormalizedParticipant without = new NormalizedParticipant("bob", "Bob", null, false);
+        store(zalo, new NormalizedConversation("group", ConversationType.GROUP, "Nhóm", null, List.of(without, OWNER),
+                WEDNESDAY), message("group", "m-2", MessageDirection.INBOUND, "bob", WEDNESDAY, "Nhớ nhé", false,
+                Map.of()));
+
+        UUID id = conversationId(zalo, "group");
+        mvc.perform(get("/api/conversations/{id}", id).with(apiUser()))
+                .andExpect(jsonPath("$.avatarUrl").value("https://ava.zalo.test/g.jpg"))
+                .andExpect(jsonPath("$.participants[0].externalId").value("bob"))
+                .andExpect(jsonPath("$.participants[0].avatarUrl").value("https://ava.zalo.test/bob.jpg"));
+        mvc.perform(get("/api/conversations").with(apiUser()))
+                .andExpect(jsonPath("$.items[0].avatarUrl").value("https://ava.zalo.test/g.jpg"));
     }
 
     @ParameterizedTest

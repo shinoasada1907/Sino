@@ -1,4 +1,4 @@
-// Copied from apps/sino-site/src/pages/messages/Planning.tsx (web-public-pages, D-312); change both together.
+// Copied from apps/sino-site/src/pages/messages/Planning.tsx (web-public-pages, D-312); the only copy since sino-site was removed (tag sino-site-v0).
 import { Check, ChevronRight, Plus, Repeat, SquareCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
