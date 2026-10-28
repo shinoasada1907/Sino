@@ -42,7 +42,11 @@
 
 ## 2. Nghiệm thu
 
-- [ ] 2.1 **AV-20 — Chạy thật với Zalo, tài liệu, kết thúc** · quản lý, có người dùng
+- [x] 2.1 **AV-20 — Chạy thật với Zalo, tài liệu, kết thúc** · quản lý, có người dùng
   - **Goal:** chứng minh cả luồng trên máy người dùng, ghi lại, archive.
   - **Acceptance criteria:** với tài khoản Zalo của người dùng: danh sách có ảnh của chat 1-1 và nhóm; trong một nhóm, tin mới của vài thành viên có ảnh của họ sau một lần đồng bộ; mục Thành viên có ảnh; một người không có ảnh hiện vòng thay thế. Ghi chỗ khác canvas (DN-1 = A thì ghi vào canvas cùng đợt vẽ của `zalo-mentions`).
   - **Files:** `docs/knowledge/phase-5-multi-provider-send.md` (mục mới từ phần Kiến thức trong báo cáo của ba kỹ sư) và `.docx` sinh lại, `genoffice docs check`; `PROJECT_STATE.md`; `openspec archive zalo-avatars -y`.
+  - **Chạy thật (2026-10-28, quản lý, máy người dùng; sino-api từ IntelliJ, sino-zalo và web từ terminal của người dùng, PostgreSQL trong Docker):** người dùng kết nối Zalo bằng QR lúc 17:45:56 UTC (DB trống trước đó). Đối chiếu DB và bộ đệm `GET /accounts/:id/messages` của sino-zalo (chỉ in mã băm của ID, không tên, không nội dung): chat 1-1 có `avatar_url` `https://s120-26-ava-talk.zadn.vn/…`, người kia trong `participants` có ảnh; nhóm có ảnh riêng `https://ava-grp-talk.zadn.vn/…`; chính tài khoản `avatarUrl: null` (D-409). **Đạt:** cả đường sino-zalo → sino-api → DB với Zalo thật, ảnh `https` (D-413).
+  - **CHƯA KIỂM CHỨNG (người dùng chọn kết thúc AV-20 mà không chờ, 2026-10-28: "Kết thúc AV-20, ghi phần ảnh thành viên nhóm là chưa kiểm chứng, archive và trình nghiệm thu"):** ảnh của thành viên nhóm qua `getUserInfo([…])` (khóa `<id>` hay `<id>_0`, giới hạn số ID): từ lúc kết nối, nhóm mới có một tin của chính người dùng, chưa có tin của thành viên khác; nhóm không có ảnh riêng (chồng 3 ảnh); độ nét. Người dùng báo đã xem trên web nhưng phần mô tả bị cắt.
+  - **Tài liệu:** mục 27 của `docs/knowledge/phase-5-multi-provider-send.md` đã viết; `.docx` sinh lại sau khi người dùng cài GenOffice 0.11.0 (`sudo apt install …deb`); `genoffice docs check` 0 lỗi, 1 cảnh báo cũ ngoài mục 27 (khối YAML của CI `branches: [main, dev, …]` bị nhận là chỗ trống).
+  - **Kết thúc:** `openspec archive zalo-avatars -y` 2026-10-28; ba spec mới gộp vào `openspec/specs/`. Ảnh thành viên nhóm sẽ tự lộ khi dùng: tin của thành viên mà không có ảnh là dấu hiệu `getUserInfo([…])` trả khóa khác hay bị giới hạn (xem `Known issues` trong `PROJECT_STATE.md`).
