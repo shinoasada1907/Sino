@@ -39,7 +39,7 @@ Người dùng chỉ đạo và giám sát. Phiên quản lý đưa ra đề án
 | Kỹ sư frontend | Phiên `sino-web` · `.claude/agents/sino-web.md` | `apps/sino-web` |
 | Kỹ sư Zalo | Phiên `sino-zalo` · `.claude/agents/sino-zalo.md` | `apps/sino-zalo` |
 
-Kỹ sư chạy model Sonnet (người dùng, 2026-10-27): `model: sonnet` trong file vai trò, và phiên kỹ sư được mở với Sonnet. Phiên quản lý dùng model người dùng chọn.
+Model và effort (người dùng, 2026-10-27, cập nhật 2026-11-01): kỹ sư chạy Sonnet, effort medium (`model: sonnet`, `effort: medium` trong file vai trò; phiên kỹ sư mở riêng cũng chọn như vậy). Phiên quản lý chạy Opus, effort medium. Chỉ khi bài toán rất phức tạp, phải suy luận sâu mới ra lời giải, quản lý mới đề nghị người dùng tăng lên `xhigh`; xong việc đó thì quay lại medium.
 
 Một phiên mở với brief "Bạn là kỹ sư …" là phiên kỹ sư: nó theo file vai trò của nó và *Luật chung cho kỹ sư* dưới đây, không làm việc của quản lý.
 
