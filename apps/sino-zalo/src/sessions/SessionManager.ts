@@ -154,6 +154,14 @@ export class SessionManager {
   }
 
   /**
+   * The account's live connection, for the alias routes (zalo-nicknames, NK-01): throws UnknownAccountError or
+   * SessionEndedError when there is no live session, which the alias routes both answer as `409` (D-415).
+   */
+  connectionOf(accountId: string): ZaloConnection {
+    return this.liveSession(accountId).connection;
+  }
+
+  /**
    * Up to `limit` buffered messages after the cursor, with their conversations. A cursor older than
    * the buffer first brings in what Zalo kept since then (D-278).
    */

@@ -145,6 +145,12 @@ export interface ThreadInfo {
   readonly avatarUrl: string | null;
 }
 
+/** A friend's nickname (zalo-nicknames, D-415): the friend's id and the alias the account owner gave them. */
+export interface ZaloAlias {
+  readonly friendId: string;
+  readonly alias: string;
+}
+
 /** What a listener reports. `closed` follows every close of the websocket, a stop asked for included. */
 export interface ListenerEvents {
   connected(): void;
@@ -197,6 +203,19 @@ export interface ZaloConnection {
    * does not answer.
    */
   stickerArt(stickerId: string, catId?: string): Promise<ZaloStickerArt | null>;
+  /**
+   * Sets a friend's nickname (zalo-nicknames, D-415, `changeFriendAlias`). Throws ZaloRejectedError when Zalo
+   * refuses it (for instance the friend is not a friend, or the name is not valid); ZaloUnavailableError when
+   * Zalo does not answer or fails in a way that says nothing about it.
+   */
+  setAlias(friendId: string, alias: string): Promise<void>;
+  /** Removes a friend's nickname (`removeFriendAlias`). Same errors as `setAlias`. */
+  removeAlias(friendId: string): Promise<void>;
+  /**
+   * Every nickname Zalo knows for this account's friends, every page of `getAliasList` joined into one list.
+   * Throws ZaloUnavailableError when Zalo does not answer.
+   */
+  aliasList(): Promise<ZaloAlias[]>;
 }
 
 /** Everything sino-zalo asks of Zalo. Tests use FakeZaloGateway and never reach Zalo. */

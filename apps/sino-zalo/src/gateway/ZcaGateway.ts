@@ -15,6 +15,7 @@ import {
   SessionRejectedError,
   type ThreadInfo,
   type ThreadType,
+  type ZaloAlias,
   type ZaloConnection,
   type ZaloGateway,
   type ZaloFile,
@@ -169,7 +170,64 @@ export class ZcaGateway implements ZaloGateway {
           throw new ZaloUnavailableError(reasonOf(error));
         }
       },
+      setAlias: async (friendId, alias) => {
+        try {
+          await api.changeFriendAlias(alias, friendId);
+        } catch (error) {
+          throw aliasErrorOf(error);
+        }
+      },
+      removeAlias: async (friendId) => {
+        try {
+          await api.removeFriendAlias(friendId);
+        } catch (error) {
+          throw aliasErrorOf(error);
+        }
+      },
+      aliasList: async () => {
+        try {
+          // `await` here, or a rejection would pass the catch below.
+          return await aliasListOf(api);
+        } catch (error) {
+          throw aliasErrorOf(error);
+        }
+      },
     };
+  }
+}
+
+/**
+ * A Zalo error with a code is a refusal (D-415, same test as `deliver` for a send): not a friend, an alias Zalo
+ * does not accept. Any other failure (no answer, a 5xx, an answer it cannot read) says nothing about the alias.
+ */
+function aliasErrorOf(error: unknown): Error {
+  if (error instanceof ZaloApiError && error.code !== null) {
+    return new ZaloRejectedError(reasonOf(error));
+  }
+  return new ZaloUnavailableError(reasonOf(error));
+}
+
+/**
+ * Every nickname Zalo knows for this account's friends, every page of `getAliasList` joined (D-415). zca-js puts
+ * no limit on the page size itself: `getAliasList.js` passes `count` straight into the request with no clamp, so
+ * the real maximum Zalo's server accepts is not known from the code (NK-01). sino-zalo asks for zca-js's own
+ * documented default of 100 per page, a value already known to work, and stops once a page comes back with fewer
+ * items than that: this assumes Zalo never answers a non-final page with fewer items than asked for, which is the
+ * usual shape of such an API but is not confirmed against a real account with more than 100 friends (NK-20).
+ */
+export async function aliasListOf(api: Pick<API, "getAliasList">): Promise<ZaloAlias[]> {
+  const pageSize = 100;
+  const items: ZaloAlias[] = [];
+  let page = 1;
+  for (;;) {
+    const response = await api.getAliasList(pageSize, page);
+    for (const item of response.items) {
+      items.push({ friendId: item.userId, alias: item.alias });
+    }
+    if (response.items.length < pageSize) {
+      return items;
+    }
+    page++;
   }
 }
 

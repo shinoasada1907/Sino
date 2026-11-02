@@ -10,6 +10,7 @@ import { registerLoginRoutes } from "./logins/routes.ts";
 import { registerReadRoutes } from "./messages/readRoutes.ts";
 import { registerSendRoutes } from "./messages/sendRoutes.ts";
 import { type Notifier, WebhookNotifier } from "./notify.ts";
+import { registerAliasRoutes } from "./sessions/aliasRoutes.ts";
 import { SessionManager } from "./sessions/SessionManager.ts";
 import { registerSessionRoutes } from "./sessions/routes.ts";
 
@@ -45,6 +46,7 @@ export function buildApp(
   registerSessionRoutes(app, sessions);
   registerReadRoutes(app, sessions);
   registerSendRoutes(app, sessions, { now: options.now, sendTimeoutMs: options.sendTimeoutMs });
+  registerAliasRoutes(app, sessions, { now: options.now });
 
   return app;
 }

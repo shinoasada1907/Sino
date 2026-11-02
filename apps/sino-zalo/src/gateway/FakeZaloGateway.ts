@@ -1,4 +1,5 @@
 import {
+  type ZaloAlias,
   type ListenerEvents,
   type QrLoginEvents,
   type QrLoginHandle,
@@ -160,6 +161,39 @@ export class FakeConnection implements ZaloConnection {
     }
     return this.zalo.stickerArts.get(stickerId) ?? null;
   }
+
+  async setAlias(friendId: string, alias: string): Promise<void> {
+    this.zalo.aliasWrites.push({ op: "set", friendId, alias });
+    await this.settleAliasWrite(() => this.zalo.aliases.set(friendId, alias));
+  }
+
+  async removeAlias(friendId: string): Promise<void> {
+    this.zalo.aliasWrites.push({ op: "remove", friendId });
+    await this.settleAliasWrite(() => this.zalo.aliases.delete(friendId));
+  }
+
+  async aliasList(): Promise<ZaloAlias[]> {
+    this.zalo.aliasListCalls++;
+    await Promise.resolve();
+    if (this.zalo.aliasesUnavailable) {
+      throw new ZaloUnavailableError("TypeError: fetch failed");
+    }
+    return [...this.zalo.aliases].map(([friendId, alias]) => ({ friendId, alias }));
+  }
+
+  /** What Zalo does with the alias write just recorded, as `nextAliasWrite` and `aliasesUnavailable` say. */
+  private async settleAliasWrite(apply: () => void): Promise<void> {
+    const outcome = this.zalo.nextAliasWrite;
+    this.zalo.nextAliasWrite = "accept";
+    await Promise.resolve();
+    if (this.zalo.aliasesUnavailable) {
+      throw new ZaloUnavailableError("TypeError: fetch failed");
+    }
+    if (outcome === "reject") {
+      throw new ZaloRejectedError("ZcaApiError: Not a friend");
+    }
+    apply();
+  }
 }
 
 /** ZaloGateway for tests: the test plays Zalo by calling the events of a login. */
@@ -196,6 +230,16 @@ export class FakeZaloGateway implements ZaloGateway {
   nextSend: "accept" | "reject" | "fail" | "hold" = "accept";
   nextMsgId = 9000;
   readonly heldSends: ((outcome: "accept" | "reject") => void)[] = [];
+  /** The nickname Zalo has for each friend id (zalo-nicknames, D-415), as PUT/DELETE and GET see it. */
+  readonly aliases = new Map<string, string>();
+  /** Every alias write tried, refused or not, in order. */
+  readonly aliasWrites: { op: "set" | "remove"; friendId: string; alias?: string }[] = [];
+  /** What Zalo does with the next alias write (PUT or DELETE): take it, or refuse it. One-shot, like `nextSend`. */
+  nextAliasWrite: "accept" | "reject" = "accept";
+  /** Whether the next alias write or read fails as Zalo being unreachable (502), instead of running as above. */
+  aliasesUnavailable = false;
+  /** How many times `GET /accounts/:id/aliases` actually asked Zalo (not answered from sino-zalo's own cache). */
+  aliasListCalls = 0;
 
   /** Zalo answers the sends it held: takes them, or refuses them. */
   releaseHeldSends(outcome: "accept" | "reject" = "accept"): void {
