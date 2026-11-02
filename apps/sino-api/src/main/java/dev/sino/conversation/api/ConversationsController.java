@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import tools.jackson.databind.JsonNode;
+
 import dev.sino.conversation.application.InboxCounts;
 import dev.sino.conversation.application.InboxCursor;
 import dev.sino.conversation.application.InboxPage;
@@ -66,11 +68,14 @@ class ConversationsController {
         return ConversationDetailResponse.from(inbox.detail(currentUser.requireOwnerId(), id));
     }
 
-    /** Fields that are not given stay as they are, but one must be. Never sent to the provider (D-67). */
+    /**
+     * Fields that are not given stay as they are, but one must be. {@code read} and {@code archived} are never sent
+     * to the provider (D-67); {@code nickname} is the exception (zalo-nicknames, D-416).
+     */
     @PatchMapping("/{id}")
     ConversationResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateConversationRequest request) {
         return ConversationResponse.from(inbox.change(currentUser.requireOwnerId(), id, request.read(),
-                request.archived()));
+                request.archived(), request.nicknameGiven(), request.nicknameValue()));
     }
 
     record ConversationPageResponse(List<ConversationResponse> items, String nextCursor) {
@@ -81,11 +86,51 @@ class ConversationsController {
             long scheduled, long snoozed) {
     }
 
-    record UpdateConversationRequest(Boolean read, Boolean archived) {
+    /**
+     * {@code nickname} is typed {@link JsonNode}, not {@code String} (D-421): Jackson leaves a field the body does
+     * not name as Java {@code null}, but reads an explicit {@code "nickname": null} as a node that {@link #isNull()}
+     * says so, which is how {@link #nicknameGiven()} tells "not sent" from "sent null" (D-416) without a separate
+     * flag in the body.
+     */
+    record UpdateConversationRequest(Boolean read, Boolean archived, JsonNode nickname) {
 
-        @AssertTrue(message = "read or archived must be given")
+        /** The longest nickname Sino takes until NK-01 reports Zalo's real limit (D-414, agent chốt). */
+        static final int MAX_NICKNAME_LENGTH = 50;
+
+        private static final java.util.regex.Pattern CONTROL_CHARACTERS = java.util.regex.Pattern.compile("\\p{Cc}");
+
+        @AssertTrue(message = "read, archived or nickname must be given")
         boolean isChange() {
-            return read != null || archived != null;
+            return read != null || archived != null || nicknameGiven();
+        }
+
+        @AssertTrue(message = "nickname must be a string of at most 50 characters, or null")
+        boolean isNicknameShaped() {
+            if (!nicknameGiven() || nickname.isNull()) {
+                return true;
+            }
+            return nickname.isString()
+                    && normalize(nickname.stringValue()).codePointCount(0, normalize(nickname.stringValue()).length())
+                            <= MAX_NICKNAME_LENGTH;
+        }
+
+        /** Whether {@code nickname} was in the body at all; see the class note. */
+        boolean nicknameGiven() {
+            return nickname != null;
+        }
+
+        /** The normalized nickname, or {@code null} to clear it (D-414); meaningless unless {@link #nicknameGiven()}. */
+        String nicknameValue() {
+            if (nickname == null || nickname.isNull() || !nickname.isString()) {
+                return null;
+            }
+            String normalized = normalize(nickname.stringValue());
+            return normalized.isEmpty() ? null : normalized;
+        }
+
+        // Trimmed, control characters removed (D-414); Zalo's own limit is unconfirmed, so this stops short of it.
+        private static String normalize(String raw) {
+            return CONTROL_CHARACTERS.matcher(raw.strip()).replaceAll("");
         }
 
     }

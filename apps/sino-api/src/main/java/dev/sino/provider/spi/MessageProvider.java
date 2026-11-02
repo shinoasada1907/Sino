@@ -66,6 +66,14 @@ public interface MessageProvider {
     }
 
     /**
+     * Nicknames of the provider's friends, or empty when it has none (zalo-nicknames, D-417). Present only with
+     * {@link ProviderCapability#NICKNAMES}.
+     */
+    default Optional<Nicknames> nicknames() {
+        return Optional.empty();
+    }
+
+    /**
      * False while the connector's own switch is off (D-286). It stays in the registry, so its accounts and their
      * stored messages stay readable, but it cannot be connected and every call out fails with
      * {@link ProviderErrorCode#PROVIDER_UNAVAILABLE}.

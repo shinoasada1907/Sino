@@ -205,6 +205,35 @@ class ZaloClient {
     }
 
     /**
+     * Sets the nickname of a friend at sino-zalo (zalo-nicknames, D-415); sino-zalo answers 204 once Zalo agreed.
+     * Unlike the message routes, sino-zalo answers no live session with one code for both an unknown account and an
+     * ended session, {@code 409 NO_SESSION} (NK-01): {@link #inSession} still hands the stored session over and
+     * retries once, through {@link Call#ALIAS}.
+     */
+    void putAlias(ProviderContext context, String friendId, String alias) {
+        UUID accountId = accountIdOf(context);
+        inSession(context, Call.ALIAS, () -> reading.put().uri(ACCOUNT + "/aliases/{friendId}", accountId, friendId)
+                .contentType(MediaType.APPLICATION_JSON).body(Map.of("alias", alias)).retrieve().toBodilessEntity());
+    }
+
+    /** Clears the nickname of a friend at sino-zalo (D-415); 204 also when it held none. */
+    void deleteAlias(ProviderContext context, String friendId) {
+        UUID accountId = accountIdOf(context);
+        inSession(context, Call.ALIAS, () -> reading.delete().uri(ACCOUNT + "/aliases/{friendId}", accountId, friendId)
+                .retrieve().toBodilessEntity());
+    }
+
+    /**
+     * Every nickname sino-zalo holds for the account's friends (D-415, D-418): sino-zalo lifts the paging and the
+     * 60 s memory of {@code getAliasList} itself, so this is one call.
+     */
+    List<AliasItem> aliases(ProviderContext context) {
+        UUID accountId = accountIdOf(context);
+        return inSession(context, Call.ALIAS, () -> answer(reading.get().uri(ACCOUNT + "/aliases", accountId)
+                .retrieve().body(AliasPage.class)).items());
+    }
+
+    /**
      * Zalo's IDs of the messages that may be the one sent with {@code clientMessageId}; empty only when sino-zalo
      * knows it did not go out.
      *
@@ -300,6 +329,11 @@ class ZaloClient {
         if (kind != Call.SESSION && status == 410 && "SESSION_ENDED".equals(code)) {
             return new NoSession(true);
         }
+        // The alias routes answer no live session (unknown account or an ended one) with one code, D-423: sino-zalo
+        // does not say which, so a retry that fails again is told as "lost", not "ended" (NK-01).
+        if (kind == Call.ALIAS && status == 409 && "NO_SESSION".equals(code)) {
+            return new NoSession(false);
+        }
         if (status == 429) {
             return ProviderException.rateLimited("sino-zalo sends at most one message a second per account (429)",
                     null);
@@ -390,7 +424,7 @@ class ZaloClient {
     }
 
     private enum Call {
-        READ, SEND, SESSION
+        READ, SEND, SESSION, ALIAS
     }
 
     // sino-zalo holds no session for the account (404) or an ended one (410): never leaves this class.
@@ -490,6 +524,20 @@ class ZaloClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record Found(List<String> msgIds) {
+    }
+
+    /** The account's nicknames (zalo-nicknames, D-415), every page sino-zalo already lifted into one answer. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record AliasPage(List<AliasItem> items) {
+
+        AliasPage {
+            items = withoutNulls(items);
+        }
+
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record AliasItem(String friendId, String alias) {
     }
 
     /**

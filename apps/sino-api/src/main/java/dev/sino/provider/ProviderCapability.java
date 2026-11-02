@@ -39,6 +39,12 @@ public enum ProviderCapability {
     PUSH_WEBHOOK,
 
     /** The provider groups messages into threads or reply chains. */
-    THREADS
+    THREADS,
+
+    /**
+     * A 1-1 chat can be given a nickname at the provider (zalo-nicknames, D-414, D-417): {@code nicknames()} is
+     * then present.
+     */
+    NICKNAMES
 
 }

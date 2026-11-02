@@ -20,6 +20,7 @@ public class SendingProviders {
     public static final String READER = "fake-read";
     public static final String CHAT = "fake-chat";
     public static final String PICTURE_CHAT = "fake-picture-chat";
+    public static final String NICK_CHAT = "fake-nick-chat";
     public static final String READ_SCOPE = "mail.read";
     public static final String SEND_SCOPE = "mail.send";
     // The Google client MAIL connects with; fake values, not secrets.
@@ -57,6 +58,13 @@ public class SendingProviders {
         return FakeMessageProvider.builder(CHAT)
                 .capabilities(ProviderCapability.READ_MESSAGES, ProviderCapability.SEND_MESSAGES)
                 .build();
+    }
+
+    /** Declares {@code NICKNAMES} (zalo-nicknames, D-417), with no nickname set at the start of each test. */
+    @Bean
+    FakeMessageProvider nickChatProvider() {
+        return FakeMessageProvider.builder(NICK_CHAT).capabilities(ProviderCapability.READ_MESSAGES)
+                .nicknames(Map.of()).build();
     }
 
 }

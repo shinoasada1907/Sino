@@ -21,6 +21,7 @@ import dev.sino.provider.spi.AttachmentContent;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
+import dev.sino.provider.spi.Nicknames;
 import dev.sino.provider.spi.OutgoingFile;
 import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderContext;
@@ -64,11 +65,13 @@ class ZaloProvider implements MessageProvider {
             ProviderCapability.SEND_IMAGES,
             ProviderCapability.SEND_FILES,
             ProviderCapability.ATTACHMENTS,
-            ProviderCapability.PUSH_WEBHOOK);
+            ProviderCapability.PUSH_WEBHOOK,
+            ProviderCapability.NICKNAMES);
 
     private final boolean turnedOn;
     private final ZaloClient client;
     private final ZaloQrLogin qrLogin;
+    private final ZaloNicknames nicknames;
     private final ZaloFileDownloads files = new ZaloFileDownloads();
 
     ZaloProvider(ZaloProperties properties) {
@@ -80,6 +83,7 @@ class ZaloProvider implements MessageProvider {
         this.turnedOn = turnedOn;
         this.client = client;
         this.qrLogin = new ZaloQrLogin(client);
+        this.nicknames = new ZaloNicknames(client);
     }
 
     @Override
@@ -115,6 +119,11 @@ class ZaloProvider implements MessageProvider {
     @Override
     public Optional<QrLogin> qrLogin() {
         return Optional.of(qrLogin);
+    }
+
+    @Override
+    public Optional<Nicknames> nicknames() {
+        return Optional.of(nicknames);
     }
 
     @Override
