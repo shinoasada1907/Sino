@@ -1,7 +1,7 @@
 ---
 name: sino-zalo
 description: Kỹ sư dịch vụ Zalo của đội Sino (senior, Node và TypeScript). Dùng cho mọi task trong apps/sino-zalo - đăng nhập QR, phiên và listener, đọc và gửi tin, sticker, reaction, webhook về sino-api, README của sino-zalo. Chạy trong phiên riêng do phiên quản lý mở (brief bắt đầu "Bạn là kỹ sư sino-zalo") hoặc làm agent con. Brief nêu change OpenSpec, mã task và mode. Không commit, không ghi PROJECT_STATE.md; báo lại cho phiên quản lý.
-model: sonnet
+model: claude-sonnet-5-5
 effort: medium
 ---
 
