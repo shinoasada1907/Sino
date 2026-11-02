@@ -45,7 +45,8 @@
     - ~~File kiến thức `docs/knowledge/phase-2-one-provider.md` + `.docx`~~ chưa viết. **LÝ DO:** BE-110 chạy TRAINING; theo `CLAUDE.md`, ở TRAINING file kiến thức chỉ viết khi người dùng yêu cầu.
   - **Bằng chứng (2026-10-16):** đỏ trước từng bước: bước 2 `isAnEmailProvider` không biên dịch (chưa có `kind()`); bước 3 lỗi chuyển sang 10 connector giả "does not override abstract method kind()"; bước 5 `ProviderDescriptor::kind` không biên dịch; bước 6 constructor 3 tham số không khớp; bước 7 `$[0].*` 3 thay vì 4 trường; bước 8 thông báo `kind must not be null` không có tên class. Người dùng chạy trong IntelliJ: từng test xanh sau mỗi bước, toàn bộ test backend xanh sau bước 7. Sau khi sửa các lưu ý cuối (import `*` ở 6 file test, import thừa và Javadoc của `ProviderResponse`, Javadoc `ProviderKind`, ba dòng quá 120 ký tự, thứ tự kiểm `null`, import và dấu cách trong `GmailProviderTests`, README), Claude chạy `./mvnw -B -ntp test` trong worktree riêng: 1520 test, 0 failure, 0 error, `BUILD SUCCESS` (5 phút 21 giây); `ProvidersControllerTests` 3, `DefaultProviderRegistryTests` 14, `GmailProviderTests` 12, `ProviderDescriptorTests` 3, đều xanh; `-DskipTests verify` đóng gói được jar. Worktree đã xóa.
 
-- [ ] 2.2 **BE-111 — API theo loại (D-307, D-308)**
+- [ ] 2.2 ~~**BE-111 — API theo loại (D-307, D-308)**~~ **Chuyển sang `messages-by-account` MA-02.**
+  - **LÝ DO (2026-11-02, người dùng duyệt):** task này bị bỏ quên từ khi web làm trước trên dữ liệu mẫu (FE-110…FE-114), nên Tin nhắn trộn số và trang của Gmail. Change `messages-by-account` cần nó trước khi đếm theo tài khoản, nên làm ở đó (MA-02), đúng mục tiêu, file và acceptance criteria dưới đây. Requirement vẫn ở delta `inbox-api` của change này; archive change này trước `messages-by-account` (D-427 của change đó).
   - **Goal:** danh sách và số đếm lọc được theo loại; điều hướng có số của từng loại; `kind` của dòng theo provider.
   - **Files:** `conversation/api/ConversationsController.java`, `conversation/api/CountsResponse.java`, `conversation/api/ConversationResponse.java`, `conversation/application/InboxService.java`, `conversation/application/InboxItem.java`, helper loại mới trong `conversation/application`, `apps/sino-api/README.md`.
   - **Acceptance criteria:** spec `inbox-api` *Lọc danh sách theo loại*, *Số đếm theo loại*, *Loại của provider không có connector*, *Nội dung một conversation trong danh sách*; `provider-registry` *Connector có công tắc tắt vẫn ở trong registry* (ghi chú cho ZL-06/ZL-10, Gmail không thuộc trường hợp này).
@@ -149,6 +150,6 @@
 
 - [ ] 5.1 **ACC — Nghiệm thu, tài liệu**
   - **Test:** Definition of Done của `design.md`; Chrome đủ cỡ (1440, 1280, 1024, 768, 390) × 2 theme cho Tin nhắn, Hộp thư, điều hướng, Tổng quan, bước 5 hộp thoại kết nối; ảnh so với canvas; trên backend có BE-111: số "Hộp thư" khớp `unreadByKind.EMAIL` và `?kind=chat` không còn trả thư (chuyển từ FE-114, chạy trước BE-111).
-  - **Depends on:** FE-114, BE-111
+  - **Depends on:** FE-114, ~~BE-111~~ MA-02 của `messages-by-account` (BE-111 chuyển sang đó, 2026-11-02)
 
-- [ ] 5.2 **Archive** (D-309): sau `f05-unified-inbox`, `f07-f08-realtime-inbox`, `fe-ui-overview`, `fe-ui-accounts`, `fe-ui-connect`, `fe-ui-inbox`, vì delta sửa requirement của các change đó. `openspec archive f05c-messages-inbox-split -y`.
+- [ ] 5.2 **Archive** (D-309): sau `f05-unified-inbox`, `f07-f08-realtime-inbox`, `fe-ui-overview`, `fe-ui-accounts`, `fe-ui-connect`, `fe-ui-inbox`, vì delta sửa requirement của các change đó; và **trước** `messages-by-account`, vì delta của change đó sửa requirement `messages-screen`, `inbox-screen` của change này. `openspec archive f05c-messages-inbox-split -y`.

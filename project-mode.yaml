@@ -48,6 +48,7 @@ task_overrides:
   zalo-mentions: AUTO
   zalo-media-library: AUTO
   zalo-voice-messages: AUTO
+  messages-by-account: AUTO # 2026-11-02: AUTO (user: "được làm đi", asked because `new_features` is TRAINING): Tin nhắn and Hộp thư split by account, Cá nhân / Nhóm in Tin nhắn, BE-111 moved from f05c. The plan still goes to the user (approval 1) and each result before commit (approval 2).
   zalo-personal: AUTO       # 2026-10-15: AUTO from ZL-02 on ("chuyển sang mode AUTO tiếp tục phần tích hợp zalo"); 2026-10-14: TRAINING, the user coded ZL-01 ("Toàn bộ")
   # 2026-10-16: BE-110 of f05c-messages-inbox-split ran in TRAINING ("phần này tôi làm được không" → "oke step by step
   # nhé"): the user coded it in small steps, Claude wrote the tests from step 5 and, when asked, finished and committed it.
