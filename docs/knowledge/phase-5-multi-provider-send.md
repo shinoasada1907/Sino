@@ -2346,3 +2346,33 @@ Phần lớn dữ liệu đã có sẵn, nên change này không cần migration
 - **Test tự động:** `sino-zalo` 327 test; `sino-api` 211 test chọn lọc cùng `ModularityTests`; `sino-web` 1348 test (2 test `AppShell` đỏ theo đồng hồ thật, sửa ở `shell-real-counts` NS-05).
 - **Chạy thật (AV-20, máy người dùng):** chat 1-1 có ảnh của người kia, nhóm có ảnh riêng, đều là ảnh `https` trên CDN của Zalo; chính tài khoản không có ảnh, đúng thiết kế.
 - **Giới hạn:** ảnh cạnh tin tìm người gửi theo tên hiển thị, nên hai người trùng tên trong một nhóm có thể dùng nhầm ảnh của nhau. Zalo cá nhân chỉ đưa vào Sino tin từ lúc kết nối, nên ảnh của một thành viên chỉ có sau khi người đó gửi tin.
+
+## 28. Khung chat tự kéo xuống tin mới (`chat-scroll-new-message`)
+
+**Ở đâu:** `apps/sino-web/src/features/inbox/components/ChatThread.tsx`, test `features/inbox/ChatScroll.test.tsx`.
+
+Người dùng báo: có tin nhắn mới mà khung chat không kéo xuống chỗ tin mới. Đây là một sửa lỗi nhỏ (bounded), không có change OpenSpec.
+
+### 28.1 Vì sao số tin không đổi
+Lệnh cuộn chạy trong một `useEffect` phụ thuộc **số tin**. Nhưng khung chat chỉ giữ trang mới nhất (20 tin, `limit` mặc định của `GET …/messages`):
+
+```text
+trước:   tin 11 … tin 30        (20 tin)
+có tin 31, stream báo, TanStack Query đọc lại trang
+sau:     tin 12 … tin 31        (vẫn 20 tin)  -> effect không chạy -> không cuộn
+```
+TanStack Query đọc lại một infinite query bằng **đúng số trang đã có** (`infiniteQueryBehavior.js`, `remainingPages = oldPages.length`), nên tin mới đẩy tin cũ nhất ra. Cuộc dưới 20 tin thì vẫn cuộn đúng; tin tự gửi cũng cuộn được, vì lúc gửi app thêm tạm một tin (21 tin). Lỗi chỉ thấy ở cuộc dài, nên test cũ với vài tin không bắt được.
+
+### 28.2 Cách sửa: theo id của tin mới nhất
+- Effect phụ thuộc `id` của tin cuối (`detail.messages.at(-1)?.id`), không phụ thuộc số tin. Cửa sổ trượt thì số đứng yên còn id đổi.
+- **Người dùng chọn phương án B:** chỉ kéo xuống khi người đọc đang ở gần đáy (80 px, `BOTTOM_SLACK`); đang kéo lên đọc tin cũ thì giữ nguyên chỗ, như Zalo và Messenger. Tin của chính mình luôn kéo xuống.
+- **Đo "gần đáy" trước khi tin hiện ra.** Sau khi React vẽ tin mới, `scrollHeight` đã tăng, nên đo lúc đó luôn thấy "xa đáy". Vì vậy vị trí được giữ trong một `useRef` (`atBottom`), cập nhật ở `onScroll` và sau mỗi lần tự cuộn. `useRef` không gây vẽ lại, đúng cho một giá trị chỉ dùng để quyết định.
+- **Ảnh tải xong sau khi đã cuộn.** Ảnh không có chiều cao cố định, nên khi tải xong nó đẩy tin mới khuất dưới đáy. `onLoadCapture` trên khung tin bắt sự kiện `load` của mọi `<img>` con: `load` không nổi bọt, nhưng pha capture vẫn đi qua các phần tử cha. Đang dính đáy thì cuộn lại một lần. Trình duyệt không bắn `scroll` khi nội dung tự nở ra, nên `atBottom` vẫn đúng lúc ảnh tải xong.
+
+### 28.3 Test khi jsdom không có bố cục
+jsdom không tính chiều cao, nên `scrollHeight`, `clientHeight`, `scrollTop` luôn là 0. Test gắn getter và setter lên chính phần tử bằng `Object.defineProperty`, rồi bắn `fireEvent.scroll` và `fireEvent.load`. Sáu ca: trang đủ 20 tin mà tin cuối đổi (đang ở đáy thì cuộn, đang kéo lên thì không), tin của mình, cùng tin cuối thì không cuộn, ảnh tải khi dính đáy và khi đã kéo lên. Đổi effect về theo số tin thì hai ca đỏ, nên test bắt được đúng lỗi này.
+
+### 28.4 Kiểm chứng và giới hạn
+- **Test tự động:** 6 test mới; toàn bộ `sino-web` 1357 test xanh; `tsc -b`, `pnpm lint`, `pnpm build` sạch.
+- **Chrome thật:** người dùng tự thử trên máy mình và nghiệm thu (phiên quản lý không nối được Chrome).
+- **Giới hạn:** tin vừa gửi đổi từ id tạm sang id thật thì effect chạy thêm một lần; ai kéo lên đúng lúc đó sẽ bị kéo xuống đáy.

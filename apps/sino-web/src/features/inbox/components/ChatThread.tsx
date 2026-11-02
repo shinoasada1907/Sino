@@ -31,6 +31,10 @@ import { ReactionPicker } from './ReactionPicker'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
 
+// How far from the bottom (px) still counts as being at the bottom.
+const BOTTOM_SLACK = 80
+const nearBottom = (body: HTMLElement) => body.scrollHeight - body.scrollTop - body.clientHeight <= BOTTOM_SLACK
+
 const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string; name: string }> = {
   TASK: { icon: SquareCheck, to: '/tasks', name: 'Task' },
   EVENT: { icon: Calendar, to: '/calendar', name: 'Lịch hẹn' },
@@ -74,21 +78,35 @@ export function ChatThread({
   const tray = useAttachmentTray()
   const sendsFiles = detail?.canSendFiles === true
   const placed = useRef(false)
-  const messageCount = detail?.messages?.length ?? 0
+  // The page only holds the newest messages, so a new one can push the oldest out and leave the count as it was: the newest id is what tells.
+  const newest = detail?.messages?.at(-1)
+  const newestId = newest?.id
+  const newestIsOwn = newest?.kind === 'MESSAGE' && newest.direction === 'OUT'
+  // Whether the reader sits at the bottom; kept from the last scroll, because after a render the new message is already in the height.
+  const atBottom = useRef(true)
   const block = sendBlock(account, detail?.canSend)
   const { markUnread, toggleArchive } = useConversationActions(item, backSearch)
   const expiredAt = account.status === 'AUTH_EXPIRED' ? account.statusChangedAt : null
 
-  // Opening shows the unread line (or the newest message); every message added afterwards scrolls to the bottom.
+  // Opening shows the unread line (or the newest message). A new newest message scrolls to the bottom when the reader was there
+  // or sent it; someone reading older messages stays where they are. A refetch with the same newest message does nothing.
   useEffect(() => {
     const body = bodyRef.current
-    if (!body || messageCount === 0) {
+    if (!body || newestId === undefined) {
       return
     }
-    const unreadLine = placed.current ? null : body.querySelector<HTMLElement>('[data-slot="unread-line"]')
-    body.scrollTop = unreadLine ? unreadLine.offsetTop - body.offsetTop - 24 : body.scrollHeight
-    placed.current = true
-  }, [messageCount])
+    if (placed.current) {
+      if (!newestIsOwn && !atBottom.current) {
+        return
+      }
+      body.scrollTop = body.scrollHeight
+    } else {
+      const unreadLine = body.querySelector<HTMLElement>('[data-slot="unread-line"]')
+      body.scrollTop = unreadLine ? unreadLine.offsetTop - body.offsetTop - 24 : body.scrollHeight
+      placed.current = true
+    }
+    atBottom.current = nearBottom(body)
+  }, [newestId, newestIsOwn])
 
   // The previews of pictures sent from here are made again if the conversation opens again (zalo-send-files, D-378).
   useEffect(() => () => outgoingFiles.releasePreviews(), [])
@@ -146,7 +164,19 @@ export function ChatThread({
         </div>
       </header>
 
-      <div ref={bodyRef} className="flex min-h-0 flex-col gap-2.5 overflow-auto p-4 md:gap-3 md:p-5 xl:px-8 xl:py-6">
+      <div
+        ref={bodyRef}
+        onScroll={(event) => {
+          atBottom.current = nearBottom(event.currentTarget)
+        }}
+        // A picture has no fixed height, so one that finishes loading below the bottom pushes the newest message out of sight: scroll again.
+        // `load` does not bubble, hence the capture phase.
+        onLoadCapture={(event) => {
+          if (atBottom.current && event.target instanceof HTMLImageElement) {
+            event.currentTarget.scrollTop = event.currentTarget.scrollHeight
+          }
+        }}
+        className="flex min-h-0 flex-col gap-2.5 overflow-auto p-4 md:gap-3 md:p-5 xl:px-8 xl:py-6">
         {detail?.messages === null && <LatestPreview item={item} now={now} />}
         {withDayLines(detail?.messages ?? [], now).map(({ message, dayLine }) => {
           return (
