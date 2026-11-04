@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.ts";
 import { FakeZaloGateway } from "../src/gateway/FakeZaloGateway.ts";
@@ -148,6 +148,39 @@ describe("alias routes (zalo-nicknames, D-415)", () => {
     await deleteAlias("8001");
     await getAliases();
     expect(gateway.aliasListCalls).toBe(3);
+  });
+
+  it("does not keep a list Zalo was asked for before a PUT or DELETE that landed while it was coming", async () => {
+    await connect();
+    gateway.aliases.set("8001", "Mẹ");
+
+    gateway.nextAliasList = "hold";
+    const slowGet = getAliases();
+    await vi.waitFor(() => expect(gateway.heldAliasLists).toHaveLength(1));
+    expect((await putAlias("8002", "Em gái")).statusCode).toBe(204);
+    gateway.releaseHeldAliasLists();
+    expect((await slowGet).json()).toEqual({ items: [{ friendId: "8001", alias: "Mẹ" }] });
+
+    const afterPut = await getAliases();
+    expect(afterPut.json()).toEqual({
+      items: [
+        { friendId: "8001", alias: "Mẹ" },
+        { friendId: "8002", alias: "Em gái" },
+      ],
+    });
+    expect(gateway.aliasListCalls).toBe(2);
+
+    gateway.nextAliasList = "hold";
+    clock += 61_000;
+    const slowGetAgain = getAliases();
+    await vi.waitFor(() => expect(gateway.heldAliasLists).toHaveLength(1));
+    expect((await deleteAlias("8001")).statusCode).toBe(204);
+    gateway.releaseHeldAliasLists();
+    await slowGetAgain;
+
+    const afterDelete = await getAliases();
+    expect(afterDelete.json()).toEqual({ items: [{ friendId: "8002", alias: "Em gái" }] });
+    expect(gateway.aliasListCalls).toBe(4);
   });
 
   it("keeps the 60-second memory separate per account", async () => {

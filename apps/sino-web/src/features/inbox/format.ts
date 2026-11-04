@@ -15,6 +15,7 @@ import type { AccountSending, ConversationItem, InboxData, LinkedItem, LinkedKin
 export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
 export interface InboxFilter {
   source: string | null
+  account?: string | null
   view: InboxView
 }
 export type RowFlag = {
@@ -174,9 +175,12 @@ const VIEW_TESTS: Record<Exclude<InboxView, 'snoozed' | 'archived'>, (item: Conv
 }
 
 /** The inbox hides archived and snoozed conversations; "Đang tạm ẩn" and "Đã lưu trữ" show only those. */
-export function filterConversations(items: ConversationItem[], { source, view }: InboxFilter, now: Date): ConversationItem[] {
+export function filterConversations(items: ConversationItem[], { source, account, view }: InboxFilter, now: Date): ConversationItem[] {
   return items.filter((item) => {
     if (source !== null && item.provider !== source) {
+      return false
+    }
+    if (account != null && !item.accountIds.includes(account) && item.accountId !== account) {
       return false
     }
     if (view === 'archived') {
@@ -410,17 +414,57 @@ export function paragraphs(text: string): string[][] {
     .map((paragraph) => paragraph.split('\n'))
 }
 
-const PLACEHOLDERS = ['a', 'd', 'c', 'b'] as const
+const PLACEHOLDERS = ['a', 'd', 'b', 'c'] as const
 
-/** The placeholder picture of a group member follows their place in the group; anyone else gets the striped one. */
+/** Generates 1-2 letter initials for an avatar fallback (e.g. "Dev Rice" -> "DR", "Nguyễn" -> "NG"). */
+export function getInitials(name: string): string {
+  if (!name) return '?'
+  const clean = name.trim()
+  if (!clean) return '?'
+  const parts = clean.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase()
+  }
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+/** The placeholder picture of a group member follows their place in the group. */
 export function memberPlaceholder(name: string, members: Member[] | null): (typeof PLACEHOLDERS)[number] {
   const index = members?.findIndex((member) => member.name === name) ?? -1
   return index >= 0 ? PLACEHOLDERS[index % PLACEHOLDERS.length] : 'c'
 }
 
-/** The picture of a group member, by the name their messages carry; null for someone not in the list or without a picture. */
-export function memberAvatar(name: string, members: Member[] | null): string | null {
-  return members?.find((member) => member.name === name)?.avatarUrl ?? null
+/** The picture of a group member, by the name or ID their messages carry; null for someone not in the list or without a picture. */
+export function memberAvatar(name: string, members: Member[] | null, address?: string | null): string | null {
+  if (!members || members.length === 0) return null
+
+  // 1. Match by address/id if provided
+  if (address) {
+    const byId = members.find((m) => m.id && m.id === address)
+    if (byId?.avatarUrl) return byId.avatarUrl
+  }
+
+  // 2. Match by exact name
+  const exact = members.find((m) => m.name === name)
+  if (exact?.avatarUrl) return exact.avatarUrl
+
+  // 3. Match case-insensitively / trimmed
+  const trimmedLower = name.trim().toLowerCase()
+  const byTrimmed = members.find((m) => m.name?.trim().toLowerCase() === trimmedLower)
+  if (byTrimmed?.avatarUrl) return byTrimmed.avatarUrl
+
+  // 4. Substring match (e.g. first name vs full name)
+  const partial = members.find((m) => {
+    const mName = m.name?.trim().toLowerCase()
+    return mName && (mName.includes(trimmedLower) || trimmedLower.includes(mName))
+  })
+  if (partial?.avatarUrl) return partial.avatarUrl
+
+  // 5. Fallback for 2-person conversation: first other member with an avatar
+  const otherWithAvatar = members.find((m) => !m.self && m.name !== 'Bạn' && m.avatarUrl)
+  if (otherWithAvatar?.avatarUrl) return otherWithAvatar.avatarUrl
+
+  return null
 }
 
 /** The messages of a chat, each with the day line to draw above it when the day changes. */

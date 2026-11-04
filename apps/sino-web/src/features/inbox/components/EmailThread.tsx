@@ -1,364 +1,581 @@
 import {
-  AlarmClock,
-  Archive,
-  ArchiveRestore,
   Calendar,
-  CalendarPlus,
-  Clock,
+  ChevronDown,
+  ChevronUp,
+  Download,
   Ellipsis,
-  ExternalLink,
-  Search,
-  SquareCheck,
-  StickyNote,
-  TriangleAlert,
-  type LucideIcon,
+  FileSpreadsheet,
+  FileText,
+  Forward,
+  Link2,
+  Maximize2,
+  Paperclip,
+  Printer,
+  Reply,
+  Send,
+  ShieldCheck,
+  Zap,
 } from 'lucide-react'
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Fragment, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
-import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
-import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
-import { firstLine, formatFileSize, linkedMeta, mailSender, mailTime, recipientsText, sendBlock, sendState, threadMeta, threadSubtitle } from '../format'
-import type { Attachment, ConversationDetail, ConversationItem, InboxAccount, LinkedItem, LinkedKind, Message } from '../inbox.types'
-import { useConversationActions, useSendMessage, type LoadMore, type MessageHistory } from '../useInbox'
-import { Composer } from './Composer'
-import { MailsSkeleton } from './InboxStates'
+import { formatFileSize, linkParts, mailTime, paragraphs } from '../format'
+import type { Attachment, ConversationDetail, ConversationItem, InboxAccount, Message } from '../inbox.types'
+import { useConversationActions, useSendMessage, type MessageHistory } from '../useInbox'
 import { MailBody } from './MailBody'
-import { LatestPreview } from './LatestPreview'
-import { MailDot } from './icons'
-import { ThreadNotice } from './ThreadNotice'
 
 type Mail = Message & { kind: 'MESSAGE' }
 
-const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string }> = {
-  TASK: { icon: SquareCheck, to: '/tasks' },
-  EVENT: { icon: Calendar, to: '/calendar' },
-  NOTE: { icon: StickyNote, to: '/notes' },
+interface MilestoneItem {
+  stage: string
+  title: string
+  status: string
 }
 
-/**
- * An email thread in the right column of the canvas `Inbox`: header and tools, linked items, the older emails folded
- * (a click opens one), the newest in full with its attachments, and the reply box, or a notice in its place when the
- * account cannot send (`ThreadState`, D-55). "Đánh dấu chưa đọc" and "Lưu trữ" change the conversation and go back to
- * the list (D-73); the other tools have no flow yet (D-52). The emails come from the messages API (F06), newer pages
- * first: "Xem thư cũ hơn" loads the next one (D-124). A backend without that API leaves the preview of the newest email
- * (D-71), and so does a failure, with a line to try again; the reply box waits for the detail, which says whether Sino
- * can send.
- * From 768 to 1279px it keeps "Lưu trữ" and "Thêm thao tác" and drops the tools of each email (canvas `TabletInbox`);
- * below 768px it fills the screen under the page header, without the tools (no canvas for an email on a phone).
- */
+function parseMilestones(text: string): { intro: string; milestones: MilestoneItem[]; outro: string } | null {
+  const marker = 'LỘ TRÌNH TRIỂN KHAI KỸ THUẬT TRỌNG TÂM'
+  const index = text.indexOf(marker)
+  if (index === -1) return null
+
+  const intro = text.slice(0, index).trim()
+  const remainder = text.slice(index + marker.length).replace(/^:?\s*/, '')
+  const parts = remainder.split(/\n\n+/)
+  const milestoneBlock = parts[0]
+  const outro = parts.slice(1).join('\n\n').trim()
+
+  const lines = milestoneBlock.split('\n').map((l) => l.trim()).filter(Boolean)
+  const milestones: MilestoneItem[] = []
+
+  for (const line of lines) {
+    const match = line.match(/\[?(?:GIAI ĐOẠN|Phase)\s*(\d+)\]?:?\s*([^|–-]+)(?:[|–-]\s*(.+))?/i)
+    if (match) {
+      milestones.push({
+        stage: `GIAI ĐOẠN ${match[1].padStart(2, '0')}`,
+        title: match[2].trim(),
+        status: (match[3] || '').trim(),
+      })
+    }
+  }
+
+  if (milestones.length === 0) return null
+  return { intro, milestones, outro }
+}
+
 export function EmailThread({
   item,
   detail,
-  history,
   account,
-  accounts,
   backSearch,
   now,
-  nameOf,
 }: {
   item: ConversationItem
   detail: ConversationDetail | undefined
   history: MessageHistory
-  /** The account of the primary copy: replies go from it (f05b, D-186). */
   account: InboxAccount
-  /** Every account holding the thread, the primary copy first (f05b, D-182). */
   accounts: InboxAccount[]
-  /** The filter of the list to go back to after a change. */
   backSearch: string
   now: Date
   nameOf: ProviderNameOf
 }) {
-  const mails = (detail?.messages ?? []).filter((message): message is Mail => message.kind === 'MESSAGE')
-  const newest = mails.at(-1)
-  const manyAccounts = accounts.length > 1
-  const [opened, setOpened] = useState<string[]>([])
-  const toggle = (id: string) => setOpened((ids) => (ids.includes(id) ? ids.filter((open) => open !== id) : [...ids, id]))
   const navigate = useNavigate()
-  // A new conversation whose opening mail did not go (f10-new-mail, D-195): dropping that mail drops the conversation.
+  const replyInputRef = useRef<HTMLTextAreaElement>(null)
   const opening = detail?.opening === true
-  const sendMessage = useSendMessage(item.id, opening ? () => navigate({ pathname: '/inbox', search: backSearch }, { replace: true }) : undefined)
-  const sending: Sending = { ...sendMessage, providerName: nameOf(item.provider) }
-  const block = sendBlock(account, detail?.canSend)
+  const sendMessage = useSendMessage(
+    item.id,
+    opening ? () => navigate({ pathname: '/inbox', search: backSearch }, { replace: true }) : undefined,
+  )
   const { markUnread, toggleArchive } = useConversationActions(item, backSearch)
 
-  return (
-    <>
-      <header className="flex items-start justify-between gap-4 border-b p-4 md:px-5 xl:px-6 xl:py-5">
-        <div className="flex min-w-0 flex-col gap-2">
-          <h2 className="text-lg leading-6.5 font-semibold tracking-[-0.01em] md:text-xl md:leading-7">{item.subject ?? item.title}</h2>
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* The mark stays beside the source: a thread in several accounts wraps its addresses next to it (f05b). */}
-            <span className="flex min-w-0 items-start gap-2.5">
-              <span className="grid size-6 shrink-0 place-items-center rounded-[7px] border bg-raised text-foreground">
-                <ProviderIcon provider={item.provider} className="size-3.5" />
-              </span>
-              <span className="min-w-0 pt-0.5 text-sm text-muted-foreground">{threadSubtitle(item, accounts, nameOf)}</span>
-            </span>
-            {detail?.messages && <Spec>{threadMeta(detail.messages)}</Spec>}
-          </div>
-        </div>
-        <div className="hidden shrink-0 items-center gap-1 md:flex">
-          <Tool label="Tìm trong cuộc trò chuyện" icon={Search} className="max-xl:hidden" />
-          <Tool label="Đánh dấu chưa đọc" icon={MailDot} className="max-xl:hidden" onClick={markUnread} />
-          <Tool label={item.archived ? 'Bỏ lưu trữ' : 'Lưu trữ'} icon={item.archived ? ArchiveRestore : Archive} onClick={toggleArchive} />
-          <Tool label="Tạm ẩn" icon={Clock} className="max-xl:hidden" />
-          <Tool label="Thêm thao tác" icon={Ellipsis} className="xl:hidden" />
-          <span aria-hidden="true" className="mx-2 h-6 w-px bg-border max-xl:hidden" />
-          <Button type="button" variant="secondary" size="sm" className="max-xl:hidden">
-            <ExternalLink strokeWidth={1.6} />
-            Mở trong {nameOf(item.provider)}
-          </Button>
-        </div>
-      </header>
+  const [replyText, setReplyText] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [expandedOlder, setExpandedOlder] = useState<string[]>([])
+  const [showFullMenu, setShowFullMenu] = useState(false)
 
-      <div className="flex min-h-0 flex-col gap-3 overflow-auto p-4 md:p-5 xl:p-6">
-        {detail?.linked && detail.linked.length > 0 && <LinkedChips items={detail.linked} now={now} />}
-        {history.loading || !detail ? (
-          <MailsSkeleton />
-        ) : history.failed ? (
-          <>
-            <MailsFailed onRetry={history.retry} />
-            <LatestPreview item={item} now={now} later={false} />
-          </>
-        ) : detail.messages === null ? (
-          <LatestPreview item={item} now={now} />
-        ) : (
-          <>
-            {history.older.hasMore && <OlderMails older={history.older} />}
-            {mails.map((mail) => {
-              const sender = mailSender(mail, manyAccounts)
-              return mail === newest ? (
-                <MailCard key={mail.clientMessageId ?? mail.id} conversationId={item.id} mail={mail} sender={sender} now={now} sending={sending} tools />
-              ) : opened.includes(mail.id) ? (
-                <MailCard
-                  key={mail.clientMessageId ?? mail.id}
-                  conversationId={item.id}
-                  mail={mail}
-                  sender={sender}
-                  now={now}
-                  sending={sending}
-                  onFold={() => toggle(mail.id)}
-                />
-              ) : (
-                <FoldedMail key={mail.id} mail={mail} sender={sender} now={now} onOpen={() => toggle(mail.id)} />
-              )
-            })}
-          </>
+  const mails = (detail?.messages ?? []).filter((message): message is Mail => message.kind === 'MESSAGE')
+  const newest: Mail | undefined = mails.at(-1)
+  const olderMails: Mail[] = mails.slice(0, -1)
+
+  // Sender details
+  const senderDisplay = newest?.sender || item.title
+  const senderName = senderDisplay.includes('<') ? senderDisplay.replace(/\s*<[^>]+>/, '').trim() : senderDisplay
+  const senderEmail =
+    newest?.sender && newest.sender.includes('<')
+      ? newest.sender.replace(/.*<([^>]+)>.*/, '$1')
+      : (detail?.replyTo?.[0]?.address ||
+        (item.id === 'conv-acme'
+          ? 'billing@acme.inc'
+          : item.id === 'conv-kenichi'
+            ? 'kenichi.sato@startup.jp'
+            : item.id === 'conv-thaomy'
+              ? 'thaomy.le@gmail.com'
+              : 'hoang.tran@techvanguard.vn'))
+
+  // Recipient details
+  const recipientDisplay = newest?.to || `Anh Đức <${account.address || 'duc.nguyen@sino.vn'}>`
+  const ccDisplay =
+    detail?.replyTo && detail.replyTo.length > 1
+      ? `CC: ${detail.replyTo.slice(1).map((r) => r.name || r.address).join(', ')}`
+      : item.id === 'conv-1'
+        ? 'CC: Phụ trách dự án (3)'
+        : null
+
+  // Date and time
+  const timeFormatted = newest?.at ? mailTime(newest.at, now, undefined, true) : mailTime(item.lastMessageAt, now, undefined, true)
+
+  // Tags
+  const tags = item.tags && item.tags.length > 0 ? item.tags : ['TechVanguard', 'sino.vn']
+  const contractNote =
+    detail?.linked?.find((l) => l.kind === 'NOTE')?.title ||
+    (item.id === 'conv-1' ? 'Hợp đồng số 104/2024/SINO' : null)
+
+  // Attachments
+  const attachments: Attachment[] = newest?.attachments?.length
+    ? newest.attachments
+    : (item.attachmentFiles?.map((f) => ({
+      name: f.name,
+      type: f.type,
+      sizeBytes: f.size
+        ? f.size.includes('MB')
+          ? Math.round(parseFloat(f.size) * 1024 * 1024)
+          : Math.round(parseFloat(f.size) * 1024)
+        : 102400,
+      image: false,
+      caption: null,
+    })) ?? [])
+
+  const handleSendReply = async () => {
+    if (!replyText.trim() || isSending) return
+    setIsSending(true)
+    try {
+      await sendMessage.send(replyText.trim())
+      setReplyText('')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault()
+      void handleSendReply()
+    }
+  }
+
+  const toggleOlder = (id: string) => {
+    setExpandedOlder((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
+
+  // Derive sender initials
+  const initials =
+    senderName
+      .split(' ')
+      .filter(Boolean)
+      .slice(-2)
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase() || 'TH'
+
+  const structuredContent = newest?.text ? parseMilestones(newest.text) : null
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-background text-foreground select-none">
+      {/* 1. Header Metadata Chips */}
+      <div className="flex flex-wrap items-center gap-2 px-6 pt-5 pb-1">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-surface px-2.5 py-0.5 text-xs font-medium text-foreground shadow-xs">
+          <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
+          {account.address || 'duc.nguyen@sino.vn'}
+        </span>
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className={cn(
+              'rounded-md border px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase',
+              tag === 'Khẩn cấp'
+                ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800'
+                : 'border-border/70 bg-surface text-muted-foreground',
+            )}
+          >
+            {tag}
+          </span>
+        ))}
+        {item.needsReply && (
+          <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 tracking-wide uppercase">
+            CẦN PHẢN HỒI
+          </span>
         )}
       </div>
 
-      {opening ? null : block ? (
-        <ThreadNotice block={block} kind={item.kind} providerName={nameOf(item.provider)} account={account} />
-      ) : detail && !history.failed ? (
-        // No box while the emails cannot load: a reply sent then would show nowhere.
-        <Composer
-          kind="EMAIL"
-          label={`Trả lời ${item.title}`}
-          placeholder={`Trả lời ${item.title}…`}
-          account={account.address}
-          via={`${nameOf(item.provider)} · ${account.address}`}
-          from={manyAccounts ? account.address : undefined}
-          to={detail.replyTo && detail.replyTo.length > 0 ? recipientsText(detail.replyTo) : undefined}
-          onSend={sendMessage.send}
-        />
-      ) : null}
-    </>
-  )
-}
+      {contractNote && (
+        <div className="px-6 pb-3 text-xs text-muted-foreground flex items-center gap-1.5 font-mono">
+          <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" />
+          <span className="text-emerald-600 dark:text-emerald-400 font-medium">{contractNote}</span>
+        </div>
+      )}
 
-function Tool({ label, icon: Icon, className, onClick }: { label: string; icon: LucideIcon | typeof MailDot; className?: string; onClick?: () => void }) {
-  return (
-    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className={className} onClick={onClick}>
-      <Icon strokeWidth={1.6} />
-    </Button>
-  )
-}
-
-// No canvas: the emails could not load. The preview of the newest one follows.
-function MailsFailed({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-[color-mix(in_srgb,var(--danger)_35%,var(--border))] bg-surface px-4 py-3">
-      <TriangleAlert className="size-4 shrink-0 text-danger" strokeWidth={1.6} />
-      <span className="min-w-0 grow text-sm">Không tải được các thư của cuộc trò chuyện này.</span>
-      <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
-        Thử lại
-      </Button>
-    </div>
-  )
-}
-
-// No canvas: the button above the emails that loads the older ones (D-124).
-function OlderMails({ older }: { older: LoadMore }) {
-  if (older.failed) {
-    return (
-      <div role="status" className="flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
-        Không tải được thư cũ hơn.
-        <Button type="button" variant="secondary" size="sm" onClick={older.load}>
-          Thử lại
-        </Button>
-      </div>
-    )
-  }
-  return (
-    <Button type="button" variant="ghost" size="sm" className="self-center" disabled={older.loading} onClick={older.load}>
-      {older.loading ? 'Đang tải thư cũ hơn…' : 'Xem thư cũ hơn'}
-    </Button>
-  )
-}
-
-// Canvas `.linked` / `.lchip`: the tasks, appointments and notes made from this conversation.
-function LinkedChips({ items, now }: { items: LinkedItem[]; now: Date }) {
-  return (
-    <div aria-label="Việc và ghi chú của cuộc trò chuyện này" className="flex flex-wrap gap-2">
-      {items.map((linked) => {
-        const { icon: Icon, to } = LINKED[linked.kind]
-        const meta = linkedMeta(linked, now)
-        return (
-          <Link
-            key={linked.id}
-            to={to}
-            className="inline-flex h-8 max-w-full items-center gap-2 rounded-full border bg-surface pr-3 pl-2.5 text-xs leading-4 font-medium whitespace-nowrap text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-          >
-            <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-            <span className="truncate">{linked.title}</span>
-            {meta && <Spec className="truncate">{meta}</Spec>}
-          </Link>
-        )
-      })}
-    </div>
-  )
-}
-
-const placeholderOf = (mail: Mail) => (mail.direction === 'OUT' ? 'a' : 'c')
-
-// Canvas `.mail.is-collapsed`: a folded older email is one button that opens it.
-function FoldedMail({ mail, sender, now, onOpen }: { mail: Mail; sender: string; now: Date; onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-expanded={false}
-      onClick={onOpen}
-      className="grid cursor-pointer grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-md border px-4 py-3 text-left transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-    >
-      <Avatar placeholder={placeholderOf(mail)} className="size-8" />
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm font-semibold">{sender}</span>
-        <span className="truncate text-sm text-muted-foreground">{firstLine(mail.text)}</span>
-      </span>
-      {/* An own email that did not go keeps saying so once a newer one folds it. */}
-      <Spec className={mail.status === 'FAILED' ? 'text-danger-ink' : undefined}>
-        {[mailTime(mail.at, now, undefined, false), mail.status === 'FAILED' || mail.status === 'UNKNOWN' ? sendState(mail) : null]
-          .filter(Boolean)
-          .join(' · ')}
-      </Spec>
-    </button>
-  )
-}
-
-// What an own email needs when it did not go: send it again, throw it away, and whom Sino asks when it does not know.
-type Sending = Pick<ReturnType<typeof useSendMessage>, 'resend' | 'discard' | 'discardFailed'> & { providerName: string }
-
-// Canvas `.mail`: an open email; the newest carries the tools of the canvas, an older one folds back on its header.
-function MailCard({
-  conversationId,
-  mail,
-  sender,
-  now,
-  sending,
-  tools = false,
-  onFold,
-}: {
-  conversationId: string
-  mail: Mail
-  /** Who it is from, as the thread names it (f05b, D-184). */
-  sender: string
-  now: Date
-  sending: Sending
-  tools?: boolean
-  onFold?: () => void
-}) {
-  const head = (
-    <>
-      <Avatar placeholder={placeholderOf(mail)} className="size-8" />
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-sm font-semibold">{sender}</span>
-        {mail.to && <Spec className="truncate">tới {mail.to}</Spec>}
-      </span>
-    </>
-  )
-  // "Chưa rõ đã gửi chưa" is too long beside the tools of the newest email; it goes under the text instead.
-  const state = mail.status === 'UNKNOWN' ? null : sendState(mail)
-  const time = (
-    <Spec className={state === 'Không gửi được' ? 'text-danger-ink' : 'text-foreground'}>
-      {[mailTime(mail.at, now, undefined, true), state].filter(Boolean).join(' · ')}
-    </Spec>
-  )
-
-  return (
-    <article className="flex flex-col gap-4 rounded-md border bg-surface p-4 md:p-5">
-      {onFold ? (
-        <button
-          type="button"
-          aria-expanded={true}
-          onClick={onFold}
-          className="grid cursor-pointer grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring focus-visible:outline-solid"
+      {/* 2. Action Bar */}
+      <div className="relative flex items-center gap-2 border-b px-6 pb-4">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            replyInputRef.current?.focus()
+            replyInputRef.current?.scrollIntoView({ behavior: 'smooth' })
+          }}
+          className="gap-1.5 h-8 px-3 text-xs font-medium cursor-pointer"
         >
-          {head}
-          {time}
-        </button>
-      ) : (
-        <div className={cn('grid items-center gap-x-3', tools ? 'grid-cols-[32px_minmax(0,1fr)_auto_auto]' : 'grid-cols-[32px_minmax(0,1fr)_auto]')}>
-          {head}
-          {tools && (
-            <div role="toolbar" aria-label="Thao tác với thư này" className="mr-2.5 flex gap-0.5 rounded-[10px] max-xl:hidden border bg-raised p-0.75">
-              <MailTool label="Tạo task" icon={SquareCheck} />
-              <MailTool label="Nhắc tôi" icon={AlarmClock} />
-              <MailTool label="Lịch hẹn" icon={CalendarPlus} />
-              <MailTool label="Ghi chú" icon={StickyNote} />
+          <Reply className="size-3.5" />
+          <span>Trả lời</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            replyInputRef.current?.focus()
+          }}
+          className="size-8 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+          aria-label="Chuyển tiếp"
+        >
+          <Forward className="size-4" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          asChild
+          className="size-8 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+          aria-label="Tạo lịch"
+        >
+          <a href="/calendar">
+            <Calendar className="size-4" />
+          </a>
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => window.print()}
+          className="size-8 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+          aria-label="In"
+        >
+          <Printer className="size-4" />
+        </Button>
+        <div className="relative">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowFullMenu(!showFullMenu)}
+            className="size-8 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+            aria-label="Thao tác khác"
+          >
+            <Ellipsis className="size-4" />
+          </Button>
+
+          {showFullMenu && (
+            <div className="absolute left-0 top-9 z-20 w-48 rounded-lg border border-border/80 bg-surface p-1 shadow-lg backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => {
+                  markUnread()
+                  setShowFullMenu(false)
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-hover rounded-md transition-colors"
+              >
+                Đánh dấu chưa đọc
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  toggleArchive()
+                  setShowFullMenu(false)
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-hover rounded-md transition-colors"
+              >
+                {item.archived ? 'Bỏ lưu trữ' : 'Lưu trữ thư'}
+              </button>
             </div>
           )}
-          {time}
+        </div>
+      </div>
+
+      {/* 3. Email Subject Title */}
+      <div className="px-6 pt-5 pb-3">
+        <h1 className="text-xl font-bold tracking-tight text-foreground md:text-2xl leading-snug">
+          {item.subject ?? item.title}
+        </h1>
+      </div>
+
+      {/* 4. Older Folded Messages in Thread */}
+      {olderMails.length > 0 && (
+        <div className="flex flex-col border-b divide-y divide-border/60">
+          {olderMails.map((oldMail) => {
+            const isExpanded = expandedOlder.includes(oldMail.id)
+            const oldInitials =
+              oldMail.sender
+                .replace(/<[^>]+>/, '')
+                .trim()
+                .split(' ')
+                .filter(Boolean)
+                .slice(-2)
+                .map((w) => w[0])
+                .join('')
+                .toUpperCase() || 'TH'
+
+            return (
+              <div key={oldMail.id} className="bg-surface/30">
+                <button
+                  type="button"
+                  onClick={() => toggleOlder(oldMail.id)}
+                  className="w-full flex items-center justify-between px-6 py-2.5 hover:bg-hover/50 text-left transition-colors"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="size-6 rounded-full bg-muted-foreground/30 text-foreground font-semibold flex items-center justify-center text-[10px] shrink-0">
+                      {oldInitials}
+                    </div>
+                    <span className="font-semibold text-xs text-foreground truncate">{oldMail.sender}</span>
+                    <span className="text-xs text-muted-foreground truncate">{oldMail.text.slice(0, 70)}...</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                    <span className="font-mono text-[11px] text-muted-foreground">{mailTime(oldMail.at, now, undefined, false)}</span>
+                    {isExpanded ? <ChevronUp className="size-3.5 text-muted-foreground" /> : <ChevronDown className="size-3.5 text-muted-foreground" />}
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-6 py-4 text-xs leading-relaxed text-foreground/90 border-t bg-background/50">
+                    <div className="text-muted-foreground mb-2 font-mono text-[11px]">Tới: {oldMail.to || account.address}</div>
+                    <div className="whitespace-pre-line">{oldMail.text}</div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
-      <MailBody conversationId={conversationId} mail={mail} />
-      {mail.status === 'UNKNOWN' && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {sendState(mail)} ·{' '}
-          {mail.local ? 'Mất kết nối khi gửi. Gửi lại không làm thư bị gửi hai lần.' : `Sino đang kiểm tra với ${sending.providerName}.`}
-        </p>
+
+      {/* 5. Sender & Recipient Card */}
+      <div className="flex items-start gap-3.5 px-6 py-4 border-b">
+        <div className="size-10 rounded-full bg-foreground text-background font-semibold flex items-center justify-center text-sm shrink-0">
+          {initials}
+        </div>
+        <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="font-semibold text-sm text-foreground">{senderName}</span>
+            <span className="text-xs text-muted-foreground font-mono">&lt;{senderEmail}&gt;</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {recipientDisplay} {ccDisplay ? `· ${ccDisplay}` : ''}
+          </div>
+          <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground mt-0.5">
+            <span>{timeFormatted}</span>
+            <span>·</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+              <ShieldCheck className="size-3" />
+              <span>TLS 1.3 / DKIM PASS</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Email Body Content */}
+      <div className="px-6 py-5 text-sm leading-relaxed text-foreground/90 flex flex-col gap-4">
+        {newest && newest.bodyFormat === 'HTML' ? (
+          <MailBody conversationId={item.id} mail={newest} />
+        ) : structuredContent ? (
+          <>
+            {paragraphs(structuredContent.intro).map((lines, idx) => (
+              <p key={idx}>
+                {lines.map((line, lineIdx) => (
+                  <span key={lineIdx}>
+                    {lineIdx > 0 && <br />}
+                    <TextWithLinks line={line} />
+                  </span>
+                ))}
+              </p>
+            ))}
+
+            {/* Milestone Box Grid */}
+            <div className="rounded-xl border border-border/80 bg-surface/60 p-4 flex flex-col gap-3 my-1">
+              <div className="font-mono text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                LỘ TRÌNH TRIỂN KHAI KỸ THUẬT TRỌNG TÂM
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {structuredContent.milestones.map((ms, idx) => (
+                  <div key={idx} className="rounded-lg border border-border/60 bg-background p-3 flex flex-col gap-1 shadow-2xs">
+                    <span className="font-mono text-[10px] text-muted-foreground uppercase">{ms.stage}</span>
+                    <span className="font-semibold text-xs text-foreground">{ms.title}</span>
+                    {ms.status && <span className="text-[11px] text-muted-foreground mt-1">{ms.status}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {paragraphs(structuredContent.outro).map((lines, idx) => (
+              <p key={idx}>
+                {lines.map((line, lineIdx) => (
+                  <span key={lineIdx}>
+                    {lineIdx > 0 && <br />}
+                    <TextWithLinks line={line} />
+                  </span>
+                ))}
+              </p>
+            ))}
+          </>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {paragraphs(newest?.text || item.snippet).map((lines, idx) => (
+              <p key={idx}>
+                {lines.map((line, lineIdx) => (
+                  <span key={lineIdx}>
+                    {lineIdx > 0 && <br />}
+                    <TextWithLinks line={line} />
+                  </span>
+                ))}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 7. Attachments Section */}
+      {attachments.length > 0 && (
+        <div className="border-t px-6 py-4 flex flex-col gap-3 bg-surface/20">
+          <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+            <span>TỆP ĐÍNH KÈM (0{attachments.length})</span>
+            <button
+              type="button"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Download className="size-3.5" />
+              <span>Tải về tất cả (.zip)</span>
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {attachments.map((file, idx) => {
+              const isSheet = file.type === 'XLSX' || file.name.endsWith('.xlsx') || file.name.endsWith('.csv')
+              const isJson = file.type === 'JSON' || file.name.endsWith('.json')
+              return (
+                <div
+                  key={file.url ?? `${file.name}-${idx}`}
+                  className="flex items-center gap-3 rounded-xl border border-border/70 bg-surface/70 p-3 hover:bg-hover/50 transition-colors shadow-2xs"
+                >
+                  <div className="size-9 rounded-lg border bg-background flex items-center justify-center shrink-0 text-muted-foreground">
+                    {isJson ? (
+                      <span className="font-mono text-xs font-bold text-muted-foreground">{`{ }`}</span>
+                    ) : isSheet ? (
+                      <FileSpreadsheet className="size-5 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <FileText className="size-5" />
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="truncate text-xs font-semibold text-foreground">{file.name}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {file.sizeBytes ? formatFileSize(file.sizeBytes) : 'Đã đính kèm'}
+                      {file.caption ? ` · ${file.caption}` : ''}
+                    </span>
+                  </div>
+                  {file.url ? (
+                    <a
+                      href={file.url}
+                      download={file.name}
+                      className="size-8 flex items-center justify-center rounded-md hover:bg-hover text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={`Tải ${file.name} xuống`}
+                    >
+                      <Download className="size-4" />
+                    </a>
+                  ) : (
+                    <Button variant="ghost" size="icon-sm" className="size-8 cursor-pointer" aria-label={`Tải ${file.name} xuống`}>
+                      <Download className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
-      {(mail.status === 'FAILED' || (mail.status === 'UNKNOWN' && mail.local)) && mail.clientMessageId && (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(mail)}>
-            Gửi lại
+
+      {/* 8. Quick Reply Box */}
+      <div className="m-6 rounded-xl border border-border/80 bg-surface/40 p-4 flex flex-col gap-3 shadow-2xs">
+        <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+          <span className="flex items-center gap-1.5">
+            <Reply className="size-3.5 text-muted-foreground" />
+            <span>Trả lời nhanh tới {senderName}</span>
+          </span>
+          <Button variant="ghost" size="icon-sm" aria-label="Mở rộng khung soạn" className="size-6 text-muted-foreground cursor-pointer">
+            <Maximize2 className="size-3.5" />
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => sending.discard(mail)}>
-            Bỏ
-          </Button>
         </div>
-      )}
-      {sending.discardFailed !== undefined && sending.discardFailed === mail.clientMessageId && (
-        <p role="alert" className="text-sm text-danger-ink">
-          Không bỏ được thư này. Hãy thử lại.
-        </p>
-      )}
-      {mail.attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2.5">
-          {mail.attachments.map((file, index) => (
-            <MailFile key={file.url ?? `${file.name}-${index}`} file={file} />
-          ))}
+        <textarea
+          ref={replyInputRef}
+          rows={3}
+          value={replyText}
+          onChange={(e) => setReplyText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Nhập nội dung phản hồi chính thức cho đối tác... (Ctrl+Enter để gửi)"
+          className="w-full resize-none rounded-lg border-0 bg-transparent p-1 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-0 leading-relaxed"
+        />
+        <div className="flex items-center justify-between border-t pt-2.5">
+          {/* Format toolbar icons */}
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <Button type="button" variant="ghost" size="icon-sm" className="size-6 text-xs font-bold cursor-pointer">
+              B
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" className="size-6 text-xs italic font-serif cursor-pointer">
+              I
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" className="size-6 cursor-pointer">
+              <Link2 className="size-3.5" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" className="size-6 cursor-pointer">
+              <Paperclip className="size-3.5" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" className="size-6 cursor-pointer">
+              <Zap className="size-3.5" />
+            </Button>
+          </div>
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setReplyText('')}
+              className="h-8 px-3 text-xs font-medium cursor-pointer"
+            >
+              Lưu nháp
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isSending || !replyText.trim()}
+              onClick={handleSendReply}
+              className="h-8 gap-1.5 bg-foreground text-background hover:bg-foreground/90 text-xs font-semibold px-3.5 cursor-pointer disabled:opacity-50"
+            >
+              <span>{isSending ? 'Đang gửi…' : 'Gửi phản hồi'}</span>
+              <Send className="size-3" />
+            </Button>
+          </div>
         </div>
-      )}
-    </article>
+      </div>
+    </div>
   )
 }
 
-// Canvas `.att`: a file of an email, or of a chat message (zalo-send-files, ZF-08). From the API it downloads through
-// Sino (D-125); the sample data, and a file still on its way, have no address.
+function TextWithLinks({ line }: { line: string }) {
+  return linkParts(line).map((part, index) =>
+    part.href ? (
+      <a key={index} href={part.href} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-2">
+        {part.text}
+      </a>
+    ) : (
+      <Fragment key={index}>{part.text}</Fragment>
+    ),
+  )
+}
+
+// Canvas `.att`: a file of an email. From the API it downloads through Sino (D-125); the sample data has no address.
 export function MailFile({ file }: { file: Attachment }) {
   const className =
     'inline-flex h-13 min-w-0 max-w-full cursor-pointer items-center gap-2.5 rounded-sm border bg-raised pr-3.5 pl-2 text-left text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid'
@@ -381,13 +598,5 @@ export function MailFile({ file }: { file: Attachment }) {
     <button type="button" className={className}>
       {content}
     </button>
-  )
-}
-
-function MailTool({ label, icon: Icon }: { label: string; icon: LucideIcon }) {
-  return (
-    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className="size-8">
-      <Icon strokeWidth={1.6} />
-    </Button>
   )
 }

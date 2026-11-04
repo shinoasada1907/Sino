@@ -2,10 +2,12 @@ Thứ tự: PP-02 → PP-03 có thể làm trước; PP-01 chờ DN-1; PP-04 ch�
 
 ## 1. Nội dung Privacy
 
-- [ ] 1.1 **PP-01 — Điền chủ sở hữu, nêu Cloudflare** · sino-web (chờ DN-1)
+- [x] 1.1 **PP-01 — Điền chủ sở hữu, nêu Cloudflare** · sino-web (chờ DN-1)
   - `features/public/owner.ts`: 4 giá trị do người dùng đưa; sửa lại chú thích đang nhắc `sino-site` đã xóa.
   - `privacy.vi.tsx`, `privacy.en.tsx`: thêm Cloudflare vào mục bên thứ ba, đổi câu "ngoài hai bên này" (D-466). Quản lý rà câu chữ với cấu hình Cloudflare thật.
   - Kiểm: mở `/privacy`, `/en/privacy` trên Chrome, không còn "[chưa điền"; cập nhật `PrivacyPages.test.tsx` nếu cần.
+  - **Thực hiện (sino-web, 2026-11-04):** `owner.ts` điền 4 giá trị do quản lý đưa; `hosting` đổi kiểu thành `{ vi, en } | null` (chỉ trường này theo ngôn ngữ), `OwnerValue` chọn theo `lang`. Chú thích đầu `owner.ts` không còn nhắc `sino-site`. `privacy.vi.tsx`, `privacy.en.tsx`: thêm `<li>` Cloudflare sau nhà cung cấp máy chủ đúng câu chữ quản lý đưa; câu cuối mục đổi "Ngoài các bên trên" / "Apart from these". `package.json`: thêm `--strict` cuối lệnh `build` (D-465); `scripts/prerender.mjs`: thêm câu mốc "Cloudflare" cho hai trang Privacy.
+  - **Kiểm chứng:** `pnpm build` xanh với `--strict`; `dist/privacy.html`, `dist/en/privacy.html` 0 chỗ `[chưa điền`, có Cloudflare và câu cuối mới; mục máy chủ trang EN là "a private server run by Sino itself, located in Vietnam", không chữ Việt (chữ Việt còn lại ở trang EN chỉ là link "Tiếng Việt" và tên "Cu Tiến"). Trình duyệt (built-in, server tĩnh): đọc mục `#ben-thu-ba` hai trang đúng chữ, không còn "[chưa điền", ngày "HIỆU LỰC TỪ 04/11/2026". `pnpm lint` 0 lỗi (2 warning có sẵn), `tsc -b` sạch, `pnpm test` 132 file / 1369 test xanh (có 3 test mới: hosting theo ngôn ngữ, Cloudflare ở hai trang). Ảnh chụp màn hình lúc này đen (pane ẩn), nên chỉ xác nhận bằng DOM.
 
 ## 2. Tạo sẵn HTML
 

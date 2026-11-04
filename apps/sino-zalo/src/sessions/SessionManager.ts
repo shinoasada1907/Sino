@@ -323,6 +323,7 @@ export class SessionManager {
           : {}),
         ...(message.contentShape === undefined ? {} : { contentShape: message.contentShape }),
         ...(message.photoShape === undefined ? {} : { photoShape: message.photoShape }),
+        ...(message.mediaShape === undefined ? {} : { mediaShape: message.mediaShape }),
         ...(source === undefined ? {} : { source }),
       },
       "Zalo message",

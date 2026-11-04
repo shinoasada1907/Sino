@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.ConversationType;
 
@@ -14,10 +15,11 @@ import dev.sino.provider.spi.ConversationType;
  * flags come from every copy (D-182). {@code accountIds} has the account of the primary copy first, then the others
  * from the oldest copy on. {@code avatarUrl} is the picture the provider gave the conversation, kept by its primary
  * copy: null for mail, and for a chat the provider gave none. {@code nickname} is the one Sino stored for a 1-1
- * chat (zalo-nicknames, D-416), kept by its primary copy like the title; null for every other conversation.
+ * chat (zalo-nicknames, D-416), kept by its primary copy like the title; null for every other conversation. {@code kind}
+ * is the kind of the provider (f05c, D-306), not of the {@code type}.
  */
 public record InboxItem(UUID id, UUID primaryId, UUID accountId, List<UUID> accountIds, List<Copy> copies,
-        ProviderType provider, ConversationType type, String title, String avatarUrl, String nickname,
+        ProviderType provider, ProviderKind kind, ConversationType type, String title, String avatarUrl, String nickname,
         String counterpart, String lastMessageFrom, String preview, Instant lastMessageAt, int unreadCount,
         boolean needsReply, boolean hasAttachments, boolean archived, int participantCount) {
 

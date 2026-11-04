@@ -137,10 +137,16 @@ export const PRIVACY_VI: PolicyDoc = {
               dung thư.
             </li>
             <li>
-              <b>Nhà cung cấp máy chủ:</b> <OwnerValue field="hosting" />. Dữ liệu của Sino được lưu ở đây.
+              <b>Nhà cung cấp máy chủ:</b> <OwnerValue field="hosting" lang="vi" />. Dữ liệu của Sino được lưu ở đây.
+            </li>
+            <li>
+              <b>Cloudflare:</b> mọi lưu lượng tới Sino đều đi qua Cloudflare để được bảo vệ và định tuyến. Kết nối được mã hóa
+              trên đường truyền, và Cloudflare xử lý nội dung ở dạng đọc được trên hệ thống của họ, nên những gì Sino gửi cho
+              bạn, kể cả thư khi hiển thị, đều đi qua đó. Sino không dùng Cloudflare để lưu thư của bạn. Cloudflare cũng có thể
+              yêu cầu trình duyệt của bạn báo lỗi mạng cho họ.
             </li>
           </Ul>
-          <P>Ngoài hai bên trên, Sino không chuyển dữ liệu của bạn cho ai, trừ khi pháp luật bắt buộc.</P>
+          <P>Ngoài các bên trên, Sino không chuyển dữ liệu của bạn cho ai, trừ khi pháp luật bắt buộc.</P>
         </>
       ),
     },

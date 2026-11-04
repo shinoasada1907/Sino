@@ -2,7 +2,7 @@
 //   dist/home.html  dist/privacy.html  dist/en/privacy.html
 // `dist/index.html` is not touched: it stays the empty shell for every page of the app (D-461).
 // Run after `vite build` (with build.manifest) and `vite build --ssr` (see the `build` script).
-//   --strict   also fail on an owner value not filled in yet ("[chưa điền"); `pnpm build` passes it once PP-01 is done.
+//   --strict   also fail on an owner value not filled in yet ("[chưa điền"); `pnpm build` passes it (PP-01).
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -18,12 +18,12 @@ const OUTPUTS = [
   {
     route: '/privacy',
     file: 'privacy.html',
-    landmarks: ['Chính sách quyền riêng tư', 'Dữ liệu nhận từ Google', 'Limited Use', 'Chịu trách nhiệm về dữ liệu của Sino'],
+    landmarks: ['Chính sách quyền riêng tư', 'Dữ liệu nhận từ Google', 'Limited Use', 'Cloudflare', 'Chịu trách nhiệm về dữ liệu của Sino'],
   },
   {
     route: '/en/privacy',
     file: 'en/privacy.html',
-    landmarks: ['Privacy policy', 'Limited Use', 'Responsible for Sino'],
+    landmarks: ['Privacy policy', 'Limited Use', 'Cloudflare', 'Responsible for Sino'],
   },
 ]
 

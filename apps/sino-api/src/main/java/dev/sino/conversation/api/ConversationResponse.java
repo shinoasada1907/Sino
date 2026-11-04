@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import dev.sino.conversation.application.InboxItem;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.spi.ConversationType;
 
 /**
@@ -25,11 +26,11 @@ record ConversationResponse(UUID id, UUID accountId, List<UUID> accountIds, Stri
         boolean archived, Object snooze, Object scheduledSend, List<Object> linked) {
 
     static ConversationResponse from(InboxItem item) {
-        boolean email = item.type() == ConversationType.THREAD;
+        boolean email = item.kind() == ProviderKind.EMAIL;
         boolean group = item.type() == ConversationType.GROUP || item.type() == ConversationType.CHANNEL;
         String title = email ? firstOf(item.counterpart(), item.title()) : firstOf(item.title(), item.counterpart());
         return new ConversationResponse(item.id(), item.accountId(), item.accountIds(), item.provider().value(),
-                email ? "EMAIL" : "CHAT", title, email ? null : item.avatarUrl(), item.nickname(),
+                item.kind().name(), title, email ? null : item.avatarUrl(), item.nickname(),
                 email ? item.title() : null, group ? item.participantCount() : null,
                 group ? item.lastMessageFrom() : null, item.preview(), item.lastMessageAt(), item.unreadCount(),
                 item.needsReply(), item.hasAttachments(), item.archived(), null, null, List.of());

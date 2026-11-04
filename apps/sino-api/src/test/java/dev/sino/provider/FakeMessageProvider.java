@@ -60,6 +60,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private final OAuth2Connection oauth2;
     private final QrLogin qrLogin;
     private final boolean turnedOn;
+    private final ProviderKind kind;
     private final Long estimate;
     private final ProviderException estimateFailure;
     private final Map<Integer, ProviderException> failures;
@@ -99,6 +100,7 @@ public final class FakeMessageProvider implements MessageProvider {
         this.oauth2 = builder.oauth2;
         this.qrLogin = builder.qrLogin;
         this.turnedOn = builder.turnedOn;
+        this.kind = builder.kind;
         this.estimate = builder.estimate;
         this.estimateFailure = builder.estimateFailure;
         this.failures = Map.copyOf(builder.failures);
@@ -137,7 +139,7 @@ public final class FakeMessageProvider implements MessageProvider {
 
     @Override
     public ProviderKind kind() {
-        return ProviderKind.EMAIL;
+        return kind;
     }
 
     @Override
@@ -513,6 +515,7 @@ public final class FakeMessageProvider implements MessageProvider {
         private OAuth2Connection oauth2;
         private QrLogin qrLogin;
         private boolean turnedOn = true;
+        private ProviderKind kind = ProviderKind.EMAIL;
         private Long estimate;
         private ProviderException estimateFailure;
         private final Map<Integer, ProviderException> failures = new HashMap<>();
@@ -556,6 +559,12 @@ public final class FakeMessageProvider implements MessageProvider {
          */
         public Builder nicknames(Map<String, String> initial) {
             this.nicknames = initial;
+            return this;
+        }
+
+        /** The kind the fake declares (D-306); without it, {@link ProviderKind#EMAIL}. */
+        public Builder kind(ProviderKind kind) {
+            this.kind = kind;
             return this;
         }
 

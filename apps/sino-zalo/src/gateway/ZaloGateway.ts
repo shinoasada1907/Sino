@@ -137,6 +137,12 @@ export interface ZaloMessage {
    * that fails to load was chosen and where the others are (ZL-18). sino-api ignores it.
    */
   readonly photoShape?: string | undefined;
+  /**
+   * Only on a `chat.voice`, `chat.video.msg`, `chat.recommended` or `chat.link` message (ML-01, D-475): the same
+   * description as `photoShape` (keys of the content and of `params`, kind of each value, host of each address, never
+   * a path or a value), so a real message shows how Zalo gives these. sino-api ignores it.
+   */
+  readonly mediaShape?: string | undefined;
 }
 
 /** A thread's name and picture; null where Zalo gave none. */
@@ -149,6 +155,28 @@ export interface ThreadInfo {
 export interface ZaloAlias {
   readonly friendId: string;
   readonly alias: string;
+}
+
+/** A friend of the account (zalo-contacts, D-425); `id` is the `threadId` of a 1-1 chat with them. */
+export interface ZaloFriendContact {
+  readonly id: string;
+  /** The Zalo name, as a 1-1 chat is named (D-419), never a nickname sino-zalo adds. */
+  readonly name: string;
+  readonly avatarUrl: string | null;
+}
+
+/** A group the account is in (zalo-contacts, D-425); `id` is the `threadId` of the group chat. */
+export interface ZaloGroupContact {
+  readonly id: string;
+  readonly name: string;
+  readonly avatarUrl: string | null;
+  readonly memberCount: number | null;
+}
+
+/** Every friend and group of the account, from one answer of Zalo each (zalo-contacts, D-425). */
+export interface ZaloContacts {
+  readonly friends: readonly ZaloFriendContact[];
+  readonly groups: readonly ZaloGroupContact[];
 }
 
 /** What a listener reports. `closed` follows every close of the websocket, a stop asked for included. */
@@ -216,6 +244,11 @@ export interface ZaloConnection {
    * Throws ZaloUnavailableError when Zalo does not answer.
    */
   aliasList(): Promise<ZaloAlias[]>;
+  /**
+   * Every friend and group of the account (zalo-contacts, D-425). Throws ZaloUnavailableError when any call to
+   * Zalo fails, so a partial list never comes out.
+   */
+  contacts(): Promise<ZaloContacts>;
 }
 
 /** Everything sino-zalo asks of Zalo. Tests use FakeZaloGateway and never reach Zalo. */

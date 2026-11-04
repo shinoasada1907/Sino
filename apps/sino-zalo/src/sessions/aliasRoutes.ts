@@ -33,10 +33,12 @@ const CACHE_TTL_MS = 60_000;
 
 /**
  * Every nickname Zalo gave for an account, kept for `CACHE_TTL_MS` so two reads close together ask Zalo once; a
- * `PUT` or `DELETE` empties the account's entry so the next `GET` asks again.
+ * `PUT` or `DELETE` empties the account's entry so the next `GET` asks again. Each `clear` also moves the account's
+ * version on, so a list Zalo was asked for before the write cannot be kept once it comes back after it.
  */
 class AliasCache {
   private readonly entries = new Map<string, { items: readonly ZaloAlias[]; until: number }>();
+  private readonly versions = new Map<string, number>();
   private readonly now: () => number;
 
   constructor(now: () => number) {
@@ -48,12 +50,21 @@ class AliasCache {
     return entry !== undefined && entry.until > this.now() ? entry.items : undefined;
   }
 
-  set(accountId: string, items: readonly ZaloAlias[]): void {
-    this.entries.set(accountId, { items, until: this.now() + CACHE_TTL_MS });
+  /** Read before asking Zalo, then handed back to `set`. */
+  version(accountId: string): number {
+    return this.versions.get(accountId) ?? 0;
+  }
+
+  /** Keeps `items` unless a `clear` came between the `version` read and now. */
+  set(accountId: string, items: readonly ZaloAlias[], version: number): void {
+    if (version === this.version(accountId)) {
+      this.entries.set(accountId, { items, until: this.now() + CACHE_TTL_MS });
+    }
   }
 
   clear(accountId: string): void {
     this.entries.delete(accountId);
+    this.versions.set(accountId, this.version(accountId) + 1);
   }
 }
 
@@ -107,6 +118,7 @@ export function registerAliasRoutes(
       if (cached !== undefined) {
         return { items: cached };
       }
+      const version = cache.version(accountId);
       let items: ZaloAlias[];
       try {
         const connection = sessions.connectionOf(accountId);
@@ -114,7 +126,7 @@ export function registerAliasRoutes(
       } catch (error) {
         return sendAliasError(reply, error);
       }
-      cache.set(accountId, items);
+      cache.set(accountId, items, version);
       return { items };
     },
   );

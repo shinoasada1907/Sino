@@ -58,7 +58,7 @@ Bản checkout `Sino-deploy` đang ở `eb6bad1` (2026-10-22), trong khi file đ
 
 **DN-3: Mode của change.** `new_features` đang là TRAINING. Đề xuất `task_overrides.public-pages-prerender: AUTO`, vì người dùng đã đồng ý để kỹ sư `sino-web` làm.
 
-**Đã chốt (người dùng, 2026-11-04: "Duyệt, giao việc"):** DN-2 = A, cherry-pick; DN-3 = AUTO. DN-1 còn chờ 4 giá trị.
+**Đã chốt (người dùng, 2026-11-04: "Duyệt, giao việc"):** DN-2 = A, cherry-pick; DN-3 = AUTO. DN-1 (người dùng, 2026-11-04: "Đúng, giao PP-01"): email `tienct07@gmail.com`; người đứng tên `Cu Tiến (Sino)`, tên theo GitHub, có thể đổi sang tên đầy đủ về sau; ngày hiệu lực `2026-11-04`, đổi theo ngày deploy nếu trễ hơn; máy chủ riêng do Sino tự vận hành, đặt tại Việt Nam.
 
 ## Risks / Trade-offs
 

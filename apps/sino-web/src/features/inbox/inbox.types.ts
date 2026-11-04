@@ -67,6 +67,7 @@ export interface InboxCounts {
   /** Conversations with an unread message ("12 chưa đọc"). */
   unread: number
   byProvider: { provider: ProviderType; unread: number }[]
+  byAccount?: Record<string, { unread: number; needsReply: number; withAttachments: number }>
   needsReply: number
   withAttachments: number
   scheduled: number
@@ -110,6 +111,8 @@ export interface ConversationItem {
   scheduledSend: { at: Instant; failed: boolean } | null
   /** Due time of a task, start of an appointment; null for a note. */
   linked: { kind: LinkedKind; at: Instant | null; allDay: boolean }[]
+  tags?: string[]
+  attachmentFiles?: { name: string; type: string; size?: string }[]
 }
 
 /** Detail: `GET /api/conversations/{id}` + `GET /api/conversations/{id}/messages` (F06). */
@@ -138,6 +141,7 @@ export interface ConversationDetail {
   /** The emoji the provider lets the user drop (zalo-reactions, D-387); absent or empty: no emoji bar. */
   reactionSet?: ReactionKind[]
   previousCursor: string | null
+  linkedUrl?: { title: string; subtitle: string; url: string }
 }
 
 /** Someone a reply goes to; a person without a name shows by the address. */
@@ -194,6 +198,10 @@ export type Message =
       kind: 'MESSAGE'
       direction: 'IN' | 'OUT'
       sender: string
+      /** The sender's address/ID (from provider) */
+      senderAddress?: string
+      /** The sender's avatar URL if provided directly on message */
+      senderAvatar?: string | null
       /** An own message: the address it went from, named in a thread of several accounts (f05b, D-184). */
       ownAddress?: string
       to: string | null
@@ -224,6 +232,10 @@ export type Message =
       libraryStickerId?: string
       /** Only in this browser: the server never stored it (a send that did not reach it, or not allowed). */
       local?: boolean
+      /** Optional structured code/json payload card attached to message. */
+      codePayload?: { filename: string; content: string; note?: string }
+      /** Optional quote or pill prefix (e.g. Japanese approval quote). */
+      quoteTag?: string
       /** The emoji on the message, most people first (zalo-reactions, D-387); absent when the backend does not tell. */
       reactions?: Reaction[]
       /** The user can drop an emoji on it: the bar shows (D-387). */
@@ -237,6 +249,10 @@ export interface Member {
   avatarUrl: string | null
   owner: boolean
   joinedRecently: boolean
+  role?: string
+  id?: string
+  location?: string
+  self?: boolean
 }
 
 export interface SharedFile {
@@ -246,4 +262,5 @@ export interface SharedFile {
   /** Photos show as thumbnails, other files as rows. */
   image: boolean
   at: Instant
+  url?: string
 }

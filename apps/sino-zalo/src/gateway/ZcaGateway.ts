@@ -17,6 +17,9 @@ import {
   type ThreadType,
   type ZaloAlias,
   type ZaloConnection,
+  type ZaloContacts,
+  type ZaloFriendContact,
+  type ZaloGroupContact,
   type ZaloGateway,
   type ZaloFile,
   type ZaloImage,
@@ -192,6 +195,13 @@ export class ZcaGateway implements ZaloGateway {
           throw aliasErrorOf(error);
         }
       },
+      contacts: async () => {
+        try {
+          return await contactsOf(api);
+        } catch (error) {
+          throw new ZaloUnavailableError(reasonOf(error));
+        }
+      },
     };
   }
 }
@@ -214,22 +224,71 @@ function aliasErrorOf(error: unknown): Error {
  * documented default of 100 per page, a value already known to work, and stops once a page comes back with fewer
  * items than that: this assumes Zalo never answers a non-final page with fewer items than asked for, which is the
  * usual shape of such an API but is not confirmed against a real account with more than 100 friends (NK-20).
+ *
+ * Pages that never end throw instead of looping (D-424): a full page whose friends were all on earlier pages (Zalo
+ * not honouring `page`), or more than `MAX_ALIAS_PAGES` pages. A list that stopped there could be partial, and
+ * sino-api clears every nickname missing from it, so the caller gets a failure (`502`) rather than such a list.
  */
 export async function aliasListOf(api: Pick<API, "getAliasList">): Promise<ZaloAlias[]> {
-  const pageSize = 100;
-  const items: ZaloAlias[] = [];
-  let page = 1;
-  for (;;) {
-    const response = await api.getAliasList(pageSize, page);
+  const aliases = new Map<string, string>();
+  for (let page = 1; page <= MAX_ALIAS_PAGES; page++) {
+    const response = await api.getAliasList(ALIAS_PAGE_SIZE, page);
+    const known = aliases.size;
     for (const item of response.items) {
-      items.push({ friendId: item.userId, alias: item.alias });
+      aliases.set(item.userId, item.alias);
     }
-    if (response.items.length < pageSize) {
-      return items;
+    if (response.items.length < ALIAS_PAGE_SIZE) {
+      return [...aliases].map(([friendId, alias]) => ({ friendId, alias }));
     }
-    page++;
+    if (aliases.size === known) {
+      throw new Error(`Zalo gave page ${page} of the aliases again: every friend on it was on an earlier page`);
+    }
   }
+  throw new Error(`Zalo gave more than ${MAX_ALIAS_PAGES} full pages of aliases`);
 }
+
+/**
+ * Every friend and group of the account (zalo-contacts, D-425): one `getAllFriends` (zca-js asks for up to 20,000),
+ * then the group ids of `getAllGroups` asked of `getGroupInfo` `GROUP_BATCH` at a time, one call after the other.
+ * zca-js sets no limit on the ids of one `getGroupInfo` call; what Zalo accepts is not known from the code (CT-20).
+ * A group Zalo leaves out of its answer (one the account left in between) is skipped. Any failure goes to the
+ * caller, so a partial list never comes out.
+ */
+export async function contactsOf(
+  api: Pick<API, "getAllFriends" | "getAllGroups" | "getGroupInfo">,
+): Promise<ZaloContacts> {
+  const friends: ZaloFriendContact[] = (await api.getAllFriends()).map((user) => ({
+    id: user.userId,
+    name: user.displayName || user.zaloName || user.userId,
+    avatarUrl: user.avatar || null,
+  }));
+  const groupIds = Object.keys((await api.getAllGroups()).gridVerMap ?? {});
+  const groups: ZaloGroupContact[] = [];
+  for (let start = 0; start < groupIds.length; start += GROUP_BATCH) {
+    const batch = groupIds.slice(start, start + GROUP_BATCH);
+    const { gridInfoMap } = await api.getGroupInfo(batch);
+    for (const groupId of batch) {
+      const group = gridInfoMap?.[groupId];
+      if (group === undefined) {
+        continue;
+      }
+      groups.push({
+        id: groupId,
+        name: group.name || groupId,
+        avatarUrl: group.fullAvt || group.avt || null,
+        memberCount: Number.isInteger(group.totalMember) ? group.totalMember : null,
+      });
+    }
+  }
+  return { friends, groups };
+}
+
+/** Group ids per `getGroupInfo` call (D-425); 50 until CT-20 measures what Zalo takes. */
+const GROUP_BATCH = 50;
+
+const ALIAS_PAGE_SIZE = 100;
+/** 5,000 nicknames, more than any friend list we expect; past that, the pages are taken as never ending (D-424). */
+const MAX_ALIAS_PAGES = 50;
 
 /** A zca-js message in the contract's shape (D-279 reads `zaloType`, `text`, the sticker and the photo). */
 export function toZaloMessage(message: Message): ZaloMessage {
@@ -246,6 +305,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
   const file = data.msgType === "share.file" ? sharedFileOf(data.content) : undefined;
   const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
   const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
+  const mediaShape = MEASURED_TYPES.has(data.msgType) ? photoShapeOf(data) : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -261,8 +321,15 @@ export function toZaloMessage(message: Message): ZaloMessage {
     ...(file === undefined ? {} : { file }),
     ...(contentShape === undefined ? {} : { contentShape }),
     ...(photoShape === undefined ? {} : { photoShape }),
+    ...(mediaShape === undefined ? {} : { mediaShape }),
   };
 }
+
+/**
+ * The types whose content is only measured, not read yet (zalo-media-library, ML-01, D-475): a voice message, a video, a
+ * recommended link and a link card. Each gets `mediaShape` in the log, built as `photoShape` is (keys, kinds, hosts).
+ */
+const MEASURED_TYPES = new Set(["chat.voice", "chat.video.msg", "chat.recommended", "chat.link"]);
 
 /** The types of message the pipeline knows what to do with (D-279); any other is shown as a placeholder. */
 const KNOWN_TYPES = new Set(["webchat", "chat.photo", "chat.sticker", "chat.gif", "share.file", "chat.voice"]);

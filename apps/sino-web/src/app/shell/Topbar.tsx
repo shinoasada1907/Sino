@@ -1,4 +1,4 @@
-import { Bell, Search } from 'lucide-react'
+import { Bell, Search, SlidersHorizontal, SquarePen } from 'lucide-react'
 import { Link } from 'react-router'
 import { cn } from '@/shared/lib/utils'
 import { ThemeToggle } from '@/shared/theme/ThemeToggle'
@@ -8,12 +8,13 @@ import { Input } from '@/shared/ui/input'
 import { Kbd } from '@/shared/ui/kbd'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { Status } from '@/shared/ui/status'
+import { Avatar } from '@/shared/ui/avatar'
 import { LanguageButton } from './LanguageButton'
 import type { ShellData } from './shell.types'
 import { syncStatus } from './syncStatus'
+import { UserMenu } from './UserMenu'
 
 // The canvas `Topbar` on desktop; on tablet and mobile a shorter bar with the page title (`TabletDashboard`, `MobileDashboard`).
-// Each bar has exactly the buttons of its artboard: the theme switch is on desktop only, the language button on desktop and tablet.
 export function Topbar({
   shell,
   receivedAt,
@@ -40,18 +41,37 @@ export function Topbar({
           />
           <Input
             type="search"
-            placeholder="Tìm thư, người, tài khoản, đăng ký…"
+            placeholder="Tìm kiếm thư, tin nhắn hoặc liên hệ…"
             aria-label="Tìm trong Sino"
             className="pr-16 pl-10.5"
           />
           <Kbd className="absolute top-1/2 right-2.5 -translate-y-1/2">Ctrl K</Kbd>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-3">
+          {/* Action button "Viết mới" */}
+          <Button asChild size="sm" className="gap-2 bg-foreground text-background hover:bg-foreground/90 font-medium rounded-lg px-3.5 h-9">
+            <Link to="/inbox/new">
+              <SquarePen className="size-4" strokeWidth={1.8} />
+              <span>Viết mới</span>
+            </Link>
+          </Button>
+
           {status && <Status tone={status.tone}>{status.text}</Status>}
-          <span aria-hidden="true" className="mx-2 h-6 w-px bg-border" />
+          <span aria-hidden="true" className="mx-1 h-6 w-px bg-border" />
           <BellLink unread={shell?.unreadNotifications ?? 0} />
+          
+          <Button variant="ghost" size="icon" aria-label="Bộ lọc & Cài đặt">
+            <SlidersHorizontal className="size-4.5" strokeWidth={1.6} />
+          </Button>
+
           <ThemeToggle />
           <LanguageButton />
+
+          <UserMenu>
+            <Button type="button" variant="ghost" size="icon-sm" className="ml-1 rounded-full p-0" aria-label="Tài khoản Sino của bạn">
+              <Avatar className="size-8" />
+            </Button>
+          </UserMenu>
         </div>
       </div>
 
@@ -64,11 +84,8 @@ export function Topbar({
           </Status>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Tìm kiếm">
-            <Search strokeWidth={1.6} />
-          </Button>
           <BellLink unread={shell?.unreadNotifications ?? 0} />
-          <LanguageButton className="hidden md:inline-flex" />
+          <LanguageButton />
         </div>
       </div>
     </header>
@@ -77,10 +94,15 @@ export function Topbar({
 
 function BellLink({ unread }: { unread: number }) {
   return (
-    <Button asChild variant="ghost" size="icon-sm" className="relative">
+    <Button asChild variant="ghost" size="icon" className="relative">
       <Link to="/notifications" aria-label={unread > 0 ? `Thông báo, ${unread} mới` : 'Thông báo'}>
-        <Bell strokeWidth={1.6} />
-        {unread > 0 && <span aria-hidden="true" className="absolute top-2 right-2.25 size-1.5 rounded-full bg-foreground" />}
+        <Bell className="size-4.5" strokeWidth={1.6} />
+        {unread > 0 && (
+          <span
+            aria-hidden="true"
+            className="absolute top-2 right-2 size-2 rounded-full bg-danger ring-2 ring-background"
+          />
+        )}
       </Link>
     </Button>
   )

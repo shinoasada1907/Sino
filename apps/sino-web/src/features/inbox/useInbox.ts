@@ -21,7 +21,7 @@ export const inboxKey = (kind: ProviderKind) => [...FRAMES_KEY, kind] as const
 export const INBOX_UNREAD_QUERY_KEY = ['inbox-unread'] as const
 const LISTS_KEY = ['inbox', 'list'] as const
 /** The pages of one kind, view and source. */
-export const conversationsKey = (kind: ProviderKind, { view, source }: InboxFilter) => [...LISTS_KEY, kind, view, source] as const
+export const conversationsKey = (kind: ProviderKind, { view, source, account }: InboxFilter) => [...LISTS_KEY, kind, view, source, account] as const
 export const conversationKey = (conversationId: string) => ['inbox', 'conversation', conversationId] as const
 /** Under the conversation, so that a change the stream reports reads them again too (D-126). */
 export const messagesKey = (conversationId: string) => [...conversationKey(conversationId), 'messages'] as const

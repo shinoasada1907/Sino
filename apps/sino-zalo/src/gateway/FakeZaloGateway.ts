@@ -1,5 +1,8 @@
 import {
   type ZaloAlias,
+  type ZaloContacts,
+  type ZaloFriendContact,
+  type ZaloGroupContact,
   type ListenerEvents,
   type QrLoginEvents,
   type QrLoginHandle,
@@ -174,11 +177,32 @@ export class FakeConnection implements ZaloConnection {
 
   async aliasList(): Promise<ZaloAlias[]> {
     this.zalo.aliasListCalls++;
+    const hold = this.zalo.nextAliasList === "hold";
+    this.zalo.nextAliasList = "answer";
+    // What Zalo has when asked: a write landing while the answer is held does not change it.
+    const items = [...this.zalo.aliases].map(([friendId, alias]) => ({ friendId, alias }));
     await Promise.resolve();
+    if (hold) {
+      await new Promise<void>((release) => this.zalo.heldAliasLists.push(release));
+    }
     if (this.zalo.aliasesUnavailable) {
       throw new ZaloUnavailableError("TypeError: fetch failed");
     }
-    return [...this.zalo.aliases].map(([friendId, alias]) => ({ friendId, alias }));
+    return items;
+  }
+
+  async contacts(): Promise<ZaloContacts> {
+    this.zalo.contactsCalls++;
+    const hang = this.zalo.nextContacts === "hang";
+    this.zalo.nextContacts = "answer";
+    await Promise.resolve();
+    if (hang) {
+      await new Promise<never>(() => {});
+    }
+    if (this.zalo.contactsUnavailable) {
+      throw new ZaloUnavailableError("TypeError: fetch failed");
+    }
+    return { friends: [...this.zalo.friends], groups: [...this.zalo.groups] };
   }
 
   /** What Zalo does with the alias write just recorded, as `nextAliasWrite` and `aliasesUnavailable` say. */
@@ -240,6 +264,23 @@ export class FakeZaloGateway implements ZaloGateway {
   aliasesUnavailable = false;
   /** How many times `GET /accounts/:id/aliases` actually asked Zalo (not answered from sino-zalo's own cache). */
   aliasListCalls = 0;
+  /** Whether Zalo answers the next alias list at once, or holds it until released. One-shot, like `nextSend`. */
+  nextAliasList: "answer" | "hold" = "answer";
+  readonly heldAliasLists: (() => void)[] = [];
+  /** The friends and groups Zalo has for every account (zalo-contacts, D-425), as `GET …/contacts` sees them. */
+  readonly friends: ZaloFriendContact[] = [];
+  readonly groups: ZaloGroupContact[] = [];
+  /** Whether the next contact list fails as Zalo being unreachable (502). */
+  contactsUnavailable = false;
+  /** Whether Zalo answers the next contact list, or never does (the route's own time limit then answers). */
+  nextContacts: "answer" | "hang" = "answer";
+  /** How many times `GET …/contacts` asked Zalo. */
+  contactsCalls = 0;
+
+  /** Zalo answers the alias lists it held, with what it had when each was asked. */
+  releaseHeldAliasLists(): void {
+    for (const release of this.heldAliasLists.splice(0)) release();
+  }
 
   /** Zalo answers the sends it held: takes them, or refuses them. */
   releaseHeldSends(outcome: "accept" | "reject" = "accept"): void {

@@ -1,6 +1,8 @@
 package dev.sino.conversation.api;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,6 +28,7 @@ import dev.sino.conversation.application.InboxPage;
 import dev.sino.conversation.application.InboxService;
 import dev.sino.conversation.application.InboxView;
 import dev.sino.identity.CurrentUser;
+import dev.sino.provider.ProviderKind;
 
 /**
  * The inbox screen (F05, FR-02): pages of conversations, their counts, one conversation, and marking it read or
@@ -35,6 +38,8 @@ import dev.sino.identity.CurrentUser;
 @RequestMapping("/api/conversations")
 class ConversationsController {
 
+    private static final String KIND_VALUES = "email|chat";
+
     private final InboxService inbox;
     private final CurrentUser currentUser;
 
@@ -43,24 +48,39 @@ class ConversationsController {
         this.currentUser = currentUser;
     }
 
-    /** A {@code cursor} that this API did not hand out, like a {@code view} or {@code limit} out of range, is a 400. */
+    /**
+     * A {@code cursor} that this API did not hand out, like a {@code view}, {@code kind} or {@code limit} out of range,
+     * is a 400. {@code kind} ({@code email} or {@code chat}) keeps the conversations of that kind of provider; none
+     * keeps both (f05c, D-307).
+     */
     @GetMapping
     ConversationPageResponse list(
             @RequestParam(defaultValue = "all") @Pattern(regexp = InboxView.PARAMETER_VALUES) String view,
+            @RequestParam(required = false) @Pattern(regexp = KIND_VALUES) String kind,
             @RequestParam(required = false) String provider, @RequestParam(required = false) UUID accountId,
             @RequestParam(required = false) InboxCursor cursor,
             @RequestParam(defaultValue = "30") @Min(1) @Max(100) int limit) {
-        InboxPage page = inbox.page(currentUser.requireOwnerId(), InboxView.of(view), provider, accountId, cursor,
-                limit);
+        InboxPage page = inbox.page(currentUser.requireOwnerId(), InboxView.of(view), kindOf(kind), provider,
+                accountId, cursor, limit);
         return new ConversationPageResponse(page.items().stream().map(ConversationResponse::from).toList(),
                 page.next() == null ? null : page.next().encode());
     }
 
+    /** With {@code kind}, everything but {@code unreadByKind} counts that kind only; see {@link InboxCounts}. */
     @GetMapping("/counts")
-    CountsResponse counts() {
-        InboxCounts counts = inbox.counts(currentUser.requireOwnerId());
+    CountsResponse counts(@RequestParam(required = false) @Pattern(regexp = KIND_VALUES) String kind) {
+        InboxCounts counts = inbox.counts(currentUser.requireOwnerId(), kindOf(kind));
+        Map<String, Long> unreadByKind = new LinkedHashMap<>();
+        counts.unreadByKind().forEach((each, unread) -> unreadByKind.put(each.name(), unread));
+        Map<String, AccountCountsResponse> byAccount = new LinkedHashMap<>();
+        counts.byAccount().forEach((id, count) -> byAccount.put(id.toString(),
+                new AccountCountsResponse(count.unread(), count.needsReply(), count.withAttachments())));
         return new CountsResponse(counts.unread(), counts.unreadByProvider(), counts.needsReply(),
-                counts.withAttachments(), 0, 0);
+                counts.withAttachments(), 0, 0, unreadByKind, byAccount);
+    }
+
+    private static ProviderKind kindOf(String kind) {
+        return kind == null ? null : ProviderKind.valueOf(kind.toUpperCase(Locale.ROOT));
     }
 
     @GetMapping("/{id}")
@@ -81,9 +101,15 @@ class ConversationsController {
     record ConversationPageResponse(List<ConversationResponse> items, String nextCursor) {
     }
 
-    /** Conversations that are not archived; {@code byProvider} counts the unread ones. */
+    record AccountCountsResponse(long unread, long needsReply, long withAttachments) {
+    }
+
+    /**
+     * Conversations that are not archived; {@code byProvider} counts the unread ones. {@code unreadByKind} has
+     * {@code EMAIL} and {@code CHAT}, whatever {@code kind} was asked. {@code byAccount} has the numbers of each account.
+     */
     record CountsResponse(long unread, Map<String, Long> byProvider, long needsReply, long withAttachments,
-            long scheduled, long snoozed) {
+            long scheduled, long snoozed, Map<String, Long> unreadByKind, Map<String, AccountCountsResponse> byAccount) {
     }
 
     /**
