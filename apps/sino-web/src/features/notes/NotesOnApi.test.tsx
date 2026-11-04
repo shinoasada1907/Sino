@@ -1,7 +1,9 @@
 import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { http } from 'msw'
 import { notesBackend } from '@/test/notesBackend'
+import { server } from '@/test/msw/server'
 import { restoreReactFlow, stubReactFlow } from '@/test/reactFlow'
 import { renderApp } from '@/test/renderApp'
 import { NOTES_QUERY_KEY } from './useNotes'
@@ -126,6 +128,35 @@ describe('Ghi chú on the F15 API (FE-90)', () => {
 
       await vi.waitFor(() => expect(router.state.location.pathname).toBe('/notes/note-new-1'), SAVED)
       expect(api.created).toEqual([{ kind: 'TEXT', title: '', body: 'Gọi lại' }])
+    })
+
+    it('keeps a filter chosen while the new note is being made, under the address of the note', async () => {
+      const api = backend()
+      // The making of the note waits until the filter has changed, then goes on to the backend.
+      let release = () => {}
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let asked = false
+      server.use(
+        http.post('/api/notes', async () => {
+          asked = true
+          await held
+        }),
+      )
+      const user = userEvent.setup()
+      const { router } = renderApp('/notes/new')
+      await ready()
+
+      await user.type(text(), 'Gọi lại')
+      await vi.waitFor(() => expect(asked).toBe(true), SAVED)
+      await act(() => router.navigate('/notes/new?filter=pinned', { replace: true }))
+      release()
+
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/notes/note-new-1'), SAVED)
+      expect(router.state.location.search).toBe('?filter=pinned')
+      expect(api.created).toHaveLength(1)
+      expect(text()).toHaveValue('Gọi lại')
     })
 
     it('saves an edit over the version it read, then the next one over the version that came back', async () => {

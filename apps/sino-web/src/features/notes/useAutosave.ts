@@ -131,7 +131,7 @@ export function useAutosave({
     if (blocked()) {
       return
     }
-    const { kind: noteKind, save: saveChange, create: makeNote, navigate: go, search: query, editorKey: key } = context.current
+    const { kind: noteKind, save: saveChange, create: makeNote } = context.current
     const draft = latest.current
     const current = base.current
     if (!current) {
@@ -144,6 +144,8 @@ export function useAutosave({
         base.current = created
         setProblem(null)
         if (mounted.current) {
+          // Read after the wait: the filter or the search may have changed while the note was being made.
+          const { navigate: go, search: query, editorKey: key } = context.current
           go({ pathname: `/notes/${created.id}`, search: query }, { replace: true, state: fromNew(key) })
         }
       } catch {
