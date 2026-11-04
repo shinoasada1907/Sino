@@ -678,3 +678,66 @@ Mỗi việc đọc nội dung và `base` **lúc đến lượt**, không lúc �
 - Chrome thật (backend `test-run` cổng 18080, 1440 và 375): tạo ghi chú chữ rồi tải lại vẫn còn; sửa từ tab khác rồi quay lại tab này (không còn chữ chưa lưu) thì ô soạn nhận chữ mới; `PATCH` từ ngoài trang rồi gõ thêm: dòng báo đúng chữ, hai nút, chữ đang gõ còn nguyên, máy chủ chưa bị ghi đè (version 2 vẫn là bản của "điện thoại"); "Lưu bản của tôi" cho version 3 chứa chữ của tab này và dòng báo biến mất; sơ đồ tạo ở thay đổi đầu tiên, tải lại thấy đủ khối, thẻ "Sơ đồ · 2 khối · 0 nối", ghim (version 2, chip "Đã ghim · 1"), xóa về `/notes`; ở 375 dòng báo nằm gọn một khối trên trang với hai nút; chip chỉ có "Tất cả", "Đã ghim", "Sơ đồ" và thẻ không có "Ghi chú độc lập"; console chỉ có `401` trước khi đăng nhập và `409` do chính mình gây ra.
 - `NOT VERIFIED`: kéo và nối khối, nhấn giữ trên cảm ứng thật (như DG-04); "Tải bản mới", `404` ("Lưu thành ghi chú mới") và lỗi mạng chỉ kiểm bằng test jsdom, chưa trên Chrome thật; 2 thiết bị thật; mọi cỡ màn × 2 theme (để dành cho nghiệm thu).
 - Hạn chế đã biết: rời trình soạn khi dòng báo xung đột còn đó thì chữ chưa lưu mất (dòng báo đã nói "chưa được lưu", nhưng không có hộp hỏi khi rời).
+
+### F15.4 Sửa lỗi: "+ Ghi chú" lần hai không ra ghi chú mới, và bộ lọc bị mất (NOTES-NEW-KEY, NOTES-NEW-FILTER)
+
+**Ở đâu:** `apps/sino-web/src/features/notes/`: `NotesPage.tsx` (khóa của trình soạn), `useNotes.ts` (`FromNew`, `fromNew`), `useAutosave.ts` (nhận `editorKey`, đọc lại `context.current` sau `await`), `components/NoteEditor.tsx` và `diagram/DiagramEditor.tsx` (chuyển `editorKey` xuống). Test: `NotesOnApi.test.tsx` (4 test mới). Commit `96e96fe` và `b366d4d`.
+
+**Triệu chứng (người dùng, 2026-11-04): "chỉ có thể ghi chú 1 cái không tạo mới được".** Kiểm backend trước: bảng `note` (V20) không có ràng buộc `UNIQUE` nào ngoài `id`, `id` là UUIDv7 sinh mới mỗi lần, `NoteService.create` lần nào cũng `save` một `Note` mới, và `NotesApiTests` đã tạo hai ghi chú liên tiếp trong cùng một test. Backend không có lỗi. Bài học: khi màn hình "không tạo được", đọc cả hai phía trước khi sửa; một test API đã có tạo hai bản ghi là bằng chứng nhanh nhất để loại backend.
+
+**Nguyên nhân 1: `key` của React quyết định giữ hay dựng lại một component.** Hai phần tử cùng loại, cùng chỗ, cùng `key` thì React giữ nguyên component cũ, kèm toàn bộ `useState` và `useRef` của nó. Trước khi sửa:
+
+```ts
+const editorKey = creating || fromNew ? 'new' : noteId
+```
+
+```text
+/notes/new          key 'new'   trình soạn X, base = (chưa có)
+   | gõ "A1", tự lưu: POST, tạo note A
+   v
+/notes/A  (FROM_NEW) key 'new'   vẫn X, base = A     (đúng ý D-203: chữ đang gõ không mất)
+   | bấm "+ Ghi chú"
+   v
+/notes/new          key 'new'   VẪN X, base = A     (sai: ô soạn còn chữ của A)
+   | gõ tiếp
+   v
+PATCH /api/notes/A  -> sửa A, không có note B
+```
+
+Khóa cố định `'new'` sinh ra để giữ trình soạn khi địa chỉ đổi từ `/notes/new` sang `/notes/<id>`, nhưng nó cũng giữ luôn trình soạn đó cho lần "+ Ghi chú" sau.
+
+**Cách sửa: mỗi lượt vào `/notes/new` một khóa riêng, và khóa đó đi theo sang note nó tạo.**
+- Lúc mới vào `/notes/new`, lấy `location.key` của React Router (mỗi lần điều hướng có một giá trị riêng) và giữ trong state: `new:<key>`.
+- Khi tự lưu tạo xong note, `navigate('/notes/<id>', { replace: true, state: fromNew(editorKey) })`. Trang đọc `location.state.editorKey` và dùng lại đúng khóa đó, nên trình soạn đang gõ được giữ.
+- Ở các trường hợp khác, khóa là `noteId`.
+
+**Vì sao không dùng thẳng `new:${location.key}`.** `location.key` đổi ở **mọi** lần điều hướng, kể cả `setSearchParams` khi người dùng bấm bộ lọc hay gõ ô tìm trên `/notes/new`. Khóa đổi thì React dựng lại trình soạn, và chữ đang gõ mất. Vì vậy khóa chỉ được lấy lúc `creating` đổi từ sai sang đúng, bằng mẫu "chỉnh state ngay trong lúc render khi một giá trị đổi":
+
+```ts
+const [newEntry, setNewEntry] = useState({ creating, key: location.key })
+if (newEntry.creating !== creating) {
+  setNewEntry({ creating, key: location.key })
+}
+```
+
+Gọi `setState` trong lúc render (có điều kiện, để không lặp vô hạn) làm React vẽ lại ngay trước khi đưa lên màn hình, nên không có lượt nào hiện ra với khóa sai. Dùng `useEffect` thì có một lượt vẽ với khóa cũ, rồi mới đổi.
+
+**`location.state` đi theo từng mục của lịch sử trình duyệt.** Vì khóa nằm trong state của chính mục `/notes/A`, bấm Back hay Forward về mục đó vẫn chọn đúng trình soạn. Bản cũ dùng chung `'new'` cho mọi note vừa tạo nên còn có thể lấy nhầm trình soạn của một note mới khác đang mở.
+
+**Nguyên nhân 2: đọc ref trước `await` là dùng ảnh chụp cũ.** `useAutosave` giữ giá trị mới nhất của props (`search`, `navigate`, `editorKey`...) trong `context.current`, ref này được cập nhật trong `useEffect` sau mỗi lần vẽ. `saveWhatIsThere` lấy `search` ra **trước** `await makeNote(...)`. Nếu người dùng đổi bộ lọc trong lúc `POST` còn đang đi, ref đã có `search` mới, nhưng hàm vẫn cầm biến cục bộ cũ, nên địa chỉ của note mới mang bộ lọc cũ:
+
+```text
+saveWhatIsThere()
+   query = context.current.search      ('' lúc này)
+   await POST /api/notes  ........  người dùng bấm "Đã ghim" -> context.current.search = '?filter=pinned'
+   navigate('/notes/<id>' + query)      ('' cũ: bộ lọc mất)
+```
+
+Sửa: đọc `navigate`, `search`, `editorKey` từ `context.current` **sau** `await`. Quy tắc chung: trong một hàm `async`, giá trị nào dùng sau `await` thì đọc lại ref sau `await`; biến cục bộ là ảnh chụp lúc nó được gán. Sơ đồ mới và "Lưu thành ghi chú mới" tạo note qua cùng nhánh này nên được sửa theo.
+
+**Test khoảng hở thời gian bằng MSW.** Test mới giữ `POST /api/notes` lại bằng một `Promise` do test tự mở (`server.use(http.post('/api/notes', async () => { await gate; }))`), đổi địa chỉ sang `/notes/new?filter=pinned` trong lúc chờ, rồi mở cổng. Handler trả `undefined` thì MSW chuyển yêu cầu sang handler kế tiếp (`notesBackend`), nên không phải sửa backend giả.
+
+**Kiểm chứng.**
+- Test mới (4): tạo A rồi "+ Ghi chú" ra ô trống, tạo B, A không bị `PATCH`; hai sơ đồ liên tiếp, không có `PATCH`; đổi bộ lọc trên `/notes/new` vẫn giữ chữ và focus; đổi bộ lọc trong lúc `POST` còn treo thì địa chỉ cuối là `/notes/<id>?filter=pinned`. Đã cho đỏ trên code cũ (khóa `'new'`, khóa `location.key` thô, `search` đọc trước `await`), xanh trên code mới.
+- `vitest run src/features/notes`: 11 file, 126/126 xanh (quản lý chạy lại). `tsc -b` và `pnpm lint`: không lỗi nào trong `notes`; lỗi còn lại thuộc phần inbox chưa commit của việc khác.
+- `NOT VERIFIED`: Chrome thật (8080 và 5173 không chạy); checklist đã đưa người dùng, gồm thử với "Slow 3G" để `POST` chậm.
