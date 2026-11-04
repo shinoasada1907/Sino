@@ -10,6 +10,8 @@ import { registerLoginRoutes } from "./logins/routes.ts";
 import { registerReadRoutes } from "./messages/readRoutes.ts";
 import { registerSendRoutes } from "./messages/sendRoutes.ts";
 import { type Notifier, WebhookNotifier } from "./notify.ts";
+import { registerAliasRoutes } from "./sessions/aliasRoutes.ts";
+import { registerContactRoutes } from "./sessions/contactRoutes.ts";
 import { SessionManager } from "./sessions/SessionManager.ts";
 import { registerSessionRoutes } from "./sessions/routes.ts";
 
@@ -21,6 +23,8 @@ export interface AppOptions {
   readonly now?: () => number;
   /** How long a send may take before its outcome counts as unknown (504); 10 seconds by default. */
   readonly sendTimeoutMs?: number;
+  /** How long a contact list may take before it counts as Zalo not answering (502); 15 seconds by default. */
+  readonly contactsTimeoutMs?: number;
 }
 
 export function buildApp(
@@ -45,6 +49,8 @@ export function buildApp(
   registerSessionRoutes(app, sessions);
   registerReadRoutes(app, sessions);
   registerSendRoutes(app, sessions, { now: options.now, sendTimeoutMs: options.sendTimeoutMs });
+  registerAliasRoutes(app, sessions, { now: options.now });
+  registerContactRoutes(app, sessions, { timeoutMs: options.contactsTimeoutMs });
 
   return app;
 }

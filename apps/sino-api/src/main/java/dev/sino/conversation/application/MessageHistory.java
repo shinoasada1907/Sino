@@ -43,7 +43,7 @@ public class MessageHistory {
                    m.metadata ->> :imageThumbUrl AS image_thumb_url,
                    m.metadata ->> :imageCaption AS image_caption,
                    m.metadata ->> :libraryStickerId AS library_sticker_id,
-                   p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
+                   p.external_participant_id AS sender, p.display_name AS sender_name, p.avatar_url AS sender_avatar_url, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
             """;
 
@@ -129,7 +129,7 @@ public class MessageHistory {
                 MessageDirection.valueOf(row.getString("direction")),
                 MessageStatus.valueOf(row.getString("status")),
                 row.getObject("sent_at", OffsetDateTime.class).toInstant(),
-                sender == null ? null : new Sender(row.getString("sender_name"), sender, row.getBoolean("is_self")),
+                sender == null ? null : new Sender(row.getString("sender_name"), sender, row.getString("sender_avatar_url"), row.getBoolean("is_self")),
                 recipients == null ? null : recipients.to(), recipients == null ? null : recipients.cc(),
                 row.getString("subject"), row.getString("text_content"),
                 BodyFormat.valueOf(row.getString("body_format")), row.getBoolean("is_read"), List.of(),
@@ -197,3 +197,4 @@ public class MessageHistory {
     }
 
 }
+

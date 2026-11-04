@@ -41,16 +41,17 @@ class ZaloProviderTests {
         assertThat(off.turnedOn()).isFalse();
     }
 
-    // Reading, sending and push are built in ZL-08 and ZL-09.
+    // Reading, sending and push are built in ZL-08 and ZL-09; nicknames in zalo-nicknames (D-417).
     @Test
-    void declaresReadingSendingAndPushCapabilities() {
+    void declaresReadingSendingPushAndNicknameCapabilities() {
         assertThat(zalo.capabilities().values()).containsExactlyInAnyOrder(
                 dev.sino.provider.ProviderCapability.READ_MESSAGES,
                 dev.sino.provider.ProviderCapability.SEND_MESSAGES,
                 dev.sino.provider.ProviderCapability.SEND_IMAGES,
                 dev.sino.provider.ProviderCapability.SEND_FILES,
                 dev.sino.provider.ProviderCapability.ATTACHMENTS,
-                dev.sino.provider.ProviderCapability.PUSH_WEBHOOK);
+                dev.sino.provider.ProviderCapability.PUSH_WEBHOOK,
+                dev.sino.provider.ProviderCapability.NICKNAMES);
     }
 
     // Who the account is comes with the QR login (D-275), not from a call with credentials.

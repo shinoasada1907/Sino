@@ -74,7 +74,19 @@ public enum ConversationErrorCode implements ErrorCode {
      */
     FILE_TOO_LARGE(ErrorCategory.PAYLOAD_TOO_LARGE),
     /** An empty file from the computer (zalo-send-files, D-371). Nothing is written or sent. */
-    FILE_EMPTY(ErrorCategory.INVALID);
+    FILE_EMPTY(ErrorCategory.INVALID),
+
+    /**
+     * A nickname was sent for a group, a channel or mail, or for a chat whose provider has no {@code NICKNAMES}
+     * (zalo-nicknames, D-416). The stored nickname, if any, does not change.
+     */
+    NICKNAME_NOT_SUPPORTED(ErrorCategory.INVALID),
+
+    /** The provider refused the nickname Sino tried to set (D-416); the one stored stays as it was. */
+    NICKNAME_REJECTED(ErrorCategory.INVALID),
+
+    /** The provider could not be reached to set the nickname (D-416); the one stored stays as it was. */
+    NICKNAME_UNAVAILABLE(ErrorCategory.PROVIDER_FAILED);
 
     private final ErrorCategory category;
     private final String code;
@@ -151,6 +163,19 @@ public enum ConversationErrorCode implements ErrorCode {
 
     static SinoException fileEmpty() {
         return new SinoException(FILE_EMPTY, "The file is empty.");
+    }
+
+    static SinoException nicknameNotSupported() {
+        return new SinoException(NICKNAME_NOT_SUPPORTED, "Only a 1-1 chat whose provider supports nicknames can "
+                + "have one.");
+    }
+
+    static SinoException nicknameRejected() {
+        return new SinoException(NICKNAME_REJECTED, "The provider refused this nickname.");
+    }
+
+    static SinoException nicknameUnavailable() {
+        return new SinoException(NICKNAME_UNAVAILABLE, "The nickname could not be set now; try again shortly.");
     }
 
     static SinoException noRecipient() {

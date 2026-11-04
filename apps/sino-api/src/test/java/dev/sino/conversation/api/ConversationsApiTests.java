@@ -27,12 +27,17 @@ import com.jayway.jsonpath.JsonPath;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -46,6 +51,9 @@ import dev.sino.account.infrastructure.ConnectedAccountRepository;
 import dev.sino.conversation.ConversationStore;
 import dev.sino.identity.infrastructure.AppUser;
 import dev.sino.identity.infrastructure.AppUserRepository;
+import dev.sino.provider.FakeMessageProvider;
+import dev.sino.provider.ProviderKind;
+import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageDirection;
@@ -64,8 +72,9 @@ import dev.sino.provider.spi.SyncCursor;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ConversationsApiTests.Connectors.class })
 @ActiveProfiles("test")
+@ExtendWith(OutputCaptureExtension.class)
 class ConversationsApiTests {
 
     private static final Instant MONDAY = Instant.parse("2026-10-05T08:00:00Z");
@@ -94,6 +103,20 @@ class ConversationsApiTests {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private ProviderRegistry registry;
+
+    /** A chat connector that is not Zalo, for the conversations the tests store under "telegram" (D-306). */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class Connectors {
+
+        @Bean
+        FakeMessageProvider telegram() {
+            return FakeMessageProvider.builder("telegram").kind(ProviderKind.CHAT).build();
+        }
+
+    }
 
     private UUID owner;
     private UUID otherUser;
@@ -169,9 +192,9 @@ class ConversationsApiTests {
 
         Map<String, Object> item = JsonPath.read(body, "$.items[0]");
         assertThat(item.keySet()).as("no message text beyond the snippet, no HTML").containsExactlyInAnyOrder("id",
-                "accountId", "accountIds", "provider", "kind", "title", "avatarUrl", "subject", "memberCount",
-                "snippetFrom", "snippet", "lastMessageAt", "unreadCount", "needsReply", "hasAttachments", "archived",
-                "snooze", "scheduledSend", "linked");
+                "accountId", "accountIds", "provider", "kind", "title", "avatarUrl", "nickname", "subject",
+                "memberCount", "snippetFrom", "snippet", "lastMessageAt", "unreadCount", "needsReply",
+                "hasAttachments", "archived", "snooze", "scheduledSend", "linked");
     }
 
     @Test
@@ -306,6 +329,119 @@ class ConversationsApiTests {
         assertThat(subjects(get("/api/conversations").param("provider", "Gmail")))
                 .containsExactly("Thread work", "Thread home");
         assertThat(subjects(get("/api/conversations").param("provider", ""))).hasSize(3);
+    }
+
+    @Test
+    void theKindFilterKeepsOnlyTheConversationsOfProvidersOfThatKind() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        UUID chat = connect(owner, "telegram", "4242");
+        mail(gmail, "mail", MONDAY);
+        // A chat provider may use THREAD: the kind is the provider's, not the conversation's (D-306).
+        store(chat, thread("chat", "Nhóm bạn", ALICE, OWNER), message("chat", "m-1", MessageDirection.INBOUND,
+                "alice@example.test", TUESDAY, "Chào", false, Map.of()));
+
+        assertThat(kinds(get("/api/conversations").param("kind", "chat"))).containsExactly("CHAT");
+        assertThat(kinds(get("/api/conversations").param("kind", "email"))).containsExactly("EMAIL");
+        assertThat(kinds(get("/api/conversations"))).as("no kind keeps both kinds").containsExactly("CHAT", "EMAIL");
+        mvc.perform(get("/api/conversations/{id}", conversationId(chat, "chat")).with(apiUser()))
+                .andExpect(jsonPath("$.kind").value("CHAT"))
+                .andExpect(jsonPath("$.subject").value(nullValue()));
+    }
+
+    @Test
+    void aKindThatIsNeitherEmailNorChatIsABadRequest() throws Exception {
+        for (String kind : List.of("fax", "EMAIL", "")) {
+            mvc.perform(get("/api/conversations").param("kind", kind).with(apiUser()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+            mvc.perform(get("/api/conversations/counts").param("kind", kind).with(apiUser()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        }
+    }
+
+    @Test
+    void aKindThatIsNotTheProvidersLeavesAnEmptyPage() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        mail(gmail, "mail", MONDAY);
+
+        mvc.perform(get("/api/conversations").param("kind", "chat").param("provider", "gmail").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", empty()))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    @Test
+    void theCountsOfAKindCoverThatKindWhileTheUnreadByKindKeepsBoth() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        UUID chat = connect(owner, "telegram", "4242");
+        for (String name : List.of("a", "b", "c")) {
+            mail(gmail, name, MONDAY);
+        }
+        mail(gmail, "archived", TUESDAY);
+        archive(gmail, "archived");
+        mail(chat, "x", MONDAY);
+        mail(chat, "y", TUESDAY);
+        mail(chat, "archived", WEDNESDAY);
+        archive(chat, "archived");
+
+        mvc.perform(get("/api/conversations/counts").param("kind", "email").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unread").value(3))
+                .andExpect(jsonPath("$.needsReply").value(3))
+                .andExpect(jsonPath("$.byProvider.gmail").value(3))
+                .andExpect(jsonPath("$.byProvider.telegram").doesNotExist())
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(3))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(2));
+        mvc.perform(get("/api/conversations/counts").param("kind", "chat").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(2))
+                .andExpect(jsonPath("$.needsReply").value(2))
+                .andExpect(jsonPath("$.byProvider.telegram").value(2))
+                .andExpect(jsonPath("$.byProvider.gmail").doesNotExist())
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(3))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(2));
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(5))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(3))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(2));
+    }
+
+    @Test
+    void theUnreadByKindHasBothKindsEvenWithNoChatOrNoAccount() throws Exception {
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(0))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(0))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(0));
+        mvc.perform(get("/api/conversations/counts").param("kind", "chat").with(apiUser()))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(0))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(0));
+
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        mail(gmail, "mail", MONDAY);
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(1))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(0));
+    }
+
+    @Test
+    void aProviderWithoutAConnectorIsEmailAndSaysSoOncePerRun(CapturedOutput output) throws Exception {
+        UUID icq = connect(owner, "icq", "4242");
+        mail(icq, "old", MONDAY);
+
+        assertThat(kinds(get("/api/conversations").param("kind", "email"))).containsExactly("EMAIL");
+        assertThat(kinds(get("/api/conversations").param("kind", "email"))).containsExactly("EMAIL");
+        assertThat(kinds(get("/api/conversations").param("kind", "chat"))).isEmpty();
+        mvc.perform(get("/api/conversations/counts").param("kind", "email").with(apiUser()))
+                .andExpect(jsonPath("$.byProvider.icq").value(1))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(1));
+
+        assertThat(output.getAll().lines().filter(line -> line.contains("WARN") && line.contains("icq"))).hasSize(1);
+    }
+
+    @Test
+    void aSwitchedOffConnectorStaysInTheRegistryWithItsKind() {
+        assertThat(registry.find(ProviderType.of("zalo"))).isPresent().get()
+                .extracting(provider -> provider.kind()).isEqualTo(ProviderKind.CHAT);
     }
 
     @Test
@@ -630,6 +766,13 @@ class ConversationsApiTests {
             throws Exception {
         return JsonPath.read(mvc.perform(request.with(apiUser())).andExpect(status().isOk()).andReturn()
                 .getResponse().getContentAsString(), "$.items[*].subject");
+    }
+
+    private List<String> kinds(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
+            throws Exception {
+        List<String> kinds = JsonPath.read(mvc.perform(request.with(apiUser())).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.items[*].kind");
+        return kinds.stream().distinct().sorted().toList();
     }
 
     private List<List<Boolean>> readStates(UUID conversation) {

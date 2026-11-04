@@ -120,13 +120,21 @@
     - Ở 390: nút 44 px, không cuộn ngang, lưu vào bộ từ điện thoại.
   - Kiến thức: mục 23.19, 23.20.
 
-- [ ] 2.7 **SP-11 — Trạng thái, bàn phím, máy tính bảng và điện thoại**
+- [x] 2.7 **SP-11 — Trạng thái, bàn phím, máy tính bảng và điện thoại**
   - **Goal:** bước "Thêm sticker" và lưới theo bộ đúng ở mọi cỡ.
   - **Files:** `features/stickers/**` (kiểu dáng, bố cục).
   - **Acceptance criteria:** không cuộn ngang ở 390 px; vùng chạm 44 px; hộp thoại giữ tiêu điểm và trả tiêu điểm khi đóng.
   - **Test:** Chrome thật 1440 / 1024 / 390, sáng và tối.
   - **Depends on:** SP-06, SP-10.
   - **Hints:** **Level 1:** dưới 768 px, danh sách ảnh và khung chỉnh xếp thế nào? **Level 2:** dải ảnh nhỏ cuộn ngang ở trên, khung chỉnh bên dưới.
+  - **Thực hiện:** rà lại `features/stickers/**` theo tiêu chí: lưới sticker (`StickerCard.GRID`, `minmax(140px,1fr)` + `gap-3 p-4`) không tràn ở 390 px; mọi nút biểu tượng của màn (`PackSection`, `UploadButton`, `StickerCard`, `MoveStickerMenu`, `BatchList`) đã có `max-md:size-11` (≥ 44 px) từ SP-06…SP-10; `AddStickers` dưới 768 px đã là `flex-col` với `BatchList` (dải ảnh nhỏ, tự cuộn ngang bằng `max-md:overflow-x-auto`) trước `ImageEditor` (khung chỉnh) sau, đúng hint; mọi hộp thoại (`AddStickers`, `PackDialogs`, `DeleteStickerDialog`) dùng `Dialog` của Radix, tự giữ tiêu điểm trong khi mở (focus trap) và mỗi hộp đã có `onCloseAutoFocus` riêng trả tiêu điểm về đúng nút đã mở (có test từ SP-06/SP-08/SP-10). Không thấy chỗ lệch tiêu chí nên không đổi code màn; chỉ thêm một test còn thiếu (focus trap khi hộp mở) ở `editor/AddStickers.test.tsx`.
+  - **Kiểm chứng:**
+    - Test tay (Chrome thật): **CHƯA KIỂM CHỨNG.** Trình duyệt kết nối được trong phiên này là một Chrome ở máy khác (`isLocal: false`), không vào được `http://localhost:5173` của máy này (trang báo lỗi tải, không mở được app) — đã thử `pnpm dev` thật rồi điều hướng tới `/login` để xác nhận. Cần quản lý hoặc người dùng chạy lượt Chrome thật 1440/1024/390 × sáng/tối trên máy có thể vào được dev server.
+    - `pnpm vitest run src/features/stickers/editor/AddStickers.test.tsx`: 16/16 xanh (gồm test mới "keeps the Tab key inside the step while it is open").
+    - `pnpm lint`: xanh (2 warning có sẵn, không thuộc `features/stickers`, không đổi).
+    - `pnpm exec tsc -b`: xanh, không output.
+    - `pnpm test`: 130 file / 1351 test, xanh.
+    - `pnpm build`: xanh (`tsc -b && vite build`).
 
 - [ ] 2.8 **SP-12 — Kiểm bằng lỗi gài cho logic thuần của màn**
   - **Goal:** test thật sự giữ `exportSticker`, `editable` và phần đổi lỗi mới.

@@ -1,5 +1,5 @@
 import { Clock, Info } from 'lucide-react'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import type { ProviderKind } from '@/shared/domain'
@@ -15,7 +15,7 @@ import { ConversationInfo } from './components/ConversationInfo'
 import { ConversationList } from './components/ConversationList'
 import { EmailThread } from './components/EmailThread'
 import { NewMail } from './components/NewMail'
-import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
+import { FirstSyncCard, ListSkeleton, LoadFailed, OfflineBanner, RealtimeBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
 import { SourcePane } from './components/SourcePane'
 import { failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
@@ -25,16 +25,13 @@ import { SCREENS, screenFrame } from './screen'
 
 /**
  * Tin nhắn (`/messages`, chats; canvas `Messages`) and Hộp thư (`/inbox`, emails; canvas `Inbox`), one screen per kind
- * of provider (f05c, D-300): sources and filters, the conversation list, and an open email in the right column. A chat
- * is a page of its own from 1280px (canvas `Conversation`: chat and info column) and sits in the right column on tablet.
- * `${path}/:conversationId` opens a conversation and marks it as read; one of the other kind moves to its own screen
- * first (D-303). Below 768px the list and an open conversation are two screens (canvas `MobileMessages`, `MobileInbox`,
- * `MobileConversation`), each with its own header. The states of `InboxState` (D-55): loading, first sync, cannot load,
- * offline (above everything), no source yet (instead of it). On the F05 API the server filters and pages the list; the
- * frame (accounts, providers, counts of the kind) loads beside it. `compose` (`/inbox/new`): the form of a new mail takes
- * the place of an open conversation (f10-new-mail, D-191).
+ * of provider (f05c, D-300).
+ * In Hộp thư (`EMAIL`), accounts are managed in the main Sidebar, so the page is streamlined into a sleek 2-column layout:
+ * Left column: Conversation list with category tabs, quick toolbar, and attachment pills.
+ * Right column: Rich email reading pane and quick reply card.
  */
 export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compose?: boolean }) {
+  const isEmail = kind === 'EMAIL'
   const screen = SCREENS[kind]
   const { conversationId } = useParams()
   const { inbox: whole, receivedAt, error: frameError, failedAt: frameFailedAt, retry: retryFrame } = useInbox(kind)
@@ -44,12 +41,19 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   // Data that arrives between two clock ticks is measured from its arrival, as in the top bar.
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const navigate = useNavigate()
-  const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null)
+  const validAccounts = inbox?.accounts.map((account) => account.id) ?? null
+  const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null, validAccounts)
   const list = useConversationList(kind, filter, now)
   const notice = useNewMailNotice(inbox?.accounts.map((account) => account.id) ?? [])
+
+  const conversations = list.conversations
+  // Default to selecting the first conversation on desktop if none selected
+  const activeConversationId = conversationId ?? ((isEmail || kind === 'CHAT') && conversations && conversations.length > 0 ? conversations[0].id : undefined)
+  const [showInfo, setShowInfo] = useState(true)
+
   const opened = useConversation(
-    conversationId,
-    list.loaded.find((conversation) => conversation.id === conversationId),
+    activeConversationId,
+    list.loaded.find((conversation) => conversation.id === activeConversationId),
   )
   const { item: found, detail, notFound } = opened
   const { mutate: update } = useUpdateConversation()
@@ -63,8 +67,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const realtimeDown = useRealtimeDown()
   const readOnce = useRef<string | null>(null)
 
-  // Opening a conversation reads it, once per opening: marking it unread, or a refused read that puts the count back,
-  // must not read it again while it stays open.
+  // Opening a conversation reads it, once per opening
   useEffect(() => {
     if (!conversationId) {
       readOnce.current = null
@@ -87,16 +90,17 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
     }
   }, [elsewhere, navigate])
 
-  // Empty by the screen's own kind: chats connected do not fill Hộp thư, nor emails Tin nhắn (D-305).
-  if (inbox && inbox.accounts.length === 0) {
-    return <NoSources screen={screen} providers={inbox.providers} />
-  }
+  // Scope email to the first available account if no account is selected
+  useEffect(() => {
+    if (isEmail && !filter.account && validAccounts && validAccounts.length > 0) {
+      navigate({ pathname: screen.path, search: searchFor({ account: validAccounts[0] }) }, { replace: true })
+    }
+  }, [isEmail, filter.account, validAccounts, screen.path, searchFor, navigate])
 
   const nameOf = providerNameOf(inbox?.providers ?? [])
-  const selected = conversationId !== undefined || compose
-  const { conversations } = list
+  const selected = activeConversationId !== undefined
   const error = frameError ?? list.error
-  const failedAt = frameError ? frameFailedAt : list.failedAt
+  const failedAt = frameFailedAt ?? list.failedAt
   const loading = (!inbox || !conversations) && !error
   const retry = () => {
     if (frameError) {
@@ -106,14 +110,16 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       list.retry()
     }
   }
-  // The first sync of a new account: nothing has arrived yet, so the list shows its progress instead of being empty. Only
-  // the whole inbox tells that; an empty view or source is just empty.
+
+  // The first sync of a new account
   const wholeInbox = filter.view === 'all' && filter.source === null
   const syncing =
     inbox && wholeInbox && conversations?.length === 0 && !list.switching ? inbox.accounts.filter((entry) => entry.syncProgress !== null) : []
-  const unread = filter.source
-    ? (inbox?.counts.byProvider.find((entry) => entry.provider === filter.source)?.unread ?? 0)
-    : (inbox?.counts.unread ?? 0)
+  const unread = filter.account && inbox?.counts.byAccount?.[filter.account]
+    ? inbox.counts.byAccount[filter.account].unread
+    : filter.source
+      ? (inbox?.counts.byProvider.find((entry) => entry.provider === filter.source)?.unread ?? 0)
+      : (inbox?.counts.unread ?? 0)
   const account = item && inbox?.accounts.find((entry) => entry.id === item.accountId)
   // Every account holding the open thread, the primary copy first (f05b, D-182).
   const threadAccounts = item && inbox ? item.accountIds.flatMap((id) => inbox.accounts.filter((entry) => entry.id === id)) : []
@@ -168,24 +174,30 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       {online && realtimeDown && <RealtimeBanner state={realtimeDown} />}
       <div
         className={cn(
-          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)]',
-          chat ? 'xl:grid-cols-[minmax(0,1fr)_320px]' : 'xl:grid-cols-[232px_400px_minmax(0,1fr)]',
+          'grid min-h-0 flex-1 md:grid-cols-[340px_minmax(0,1fr)]',
+          isEmail
+            ? 'xl:grid-cols-[430px_minmax(0,1fr)]'
+            : chat
+              ? showInfo
+                ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]'
+                : 'xl:grid-cols-[340px_minmax(0,1fr)]'
+              : 'xl:grid-cols-[232px_400px_minmax(0,1fr)]',
         )}
       >
-        {inbox ? (
+        {!isEmail && (inbox ? (
           <SourcePane inbox={inbox} filter={filter} searchFor={searchFor} nameOf={nameOf} className={chat ? 'hidden' : 'hidden xl:block'} />
         ) : (
           <SourcesSkeleton loading={loading} className="hidden xl:block" />
-        )}
+        ))}
         <ConversationList
           screen={screen}
           conversations={conversations ?? []}
           unread={listMeta}
-          total={inbox?.counts.unread ?? null}
+          total={unread}
           sources={inbox ? sourceCounts(inbox, nameOf) : []}
           filter={filter}
           onFilter={(change) => navigate({ search: searchFor(change) })}
-          selectedId={conversationId ?? null}
+          selectedId={activeConversationId ?? null}
           search={search}
           now={now}
           nameOf={nameOf}
@@ -194,15 +206,36 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
           switching={list.switching}
           more={list.more}
           notice={notice}
-          className={chat ? 'hidden md:flex xl:hidden' : selected ? 'hidden md:flex' : 'flex'}
+          className={chat ? (selected ? 'hidden xl:flex' : 'flex') : selected ? 'hidden md:flex' : 'flex'}
         />
         {chat && item && account ? (
           <>
             <div className="flex min-h-0 min-w-0 flex-col *:last:min-h-0 *:last:flex-1">
               {mobileHeader}
-              <ChatThread key={item.id} item={item} detail={detail} account={account} backSearch={search} now={now} nameOf={nameOf} />
+              <ChatThread
+                key={item.id}
+                item={item}
+                detail={detail}
+                account={account}
+                backSearch={search}
+                now={now}
+                nameOf={nameOf}
+                showInfo={showInfo}
+                onToggleInfo={() => setShowInfo((prev) => !prev)}
+              />
             </div>
-            <ConversationInfo key={`info-${item.id}`} item={item} detail={detail} account={account} now={now} nameOf={nameOf} className="hidden min-h-0 xl:grid" />
+            {showInfo && (
+              <ConversationInfo
+                key={`info-${item.id}`}
+                item={item}
+                detail={detail}
+                account={account}
+                now={now}
+                nameOf={nameOf}
+                onClose={() => setShowInfo(false)}
+                className="hidden h-full min-h-0 xl:flex"
+              />
+            )}
           </>
         ) : compose ? (
           <div className="flex min-h-0 min-w-0 flex-col">

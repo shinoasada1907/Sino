@@ -34,7 +34,10 @@ public record InboxMessage(UUID id, MessageDirection direction, MessageStatus st
     }
 
     /** {@code address} is the email for mail, the provider's ID of the sender otherwise. */
-    public record Sender(String name, String address, boolean self) {
+    public record Sender(String name, String address, String avatarUrl, boolean self) {
+        public Sender(String name, String address, boolean self) {
+            this(name, address, null, self);
+        }
     }
 
     public record Address(String name, String address) {
@@ -44,3 +47,4 @@ public record InboxMessage(UUID id, MessageDirection direction, MessageStatus st
     }
 
 }
+

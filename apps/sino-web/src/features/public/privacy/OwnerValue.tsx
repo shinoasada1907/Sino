@@ -14,10 +14,11 @@ export function formatDate(iso: string, lang: Lang): string {
 
 /**
  * An owner detail in the policy: an email becomes a mailto link, a date is written the way the page's language writes
- * it. While a detail is missing the page shows "[chưa điền: …]", the canvas `.ph` mark.
+ * it; the server provider is written in both languages (an English page shows no Vietnamese). While a detail is missing the page shows "[chưa điền: …]", the canvas `.ph` mark.
  */
 export function OwnerValue({ field, lang = 'vi' }: { field: OwnerField; lang?: Lang }) {
-  const value = ownerDetails()[field]?.trim()
+  const details = ownerDetails()
+  const value = (field === 'hosting' ? details.hosting?.[lang] : details[field])?.trim()
   if (!value) {
     return (
       <span className="inline-block rounded-[4px] border border-dashed border-warning px-[5px] font-mono text-[13px] leading-5 font-medium whitespace-nowrap text-warning-ink">

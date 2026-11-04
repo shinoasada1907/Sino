@@ -48,6 +48,7 @@ interface ProviderResponse extends ProviderEntry {
 interface CountsResponse {
   unread: number
   byProvider: Record<string, number>
+  byAccount?: Record<string, { unread: number; needsReply: number; withAttachments: number }>
   needsReply: number
   withAttachments: number
   scheduled: number
@@ -119,6 +120,7 @@ interface ParticipantResponse {
 interface PersonResponse {
   name: string | null
   address: string
+  avatarUrl?: string | null
 }
 
 /** A file of a message; the provider may not give its name, type or size. */
@@ -182,7 +184,7 @@ function sendingOf({ provider, status, capabilities }: AccountResponse, provider
 
 // The API does not say who runs a group or who joined lately.
 function toMember({ externalId, name, avatarUrl, self }: ParticipantResponse): Member {
-  return { name: self ? 'Bạn' : (name ?? externalId), avatarUrl: pictureOf(avatarUrl), owner: false, joinedRecently: false }
+  return { id: externalId, name: self ? 'Bạn' : (name ?? externalId), avatarUrl: pictureOf(avatarUrl), owner: false, joinedRecently: false, self }
 }
 
 // "PDF" from "hop-dong.pdf", otherwise from the type ("image/png" gives "PNG"), otherwise "TỆP".
@@ -234,6 +236,8 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     kind: 'MESSAGE',
     direction: outbound ? 'OUT' : 'IN',
     sender: senderName(sender, outbound),
+    senderAddress: sender?.address,
+    senderAvatar: pictureOf(sender?.avatarUrl),
     ...(sender?.self ? { ownAddress: sender.address } : {}),
     to: recipients || null,
     at: sentAt,
@@ -277,16 +281,20 @@ export async function fetchInbox(kind?: ProviderKind): Promise<InboxData> {
     counts: {
       ...counts,
       byProvider: Object.entries(counts.byProvider).map(([provider, unread]) => ({ provider, unread })),
+      byAccount: counts.byAccount,
       unreadByKind: counts.unreadByKind ?? null,
     },
   }
 }
 
 /** `GET /api/conversations`: one page of a view, a source and a kind; `cursor` is the `nextCursor` of the page before. */
-export async function fetchConversations({ view, source }: InboxFilter, cursor: string | null, kind?: ProviderKind): Promise<ConversationPage> {
+export async function fetchConversations({ view, source, account }: InboxFilter, cursor: string | null, kind?: ProviderKind): Promise<ConversationPage> {
   const params = new URLSearchParams({ view, ...kindQuery(kind) })
   if (source) {
     params.set('provider', source)
+  }
+  if (account) {
+    params.set('accountId', account)
   }
   if (cursor) {
     params.set('cursor', cursor)

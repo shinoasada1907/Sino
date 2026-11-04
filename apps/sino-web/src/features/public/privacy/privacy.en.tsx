@@ -134,10 +134,16 @@ export const PRIVACY_EN: PolicyDoc = {
               a change marker, never the content of a message.
             </li>
             <li>
-              <b>Server provider:</b> <OwnerValue field="hosting" />. Sino's data is stored there.
+              <b>Server provider:</b> <OwnerValue field="hosting" lang="en" />. Sino's data is stored there.
+            </li>
+            <li>
+              <b>Cloudflare:</b> all traffic to Sino passes through Cloudflare, which protects and routes it. The connection is
+              encrypted on the way, and Cloudflare handles it in readable form on its network, so what Sino sends you,
+              including your mail when it is shown, passes through it. Sino does not use Cloudflare to store your mail.
+              Cloudflare may also ask your browser to report network errors to it.
             </li>
           </Ul>
-          <P>Apart from these two, Sino does not pass your data to anyone, unless the law requires it.</P>
+          <P>Apart from these, Sino does not pass your data to anyone, unless the law requires it.</P>
         </>
       ),
     },

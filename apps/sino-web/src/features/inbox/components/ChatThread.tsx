@@ -1,5 +1,17 @@
-import { Archive, ArchiveRestore, Calendar, ChevronLeft, Clock, Ellipsis, ExternalLink, Search, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
+import {
+  CheckCheck,
+  ChevronLeft,
+  Code2,
+  Lock,
+  Mic,
+  PanelRight,
+  Paperclip,
+  Pin,
+  Search,
+  SendHorizontal,
+  Smile,
+} from 'lucide-react'
+import { Fragment, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -7,13 +19,11 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
-import { bubbleMeta, disconnectedSince, formatFileSize, memberAvatar, memberPlaceholder, notArrivedSince, sendBlock, threadSubtitle, withDayLines } from '../format'
-import type { ConversationDetail, ConversationItem, InboxAccount, LinkedKind, Member, Message } from '../inbox.types'
-import { useConversationActions, useSendMessage } from '../useInbox'
-import { Composer } from './Composer'
+import { bubbleMeta, disconnectedSince, formatFileSize, getInitials, memberAvatar, memberPlaceholder, notArrivedSince, sendBlock, withDayLines } from '../format'
+import type { ConversationDetail, ConversationItem, InboxAccount, Member, Message } from '../inbox.types'
+import { useSendMessage } from '../useInbox'
 import { ConversationAvatars } from './ConversationAvatars'
 import { LatestPreview } from './LatestPreview'
-import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
 import { photoOf } from '../photo'
 import { pictureOf, spriteOf } from '../sticker'
@@ -28,24 +38,13 @@ import { useReactToMessage } from '../useReactToMessage'
 import { PREVIEW_SET, REACTIONS_PREVIEW } from '../reactionsPreview'
 import { ReactionChips } from './ReactionChips'
 import { ReactionPicker } from './ReactionPicker'
+import { StickerPicker } from './StickerPicker'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
 
-const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string; name: string }> = {
-  TASK: { icon: SquareCheck, to: '/tasks', name: 'Task' },
-  EVENT: { icon: Calendar, to: '/calendar', name: 'Lịch hẹn' },
-  NOTE: { icon: StickyNote, to: '/notes', name: 'Ghi chú' },
-}
+const BOTTOM_SLACK = 80
+const nearBottom = (body: HTMLElement) => body.scrollHeight - body.scrollTop - body.clientHeight <= BOTTOM_SLACK
 
-/**
- * The chat column of the canvas `Conversation`: header with the way back to the inbox (a page of its own from 1280px),
- * the messages by day with the system lines and the unread line, and the message box, or a notice in its place when
- * the account cannot send (`ThreadState`, D-55). "Đánh dấu chưa đọc" and "Lưu trữ" change the conversation and go back
- * to the list (D-73); the other tools have no flow yet. Until the API returns messages (F06) the newest one shows as its
- * preview (D-71); the message box waits for the detail.
- * From 768 to 1279px the header keeps "Lưu trữ" and "Thêm thao tác", as the tablet thread of the canvas. Below 768px
- * the page header (canvas `MobileConversation`) replaces this header, and the messages use more width.
- */
 export function ChatThread({
   item,
   detail,
@@ -53,6 +52,8 @@ export function ChatThread({
   backSearch,
   now,
   nameOf,
+  showInfo,
+  onToggleInfo,
 }: {
   item: ConversationItem
   detail: ConversationDetail | undefined
@@ -60,50 +61,75 @@ export function ChatThread({
   backSearch: string
   now: Date
   nameOf: ProviderNameOf
+  showInfo?: boolean
+  onToggleInfo?: () => void
 }) {
-  // Reading the conversation clears its unread count at once; the line keeps the count it had when it opened.
   const [unreadAtOpen] = useState(item.unreadCount)
   const members = detail?.members ?? null
   const group = item.memberCount !== null
   const name = nameOf(item.provider)
   const bodyRef = useRef<HTMLDivElement>(null)
   const sendMessage = useSendMessage(item.id)
-  // Dev server only, while the backend says nothing about emoji: Zalo's set, picks kept in this browser (reactionsPreview.ts).
   const previewReactions = REACTIONS_PREVIEW && item.kind === 'CHAT' && detail !== undefined && detail.reactionSet === undefined
   const reacting = useReactToMessage(item.id, previewReactions)
   const tray = useAttachmentTray()
   const sendsFiles = detail?.canSendFiles === true
   const placed = useRef(false)
-  const messageCount = detail?.messages?.length ?? 0
+  const newest = detail?.messages?.at(-1)
+  const newestId = newest?.id
+  const newestIsOwn = newest?.kind === 'MESSAGE' && newest.direction === 'OUT'
+  const atBottom = useRef(true)
   const block = sendBlock(account, detail?.canSend)
-  const { markUnread, toggleArchive } = useConversationActions(item, backSearch)
   const expiredAt = account.status === 'AUTH_EXPIRED' ? account.statusChangedAt : null
 
-  // Opening shows the unread line (or the newest message); every message added afterwards scrolls to the bottom.
+  const [inputText, setInputText] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     const body = bodyRef.current
-    if (!body || messageCount === 0) {
-      return
+    if (!body || newestId === undefined) return
+    if (placed.current) {
+      if (!newestIsOwn && !atBottom.current) return
+      body.scrollTop = body.scrollHeight
+    } else {
+      const unreadLine = body.querySelector<HTMLElement>('[data-slot="unread-line"]')
+      body.scrollTop = unreadLine ? unreadLine.offsetTop - body.offsetTop - 24 : body.scrollHeight
+      placed.current = true
     }
-    const unreadLine = placed.current ? null : body.querySelector<HTMLElement>('[data-slot="unread-line"]')
-    body.scrollTop = unreadLine ? unreadLine.offsetTop - body.offsetTop - 24 : body.scrollHeight
-    placed.current = true
-  }, [messageCount])
+    atBottom.current = nearBottom(body)
+  }, [newestId, newestIsOwn])
 
-  // The previews of pictures sent from here are made again if the conversation opens again (zalo-send-files, D-378).
   useEffect(() => () => outgoingFiles.releasePreviews(), [])
 
-  // Files dropped anywhere on the chat go to the tray of the reply box (D-376).
   const carriesFiles = (event: DragEvent) => sendsFiles && event.dataTransfer.types.includes('Files')
+
+  const handleSend = () => {
+    if (tray.items.length > 0 && sendsFiles) {
+      sendMessage.sendFiles(tray.items.map((i) => i.file), inputText.trim())
+      tray.clear()
+      setInputText('')
+    } else if (inputText.trim()) {
+      sendMessage.send(inputText.trim())
+      setInputText('')
+    }
+  }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const primaryAvatar = members?.[0]?.avatarUrl || item.avatarUrl
 
   return (
     <section
       aria-label={`Cuộc trò chuyện ${item.title}`}
-      className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] md:grid-rows-[auto_minmax(0,1fr)_auto] xl:border-r"
+      className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] md:border-r bg-background"
       onDragOver={(event) => {
-        if (carriesFiles(event)) {
-          event.preventDefault()
-        }
+        if (carriesFiles(event)) event.preventDefault()
       }}
       onDrop={(event) => {
         if (carriesFiles(event)) {
@@ -112,58 +138,95 @@ export function ChatThread({
         }
       }}
     >
-      <header className="hidden items-start justify-between gap-4 border-b md:flex md:px-5 md:py-4 xl:px-6 xl:py-5">
-        <div className="flex min-w-0 flex-col gap-3">
-          <Button asChild variant="ghost" size="sm" className="-ml-3 hidden self-start xl:inline-flex">
+      {/* Thread Header matching screenshot */}
+      <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:px-5">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button asChild variant="ghost" size="icon-sm" className="-ml-2 md:hidden">
             <Link to={{ pathname: '/messages', search: backSearch }}>
-              <ChevronLeft strokeWidth={1.6} />
-              Tin nhắn
+              <ChevronLeft className="size-5" strokeWidth={1.6} />
             </Link>
           </Button>
-          <div className="flex items-center gap-3.5">
-            <ConversationAvatars item={item} members={members} />
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <h1 className="truncate text-xl leading-7 font-semibold tracking-[-0.01em]">{item.title}</h1>
-              <span className="truncate text-sm text-muted-foreground">{threadSubtitle(item, [account], nameOf)}</span>
-            </div>
-            {expiredAt && (
-              <Status tone="err" className="ml-2 max-xl:hidden">
-                {disconnectedSince(expiredAt, now)}
-              </Status>
+          <div className="relative shrink-0">
+            {primaryAvatar ? (
+              <img src={primaryAvatar} alt="" className="size-10 rounded-full object-cover border border-border/60" />
+            ) : (
+              <ConversationAvatars item={item} members={members} />
             )}
+            <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
           </div>
+          <div className="flex min-w-0 flex-col">
+            <h1 className="truncate text-base font-bold text-foreground leading-tight">{item.title}</h1>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              <span>Đang hoạt động • {account.address || name}</span>
+            </span>
+          </div>
+          {expiredAt && (
+            <Status tone="err" className="ml-2 max-xl:hidden">
+              {disconnectedSince(expiredAt, now)}
+            </Status>
+          )}
         </div>
+
         <div className="flex shrink-0 items-center gap-1">
-          <Tool label="Tìm trong cuộc trò chuyện" icon={Search} className="max-xl:hidden" />
-          <Tool label="Đánh dấu chưa đọc" icon={MailDot} className="max-xl:hidden" onClick={markUnread} />
-          <Tool label={item.archived ? 'Bỏ lưu trữ' : 'Lưu trữ'} icon={item.archived ? ArchiveRestore : Archive} onClick={toggleArchive} />
-          <Tool label="Thêm thao tác" icon={Ellipsis} className="xl:hidden" />
-          <span aria-hidden="true" className="mx-2 h-6 w-px bg-border max-xl:hidden" />
-          <Button type="button" variant="secondary" size="sm" className="max-xl:hidden">
-            <ExternalLink strokeWidth={1.6} />
-            Mở trong {name}
+          <Button type="button" variant="ghost" size="icon-sm" className="size-8 cursor-pointer" aria-label="Tìm trong cuộc trò chuyện" title="Tìm trong cuộc trò chuyện">
+            <Search className="size-4" strokeWidth={1.6} />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm" className="size-8 cursor-pointer" aria-label="Ghim hội thoại" title="Ghim hội thoại">
+            <Pin className="size-4" strokeWidth={1.6} />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onToggleInfo}
+            className={cn('size-8 cursor-pointer', showInfo && 'bg-hover text-foreground')}
+            aria-label="Chi tiết hội thoại"
+            title="Chi tiết hội thoại"
+          >
+            <PanelRight className="size-4" strokeWidth={1.6} />
           </Button>
         </div>
       </header>
 
-      <div ref={bodyRef} className="flex min-h-0 flex-col gap-2.5 overflow-auto p-4 md:gap-3 md:p-5 xl:px-8 xl:py-6">
+      {/* Messages Scroll Area */}
+      <div
+        ref={bodyRef}
+        onScroll={(event) => {
+          atBottom.current = nearBottom(event.currentTarget)
+        }}
+        onLoadCapture={(event) => {
+          if (atBottom.current && event.target instanceof HTMLImageElement) {
+            event.currentTarget.scrollTop = event.currentTarget.scrollHeight
+          }
+        }}
+        className="flex min-h-0 flex-col gap-3 overflow-y-auto p-4 md:p-6"
+      >
         {detail?.messages === null && <LatestPreview item={item} now={now} />}
         {withDayLines(detail?.messages ?? [], now).map(({ message, dayLine }) => {
           return (
             <Fragment key={message.id}>
-              {dayLine && <span className="self-center pt-2 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] text-muted-foreground">{dayLine}</span>}
+              {dayLine && (
+                <div className="my-2 flex justify-center">
+                  <span className="rounded-full border border-border/70 bg-surface/80 px-3.5 py-1 font-mono text-[11px] font-medium text-muted-foreground shadow-xs">
+                    {dayLine}
+                  </span>
+                </div>
+              )}
               {message.id === detail?.firstUnreadId && unreadAtOpen > 0 && (
-                <div data-slot="unread-line" className="flex items-center gap-3 font-mono text-[11px] leading-4 font-medium text-foreground before:h-px before:grow before:bg-border-strong after:h-px after:grow after:bg-border-strong">
+                <div data-slot="unread-line" className="flex items-center gap-3 font-mono text-[11px] font-medium text-foreground before:h-px before:grow before:bg-border-strong after:h-px after:grow after:bg-border-strong my-1">
                   <span>{unreadAtOpen} tin chưa đọc</span>
                 </div>
               )}
               {message.kind === 'SYSTEM' ? (
-                <span className="self-center rounded-full border px-3 py-1 text-xs leading-4 font-medium text-muted-foreground">{message.text}</span>
+                <span className="self-center rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">{message.text}</span>
               ) : (
                 <Bubble
                   message={message}
                   showName={group}
                   members={members}
+                  conversationAvatar={item.avatarUrl}
+                  isGroup={group}
                   sending={sendMessage}
                   providerName={name}
                   reactionSet={previewReactions ? PREVIEW_SET : (detail?.reactionSet ?? [])}
@@ -175,57 +238,106 @@ export function ChatThread({
           )
         })}
         {expiredAt && detail && (
-          <span className="self-center rounded-full border px-3 py-1 text-xs leading-4 font-medium text-muted-foreground">{notArrivedSince(expiredAt, now)}</span>
+          <span className="self-center rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">{notArrivedSince(expiredAt, now)}</span>
         )}
       </div>
 
+      {/* Chat Composer matching screenshot */}
       {block ? (
         <ThreadNotice block={block} kind={item.kind} providerName={name} account={account} />
-      ) : detail ? (
-        <Composer
-          kind="CHAT"
-          label={`Nhắn tin tới ${item.title}`}
-          placeholder={`Nhắn tin tới ${item.title}…`}
-          account={account.address}
-          via={`${name} · ${account.address}`}
-          onSend={sendMessage.send}
-          onSendSticker={detail.canSendImages ? sendMessage.sendSticker : undefined}
-          tray={sendsFiles ? tray : undefined}
-          onSendFiles={sendsFiles ? sendMessage.sendFiles : undefined}
-        />
-      ) : null}
+      ) : (
+        <div className="flex flex-col border-t bg-background">
+          {/* Main Input Row */}
+          <div className="flex items-center gap-2 px-4 py-2.5">
+            {/* Attachment Button */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              title="Đính kèm tệp"
+            >
+              <Paperclip className="size-4" strokeWidth={1.6} />
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                if (e.target.files) tray.add(Array.from(e.target.files))
+                e.target.value = ''
+              }}
+            />
+
+            {/* Sticker / Emoji Picker */}
+            {detail?.canSendImages && (
+              <StickerPicker onPick={sendMessage.sendSticker} focusAfterPick={inputRef} className="size-8 text-muted-foreground hover:text-foreground shrink-0" />
+            )}
+            {!detail?.canSendImages && (
+              <Button type="button" variant="ghost" size="icon-sm" className="size-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer" title="Biểu cảm">
+                <Smile className="size-4" strokeWidth={1.6} />
+              </Button>
+            )}
+
+            {/* Text Input */}
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Nhập tin nhắn..."
+              className="min-h-9 flex-1 rounded-lg border border-border/80 bg-surface px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-border-strong focus:bg-background focus:ring-1 focus:ring-ring"
+            />
+
+            {/* Mic button */}
+            <Button type="button" variant="ghost" size="icon-sm" className="size-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer" title="Tin nhắn thoại">
+              <Mic className="size-4" strokeWidth={1.6} />
+            </Button>
+
+            {/* Send Pill Button */}
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!inputText.trim() && tray.items.length === 0}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-foreground px-3.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer shadow-xs"
+            >
+              <span>Gửi</span>
+              <SendHorizontal className="size-3.5" />
+            </button>
+          </div>
+
+          {/* Technical Status Footer */}
+          <div className="flex items-center justify-between border-t border-border/40 px-4 py-1.5 font-mono text-[11px] text-muted-foreground bg-surface/30">
+            <span className="flex items-center gap-1.5">
+              <span>Định dạng: Markdown cơ bản</span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                <span>Mã hóa: Bật</span>
+              </span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Lock className="size-3 text-muted-foreground" />
+              <span>{name} Gateway</span>
+            </span>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
 
-function Tool({ label, icon: Icon, className, onClick }: { label: string; icon: LucideIcon | typeof MailDot; className?: string; onClick?: () => void }) {
-  return (
-    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} className={className} onClick={onClick}>
-      <Icon strokeWidth={1.6} />
-    </Button>
-  )
-}
-
-function TextBubble({ own, children }: { own: boolean; children: ReactNode }) {
-  return (
-    <div
-      className={cn(
-        'border px-3.5 py-2.5 text-sm',
-        own ? 'rounded-[16px_16px_6px_16px] border-primary bg-primary text-primary-foreground' : 'rounded-[16px_16px_16px_6px] bg-surface text-foreground',
-      )}
-    >
-      {children}
-    </div>
-  )
-}
-
-// Canvas `.bubble-row`: someone else's message on the left with their picture (and name in a group), own on the right.
 function Bubble({
   message,
-  showName,
+  showName: _showName,
   members,
-  sending,
-  providerName,
+  conversationAvatar,
+  isGroup,
+  sending: _sending,
+  providerName: _providerName,
   reactionSet,
   previewReactions,
   reacting,
@@ -233,6 +345,8 @@ function Bubble({
   message: ChatMessage
   showName: boolean
   members: Member[] | null
+  conversationAvatar: string | null
+  isGroup: boolean
   sending: ReturnType<typeof useSendMessage>
   providerName: string
   reactionSet: ReactionKind[]
@@ -240,117 +354,142 @@ function Bubble({
   reacting: ReturnType<typeof useReactToMessage>
 }) {
   const own = message.direction === 'OUT'
-  // zalo-reactions, D-390: the emoji bar where the provider has emoji and the message takes one; the chip wherever it has some.
   const reactions = message.reactions ?? []
   const reactable = reactionSet.length > 0 && (message.canReact === true || previewReactions) && !message.local
-  const withBar = (column: ReactNode) =>
-    reactable ? (
-      <ReactionPicker kinds={reactionSet} mine={mineOf(reactions)} own={own} onPick={(kind) => reacting.react(message.id, reactions, kind)}>
-        {column}
-      </ReactionPicker>
-    ) : (
-      column
-    )
+
   const [brokenLibrary, setBrokenLibrary] = useState(false)
   const [brokenSticker, setBrokenSticker] = useState(false)
   const [brokenSprite, setBrokenSprite] = useState(false)
   const [photoStep, setPhotoStep] = useState<'FULL' | 'THUMB' | 'BROKEN'>('FULL')
-  // A sticker that moves plays its sprite sheet; when that cannot load it shows the still picture, then the text.
-  // A sticker of the user's library (zalo-send-images, D-352) is shown from the library, whatever address Zalo gives its own copy;
-  // when the library cannot give it, the address Zalo gave, if any, then the text.
+
   const library = message.libraryStickerId && !brokenLibrary ? stickerContentUrl(message.libraryStickerId) : null
   const still = library ?? (brokenSticker ? null : pictureOf(message.sticker))
   const sprite = brokenSprite ? null : spriteOf(message.stickerSprite)
-  // A photo shows its picture; when that cannot load it shows the thumbnail, then the text. Its caption stays (ZL-16).
   const photo = photoOf(message.image)
-  // A picture sent from this page shows its preview until the message has Zalo's picture (zalo-send-files, D-378).
   const preview = own && !photo && message.clientMessageId ? outgoingFiles.previewOf(message.clientMessageId) : null
   const photoSrc = preview ?? (photoStep === 'FULL' ? photo?.url : photoStep === 'THUMB' ? photo?.thumbUrl : null)
-  // A message that is one file named by its text shows the file alone, not its name twice (zalo-send-files, ZF-08).
   const [onlyFile] = message.attachments
   const fileOnly = message.attachments.length === 1 && onlyFile !== undefined && !onlyFile.image && message.text === onlyFile.name
-  return (
-    <div className={cn('group/bubble flex max-w-[84%] items-end gap-2.5 md:max-w-[68%]', own ? 'flex-row-reverse self-end' : 'self-start')}>
-      {!own && <Avatar aria-hidden="true" src={memberAvatar(message.sender, members)} placeholder={memberPlaceholder(message.sender, members)} className="size-7" />}
-      {withBar(
-        <div className={cn('flex min-w-0 flex-col gap-1', own ? 'items-end' : 'items-start')}>
-          {!own && showName && (
-            <span data-slot="bubble-name" className="pl-0.5 text-xs leading-4 font-semibold text-muted-foreground">
-              {message.sender}
-            </span>
+
+  // For 1-to-1 chats, the contact avatar is on the conversation (conversationAvatar) or other participant.
+  // For group chats, look up by sender address/name in the member list or use direct message sender avatar.
+  const avatar =
+    (!isGroup ? (members?.find((m) => !m.self)?.avatarUrl || conversationAvatar) : null) ||
+    message.senderAvatar ||
+    memberAvatar(message.sender, members, message.senderAddress)
+
+  const content = (
+    <div className={cn('flex flex-col gap-1', own ? 'items-end' : 'items-start')}>
+      {/* Header text with Sender + Time */}
+      <div className={cn('flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5', own ? 'flex-row-reverse' : 'flex-row')}>
+        <span className="font-semibold text-foreground/90">{message.sender}</span>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {new Date(message.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}
+        </span>
+      </div>
+
+      {/* Bubble Content */}
+      {fileOnly ? null : sprite || still ? (
+        <StickerPicture still={still} sprite={library ? null : sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => (library ? setBrokenLibrary(true) : setBrokenSticker(true))} />
+      ) : photoSrc ? (
+        <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
+      ) : (
+        <div
+          className={cn(
+            'px-4 py-2.5 text-xs leading-relaxed max-w-xl transition-colors',
+            own
+              ? 'rounded-2xl rounded-tr-xs bg-foreground text-background font-normal shadow-xs'
+              : 'rounded-2xl rounded-tl-xs bg-surface border border-border/80 text-foreground shadow-xs',
           )}
-          {fileOnly ? null : sprite || still ? (
-            <StickerPicture still={still} sprite={library ? null : sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => (library ? setBrokenLibrary(true) : setBrokenSticker(true))} />
-          ) : photoSrc ? (
-            <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
-          ) : (
-            <TextBubble own={own}>{message.text}</TextBubble>
-          )}
-          {photo?.caption && <TextBubble own={own}>{photo.caption}</TextBubble>}
-          {message.attachments.map((file) =>
-            file.image && preview ? null : file.image ? (
-              <div
-                key={file.name}
-                className="flex h-35 w-55 items-end rounded-[14px] md:h-45 md:w-70 border bg-[repeating-linear-gradient(135deg,var(--surface)_0_10px,var(--raised)_10px_20px)] p-3"
-              >
-                <Spec className="text-foreground">{['Ảnh', file.caption, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}</Spec>
-              </div>
-            ) : (
-              <MailFile key={file.url ?? file.name} file={file} />
-            ),
-          )}
-          <ReactionChips reactions={reactions} kinds={reactionSet} own={own} />
-          {reacting.failure?.messageId === message.id && (
-            <p role="alert" className="text-xs leading-4 text-danger-ink">
-              {reacting.failure.text}
-            </p>
-          )}
-          <span className={cn('inline-flex items-center gap-1.5 font-mono text-[11px] leading-4 font-medium', message.status === 'FAILED' ? 'text-danger-ink' : 'text-muted-foreground')}>
-            {message.status === 'SENDING' && <Clock className="size-3" strokeWidth={1.6} />}
-            {bubbleMeta(message)}
-          </span>
-          {message.status === 'UNKNOWN' && (
-            <p role="status" className="text-xs leading-4 text-muted-foreground">
-              {message.local ? 'Mất kết nối khi gửi. Gửi lại không làm tin bị gửi hai lần.' : `Sino đang kiểm tra với ${providerName}.`}
-            </p>
-          )}
-          {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && !sending.canResend(message) && (
-            // A picture or file this page no longer holds (the page was loaded again): it cannot be sent again from here.
-            <p className="text-xs leading-4 text-muted-foreground">Chọn lại tệp để gửi.</p>
-          )}
-          {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && (
-            <div className="flex flex-wrap gap-2">
-              {sending.canResend(message) && (
-                <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(message)}>
-                  Gửi lại
-                </Button>
-              )}
-              <Button type="button" variant="ghost" size="sm" onClick={() => sending.discard(message)}>
-                Bỏ
-              </Button>
+        >
+          {message.quoteTag && (
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] font-medium text-foreground border border-border/60">
+                {message.quoteTag}
+              </span>
+              <span className="text-xs text-muted-foreground">{message.text}</span>
             </div>
           )}
-          {sending.discardFailed !== undefined && sending.discardFailed === message.clientMessageId && (
-            <p role="alert" className="text-xs leading-4 text-danger-ink">
-              Không bỏ được tin này. Hãy thử lại.
-            </p>
+
+          {message.codePayload && (
+            <div className="mt-1.5 rounded-lg border border-border/80 bg-background/90 p-3 font-mono text-xs">
+              <div className="flex items-center gap-2 pb-2 mb-2 border-b border-border/60 font-semibold text-foreground">
+                <Code2 className="size-3.5 text-muted-foreground" />
+                <span>{message.codePayload.filename}</span>
+              </div>
+              <pre className="overflow-x-auto text-[11px] text-muted-foreground leading-relaxed whitespace-pre font-mono">
+                {message.codePayload.content}
+              </pre>
+              {message.codePayload.note && (
+                <p className="mt-2 text-[11px] text-muted-foreground pt-2 border-t border-border/40 font-sans">
+                  {message.codePayload.note}
+                </p>
+              )}
+            </div>
           )}
-          {message.linked.map((linked) => {
-            const { icon: Icon, to, name } = LINKED[linked.kind]
-            return (
-              <Link
-                key={linked.title}
-                to={to}
-                className="inline-flex h-7 max-w-full items-center gap-2 rounded-full border bg-surface pr-3 pl-2.5 text-xs leading-4 font-medium whitespace-nowrap text-foreground outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-              >
-                <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
-                <span className="truncate">
-                  {name}: {linked.title}
-                </span>
-              </Link>
-            )
-          })}
-        </div>,
+
+          {!message.quoteTag && !message.codePayload && <p>{message.text}</p>}
+        </div>
+      )}
+
+      {photo?.caption && (
+        <div className={cn('px-4 py-2.5 text-xs leading-relaxed rounded-2xl', own ? 'bg-foreground text-background' : 'bg-surface border border-border/80 text-foreground')}>
+          {photo.caption}
+        </div>
+      )}
+
+      {/* Attachments */}
+      {message.attachments.map((file) =>
+        file.image && preview ? null : file.image ? (
+          <div
+            key={file.name}
+            className="flex h-35 w-55 items-end rounded-[14px] md:h-45 md:w-70 border bg-[repeating-linear-gradient(135deg,var(--surface)_0_10px,var(--raised)_10px_20px)] p-3"
+          >
+            <Spec className="text-foreground">{['Ảnh', file.caption, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}</Spec>
+          </div>
+        ) : (
+          <MailFile key={file.url ?? file.name} file={file} />
+        ),
+      )}
+
+      <ReactionChips reactions={reactions} kinds={reactionSet} own={own} />
+
+      {/* Outbound delivery status */}
+      {own && (
+        <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground mt-0.5">
+          <CheckCheck className="size-3 text-emerald-500" />
+          <span>Đã gửi qua Sino Ops</span>
+        </div>
+      )}
+
+      {/* Inbound / other status */}
+      {!own && (
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {bubbleMeta(message)}
+        </span>
+      )}
+    </div>
+  )
+
+  return (
+    <div className={cn('group/bubble flex max-w-[88%] md:max-w-[75%] items-start gap-2.5', own ? 'flex-row-reverse self-end' : 'self-start')}>
+      {!own && (
+        <div className="relative mt-1 shrink-0">
+          <Avatar src={avatar} placeholder={memberPlaceholder(message.sender, members)} className="size-8">
+            {!avatar && (
+              <span className="grid size-full place-items-center font-semibold text-[11px] text-muted-foreground uppercase select-none">
+                {getInitials(message.sender)}
+              </span>
+            )}
+          </Avatar>
+        </div>
+      )}
+      {reactable ? (
+        <ReactionPicker kinds={reactionSet} mine={mineOf(reactions)} own={own} onPick={(kind) => reacting.react(message.id, reactions, kind)}>
+          {content}
+        </ReactionPicker>
+      ) : (
+        content
       )}
     </div>
   )

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import { ApiError } from '@/shared/api/problem'
 import { sameDiagram } from './diagram/diagram'
 import type { Diagram, NoteChange, NoteItem, NoteKind } from './notes.types'
-import { FROM_NEW, useCreateNote, useNotes, useSaveNote } from './useNotes'
+import { fromNew, useCreateNote, useNotes, useSaveNote } from './useNotes'
 
 /** How long the changes must stop before they are saved (D-203, D-210). */
 export const SAVE_AFTER_MS = 600
@@ -86,6 +86,7 @@ export function useAutosave({
   content,
   adopt,
   search,
+  editorKey,
 }: {
   kind: NoteKind
   note: NoteItem | undefined
@@ -93,6 +94,8 @@ export function useAutosave({
   /** Put a note of the server into the fields of the editor. */
   adopt: (note: NoteItem) => void
   search: string
+  /** The key of the editor, handed to the address of a note it makes, so the same editor stays there (D-203). */
+  editorKey: string
 }): NoteSync {
   const { refetch } = useNotes()
   const { mutateAsync: save } = useSaveNote()
@@ -101,7 +104,7 @@ export function useAutosave({
   // The note as the editor started from it; undefined for a note not made yet.
   const base = useRef<NoteItem | undefined>(note)
   const latest = useRef(content)
-  const context = useRef({ kind, adopt, search, refetch, save, create, navigate })
+  const context = useRef({ kind, adopt, search, editorKey, refetch, save, create, navigate })
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const queue = useRef<Promise<void>>(Promise.resolve())
   const pending = useRef(0)
@@ -128,7 +131,7 @@ export function useAutosave({
     if (blocked()) {
       return
     }
-    const { kind: noteKind, save: saveChange, create: makeNote, navigate: go, search: query } = context.current
+    const { kind: noteKind, save: saveChange, create: makeNote } = context.current
     const draft = latest.current
     const current = base.current
     if (!current) {
@@ -141,7 +144,9 @@ export function useAutosave({
         base.current = created
         setProblem(null)
         if (mounted.current) {
-          go({ pathname: `/notes/${created.id}`, search: query }, { replace: true, state: FROM_NEW })
+          // Read after the wait: the filter or the search may have changed while the note was being made.
+          const { navigate: go, search: query, editorKey: key } = context.current
+          go({ pathname: `/notes/${created.id}`, search: query }, { replace: true, state: fromNew(key) })
         }
       } catch {
         setProblem('failed')
@@ -173,7 +178,7 @@ export function useAutosave({
   const latestTask = useRef({ saveWhatIsThere, readNote })
   useEffect(() => {
     latest.current = content
-    context.current = { kind, adopt, search, refetch, save, create, navigate }
+    context.current = { kind, adopt, search, editorKey, refetch, save, create, navigate }
     latestTask.current = { saveWhatIsThere, readNote }
   })
 

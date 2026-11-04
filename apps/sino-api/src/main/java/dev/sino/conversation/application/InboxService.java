@@ -9,6 +9,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,17 +25,25 @@ import java.util.stream.Stream;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.sino.account.AccountDirectory;
 import dev.sino.account.AccountStatus;
 import dev.sino.account.AccountSummary;
+import dev.sino.account.ProviderAccess;
+import dev.sino.common.error.SinoException;
 import dev.sino.conversation.ConversationChanged;
 import dev.sino.conversation.InboxIds;
 import dev.sino.conversation.infrastructure.ConversationSummaries;
+import dev.sino.provider.ProviderCapability;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.NormalizedMessage;
+import dev.sino.provider.spi.ProviderErrorCode;
+import dev.sino.provider.spi.ProviderException;
 
 /**
  * The inbox of one owner (F05 design, section 4): the conversations of its accounts that are neither removed (D-66)
@@ -64,7 +73,7 @@ public class InboxService implements InboxIds {
     // Each copy with what a row takes from its primary copy, and the newest message that copy holds as its summary
     // counts it (ConversationSummaries): the Message-ID and whether it came in, to find the primary copy (D-181).
     private static final String COPIES = """
-            SELECT c.id, c.account_id, c.type, c.title, c.avatar_url, c.counterpart, c.last_message_from,
+            SELECT c.id, c.account_id, c.type, c.title, c.avatar_url, c.nickname, c.counterpart, c.last_message_from,
                    c.last_message_preview, c.last_message_at,
                    CASE WHEN c.type IN ('GROUP', 'CHANNEL')
                         THEN (SELECT count(*) FROM conversation_participant p WHERE p.conversation_id = c.id) END
@@ -84,25 +93,34 @@ public class InboxService implements InboxIds {
     private final AccountDirectory directory;
     private final ConversationSummaries summaries;
     private final Replies replies;
+    private final ProviderAccess access;
+    private final ConversationKinds kinds;
+    private final TransactionTemplate transactions;
     private final ApplicationEventPublisher events;
 
     InboxService(JdbcClient jdbc, AccountDirectory directory, ConversationSummaries summaries, Replies replies,
+            ProviderAccess access, ConversationKinds kinds, TransactionTemplate transactions,
             ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.directory = directory;
         this.summaries = summaries;
         this.replies = replies;
+        this.access = access;
+        this.kinds = kinds;
+        this.transactions = transactions;
         this.events = events;
     }
 
     /**
-     * Newest first, then by ID, {@code limit} at most, after {@code cursor} when given, one row a group. {@code provider}
-     * narrows the accounts; {@code accountId} keeps the groups with a copy in that account (D-187). One that is not in
-     * the inbox leaves nothing.
+     * Newest first, then by ID, {@code limit} at most, after {@code cursor} when given, one row a group. {@code kind}
+     * and {@code provider} narrow the accounts (a kind that is not the provider's leaves nothing); {@code accountId}
+     * keeps the groups with a copy in that account (D-187). One that is not in the inbox leaves nothing.
+     *
+     * @param kind only the accounts of this kind, or {@code null} for both (f05c, D-307)
      */
-    public InboxPage page(UUID ownerId, InboxView view, String provider, UUID accountId, InboxCursor cursor,
-            int limit) {
-        Map<UUID, ProviderType> accounts = accountsOf(ownerId);
+    public InboxPage page(UUID ownerId, InboxView view, ProviderKind kind, String provider, UUID accountId,
+            InboxCursor cursor, int limit) {
+        Map<UUID, ProviderType> accounts = kinds.ofKind(accountsOf(ownerId), kind);
         // Provider types are lower case; an empty provider filters nothing.
         String type = provider == null || provider.isBlank() ? null : provider.strip().toLowerCase(Locale.ROOT);
         accounts.entrySet().removeIf(account -> type != null && !account.getValue().value().equals(type));
@@ -133,13 +151,20 @@ public class InboxService implements InboxIds {
                 new InboxCursor(last.lastMessageAt(), last.id()));
     }
 
-    /** Groups that are not archived, each once, by the fields of their row (D-187). */
-    public InboxCounts counts(UUID ownerId) {
-        Map<UUID, ProviderType> accounts = accountsOf(ownerId);
+    /**
+     * Groups that are not archived, each once, by the fields of their row (D-187). With a {@code kind}, every count
+     * but {@code unreadByKind} is of the accounts of that kind (the same accounts as {@link #page}); the unread by
+     * kind is always of both, so the navigation can ask without one.
+     */
+    public InboxCounts counts(UUID ownerId, ProviderKind kind) {
+        Map<UUID, ProviderType> everyAccount = accountsOf(ownerId);
+        Map<UUID, ProviderType> accounts = kinds.ofKind(everyAccount, kind);
         Map<String, Long> unreadByProvider = new TreeMap<>();
         accounts.values().forEach(provider -> unreadByProvider.put(provider.value(), 0L));
-        if (accounts.isEmpty()) {
-            return new InboxCounts(0, unreadByProvider, 0, 0);
+        Map<ProviderKind, Long> unreadByKind = new EnumMap<>(ProviderKind.class);
+        Arrays.stream(ProviderKind.values()).forEach(each -> unreadByKind.put(each, 0L));
+        if (everyAccount.isEmpty()) {
+            return new InboxCounts(0, unreadByProvider, 0, 0, unreadByKind, Map.of());
         }
         // Every copy of a group has the provider of the group: one account of each group names it.
         List<AccountCounts> perAccount = jdbc.sql("""
@@ -150,15 +175,26 @@ public class InboxService implements InboxIds {
                 FROM (%s) g
                 WHERE NOT g.archived
                 GROUP BY g.account_id
-                """.formatted(GROUPS.formatted("", ""))).param("accounts", accounts.keySet())
+                """.formatted(GROUPS.formatted("", ""))).param("accounts", everyAccount.keySet())
                 .query((row, n) -> new AccountCounts(row.getObject("account_id", UUID.class), row.getLong("unread"),
                         row.getLong("needs_reply"), row.getLong("with_attachments")))
                 .list();
-        perAccount.forEach(counts -> unreadByProvider.merge(accounts.get(counts.accountId()).value(), counts.unread(),
+        perAccount.forEach(counts -> unreadByKind.merge(kinds.of(everyAccount.get(counts.accountId())),
+                counts.unread(), Long::sum));
+        List<AccountCounts> inKind = perAccount.stream().filter(counts -> accounts.containsKey(counts.accountId()))
+                .toList();
+        inKind.forEach(counts -> unreadByProvider.merge(accounts.get(counts.accountId()).value(), counts.unread(),
                 Long::sum));
-        return new InboxCounts(perAccount.stream().mapToLong(AccountCounts::unread).sum(), unreadByProvider,
-                perAccount.stream().mapToLong(AccountCounts::needsReply).sum(),
-                perAccount.stream().mapToLong(AccountCounts::withAttachments).sum());
+        Map<UUID, InboxCounts.AccountCount> byAccount = new LinkedHashMap<>();
+        for (UUID accountId : accounts.keySet()) {
+            byAccount.put(accountId, new InboxCounts.AccountCount(0, 0, 0));
+        }
+        for (AccountCounts c : inKind) {
+            byAccount.put(c.accountId(), new InboxCounts.AccountCount(c.unread(), c.needsReply(), c.withAttachments()));
+        }
+        return new InboxCounts(inKind.stream().mapToLong(AccountCounts::unread).sum(), unreadByProvider,
+                inKind.stream().mapToLong(AccountCounts::needsReply).sum(),
+                inKind.stream().mapToLong(AccountCounts::withAttachments).sum(), unreadByKind, byAccount);
     }
 
     /**
@@ -188,16 +224,67 @@ public class InboxService implements InboxIds {
 
     /**
      * Read: every message of every copy read; unread: the newest message of the primary copy unread again. Archived on
-     * or off for every copy (D-185). A {@code null} leaves that part as it is. Only in Sino: what the provider said
-     * ({@code provider_read}) stays, and nothing is sent to the provider (D-67).
+     * or off for every copy (D-185). A {@code null} (for {@code read} or {@code archived}) leaves that part as it is.
+     * Only in Sino: what the provider said ({@code provider_read}) stays, and nothing is sent to the provider (D-67).
+     * <p>
+     * {@code nicknameGiven} is whether {@code nickname} was sent at all, {@code ""} or {@code null} clearing it
+     * (zalo-nicknames, D-414, D-416): for a DIRECT conversation of a provider with {@code NICKNAMES}, the provider is
+     * asked first (D-422: outside any transaction, {@link ProviderAccess} refuses one running inside it) and the
+     * column is written only once it agrees. A group, a thread, or a provider without the capability never reaches
+     * the provider at all.
      *
-     * @throws dev.sino.common.error.SinoException with {@code CONVERSATION_NOT_FOUND} when not in the inbox
+     * @throws dev.sino.common.error.SinoException with {@code CONVERSATION_NOT_FOUND} when not in the inbox, or, when
+     *         {@code nicknameGiven}, {@code NICKNAME_NOT_SUPPORTED}, {@code NICKNAME_REJECTED} or
+     *         {@code NICKNAME_UNAVAILABLE}
      */
-    @Transactional
-    public InboxItem change(UUID ownerId, UUID conversationId, Boolean read, Boolean archived) {
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public InboxItem change(UUID ownerId, UUID conversationId, Boolean read, Boolean archived, boolean nicknameGiven,
+            String nickname) {
         Map<UUID, ProviderType> accounts = accountsOf(ownerId);
         InboxItem conversation = find(accounts, conversationId)
                 .orElseThrow(ConversationErrorCode::conversationNotFound);
+        if (nicknameGiven) {
+            setNickname(ownerId, conversation, nickname);
+        }
+        return transactions.execute(status -> applyChange(accounts, conversation, read, archived, nicknameGiven,
+                nickname));
+    }
+
+    // Outside any transaction (D-422): calls the provider, never writes. The capability and the conversation's type
+    // are both checked here, since a 1-1 chat of a provider without NICKNAMES must fail the same way as a group.
+    private void setNickname(UUID ownerId, InboxItem conversation, String nickname) {
+        if (conversation.type() != ConversationType.DIRECT) {
+            throw ConversationErrorCode.nicknameNotSupported();
+        }
+        AccountSummary account = directory.find(ownerId, conversation.accountId())
+                .orElseThrow(ConversationErrorCode::conversationNotFound);
+        if (!directory.capabilitiesOf(account).supports(ProviderCapability.NICKNAMES)) {
+            throw ConversationErrorCode.nicknameNotSupported();
+        }
+        String friendId = jdbc.sql("SELECT external_conversation_id FROM conversation WHERE id = :id")
+                .param("id", conversation.primaryId()).query(String.class).single();
+        try {
+            access.call(conversation.accountId(), (connector, context) -> {
+                connector.nicknames().orElseThrow(() -> new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
+                        connector.type() + " has no nicknames")).set(context, friendId, nickname);
+                return null;
+            });
+        } catch (ProviderException failure) {
+            throw nicknameFailure(failure);
+        }
+    }
+
+    private static SinoException nicknameFailure(ProviderException failure) {
+        return switch (failure.errorCode()) {
+            case REQUEST_REJECTED -> ConversationErrorCode.nicknameRejected();
+            case CAPABILITY_NOT_SUPPORTED -> ConversationErrorCode.nicknameNotSupported();
+            default -> ConversationErrorCode.nicknameUnavailable();
+        };
+    }
+
+    // The write, in its own transaction (D-422): read/archived as before, plus the nickname column when given.
+    private InboxItem applyChange(Map<UUID, ProviderType> accounts, InboxItem conversation, Boolean read,
+            Boolean archived, boolean nicknameGiven, String nickname) {
         summaries.lockAll(conversation.accountIds());
         List<UUID> copies = conversation.conversationIds();
         if (Boolean.TRUE.equals(read)) {
@@ -218,6 +305,12 @@ public class InboxService implements InboxIds {
                     UPDATE conversation SET archived = :archived, updated_at = now()
                     WHERE id IN (:copies) AND archived <> :archived
                     """).param("archived", archived).param("copies", copies).update();
+        }
+        if (nicknameGiven) {
+            jdbc.sql("""
+                    UPDATE conversation SET nickname = :nickname, updated_at = now()
+                    WHERE id = :id AND nickname IS DISTINCT FROM :nickname
+                    """).param("nickname", nickname).param("id", conversation.primaryId()).update();
         }
         summaries.summarize(copies);
         events.publishEvent(new ConversationChanged(conversation.accountId(), conversation.id(), Instant.now()));
@@ -290,16 +383,16 @@ public class InboxService implements InboxIds {
         return items;
     }
 
-    private static InboxItem itemOf(Group group, List<Copy> copies, Map<UUID, ProviderType> accounts) {
+    private InboxItem itemOf(Group group, List<Copy> copies, Map<UUID, ProviderType> accounts) {
         Copy primary = primaryOf(copies);
         List<UUID> accountIds = Stream.concat(Stream.of(primary.accountId()), copies.stream().map(Copy::accountId))
                 .distinct().toList();
         return new InboxItem(group.id(), primary.id(), primary.accountId(), accountIds,
                 copies.stream().map(copy -> new InboxItem.Copy(copy.id(), copy.accountId())).toList(),
-                accounts.get(primary.accountId()), primary.type(), primary.title(), primary.avatarUrl(),
-                primary.counterpart(), primary.lastMessageFrom(), primary.preview(), group.lastMessageAt(),
-                group.unreadCount(), group.needsReply(), group.hasAttachments(), group.archived(),
-                primary.participants());
+                accounts.get(primary.accountId()), kinds.of(accounts.get(primary.accountId())), primary.type(),
+                primary.title(), primary.avatarUrl(), primary.nickname(), primary.counterpart(),
+                primary.lastMessageFrom(), primary.preview(), group.lastMessageAt(), group.unreadCount(),
+                group.needsReply(), group.hasAttachments(), group.archived(), primary.participants());
     }
 
     // D-181: the copy holding the newest message. Each mailbox dates its copy of a message on its own, so the copies
@@ -335,8 +428,8 @@ public class InboxService implements InboxIds {
     }
 
     private record Copy(UUID id, UUID accountId, ConversationType type, String title, String avatarUrl,
-            String counterpart, String lastMessageFrom, String preview, Instant lastMessageAt, int participants,
-            String newestMessageId, boolean newestInbound) {
+            String nickname, String counterpart, String lastMessageFrom, String preview, Instant lastMessageAt,
+            int participants, String newestMessageId, boolean newestInbound) {
     }
 
     private static Group group(ResultSet row) throws SQLException {
@@ -349,9 +442,10 @@ public class InboxService implements InboxIds {
     private static Copy copyOf(ResultSet row) throws SQLException {
         return new Copy(row.getObject("id", UUID.class), row.getObject("account_id", UUID.class),
                 ConversationType.valueOf(row.getString("type")), row.getString("title"), row.getString("avatar_url"),
-                row.getString("counterpart"), row.getString("last_message_from"), row.getString("last_message_preview"),
-                row.getObject("last_message_at", OffsetDateTime.class).toInstant(), row.getInt("participants"),
-                row.getString("newest_message_id"), row.getBoolean("newest_inbound"));
+                row.getString("nickname"), row.getString("counterpart"), row.getString("last_message_from"),
+                row.getString("last_message_preview"), row.getObject("last_message_at", OffsetDateTime.class)
+                        .toInstant(), row.getInt("participants"), row.getString("newest_message_id"),
+                row.getBoolean("newest_inbound"));
     }
 
 }

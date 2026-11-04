@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+﻿import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderApp } from '@/test/renderApp'
@@ -16,7 +16,7 @@ const FILLED: OwnerDetails = {
   contactEmail: 'lienhe@sino.example',
   owner: 'Nguyễn Văn Thử',
   effectiveDate: '2026-11-01',
-  hosting: 'Máy chủ thử ở Singapore',
+  hosting: { vi: 'Máy chủ thử ở Singapore', en: 'Test server in Singapore' },
 }
 
 const LIMITED_USE =
@@ -41,8 +41,8 @@ describe('the privacy policy in sino-web (WP-03, web-public-pages)', () => {
   })
 
   it.each([
-    ['/privacy', 'vi', 'Chính sách quyền riêng tư · Sino'],
-    ['/en/privacy', 'en', 'Privacy policy · Sino'],
+    ['/privacy', 'vi', 'ChÃ­nh sÃ¡ch quyá»n riÃªng tÆ° Â· Sino'],
+    ['/en/privacy', 'en', 'Privacy policy Â· Sino'],
   ] as const)('shows %s to anybody, in its language, with its tab title', async (path, lang, title) => {
     const { router } = await open(path)
 
@@ -51,7 +51,7 @@ describe('the privacy policy in sino-web (WP-03, web-public-pages)', () => {
     expect(document.title).toBe(title)
   })
 
-  it('links one version to the other (spec: Đổi ngôn ngữ)', async () => {
+  it('links one version to the other (spec: Äá»•i ngÃ´n ngá»¯)', async () => {
     const user = userEvent.setup()
     const { router } = await open('/privacy')
 
@@ -59,14 +59,14 @@ describe('the privacy policy in sino-web (WP-03, web-public-pages)', () => {
 
     expect(router.state.location.pathname).toBe('/en/privacy')
     expect(await screen.findByRole('heading', { level: 1, name: 'Privacy policy' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Tiếng Việt' })).toHaveAttribute('href', '/privacy')
+    expect(screen.getByRole('link', { name: 'Tiáº¿ng Viá»‡t' })).toHaveAttribute('href', '/privacy')
   })
 
   it.each(['/privacy', '/en/privacy'] as const)('has the sections of sino-site in %s, each in the table of contents', async (path) => {
     await open(path)
 
     expect(sectionIds()).toEqual(SECTIONS)
-    const toc = within(screen.getByRole('navigation', { name: path === '/privacy' ? 'Mục lục' : 'Contents' }))
+    const toc = within(screen.getByRole('navigation', { name: path === '/privacy' ? 'Má»¥c lá»¥c' : 'Contents' }))
     expect(toc.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(SECTIONS.map((id) => `#${id}`))
   })
 
@@ -83,7 +83,7 @@ describe('the privacy policy in sino-web (WP-03, web-public-pages)', () => {
 
     expect(part('lien-he').textContent).toContain('Nguyễn Văn Thử')
     expect(within(part('lien-he')).getAllByRole('link', { name: 'lienhe@sino.example' })[0]).toHaveAttribute('href', 'mailto:lienhe@sino.example')
-    expect(part('ben-thu-ba').textContent).toContain('Máy chủ thử ở Singapore')
+    expect(part('ben-thu-ba').textContent).toContain('MÃ¡y chá»§ thá»­ á»Ÿ Singapore')
     expect(document.querySelector('main header')!.textContent).toContain('01/11/2026')
   })
 
@@ -93,18 +93,18 @@ describe('the privacy policy in sino-web (WP-03, web-public-pages)', () => {
     expect(document.querySelector('main header')!.textContent).toContain('1 November 2026')
   })
 
-  it('shows what the owner has not filled in yet (spec: Thông tin chưa điền, D-314)', async () => {
+  it('shows what the owner has not filled in yet (spec: ThÃ´ng tin chÆ°a Ä‘iá»n, D-314)', async () => {
     details.current = EMPTY
     await open('/privacy')
 
     const page = document.querySelector('main')!.textContent
-    for (const label of ['email liên hệ', 'người đứng tên', 'ngày hiệu lực', 'nhà cung cấp máy chủ']) {
-      expect(page).toContain(`[chưa điền: ${label}]`)
+    for (const label of ['email liÃªn há»‡', 'ngÆ°á»i Ä‘á»©ng tÃªn', 'ngÃ y hiá»‡u lá»±c', 'nhÃ  cung cáº¥p mÃ¡y chá»§']) {
+      expect(page).toContain(`[chÆ°a Ä‘iá»n: ${label}]`)
     }
   })
 
   it.each([
-    ['/privacy', 'không dùng cookie', 'cookie chống giả mạo yêu cầu'],
+    ['/privacy', 'khÃ´ng dÃ¹ng cookie', 'cookie chá»‘ng giáº£ máº¡o yÃªu cáº§u'],
     ['/en/privacy', 'sets no cookies', 'cookie against forged requests'],
   ] as const)('tells in %s that the pages of the app can set its cookie against forged requests (D-316)', async (path, untrue, cookie) => {
     await open(path)
@@ -113,7 +113,7 @@ describe('the privacy policy in sino-web (WP-03, web-public-pages)', () => {
     // gives the XSRF-TOKEN cookie (spec web-authentication).
     expect(part('pham-vi').textContent).not.toContain(untrue)
     expect(part('pham-vi').textContent).toContain(cookie)
-    expect(within(part('pham-vi')).getByRole('link', { name: path === '/privacy' ? 'Dữ liệu Sino lưu' : 'What Sino stores' })).toHaveAttribute('href', '#thu-thap')
+    expect(within(part('pham-vi')).getByRole('link', { name: path === '/privacy' ? 'Dá»¯ liá»‡u Sino lÆ°u' : 'What Sino stores' })).toHaveAttribute('href', '#thu-thap')
   })
 
   it('does not link to pages sino-web does not have (D-311)', async () => {

@@ -1,7 +1,9 @@
 import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { http } from 'msw'
 import { notesBackend } from '@/test/notesBackend'
+import { server } from '@/test/msw/server'
 import { restoreReactFlow, stubReactFlow } from '@/test/reactFlow'
 import { renderApp } from '@/test/renderApp'
 import { NOTES_QUERY_KEY } from './useNotes'
@@ -81,6 +83,80 @@ describe('Ghi chú on the F15 API (FE-90)', () => {
       renderApp('/notes')
       await ready()
       expect(cardTitles()).toContain('Gọi lại cho phòng khám')
+    })
+
+    it('opens an empty editor on "+ Ghi chú" after a note was made, and makes a second note, the first left as it was', async () => {
+      const api = backend()
+      const user = userEvent.setup()
+      const { router } = renderApp('/notes/new')
+      await ready()
+
+      await user.type(text(), 'Gọi lại cho phòng khám')
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/notes/note-new-1'), SAVED)
+      // The typing goes on in the same editor under the note's address (D-203).
+      expect(text()).toHaveFocus()
+      await user.type(text(), ' sáng mai')
+      await vi.waitFor(() => expect(api.patched).toHaveLength(1), SAVED)
+
+      await user.click(list().getByRole('button', { name: 'Ghi chú' }))
+      await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Ghi chú chữ/ }))
+      expect(router.state.location.pathname).toBe('/notes/new')
+      expect(text()).toHaveValue('')
+
+      await user.type(text(), 'Mua thuốc cho bà')
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/notes/note-new-2'), SAVED)
+      await pause(800)
+
+      expect(api.created).toEqual([
+        { kind: 'TEXT', title: '', body: 'Gọi lại cho phòng khám' },
+        { kind: 'TEXT', title: '', body: 'Mua thuốc cho bà' },
+      ])
+      expect(api.patched).toEqual([['note-new-1', { version: 0, body: 'Gọi lại cho phòng khám sáng mai' }]])
+    })
+
+    it('keeps the new note being written when the address changes under it (the filter, the search)', async () => {
+      const api = backend()
+      const user = userEvent.setup()
+      const { router } = renderApp('/notes/new')
+      await ready()
+
+      await user.type(text(), 'Gọi lại')
+      // The address alone, as the filter of the list sets it; a click there would leave the field and save first.
+      await act(() => router.navigate('/notes/new?filter=pinned', { replace: true }))
+      expect(text()).toHaveValue('Gọi lại')
+      expect(text()).toHaveFocus()
+
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/notes/note-new-1'), SAVED)
+      expect(api.created).toEqual([{ kind: 'TEXT', title: '', body: 'Gọi lại' }])
+    })
+
+    it('keeps a filter chosen while the new note is being made, under the address of the note', async () => {
+      const api = backend()
+      // The making of the note waits until the filter has changed, then goes on to the backend.
+      let release = () => {}
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let asked = false
+      server.use(
+        http.post('/api/notes', async () => {
+          asked = true
+          await held
+        }),
+      )
+      const user = userEvent.setup()
+      const { router } = renderApp('/notes/new')
+      await ready()
+
+      await user.type(text(), 'Gọi lại')
+      await vi.waitFor(() => expect(asked).toBe(true), SAVED)
+      await act(() => router.navigate('/notes/new?filter=pinned', { replace: true }))
+      release()
+
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/notes/note-new-1'), SAVED)
+      expect(router.state.location.search).toBe('?filter=pinned')
+      expect(api.created).toHaveLength(1)
+      expect(text()).toHaveValue('Gọi lại')
     })
 
     it('saves an edit over the version it read, then the next one over the version that came back', async () => {
@@ -425,6 +501,26 @@ describe('Sơ đồ on the F15 API (FE-90)', () => {
     expect(made).not.toHaveProperty('body')
     expect(made.diagram.blocks).toHaveLength(2)
     expect((await diagram()).getByText('2 khối · 0 đường nối')).toBeInTheDocument()
+  })
+
+  it('opens a new diagram on "+ Ghi chú" after one was made, and makes a second one', async () => {
+    const api = backend()
+    const user = userEvent.setup()
+    const { router } = renderApp('/notes/new?kind=diagram')
+    await ready()
+
+    await user.click((await diagram()).getByRole('button', { name: 'Thêm khối' }))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/notes/note-new-1'), SAVED)
+
+    await user.click(list().getByRole('button', { name: 'Ghi chú' }))
+    await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Sơ đồ/ }))
+    expect(router.state.location.pathname).toBe('/notes/new')
+    expect((await diagram()).getByText('1 khối · 0 đường nối')).toBeInTheDocument()
+
+    await user.click((await diagram()).getByRole('button', { name: 'Thêm khối' }))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/notes/note-new-2'), SAVED)
+    expect(api.created).toHaveLength(2)
+    expect(api.patched).toEqual([])
   })
 
   it('saves the whole diagram over the version it read', async () => {

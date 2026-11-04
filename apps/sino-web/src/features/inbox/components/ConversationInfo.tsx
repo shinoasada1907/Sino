@@ -1,36 +1,32 @@
-import { Calendar, ChevronRight, Plus, SquareCheck, StickyNote, type LucideIcon } from 'lucide-react'
-import { useId, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import {
+  Ban,
+  Bell,
+  BellOff,
+  Code2,
+  Download,
+  ExternalLink,
+  FileText,
+  Globe,
+  Lock,
+  Tag,
+  User,
+  X,
+} from 'lucide-react'
+import { useState } from 'react'
 import type { ProviderNameOf } from '@/shared/format'
-import { formatDayMonth } from '@/shared/time/local'
-import { AccountAvatar } from '@/shared/ui/account-avatar'
-import { Avatar } from '@/shared/ui/avatar'
-import { Badge } from '@/shared/ui/badge'
+import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Spec } from '@/shared/ui/spec'
-import { Status } from '@/shared/ui/status'
 import { Switch } from '@/shared/ui/switch'
-import { formatFileSize, linkedInfoSpec, memberPlaceholder } from '../format'
-import type { ConversationDetail, ConversationItem, InboxAccount, LinkedKind } from '../inbox.types'
+import { formatFileSize } from '../format'
+import type { ConversationDetail, ConversationItem, InboxAccount } from '../inbox.types'
 
-const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string }> = {
-  TASK: { icon: SquareCheck, to: '/tasks' },
-  EVENT: { icon: Calendar, to: '/calendar' },
-  NOTE: { icon: StickyNote, to: '/notes' },
-}
-const SHOWN_MEMBERS = 5
-
-/**
- * The info column of the canvas `Conversation`: linked items, members, photos and files, the account in use, the
- * notification switches. A section the backend has nothing for (null) is left out. Creating items, the switches and
- * the file rows have no flow yet (D-52).
- */
 export function ConversationInfo({
   item,
   detail,
-  account,
-  now,
-  nameOf,
+  account: _account,
+  now: _now,
+  nameOf: _nameOf,
+  onClose,
   className,
 }: {
   item: ConversationItem
@@ -38,154 +34,226 @@ export function ConversationInfo({
   account: InboxAccount
   now: Date
   nameOf: ProviderNameOf
+  onClose?: () => void
   className?: string
 }) {
-  const [allMembers, setAllMembers] = useState(false)
   const [muted, setMuted] = useState(false)
-  const [onOverview, setOnOverview] = useState(true)
-  const members = detail?.members ?? null
-  const shownMembers = members && (allMembers ? members : members.slice(0, SHOWN_MEMBERS))
-  const photos = detail?.files?.items.filter((file) => file.image) ?? []
-  const documents = detail?.files?.items.filter((file) => !file.image) ?? []
+  const [pushEnabled, setPushEnabled] = useState(true)
+
+  const primaryMember = detail?.members?.[0]
+  const avatarUrl = primaryMember?.avatarUrl || item.avatarUrl
+  const title = item.title
+  const role = primaryMember?.role
+  const memberId = primaryMember?.id
+  const location = primaryMember?.location
+
+  const photos = detail?.files?.items.filter((f) => f.image) ?? []
+  const docs = detail?.files?.items.filter((f) => !f.image) ?? []
+  const linkedLink = detail?.linkedUrl
+
+  const hasMediaOrFiles = photos.length > 0 || docs.length > 0 || !!linkedLink
+  const totalDocBytes = docs.reduce((acc, f) => acc + (f.sizeBytes || 0), 0)
 
   return (
-    <aside aria-label="Thông tin cuộc trò chuyện" className={className}>
-      <div className="flex min-h-0 flex-col gap-7 overflow-auto p-6">
-        {detail?.linked && (
-          <Section title="Việc và ghi chú" count={detail.linked.length}>
-            {detail.linked.map((linked) => {
-              const { icon: Icon, to } = LINKED[linked.kind]
-              return (
-                <Link
-                  key={linked.id}
-                  to={to}
-                  className="-mx-3 grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-sm px-3 py-2.5 transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-                >
-                  <Icon className="size-4.5 text-muted-foreground" strokeWidth={1.6} />
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-sm font-semibold">{linked.title}</span>
-                    <Spec className="truncate">{linkedInfoSpec(linked, now)}</Spec>
-                  </span>
-                  <ChevronRight className="size-4 text-muted-foreground" strokeWidth={1.6} />
-                </Link>
-              )
-            })}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="secondary" size="sm">
-                <Plus strokeWidth={1.6} />
-                Task
-              </Button>
-              <Button type="button" variant="ghost" size="sm">
-                <Plus strokeWidth={1.6} />
-                Ghi chú
-              </Button>
-              <Button type="button" variant="ghost" size="sm">
-                <Plus strokeWidth={1.6} />
-                Lịch hẹn
-              </Button>
-            </div>
-          </Section>
+    <aside aria-label="Thông tin cuộc trò chuyện" className={cn('flex flex-col h-full min-h-0 bg-background border-l select-none', className)}>
+      {/* Top Header */}
+      <header className="shrink-0 flex items-center justify-between border-b px-5 py-3">
+        <h2 className="text-sm font-bold text-foreground">Chi tiết hội thoại</h2>
+        {onClose && (
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Đóng" className="size-8 cursor-pointer">
+            <X className="size-4" strokeWidth={1.6} />
+          </Button>
         )}
+      </header>
 
-        {members && shownMembers && (
-          <Section title="Thành viên" count={members.length}>
-            {shownMembers.map((member) => (
-              <div key={member.name} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5">
-                <Avatar src={member.avatarUrl} placeholder={memberPlaceholder(member.name, members)} className="size-7" />
-                <span className="truncate text-sm">{member.name}</span>
-                {member.owner ? <Badge>Trưởng nhóm</Badge> : member.joinedRecently ? <Spec>mới</Spec> : <span />}
-              </div>
-            ))}
-            {!allMembers && members.length > SHOWN_MEMBERS && (
-              <Button type="button" variant="ghost" size="sm" className="-ml-3 self-start" onClick={() => setAllMembers(true)}>
-                Xem thêm {members.length - SHOWN_MEMBERS} người
-              </Button>
-            )}
-          </Section>
-        )}
-
-        {detail?.files && (
-          <Section title="Ảnh và tệp" count={detail.files.total}>
-            {photos.length > 0 && (
-              <div role="img" aria-label={`${photos.length} ảnh gần nhất`} className="grid grid-cols-3 gap-2">
-                {photos.map((photo) => (
-                  <span
-                    key={photo.name}
-                    className="block aspect-square rounded-[10px] border bg-[repeating-linear-gradient(135deg,var(--surface)_0_8px,var(--raised)_8px_16px)]"
-                  />
-                ))}
-              </div>
-            )}
-            {documents.map((file) => (
-              <button
-                key={file.name}
-                type="button"
-                className="inline-flex h-13 cursor-pointer items-center gap-2.5 rounded-sm border bg-raised pr-3.5 pl-2 text-left text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-              >
-                <span className="grid size-9 shrink-0 place-items-center rounded-[8px] border bg-surface font-mono text-[10px] leading-none font-semibold tracking-[0.04em] text-muted-foreground">
-                  {file.type}
-                </span>
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate text-sm font-semibold">{file.name}</span>
-                  <Spec>
-                    {formatFileSize(file.sizeBytes)} · {formatDayMonth(new Date(file.at))}
-                  </Spec>
-                </span>
-              </button>
-            ))}
-          </Section>
-        )}
-
-        <Section title="Tài khoản dùng">
-          <Link
-            to={`/accounts/${account.id}`}
-            className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
-          >
-            <AccountAvatar provider={account.provider} />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm font-semibold">{nameOf(item.provider)}</span>
-              <Spec className="truncate">{account.address}</Spec>
-            </span>
-            {account.syncProgress !== null ? (
-              <Status tone="warn">{account.syncProgress}%</Status>
-            ) : account.status === 'AUTH_EXPIRED' ? (
-              <Status tone="err">Ngắt</Status>
+      {/* Main Content Area */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-5">
+        {/* Contact Profile Card */}
+        <div className="flex flex-col items-center text-center">
+          <div className="relative">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="size-18 rounded-full object-cover border-2 border-border/80 shadow-xs" />
             ) : (
-              <Status tone="ok">Đồng bộ</Status>
+              <div className="grid size-18 place-items-center rounded-full border-2 border-border/80 bg-surface font-semibold text-lg text-muted-foreground shadow-xs">
+                {title.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
+              </div>
             )}
-          </Link>
-        </Section>
+          </div>
+          <h3 className="mt-3 text-base font-bold text-foreground leading-tight">{title}</h3>
+          {role && <p className="mt-1 text-xs text-muted-foreground">{role}</p>}
 
-        <div className="flex flex-col gap-3.5">
-          <SwitchRow label={item.memberCount ? 'Tắt thông báo nhóm này' : 'Tắt thông báo cuộc trò chuyện này'} checked={muted} onChange={setMuted} />
-          <SwitchRow label="Hiện trong Tổng quan" checked={onOverview} onChange={setOnOverview} />
+          <div className="mt-2.5 flex items-center gap-1.5 flex-wrap justify-center">
+            {memberId && (
+              <span className="rounded bg-surface border border-border/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                ID: {memberId}
+              </span>
+            )}
+            {location && (
+              <span className="rounded bg-surface border border-border/70 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                {location}
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* 3 Action Buttons */}
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-surface/70 py-2.5 px-1 hover:bg-hover hover:border-border transition-colors cursor-pointer"
+          >
+            <User className="size-4 text-muted-foreground" strokeWidth={1.6} />
+            <span className="text-[11px] font-medium text-foreground">Hồ sơ</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMuted(!muted)}
+            className={cn(
+              'flex flex-col items-center justify-center gap-1.5 rounded-lg border py-2.5 px-1 transition-colors cursor-pointer',
+              muted ? 'bg-hover border-border text-foreground' : 'border-border/80 bg-surface/70 hover:bg-hover hover:border-border text-foreground',
+            )}
+          >
+            <BellOff className="size-4 text-muted-foreground" strokeWidth={1.6} />
+            <span className="text-[11px] font-medium">{muted ? 'Bật tiếng' : 'Tắt tiếng'}</span>
+          </button>
+          <button
+            type="button"
+            className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-surface/70 py-2.5 px-1 hover:bg-hover hover:border-border transition-colors cursor-pointer"
+          >
+            <Tag className="size-4 text-muted-foreground" strokeWidth={1.6} />
+            <span className="text-[11px] font-medium text-foreground">Nhãn dán</span>
+          </button>
+        </div>
+
+        {/* Push Notification Switch Card */}
+        <div className="rounded-lg border border-border/80 bg-surface/50 p-3 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="size-4 text-muted-foreground" strokeWidth={1.6} />
+              <span className="text-xs font-semibold text-foreground">Thông báo đẩy</span>
+            </div>
+            <Switch checked={pushEnabled} onCheckedChange={setPushEnabled} />
+          </div>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Đồng bộ tin nhắn tức thời qua webhook và thông báo máy tính.
+          </p>
+        </div>
+
+        {/* Shared Media Grid - Only when photos exist */}
+        {photos.length > 0 && (
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[11px] font-semibold text-muted-foreground tracking-tight">
+                ẢNH & VIDEO ĐÃ CHIA SẺ ({detail?.files?.total ?? photos.length})
+              </span>
+              <button type="button" className="text-[11px] font-medium text-foreground hover:underline cursor-pointer">
+                Xem tất cả
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {photos.slice(0, 4).map((file, idx) => (
+                <div key={idx} className="group relative aspect-4/3 overflow-hidden rounded-lg border border-border/80 bg-surface">
+                  {file.url ? (
+                    <img
+                      src={file.url}
+                      alt={file.name}
+                      className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-[repeating-linear-gradient(135deg,var(--surface)_0_8px,var(--raised)_8px_16px)]" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Document Files - Only when docs exist */}
+        {docs.length > 0 && (
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[11px] font-semibold text-muted-foreground tracking-tight">
+                TỆP TÀI LIỆU ({docs.length})
+              </span>
+              {totalDocBytes > 0 && (
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  Tổng {formatFileSize(totalDocBytes)}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {docs.map((file, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between rounded-lg border border-border/80 bg-surface/50 p-2.5 hover:bg-hover transition-colors"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="grid size-8 shrink-0 place-items-center rounded-md border border-border/60 bg-background text-muted-foreground">
+                      {file.type === 'PDF' ? (
+                        <FileText className="size-4" strokeWidth={1.6} />
+                      ) : (
+                        <Code2 className="size-4" strokeWidth={1.6} />
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-xs font-semibold text-foreground">{file.name}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {file.sizeBytes ? formatFileSize(file.sizeBytes) : file.type} • {new Date(file.at).toLocaleDateString('vi-VN')}
+                      </span>
+                    </div>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon-sm" className="size-7 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
+                    <Download className="size-3.5" strokeWidth={1.6} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Linked items - Only when linkedLink exists */}
+        {linkedLink && (
+          <div className="flex flex-col gap-2">
+            <span className="font-mono text-[11px] font-semibold text-muted-foreground tracking-tight">
+              LIÊN KẾT ĐÍNH KÈM
+            </span>
+            <a
+              href={linkedLink.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2.5 rounded-lg border border-border/80 bg-surface/50 p-2.5 hover:bg-hover transition-colors"
+            >
+              <div className="grid size-8 shrink-0 place-items-center rounded-md border border-border/60 bg-background text-muted-foreground">
+                <Globe className="size-4" strokeWidth={1.6} />
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-xs font-semibold text-foreground">{linkedLink.title}</span>
+                <span className="truncate text-[10px] text-muted-foreground">{linkedLink.subtitle}</span>
+              </div>
+              <ExternalLink className="size-3.5 text-muted-foreground shrink-0" strokeWidth={1.6} />
+            </a>
+          </div>
+        )}
+
+        {/* Empty state when no media or files exist */}
+        {!hasMediaOrFiles && (
+          <div className="rounded-lg border border-dashed border-border/80 p-4 text-center text-xs text-muted-foreground">
+            Chưa có tệp hoặc đa phương tiện nào được chia sẻ.
+          </div>
+        )}
       </div>
+
+      {/* Info Footer */}
+      <footer className="shrink-0 mt-auto border-t px-5 py-3 flex items-center justify-between font-mono text-xs">
+        <button type="button" className="flex items-center gap-1.5 text-danger hover:underline cursor-pointer">
+          <Ban className="size-3.5" strokeWidth={1.6} />
+          <span>Chặn kênh</span>
+        </button>
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <Lock className="size-3" strokeWidth={1.6} />
+          <span>SSL 256-bit</span>
+        </div>
+      </footer>
     </aside>
-  )
-}
-
-function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
-  const titleId = useId()
-  return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id={titleId} className="text-xs leading-4 font-semibold text-muted-foreground">
-          {title}
-        </h2>
-        {count !== undefined && <Spec>{count}</Spec>}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-// Local only: muting and showing on the overview are settings the data contract does not carry yet.
-function SwitchRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return (
-    <label className="inline-flex cursor-pointer items-center gap-3 self-start text-sm font-medium">
-      <Switch checked={checked} onCheckedChange={onChange} />
-      {label}
-    </label>
   )
 }

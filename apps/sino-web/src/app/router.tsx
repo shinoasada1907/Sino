@@ -9,6 +9,7 @@ import { OverviewPage } from '@/features/overview/OverviewPage'
 import { NotesPage } from '@/features/notes/NotesPage'
 import { HomeGate } from '@/features/public/HomeGate'
 import { PrivacyRoute } from '@/features/public/PrivacyRoute'
+import { ProfilePage } from '@/features/profile/ProfilePage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { SettingsStickersPage } from '@/features/settings/SettingsStickersPage'
 import { TasksPage } from '@/features/tasks/TasksPage'
@@ -93,6 +94,11 @@ export const routes: RouteObject[] = [
             path: 'accounts/:accountId',
             element: <AccountDetailPage />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
+            path: 'profile',
+            element: <ProfilePage />,
+            handle: { mobilePageHeader: true } satisfies ShellHandle,
           },
           // Sticker management lives in Cài đặt (fe-ui-settings, D-397); the old address still leads there.
           {

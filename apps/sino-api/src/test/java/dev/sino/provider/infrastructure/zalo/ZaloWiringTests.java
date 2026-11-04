@@ -39,7 +39,8 @@ class ZaloWiringTests {
                 .andExpect(jsonPath(ZALO + ".displayName", contains("Zalo")))
                 .andExpect(jsonPath(ZALO + ".kind", contains("CHAT")))
                 .andExpect(jsonPath(ZALO + ".capabilities",
-                        contains(containsInAnyOrder("READ_MESSAGES", "SEND_MESSAGES", "SEND_IMAGES", "SEND_FILES", "ATTACHMENTS", "PUSH_WEBHOOK"))))
+                        contains(containsInAnyOrder("READ_MESSAGES", "SEND_MESSAGES", "SEND_IMAGES", "SEND_FILES",
+                                "ATTACHMENTS", "PUSH_WEBHOOK", "NICKNAMES"))))
                 .andExpect(jsonPath(ZALO + ".connectMethod", contains("QR")))
                 .andExpect(jsonPath(ZALO + ".connectable", contains(true)));
     }

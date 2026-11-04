@@ -48,6 +48,11 @@ task_overrides:
   zalo-mentions: AUTO
   zalo-media-library: AUTO
   zalo-voice-messages: AUTO
+  fe-ui-profile: AUTO       # 2026-11-04: AUTO (user: "duyệt", asked because `new_features` is TRAINING): User profile page on sample data (`/profile`), personal info, password change, connected accounts & active sessions.
+  zalo-contacts: AUTO       # 2026-11-02: AUTO (user, in the sino-zalo engineer session sino-30: "Ghi đề án D ở đây, AUTO", asked because `new_features` is TRAINING): Zalo friends and groups kept in sino-api, the "Nhắn tin mới" picker. The engineer session wrote the plan at the user's order; approval 1 and 2 still go to the user.
+  public-pages-prerender: AUTO # 2026-11-04: AUTO (user: "Duyệt, giao việc", after the plan proposed it because `new_features` is TRAINING). Public pages carry their content in the served HTML. Each result still goes to the user before commit (approval 2).
+  profile-info: AUTO        # 2026-11-04: AUTO (user: "A, AUTO", asked because `new_features` is TRAINING): part 1 of profile management (profile fields + avatar, BE and web). Architecture decisions still go to the user (DN-1, DN-2 of its design); no task handed out before the plan is approved.
+  messages-by-account: AUTO # 2026-11-02: AUTO (user: "được làm đi", asked because `new_features` is TRAINING): Tin nhắn and Hộp thư split by account, Cá nhân / Nhóm in Tin nhắn, BE-111 moved from f05c. The plan still goes to the user (approval 1) and each result before commit (approval 2).
   zalo-personal: AUTO       # 2026-10-15: AUTO from ZL-02 on ("chuyển sang mode AUTO tiếp tục phần tích hợp zalo"); 2026-10-14: TRAINING, the user coded ZL-01 ("Toàn bộ")
   # 2026-10-16: BE-110 of f05c-messages-inbox-split ran in TRAINING ("phần này tôi làm được không" → "oke step by step
   # nhé"): the user coded it in small steps, Claude wrote the tests from step 5 and, when asked, finished and committed it.
