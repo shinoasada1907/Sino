@@ -10,7 +10,7 @@ import { NoteEditor } from './components/NoteEditor'
 import { NoteList } from './components/NoteList'
 import { NotesLoadFailed, NotesSkeleton } from './components/NoteStates'
 import { useNotesFilter } from './useNotesFilter'
-import { FROM_NEW, useNotes } from './useNotes'
+import { type FromNew, useNotes } from './useNotes'
 
 // React Flow loads only when a diagram opens (fe-ui-diagram-notes, D-208).
 const DiagramEditor = lazy(() => import('./diagram/DiagramEditor').then((module) => ({ default: module.DiagramEditor })))
@@ -30,6 +30,12 @@ export function NotesPage() {
   const now = useNow()
   const { filter, query, search, setFilter, setQuery } = useNotesFilter()
   const [searchOpen, setSearchOpen] = useState(false)
+  // Each coming to `/notes/new` is a new note with an editor of its own, keyed by the address it came to. The key stays
+  // while the filter and the search change there (they change the address too), and goes along to the note it makes.
+  const [newEntry, setNewEntry] = useState({ creating, key: location.key })
+  if (newEntry.creating !== creating) {
+    setNewEntry({ creating, key: location.key })
+  }
   // Canvas MobileNotes: "Ghi chú" sits under "Thêm" on a phone.
   const phoneHeader = (count: number | null) => (
     <MobilePageHeader
@@ -67,8 +73,8 @@ export function NotesPage() {
 
   const open = creating || noteId !== undefined
   const note = noteId === undefined ? undefined : data.notes.find((entry) => entry.id === noteId)
-  const fromNew = (location.state as typeof FROM_NEW | null)?.noteFromNew === true
-  const editorKey = creating || fromNew ? 'new' : noteId
+  const fromNew = location.state as FromNew | null
+  const editorKey = creating ? `new:${newEntry.key}` : fromNew?.noteFromNew === true ? fromNew.editorKey : (noteId ?? '')
   const diagram = note ? note.kind === 'DIAGRAM' : creating && params.get('kind') === 'diagram'
 
   return (
@@ -89,10 +95,10 @@ export function NotesPage() {
       <div className={cn('min-h-0 min-w-0 flex-col', open ? 'flex' : 'hidden md:flex')}>
         {(creating || note) && diagram ? (
           <Suspense fallback={<p role="status" className="m-auto p-10 text-sm text-muted-foreground">Đang mở sơ đồ…</p>}>
-            <DiagramEditor key={editorKey} note={note} search={search} now={now} />
+            <DiagramEditor key={editorKey} editorKey={editorKey} note={note} search={search} now={now} />
           </Suspense>
         ) : creating || note ? (
-          <NoteEditor key={editorKey} note={note} search={search} now={now} />
+          <NoteEditor key={editorKey} editorKey={editorKey} note={note} search={search} now={now} />
         ) : noteId !== undefined ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10">
             <p className="text-base">Không tìm thấy ghi chú này.</p>

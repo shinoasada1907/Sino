@@ -22,7 +22,7 @@ import { FIT_VIEW } from './flow'
  * (D-178). Without `note` it is a new diagram (`/notes/new?kind=diagram`): one main block "Ý chính", made only at its
  * first change, then under its own address with the same canvas (D-209).
  */
-export function DiagramEditor(props: { note: NoteItem | undefined; search: string; now: Date }) {
+export function DiagramEditor(props: { note: NoteItem | undefined; search: string; now: Date; editorKey: string }) {
   return (
     <ReactFlowProvider>
       <DiagramPane {...props} />
@@ -30,7 +30,7 @@ export function DiagramEditor(props: { note: NoteItem | undefined; search: strin
   )
 }
 
-function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search: string; now: Date }) {
+function DiagramPane({ note, search, now, editorKey }: { note: NoteItem | undefined; search: string; now: Date; editorKey: string }) {
   const [title, setTitle] = useState(note?.title ?? '')
   const [diagram, setDiagram] = useState<Diagram>(() => note?.diagram ?? newDiagram())
   // The block being written: one just added, or one double-clicked.
@@ -45,6 +45,7 @@ function DiagramPane({ note, search, now }: { note: NoteItem | undefined; search
       setEditing(null)
     },
     search,
+    editorKey,
   })
   const { screenToFlowPosition } = useReactFlow()
   const canvas = useStore((state) => state.domNode)

@@ -3,8 +3,18 @@ import { ApiError } from '@/shared/api/problem'
 import { createNote, deleteNote, fetchNotes, saveNote } from './notes.api'
 import type { NoteChange, NoteItem, NotesData } from './notes.types'
 
-/** The state of the navigation from `/notes/new` to the note it became: the same editor stays, typing goes on (D-203). */
-export const FROM_NEW = { noteFromNew: true }
+/**
+ * The state of the navigation from `/notes/new` to the note it became: `editorKey` is the key of the editor that made
+ * it, so that editor stays and the typing goes on (D-203), and no other editor is taken for it.
+ */
+export interface FromNew {
+  noteFromNew: true
+  editorKey: string
+}
+
+export function fromNew(editorKey: string): FromNew {
+  return { noteFromNew: true, editorKey }
+}
 
 /** Every note of the owner (F15). Read again when the page comes back to the front, so another tab's edits show up (D-178). */
 export const NOTES_QUERY_KEY = ['notes'] as const

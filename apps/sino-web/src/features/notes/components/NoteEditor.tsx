@@ -23,7 +23,7 @@ const CHIP =
  * keeping what was typed (D-178). Without `note` it is a new note (`/notes/new`): the first save with text makes it, and
  * the address becomes the note's, keeping this editor so the typing goes on. A text emptied out is not saved.
  */
-export function NoteEditor({ note, search, now }: { note: NoteItem | undefined; search: string; now: Date }) {
+export function NoteEditor({ note, search, now, editorKey }: { note: NoteItem | undefined; search: string; now: Date; editorKey: string }) {
   const [title, setTitle] = useState(note?.title ?? '')
   const [body, setBody] = useState(note?.body ?? '')
   const sync = useAutosave({
@@ -35,6 +35,7 @@ export function NoteEditor({ note, search, now }: { note: NoteItem | undefined; 
       setBody(fresh.body)
     },
     search,
+    editorKey,
   })
   const anchor = note?.anchor ?? null
 
