@@ -10,6 +10,10 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  build: {
+    // The prerender step reads the CSS of the public pages from it (D-464), then deletes it from dist.
+    manifest: true,
+  },
   server: {
     // The browser talks to one origin only (D-36): cookies and CSRF work without CORS.
     proxy: {
