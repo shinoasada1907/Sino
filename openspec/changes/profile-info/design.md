@@ -48,6 +48,8 @@ Trả `200` với cả hồ sơ (gồm `avatarUrl` mới), để web cập nhậ
 
 ## Decision Needed
 
+> **Đã chốt (người dùng, 2026-11-05: "Duyệt, DN-1 A, DN-2 A"):** DN-1 = A (cột trong `app_user`, ảnh ở `user_avatar`); DN-2 = A (ANTIGRAVITY commit và archive `fe-ui-profile` trước, rồi `sino-web` làm PI-04, PI-05). D-479…D-481 giữ như đề xuất.
+
 ### DN-1 — Lưu trường hồ sơ ở đâu
 - **A. Thêm cột vào `app_user`** (`phone_number`, `job_title`, `location`, `bio`), ảnh ở bảng `user_avatar`. Đơn giản nhất, một entity `AppUser`.
 - **B. Bảng `user_profile` một-một với `app_user`**, ảnh ở `user_avatar`. `app_user` giữ phần đăng nhập (phần 2 sẽ thêm `password_hash` vào đó), phần hồ sơ tách riêng; thêm một entity và một lần nối.
