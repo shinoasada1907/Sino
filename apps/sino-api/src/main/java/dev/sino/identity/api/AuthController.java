@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.sino.identity.application.ProfileService;
 import dev.sino.identity.application.SignInService;
 
 /**
@@ -32,12 +33,14 @@ import dev.sino.identity.application.SignInService;
 class AuthController {
 
     private final SignInService signIn;
+    private final ProfileService profiles;
     private final RememberMeServices rememberMeServices;
     private final SecurityContextHolderStrategy contextHolder = SecurityContextHolder.getContextHolderStrategy();
     private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
     private final SessionAuthenticationStrategy newSessionId = new ChangeSessionIdAuthenticationStrategy();
 
-    AuthController(SignInService signIn, RememberMeServices rememberMeServices) {
+    AuthController(SignInService signIn, ProfileService profiles, RememberMeServices rememberMeServices) {
+        this.profiles = profiles;
         this.signIn = signIn;
         this.rememberMeServices = rememberMeServices;
     }
@@ -48,7 +51,7 @@ class AuthController {
         if (authentication == null) {
             throw new AuthenticationCredentialsNotFoundException("Not signed in");
         }
-        return MeResponse.from(signIn.profileOf(authentication.getName()));
+        return MeResponse.from(profiles.getByEmail(authentication.getName()));
     }
 
     /**
