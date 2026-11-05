@@ -7,12 +7,14 @@
 
 ## 1. Backend
 
-- [ ] 1.1 **PI-01 — `sino-api`: migration, trường hồ sơ và tên giữ qua khởi động lại (D-476, D-478, DN-1)** · `sino-api`
+- [x] 1.1 **PI-01 — `sino-api`: migration, trường hồ sơ và tên giữ qua khởi động lại (D-476, D-478, DN-1)** · `sino-api`
   - **Goal:** `app_user` (hoặc `user_profile`, theo DN-1) có các trường hồ sơ; `OwnerProvisioner` chỉ đặt tên khi tạo owner.
   - **Files:** migration Flyway mới (số trống kế tiếp, hiện V25) `identity_add_profile`; `identity/infrastructure/AppUser.java` (trường mới, phương thức sửa có kiểm giới hạn); `identity/application/OwnerProvisioner.java` (bỏ `rename` khi đã có, log `INFO` khi tên cấu hình khác tên lưu); `apps/sino-api/README.md`, `apps/sino-api/.env.example` (ghi chú `SINO_OWNER_DISPLAY_NAME`); test.
   - **Acceptance criteria:** `account-owner` (mọi scenario, gồm *Tên đã sửa trên web giữ qua lần khởi động lại*); ràng buộc DB là sàn dưới kiểm tra của Java (như V20).
   - **Test:** test tay trên bản sao DB: chạy migration, xem cột và ràng buộc bằng `psql \d`; đổi `display_name` bằng SQL, khởi động lại với tên cấu hình khác, tên giữ, log có dòng INFO. Rồi test tích hợp cho provisioner và test đơn vị cho giới hạn của `AppUser`; `ModularityTests`.
   - **Depends on:** DN-1.
+  - **Thực hiện:** migration `V25__identity_add_profile.sql` (4 cột nullable + CHECK `btrim <> ''`, thêm `app_user_display_name_ck`); `AppUser.updateProfile(displayName, phone, jobTitle, location, bio)` thay `rename` (không còn nơi dùng): cắt khoảng trắng kiểu trình duyệt, trống thì null, tên 1–200, phone ≤ 30 chỉ chữ số/khoảng trắng/`+ ( ) - .`, job/location ≤ 100, bio ≤ 500 (đếm code point), không NUL, ném `IllegalArgumentException` (PI-02 ánh xạ sang 400), không đổi gì khi ném. `OwnerProvisioner` chỉ dùng tên cấu hình khi tạo owner; owner có rồi thì giữ, log INFO khi tên cấu hình khác tên lưu. README và `.env.example` ghi `SINO_OWNER_DISPLAY_NAME` chỉ có tác dụng lần tạo đầu.
+  - **Kiểm chứng:** test tay trên bản sao DB (`pg_dump` vào DB `sino_pi01`, app chạy từ bản sao thư mục ở cổng 8091, sync/Zalo tắt, khóa Google và khóa mã hóa giả): Flyway áp V25, `d app_user` có 4 cột và 5 CHECK; tên lưu `Sino`, cấu hình `ConfigName1` thì giữ `Sino` và log INFO; sửa `display_name` bằng SQL thành `Edited On Web`, khởi động lại với `ConfigName2` thì tên giữ, log INFO; SQL `phone_number='   '` bị CHECK từ chối, `bio` 501 ký tự bị từ chối. Test tự động: `./mvnw test -Dtest=AppUserProfileTests,OwnerProvisioningTests,AuthApiTests,OwnerCurrentUserTests,OwnerPropertiesTests,UserDirectoryServiceTests,RememberMeAcrossRestartsTests,AdminLoginTests,ModularityTests` → 70 test, 0 lỗi, BUILD SUCCESS. Lỗi đáng kể: regex phone viết `-` bị lỗi biên dịch lúc sao chép, đổi thành lớp ký tự `[-0-9 +().]`. Test cũ `aChangedDisplayNameIsWrittenBack` đổi thành test giữ tên (hành vi cũ bị D-476 thay).
 
 - [ ] 1.2 **PI-02 — `sino-api`: `GET` / `PATCH /api/profile`, `avatarUrl` trong `/api/auth/me` (D-478, D-480)** · `sino-api`
   - **Goal:** đọc và sửa hồ sơ theo hợp đồng ở `design.md`.
