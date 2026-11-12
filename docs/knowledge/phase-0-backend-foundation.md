@@ -2,8 +2,8 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–24, xong BE-09…BE-18, nghiệm thu và archive 2026-10-07); backend cho admin (mục 25, change `admin-api`, 2026-10-13).
-> **Cập nhật:** 2026-10-13. Đường dẫn code tính từ `apps/sino-api/`.
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–24, xong BE-09…BE-18, nghiệm thu và archive 2026-10-07); backend cho admin (mục 25, change `admin-api`, 2026-10-13); ảnh đại diện của người dùng (mục 26, change `profile-info` PI-03, 2026-11-12).
+> **Cập nhật:** 2026-11-12. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
 
@@ -1032,3 +1032,101 @@ admin ──> identity.UserDirectory      (người dùng)
 6. Vì sao module `admin` không viết SQL đọc thẳng bảng `sync_checkpoint`, dù như vậy nhanh hơn?
 7. Vì sao `UserSummary.status` là chữ mà không phải enum `UserStatus`?
 8. Test `noAnswerCarriesTheMailItself` bảo vệ điều gì, và vì sao điều đó quan trọng với việc Google thẩm định Sino?
+
+---
+
+## 26. Ảnh đại diện của người dùng (change `profile-info`, PI-03)
+
+Bối cảnh: màn Hồ sơ (`/profile`) cho người dùng đổi ảnh đại diện. Web cắt ảnh vuông, thu về 256x256 rồi gửi lên (PI-05); `sino-api` giữ ảnh, trả lại khi được hỏi, và cho biết địa chỉ ảnh trong `/api/profile` và `/api/auth/me`. Quyết định D-477 (loại ảnh, giới hạn) và D-481 (`PUT` trả cả hồ sơ) nằm trong `openspec/changes/profile-info/design.md`.
+
+```text
+web                          sino-api                                 PostgreSQL
+ |  PUT /api/profile/avatar     |                                          |
+ |  (multipart, part "file") -->| @ValidAvatarFile: đọc byte đầu           |
+ |                              |   sai loại / cạnh > 1024 -> 400 "file"   |
+ |                              | ProfileService.replaceAvatar             |
+ |                              |   > 1 MB -> 413 AVATAR_TOO_LARGE         |
+ |                              |   SHA-256, thêm hoặc thay -------------->| user_avatar
+ |<-- 200 hồ sơ, avatarUrl =    |                                          |
+ |    /api/profile/avatar?v=3f2a9c01                                       |
+ |                              |                                          |
+ |  GET avatarUrl               |                                          |
+ |  If-None-Match: "<sha256>" ->| đọc riêng cột sha256 ------------------->|
+ |<-- 304 (không body)          |   trùng ETag: dừng, không tải ảnh        |
+ |<-- 200 + byte ảnh            |   khác: tải ảnh, gửi kèm ETag mới        |
+```
+
+### 26.1 Bảng riêng `user_avatar`, không phải cột trong `app_user` (V26, DN-1 = A)
+
+- **Ở đâu:** `src/main/resources/db/migration/V26__identity_create_user_avatar.sql`; entity `identity/infrastructure/UserAvatar.java`.
+- **Là gì:** mỗi người dùng tối đa một ảnh; khóa chính chính là `user_id` (đồng thời là khóa ngoại tới `app_user`, `ON DELETE CASCADE`). Các cột: `content bytea` (byte ảnh), `content_type`, `sha256 bytea` (32 byte), `updated_at`.
+- **Để làm gì:** đọc hồ sơ (việc rất hay xảy ra, ví dụ mỗi lần web gọi `/api/auth/me`) không bao giờ kéo theo cả trăm KB ảnh.
+- **Vì sao chọn:** nếu ảnh là một cột của `app_user`, mọi lần JPA nạp `AppUser` đều nạp luôn ảnh. Lưu ảnh ra đĩa hay dịch vụ lưu trữ thì phải lo thêm sao lưu, quyền đọc và dọn tệp mồ côi, quá nặng cho một ảnh 256x256 của một người dùng.
+- **`SET STORAGE EXTERNAL`:** PostgreSQL tự đưa giá trị lớn ra khỏi hàng (TOAST) và mặc định thử **nén** nó. Ảnh PNG/JPEG/WebP đã nén sẵn, nén lần nữa chỉ tốn CPU. `EXTERNAL` nghĩa là "đưa ra ngoài hàng nhưng không nén".
+- **CHECK là sàn, không phải luật chính:** DB chỉ chặn thứ không ảnh đại diện nào có thể là (trên 2 MiB, loại khác 3 loại, mã băm không đủ 32 byte). Giới hạn thật (1 MB, 1024 px) nằm ở Java, vì giới hạn đó có thể đổi mà không cần migration. Cùng cách với V20 và V25.
+- **Bẫy:** entity giữ `byte[]`. Mảng trong Java là đối tượng sửa được, nên `content()` và `sha256()` trả **bản sao** (`clone()`); trả thẳng mảng bên trong thì ai cầm nó cũng sửa được dữ liệu entity mà Hibernate không biết.
+
+### 26.2 Nhận diện ảnh từ byte đầu, không giải mã (`AvatarImage`)
+
+- **Ở đâu:** `identity/application/AvatarImage.java` (một `record` gồm `contentType`, `width`, `height`, và hàm tĩnh `read(byte[])`).
+- **Là gì:** mỗi loại ảnh mở đầu bằng một "chữ ký" cố định:
+
+```text
+PNG   89 50 4E 47 0D 0A 1A 0A   rồi khối IHDR: rộng, cao (32 bit, big-endian)
+JPEG  FF D8 FF                  rồi các đoạn: FF, mã đoạn, độ dài, tới đoạn SOFn: cao, rộng (16 bit)
+WebP  "RIFF" (4 byte độ dài) "WEBP"        rồi khối VP8 / VP8L / VP8X, mỗi loại ghi kích thước một kiểu
+```
+
+  `read` xem chữ ký để biết loại, rồi đọc kích thước ngay trong phần đầu tệp.
+- **Để làm gì:** loại ảnh lấy từ chính nội dung tệp, **không** tin tên tệp hay `Content-Type` trình duyệt khai. Test `theTypeComesFromTheBytesNotFromTheNameOrTheDeclaredType` gửi một PNG tên `photo.jpg`, khai `image/gif`: Sino vẫn lưu là `image/png`.
+- **Vì sao không dùng `ImageIO.read` cho gọn:** giải mã ảnh nghĩa là cấp bộ nhớ cho mọi điểm ảnh. Một PNG 1 KB có thể khai là 60 000 x 60 000 px; giải mã nó cần hàng GB RAM (kiểu tấn công "decompression bomb"). Chỉ đọc phần đầu thì kích thước khai báo được kiểm **trước** khi có gì được cấp phát. Test `aHugeSizeInTheHeadIsRefusedWithoutDecoding` giữ đúng điều này.
+- **Vì sao chép riêng, không dùng lại của module `sticker`:** lớp đọc ảnh của `sticker` nằm trong package nội bộ (Spring Modulith cấm module khác dùng, `ModularityTests` sẽ đỏ) và không đọc JPEG. Đưa nó vào `common` thì phải đổi cả `sticker`. Chép cho `identity` rẻ hơn; khi có chỗ dùng thứ ba thì mới gom về `common` (LÝ DO ghi trong `tasks.md`).
+- **Bẫy, JPEG:** đoạn `C4` (bảng Huffman, DHT), `C8`, `CC` nằm trong khoảng `C0`..`CF` nhưng **không** phải khung ảnh. Coi nhầm `C4` là khung ảnh thì đọc ra kích thước rác. Lỗi gài này ban đầu **sống sót** vì ảnh do `ImageIO` tạo trong test luôn ghi DHT **sau** SOF; phải thêm `aTableSegmentBeforeTheFrameHeaderIsSkippedNotReadAsASize` với một JPEG dựng tay có DHT đứng trước thì test mới bắt được.
+- **Bẫy, số không dấu:** PNG ghi kích thước bằng số 32 bit không dấu, Java `int` có dấu. `clamp` đọc vào `long` rồi chặn ở `Integer.MAX_VALUE`, nên một số khổng lồ không biến thành số âm (số âm sẽ lọt qua phép so `> 1024`).
+- **Bẫy, thông báo lỗi:** thông báo không bao giờ chép nội dung tệp (`aMessageNeverRepeatsTheFile`), vì nó được dùng làm "message template" của Bean Validation, nơi `{...}` và `${...}` có nghĩa đặc biệt.
+
+### 26.3 400 qua validator, 413 qua service
+
+- **Ở đâu:** `identity/api/ValidAvatarFile.java` (annotation) và `AvatarFileRules.java` (`ConstraintValidator`); `ProfileService.replaceAvatar`; `IdentityErrorCode.AVATAR_TOO_LARGE`.
+- **Là gì:** `@ValidAvatarFile` đặt trên tham số `@RequestPart("file") MultipartFile file` của controller. Spring chạy validator trước khi vào thân method; tệp sai thì trả `400 VALIDATION_FAILED` với `errors[{field: "file", message}]`, đúng khuôn lỗi mà `PATCH /api/profile` đang dùng.
+- **Vì sao tệp quá cỡ lại đi đường khác:** một ràng buộc Bean Validation chỉ có thể dẫn tới `400`. Spec muốn tệp quá 1 MB là `413 Content Too Large`, nên validator **cho qua** tệp quá cỡ, và `ProfileService` ném `SinoException(AVATAR_TOO_LARGE)`. `AVATAR_TOO_LARGE` thuộc `ErrorCategory.PAYLOAD_TOO_LARGE` đã có sẵn, `GlobalExceptionHandler` tự đổi thành 413. Nhờ vậy không phải sửa gì trong `common`.
+- **Vì sao không hạ giới hạn multipart chung (26 MB) xuống 1 MB:** giới hạn đó dùng cho cả tệp gửi trong chat Zalo. Hạ xuống sẽ làm hỏng tính năng khác.
+- **Ảnh cũ còn nguyên sau mọi lỗi:** mọi kiểm tra xảy ra trước khi ghi DB, và `replaceAvatar` chạy trong một `@Transactional`. Các test `...AndTheOldPictureStays` kiểm đúng điều này.
+- **Bẫy, kiểm hai lần:** validator đọc byte để kiểm, rồi service gọi `AvatarImage.read` lần nữa để lấy loại ảnh. Thừa một lần đọc 1 MB, chấp nhận được; đổi lại service không tin dữ liệu chưa kiểm, kể cả khi sau này có chỗ gọi `replaceAvatar` mà không qua controller.
+
+### 26.4 `avatarUrl`, ETag và `304 Not Modified`
+
+- **Ở đâu:** `ProfileService.profileOf`, `avatarEtag`, `avatar`; `ProfileController.getAvatar`; `UserAvatarRepository.findSha256ByUserId`.
+- **Là gì:** `avatarUrl` = `/api/profile/avatar?v=` + 8 ký tự hex đầu của SHA-256 của tệp. `ETag` = cả 64 ký tự hex, trong ngoặc kép. `Cache-Control: no-cache, private`.
+- **Để làm gì:**
+  - Ảnh đổi thì `?v=` đổi, nên thẻ `<img>` của web thấy địa chỉ mới và tải lại ngay, không hiện ảnh cũ.
+  - `no-cache` không có nghĩa là "không lưu", mà là "lưu được, nhưng mỗi lần dùng phải hỏi lại server". Trình duyệt gửi `If-None-Match: "<etag>"`; `WebRequest.checkNotModified(etag)` so hai giá trị, trùng thì trả `304` không body.
+  - `private`: chỉ trình duyệt được lưu, proxy dùng chung thì không, vì đây là ảnh của một người đã đăng nhập.
+- **Vì sao có truy vấn chỉ đọc `sha256`:** `select a.sha256 from UserAvatar a where ...` lấy đúng 32 byte. Dựng `avatarUrl` cho `/api/auth/me` và trả `304` đều không chạm tới cột `content`. Nhờ `STORAGE EXTERNAL` ở 26.1, PostgreSQL cũng không phải đọc phần ảnh nằm ngoài hàng.
+- **Vì sao dùng SHA-256 mà không dùng `updated_at`:** cùng một tệp gửi lại thì cùng địa chỉ (`anotherPictureHasAnotherAddressAndTheSameOneKeepsIt`), trình duyệt không phải tải lại. Mốc thời gian thì đổi mỗi lần gửi dù ảnh y hệt.
+- **Bẫy, `X-Content-Type-Options: nosniff`:** thiếu header này, trình duyệt có thể "đoán" lại loại tệp từ nội dung. Sino đã kiểm loại ảnh, nhưng `nosniff` là lớp chặn thứ hai cho trường hợp ai đó lọt được một tệp HTML vào.
+
+### 26.5 Xóa lặp được, và `@Modifying`
+
+- **Ở đâu:** `UserAvatarRepository.deleteByUserId` (`@Modifying @Query("delete from UserAvatar a where ...")`), `ProfileController.deleteAvatar` (`@ResponseStatus(NO_CONTENT)`).
+- **Là gì:** `DELETE /api/profile/avatar` luôn trả `204`, kể cả khi không có ảnh (`deletingRemovesThePictureAndCanBeRepeated`).
+- **Vì sao:** `DELETE` theo HTTP là lặp được (idempotent): gọi hai lần cho cùng kết quả như một lần. Web bấm "Xóa ảnh" hai lần, hay mạng chập chờn gửi lại, không thành lỗi.
+- **Bẫy:** câu `delete` viết bằng JPQL cần `@Modifying`, thiếu nó Spring Data coi đó là truy vấn đọc và báo lỗi lúc chạy. Câu này chạy thẳng xuống DB, không qua entity trong bộ nhớ; nếu trong cùng transaction đã nạp `UserAvatar` thì bản trong bộ nhớ sẽ cũ. Ở đây `removeAvatar` không nạp gì trước, nên không sao.
+
+### 26.6 Kiểm chứng của PI-03
+
+- Test tay trên bản sao DB (`pg_dump` vào `sino_pi03`, app ở cổng 8091, sync/Zalo tắt) bằng `curl`: WebP, PNG, JPEG thật; tệp chữ đổi đuôi `.png`; ảnh 2 MB; ảnh 2000x2000; `If-None-Match` trùng và lệch; `DELETE` hai lần; thiếu CSRF; chưa đăng nhập.
+- Test tự động: `ProfileAvatarApiTests` (16, MockMvc trên PostgreSQL thật qua Testcontainers), `AvatarImageTests` (10, không cần Spring).
+- Lỗi gài (mutation) một lần cho `AvatarImage`: bỏ kiểm cạnh, đổi `>` thành `>=` ở cạnh và ở 1 MB, bỏ qua SOF0, coi DHT là khung ảnh. Tất cả làm test đỏ, sau khi đã thêm test JPEG dựng tay ở 26.2.
+- Nghiệm thu nội bộ (2026-11-12): quản lý chạy lại 11 lớp test trên worktree sạch (HEAD + đúng các file PI-03): 109 test, 0 lỗi, `ModularityTests` 2/2. Commit `565c0e4`.
+
+### 26.7 Tự kiểm tra phần ảnh đại diện
+
+1. Vì sao ảnh nằm ở bảng `user_avatar` mà không phải một cột trong `app_user`? `SET STORAGE EXTERNAL` giúp gì thêm?
+2. Một tệp chữ đặt tên `anh.png`, gửi kèm `Content-Type: image/png`, thì Sino trả gì, và dựa vào đâu?
+3. Vì sao Sino không gọi `ImageIO.read` để biết kích thước ảnh?
+4. Tệp 1.5 MB và tệp 2000x2000 px cùng bị từ chối, nhưng mã lỗi khác nhau. Mỗi cái là mã gì, và vì sao phải đi hai đường khác nhau?
+5. `Cache-Control: no-cache` có nghĩa là trình duyệt không lưu ảnh không? Trình duyệt nhận `304` trong trường hợp nào?
+6. Vì sao `?v=` lấy từ SHA-256 của tệp chứ không lấy từ `updated_at`?
+7. Gọi `DELETE /api/profile/avatar` khi chưa có ảnh thì nhận gì, và vì sao như vậy là đúng?
+8. Lỗi gài "coi DHT là khung ảnh" vì sao sống sót lúc đầu, và đã sửa bộ test thế nào?
