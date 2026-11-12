@@ -2,7 +2,7 @@
 
 > **Dành cho:** người học Java qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
-> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–24, xong BE-09…BE-18, nghiệm thu và archive 2026-10-07); backend cho admin (mục 25, change `admin-api`, 2026-10-13); ảnh đại diện của người dùng (mục 26, change `profile-info` PI-03, 2026-11-12).
+> **Phạm vi:** F01 Project Foundation và F03 Provider Contract (mục 0–12); F02 Connected Accounts (mục 13–24, xong BE-09…BE-18, nghiệm thu và archive 2026-10-07); backend cho admin (mục 25, change `admin-api`, 2026-10-13); hồ sơ người dùng (mục 26, change `profile-info` PI-01, PI-02) và ảnh đại diện (mục 27, PI-03), 2026-11-12.
 > **Cập nhật:** 2026-11-12. Đường dẫn code tính từ `apps/sino-api/`.
 
 ---
@@ -1035,7 +1035,106 @@ admin ──> identity.UserDirectory      (người dùng)
 
 ---
 
-## 26. Ảnh đại diện của người dùng (change `profile-info`, PI-03)
+## 26. Hồ sơ người dùng: tên và thông tin cá nhân (change `profile-info`, PI-01, PI-02)
+
+Bối cảnh: màn Hồ sơ (`/profile`) trước đây chạy trên dữ liệu mẫu (`fe-ui-profile`). Change `profile-info` cho nó một backend thật: tên hiển thị, số điện thoại, chức danh, nơi ở và giới thiệu được lưu ở `sino-api`. Quyết định: D-476 (tên sửa trên web không bị cấu hình ghi đè), D-478 (các trường và giới hạn), D-480 (`avatarUrl` trong `/api/auth/me`), DN-1 = A (các trường là cột của `app_user`); chi tiết trong `openspec/changes/profile-info/design.md`.
+
+```text
+PATCH /api/profile  {"phoneNumber": " 0912 345 678 ", "email": "x@y"}
+        |
+        v
+UpdateProfileRequest      Jackson điền 5 trường đã biết; trường lạ ("email")
+        |                 rơi vào @JsonAnySetter -> unknownFields
+        v
+@ValidProfileChange       ProfileRules: trường lạ -> lỗi; mỗi trường có giá trị
+(ProfileRules)            -> thử AppUser.updateProfile trên một user nháp
+        |   lỗi -> 400 VALIDATION_FAILED, errors[{field: "email"}], không ghi gì
+        v
+ProfileService.update     trường null -> giữ giá trị cũ; gọi updateProfile thật
+        |
+        v
+AppUser.updateProfile     cắt khoảng trắng, trống -> null, kiểm giới hạn
+        |
+        v
+app_user (V25)            CHECK: không chuỗi toàn khoảng trắng (sàn dưới)
+```
+
+### 26.1 Bốn cột mới trong `app_user` (V25, DN-1 = A)
+
+- **Ở đâu:** `src/main/resources/db/migration/V25__identity_add_profile.sql`; `identity/infrastructure/AppUser.java`.
+- **Là gì:** `phone_number varchar(30)`, `job_title varchar(100)`, `location varchar(100)`, `bio varchar(500)`, đều cho phép `NULL`. Năm ràng buộc `CHECK`: bốn cột mới và `display_name` không được là chuỗi chỉ toàn khoảng trắng.
+- **Vì sao cột trong `app_user` mà không là bảng `user_profile` riêng:** mỗi người dùng có đúng một hồ sơ, các trường đều nhỏ và luôn được đọc cùng tên. Bảng riêng thì mỗi lần đọc hồ sơ phải nối bảng, và phải lo trường hợp "có user mà chưa có hàng hồ sơ". Ảnh thì ngược lại, to và ít khi cần, nên ảnh mới có bảng riêng (mục 27.1).
+- **Vì sao "trống" lưu là `NULL` chứ không lưu `''`:** một trường chỉ có một cách để nói "chưa nhập". Nếu `''` và `NULL` cùng tồn tại, mọi câu truy vấn và mọi giao diện phải xử lý cả hai. `CHECK (... IS NULL OR btrim(...) <> '')` bảo đảm DB không bao giờ chứa chuỗi trống, kể cả khi ai đó ghi thẳng bằng SQL.
+- **CHECK là sàn dưới, giới hạn thật nằm ở Java:** DB không kiểm ký tự của số điện thoại; Java thì có. Nguyên tắc (như V20): DB không bao giờ từ chối thứ mà Java chấp nhận, nên không có lỗi 500 do hai nơi lệch nhau.
+- **Bẫy, đếm độ dài:** `varchar(30)` của PostgreSQL đếm **ký tự** (code point), còn `String.length()` của Java đếm đơn vị UTF-16; một emoji là 1 ký tự với PostgreSQL nhưng 2 với `length()`. Vì vậy `AppUser` đếm bằng `codePointCount`. Test `lengthCountsCodePointsNotUtf16Units` giữ điều này.
+
+### 26.2 `AppUser.updateProfile`: luật nằm ở một chỗ
+
+- **Ở đâu:** `AppUser.updateProfile(displayName, phoneNumber, jobTitle, location, bio)` và các hằng `MAX_..._LENGTH`.
+- **Là gì:** một phương thức nhận đủ năm giá trị. Mỗi giá trị được cắt khoảng trắng hai đầu; trường tùy chọn còn trống thì thành `null`; tên trống thì ném `IllegalArgumentException`. Số điện thoại chỉ được có chữ số, khoảng trắng và `+ ( ) - .` (regex `[-0-9 +().]+`). Ký tự NUL (`\0`) bị từ chối ở mọi trường.
+- **Để làm gì:** entity tự giữ luật của chính nó; ai gọi (API, test, sau này một job nhập dữ liệu) cũng không thể ghi một hồ sơ sai.
+- **Kiểm hết rồi mới gán:** năm giá trị được kiểm vào biến tạm trước, chỉ khi tất cả hợp lệ mới gán vào trường của entity. Nếu gán dần, lỗi ở `bio` sẽ để lại `phoneNumber` đã đổi, và Hibernate sẽ ghi nửa thay đổi đó xuống DB. Test `anEmptyDisplayNameIsRefusedAndNothingChanges` kiểm điều này.
+- **Vì sao cắt khoảng trắng "kiểu trình duyệt":** `String.strip()` của Java không coi dấu cách không ngắt (U+00A0) hay BOM (U+FEFF) là khoảng trắng, còn `trim()` của JavaScript thì có. Người dùng dán chữ từ Word hay trang web hay mang theo các ký tự này. Hàm `stripped` gom đủ các loại để kết quả ở web và ở server giống nhau.
+- **Vì sao chặn NUL:** PostgreSQL không lưu được ký tự `\0` trong `varchar`, câu `INSERT` sẽ lỗi thành 500. Chặn sớm thì trả 400 có tên trường.
+- **Bẫy, regex có dấu `-`:** trong lớp ký tự `[...]`, dấu `-` nằm giữa hai ký tự nghĩa là khoảng (`a-z`). Đặt nó **đầu** lớp (`[-0-9 ...]`) thì nó là chính nó. Lúc làm, bản regex đầu bị lỗi đúng ở chỗ này.
+
+### 26.3 Tên chỉ lấy từ cấu hình một lần (`OwnerProvisioner`, D-476)
+
+- **Ở đâu:** `identity/application/OwnerProvisioner.java`; `.env.example` và `README.md` (`SINO_OWNER_DISPLAY_NAME`).
+- **Là gì:** mỗi lần `sino-api` khởi động, `OwnerProvisioner` (một `ApplicationRunner`) bảo đảm owner trong cấu hình tồn tại. Trước PI-01 nó còn **ghi đè** tên đã lưu bằng tên trong cấu hình. Nay nó chỉ dùng tên cấu hình khi **tạo** owner lần đầu; owner có rồi thì giữ tên đã lưu, và nếu tên cấu hình khác thì ghi một dòng log `INFO`.
+- **Để làm gì:** người dùng sửa tên trên màn Hồ sơ, rồi `sino-api` khởi động lại, tên đã sửa vẫn còn.
+- **Vì sao vẫn log mà không im lặng:** ai đó đổi `SINO_OWNER_DISPLAY_NAME` rồi thấy không có tác dụng sẽ bối rối. Dòng log nói rõ biến đó chỉ dùng lúc tạo, và chỉ cách đổi tên. Log ghi ID của user, **không** ghi tên hay email (thông tin cá nhân không nên nằm trong log).
+- **Bẫy, test cũ phải đổi:** test `aChangedDisplayNameIsWrittenBack` mô tả đúng hành vi **cũ**. D-476 thay hành vi đó, nên test được thay bằng `aNameEditedOnTheWebSurvivesARestartWithAnotherConfiguredName`. Khi một quyết định đổi hành vi, sửa test cũ là đúng; nhưng phải ghi lý do, nếu không người sau sẽ tưởng test bị sửa cho xanh.
+
+### 26.4 `GET` / `PATCH /api/profile` (PI-02)
+
+- **Ở đâu:** `identity/api/ProfileController.java`, `ProfileResponse.java`; `identity/application/ProfileService.java`, `Profile.java`, `ProfileChange.java`.
+- **Là gì:** `GET` trả `{email, displayName, phoneNumber, jobTitle, location, bio, role, joinedAt, avatarUrl}`. `role` luôn là `OWNER` vì Sino mới có một người dùng; `joinedAt` là `created_at` của user. `PATCH` nhận bất kỳ tập con nào của năm trường sửa được, trả lại cả hồ sơ.
+- **Ba trạng thái của một trường trong `PATCH`:**
+
+```text
+không có trong body, hoặc null  -> giữ nguyên
+""  hoặc "   "                  -> xóa (trường tùy chọn); tên thì bị 400
+" giá trị "                     -> lưu "giá trị" (đã cắt khoảng trắng)
+```
+
+  `ProfileService.update` làm việc này bằng hàm `keep(given, current)`: `null` thì lấy giá trị hiện tại, rồi đưa cả năm giá trị vào `updateProfile`.
+- **Vì sao `PATCH` mà không `PUT`:** `PUT` nghĩa là "thay toàn bộ", web phải gửi đủ năm trường mỗi lần, và hai tab cùng mở sẽ xóa thay đổi của nhau ở những trường không đụng tới. `PATCH` chỉ gửi trường đã đổi.
+- **Vì sao trả lại cả hồ sơ:** web cập nhật bộ nhớ đệm từ chính câu trả lời, thấy ngay giá trị đã được cắt khoảng trắng, không phải gọi `GET` lần nữa.
+- **Không khóa phiên bản (`@Version`):** hai `PATCH` cùng lúc thì lần sau thắng. Với một người dùng sửa hồ sơ của chính mình, xác suất va chạm rất thấp; đã ghi trong design là đánh đổi có ý thức.
+- **`/api/auth/me` có thêm `avatarUrl` (D-480):** thanh trên của web đã gọi `/api/auth/me` để biết ai đang đăng nhập; thêm `avatarUrl` vào đó thì hiện được ảnh mà không cần gọi thêm. `AuthController.me` giờ đọc qua `ProfileService.getByEmail`; `SignInService.profileOf` và `OwnerProfile` bị bỏ để chỉ còn một nơi dựng thông tin người dùng.
+
+### 26.5 Từ chối trường lạ mà không đổi cấu hình Jackson chung
+
+- **Ở đâu:** `identity/api/UpdateProfileRequest.java` (`@JsonAnySetter`), `ValidProfileChange.java`, `ProfileRules.java`.
+- **Vấn đề:** Spring Boot cấu hình Jackson **bỏ qua** trường JSON lạ. Một `PATCH` gửi `{"email": "khac@x", "displayName": "A"}` sẽ đổi tên và lờ đi `email`: người gửi tưởng email đã đổi, thật ra không. Spec yêu cầu request như vậy bị `400` và **không ghi gì**.
+- **Cách làm:** body là một class (không phải `record`) có phương thức `@JsonAnySetter`. Jackson gọi phương thức này cho mọi trường không khớp, class gom tên trường vào `unknownFields`. Annotation `@ValidProfileChange` đặt trên class; validator `ProfileRules` báo mỗi trường lạ là một lỗi có `field` riêng.
+- **Vì sao không bật `FAIL_ON_UNKNOWN_PROPERTIES` cho cả ứng dụng:** mọi endpoint khác (Zalo webhook, cài đặt…) sẽ đổi hành vi cùng lúc, có thể làm hỏng client đang gửi thêm trường. Còn nếu bật lỗi đó, Jackson trả `400 MALFORMED_REQUEST` chung chung, web không biết trường nào sai.
+- **Validator hỏi chính entity:** `ProfileRules` không viết lại giới hạn (`@Size`, `@Pattern`). Với mỗi trường có giá trị, nó tạo một `AppUser` nháp (`scratch@sino.invalid`, không bao giờ lưu) và gọi `updateProfile` chỉ với trường đó; nếu entity ném lỗi thì lấy thông báo làm lỗi của trường. Giới hạn vì thế chỉ có ở `AppUser`, đổi một chỗ là API đổi theo.
+- **Đường đi của lỗi:** lỗi Bean Validation đi qua `GlobalExceptionHandler` có sẵn thành `400 VALIDATION_FAILED` với `errors[{field, message}]`. Web đặt thông báo dưới đúng ô nhập.
+- **Bẫy, thứ tự lỗi:** Bean Validation trả lỗi trong một `Set`, thứ tự không cố định. Test `emailAndRoleCannotBeChanged` lúc đầu kiểm `errors[0].field == "email"` và thỉnh thoảng đỏ. Đã sửa thành `containsInAnyOrder("email", "role")`. Bài học: đừng kiểm thứ tự của thứ không hứa thứ tự.
+- **Bẫy, thông báo dùng làm template:** `buildConstraintViolationWithTemplate` hiểu `{...}` và `${...}` là biểu thức. Thông báo của `AppUser` không chép giá trị người dùng nhập, nên an toàn khi dùng làm template; nếu sau này thêm giá trị vào thông báo thì phải đổi cách báo lỗi.
+
+### 26.6 Kiểm chứng của PI-01 và PI-02
+
+- **PI-01**, test tay trên bản sao DB (`sino_pi01`, cổng 8091): Flyway áp V25, `\d app_user` có 4 cột và 5 CHECK; sửa `display_name` bằng SQL rồi khởi động lại với tên cấu hình khác, tên vẫn giữ và log có dòng INFO; SQL ghi `phone_number = '   '` bị CHECK chặn. Test tự động: `AppUserProfileTests` (giới hạn, cắt khoảng trắng, NUL, số điện thoại), `OwnerProvisioningTests` (giữ tên qua khởi động lại, log).
+- **PI-02**, test tay trên bản sao DB (`sino_pi02`) bằng `curl`: `GET`; `PATCH` từng trường; chuỗi trống; tên trống; số sai; bio 501 ký tự; `email` trong body; thiếu CSRF (403); chưa đăng nhập (401); tên tiếng Việt kèm emoji. Phát hiện thêm: `\u0000` trong JSON bị chính Jackson từ chối thành `400 MALFORMED_REQUEST`. Test tự động: `ProfileApiTests` (18).
+- Khi nghiệm thu PI-02, quản lý chạy lại và gặp `emailAndRoleCannotBeChanged` đỏ (thứ tự lỗi, mục 26.5); sau khi sửa, lớp này chạy riêng 3 lần liền đều xanh. Commit `5cbc282` (PI-01) và `ab9bdf5` (PI-02).
+
+### 26.7 Tự kiểm tra phần hồ sơ
+
+1. Vì sao các trường hồ sơ là cột của `app_user`, còn ảnh lại ở bảng riêng?
+2. `PATCH /api/profile` với `{"bio": "   "}`, `{"bio": null}` và `{}` khác nhau thế nào?
+3. Vì sao `updateProfile` kiểm cả năm giá trị xong rồi mới gán? Nếu gán dần thì lỗi gì có thể xảy ra?
+4. Một emoji dài mấy ký tự với PostgreSQL và với `String.length()`? Sino đếm theo cách nào, vì sao?
+5. Trước PI-01, đổi `SINO_OWNER_DISPLAY_NAME` rồi khởi động lại thì chuyện gì xảy ra? Sau PI-01 thì sao?
+6. Gửi `{"email": "khac@x"}` trong `PATCH` thì nhận gì? Vì sao Sino không bật `FAIL_ON_UNKNOWN_PROPERTIES` cho cả ứng dụng?
+7. `ProfileRules` biết giới hạn của từng trường bằng cách nào, và lợi gì so với viết `@Size`, `@Pattern` trên request?
+8. Vì sao test kiểm `errors[0].field` có lúc đỏ, có lúc xanh?
+
+---
+
+## 27. Ảnh đại diện của người dùng (change `profile-info`, PI-03)
 
 Bối cảnh: màn Hồ sơ (`/profile`) cho người dùng đổi ảnh đại diện. Web cắt ảnh vuông, thu về 256x256 rồi gửi lên (PI-05); `sino-api` giữ ảnh, trả lại khi được hỏi, và cho biết địa chỉ ảnh trong `/api/profile` và `/api/auth/me`. Quyết định D-477 (loại ảnh, giới hạn) và D-481 (`PUT` trả cả hồ sơ) nằm trong `openspec/changes/profile-info/design.md`.
 
@@ -1056,7 +1155,7 @@ web                          sino-api                                 PostgreSQL
  |<-- 200 + byte ảnh            |   khác: tải ảnh, gửi kèm ETag mới        |
 ```
 
-### 26.1 Bảng riêng `user_avatar`, không phải cột trong `app_user` (V26, DN-1 = A)
+### 27.1 Bảng riêng `user_avatar`, không phải cột trong `app_user` (V26, DN-1 = A)
 
 - **Ở đâu:** `src/main/resources/db/migration/V26__identity_create_user_avatar.sql`; entity `identity/infrastructure/UserAvatar.java`.
 - **Là gì:** mỗi người dùng tối đa một ảnh; khóa chính chính là `user_id` (đồng thời là khóa ngoại tới `app_user`, `ON DELETE CASCADE`). Các cột: `content bytea` (byte ảnh), `content_type`, `sha256 bytea` (32 byte), `updated_at`.
@@ -1066,7 +1165,7 @@ web                          sino-api                                 PostgreSQL
 - **CHECK là sàn, không phải luật chính:** DB chỉ chặn thứ không ảnh đại diện nào có thể là (trên 2 MiB, loại khác 3 loại, mã băm không đủ 32 byte). Giới hạn thật (1 MB, 1024 px) nằm ở Java, vì giới hạn đó có thể đổi mà không cần migration. Cùng cách với V20 và V25.
 - **Bẫy:** entity giữ `byte[]`. Mảng trong Java là đối tượng sửa được, nên `content()` và `sha256()` trả **bản sao** (`clone()`); trả thẳng mảng bên trong thì ai cầm nó cũng sửa được dữ liệu entity mà Hibernate không biết.
 
-### 26.2 Nhận diện ảnh từ byte đầu, không giải mã (`AvatarImage`)
+### 27.2 Nhận diện ảnh từ byte đầu, không giải mã (`AvatarImage`)
 
 - **Ở đâu:** `identity/application/AvatarImage.java` (một `record` gồm `contentType`, `width`, `height`, và hàm tĩnh `read(byte[])`).
 - **Là gì:** mỗi loại ảnh mở đầu bằng một "chữ ký" cố định:
@@ -1085,7 +1184,7 @@ WebP  "RIFF" (4 byte độ dài) "WEBP"        rồi khối VP8 / VP8L / VP8X, m
 - **Bẫy, số không dấu:** PNG ghi kích thước bằng số 32 bit không dấu, Java `int` có dấu. `clamp` đọc vào `long` rồi chặn ở `Integer.MAX_VALUE`, nên một số khổng lồ không biến thành số âm (số âm sẽ lọt qua phép so `> 1024`).
 - **Bẫy, thông báo lỗi:** thông báo không bao giờ chép nội dung tệp (`aMessageNeverRepeatsTheFile`), vì nó được dùng làm "message template" của Bean Validation, nơi `{...}` và `${...}` có nghĩa đặc biệt.
 
-### 26.3 400 qua validator, 413 qua service
+### 27.3 400 qua validator, 413 qua service
 
 - **Ở đâu:** `identity/api/ValidAvatarFile.java` (annotation) và `AvatarFileRules.java` (`ConstraintValidator`); `ProfileService.replaceAvatar`; `IdentityErrorCode.AVATAR_TOO_LARGE`.
 - **Là gì:** `@ValidAvatarFile` đặt trên tham số `@RequestPart("file") MultipartFile file` của controller. Spring chạy validator trước khi vào thân method; tệp sai thì trả `400 VALIDATION_FAILED` với `errors[{field: "file", message}]`, đúng khuôn lỗi mà `PATCH /api/profile` đang dùng.
@@ -1094,7 +1193,7 @@ WebP  "RIFF" (4 byte độ dài) "WEBP"        rồi khối VP8 / VP8L / VP8X, m
 - **Ảnh cũ còn nguyên sau mọi lỗi:** mọi kiểm tra xảy ra trước khi ghi DB, và `replaceAvatar` chạy trong một `@Transactional`. Các test `...AndTheOldPictureStays` kiểm đúng điều này.
 - **Bẫy, kiểm hai lần:** validator đọc byte để kiểm, rồi service gọi `AvatarImage.read` lần nữa để lấy loại ảnh. Thừa một lần đọc 1 MB, chấp nhận được; đổi lại service không tin dữ liệu chưa kiểm, kể cả khi sau này có chỗ gọi `replaceAvatar` mà không qua controller.
 
-### 26.4 `avatarUrl`, ETag và `304 Not Modified`
+### 27.4 `avatarUrl`, ETag và `304 Not Modified`
 
 - **Ở đâu:** `ProfileService.profileOf`, `avatarEtag`, `avatar`; `ProfileController.getAvatar`; `UserAvatarRepository.findSha256ByUserId`.
 - **Là gì:** `avatarUrl` = `/api/profile/avatar?v=` + 8 ký tự hex đầu của SHA-256 của tệp. `ETag` = cả 64 ký tự hex, trong ngoặc kép. `Cache-Control: no-cache, private`.
@@ -1102,25 +1201,25 @@ WebP  "RIFF" (4 byte độ dài) "WEBP"        rồi khối VP8 / VP8L / VP8X, m
   - Ảnh đổi thì `?v=` đổi, nên thẻ `<img>` của web thấy địa chỉ mới và tải lại ngay, không hiện ảnh cũ.
   - `no-cache` không có nghĩa là "không lưu", mà là "lưu được, nhưng mỗi lần dùng phải hỏi lại server". Trình duyệt gửi `If-None-Match: "<etag>"`; `WebRequest.checkNotModified(etag)` so hai giá trị, trùng thì trả `304` không body.
   - `private`: chỉ trình duyệt được lưu, proxy dùng chung thì không, vì đây là ảnh của một người đã đăng nhập.
-- **Vì sao có truy vấn chỉ đọc `sha256`:** `select a.sha256 from UserAvatar a where ...` lấy đúng 32 byte. Dựng `avatarUrl` cho `/api/auth/me` và trả `304` đều không chạm tới cột `content`. Nhờ `STORAGE EXTERNAL` ở 26.1, PostgreSQL cũng không phải đọc phần ảnh nằm ngoài hàng.
+- **Vì sao có truy vấn chỉ đọc `sha256`:** `select a.sha256 from UserAvatar a where ...` lấy đúng 32 byte. Dựng `avatarUrl` cho `/api/auth/me` và trả `304` đều không chạm tới cột `content`. Nhờ `STORAGE EXTERNAL` ở 27.1, PostgreSQL cũng không phải đọc phần ảnh nằm ngoài hàng.
 - **Vì sao dùng SHA-256 mà không dùng `updated_at`:** cùng một tệp gửi lại thì cùng địa chỉ (`anotherPictureHasAnotherAddressAndTheSameOneKeepsIt`), trình duyệt không phải tải lại. Mốc thời gian thì đổi mỗi lần gửi dù ảnh y hệt.
 - **Bẫy, `X-Content-Type-Options: nosniff`:** thiếu header này, trình duyệt có thể "đoán" lại loại tệp từ nội dung. Sino đã kiểm loại ảnh, nhưng `nosniff` là lớp chặn thứ hai cho trường hợp ai đó lọt được một tệp HTML vào.
 
-### 26.5 Xóa lặp được, và `@Modifying`
+### 27.5 Xóa lặp được, và `@Modifying`
 
 - **Ở đâu:** `UserAvatarRepository.deleteByUserId` (`@Modifying @Query("delete from UserAvatar a where ...")`), `ProfileController.deleteAvatar` (`@ResponseStatus(NO_CONTENT)`).
 - **Là gì:** `DELETE /api/profile/avatar` luôn trả `204`, kể cả khi không có ảnh (`deletingRemovesThePictureAndCanBeRepeated`).
 - **Vì sao:** `DELETE` theo HTTP là lặp được (idempotent): gọi hai lần cho cùng kết quả như một lần. Web bấm "Xóa ảnh" hai lần, hay mạng chập chờn gửi lại, không thành lỗi.
 - **Bẫy:** câu `delete` viết bằng JPQL cần `@Modifying`, thiếu nó Spring Data coi đó là truy vấn đọc và báo lỗi lúc chạy. Câu này chạy thẳng xuống DB, không qua entity trong bộ nhớ; nếu trong cùng transaction đã nạp `UserAvatar` thì bản trong bộ nhớ sẽ cũ. Ở đây `removeAvatar` không nạp gì trước, nên không sao.
 
-### 26.6 Kiểm chứng của PI-03
+### 27.6 Kiểm chứng của PI-03
 
 - Test tay trên bản sao DB (`pg_dump` vào `sino_pi03`, app ở cổng 8091, sync/Zalo tắt) bằng `curl`: WebP, PNG, JPEG thật; tệp chữ đổi đuôi `.png`; ảnh 2 MB; ảnh 2000x2000; `If-None-Match` trùng và lệch; `DELETE` hai lần; thiếu CSRF; chưa đăng nhập.
 - Test tự động: `ProfileAvatarApiTests` (16, MockMvc trên PostgreSQL thật qua Testcontainers), `AvatarImageTests` (10, không cần Spring).
-- Lỗi gài (mutation) một lần cho `AvatarImage`: bỏ kiểm cạnh, đổi `>` thành `>=` ở cạnh và ở 1 MB, bỏ qua SOF0, coi DHT là khung ảnh. Tất cả làm test đỏ, sau khi đã thêm test JPEG dựng tay ở 26.2.
+- Lỗi gài (mutation) một lần cho `AvatarImage`: bỏ kiểm cạnh, đổi `>` thành `>=` ở cạnh và ở 1 MB, bỏ qua SOF0, coi DHT là khung ảnh. Tất cả làm test đỏ, sau khi đã thêm test JPEG dựng tay ở 27.2.
 - Nghiệm thu nội bộ (2026-11-12): quản lý chạy lại 11 lớp test trên worktree sạch (HEAD + đúng các file PI-03): 109 test, 0 lỗi, `ModularityTests` 2/2. Commit `565c0e4`.
 
-### 26.7 Tự kiểm tra phần ảnh đại diện
+### 27.7 Tự kiểm tra phần ảnh đại diện
 
 1. Vì sao ảnh nằm ở bảng `user_avatar` mà không phải một cột trong `app_user`? `SET STORAGE EXTERNAL` giúp gì thêm?
 2. Một tệp chữ đặt tên `anh.png`, gửi kèm `Content-Type: image/png`, thì Sino trả gì, và dựa vào đâu?
