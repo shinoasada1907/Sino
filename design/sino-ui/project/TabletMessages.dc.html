@@ -26,23 +26,32 @@
 <div class="tab-inbox">
 
 <section class="pane" aria-label="Danh sách cuộc trò chuyện">
-<div class="list-head" style="padding: 14px 12px 12px;">
-<div class="chips" role="group" aria-label="Lọc">
-<button class="chip" type="button" aria-pressed="true">Tất cả nguồn<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
-<button class="chip" type="button" aria-pressed="false">Chưa đọc</button>
-<button class="chip" type="button" aria-pressed="false">Cần trả lời</button>
+<div class="list-head" style="padding: 14px 12px 12px; gap: 10px;">
+<div class="input-wrap select-wrap" style="width: 100%;"><label class="sr" for="tab-account">Tài khoản</label><select class="input" id="tab-account" defaultValue="all"><option value="all">Tất cả tài khoản · 5</option><option value="an">An Nguyễn · Zalo · 3</option><option value="shop">Cửa hàng An · Zalo · 2</option><option value="msg">an.nguyen.92 · Messenger · cần đăng nhập lại</option></select><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div>
+<div style="display: flex; align-items: center; gap: 6px;">
+<div class="seg" role="group" aria-label="Lọc danh sách">
+<button type="button" aria-pressed="true" style="padding: 0 8px;">Tất cả</button>
+<button type="button" aria-pressed="false" style="padding: 0 8px;">Chưa đọc<span class="spec">5</span></button>
+<button type="button" aria-pressed="false" style="padding: 0 8px;">Cần trả lời<span class="spec">1</span></button>
+</div>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Thêm bộ lọc" aria-haspopup="menu" aria-expanded="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button>
+</div>
+<div class="chips" role="group" aria-label="Loại cuộc trò chuyện">
+<button class="chip" type="button" aria-pressed="true">Mọi chat</button>
+<button class="chip" type="button" aria-pressed="false">Cá nhân</button>
+<button class="chip" type="button" aria-pressed="false">Nhóm</button>
 </div>
 </div>
 <div class="day-sep">HÔM NAY</div>
 <div class="list-flat">
-<div class="mrow is-selected is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span></div><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="mrow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div></div>
-<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Hà</span></div><span class="mrow-preview ellipsis">Chị ơi tối nay em qua lấy đồ nhé.</span></div><div class="mrow-meta"><span class="spec c-text">07:52</span><span class="badge badge-solid">1</span></div></div>
+<div class="mrow is-selected is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span></div><span class="spec ellipsis">An Nguyễn · nhóm 6 người</span><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="mrow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div></div>
+<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Hà</span></div><span class="spec ellipsis">An Nguyễn</span><span class="mrow-preview ellipsis">Chị ơi tối nay em qua lấy đồ nhé.</span></div><div class="mrow-meta"><span class="spec c-text">07:52</span><span class="badge badge-solid">1</span></div></div>
 </div>
 <div class="day-sep">HÔM QUA</div>
 <div class="list-flat">
-<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Lê Hoàng</span></div><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối.</span></div><div class="mrow-meta"><span class="spec">21:02</span></div></div>
-<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Nhóm sửa nhà</span></div><span class="mrow-preview ellipsis">Kiến trúc sư: Em gửi lại bản vẽ tầng 2.</span></div><div class="mrow-meta"><span class="spec c-text">19:30</span><span class="badge badge-solid">2</span></div></div>
-<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Nhóm chạy bộ Hồ Tây</span></div><span class="mrow-preview ellipsis">Tuấn: Sáng Chủ nhật 6 giờ, điểm hẹn cũ nhé.</span></div><div class="mrow-meta"><span class="spec">18:47</span></div></div>
+<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Lê Hoàng</span></div><span class="spec ellipsis">an.nguyen.92</span><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối.</span></div><div class="mrow-meta"><span class="spec">21:02</span></div></div>
+<div class="mrow is-unread"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Nhóm sửa nhà</span></div><span class="spec ellipsis">Cửa hàng An · nhóm 4 người</span><span class="mrow-preview ellipsis">Kiến trúc sư: Em gửi lại bản vẽ tầng 2.</span></div><div class="mrow-meta"><span class="spec c-text">19:30</span><span class="badge badge-solid">2</span></div></div>
+<div class="mrow"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Nhóm chạy bộ Hồ Tây</span></div><span class="spec ellipsis">An Nguyễn · nhóm 12 người</span><span class="mrow-preview ellipsis">Tuấn: Sáng Chủ nhật 6 giờ, điểm hẹn cũ nhé.</span></div><div class="mrow-meta"><span class="spec">18:47</span></div></div>
 </div>
 </section>
 
@@ -50,7 +59,7 @@
 <header class="thread-head" style="padding: 16px 20px;">
 <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
 <span class="av-stack" aria-hidden="true"><span class="avatar av-a"></span><span class="avatar av-c"></span><span class="avatar av-d"></span></span>
-<div class="who-text"><h2 class="t-large">Gia đình</h2><span class="t-small c-muted">Zalo · nhóm 6 người</span></div>
+<div class="who-text"><h2 class="t-large">Gia đình</h2><span class="t-small c-muted ellipsis">Zalo · nhóm 6 người · qua An Nguyễn</span></div>
 </div>
 <div class="thread-tools">
 <button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Lưu trữ"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg></button>

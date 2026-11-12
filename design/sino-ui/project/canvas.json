@@ -1732,6 +1732,84 @@
       "w": 1440,
       "x": 10640,
       "y": 1300
+    },
+    "MessagesAccount.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tin nhắn · một tài khoản · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 1080
+    },
+    "MessagesOpen.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tin nhắn · đang mở chat · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 1080
+    },
+    "MessagesOpenInfo.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tin nhắn · cột Thông tin mở · Dark",
+      "w": 1440,
+      "x": 1520,
+      "y": 2160
+    },
+    "MessagesOpenLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tin nhắn · đang mở chat · Light",
+      "w": 1440,
+      "x": 1520,
+      "y": 4340
+    },
+    "MessagesNickname.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tin nhắn · đặt biệt danh · Dark",
+      "w": 1440,
+      "x": 3040,
+      "y": 2160
+    },
+    "MessagesNicknameLight.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "page": "desktop",
+      "title": "Tin nhắn · đặt biệt danh, lỗi · Light",
+      "w": 1440,
+      "x": 3040,
+      "y": 5420
+    },
+    "MobileNickname.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · đặt biệt danh · Dark",
+      "w": 390,
+      "x": 2820,
+      "y": 1240
+    },
+    "MobileNicknameLight.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mobile · đặt biệt danh, chưa có · Light",
+      "w": 390,
+      "x": 2820,
+      "y": 3720
     }
   },
   "createdOnFiles": {
@@ -2022,6 +2100,23 @@
       "w": 240,
       "x": 0,
       "y": 3600
+    },
+    "ma01-conversation": {
+      "fill": "orange",
+      "page": "desktop",
+      "text": "messages-by-account (MA-01, 2026-11-02): từ 1280px chat mở cạnh danh sách, cột tài khoản thu thành dải 64px, cột Thông tin mở bằng nút (i) và nằm đè. Xem MessagesOpen. Frame Conversation bên trên là bản cũ (chat chiếm cả trang), giữ để đối chiếu.",
+      "w": 440,
+      "x": 3040,
+      "y": 2160
+    },
+    "nk03-nickname": {
+      "fill": "orange",
+      "page": "desktop",
+      "x": 4560,
+      "y": 2160,
+      "w": 360,
+      "maxH": 420,
+      "text": "zalo-nicknames (NK-03, 2026-11-12): bấm tên ở đầu khung chat 1-1 Zalo (có bút chì) mở hộp \"Đặt biệt danh\". Trạng thái: closed, empty (chưa có, Lưu tắt), set (có biệt danh, có Xóa biệt danh), error (Zalo từ chối, giữ chữ đã gõ). Lưu tắt khi chưa đổi; không optimistic. Nhóm và thư: tên không bấm được. Điện thoại: sheet từ dưới, xem trang 03 · Mobile."
     }
   },
   "order": [
@@ -2207,7 +2302,15 @@
     "MobileMessages.dc.html",
     "MobileMessagesLight.dc.html",
     "MessagesState.dc.html",
-    "MessagesStateLight.dc.html"
+    "MessagesStateLight.dc.html",
+    "MessagesAccount.dc.html",
+    "MessagesOpen.dc.html",
+    "MessagesOpenInfo.dc.html",
+    "MessagesOpenLight.dc.html",
+    "MessagesNickname.dc.html",
+    "MessagesNicknameLight.dc.html",
+    "MobileNickname.dc.html",
+    "MobileNicknameLight.dc.html"
   ],
   "pages": [
     {
