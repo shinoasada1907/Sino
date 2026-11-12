@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
 
-const ME = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' }
+const ME = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn', avatarUrl: null }
 
 const problem = (status: number, body: Record<string, unknown>) =>
   HttpResponse.json({ title: 'Error', status, ...body }, { status, headers: { 'Content-Type': 'application/problem+json' } })

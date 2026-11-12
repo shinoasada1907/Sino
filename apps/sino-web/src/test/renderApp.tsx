@@ -25,7 +25,7 @@ import type { TasksData } from '@/features/tasks/tasks.types'
 import { TASKS_QUERY_KEY } from '@/features/tasks/useTasks'
 import { serveInboxSample } from './inboxSampleApi'
 
-const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' }
+const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn', avatarUrl: null }
 
 /**
  * Renders the whole app at `path` with the given shell, overview, accounts, inbox and tasks data already in the query
