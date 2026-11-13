@@ -1983,6 +1983,58 @@ Máy chủ trả `400 VALIDATION_FAILED` với `errors[{field, message}]`. Form 
 - **Chưa kiểm:** backend thật; Chrome ở 1440 và 390 px, hai theme. Hai việc này làm ở PI-10.
 - Commit `7d82d18`.
 
+## 28. Trang công khai có chữ ngay trong HTML (`public-pages-prerender`)
+
+Google từ chối Branding với lý do trang Privacy "does not have sufficient content". Mở bằng Chrome thì trang đủ chữ, nhưng curl thì chỉ thấy `<div id="root"></div>`: `sino-web` là SPA, chữ chỉ có sau khi JavaScript chạy, còn công cụ kiểm tra của Google đọc HTML thô. Change này làm cho `/`, `/privacy`, `/en/privacy` có sẵn chữ trong HTML mà vẫn chỉ có một bản nội dung là các component React. Google duyệt Branding ngày 2026-11-13.
+
+```text
+pnpm build
+  tsc -b
+  vite build                        -> dist/index.html (khung rỗng), JS, CSS, manifest
+  vite build --ssr prerender/entry  -> .prerender/entry.js
+  node scripts/prerender.mjs --strict
+     renderToString(<StaticRouter> Landing | PrivacyVi | PrivacyEn)
+     chép index.html, thêm: title, lang, CSS trang công khai, nội dung trong
+       <div data-prerendered>, script nhỏ ẩn nội dung khi có JS
+     kiểm câu mốc, không còn "[chưa điền"   (sai -> build đỏ)
+     -> dist/home.html, dist/privacy.html, dist/en/privacy.html
+
+Caddy (nhánh deploy/devtest)
+  /              -> rewrite /home.html
+  /privacy       -> try_files {path} {path}.html /index.html -> privacy.html
+  /en/privacy    -> en/privacy.html
+  /inbox, ...    -> index.html (khung rỗng, như cũ)
+  /api/*         -> sino-api
+
+Trình duyệt có JS: html.js ẩn [data-prerendered], createRoot vẽ lại như trước
+Máy không chạy JS: đọc thẳng chữ đã tạo sẵn
+```
+
+### 28.1 Ở đâu
+- `apps/sino-web/src/prerender/entry.tsx`: render ba trang bằng `renderToString` và `StaticRouter`.
+- `apps/sino-web/scripts/prerender.mjs`, `scripts/prerender-html.mjs` (phần thuần, có test `prerender-html.test.ts`): ghép HTML, kiểm câu mốc.
+- `apps/sino-web/src/features/public/pageTitles.ts`: tiêu đề dùng chung cho app và bước prerender.
+- `apps/sino-web/src/features/public/owner.ts`: bốn giá trị chủ sở hữu (email, người đứng tên, ngày hiệu lực, máy chủ); `privacy.vi.tsx`, `privacy.en.tsx` thêm Cloudflare.
+- `vite.config.ts`: `build.manifest: true` để script tìm được file CSS của trang công khai.
+- `apps/sino-web/Caddyfile` trên nhánh `deploy/devtest`: `rewrite` và `try_files` mới (commit `0fa6f6c`).
+
+### 28.2 Prerender mà không hydrate
+Hydrate là bắt React "nhận" HTML có sẵn, đòi lần render đầu ở trình duyệt khớp từng nút với HTML server. `HomeGate` lần đầu hiện dấu chờ trong lúc hỏi phiên đăng nhập, nên không khớp với trang giới thiệu đã tạo sẵn. Thay vì sửa cổng phiên, change chọn không hydrate (D-463): một dòng script trong `<head>` thêm class `js` vào `<html>`, CSS `html.js [data-prerendered]{display:none}` ẩn nội dung tạo sẵn ngay, rồi `createRoot` thay nó như trước. Người có JavaScript thấy đúng trình tự cũ, chủ tài khoản vào `/` vẫn sang `/overview` mà không thấy trang giới thiệu lóe lên; máy không có JavaScript thì script không chạy và đọc được toàn bộ chữ.
+
+### 28.3 Build đỏ khi đầu ra sai
+Lỗi "trang rỗng" chỉ lộ ra khi Google từ chối, cách nhau vài ngày. Vì vậy script kiểm mỗi file có các câu mốc của trang đó, và với cờ `--strict` thì không còn `[chưa điền` (D-465). Đổi chữ mà quên câu mốc thì build đỏ ở máy và ở Docker, trước khi lên server.
+
+### 28.4 Có file đúng chưa đủ: máy chủ phải trả nó
+PP-02, PP-03 đã nằm trên `deploy/devtest` mà trang thật vẫn rỗng. Nguyên nhân là Caddy: `try_files {path} /index.html` thử file tên `en/privacy` (không có), rồi trả `index.html`. Thêm `{path}.html` vào giữa là đủ. Chọn `privacy.html` thay cho `privacy/index.html` (D-461) để tránh `file_server` tự chuyển hướng thêm dấu `/`. Bài học: kiểm bằng curl ở đúng chỗ người khác sẽ đọc (image thật, rồi tên miền thật), không chỉ đọc `dist`.
+
+### 28.5 Cloudflare sửa HTML trên đường đi
+Sau deploy, HTML thật có đủ chữ nhưng email liên hệ thành `[email protected]`. Đó là *Email Address Obfuscation* của Cloudflare, bật mặc định ở mọi domain: nó đổi email trong HTML và thêm script giải mã. Trình duyệt vẫn thấy email (React còn vẽ lại cả trang), nhưng máy không chạy JavaScript thì không. Người dùng tắt tính năng này; curl lại thấy email trong HTML gốc. Proxy phía trước cũng là một "người viết" HTML, nên phép kiểm cuối phải đọc thứ đi ra khỏi proxy.
+
+### 28.6 Kiểm chứng
+- **Image ở máy** (`docker run -p 8099:80`, curl với User-Agent Googlebot): `/` 200, 68 KB; `/privacy` 200, `lang="vi"`; `/en/privacy` 200, `lang="en"`, khoảng 1290 từ, có câu Limited Use; `/inbox` khung app; `/api/auth/me` 502 vì lượt thử không chạy `sino-api`; không chuyển hướng. Trình duyệt: React thay nội dung tạo sẵn, 12 mục.
+- **Trang thật `daiquangia.io.vn`:** cùng kết quả, `/api/auth/me` 401, `cf-cache-status: DYNAMIC`; sau khi tắt che email, email có trong HTML gốc.
+- **Google:** Branding "verified and is being shown to users" (2026-11-13). Data access (scope Gmail) là việc riêng, chưa làm.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -2196,3 +2248,7 @@ Máy chủ trả `400 VALIDATION_FAILED` với `errors[{field, message}]`. Form 
 181. Máy chủ trả `400` với `errors[{field: "phoneNumber", message: "phoneNumber has only digits…"}]`. Dưới ô hiện câu gì, và vì sao không hiện `message`?
 182. Vì sao khối Đổi mật khẩu bị khoá thay vì giữ mutation giả báo "đổi thành công"?
 183. Backend hồ sơ giả trong test không luôn bật như backend cài đặt. Vì sao? Khi luật số điện thoại ở `sino-api` đổi, test nào sẽ báo?
+184. Trang Privacy mở bằng Chrome thì đủ chữ, mà Google lại nói "không đủ nội dung". Bạn kiểm bằng lệnh gì để thấy thứ Google thấy?
+185. Vì sao bước prerender không hydrate? Một dòng script trong `<head>` giải quyết việc gì?
+186. `dist/en/privacy.html` có đủ chữ, nhưng `https://.../en/privacy` vẫn trả khung rỗng. Dòng nào của Caddyfile gây ra, và sửa thế nào?
+187. Sau khi deploy, email liên hệ trong HTML thành `[email protected]`. Ai đổi nó, và vì sao người xem bằng trình duyệt không nhận ra?
