@@ -13,7 +13,10 @@
 	handle {
 		root * /srv
 		encode zstd gzip
-		try_files {path} /index.html
+		# The public pages are prerendered at build time (public-pages-prerender, D-462): "/" serves home.html,
+		# "/privacy" and "/en/privacy" their .html file; every other path is the app shell.
+		rewrite / /home.html
+		try_files {path} {path}.html /index.html
 		file_server
 	}
 }
