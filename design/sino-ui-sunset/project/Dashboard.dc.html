@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Tổng quan</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} pal-{{pal}} app">
+  <dc-import name="Sidebar" theme="{{theme}}" palette="{{pal}}" active="overview" hint-size="256px,900px"></dc-import>
+  <main class="main">
+    <div class="top">
+      <div class="crumb">Tổng quan</div>
+      <div class="search"><span>Tìm thư, người, việc…</span><span class="kbd">Ctrl K</span><span class="icon-btn fill" aria-hidden="true" style="width: 30px; height: 30px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span></div>
+      <button class="icon-btn tint" aria-label="Thông báo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 004 0"/></svg></button>
+      <button class="icon-btn fill" aria-label="Soạn mới"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+
+    <div class="page">
+      <!-- Row 1: profile hero + day card -->
+      <section style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px;">
+        <div class="card glow" style="position: relative; overflow: hidden; padding: 30px 32px; display: flex; gap: 28px; align-items: center; min-height: 230px;">
+          <span class="spark" style="top: 26px; right: 220px;"></span>
+          <span class="spark sm" style="top: 70px; right: 170px;"></span>
+          <span class="spark sm" style="bottom: 40px; right: 40px;"></span>
+          <div class="dots" style="position: absolute; right: 24px; top: 20px; width: 72px; height: 48px; opacity: .8;"></div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; position: relative;">
+            <span class="tag accent" style="align-self: flex-start;">Thứ Sáu · 02/10 · 14:05</span>
+            <h1 class="display" style="font-size: 44px; line-height: 1.05; color: var(--accent-ink);">Chào buổi chiều,<br>An.</h1>
+            <p class="muted" style="font-size: 15px; max-width: 440px;">12 tin chưa đọc, 3 cuộc trò chuyện đang chờ bạn. Messenger cần đăng nhập lại.</p>
+            <div style="display: flex; gap: 8px; margin-top: 4px;">
+              <a href="#" class="btn primary">Mở hộp thư</a>
+              <button class="btn soft">Đồng bộ ngay</button>
+            </div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+            <div style="width: 148px; height: 148px; border-radius: 50%; padding: 6px; background: var(--accent-soft); box-shadow: 0 0 0 6px var(--surface), 0 14px 30px -14px var(--accent);">
+              <div class="av a1" style="width: 100%; height: 100%; font-size: 44px; border-radius: 50%;">AN</div>
+            </div>
+            <span class="tag solid">An Nguyễn</span>
+            <span class="tiny subtle">Ảnh nền và ảnh đại diện do bạn chọn</span>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 22px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; align-items: baseline; gap: 14px;">
+            <span class="display ink" style="font-size: 56px; line-height: 1;">02</span>
+            <div style="display: flex; flex-direction: column;"><span class="h3">Tháng 10</span><span class="small muted">Thứ Sáu, 2026</span></div>
+            <span class="icon-btn fill" aria-hidden="true" style="margin-left: auto;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;"><span class="tag accent">4 việc</span><span class="tag dusk">1 lịch hẹn</span><span class="tag bad">1 quá hạn</span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between;" class="small"><span class="muted">Xong hôm nay</span><span style="font-weight: 800;">1 / 4</span></div>
+            <div class="progress"><span style="width: 25%;"></span></div>
+          </div>
+          <div style="margin-top: auto; padding: 12px 14px; border-radius: 16px; background: var(--raised);" class="small"><b>Ngày mai</b> <span class="muted">· Về nhà ăn cơm 18:30</span></div>
+        </div>
+      </section>
+
+      <!-- Row 2: waiting + today + accounts -->
+      <section style="display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 20px;">
+        <div class="card">
+          <div class="card-h"><span class="h2">Đang chờ bạn</span><span class="tag solid" style="height: 22px;">12</span><a href="#" class="btn ghost" style="margin-left: auto; height: 32px;">Xem tất cả</a></div>
+          <div style="padding: 0 10px 12px;">
+            <sc-for list="{{waiting}}" as="w" hint-placeholder-count="4">
+              <a href="#" class="row unread" style="align-items: center;">
+                <span class="av {{w.av}}">{{w.ini}}<span class="pv {{w.pv}}">{{w.pl}}</span></span>
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+                  <div style="display: flex; gap: 8px;"><span class="who trunc">{{w.who}}</span><span class="subtle small num" style="margin-left: auto;">{{w.time}}</span></div>
+                  <span class="muted small trunc">{{w.subj}}</span>
+                </div>
+              </a>
+            </sc-for>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="h2">Hôm nay</span></div>
+          <div class="card-b" style="display: flex; flex-direction: column; gap: 8px;">
+            <sc-for list="{{today}}" as="t" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: var(--raised);">
+                <span class="{{t.check}}" aria-hidden="true"></span>
+                <span class="trunc small" style="flex: 1; font-weight: 700; {{t.style}}">{{t.title}}</span>
+                <span class="{{t.tagCls}}">{{t.time}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="h2">Tài khoản</span><span class="tag bad" style="margin-left: auto;">1 cần xử lý</span></div>
+          <div class="card-b" style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: var(--raised);"><span class="pv gmail">G</span><div style="flex: 1; min-width: 0;"><div style="font-weight: 800;">Gmail</div><div class="tiny subtle trunc">an.nguyen@gmail.com</div></div><span class="tag ok">Ổn</span></div>
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: var(--raised);"><span class="pv zalo">Z</span><div style="flex: 1; min-width: 0;"><div style="font-weight: 800;">Zalo</div><div class="tiny subtle">+84 9•• ••• 218</div></div><span class="tag honey">Chậm</span></div>
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: var(--danger-soft);"><span class="pv msg">M</span><div style="flex: 1; min-width: 0;"><div style="font-weight: 800;">Messenger</div><div class="tiny" style="color: var(--danger);">Hết quyền từ 21:04</div></div><button class="btn primary" style="height: 30px; padding: 0 12px; font-size: 12px;">Đăng nhập</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Row 3: sources + recent activity + personalise -->
+      <section style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px;">
+        <div class="card" style="padding: 22px; display: flex; flex-direction: column; gap: 14px;">
+          <span class="h2">Theo nguồn</span>
+          <sc-for list="{{sources}}" as="s" hint-placeholder-count="3">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 8px;" class="small"><span class="pv {{s.pv}}">{{s.pl}}</span><span style="font-weight: 700;">{{s.name}}</span><span style="margin-left: auto; font-weight: 800;">{{s.n}}</span></div>
+              <div class="progress"><span style="width: {{s.w}};"></span></div>
+            </div>
+          </sc-for>
+        </div>
+        <div class="card">
+          <div class="card-h"><span class="h2">Hoạt động gần đây</span></div>
+          <div class="card-b" style="display: flex; flex-direction: column; gap: 12px;">
+            <sc-for list="{{activity}}" as="a" hint-placeholder-count="4">
+              <div style="display: flex; gap: 12px; align-items: center;"><span class="tag accent mono" style="width: 70px; justify-content: center;">{{a.t}}</span><span class="small muted">{{a.text}}</span></div>
+            </sc-for>
+          </div>
+        </div>
+        <div class="card dots" style="padding: 22px; display: flex; flex-direction: column; gap: 12px; background-color: var(--accent-soft); box-shadow: none;">
+          <span class="h2 ink">Sino của bạn</span>
+          <span class="small muted">Đổi bộ màu, ảnh nền và độ bo trong Cài đặt › Giao diện.</span>
+          <div style="display: flex; gap: 8px;">
+            <span style="width: 26px; height: 26px; border-radius: 50%; background: #CF3F6E; box-shadow: 0 0 0 3px var(--surface);"></span>
+            <span style="width: 26px; height: 26px; border-radius: 50%; background: #C25A12; box-shadow: 0 0 0 3px var(--surface);"></span>
+            <span style="width: 26px; height: 26px; border-radius: 50%; background: #1C7F68; box-shadow: 0 0 0 3px var(--surface);"></span>
+            <span style="width: 26px; height: 26px; border-radius: 50%; background: #6A4FD0; box-shadow: 0 0 0 3px var(--surface);"></span>
+            <span style="width: 26px; height: 26px; border-radius: 50%; background: #1E1E1E; box-shadow: 0 0 0 3px var(--surface);"></span>
+          </div>
+          <a href="#" class="btn primary" style="align-self: flex-start; margin-top: auto;">Tùy chỉnh</a>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"palette":{"editor":"enum","options":["sakura","sunset","mint","lavender","mono"],"default":"sakura"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const waiting = [
+      { av: 'a1', ini: 'MA', pv: 'gmail', pl: 'G', who: 'Trần Minh Anh', time: '09:41', subj: 'Hợp đồng thuê văn phòng — bản sửa lần 2' },
+      { av: 'a4', ini: 'GĐ', pv: 'zalo', pl: 'Z', who: 'Gia đình', time: '08:15', subj: 'Mẹ: Cuối tuần này cả nhà về ăn cơm nhé' },
+      { av: 'a5', ini: 'PK', pv: 'gmail', pl: 'G', who: 'Phòng khám Ánh Dương', time: '07:30', subj: 'Nhắc lịch khám thứ Hai 05/10' },
+      { av: 'a3', ini: 'LH', pv: 'msg', pl: 'M', who: 'Lê Hoàng', time: 'Hôm qua', subj: 'Ok, mai mình gửi file thiết kế bản cuối' }
+    ];
+    const t = (time, title, tagCls, done) => ({ time, title, tagCls, check: done ? 'check on' : 'check', style: done ? 'text-decoration: line-through; color: var(--text-subtle);' : '' });
+    const today = [
+      t('30/09', 'Gửi hóa đơn tháng 9', 'tag bad'),
+      t('07:45', 'Xác nhận lịch khám', 'tag', true),
+      t('16:00', 'Gọi Minh Anh', 'tag accent'),
+      t('18:00', 'Mua bánh cho bà', 'tag honey')
+    ];
+    const sources = [
+      { pv: 'gmail', pl: 'G', name: 'Gmail', n: '7', w: '70%' },
+      { pv: 'zalo', pl: 'Z', name: 'Zalo', n: '4', w: '40%' },
+      { pv: 'msg', pl: 'M', name: 'Messenger', n: '1', w: '10%' }
+    ];
+    const activity = [
+      { t: '14:02', text: 'Zalo đồng bộ lại sau 4 phút mất kết nối.' },
+      { t: '11:40', text: 'Đăng ký mới: Diễn đàn Mây Mới, qua Zalo.' },
+      { t: 'Hôm qua', text: 'Quyền Messenger hết hạn lúc 21:04.' },
+      { t: '29/09', text: 'Đã kết nối Gmail an.nguyen@gmail.com.' }
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', pal: this.props.palette || 'sakura', waiting, today, sources, activity };
+  }
+}
+</script>
+</body>
+</html>

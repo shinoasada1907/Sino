@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Nền tảng</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} pal-{{pal}}" style="width: 1440px; height: 1240px; padding: 48px 56px; display: flex; flex-direction: column; gap: 28px; background: var(--bg); position: relative; overflow: hidden;">
+  <span class="spark" style="top: 60px; right: 420px;"></span><span class="spark sm" style="top: 110px; right: 360px;"></span><span class="spark" style="top: 200px; right: 80px;"></span>
+  <div class="dots" style="position: absolute; top: 40px; right: 120px; width: 120px; height: 72px;"></div>
+
+  <header class="card glow" style="padding: 36px 40px; display: flex; align-items: center; gap: 40px; position: relative; overflow: hidden;">
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; align-items: center; gap: 12px;"><div class="sun" style="width: 44px; height: 44px; border-radius: 14px;"></div><span class="display" style="font-size: 24px;">Sino</span><span class="tag accent">Giao diện mềm · v3</span></div>
+      <h1 class="display" style="font-size: 54px; line-height: 1.02; color: var(--accent-ink);">Hộp thư của bạn,<br>theo màu của bạn.</h1>
+      <p class="muted" style="font-size: 16px; max-width: 640px;">Thẻ bo tròn lớn, nút viên thuốc, chữ tròn Nunito, nền phớt màu và họa tiết nhỏ. Năm bộ màu dựng sẵn cộng một màu nhấn tự chọn, mỗi bộ có sáng và tối.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; min-width: 300px;">
+      <span class="eyebrow">Nguyên tắc</span>
+      <span class="tag" style="justify-content: flex-start; height: 34px;">1 · Một màu nhấn cho việc chính của màn</span>
+      <span class="tag" style="justify-content: flex-start; height: 34px;">2 · Tách vùng bằng thẻ và bóng mềm, không kẻ viền</span>
+      <span class="tag" style="justify-content: flex-start; height: 34px;">3 · Họa tiết chỉ ở thẻ lớn, tắt được</span>
+      <span class="tag" style="justify-content: flex-start; height: 34px;">4 · Chữ luôn đủ tương phản dù đổi màu</span>
+    </div>
+  </header>
+
+  <section style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px;">
+    <sc-for list="{{palettes}}" as="p" hint-placeholder-count="5">
+      <div class="sn theme-light pal-{{p.k}} card" style="padding: 18px; display: flex; flex-direction: column; gap: 12px; background: var(--bg);">
+        <div style="display: flex; align-items: center; justify-content: space-between;"><span class="h3">{{p.label}}</span><span class="sun" style="width: 22px; height: 22px; border-radius: 8px;"></span></div>
+        <div style="display: flex; gap: 6px;">
+          <span style="flex: 1; height: 44px; border-radius: 14px; background: var(--accent);"></span>
+          <span style="flex: 1; height: 44px; border-radius: 14px; background: var(--accent-tint);"></span>
+          <span style="flex: 1; height: 44px; border-radius: 14px; background: var(--accent-soft);"></span>
+          <span style="flex: 1; height: 44px; border-radius: 14px; background: var(--surface);"></span>
+        </div>
+        <div style="display: flex; gap: 6px;"><span class="btn primary" style="height: 32px; font-size: 12px;">Gửi</span><span class="tag accent">Cần trả lời</span></div>
+        <span class="tiny subtle mono">{{p.hex}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+    <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+      <span class="eyebrow">Chữ · Nunito</span>
+      <div class="display" style="font-size: 40px; line-height: 1.1;">Chào buổi chiều</div>
+      <div class="h1">Tiêu đề màn · 28 / 800</div>
+      <div class="h2">Tiêu đề thẻ · 16 / 800</div>
+      <div>Nội dung · 14 / 500. Đầy đủ dấu: ằ ễ ự ỡ.</div>
+      <div class="muted">Phụ · 14 màu muted</div>
+      <div class="mono">JetBrains Mono · 09:41 · Ctrl K</div>
+    </div>
+    <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 14px;">
+      <span class="eyebrow">Nút và ô nhập</span>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;"><button class="btn primary">Gửi</button><button class="btn soft">Tạo task</button><button class="btn">Để sau</button><button class="btn ghost">Hủy</button></div>
+      <div style="display: flex; gap: 8px; align-items: center;"><span class="icon-btn fill" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="icon-btn tint" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 004 0"/></svg></span><div class="seg"><button class="on">Tuần</button><button>Tháng</button></div><span class="switch on" aria-hidden="true"></span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;"><label for="f1">Tiêu đề task</label><input id="f1" class="input" value="Trả lời: Hợp đồng thuê văn phòng"></div>
+      <div class="progress"><span style="width: 45%;"></span></div>
+    </div>
+    <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 14px;">
+      <span class="eyebrow">Nhãn, nguồn, người</span>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;"><span class="tag solid">12</span><span class="tag accent">Cần trả lời</span><span class="tag honey">Hạn T4</span><span class="tag dusk">Lịch hẹn</span><span class="tag ok">Ổn</span><span class="tag bad">Lỗi</span></div>
+      <div style="display: flex; gap: 8px;"><span class="pv gmail">G</span><span class="pv zalo">Z</span><span class="pv tele">T</span><span class="pv msg">M</span></div>
+      <div style="display: flex; gap: 8px;"><span class="av a1">MA</span><span class="av a2">TT</span><span class="av a3">LH</span><span class="av a4">GĐ</span><span class="av a5">PK</span><span class="av a6">ĐL</span></div>
+      <div class="row on unread" style="align-items: center;"><span class="av sm a1">MA<span class="pv gmail">G</span></span><div style="flex: 1; min-width: 0;"><div style="display: flex;"><span class="who trunc">Trần Minh Anh</span><span class="subtle small" style="margin-left: auto;">09:41</span></div><div class="small muted trunc">Hợp đồng thuê văn phòng</div></div></div>
+    </div>
+  </section>
+
+  <section class="card" style="padding: 22px 24px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px;">
+    <div><span class="eyebrow">Bo góc</span><div class="small muted">8 nhỏ · 12 ô · 16 dòng · 24 thẻ · 28 khung · nút và nhãn tròn hẳn</div></div>
+    <div><span class="eyebrow">Khoảng cách</span><div class="small muted">Bước 4 px. Giữa thẻ 20, trong thẻ 22, khung nổi cách mép 12.</div></div>
+    <div><span class="eyebrow">Bóng</span><div class="small muted">Bóng mềm nhuốm màu nhấn thay cho viền; viền chỉ trong bảng, danh sách dài.</div></div>
+    <div><span class="eyebrow">Đổi màu</span><div class="small muted">Một lớp class pal-* trên gốc; mọi màu đi qua biến CSS nên đổi tức thì.</div></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"palette":{"editor":"enum","options":["sakura","sunset","mint","lavender","mono"],"default":"sakura"},"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const palettes = [
+      { k: 'sakura', label: 'Anh đào', hex: '#CF3F6E · mặc định' },
+      { k: 'sunset', label: 'Hoàng hôn', hex: '#C25A12' },
+      { k: 'mint', label: 'Bạc hà', hex: '#1C7F68' },
+      { k: 'lavender', label: 'Oải hương', hex: '#6A4FD0' },
+      { k: 'mono', label: 'Đơn sắc', hex: '#1E1E1E' }
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', pal: this.props.palette || 'sakura', palettes };
+  }
+}
+</script>
+</body>
+</html>

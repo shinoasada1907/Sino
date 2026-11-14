@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Hộp thư di động</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}}" style="width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg); font-size: 14px; overflow: hidden; position: relative;">
+  <header class="glow" style="padding: 20px 16px 12px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span class="av sm a1">AN</span>
+      <h1 class="display" style="font-size: 26px;">Hộp thư</h1>
+      <button class="icon-btn" aria-label="Tìm" style="margin-left: auto; width: 44px; height: 44px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+    </div>
+    <div style="display: flex; gap: 6px; overflow: hidden;">
+      <span class="tag accent" style="height: 30px; padding: 0 12px;">Tất cả 7</span><span class="tag" style="height: 30px; padding: 0 12px;">Cần trả lời</span><span class="tag" style="height: 30px; padding: 0 12px;">Có tệp</span><span class="tag" style="height: 30px; padding: 0 12px;">Hẹn giờ</span>
+    </div>
+  </header>
+  <div style="flex: 1; overflow: hidden; padding: 0 8px;">
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+      <div class="group-h">{{g.title}}</div>
+      <sc-for list="{{g.items}}" as="m" hint-placeholder-count="2">
+        <a href="#" class="{{m.cls}}" style="padding: 12px 10px;">
+          <span class="av {{m.av}}" style="width: 40px; height: 40px; flex-basis: 40px;">{{m.ini}}<span class="pv {{m.pv}}">{{m.pl}}</span></span>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <div style="display: flex; gap: 8px; align-items: center;"><span class="who trunc">{{m.who}}</span><span class="subtle small" style="margin-left: auto;">{{m.time}}</span></div>
+            <span class="subj trunc">{{m.subj}}</span>
+            <span class="muted small trunc">{{m.preview}}</span>
+          </div>
+        </a>
+      </sc-for>
+    </sc-for>
+  </div>
+  <button class="btn primary" aria-label="Soạn mới" style="position: absolute; right: 16px; bottom: 96px; width: 56px; height: 56px; border-radius: 18px; box-shadow: 0 12px 28px -8px rgba(232, 116, 58, .6);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+  <nav aria-label="Thanh điều hướng" style="height: 80px; padding: 8px 8px 24px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--border); background: var(--surface);">
+    <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+      <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; color: {{t.color}}; font-size: 11px; font-weight: 500;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.d}}"/></svg>{{t.l}}
+      </a>
+    </sc-for>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const m = (av, ini, pv, pl, who, time, subj, preview, unread) => ({ av, ini, pv, pl, who, time, subj, preview, cls: unread ? 'row unread' : 'row' });
+    const groups = [
+      { title: 'Hôm nay', items: [
+        m('a1', 'MA', 'gmail', 'G', 'Trần Minh Anh', '09:41', 'Hợp đồng thuê văn phòng — bản sửa lần 2', 'Em gửi lại bản đã sửa điều khoản 4…', true),
+        m('a4', 'GĐ', 'zalo', 'Z', 'Gia đình', '08:15', 'Mẹ: Cuối tuần cả nhà về ăn cơm nhé', 'Nhớ mua bánh cho bà.', true),
+        m('a5', 'PK', 'gmail', 'G', 'Phòng khám Ánh Dương', '07:30', 'Nhắc lịch khám thứ Hai 05/10', 'Quý khách có lịch khám lúc 08:30.', true)
+      ] },
+      { title: 'Hôm qua', items: [
+        m('a2', 'TT', 'gmail', 'G', 'Thu Trang', '10:15', 'Ảnh chuyến đi Đà Lạt', 'Mình gửi trước 40 tấm…', false),
+        m('a3', 'LH', 'msg', 'M', 'Lê Hoàng', '07:52', 'Ok, mai mình gửi file thiết kế', 'Bản cuối trong thư mục chung.', false),
+        m('a6', 'ĐL', 'gmail', 'G', 'Điện lực Hà Nội', 'T3', 'Hóa đơn tiền điện tháng 9', 'Số tiền cần thanh toán 1.284.000 đ.', false)
+      ] }
+    ];
+    const tab = (l, d, on) => ({ l, d, color: on ? 'var(--accent-ink)' : 'var(--text-subtle)' });
+    const tabs = [
+      tab('Tổng quan', 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10'),
+      tab('Hộp thư', 'M3 13l3-8h12l3 8M3 13v6h18v-6M3 13h5l1 3h6l1-3h5', true),
+      tab('Tin nhắn', 'M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z'),
+      tab('Lịch', 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4'),
+      tab('Thêm', 'M4 6h16M4 12h16M4 18h16')
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', groups, tabs };
+  }
+}
+</script>
+</body>
+</html>

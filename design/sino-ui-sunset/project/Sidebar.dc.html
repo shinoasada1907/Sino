@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Sidebar</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<nav class="sn theme-{{theme}} pal-{{pal}} side" aria-label="Điều hướng chính" style="height: 100%;">
+  <div class="brand">
+    <div class="sun"></div><b>Sino</b>
+    <button class="icon-btn" aria-label="Soạn mới" style="margin-left: auto;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+  </div>
+  <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+    <sc-if value="{{g.title}}" hint-placeholder-val="{{true}}"><div class="nav-sec">{{g.title}}</div></sc-if>
+    <sc-for list="{{g.items}}" as="i" hint-placeholder-count="3">
+      <a href="#" class="{{i.cls}}" aria-current="{{i.cur}}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{i.d}}"/></svg>
+        <span>{{i.label}}</span>
+        <span class="{{i.countCls}}">{{i.count}}</span>
+      </a>
+    </sc-for>
+  </sc-for>
+  <div class="me">
+    <span class="av a1">AN</span>
+    <div style="display: flex; flex-direction: column; min-width: 0;">
+      <span style="font-weight: 600;">An Nguyễn</span>
+      <span class="tiny subtle">3 tài khoản · 1 cần xử lý</span>
+    </div>
+    <svg style="margin-left: auto; color: var(--text-subtle);" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 10l5-5 5 5M7 14l5 5 5-5"/></svg>
+  </div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"palette":{"editor":"enum","options":["sakura","sunset","mint","lavender","mono"],"default":"sakura"},"active":{"editor":"enum","options":["overview","messages","inbox","calendar","tasks","notes","accounts","settings"],"default":"inbox"},"$preview":{"width":248,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active || 'inbox';
+    const D = {
+      overview: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10',
+      messages: 'M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z',
+      inbox: 'M3 13l3-8h12l3 8M3 13v6h18v-6M3 13h5l1 3h6l1-3h5',
+      calendar: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4',
+      tasks: 'M9 11l3 3 8-8M20 12v7H4V5h11',
+      notes: 'M6 3h9l5 5v13H6zM14 3v6h6M9 13h7M9 17h5',
+      accounts: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0',
+      services: 'M4 6h16M4 12h16M4 18h10',
+      settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z'
+    };
+    const item = (key, label, count, hot) => ({
+      label, count: count || '', d: D[key],
+      cls: key === active ? 'nav-item on' : 'nav-item',
+      cur: key === active ? 'page' : undefined,
+      countCls: hot ? 'count hot' : 'count'
+    });
+    const groups = [
+      { title: '', items: [item('overview', 'Tổng quan'), item('messages', 'Tin nhắn', '5', true), item('inbox', 'Hộp thư', '7', true)] },
+      { title: 'Kế hoạch', items: [item('calendar', 'Lịch'), item('tasks', 'Việc cần làm', '3'), item('notes', 'Ghi chú')] },
+      { title: 'Danh tính', items: [item('accounts', 'Tài khoản', '1'), item('services', 'Đăng ký', '1')] },
+      { title: ' ', items: [item('settings', 'Cài đặt')] }
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', pal: this.props.palette || 'sakura', groups };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Cài đặt giao diện</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} pal-{{pal}} app" style="min-height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" palette="{{pal}}" active="settings" hint-size="256px,900px"></dc-import>
+  <main class="main">
+    <div class="top"><h1 class="crumb">Cài đặt</h1></div>
+    <div style="display: flex; gap: 24px; padding: 8px 32px 40px; flex-wrap: wrap; align-items: flex-start;">
+      <nav aria-label="Mục cài đặt" class="card" style="flex: 0 0 220px; padding: 10px; display: flex; flex-direction: column; gap: 2px;">
+        <sc-for list="{{sections}}" as="s" hint-placeholder-count="6"><a href="#" class="{{s.cls}}">{{s.label}}</a></sc-for>
+      </nav>
+
+      <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+        <div class="card glow" style="padding: 24px 28px; position: relative; overflow: hidden;">
+          <span class="spark" style="top: 22px; right: 60px;"></span><span class="spark sm" style="top: 54px; right: 110px;"></span>
+          <h2 class="h1">Giao diện</h2>
+          <p class="muted" style="margin-top: 6px;">Sino là của bạn: chọn màu, nền và độ mềm. Lưu theo tài khoản, áp cho mọi thiết bị.</p>
+        </div>
+
+        <section class="card" style="padding: 22px 24px; display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; align-items: center;"><span class="h2">Bộ màu</span><span class="small subtle" style="margin-left: auto;">Đang dùng: {{palName}}</span></div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;">
+            <sc-for list="{{palettes}}" as="p" hint-placeholder-count="5">
+              <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 8px; align-items: stretch;">
+                <div class="sn theme-light pal-{{p.k}}" style="height: 92px; border-radius: 20px; padding: 10px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); box-shadow: {{p.ring}};">
+                  <div style="display: flex; gap: 4px;"><span style="width: 18px; height: 18px; border-radius: 50%; background: var(--accent);"></span><span style="width: 18px; height: 18px; border-radius: 50%; background: var(--accent-tint);"></span><span style="width: 18px; height: 18px; border-radius: 50%; background: var(--accent-soft);"></span></div>
+                  <div style="height: 7px; width: 70%; border-radius: 9px; background: var(--text); opacity: .75;"></div>
+                  <div style="margin-top: auto; height: 18px; width: 54px; border-radius: 99px; background: var(--accent);"></div>
+                </div>
+                <span style="font-weight: 800; text-align: center;">{{p.label}}</span>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 18px; background: var(--raised);">
+            <span style="width: 40px; height: 40px; border-radius: 50%; background: conic-gradient(#CF3F6E, #C25A12, #E2B200, #1C7F68, #2F6BEF, #6A4FD0, #CF3F6E); box-shadow: 0 0 0 3px var(--surface);"></span>
+            <div style="flex: 1;"><div style="font-weight: 800;">Màu nhấn riêng</div><div class="small muted">Chọn một màu bất kỳ; Sino tự pha nền, chữ và giữ đủ độ tương phản.</div></div>
+            <label for="hex" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Mã màu</label>
+            <input id="hex" class="input mono" value="#CF3F6E" style="width: 120px; height: 38px;">
+          </div>
+        </section>
+
+        <section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px;">
+          <div class="card" style="padding: 22px 24px; display: flex; flex-direction: column; gap: 14px;">
+            <span class="h2">Sáng, tối</span>
+            <div class="seg" style="align-self: flex-start;"><button class="{{segLight}}">Sáng</button><button class="{{segDark}}">Tối</button><button>Theo hệ thống</button></div>
+            <span class="h2" style="margin-top: 6px;">Độ bo</span>
+            <div class="seg" style="align-self: flex-start;"><button class="on">Mềm</button><button>Gọn</button></div>
+            <span class="small muted">Gọn: góc nhỏ hơn, danh sách dày hơn cho người đọc nhiều thư.</span>
+          </div>
+          <div class="card" style="padding: 22px 24px; display: flex; flex-direction: column; gap: 14px;">
+            <span class="h2">Ảnh nền Tổng quan</span>
+            <div class="dots" style="flex: 1; min-height: 120px; border-radius: 20px; background-color: var(--accent-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; box-shadow: inset 0 0 0 2px var(--accent-line);">
+              <span class="icon-btn fill" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
+              <span class="small" style="font-weight: 800;">Tải ảnh của bạn lên</span>
+              <span class="tiny subtle">JPG, PNG, WebP · tối đa 5 MB</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <sc-for list="{{prefs}}" as="p" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--border);">
+              <div style="flex: 1;"><div style="font-weight: 800;">{{p.t}}</div><div class="small muted">{{p.d}}</div></div>
+              <span class="{{p.sw}}" aria-hidden="true"></span>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"palette":{"editor":"enum","options":["sakura","sunset","mint","lavender","mono"],"default":"sakura"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'dark' ? 'dark' : 'light';
+    const pal = (this.state && this.state.pal) || this.props.palette || 'sakura';
+    const names = { sakura: 'Anh đào', sunset: 'Hoàng hôn', mint: 'Bạc hà', lavender: 'Oải hương', mono: 'Đơn sắc' };
+    const palettes = Object.keys(names).map((k) => ({
+      k, label: names[k], on: k === pal ? 'true' : 'false',
+      ring: k === pal ? '0 0 0 3px var(--surface), 0 0 0 5px #4A2C38' : '0 0 0 1px rgba(0,0,0,.06)',
+      pick: () => this.setState({ pal: k })
+    }));
+    const sections = ['Hồ sơ', 'Giao diện', 'Thông báo', 'Hộp thư', 'Dữ liệu và quyền riêng tư', 'Phím tắt']
+      .map((label) => ({ label, cls: label === 'Giao diện' ? 'nav-item on' : 'nav-item' }));
+    const prefs = [
+      { t: 'Họa tiết trang trí', d: 'Dấu cộng lấp lánh và chấm bi ở các thẻ lớn.', sw: 'switch on' },
+      { t: 'Giảm chuyển động', d: 'Tắt hiệu ứng trượt và mờ dần.', sw: 'switch' },
+      { t: 'Hiện màu nhà cung cấp', d: 'Ô nhỏ Gmail, Zalo, Telegram cạnh ảnh đại diện.', sw: 'switch on' }
+    ];
+    return { theme, pal, palName: names[pal], palettes, sections, prefs, segLight: theme === 'light' ? 'on' : '', segDark: theme === 'dark' ? 'on' : '' };
+  }
+}
+</script>
+</body>
+</html>
