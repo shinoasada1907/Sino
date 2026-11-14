@@ -2035,6 +2035,42 @@ Sau deploy, HTML thật có đủ chữ nhưng email liên hệ thành `[email p
 - **Trang thật `daiquangia.io.vn`:** cùng kết quả, `/api/auth/me` 401, `cf-cache-status: DYNAMIC`; sau khi tắt che email, email có trong HTML gốc.
 - **Google:** Branding "verified and is being shown to users" (2026-11-13). Data access (scope Gmail) là việc riêng, chưa làm.
 
+## 29. Cài đặt giao diện lưu trên máy chủ (`fe-ui-sunset`, SU-09)
+
+Giao diện mới cho người dùng tự chọn bộ màu (5 bộ), một màu nhấn riêng, độ bo Mềm/Gọn và bật/tắt họa tiết. Lựa chọn phải đi theo tài khoản, đăng nhập máy khác vẫn thấy, nên được lưu ở `sino-api` chứ không chỉ trong trình duyệt. SU-09 là hợp đồng API, làm trước phía web.
+
+### 29.1 Ở đâu
+- `db/migration/V28__settings_add_appearance.sql`: thêm `palette`, `accent_color`, `corners`, `decorations` vào bảng `user_settings`.
+- `settings/domain`: enum mới `Palette`, `Corners`; `Settings`, `SettingsChange`, `UserSettings` có thêm 4 trường.
+- `settings/api`: `SettingsPatchReader` đọc 4 trường từ PATCH, `SettingsResponse` trả chúng ra.
+
+```text
+PATCH /api/settings {"palette":"MINT"}
+   -> SettingsPatchReader   kiểm từng trường, sai thì gom lỗi, 400
+   -> SettingsChange        trường không gửi = null (giữ nguyên)
+   -> Settings.with(change) ghép lên cài đặt cũ
+   -> UserSettings          ghi xuống hàng user_settings
+   -> SettingsResponse      trả toàn bộ cài đặt
+```
+
+### 29.2 Vì sao 4 cột chứ không một cột JSON (D-490 = A)
+Mọi cài đặt cũ đều là một cột có kiểu rõ ràng. Thêm cột theo đúng cách đó thì cơ sở dữ liệu tự kiểm được giá trị (`CHECK palette IN (...)`, `CHECK accent_color ~ '^#[0-9A-Fa-f]{6}$'`), Java có enum để trình biên dịch bắt lỗi, và phía web dùng lại kiểu `SettingsChange` đang có. Một cột JSON thì thêm trường dễ hơn, nhưng không ai kiểm giá trị bên trong.
+
+Cột mới có `DEFAULT`, nên hàng của người dùng cũ đọc ra giá trị mặc định (`SAKURA`, không màu riêng, `SOFT`, có họa tiết) mà không cần chạy lệnh cập nhật dữ liệu.
+
+### 29.3 Ba trạng thái của một trường xóa được: `Optional` trong `SettingsChange`
+`accentColor` có thể "không gửi" (giữ nguyên), "gửi null" (xóa màu riêng) hoặc "gửi một mã màu". Một biến `String` chỉ có hai trạng thái (null hay có giá trị), nên `SettingsChange` dùng `Optional<String>`: biến bằng `null` là không gửi, `Optional.empty()` là xóa, `Optional.of("#FF8A3C")` là đặt màu. `quietHours` và `defaultReminderMinutes` đã làm đúng như vậy từ D-402.
+
+### 29.4 Một màu, một cách viết
+`#ff8a3c` và `#FF8A3C` là một màu. `SettingsPatchReader` đổi sang chữ hoa trước khi lưu (`toUpperCase(Locale.ROOT)`), để so sánh và hiển thị không bị lệch. `Locale.ROOT` tránh trường hợp máy chạy ở ngôn ngữ có luật chữ hoa riêng (ví dụ chữ "i" trong tiếng Thổ Nhĩ Kỳ).
+
+### 29.5 `char(7)` hay `varchar(7)`
+Ban đầu `accent_color` là `char(7)` vì mã màu luôn dài 7 ký tự. Hibernate kiểm lược đồ lúc khởi động và từ chối: PostgreSQL gọi `char(n)` là `bpchar`, khác kiểu `varchar` mà một trường `String` mong đợi. Đổi sang `varchar(7)`: độ dài đúng 7 đã có `CHECK` lo, nên không mất gì.
+
+### 29.6 Kiểm chứng
+- **Test tay** (kỹ sư): app ở worktree, cổng 8091, trên bản sao DB, Gmail/Zalo/sync tắt. GET mặc định đúng; PATCH từng trường trả 200 và GET lại đúng; PATCH sai (`NEON`, `hồng`, `#FFF`, `ROUND`, `"yes"`) trả 400 và không trường nào đổi; `accentColor: null` về null; DB đúng.
+- **Test tự động:** quản lý chạy lại trong worktree sạch (`dev` cộng các file SU-09): 110 test của `dev.sino.settings` và 2 `ModularityTests`, 0 lỗi. Commit `b098198`.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
