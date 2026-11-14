@@ -12,10 +12,12 @@
 
 ## 1. Hợp đồng API
 
-- [ ] 1.1 **SU-09 — Cài đặt giao diện trong `/api/settings` (D-490)** · sino-api
+- [x] 1.1 **SU-09 — Cài đặt giao diện trong `/api/settings` (D-490)** · sino-api
   - **Files:** `src/main/resources/db/migration/V28__settings_add_appearance.sql`, module `dev.sino.settings` (`domain/*`, `api/SettingsResponse.java`, `api/SettingsPatchReader.java`, enum mới `Palette`, `Corners`), test của module, `README.md` của sino-api (mục cài đặt).
   - **Acceptance criteria:** spec `user-settings` › "Cài đặt giao diện" (mọi scenario). Phản hồi cũ không đổi tên trường nào.
   - **Test:** gọi API thật (curl/Postman) trên bản sao DB và app ở worktree riêng (cổng riêng): GET mặc định, PATCH từng trường, PATCH sai → 400, GET lại; rồi test tích hợp của module.
+  - **Thực hiện** (2026-11-14, sino-api): `V28__settings_add_appearance.sql` thêm `palette` varchar(10) NOT NULL DEFAULT 'SAKURA', `accent_color` varchar(7) NULL, `corners` varchar(10) NOT NULL DEFAULT 'SOFT', `decorations` boolean NOT NULL DEFAULT true, kèm CHECK (hàng cũ đọc ra mặc định). Enum mới `Palette`, `Corners`; `Settings`, `SettingsChange`, `UserSettings`, `SettingsResponse`, `SettingsPatchReader` thêm 4 trường. `accentColor: null` xóa màu riêng; `accentColor` hợp lệ được lưu và trả **chữ hoa** (`#ff8a3c` thành `#FF8A3C`). Sai giá trị thì 400 `VALIDATION_FAILED` theo từng trường, không trường nào đổi. README mục `/api/settings` đã cập nhật.
+  - **Kiểm chứng:** test tay trên bản sao DB (`sino_x`), app ở worktree cổng 8091, Gmail/Zalo/sync tắt: GET mặc định đúng; PATCH từng trường (`MINT`, `#ff8a3c`, `COMPACT`, `false`) trả 200 và GET lại đúng; PATCH sai (`NEON`, `hồng`, `#FFF`, `ROUND`, `"yes"`) trả 400 và GET lại không đổi; `accentColor: null` về null; DB đúng. Lỗi đáng kể: cột `char(7)` bị Hibernate từ chối (bpchar), đổi sang `varchar(7)`. Test tự động: `dev.sino.settings.**` (110 test: SettingsApiTests 66, StoredDataApiTests 6, SettingsServiceTests 5, SettingsTests 31) + `ModularityTests` (2), 0 lỗi, trong worktree.
 
 ## 2. Nền tảng web
 
