@@ -71,7 +71,7 @@ Không cho chọn mã màu chữ tự do, vì dễ ra chữ nhạt khó đọc. 
 
 ### D-494 — Nền sáng: phớt màu hoặc trắng (người dùng, 2026-11-14: "Cho người dùng chọn")
 
-`TINTED` (mặc định, nền nhuốm nhẹ theo bộ) hoặc `WHITE` (nền gần trắng #F7F7F8, thẻ trắng có viền mảnh thay cho bóng nhuốm màu, bỏ quầng sáng). Chỉ áp khi theme đang là Sáng. Trên web là class `bg-white` trên `<html>`. Cách lưu giống D-490 A: thêm hai cột `text_tone`, `light_background` (V29), đi qua `/api/settings`.
+`TINTED` (mặc định, nền nhuốm nhẹ theo bộ) hoặc `WHITE` (nền gần trắng #F7F7F8, thẻ trắng có viền mảnh thay cho bóng nhuốm màu, bỏ quầng sáng). Chỉ áp khi theme đang là Sáng. Trên web là class ~~`bg-white`~~ `light-white` trên `<html>`. **LÝ DO đổi tên** (SU-10, 2026-11-14): Tailwind đã có sẵn tiện ích `bg-white`, nó đè lên nền của `<html>`. Canvas vẫn dùng `bg-white` vì không có Tailwind. Cách lưu giống D-490 A: thêm hai cột `text_tone`, `light_background` (V29), đi qua `/api/settings`.
 
 ### D-495 — Theme tối sáng hơn, chữ trắng, màu nhấn pastel (người dùng, 2026-11-14)
 
