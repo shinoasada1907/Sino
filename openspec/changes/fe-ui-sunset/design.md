@@ -90,6 +90,10 @@ Trang giới thiệu `/` và trang Privacy (`/privacy`, `/en/privacy`) không c�
 - các route và liên kết.
 Trang công khai luôn dùng bộ Anh đào (khách chưa có cài đặt), sáng hoặc tối theo hệ thống. Làm sau khi người dùng nghiệm thu đợt app (SU-12).
 
+### D-497 — Logo giữ "S và ô" (người dùng, 2026-11-14: "Lấy lại logo cũ")
+
+Logo thương hiệu là SVG gốc trong `shared/ui/sino-mark.tsx`: chữ S nét 7 và ô vuông bo góc, `viewBox 0 0 48 48`, tô bằng `currentColor`. Không dùng ô gradient `.sun` của canvas. Trên canvas, ô `.sun` chỉ là chỗ đặt logo. Màu logo theo màu nhấn của bộ đang dùng (`--accent-ink` ở chỗ gọi); hình giữ nguyên.
+
 ## Risks / Trade-offs
 
 - **Đụng file của việc đang dở** → SU-01 chỉ bắt đầu khi `apps/sino-web` đã commit sạch và test xanh.
