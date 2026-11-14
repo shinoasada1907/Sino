@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
 <style>body{margin:0}</style>
 </helmet>
-<div class="sn theme-{{theme}} pal-{{pal}} app" style="min-height: 900px;">
+<div class="sn theme-{{theme}} pal-{{pal}} {{optCls}} app" style="min-height: 900px;">
   <dc-import name="Sidebar" theme="{{theme}}" palette="{{pal}}" active="settings" hint-size="256px,900px"></dc-import>
   <main class="main">
     <div class="top"><h1 class="crumb">Cài đặt</h1></div>
@@ -54,6 +54,12 @@
           <div class="card" style="padding: 22px 24px; display: flex; flex-direction: column; gap: 14px;">
             <span class="h2">Sáng, tối</span>
             <div class="seg" style="align-self: flex-start;"><button class="{{segLight}}">Sáng</button><button class="{{segDark}}">Tối</button><button>Theo hệ thống</button></div>
+            <span class="h2" style="margin-top: 6px;">Nền sáng</span>
+            <div class="seg" style="align-self: flex-start;"><button class="{{bgTint}}" onClick="{{pickBgTint}}">Phớt màu</button><button class="{{bgWhite}}" onClick="{{pickBgWhite}}">Trắng</button></div>
+            <span class="small muted">Trắng: nền gần trắng, thẻ có viền mảnh. Chỉ áp khi dùng Sáng.</span>
+            <span class="h2" style="margin-top: 6px;">Màu chữ</span>
+            <div class="seg" style="align-self: flex-start;"><button class="{{txTint}}" onClick="{{pickTxTint}}">Theo bộ màu</button><button class="{{txNeutral}}" onClick="{{pickTxNeutral}}">Trung tính</button></div>
+            <span class="small muted">Trung tính: chữ đen xám chuẩn thay cho chữ ngả màu của bộ.</span>
             <span class="h2" style="margin-top: 6px;">Độ bo</span>
             <div class="seg" style="align-self: flex-start;"><button class="on">Mềm</button><button>Gọn</button></div>
             <span class="small muted">Gọn: góc nhỏ hơn, danh sách dày hơn cho người đọc nhiều thư.</span>
@@ -99,7 +105,18 @@ class Component extends DCLogic {
       { t: 'Giảm chuyển động', d: 'Tắt hiệu ứng trượt và mờ dần.', sw: 'switch' },
       { t: 'Hiện màu nhà cung cấp', d: 'Ô nhỏ Gmail, Zalo, Telegram cạnh ảnh đại diện.', sw: 'switch on' }
     ];
-    return { theme, pal, palName: names[pal], palettes, sections, prefs, segLight: theme === 'light' ? 'on' : '', segDark: theme === 'dark' ? 'on' : '' };
+    const st = this.state || {};
+    const white = st.bg === 'white';
+    const neutral = st.tx === 'neutral';
+    const optCls = (white ? 'bg-white ' : '') + (neutral ? 'text-neutral' : '');
+    return {
+      theme, pal, palName: names[pal], palettes, sections, prefs, optCls,
+      segLight: theme === 'light' ? 'on' : '', segDark: theme === 'dark' ? 'on' : '',
+      bgTint: white ? '' : 'on', bgWhite: white ? 'on' : '',
+      txTint: neutral ? '' : 'on', txNeutral: neutral ? 'on' : '',
+      pickBgTint: () => this.setState({ bg: 'tint' }), pickBgWhite: () => this.setState({ bg: 'white' }),
+      pickTxTint: () => this.setState({ tx: 'tint' }), pickTxNeutral: () => this.setState({ tx: 'neutral' })
+    };
   }
 }
 </script>

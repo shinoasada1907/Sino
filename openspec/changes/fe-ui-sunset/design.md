@@ -65,6 +65,14 @@ Lý do chọn A: đúng cách D-401 đang làm, kiểm được từng giá tr�
 
 `corners-compact` hạ bán kính (thẻ 14, khung 16, dòng 10; nút và nhãn vẫn tròn), giảm đệm của dòng danh sách từ 12 xuống 8 px. Agent tự chốt.
 
+### D-493 — Màu chữ: theo bộ màu hoặc trung tính (người dùng, 2026-11-14: "Hai kiểu")
+
+Không cho chọn mã màu chữ tự do, vì dễ ra chữ nhạt khó đọc. Có hai kiểu: `TINTED` (mặc định, chữ ngả theo bộ như canvas) và `NEUTRAL` (chữ đen xám chuẩn). Trên web là class `text-neutral` trên `<html>`, giá trị theo `sunset.css`. Cả hai kiểu đều đạt tương phản 4.5:1.
+
+### D-494 — Nền sáng: phớt màu hoặc trắng (người dùng, 2026-11-14: "Cho người dùng chọn")
+
+`TINTED` (mặc định, nền nhuốm nhẹ theo bộ) hoặc `WHITE` (nền gần trắng #F7F7F8, thẻ trắng có viền mảnh thay cho bóng nhuốm màu, bỏ quầng sáng). Chỉ áp khi theme đang là Sáng. Trên web là class `bg-white` trên `<html>`. Cách lưu giống D-490 A: thêm hai cột `text_tone`, `light_background` (V29), đi qua `/api/settings`.
+
 ## Risks / Trade-offs
 
 - **Đụng file của việc đang dở** → SU-01 chỉ bắt đầu khi `apps/sino-web` đã commit sạch và test xanh.

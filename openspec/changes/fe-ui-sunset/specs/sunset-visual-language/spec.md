@@ -44,6 +44,17 @@ Người dùng SHALL chọn độ bo Mềm (mặc định) hoặc Gọn, và b�
 - **WHEN** người dùng chọn Gọn
 - **THEN** thẻ và dòng danh sách có góc nhỏ hơn, danh sách hộp thư hiện được nhiều dòng hơn trên cùng chiều cao
 
+### Requirement: Màu chữ và nền sáng
+Người dùng SHALL chọn màu chữ "Theo bộ màu" (mặc định) hoặc "Trung tính", và nền sáng "Phớt màu" (mặc định) hoặc "Trắng". Nền trắng SHALL chỉ áp ở theme sáng; thẻ khi đó tách khỏi nền bằng viền mảnh. Cả hai lựa chọn SHALL áp ngay và được lưu theo tài khoản như bộ màu.
+
+#### Scenario: Nền trắng ở theme tối
+- **WHEN** người dùng chọn nền "Trắng" rồi chuyển sang Tối
+- **THEN** nền theo theme tối của bộ màu; quay lại Sáng thì nền trắng trở lại
+
+#### Scenario: Chữ trung tính
+- **WHEN** người dùng chọn màu chữ "Trung tính" với bộ Anh đào
+- **THEN** chữ thường thành đen xám, màu nhấn và nền vẫn của Anh đào
+
 ### Requirement: Bộ khung theo canvas
 Sidebar, topbar và thanh tab điện thoại SHALL theo artboard `Sidebar`, `Dashboard` và `MobileInbox`: sidebar là khung nổi bo tròn, có logo, nhóm mục, mục đang mở có nền `--accent-soft` và chữ `--accent-ink`, số đếm chưa đọc là viên màu nhấn. Mục, đường dẫn và số đếm SHALL giữ nguyên.
 

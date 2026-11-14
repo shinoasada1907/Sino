@@ -81,6 +81,14 @@
 .sn.theme-dark.pal-lavender { --accent: #A996F5; --accent-hover: #BBABF8; --on-accent: #150D33; --accent-ink: #C3B6FA; --accent-soft: rgba(169, 150, 245, .15); --accent-line: rgba(169, 150, 245, .45); --accent-tint: rgba(169, 150, 245, .35); --bg: #13111C; --surface: #1B1826; --raised: #221E2E; --hover: #2A2538; --active: #332D44; --border: #312B40; }
 .sn.theme-dark.pal-mono { --accent: #F2F2F0; --accent-hover: #FFFFFF; --on-accent: #111111; --accent-ink: #F2F2F0; --accent-soft: rgba(255, 255, 255, .1); --accent-line: rgba(255, 255, 255, .35); --accent-tint: rgba(255, 255, 255, .25); --bg: #0E0E0E; --surface: #171717; --raised: #1E1E1E; --hover: #262626; --active: #2E2E2E; --border: #2B2B2B; }
 
+/* ---- Options the user picks on top of a palette (after the palettes so they win) ---- */
+/* Text tone NEUTRAL (D-493): grey text in place of the palette's tinted text. */
+.sn.theme-light.text-neutral { --text: #1E1E21; --text-muted: #5E5E66; --text-subtle: #6A6A72; }
+.sn.theme-dark.text-neutral { --text: #F2F2F3; --text-muted: #B4B4BB; --text-subtle: #9A9AA2; }
+/* Light background WHITE (D-494): near-white page, white cards with a thin line. Light theme only. */
+.sn.theme-light.bg-white { --bg: #F7F7F8; --raised: #FAFAFA; --hover: #F2F2F3; --border: #ECECEE; --border-strong: #D9D9DD; --glow: none; }
+.sn.theme-light.bg-white .card, .sn.theme-light.bg-white .pane, .sn.theme-light.bg-white.side, .sn.theme-light.bg-white .side { box-shadow: 0 0 0 1px var(--border), 0 1px 2px rgba(0, 0, 0, .04); }
+
 /* Type */
 .sn h1, .sn h2, .sn h3, .sn p { margin: 0; }
 .sn .display { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.02em; }
