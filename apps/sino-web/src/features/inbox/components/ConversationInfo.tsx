@@ -12,12 +12,12 @@ import {
   User,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Switch } from '@/shared/ui/switch'
-import { formatFileSize } from '../format'
+import { displayName, formatFileSize, getInitials, linkParts } from '../format'
 import type { ConversationDetail, ConversationItem, InboxAccount } from '../inbox.types'
 
 export function ConversationInfo({
@@ -42,16 +42,86 @@ export function ConversationInfo({
 
   const primaryMember = detail?.members?.[0]
   const avatarUrl = primaryMember?.avatarUrl || item.avatarUrl
-  const title = item.title
+  const title = displayName(item)
   const role = primaryMember?.role
   const memberId = primaryMember?.id
   const location = primaryMember?.location
 
-  const photos = detail?.files?.items.filter((f) => f.image) ?? []
-  const docs = detail?.files?.items.filter((f) => !f.image) ?? []
-  const linkedLink = detail?.linkedUrl
+  const allFiles = useMemo(() => {
+    if (detail?.files?.items && detail.files.items.length > 0) {
+      return detail.files.items
+    }
+    if (!detail?.messages) return []
+    const list: { name: string; type: string; sizeBytes: number; image: boolean; at: string; url?: string }[] = []
+    for (const msg of detail.messages) {
+      if (msg.kind !== 'MESSAGE') continue
+      if (msg.image?.url) {
+        list.push({
+          name: msg.image.caption || 'Ảnh',
+          type: 'IMG',
+          sizeBytes: 0,
+          image: true,
+          at: msg.at,
+          url: msg.image.url,
+        })
+      }
+      if (msg.attachments && msg.attachments.length > 0) {
+        for (const att of msg.attachments) {
+          list.push({
+            name: att.name,
+            type: att.type,
+            sizeBytes: att.sizeBytes ?? 0,
+            image: att.image,
+            at: msg.at,
+            url: att.url,
+          })
+        }
+      }
+    }
+    return list
+  }, [detail?.files, detail?.messages])
 
-  const hasMediaOrFiles = photos.length > 0 || docs.length > 0 || !!linkedLink
+  const photos = allFiles.filter((f) => f.image)
+  const docs = allFiles.filter((f) => !f.image)
+
+  const extractedLinks = useMemo(() => {
+    const list: { title: string; subtitle: string; url: string; at: string }[] = []
+    const seen = new Set<string>()
+
+    if (detail?.linkedUrl && !seen.has(detail.linkedUrl.url)) {
+      seen.add(detail.linkedUrl.url)
+      list.push({ ...detail.linkedUrl, at: '' })
+    }
+
+    if (detail?.messages) {
+      for (const msg of detail.messages) {
+        if (msg.kind !== 'MESSAGE' || !msg.text) continue
+        const lines = msg.text.split('\n')
+        for (const line of lines) {
+          for (const part of linkParts(line)) {
+            if (part.href && !seen.has(part.href)) {
+              seen.add(part.href)
+              let hostname = part.href
+              try {
+                hostname = new URL(part.href).hostname
+              } catch {
+                // ignore
+              }
+              list.push({
+                title: part.text,
+                subtitle: hostname,
+                url: part.href,
+                at: msg.at,
+              })
+            }
+          }
+        }
+      }
+    }
+    return list
+  }, [detail?.linkedUrl, detail?.messages])
+
+  const hasMediaOrFiles = photos.length > 0 || docs.length > 0 || extractedLinks.length > 0
   const totalDocBytes = docs.reduce((acc, f) => acc + (f.sizeBytes || 0), 0)
 
   return (
@@ -75,7 +145,7 @@ export function ConversationInfo({
               <img src={avatarUrl} alt="" className="size-18 rounded-full object-cover border-2 border-border/80 shadow-xs" />
             ) : (
               <div className="grid size-18 place-items-center rounded-full border-2 border-border/80 bg-surface font-semibold text-lg text-muted-foreground shadow-xs">
-                {title.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
+                {getInitials(title)}
               </div>
             )}
           </div>
@@ -202,36 +272,63 @@ export function ConversationInfo({
                       </span>
                     </div>
                   </div>
-                  <Button type="button" variant="ghost" size="icon-sm" className="size-7 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
-                    <Download className="size-3.5" strokeWidth={1.6} />
-                  </Button>
+                  {file.url ? (
+                    <a
+                      href={file.url}
+                      download={file.name}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-hover cursor-pointer"
+                      title="Tải xuống tệp"
+                      aria-label="Tải xuống tệp"
+                    >
+                      <Download className="size-3.5" strokeWidth={1.6} />
+                    </a>
+                  ) : (
+                    <Button type="button" variant="ghost" size="icon-sm" className="size-7 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
+                      <Download className="size-3.5" strokeWidth={1.6} />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Linked items - Only when linkedLink exists */}
-        {linkedLink && (
-          <div className="flex flex-col gap-2">
+        {/* Linked items - All extracted links */}
+        {extractedLinks.length > 0 && (
+          <div className="flex flex-col gap-2.5">
             <span className="font-mono text-[11px] font-semibold text-muted-foreground tracking-tight">
-              LIÊN KẾT ĐÍNH KÈM
+              LIÊN KẾT ĐÍNH KÈM ({extractedLinks.length})
             </span>
-            <a
-              href={linkedLink.url}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-2.5 rounded-lg border border-border/80 bg-surface/50 p-2.5 hover:bg-hover transition-colors"
-            >
-              <div className="grid size-8 shrink-0 place-items-center rounded-md border border-border/60 bg-background text-muted-foreground">
-                <Globe className="size-4" strokeWidth={1.6} />
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-xs font-semibold text-foreground">{linkedLink.title}</span>
-                <span className="truncate text-[10px] text-muted-foreground">{linkedLink.subtitle}</span>
-              </div>
-              <ExternalLink className="size-3.5 text-muted-foreground shrink-0" strokeWidth={1.6} />
-            </a>
+            <div className="flex flex-col gap-1.5">
+              {extractedLinks.map((link, idx) => (
+                <a
+                  key={idx}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 rounded-lg border border-border/80 bg-surface/50 p-2.5 hover:bg-hover transition-colors"
+                >
+                  <div className="relative grid size-8 shrink-0 place-items-center rounded-md border border-border/60 bg-background overflow-hidden p-1 text-muted-foreground">
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${link.subtitle}&sz=64`}
+                      alt=""
+                      className="size-4 object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <Globe className="size-4 absolute inset-0 m-auto text-muted-foreground -z-1 opacity-60" strokeWidth={1.6} />
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-xs font-semibold text-foreground">{link.title}</span>
+                    <span className="truncate text-[10px] text-muted-foreground">{link.subtitle}</span>
+                  </div>
+                  <ExternalLink className="size-3.5 text-muted-foreground shrink-0" strokeWidth={1.6} />
+                </a>
+              ))}
+            </div>
           </div>
         )}
 

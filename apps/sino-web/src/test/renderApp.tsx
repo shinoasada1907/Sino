@@ -87,8 +87,8 @@ function seedInbox(queryClient: QueryClient, sample: InboxSample) {
     const conversations = sample.conversations.filter((item) => item.kind === kind)
     for (const source of [null, ...sample.providers.filter((provider) => provider.kind === kind).map((provider) => provider.type)]) {
       for (const view of VIEWS) {
-        const items = filterConversations(conversations, { view, source }, new Date())
-        queryClient.setQueryData(conversationsKey(kind, { view, source }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
+        const items = filterConversations(conversations, { view, source, account: null }, new Date())
+        queryClient.setQueryData(conversationsKey(kind, { view, source, account: null }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
       }
     }
   }

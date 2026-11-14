@@ -7,7 +7,7 @@ import { applyChange, countsAfter, type ConversationChange } from './conversatio
 import { filterConversations, withOutbox, type InboxFilter } from './format'
 import { stickerTurns } from './stickerQueue'
 import { isPicture, outgoingFiles } from './outgoingFiles'
-import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, fileTypeOf, sendFile, sendMessage, sendSticker, updateConversation } from './inbox.api'
+import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, fileTypeOf, sendFile, sendMessage, sendSticker, updateConversation, updateNickname } from './inbox.api'
 import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation, UnreadByKind } from './inbox.types'
 import { LEAVE_FREELY, rememberSender, type NewMailDraft } from './newMail'
 import { SCREENS } from './screen'
@@ -46,7 +46,12 @@ export interface InboxQuery {
 
 /** The unread conversations of Tin nhắn and Hộp thư for the navigation (f05c); undefined until they arrive. */
 export function useUnreadByKind(): UnreadByKind | undefined {
-  const { data } = useQuery({ queryKey: INBOX_UNREAD_QUERY_KEY, queryFn: fetchUnreadByKind, staleTime: Infinity })
+  const { data } = useQuery({
+    queryKey: INBOX_UNREAD_QUERY_KEY,
+    queryFn: fetchUnreadByKind,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+  })
   return data
 }
 
@@ -84,7 +89,7 @@ export interface ConversationListQuery {
 export function useConversationList(kind: ProviderKind, filter: InboxFilter, now: Date): ConversationListQuery {
   const query = useInfiniteQuery({
     queryKey: conversationsKey(kind, filter),
-    queryFn: ({ pageParam }) => fetchConversations(filter, pageParam, kind),
+    queryFn: ({ pageParam }) => fetchConversations(filter.account ? filter : { view: filter.view, source: filter.source, account: null }, pageParam, kind),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: Infinity,
@@ -278,6 +283,18 @@ export function useUpdateConversation() {
         void queryClient.invalidateQueries({ queryKey: LISTS_KEY, refetchType: 'none' })
       }
     },
+  })
+}
+
+/**
+ * Sets, changes or clears the nickname of a 1-1 chat (zalo-nicknames, D-420). Not optimistic: the provider can refuse, so
+ * nothing changes until the server answers with the row as it stored it; a refusal leaves the rows as they are.
+ */
+export function useSetNickname() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, nickname }: { id: string; nickname: string }) => updateNickname(id, nickname),
+    onSuccess: (stored, { id }) => updateItem(queryClient, id, () => stored),
   })
 }
 

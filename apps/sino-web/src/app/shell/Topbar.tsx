@@ -1,4 +1,4 @@
-import { Bell, Search, SlidersHorizontal, SquarePen } from 'lucide-react'
+import { Search, SlidersHorizontal, SquarePen } from 'lucide-react'
 import { Link } from 'react-router'
 import { cn } from '@/shared/lib/utils'
 import { ThemeToggle } from '@/shared/theme/ThemeToggle'
@@ -9,9 +9,13 @@ import { Kbd } from '@/shared/ui/kbd'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { Status } from '@/shared/ui/status'
 import { Avatar } from '@/shared/ui/avatar'
+import type { ProviderKind } from '@/shared/domain'
+import type { UnreadByKind } from '@/features/inbox/inbox.types'
 import { LanguageButton } from './LanguageButton'
+import { NotificationsMenu } from './NotificationsMenu'
 import type { ShellData } from './shell.types'
 import { syncStatus } from './syncStatus'
+import type { ArrivalNotice } from './useArrivalNotices'
 import { UserMenu } from './UserMenu'
 
 // The canvas `Topbar` on desktop; on tablet and mobile a shorter bar with the page title (`TabletDashboard`, `MobileDashboard`).
@@ -20,16 +24,25 @@ export function Topbar({
   receivedAt,
   title,
   className,
+  notices,
+  onDismissNotice,
+  unread,
 }: {
   shell: ShellData | undefined
   receivedAt: number
   title: string
   className?: string
+  notices?: ArrivalNotice[]
+  onDismissNotice?: (kind: ProviderKind) => void
+  unread?: UnreadByKind
 }) {
   const clock = useNow()
   // Data that arrives between two clock ticks is measured from its arrival, not from the last tick.
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const status = shell ? syncStatus(shell.sync, now) : null
+  const realUnread = (unread?.CHAT ?? 0) + (unread?.EMAIL ?? 0)
+  const noticeCount = notices?.reduce((sum, n) => sum + n.count, 0) ?? 0
+  const unreadCount = realUnread > 0 ? realUnread : (noticeCount > 0 ? noticeCount : (shell?.unreadNotifications ?? 0))
 
   return (
     <header data-slot="topbar" className={cn('border-b bg-background', className)}>
@@ -58,7 +71,11 @@ export function Topbar({
 
           {status && <Status tone={status.tone}>{status.text}</Status>}
           <span aria-hidden="true" className="mx-1 h-6 w-px bg-border" />
-          <BellLink unread={shell?.unreadNotifications ?? 0} />
+          <NotificationsMenu
+            unreadCount={unreadCount}
+            notices={notices}
+            onDismissNotice={onDismissNotice}
+          />
           
           <Button variant="ghost" size="icon" aria-label="Bộ lọc & Cài đặt">
             <SlidersHorizontal className="size-4.5" strokeWidth={1.6} />
@@ -84,26 +101,14 @@ export function Topbar({
           </Status>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <BellLink unread={shell?.unreadNotifications ?? 0} />
+          <NotificationsMenu
+            unreadCount={unreadCount}
+            notices={notices}
+            onDismissNotice={onDismissNotice}
+          />
           <LanguageButton />
         </div>
       </div>
     </header>
-  )
-}
-
-function BellLink({ unread }: { unread: number }) {
-  return (
-    <Button asChild variant="ghost" size="icon" className="relative">
-      <Link to="/notifications" aria-label={unread > 0 ? `Thông báo, ${unread} mới` : 'Thông báo'}>
-        <Bell className="size-4.5" strokeWidth={1.6} />
-        {unread > 0 && (
-          <span
-            aria-hidden="true"
-            className="absolute top-2 right-2 size-2 rounded-full bg-danger ring-2 ring-background"
-          />
-        )}
-      </Link>
-    </Button>
   )
 }

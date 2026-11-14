@@ -36,7 +36,7 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
   const { pathname } = useLocation()
   const isProfileActive = pathname === '/profile'
   const { list } = useAccounts()
-  const accounts = list?.accounts ?? []
+  const accounts = useMemo(() => list?.accounts ?? [], [list])
   const { inbox: emailInbox } = useInbox('EMAIL')
   const { inbox: chatInbox } = useInbox('CHAT')
 
@@ -84,6 +84,7 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
   }, [accounts, chatInbox?.counts])
 
   const defaultEmailTo = emailAccounts[0]?.to ?? '/inbox'
+  const emailUnread = shell?.navCounts?.inboxUnread
   const zaloTotal = (shell?.navCounts?.messagesUnread != null && shell.navCounts.messagesUnread > 0) ? shell.navCounts.messagesUnread : undefined
   const messengerUnread = chatInbox?.counts.byProvider?.find((p) => p.provider === 'messenger')?.unread ?? 0
   const messengerTotal = messengerUnread > 0 ? messengerUnread : undefined
@@ -110,7 +111,8 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
             <SidebarMainItem
               to={defaultEmailTo}
               icon={Inbox}
-              label="Hộp thư đến"
+              label="Hộp thư"
+              spoken={emailUnread !== undefined && emailUnread > 0 ? `${emailUnread} chưa đọc` : undefined}
               onToggle={() => setEmailOpen((prev) => !prev)}
             />
             {emailOpen && (
@@ -255,7 +257,7 @@ function SidebarMainItem({
   const currentSearch = search
 
   // Exact matching when query parameters are present, otherwise pathname match
-  const isMatch = label === 'Hộp thư đến'
+  const isMatch = (label === 'Hộp thư' || label === 'Hộp thư đến')
     ? currentPath === '/inbox'
     : targetUrl.search
       ? currentPath === targetUrl.pathname && currentSearch === targetUrl.search

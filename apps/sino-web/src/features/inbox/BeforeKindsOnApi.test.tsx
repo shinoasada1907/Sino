@@ -42,6 +42,8 @@ function backendBeforeKinds() {
 
 const open = (path: string) => renderApp(path, { inbox: null })
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
+// The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
+const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
 const rowTitles = () =>
   list()
     .queryAllByRole('link')
@@ -61,8 +63,8 @@ describe('Tin nhắn and Hộp thư on the backend before BE-110 and BE-111 (FE-
     const asked = backendBeforeKinds()
     open('/inbox')
 
-    expect(await list().findByRole('heading', { level: 1, name: 'Hộp thư' })).toBeInTheDocument()
-    expect(await list().findByText('1 chưa đọc')).toBeInTheDocument()
+    expect(await pane().findAllByRole('heading', { level: 1, name: 'Hộp thư' })).not.toHaveLength(0)
+    expect(await pane().findAllByText('1 chưa đọc')).not.toHaveLength(0)
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Ngân hàng ACB'])
     expect(asked).toContain('list?view=all&kind=email')
     expect(asked).toContain('counts?kind=email')

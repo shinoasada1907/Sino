@@ -78,14 +78,19 @@ describe('the pictures in a Zalo chat (zalo-avatars)', () => {
     expect(head.querySelectorAll('[data-slot="avatar"]')).toHaveLength(1)
   })
 
-  it('shows the members of the info column with their pictures', async () => {
-    await openFamily({ members: { Mẹ: PICTURE('Mẹ'), 'Bà ngoại': PICTURE('Bà ngoại') } })
+  // The info column is a profile card now (messages-by-account, chat-ui-refactor): one picture, of the first person of the
+  // conversation, else of the conversation itself; the list of members is gone.
+  it('draws the profile picture of the info column from the first member, else from the conversation', async () => {
+    await openFamily({ group: GROUP_PICTURE, members: { Mẹ: PICTURE('Mẹ'), Bố: PICTURE('Bố') } })
 
-    const rows = Array.from(info().getByRole('region', { name: 'Thành viên' }).querySelectorAll<HTMLElement>('.grid'))
-    const byName = Object.fromEntries(rows.map((row) => [row.querySelector('span.truncate')?.textContent, pictures(row)]))
+    const card = info().getByRole('heading', { level: 3, name: 'Gia đình' }).parentElement as HTMLElement
+    expect(Array.from(card.querySelectorAll('img')).map((image) => image.getAttribute('src'))).toEqual([PICTURE('Mẹ')])
+  })
 
-    expect(byName['Mẹ']).toEqual([PICTURE('Mẹ')])
-    expect(byName['Bố']).toEqual([])
-    expect(byName['Bà ngoại']).toEqual([PICTURE('Bà ngoại')])
+  it('falls back to the picture of the group when the first member has none', async () => {
+    await openFamily({ group: GROUP_PICTURE, members: { Bố: PICTURE('Bố') } })
+
+    const card = info().getByRole('heading', { level: 3, name: 'Gia đình' }).parentElement as HTMLElement
+    expect(Array.from(card.querySelectorAll('img')).map((image) => image.getAttribute('src'))).toEqual([GROUP_PICTURE])
   })
 })

@@ -4,7 +4,7 @@ import { useMediaQuery } from '@/shared/lib/useMediaQuery'
 import type { ThemePreference } from '@/shared/theme/theme'
 import { useTheme } from '@/shared/theme/themeContext'
 import { Segmented } from '@/shared/ui/segmented'
-import { DATE_FORMATS, MOTION_LEVELS } from '../settings.sample'
+import { DATE_FORMATS, MOTION_LEVELS } from '../settings.options'
 import { useSettingValues } from '../useSettings'
 import { SettingRow, SettingSection, SettingSelect } from './SettingRow'
 

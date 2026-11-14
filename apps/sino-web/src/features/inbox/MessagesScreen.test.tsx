@@ -22,6 +22,8 @@ function open(path: string, inbox: ReturnType<typeof createInboxSample> | null =
 }
 
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
+// The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
+const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
 const sources = () => within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' }))
 const rowTitles = () =>
   list()
@@ -41,16 +43,16 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
   it('lists only the chats at /messages, with the counts of Tin nhắn', async () => {
     open('/messages')
 
-    expect(await list().findByRole('heading', { level: 1, name: 'Tin nhắn' })).toBeInTheDocument()
-    expect(list().getByText('5 chưa đọc')).toBeInTheDocument()
+    expect(await pane().findAllByRole('heading', { level: 1, name: 'Tin nhắn' })).not.toHaveLength(0)
+    expect(pane().getAllByText('5 chưa đọc')).not.toHaveLength(0)
     expect(rowTitles()).toEqual(['Nhóm chạy bộ Hồ Tây', 'Gia đình', 'Hà', 'Lê Hoàng', 'Nhóm sửa nhà'])
   })
 
   it('lists only the emails at /inbox, with the counts of Hộp thư', async () => {
     open('/inbox')
 
-    expect(await list().findByRole('heading', { level: 1, name: 'Hộp thư' })).toBeInTheDocument()
-    expect(list().getByText('7 chưa đọc')).toBeInTheDocument()
+    expect(await pane().findAllByRole('heading', { level: 1, name: 'Hộp thư' })).not.toHaveLength(0)
+    expect(pane().getAllByText('7 chưa đọc')).not.toHaveLength(0)
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương', 'Thu Trang', 'Điện lực Hà Nội'])
   })
 
@@ -59,8 +61,8 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
 
     expect(await list().findByText('Nhóm sửa nhà')).toBeInTheDocument()
     expect(api.fetchInbox).toHaveBeenCalledWith('CHAT')
-    expect(api.fetchConversations).toHaveBeenCalledWith({ view: 'all', source: null }, null, 'CHAT')
-    expect(list().getByText('5 chưa đọc')).toBeInTheDocument()
+    expect(api.fetchConversations).toHaveBeenCalledWith({ view: 'all', source: null, account: null }, null, 'CHAT')
+    expect(pane().getAllByText('5 chưa đọc')).not.toHaveLength(0)
     expect(rowTitles()).not.toContain('Trần Minh Anh')
   })
 
@@ -78,7 +80,7 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
   it('has no Thư mới on Tin nhắn', async () => {
     open('/messages')
 
-    await list().findByRole('heading', { level: 1, name: 'Tin nhắn' })
+    await pane().findAllByRole('heading', { level: 1, name: 'Tin nhắn' })
     expect(screen.queryByRole('link', { name: 'Thư mới' })).toBeNull()
   })
 

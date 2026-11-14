@@ -23,7 +23,7 @@ describe('/ of sino-web (WP-01, web-public-pages, D-310)', () => {
     expect(bar.getByRole('link', { name: OPEN_APP })).toHaveAttribute('href', '/overview')
     expect(screen.getByText(`© ${new Date().getFullYear()} SINO`)).toBeInTheDocument()
     expect(document.querySelector('[data-slot="sidebar"]')).toBeNull()
-    expect(document.title).toBe('Sino Messages · Hộp thư chung cho Gmail và việc cần làm')
+    await vi.waitFor(() => expect(document.title).toBe('Sino Messages · Hộp thư chung cho Gmail và việc cần làm'))
   })
 
   it('sends a signed-in owner on to /overview without a history entry', async () => {

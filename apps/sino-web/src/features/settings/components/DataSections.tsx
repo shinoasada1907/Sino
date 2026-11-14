@@ -8,7 +8,7 @@ import { AccountAvatar } from '@/shared/ui/account-avatar'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Status } from '@/shared/ui/status'
-import { formatCount, formatMegabytes, SETTINGS_SAMPLE } from '../settings.sample'
+import { formatCount, formatMegabytes, EMPTY_SETTINGS_DATA } from '../settings.options'
 import { useStorageUse } from '../useSettings'
 import { SettingRow, SettingSection } from './SettingRow'
 
@@ -113,7 +113,7 @@ function SourcesLink() {
 
 /** "Đăng xuất thiết bị khác" does nothing yet (D-399). */
 export function SecurityRows() {
-  const { sessions } = SETTINGS_SAMPLE
+  const { sessions } = EMPTY_SETTINGS_DATA
   return (
     <>
       <SettingRow
@@ -146,7 +146,7 @@ export function SecuritySection() {
 
 /** The version is sample data: the web app has none yet (D-396). The privacy policy is the public page `/privacy`. */
 export function AboutSection() {
-  const { version, build } = SETTINGS_SAMPLE
+  const { version, build } = EMPTY_SETTINGS_DATA
   return (
     <SettingSection id="ve-sino" title="Về Sino">
       <SettingRow

@@ -14,12 +14,12 @@ import {
   reminderLabel,
   reminderOf,
   reminderValue,
-  SETTINGS_SAMPLE,
+  EMPTY_SETTINGS_DATA,
   TIME_ZONES,
   WEEK_STARTS,
   withCurrent,
   type PushDevice,
-} from '../settings.sample'
+} from '../settings.options'
 import { useSettingValues } from '../useSettings'
 import { SettingRow, SettingSection, SettingSelect, SwitchRow } from './SettingRow'
 
@@ -76,8 +76,8 @@ export function NotifySwitches() {
 }
 
 /** The browsers that receive notifications: still the canvas sample, and the buttons do nothing yet (fe-ui-settings D-399). */
-export function PushDevices({ devices = SETTINGS_SAMPLE.devices }: { devices?: PushDevice[] }) {
-  const here = SETTINGS_SAMPLE.pushOnThisDevice
+export function PushDevices({ devices = EMPTY_SETTINGS_DATA.devices }: { devices?: PushDevice[] }) {
+  const here = EMPTY_SETTINGS_DATA.pushOnThisDevice
   return (
     <>
       <SettingRow

@@ -5,7 +5,6 @@ import { useTasks } from '@/features/tasks/useTasks'
 import { useNow } from '@/shared/time/useNow'
 import { useEventStream } from '../realtime/useEventStream'
 import { PAGES } from './navItems'
-import { NoticeBar } from './NoticeBar'
 import { Rail } from './Rail'
 import { Sidebar } from './Sidebar'
 import { TabBar } from './TabBar'
@@ -56,11 +55,17 @@ export function AppShell() {
       <ThemeSync />
       <Sidebar shell={shell} className="hidden xl:flex" />
       <Rail shell={shell} className="hidden md:flex xl:hidden" />
-      <div className="grid min-h-0 min-w-0 grid-rows-[auto_auto_minmax(0,1fr)]">
-        <Topbar shell={shell} receivedAt={receivedAt} title={title} className={handle.mobilePageHeader ? 'max-md:hidden' : undefined} />
-        <NoticeBar notices={notices} onDismiss={dismiss} />
-        {/* Row 3 even when a page hides the top bar or there is no notice: a hidden item gives up its row, and main would fall into an auto one. */}
-        <main className="row-start-3 min-h-0 overflow-y-auto bg-dots">
+      <div className="flex min-h-0 min-w-0 flex-col">
+        <Topbar
+          shell={shell}
+          receivedAt={receivedAt}
+          title={title}
+          className={handle.mobilePageHeader ? 'max-md:hidden' : undefined}
+          notices={notices}
+          onDismissNotice={dismiss}
+          unread={unread}
+        />
+        <main className="flex-1 min-h-0 overflow-y-auto bg-dots">
           <Outlet />
         </main>
       </div>

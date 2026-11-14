@@ -190,7 +190,7 @@ describe('Chi tiết tài khoản', () => {
     openDetail('acc-gmail')
     await screen.findByRole('heading', { level: 1, name: 'an.nguyen@gmail.com' })
 
-    expect(within(shellPart('sidebar')).getByRole('link', { name: /Tài khoản/ })).toHaveAttribute('aria-current', 'page')
+    expect(within(shellPart('rail')).getByRole('link', { name: /Tài khoản/ })).toHaveAttribute('aria-current', 'page')
     expect(within(shellPart('topbar')).getByText('Tài khoản')).toBeInTheDocument()
     expect(shellPart('topbar')).toHaveClass('max-md:hidden')
     expect(document.querySelector('[data-slot="tabbar"]')).toBeNull()
