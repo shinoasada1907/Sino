@@ -12,7 +12,10 @@ public enum PlannerErrorCode implements ErrorCode {
     INVALID_RECURRENCE(ErrorCategory.INVALID),
 
     /** No task with this ID belongs to the caller. A task of another user is reported the same way (404). */
-    TASK_NOT_FOUND(ErrorCategory.NOT_FOUND);
+    TASK_NOT_FOUND(ErrorCategory.NOT_FOUND),
+
+    /** No appointment with this ID belongs to the caller. An appointment of another user is reported the same way (404). */
+    EVENT_NOT_FOUND(ErrorCategory.NOT_FOUND);
 
     private final ErrorCategory category;
 
