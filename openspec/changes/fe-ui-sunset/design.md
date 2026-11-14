@@ -82,6 +82,14 @@ Người dùng thử bản tối và chê bốn điểm: chữ ngả hồng (mu�
 - bóng nhẹ hơn, có viền sáng mảnh phía trên thẻ; quầng sáng và chấm bi rõ hơn.
 Mỗi bộ màu có bản tối tương ứng. Ở theme tối, "Màu chữ" của D-493 gần như không khác nhau, vì cả hai kiểu đều là chữ trắng.
 
+### D-496 — Web site công khai cũng theo phong cách mềm (người dùng, 2026-11-14: "duyệt xong thì apply UI cho web site luôn")
+
+Trang giới thiệu `/` và trang Privacy (`/privacy`, `/en/privacy`) không còn nằm trong D-485 nữa: chúng được vẽ lại theo artboard `Landing` và `Privacy` của canvas, gồm thanh điều hướng dạng một viên thuốc, Hero kiểu bento, các thẻ bo tròn, họa tiết, dải lời mời có chấm bi. Giữ nguyên:
+- **toàn bộ chữ**, gồm cả tên mục, thứ tự và câu Limited Use, vì Google đã xác minh Branding trên nội dung này (2026-11-13);
+- prerender ra HTML (`public-pages-prerender`): build vẫn phải ra `index.html`, `privacy.html`, `en/privacy.html` có đủ chữ;
+- các route và liên kết.
+Trang công khai luôn dùng bộ Anh đào (khách chưa có cài đặt), sáng hoặc tối theo hệ thống. Làm sau khi người dùng nghiệm thu đợt app (SU-12).
+
 ## Risks / Trade-offs
 
 - **Đụng file của việc đang dở** → SU-01 chỉ bắt đầu khi `apps/sino-web` đã commit sạch và test xanh.
