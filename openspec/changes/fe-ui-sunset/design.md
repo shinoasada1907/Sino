@@ -73,6 +73,15 @@ Không cho chọn mã màu chữ tự do, vì dễ ra chữ nhạt khó đọc. 
 
 `TINTED` (mặc định, nền nhuốm nhẹ theo bộ) hoặc `WHITE` (nền gần trắng #F7F7F8, thẻ trắng có viền mảnh thay cho bóng nhuốm màu, bỏ quầng sáng). Chỉ áp khi theme đang là Sáng. Trên web là class `bg-white` trên `<html>`. Cách lưu giống D-490 A: thêm hai cột `text_tone`, `light_background` (V29), đi qua `/api/settings`.
 
+### D-495 — Theme tối sáng hơn, chữ trắng, màu nhấn pastel (người dùng, 2026-11-14)
+
+Người dùng thử bản tối và chê bốn điểm: chữ ngả hồng (muốn trắng), tối quá và bí, thiếu chất mềm, màu nhấn chói. Bản tối mới trong `sunset.css`:
+- nền nâng lên một bậc (Anh đào `#27222A`, thẻ `#322C35`);
+- chữ trắng trung tính `#F7F5F7`, chữ phụ xám trung tính;
+- màu nhấn pastel (Anh đào `#F4A3BF`, chữ trên nút tối `#3A1426`);
+- bóng nhẹ hơn, có viền sáng mảnh phía trên thẻ; quầng sáng và chấm bi rõ hơn.
+Mỗi bộ màu có bản tối tương ứng. Ở theme tối, "Màu chữ" của D-493 gần như không khác nhau, vì cả hai kiểu đều là chữ trắng.
+
 ## Risks / Trade-offs
 
 - **Đụng file của việc đang dở** → SU-01 chỉ bắt đầu khi `apps/sino-web` đã commit sạch và test xanh.
