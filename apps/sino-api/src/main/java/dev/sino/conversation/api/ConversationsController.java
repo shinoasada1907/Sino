@@ -15,6 +15,7 @@ import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -96,6 +97,14 @@ class ConversationsController {
     ConversationResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateConversationRequest request) {
         return ConversationResponse.from(inbox.change(currentUser.requireOwnerId(), id, request.read(),
                 request.archived(), request.nicknameGiven(), request.nicknameValue()));
+    }
+
+    /**
+     * Marks every message of all conversations of the user (or of a specific {@code kind}) as read in Sino.
+     */
+    @PostMapping("/read-all")
+    void markAllRead(@RequestParam(required = false) @Pattern(regexp = KIND_VALUES) String kind) {
+        inbox.markAllRead(currentUser.requireOwnerId(), kindOf(kind));
     }
 
     record ConversationPageResponse(List<ConversationResponse> items, String nextCursor) {
