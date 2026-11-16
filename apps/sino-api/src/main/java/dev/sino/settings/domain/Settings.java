@@ -13,7 +13,8 @@ import java.util.regex.Pattern;
  */
 public record Settings(Theme theme, DateFormat dateFormat, Motion motion, Notifications notifications,
         QuietHours quietHours, ZoneId timeZone, LocalTime morningTime, Integer defaultReminderMinutes,
-        WeekStart weekStart, Palette palette, String accentColor, Corners corners, boolean decorations) {
+        WeekStart weekStart, Palette palette, String accentColor, Corners corners, boolean decorations,
+        TextTone textTone, LightBackground lightBackground) {
 
     /** An accent colour as {@code #RRGGBB}. */
     public static final Pattern ACCENT_COLOR = Pattern.compile("#[0-9A-Fa-f]{6}");
@@ -24,7 +25,8 @@ public record Settings(Theme theme, DateFormat dateFormat, Motion motion, Notifi
     /** What a user who has changed nothing has: the values of the canvas. */
     public static final Settings DEFAULTS = new Settings(Theme.SYSTEM, DateFormat.DMY, Motion.FULL,
             Notifications.DEFAULTS, new QuietHours(LocalTime.of(22, 0), LocalTime.of(7, 0)),
-            ZoneId.of("Asia/Ho_Chi_Minh"), LocalTime.of(9, 0), 15, WeekStart.MONDAY, Palette.SAKURA, null, Corners.SOFT, true);
+            ZoneId.of("Asia/Ho_Chi_Minh"), LocalTime.of(9, 0), 15, WeekStart.MONDAY, Palette.SAKURA, null, Corners.SOFT, true,
+            TextTone.TINTED, LightBackground.TINTED);
 
     public Settings {
         Objects.requireNonNull(theme, "theme");
@@ -35,6 +37,8 @@ public record Settings(Theme theme, DateFormat dateFormat, Motion motion, Notifi
         Objects.requireNonNull(weekStart, "weekStart");
         Objects.requireNonNull(palette, "palette");
         Objects.requireNonNull(corners, "corners");
+        Objects.requireNonNull(textTone, "textTone");
+        Objects.requireNonNull(lightBackground, "lightBackground");
         if (accentColor != null && !ACCENT_COLOR.matcher(accentColor).matches()) {
             throw new IllegalArgumentException("accentColor must be #RRGGBB");
         }
@@ -66,7 +70,9 @@ public record Settings(Theme theme, DateFormat dateFormat, Motion motion, Notifi
                 change.palette() != null ? change.palette() : palette,
                 change.accentColor() != null ? change.accentColor().orElse(null) : accentColor,
                 change.corners() != null ? change.corners() : corners,
-                change.decorations() != null ? change.decorations() : decorations);
+                change.decorations() != null ? change.decorations() : decorations,
+                change.textTone() != null ? change.textTone() : textTone,
+                change.lightBackground() != null ? change.lightBackground() : lightBackground);
     }
 
     /**

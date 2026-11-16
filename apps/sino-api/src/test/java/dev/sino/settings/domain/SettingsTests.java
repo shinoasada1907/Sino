@@ -23,18 +23,18 @@ class SettingsTests {
     private static Settings withMorning(LocalTime morningTime) {
         return new Settings(D.theme(), D.dateFormat(), D.motion(), D.notifications(), D.quietHours(), D.timeZone(),
                 morningTime, D.defaultReminderMinutes(), D.weekStart(), D.palette(), D.accentColor(), D.corners(),
-                D.decorations());
+                D.decorations(), D.textTone(), D.lightBackground());
     }
 
     private static Settings withReminder(Integer minutes) {
         return new Settings(D.theme(), D.dateFormat(), D.motion(), D.notifications(), D.quietHours(), D.timeZone(),
-                D.morningTime(), minutes, D.weekStart(), D.palette(), D.accentColor(), D.corners(), D.decorations());
+                D.morningTime(), minutes, D.weekStart(), D.palette(), D.accentColor(), D.corners(), D.decorations(), D.textTone(), D.lightBackground());
     }
 
     private static Settings withZone(ZoneId zone) {
         return new Settings(D.theme(), D.dateFormat(), D.motion(), D.notifications(), D.quietHours(), zone,
                 D.morningTime(), D.defaultReminderMinutes(), D.weekStart(), D.palette(), D.accentColor(), D.corners(),
-                D.decorations());
+                D.decorations(), D.textTone(), D.lightBackground());
     }
 
     @Test
@@ -75,7 +75,7 @@ class SettingsTests {
     @Test
     void noReminderAndNoQuietHoursAreAllowed() {
         Settings quiet = new Settings(D.theme(), D.dateFormat(), D.motion(), D.notifications(), null, D.timeZone(),
-                D.morningTime(), null, D.weekStart(), D.palette(), D.accentColor(), D.corners(), D.decorations());
+                D.morningTime(), null, D.weekStart(), D.palette(), D.accentColor(), D.corners(), D.decorations(), D.textTone(), D.lightBackground());
 
         assertThat(quiet.quietHours()).isNull();
         assertThat(quiet.defaultReminderMinutes()).isNull();
@@ -105,23 +105,23 @@ class SettingsTests {
     void aChangeSetsWhatItNamesAndKeepsTheRest() {
         SettingsChange change = new SettingsChange(Theme.DARK, null, null,
                 new NotificationsChange(null, true, null, null, null, false), null, null, LocalTime.of(7, 0), null,
-                null, null, null, null, null);
+                null, null, null, null, null, null, null);
 
         Settings changed = D.with(change);
 
         assertThat(changed).isEqualTo(new Settings(Theme.DARK, D.dateFormat(), D.motion(),
                 new Notifications(true, true, true, true, true, false), D.quietHours(), D.timeZone(),
                 LocalTime.of(7, 0), D.defaultReminderMinutes(), D.weekStart(), D.palette(), D.accentColor(),
-                D.corners(), D.decorations()));
+                D.corners(), D.decorations(), D.textTone(), D.lightBackground()));
     }
 
     @Test
     void anEmptyOptionalTurnsQuietHoursAndTheReminderOff() {
         SettingsChange off = new SettingsChange(null, null, null, null, Optional.empty(), null, null,
-                Optional.empty(), null, null, null, null, null);
+                Optional.empty(), null, null, null, null, null, null, null);
         SettingsChange on = new SettingsChange(null, null, null, null,
                 Optional.of(new QuietHours(LocalTime.of(13, 0), LocalTime.of(14, 0))), null, null, Optional.of(30),
-                null, null, null, null, null);
+                null, null, null, null, null, null, null);
 
         Settings quiet = D.with(off);
         Settings back = quiet.with(on);
@@ -138,12 +138,14 @@ class SettingsTests {
         assertThat(D.accentColor()).isNull();
         assertThat(D.corners()).isEqualTo(Corners.SOFT);
         assertThat(D.decorations()).isTrue();
+        assertThat(D.textTone()).isEqualTo(TextTone.TINTED);
+        assertThat(D.lightBackground()).isEqualTo(LightBackground.TINTED);
     }
 
     @Test
     void anAppearanceChangeSetsWhatItNamesAndAnEmptyOptionalClearsTheAccent() {
         SettingsChange change = new SettingsChange(null, null, null, null, null, null, null, null, null,
-                Palette.MONO, Optional.of("#ABCDEF"), null, false);
+                Palette.MONO, Optional.of("#ABCDEF"), null, false, null, null);
 
         Settings changed = D.with(change);
 
@@ -152,15 +154,15 @@ class SettingsTests {
         assertThat(changed.corners()).isEqualTo(Corners.SOFT);
         assertThat(changed.decorations()).isFalse();
         assertThat(changed.with(new SettingsChange(null, null, null, null, null, null, null, null, null, null,
-                Optional.empty(), null, null)).accentColor()).isNull();
+                Optional.empty(), null, null, null, null)).accentColor()).isNull();
     }
 
     @Test
     void anAppearanceChangeIsNotEmpty() {
-        assertThat(new SettingsChange(null, null, null, null, null, null, null, null, null, null, null, null, true)
+        assertThat(new SettingsChange(null, null, null, null, null, null, null, null, null, null, null, null, true, null, null)
                 .isEmpty()).isFalse();
         assertThat(new SettingsChange(null, null, null, null, null, null, null, null, null, null, Optional.empty(),
-                null, null).isEmpty()).isFalse();
+                null, null, null, null).isEmpty()).isFalse();
     }
 
     @ParameterizedTest
@@ -168,19 +170,19 @@ class SettingsTests {
     void anAccentColourThatIsNotRrggbbIsRefused(String colour) {
         assertThatIllegalArgumentException().isThrownBy(() -> new Settings(D.theme(), D.dateFormat(), D.motion(),
                 D.notifications(), D.quietHours(), D.timeZone(), D.morningTime(), D.defaultReminderMinutes(),
-                D.weekStart(), D.palette(), colour, D.corners(), D.decorations()));
+                D.weekStart(), D.palette(), colour, D.corners(), D.decorations(), D.textTone(), D.lightBackground()));
     }
 
     @Test
     void aChangeOfNothingIsEmpty() {
         assertThat(SettingsChange.NONE.isEmpty()).isTrue();
-        assertThat(new SettingsChange(null, null, null, NotificationsChange.NONE, null, null, null, null, null, null, null, null, null)
+        assertThat(new SettingsChange(null, null, null, NotificationsChange.NONE, null, null, null, null, null, null, null, null, null, null, null)
                 .isEmpty()).isTrue();
         assertThat(new SettingsChange(null, null, null, new NotificationsChange(false, null, null, null, null, null),
-                null, null, null, null, null, null, null, null, null).isEmpty()).isFalse();
-        assertThat(new SettingsChange(null, null, null, null, Optional.empty(), null, null, null, null, null, null, null, null).isEmpty())
+                null, null, null, null, null, null, null, null, null, null, null).isEmpty()).isFalse();
+        assertThat(new SettingsChange(null, null, null, null, Optional.empty(), null, null, null, null, null, null, null, null, null, null).isEmpty())
                 .isFalse();
-        assertThat(new SettingsChange(null, null, null, null, null, null, null, null, WeekStart.SUNDAY, null, null, null, null).isEmpty())
+        assertThat(new SettingsChange(null, null, null, null, null, null, null, null, WeekStart.SUNDAY, null, null, null, null, null, null).isEmpty())
                 .isFalse();
         assertThat(D.with(SettingsChange.NONE)).isEqualTo(D);
     }
@@ -189,7 +191,8 @@ class SettingsTests {
     void theRowKeepsEverySetting() {
         Settings changed = new Settings(Theme.DARK, DateFormat.LONG, Motion.REDUCED,
                 new Notifications(false, true, false, true, false, true), null, ZoneId.of("America/New_York"),
-                LocalTime.of(5, 30), null, WeekStart.SUNDAY, Palette.MINT, "#FF8A3C", Corners.COMPACT, false);
+                LocalTime.of(5, 30), null, WeekStart.SUNDAY, Palette.MINT, "#FF8A3C", Corners.COMPACT, false,
+            TextTone.NEUTRAL, LightBackground.WHITE);
         Instant now = Instant.parse("2026-10-21T03:00:00Z");
 
         UserSettings row = UserSettings.create(UUID.randomUUID(), D, now);

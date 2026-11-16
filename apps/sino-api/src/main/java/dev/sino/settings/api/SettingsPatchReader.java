@@ -16,12 +16,14 @@ import tools.jackson.databind.node.ObjectNode;
 
 import dev.sino.settings.domain.Corners;
 import dev.sino.settings.domain.DateFormat;
+import dev.sino.settings.domain.LightBackground;
 import dev.sino.settings.domain.Motion;
 import dev.sino.settings.domain.NotificationsChange;
 import dev.sino.settings.domain.Palette;
 import dev.sino.settings.domain.QuietHours;
 import dev.sino.settings.domain.Settings;
 import dev.sino.settings.domain.SettingsChange;
+import dev.sino.settings.domain.TextTone;
 import dev.sino.settings.domain.Theme;
 import dev.sino.settings.domain.WeekStart;
 
@@ -68,6 +70,8 @@ final class SettingsPatchReader {
         private Optional<String> accentColor;
         private Corners corners;
         private Boolean decorations;
+        private TextTone textTone;
+        private LightBackground lightBackground;
 
         Result read(ObjectNode body) {
             for (Map.Entry<String, JsonNode> field : body.properties()) {
@@ -86,11 +90,14 @@ final class SettingsPatchReader {
                     case "accentColor" -> accentColor = accentColor(value);
                     case "corners" -> corners = choice("corners", value, Corners.class);
                     case "decorations" -> decorations = decorations(value);
+                    case "textTone" -> textTone = choice("textTone", value, TextTone.class);
+                    case "lightBackground" -> lightBackground = choice("lightBackground", value, LightBackground.class);
                     default -> refuse(field.getKey(), null, "is not a setting");
                 }
             }
             SettingsChange change = new SettingsChange(theme, dateFormat, motion, notifications, quietHours, timeZone,
-                    morningTime, defaultReminderMinutes, weekStart, palette, accentColor, corners, decorations);
+                    morningTime, defaultReminderMinutes, weekStart, palette, accentColor, corners, decorations,
+                    textTone, lightBackground);
             return new Result(change, List.copyOf(violations));
         }
 

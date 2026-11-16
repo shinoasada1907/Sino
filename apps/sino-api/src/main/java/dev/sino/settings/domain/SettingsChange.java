@@ -12,17 +12,19 @@ import java.util.Optional;
 public record SettingsChange(Theme theme, DateFormat dateFormat, Motion motion, NotificationsChange notifications,
         Optional<QuietHours> quietHours, ZoneId timeZone, LocalTime morningTime,
         Optional<Integer> defaultReminderMinutes, WeekStart weekStart, Palette palette, Optional<String> accentColor,
-        Corners corners, Boolean decorations) {
+        Corners corners, Boolean decorations,
+        TextTone textTone, LightBackground lightBackground) {
 
     public static final SettingsChange NONE = new SettingsChange(null, null, null, null, null, null, null, null, null,
-            null, null, null, null);
+            null, null, null, null, null, null);
 
     /** Whether the change sets nothing at all, as {@code {}} or {@code {"notifications": {}}} do. */
     public boolean isEmpty() {
         return theme == null && dateFormat == null && motion == null
                 && (notifications == null || notifications.isEmpty()) && quietHours == null && timeZone == null
                 && morningTime == null && defaultReminderMinutes == null && weekStart == null && palette == null
-                && accentColor == null && corners == null && decorations == null;
+                && accentColor == null && corners == null && decorations == null && textTone == null
+                && lightBackground == null;
     }
 
 }

@@ -58,7 +58,8 @@ class SettingsApiTests {
                                "newRegistrations": true, "reminders": true, "scheduledFailed": true},
              "quietHours": {"start": "22:00", "end": "07:00"}, "timeZone": "Asia/Ho_Chi_Minh", "morningTime": "09:00",
              "defaultReminderMinutes": 15, "weekStart": "MONDAY", "palette": "SAKURA", "accentColor": null,
-             "corners": "SOFT", "decorations": true}
+             "corners": "SOFT", "decorations": true,
+             "textTone": "TINTED", "lightBackground": "TINTED"}
             """;
 
     @Autowired
@@ -139,7 +140,8 @@ class SettingsApiTests {
                                    "newRegistrations": false, "reminders": false, "scheduledFailed": false},
                  "quietHours": {"start": "23:30", "end": "06:15"}, "timeZone": "Europe/Paris", "morningTime": "05:00",
                  "defaultReminderMinutes": 1440, "weekStart": "SUNDAY", "palette": "LAVENDER",
-                 "accentColor": "#112233", "corners": "COMPACT", "decorations": false}
+                 "accentColor": "#112233", "corners": "COMPACT", "decorations": false,
+                 "textTone": "NEUTRAL", "lightBackground": "WHITE"}
                 """;
 
         mvc.perform(change(everything)).andExpect(status().isOk()).andExpect(content().json(everything, true));
@@ -242,6 +244,25 @@ class SettingsApiTests {
     }
 
     @Test
+    void theTextToneAndTheLightBackgroundChangeTogetherOrAloneAndAWrongOneChangesNothing() throws Exception {
+        mvc.perform(change("{\"textTone\": \"NEUTRAL\", \"lightBackground\": \"WHITE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.textTone").value("NEUTRAL"))
+                .andExpect(jsonPath("$.lightBackground").value("WHITE"));
+
+        mvc.perform(change("{\"textTone\": \"TINTED\"}"))
+                .andExpect(jsonPath("$.textTone").value("TINTED"))
+                .andExpect(jsonPath("$.lightBackground").value("WHITE"));
+
+        mvc.perform(change("{\"lightBackground\": \"GREY\", \"textTone\": \"NEUTRAL\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("lightBackground"));
+        mvc.perform(asOwner(get("/api/settings")))
+                .andExpect(jsonPath("$.textTone").value("TINTED"))
+                .andExpect(jsonPath("$.lightBackground").value("WHITE"));
+    }
+
+    @Test
     void theDatabaseRefusesWhatTheApiNeverTakes() {
         jdbc.update("""
                 insert into user_settings (user_id, theme, date_format, motion, notify_new_messages,
@@ -252,11 +273,15 @@ class SettingsApiTests {
                 """);
 
         assertThat(jdbc.queryForObject(
-                "select concat(palette, coalesce(accent_color, '-'), corners, decorations) from user_settings", String.class))
-                .isEqualTo("SAKURA-SOFTt");
+                "select concat(palette, coalesce(accent_color, '-'), corners, decorations, text_tone, light_background) from user_settings", String.class))
+                .isEqualTo("SAKURA-SOFTtTINTEDTINTED");
         assertThatThrownBy(() -> jdbc.update("update user_settings set palette = 'NEON'"))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("update user_settings set accent_color = 'red'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("update user_settings set text_tone = 'DARK'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("update user_settings set light_background = 'GREY'"))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("update user_settings set corners = 'ROUND'"))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -285,6 +310,12 @@ class SettingsApiTests {
             {"corners": null}                                          | corners
             {"decorations": "yes"}                                     | decorations
             {"decorations": null}                                      | decorations
+            {"textTone": "DARK"}                                      | textTone
+            {"textTone": "neutral"}                                    | textTone
+            {"textTone": null}                                         | textTone
+            {"lightBackground": "GREY"}                                | lightBackground
+            {"lightBackground": true}                                  | lightBackground
+            {"lightBackground": null}                                  | lightBackground
             {"timeZone": "Asia/Hanoi_Not_A_Zone"}                      | timeZone
             {"timeZone": "+07:00"}                                     | timeZone
             {"timeZone": null}                                         | timeZone
@@ -388,7 +419,8 @@ class SettingsApiTests {
                                "newRegistrations": true, "reminders": false, "scheduledFailed": true},
              "quietHours": null, "timeZone": "Asia/Tokyo", "morningTime": "07:30",
              "defaultReminderMinutes": 60, "weekStart": "SUNDAY", "palette": "SAKURA", "accentColor": null,
-             "corners": "SOFT", "decorations": true}
+             "corners": "SOFT", "decorations": true,
+             "textTone": "TINTED", "lightBackground": "TINTED"}
             """;
 
     @Test
