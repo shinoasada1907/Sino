@@ -192,6 +192,24 @@ Only this test: `./mvnw test -Preal-gmail -Dtest=RealGmailMessagesTests`. Measur
 1.4 s), second open 35 ms; 20 HTML messages opened, none with anything that runs, all with pictures from the web
 (shown only when the user asks).
 
+### Gmail: mail folders caught up once (mail-folders, MF-03)
+
+Mail an account stored before Sino read mailboxes has no mailbox, and Spam and Trash mail was never imported. Once per
+Gmail account, after its first import is `DONE`, a background pass (`FolderCatchUp`, one virtual thread per account)
+asks Gmail only for IDs, since the account's import date: `in:spam` and `in:trash` (with `includeSpamTrash`) and
+`-in:inbox -in:sent` (archived), 500 a page. Stored messages get `SPAM`, `TRASH` or `ARCHIVE` from those lists; the rest
+of the INBOUND ones get `INBOX`; sent mail in none stays without a mailbox (D-498). Spam and Trash mail not stored yet is
+read and stored like a sync page, 50 at a time. No label is read for a stored message. The pass never counts as new mail
+(`newInbound` 0, no live event) and never brings an archived conversation back.
+
+- Runs at every start for accounts not caught up yet, and when an account's import finishes. `sync_checkpoint.folders_caught_up_at`
+  (V31) is the mark that it ran, set in the transaction that applies the lists, so a restart does not run it again.
+- An account that fails (Gmail down, token refused) is logged at `WARN` and tried again at the next start; the others
+  are not held back. A removed or turned-off account is skipped.
+- `sino.sync.folders.catch-up=false` switches it off (the test profile does). There is no admin call to run it again;
+  clear the column by hand to repeat it for an account: `UPDATE sync_checkpoint SET folders_caught_up_at = NULL WHERE account_id = '…'`.
+- Not covered by an automatic test: what Gmail itself answers to these queries (see MF-20).
+
 ### A thread in several real mailboxes (F05b)
 
 `RealMergedThreadsTests`, also tagged `real-gmail`, needs two Gmail accounts of yours that mail each other, both

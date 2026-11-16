@@ -217,6 +217,38 @@ public class SyncCheckpoints {
                 """).param("address", address).query(UUID.class).list();
     }
 
+    /** The imported accounts whose one-off catch-up of the mail folders has not run (D-501). */
+    public List<UUID> awaitingFolders() {
+        return jdbc.sql("""
+                SELECT account_id FROM sync_checkpoint
+                WHERE import_status = 'DONE' AND folders_caught_up_at IS NULL
+                ORDER BY account_id
+                """).query(UUID.class).list();
+    }
+
+    /** What the catch-up of the account reads from: empty when it is not imported, or the catch-up already ran. */
+    public Optional<FoldersSince> foldersAwaited(UUID accountId) {
+        return jdbc.sql("""
+                SELECT import_since FROM sync_checkpoint
+                WHERE account_id = :account AND import_status = 'DONE' AND folders_caught_up_at IS NULL
+                """).param("account", accountId)
+                .query((row, n) -> new FoldersSince(instant(row, "import_since"))).optional();
+    }
+
+    /**
+     * The catch-up of the account ran; in its transaction. False when it had already, so two runs never both count.
+     */
+    public boolean foldersCaughtUp(UUID accountId) {
+        return jdbc.sql("""
+                UPDATE sync_checkpoint SET folders_caught_up_at = now()
+                WHERE account_id = :account AND folders_caught_up_at IS NULL
+                """).param("account", accountId).update() == 1;
+    }
+
+    /** The moment the catch-up reads from ({@code null}: the whole mailbox). */
+    public record FoldersSince(Instant since) {
+    }
+
     public List<UUID> running() {
         return jdbc.sql("SELECT account_id FROM sync_checkpoint WHERE import_status = 'RUNNING'").query(UUID.class)
                 .list();

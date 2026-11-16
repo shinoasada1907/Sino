@@ -27,6 +27,7 @@ import dev.sino.provider.infrastructure.gmail.GmailApi.Watch;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Part;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.AttachmentContent;
+import dev.sino.provider.spi.MailboxListing;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
@@ -188,6 +189,29 @@ class GmailProvider implements MessageProvider {
         }
         Long total = api.profile(accessToken).messagesTotal();
         return total == null || total < 0 ? OptionalLong.empty() : OptionalLong.of(total);
+    }
+
+    /**
+     * Three searches for IDs only (D-501): {@code in:spam} and {@code in:trash} with {@code includeSpamTrash}, and
+     * {@code -in:inbox -in:sent}, which Gmail runs without spam and trash: archived mail. Sent mail left alone has no
+     * mailbox (D-498), so it is in none of them.
+     */
+    @Override
+    public Optional<MailboxListing> listMailboxes(ProviderContext context, Instant since) {
+        String accessToken = accessTokenOf(context);
+        List<String> spam = api.ids(accessToken, since, "in:spam", true);
+        List<String> trash = api.ids(accessToken, since, "in:trash", true);
+        return Optional.of(new MailboxListing(spam, trash, api.ids(accessToken, since, "-in:inbox -in:sent", false)));
+    }
+
+    /** Reads each message the way a sync page does, with its mailbox from its labels. */
+    @Override
+    public SyncBatch fetchMessages(ProviderContext context, List<String> externalMessageIds, Instant since) {
+        String accessToken = accessTokenOf(context);
+        Profile profile = api.profile(accessToken);
+        // The cursor of the batch is not used by the caller.
+        return batchOf(accessToken, profile.emailAddress(), externalMessageIds, since,
+                GmailCursor.changesSince(historyIdOf(profile.historyId()), since), false);
     }
 
     /**

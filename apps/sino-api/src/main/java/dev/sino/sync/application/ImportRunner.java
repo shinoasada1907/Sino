@@ -55,6 +55,7 @@ class ImportRunner implements DisposableBean {
     private final ApplicationEventPublisher events;
     private final PushWatches watches;
     private final SentMessages sent;
+    private final FolderCatchUp folders;
     // One virtual thread per account being read (D-69): reading mostly waits for the provider. Kept here rather than
     // as a bean, so Spring Boot keeps its own task executor.
     private final ExecutorService executor = Executors.newThreadPerTaskExecutor(
@@ -65,7 +66,7 @@ class ImportRunner implements DisposableBean {
 
     ImportRunner(ProviderAccess access, ConversationStore store, SyncCheckpoints checkpoints,
             TransactionTemplate transactions, InitialSyncProperties properties, ApplicationEventPublisher events,
-            PushWatches watches, SentMessages sent) {
+            PushWatches watches, SentMessages sent, FolderCatchUp folders) {
         this.access = access;
         this.store = store;
         this.checkpoints = checkpoints;
@@ -74,6 +75,7 @@ class ImportRunner implements DisposableBean {
         this.events = events;
         this.watches = watches;
         this.sent = sent;
+        this.folders = folders;
     }
 
     /**
@@ -155,6 +157,7 @@ class ImportRunner implements DisposableBean {
                 if (pass == Pass.IMPORT) {
                     // From now on the provider can tell Sino of new mail (D-76).
                     watches.watch(accountId);
+                    folders.submit(accountId);
                 } else {
                     settleSends(accountId);
                 }
