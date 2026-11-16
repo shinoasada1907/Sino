@@ -4,9 +4,11 @@
 
 ## 1. Canvas
 
-- [ ] 1.1 **MA-01 — Canvas: Tin nhắn theo tài khoản, Hộp thư theo tài khoản (DN-1…DN-5, D-429…D-437)** · quản lý
+- [x] 1.1 **MA-01 — Canvas: Tin nhắn theo tài khoản, Hộp thư theo tài khoản (DN-1…DN-5, D-429…D-437)** · quản lý
   - **Goal:** frame mới để người dùng duyệt trước khi giao web.
-  - **Files:** canvas "Sino UI" (https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB) và bản sao `design/sino-ui/project/`: `Messages`, `MessagesLight`, `MobileMessages`, `MobileMessagesLight`, frame mới "Messages · đang mở chat" (desktop, dark và light), cột trái của `Inbox` / `InboxLight`.
+  - ~~**Files:** canvas "Sino UI" (https://claude.ai/artifact/T9xQb6gPQ39mwcF1TEe6zB) và bản sao `design/sino-ui/project/`: `Messages`, `MessagesLight`, `MobileMessages`, `MobileMessagesLight`, frame mới "Messages · đang mở chat" (desktop, dark và light), cột trái của `Inbox` / `InboxLight`.~~ **LÝ DO** (người dùng, 2026-11-17, chọn "Canvas Sunset"): web đã chuyển sang canvas "Sino UI — Sunset" (`fe-ui-sunset`), vẽ trên canvas cũ sẽ lệch giao diện đang dùng.
+  - **Files (thay):** canvas "Sino UI — Sunset" (https://claude.ai/artifact/TL8JkCNzQcrP8RE4t3UjSs) và bản sao `design/sino-ui-sunset/project/`: frame mới, không sửa frame có sẵn (phiên `sino-web-1b` xác nhận không giữ canvas này).
+  - **Thực hiện** (2026-11-17, quản lý): 7 frame dưới tiêu đề "Tin nhắn và Hộp thư theo tài khoản": `AccountColumn` (cột 232px: Tất cả, tài khoản dưới tên nhà cung cấp, số, chấm trạng thái, đỏ = cần đăng nhập lại, "Xem tài khoản" khi đang lọc; dạng dải 64px chữ cái đầu), `MessagesAccounts` (chưa mở chat, Tất cả), `MessagesAccountsOpen` / `MessagesAccountsOpenDark` (đang lọc "An · Công việc": dải 64px, danh sách 320px, khung chat, cột Thông tin đè mép phải, nút (i) và Esc), `InboxAccounts` (cột tài khoản Gmail, 6 bộ lọc giữ ở danh sách, dòng ghi địa chỉ), `MessagesAccountsTablet` (1024: rail, ô chọn tài khoản, tab, chip), `MobileMessagesAccounts` (390: chip tài khoản, tab + "…", chip loại). Nhãn dòng theo D-430: `<tài khoản> · nhóm N người`, bỏ tài khoản khi đang lọc một tài khoản. Chỉ dùng lớp có sẵn trong `sunset.css`. Bản sao trong repo đã chép đúng các file đã đăng. **Người dùng duyệt 2026-11-17 ("Duyệt MA-01").**
   - **Acceptance criteria:** cột tài khoản (Tất cả, tài khoản dưới tên nhà cung cấp, số, chấm đỏ cần đăng nhập lại, "Xem tài khoản"); tab + "Thêm" + chip Mọi chat / Cá nhân / Nhóm; dải 64px chữ cái đầu khi mở chat, cột Thông tin mở đè; tablet có ô chọn; 390 có chip tài khoản; nhãn dòng theo D-430; chỉ dùng thành phần đã có của canvas; bản sao trong repo khớp link; người dùng nói duyệt.
 
 ## 2. Backend
