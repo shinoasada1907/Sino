@@ -1,13 +1,13 @@
 import { Camera, Calendar, MapPin } from 'lucide-react'
 import { formatDate } from '@/shared/time/local'
-import { Avatar } from '@/shared/ui/avatar'
+import { UserAvatar } from '@/shared/ui/user-avatar'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import type { UserProfile } from '../profile.types'
 
 const ROLE_LABELS: Record<string, string> = { OWNER: 'Chủ sở hữu' }
 
-/** `onAvatarChange` absent: the picture button is off (the file dialog comes with PI-05). */
+/** `onAvatarChange` absent (the profile is not loaded yet): the picture button is off. */
 export function ProfileHeaderCard({
   profile,
   onAvatarChange,
@@ -20,9 +20,9 @@ export function ProfileHeaderCard({
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
         {/* Avatar with change button */}
         <div className="relative shrink-0">
-          <Avatar
+          <UserAvatar
+            name={profile.displayName}
             src={profile.avatarUrl}
-            placeholder="a"
             className="size-22 rounded-full border-2 border-border shadow-md"
           />
           <Button

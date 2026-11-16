@@ -16,7 +16,7 @@ import { useMemo, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { useAccounts } from '@/features/accounts/useAccounts'
 import { cn } from '@/shared/lib/utils'
-import { Avatar } from '@/shared/ui/avatar'
+import { MeAvatar } from './MeAvatar'
 import { Button } from '@/shared/ui/button'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import type { ShellData } from './shell.types'
@@ -205,7 +205,7 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
             className="group flex min-w-0 flex-1 items-center gap-2.5 outline-none cursor-pointer"
             aria-label="Hồ sơ cá nhân"
           >
-            <Avatar className="transition-transform group-hover:scale-105" />
+            <MeAvatar className="transition-transform group-hover:scale-105" />
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-semibold text-foreground">
                 {shell?.owner.displayName ?? 'Người dùng Sino'}

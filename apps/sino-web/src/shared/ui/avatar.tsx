@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from 'react'
+import { useState, type ComponentProps, type ReactNode } from 'react'
 import { cn } from '@/shared/lib/utils'
 
 // The pastel tints of the soft Sunset canvas (`.av.a1` ... `.av.a6`); the keys a-d stay because callers pick them by name.
@@ -14,17 +14,20 @@ const PLACEHOLDERS = {
 /**
  * The canvas `.avatar` with its placeholders `.av-a` … `.av-d`. With a `src` the picture covers the circle and the
  * placeholder stays under it, so there is a circle while the picture loads, when it fails and when the provider has none
- * (zalo-avatars, D-412). The picture is decoration (`alt=""`) and comes straight from the provider, without a referrer (D-408).
+ * (zalo-avatars, D-412). `fallback` (a letter, say) shows only when there is no picture or it failed to load, so it does not
+ * show through a transparent PNG; `children` always show. The picture is decoration (`alt=""`) and comes straight from the provider, without a referrer (D-408).
  */
 function Avatar({
   placeholder = 'a',
   src,
+  fallback,
   className,
   children,
   ...props
-}: ComponentProps<'span'> & { placeholder?: keyof typeof PLACEHOLDERS; src?: string | null }) {
+}: ComponentProps<'span'> & { placeholder?: keyof typeof PLACEHOLDERS; src?: string | null; fallback?: ReactNode }) {
   // The address that failed, not a flag: a new address (the person changed their picture) is tried again.
   const [failed, setFailed] = useState<string | null>(null)
+  const showsPicture = Boolean(src) && src !== failed
   return (
     <span
       data-slot="avatar"
@@ -46,6 +49,7 @@ function Avatar({
           className="absolute inset-0 size-full rounded-full object-cover"
         />
       )}
+      {!showsPicture && fallback}
       {children}
     </span>
   )

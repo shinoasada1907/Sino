@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw'
+import { formDataOf } from '../nodeFile'
 import type { ProfileChange, UserProfile } from '@/features/profile/profile.types'
 
 /**
@@ -21,16 +22,25 @@ export const PROFILE: UserProfile = {
 
 let saved: UserProfile = { ...PROFILE }
 let patches: unknown[] = []
+let avatars: File[] = []
+let avatarVersion = 0
+let avatarDeletes = 0
 
 export function resetProfileBackend(profile: UserProfile = PROFILE) {
   saved = { ...profile }
   patches = []
+  avatars = []
+  avatarVersion = 0
+  avatarDeletes = 0
 }
 
 /** The profile as saved now, and every `PATCH` body received, in order. */
 export const profileBackend = {
   saved: () => saved,
   patches: () => patches,
+  /** Every file received by `PUT /api/profile/avatar`, in order, and how many `DELETE`s came. */
+  avatars: () => avatars,
+  avatarDeletes: () => avatarDeletes,
 }
 
 const LIMITS: Record<keyof ProfileChange, number> = { displayName: 200, phoneNumber: 30, jobTitle: 100, location: 100, bio: 500 }
@@ -44,6 +54,22 @@ function problem(errors: { field: string; message: string }[]) {
 }
 
 export const profileHandlers = [
+  // The picture (D-481): the part `file` must be an image; the answer is the whole profile with a new `avatarUrl`.
+  http.put('/api/profile/avatar', async ({ request }) => {
+    const file = (await formDataOf(request)).get('file')
+    // Not `instanceof File`: the parsed file is Node's, the global one is jsdom's (see test/nodeFile.ts).
+    if (typeof file === 'string' || file === null || !file.type.startsWith('image/')) {
+      return problem([{ field: 'file', message: 'Not an image.' }])
+    }
+    avatars.push(file as File)
+    saved = { ...saved, avatarUrl: `/api/profile/avatar?v=${String(++avatarVersion).padStart(8, '0')}` }
+    return HttpResponse.json(saved)
+  }),
+  http.delete('/api/profile/avatar', () => {
+    avatarDeletes++
+    saved = { ...saved, avatarUrl: null }
+    return new HttpResponse(null, { status: 204 })
+  }),
   http.get('/api/profile', () => HttpResponse.json(saved)),
   http.patch('/api/profile', async ({ request }) => {
     const body = (await request.json()) as Record<string, string>

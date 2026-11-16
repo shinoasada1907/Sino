@@ -8,7 +8,7 @@ import { Input } from '@/shared/ui/input'
 import { Kbd } from '@/shared/ui/kbd'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { Status } from '@/shared/ui/status'
-import { Avatar } from '@/shared/ui/avatar'
+import { MeAvatar } from './MeAvatar'
 import type { ProviderKind } from '@/shared/domain'
 import type { UnreadByKind } from '@/features/inbox/inbox.types'
 import { LanguageButton } from './LanguageButton'
@@ -86,7 +86,7 @@ export function Topbar({
 
           <UserMenu>
             <Button type="button" variant="ghost" size="icon-sm" className="ml-1 rounded-full p-0" aria-label="Tài khoản Sino của bạn">
-              <Avatar className="size-8" />
+              <MeAvatar className="size-8" />
             </Button>
           </UserMenu>
         </div>

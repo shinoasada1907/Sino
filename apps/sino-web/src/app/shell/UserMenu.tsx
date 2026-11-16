@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useLogout, useMe } from '@/features/auth/useAuth'
 import { useTheme } from '@/shared/theme/themeContext'
+import { UserAvatar } from '@/shared/ui/user-avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/ui/dropdown-menu'
 
 /**
@@ -18,9 +19,12 @@ export function UserMenu({ children }: { children: ReactNode }) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" className="w-64">
-        <DropdownMenuLabel className="flex flex-col gap-0.5">
-          <span className="truncate text-sm font-semibold text-foreground">{me?.displayName}</span>
-          <span className="truncate font-mono text-[11px] leading-4 font-medium text-muted-foreground">{me?.email}</span>
+        <DropdownMenuLabel className="flex items-center gap-2.5">
+          <UserAvatar name={me?.displayName} src={me?.avatarUrl} className="size-9" />
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate text-sm font-semibold text-foreground">{me?.displayName}</span>
+            <span className="truncate font-mono text-[11px] leading-4 font-medium text-muted-foreground">{me?.email}</span>
+          </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
