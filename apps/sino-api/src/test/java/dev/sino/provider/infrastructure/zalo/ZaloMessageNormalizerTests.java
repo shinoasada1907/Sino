@@ -49,6 +49,7 @@ class ZaloMessageNormalizerTests {
         assertThat(message.externalMessageId()).isEqualTo("1001");
         assertThat(message.externalConversationId()).isEqualTo(FRIEND);
         assertThat(message.senderExternalParticipantId()).isEqualTo(FRIEND);
+        assertThat(message.mailbox()).as("a chat has no folders").isNull();
         assertThat(message.direction()).isEqualTo(MessageDirection.INBOUND);
         assertThat(message.status()).isEqualTo(MessageStatus.UNKNOWN);
         assertThat(message.read()).isFalse();

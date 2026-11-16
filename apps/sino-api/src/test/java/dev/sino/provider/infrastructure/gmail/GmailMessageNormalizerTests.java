@@ -17,12 +17,16 @@ import org.assertj.core.api.ThrowableAssertAlternative;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import java.util.stream.Stream;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Body;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Header;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Part;
 import dev.sino.provider.spi.ConversationType;
+import dev.sino.provider.spi.Mailbox;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
@@ -270,6 +274,32 @@ class GmailMessageNormalizerTests {
         assertThat(message.textContent()).isEqualTo("Chào bạn & cả nhóm\nDòng hai\nDòng ba\nÔ một\nÔ hai");
         assertThat(message.read()).isTrue();
         assertThat(message.metadata()).containsOnlyKeys("subject", "bulk");
+    }
+
+    @ParameterizedTest
+    @MethodSource("labelsToMailbox")
+    void theLabelsOfAMessageDecideItsMailbox(List<String> labels, Mailbox expected) {
+        GmailMessage message = withLabels(plain("m-1", "t-1", "1760000000000", "a@example.com", "Hi", "Hello"),
+                labels.toArray(String[]::new));
+
+        assertThat(GmailMessageNormalizer.normalize(message, SELF).message().mailbox()).isEqualTo(expected);
+    }
+
+    static Stream<Arguments> labelsToMailbox() {
+        return Stream.of(
+                Arguments.of(List.of("INBOX", "UNREAD"), Mailbox.INBOX),
+                Arguments.of(List.of("INBOX"), Mailbox.INBOX),
+                Arguments.of(List.of("UNREAD", "CATEGORY_PERSONAL"), Mailbox.ARCHIVE),
+                Arguments.of(List.of(), Mailbox.ARCHIVE),
+                Arguments.of(List.of("SPAM", "UNREAD"), Mailbox.SPAM),
+                Arguments.of(List.of("TRASH"), Mailbox.TRASH),
+                Arguments.of(List.of("TRASH", "INBOX"), Mailbox.TRASH),
+                Arguments.of(List.of("TRASH", "SPAM"), Mailbox.TRASH),
+                Arguments.of(List.of("SPAM", "INBOX"), Mailbox.SPAM),
+                Arguments.of(List.of("SENT"), null),
+                Arguments.of(List.of("SENT", "INBOX"), Mailbox.INBOX),
+                Arguments.of(List.of("SENT", "TRASH"), Mailbox.TRASH),
+                Arguments.of(List.of("SENT", "SPAM"), Mailbox.SPAM));
     }
 
     @Test
