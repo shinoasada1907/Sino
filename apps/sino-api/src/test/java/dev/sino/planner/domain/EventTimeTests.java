@@ -65,6 +65,19 @@ class EventTimeTests {
     }
 
     @Test
+    void yearsOutside1900To2200AreRefused() {
+        assertThatThrownBy(() -> EventTime.wholeDays(LocalDate.parse("9999-01-01"), LocalDate.parse("9999-01-02")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> EventTime.wholeDays(LocalDate.parse("1899-12-31"), LocalDate.parse("1900-01-02")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> EventTime.timed(Instant.parse("2200-12-31T23:00:00Z"), Instant.parse("2201-01-01T01:00:00Z")))
+                .isInstanceOf(IllegalArgumentException.class);
+        // The edges are fine: the last whole day of 2200 ends on 01/01/2201.
+        EventTime.wholeDays(LocalDate.parse("2200-12-31"), LocalDate.parse("2201-01-01"));
+        EventTime.wholeDays(LocalDate.parse("1900-01-01"), LocalDate.parse("1900-01-02"));
+    }
+
+    @Test
     void halfASpanOrBothKindsOrNoneIsRefused() {
         LocalDate day = LocalDate.parse("2026-10-05");
 

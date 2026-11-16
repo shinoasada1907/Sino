@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 
 /**
@@ -16,11 +17,30 @@ public record EventTime(Instant startsAt, Instant endsAt, LocalDate startDate, L
 
     public static final int MAX_DAYS = 14;
 
+    /** The supported years are 1900 to 2200: a date outside them is a mistake, and far years overflow the date arithmetic. */
+    public static final LocalDate EARLIEST = LocalDate.of(1900, 1, 1);
+
+    /** The first day after the supported years; an end may be on it. */
+    public static final LocalDate LATEST = LocalDate.of(2201, 1, 1);
+
+    public static boolean isSupported(Instant moment) {
+        return !moment.isBefore(EARLIEST.atStartOfDay(ZoneOffset.UTC).toInstant())
+                && !moment.isAfter(LATEST.atStartOfDay(ZoneOffset.UTC).toInstant());
+    }
+
+    public static boolean isSupported(LocalDate day) {
+        return !day.isBefore(EARLIEST) && !day.isAfter(LATEST);
+    }
+
     public EventTime {
         boolean timed = startsAt != null || endsAt != null;
         boolean wholeDays = startDate != null || endDate != null;
         if (timed == wholeDays) {
             throw new IllegalArgumentException("an appointment is timed or whole days, exactly one of them");
+        }
+        if ((startsAt != null && !isSupported(startsAt)) || (endsAt != null && !isSupported(endsAt))
+                || (startDate != null && !isSupported(startDate)) || (endDate != null && !isSupported(endDate))) {
+            throw new IllegalArgumentException("an appointment is within the years 1900 to 2200");
         }
         if (timed) {
             if (startsAt == null || endsAt == null || !endsAt.isAfter(startsAt)) {

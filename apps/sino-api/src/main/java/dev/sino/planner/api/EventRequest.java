@@ -62,6 +62,13 @@ record EventRequest(
         return !wholeDays() || ChronoUnit.DAYS.between(startDate, endDate) <= EventTime.MAX_DAYS;
     }
 
+    @AssertTrue(message = "the dates of an appointment are within the years 1900 to 2200")
+    boolean isWithinSupportedYears() {
+        return (startsAt == null || EventTime.isSupported(startsAt)) && (endsAt == null || EventTime.isSupported(endsAt))
+                && (startDate == null || EventTime.isSupported(startDate))
+                && (endDate == null || EventTime.isSupported(endDate));
+    }
+
     /** Call only once the request is valid. */
     NewEvent toNewEvent() {
         EventTime time = timed() ? EventTime.timed(startsAt, endsAt) : EventTime.wholeDays(startDate, endDate);
