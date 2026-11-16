@@ -271,7 +271,7 @@ describe('top bar', () => {
     try {
       vi.setSystemTime(new Date('2026-10-02T07:00:00Z'))
       const { queryClient } = renderApp('/overview', { accounts: syncedAt(null) })
-      await within(shellPart('topbar')).findAllByText('Chưa có nguồn nào')
+      await within(shellPart('topbar')).findAllByText('Chưa đồng bộ lần nào')
 
       vi.setSystemTime(new Date('2026-10-02T07:00:50Z'))
       act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, syncedAt('2026-10-02T06:58:50Z')))
@@ -288,10 +288,10 @@ describe('top bar', () => {
     expect(await within(shellPart('topbar')).findAllByText('Chưa có nguồn nào')).not.toHaveLength(0)
   })
 
-  it('says so too while no account has synced yet', async () => {
+  it('says that nothing has synced yet when accounts exist but none has synced', async () => {
     renderApp('/overview', { accounts: syncedAt(null) })
 
-    expect(await within(shellPart('topbar')).findAllByText('Chưa có nguồn nào')).not.toHaveLength(0)
+    expect(await within(shellPart('topbar')).findAllByText('Chưa đồng bộ lần nào')).not.toHaveLength(0)
   })
 
   it('has a bell with the unread of the mail and the chats, and offers the theme switch and the search', async () => {

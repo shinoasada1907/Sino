@@ -54,7 +54,7 @@ export function ChannelRows({ account, now }: { account: AccountItem; now: Date 
 /** The same channels as a mobile list group (canvas `.list-group-item.is-col`). */
 export function ChannelListGroup({ account, now }: { account: AccountItem; now: Date }) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-md border bg-surface">
+    <div className="flex flex-col overflow-hidden rounded-lg bg-surface shadow-card">
       {account.channels.map((channel) => {
         const Icon = ICONS[channel.kind]
         const label = channelLabel(channel.kind, account.provider)

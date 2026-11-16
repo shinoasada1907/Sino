@@ -36,56 +36,136 @@
 }
 
 /*
- * Design tokens copied from the "Sino UI" canvas (design/sino-ui/project/sino.css: .sino, .theme-light, .theme-dark).
+ * Design tokens copied from the soft "Sino UI - Sunset" canvas (design/sino-ui-sunset/project/sunset.css).
  * Both themes use the same role names with different values. ThemeProvider puts theme-light or theme-dark on <html>.
+ * A palette is a class beside it: none = Anh dao (cherry blossom), pal-sunset, pal-mint, pal-lavender, pal-mono.
+ * `corners-compact` lowers the radii (D-492); `no-decor` hides the decorations (dots, sparks) of the big cards.
+ * `--inverse` stays for blocks that flip the colours (tooltip, toast); `--accent` is the one action colour of a screen.
  */
 :root,
 .theme-light {
   color-scheme: light;
-  --bg: #F2F2EF; --surface: #FFFFFF; --raised: #FAFAF8; --hover: #ECECEA;
-  --border: #DEDEDA; --border-strong: #C3C3C0;
-  --text: #111111; --text-muted: #66666B; --text-subtle: #8A8A8F;
-  --inverse: #111111; --inverse-hover: #2B2B2B; --on-inverse: #FFFFFF;
-  --success: #52D273; --warning: #E8B75A; --danger: #E56B6F;
-  --success-ink: #1F7A3D; --warning-ink: #8A5A00; --danger-ink: #B4383D;
-  --ring: #111111; --scrim: rgba(17, 17, 17, .30);
-  --grid-dot: rgba(17, 17, 17, .08); --spot: rgba(17, 17, 17, .035); --spot-strong: rgba(17, 17, 17, .06);
-  --shadow-pop: 0 32px 72px -32px rgba(17, 17, 17, .30), 0 0 0 1px var(--border);
+  --r-xs: 8px; --r-sm: 12px; --r-md: 16px; --r-lg: 24px; --r-xl: 28px; --r-pill: 999px;
+  --bg: #FDF1F4; --surface: #FFFFFF; --raised: #FFF7F9; --hover: #FCEAF0; --active: #FADDE7;
+  --border: #F5DDE5; --border-strong: #EBC4D1;
+  --text: #4A2C38; --text-muted: #85606F; --text-subtle: #92707E;
+  --inverse: #4A2C38; --inverse-hover: #5E3B49; --on-inverse: #FFFFFF;
+  --accent: #CF3F6E; --accent-hover: #BD3462; --on-accent: #FFFFFF;
+  --accent-ink: #BF3767; --accent-soft: #FCE3EB; --accent-line: #F2A9C1; --accent-tint: #F7B8CC;
+  --honey: #A8730A; --honey-soft: #FFF1D6;
+  --dusk-ink: #6150C9; --dusk-soft: #EEEAFD;
+  --success: #1F8352; --success-soft: #E2F6EB;
+  --danger: #C2362D; --danger-soft: #FDE6E3;
+  --warning: var(--honey); --warning-ink: var(--honey);
+  --success-ink: var(--success); --danger-ink: var(--danger);
+  --sun-1: #FFD3E2; --sun-2: #F59CBA; --sun-3: #D9467A; --dusk: #9B8CF0;
+  --ring: var(--accent); --scrim: rgba(74, 44, 56, .30);
+  --grid-dot: rgba(190, 70, 110, .10); --spot: rgba(190, 70, 110, .04); --spot-strong: rgba(190, 70, 110, .08);
+  --shadow: 0 1px 2px rgba(150, 60, 90, .05), 0 14px 34px -22px rgba(190, 70, 110, .45);
+  --shadow-pop: 0 26px 60px -26px rgba(170, 60, 100, .5), 0 0 0 1px var(--border);
+  --glow: radial-gradient(70% 90% at 80% 0%, rgba(247, 184, 204, .45), transparent 70%);
+  --dots: radial-gradient(circle, var(--accent-tint) 1.2px, transparent 1.6px);
   --dur-fast: 160ms; --dur-hover: 180ms; --dur-panel: 220ms; --dur-page: 240ms;
 }
 
+.theme-light.pal-sunset {
+  --bg: #FDF5EE; --hover: #FCEEE2; --active: #FAE2CF; --border: #F4E3D4; --border-strong: #E8CBB2; --raised: #FFF9F4;
+  --text: #45301F; --text-muted: #7F6350; --text-subtle: #8C705C;
+  --inverse: #45301F; --inverse-hover: #5A4130; --scrim: rgba(69, 48, 31, .30);
+  --accent: #C25A12; --accent-hover: #AC4F0F; --accent-ink: #A9500F; --accent-soft: #FDEBDC; --accent-line: #F2BE92; --accent-tint: #F7C9A2;
+  --sun-1: #FFD27A; --sun-2: #F7A34B; --sun-3: #E8743A;
+  --grid-dot: rgba(150, 80, 20, .10); --spot: rgba(150, 80, 20, .04); --spot-strong: rgba(150, 80, 20, .08);
+  --glow: radial-gradient(70% 90% at 80% 0%, rgba(247, 190, 130, .45), transparent 70%);
+}
+.theme-light.pal-mint {
+  --bg: #EFF8F5; --hover: #E2F3EC; --active: #D2EDE2; --border: #D9EDE5; --border-strong: #B9DCCD; --raised: #F6FCFA;
+  --text: #21403A; --text-muted: #557A71; --text-subtle: #5E8279;
+  --inverse: #21403A; --inverse-hover: #31574F; --scrim: rgba(33, 64, 58, .30);
+  --accent: #1C7F68; --accent-hover: #166C58; --accent-ink: #187460; --accent-soft: #DDF3EC; --accent-line: #96D3BF; --accent-tint: #A9DCCB;
+  --sun-1: #CFF3E6; --sun-2: #7FD1B5; --sun-3: #1C7F68;
+  --grid-dot: rgba(28, 127, 104, .10); --spot: rgba(28, 127, 104, .04); --spot-strong: rgba(28, 127, 104, .08);
+  --glow: radial-gradient(70% 90% at 80% 0%, rgba(150, 215, 190, .45), transparent 70%);
+}
+.theme-light.pal-lavender {
+  --bg: #F4F1FC; --hover: #ECE7FB; --active: #E1DAF8; --border: #E5DFF7; --border-strong: #CBC0EE; --raised: #F9F7FE;
+  --text: #34295A; --text-muted: #685C8F; --text-subtle: #706496;
+  --inverse: #34295A; --inverse-hover: #483B78; --scrim: rgba(52, 41, 90, .30);
+  --accent: #6A4FD0; --accent-hover: #5C43BC; --accent-ink: #5E45C2; --accent-soft: #EAE5FC; --accent-line: #BBADF0; --accent-tint: #C9BEF4;
+  --sun-1: #E6DFFD; --sun-2: #B3A3F2; --sun-3: #6A4FD0;
+  --grid-dot: rgba(106, 79, 208, .10); --spot: rgba(106, 79, 208, .04); --spot-strong: rgba(106, 79, 208, .08);
+  --glow: radial-gradient(70% 90% at 80% 0%, rgba(190, 175, 245, .45), transparent 70%);
+}
+.theme-light.pal-mono {
+  --bg: #F4F4F2; --hover: #ECECEA; --active: #E3E3E0; --border: #E4E4E1; --border-strong: #CBCBC7; --raised: #FAFAF9;
+  --text: #1E1E1E; --text-muted: #5F5F63; --text-subtle: #67676B;
+  --inverse: #1E1E1E; --inverse-hover: #383838; --scrim: rgba(30, 30, 30, .30);
+  --accent: #1E1E1E; --accent-hover: #383838; --accent-ink: #1E1E1E; --accent-soft: #E8E8E5; --accent-line: #B9B9B5; --accent-tint: #CFCFCB;
+  --sun-1: #EDEDEA; --sun-2: #A9A9A5; --sun-3: #1E1E1E;
+  --grid-dot: rgba(30, 30, 30, .09); --spot: rgba(30, 30, 30, .04); --spot-strong: rgba(30, 30, 30, .07);
+  --glow: none;
+}
+
+/* Dark (D-495): lifted, soft, white text, pastel accents. */
 .theme-dark {
   color-scheme: dark;
-  --bg: #070707; --surface: #151516; --raised: #1B1B1D; --hover: #232326;
-  --border: #2A2A2D; --border-strong: #4A4A4F;
-  --text: #F7F7F4; --text-muted: #9A9A9F; --text-subtle: #717177;
-  --inverse: #F7F7F4; --inverse-hover: #DCDCD8; --on-inverse: #070707;
-  --success: #52D273; --warning: #E8B75A; --danger: #E56B6F;
-  --success-ink: #52D273; --warning-ink: #E8B75A; --danger-ink: #E56B6F;
-  --ring: #F7F7F4; --scrim: rgba(0, 0, 0, .64);
-  --grid-dot: rgba(247, 247, 244, .07); --spot: rgba(247, 247, 244, .06); --spot-strong: rgba(247, 247, 244, .11);
-  --shadow-pop: 0 32px 72px -28px rgba(0, 0, 0, .85), 0 0 0 1px var(--border);
+  --bg: #27222A; --surface: #322C35; --raised: #3A343D; --hover: #433C46; --active: #4C4450;
+  --border: #463F49; --border-strong: #5F5763;
+  --text: #F7F5F7; --text-muted: #C8C2CA; --text-subtle: #ABA4AE;
+  --inverse: #F7F5F7; --inverse-hover: #E4DFE6; --on-inverse: #27222A;
+  --accent: #F4A3BF; --accent-hover: #F8B7CD; --on-accent: #3A1426;
+  --accent-ink: #F8B9CF; --accent-soft: rgba(244, 163, 191, .16); --accent-line: rgba(244, 163, 191, .45); --accent-tint: rgba(244, 163, 191, .42);
+  --honey: #F3CF79; --honey-soft: rgba(243, 207, 121, .15);
+  --dusk-ink: #C6BCF8; --dusk-soft: rgba(198, 188, 248, .16);
+  --success: #7FD4A8; --success-soft: rgba(127, 212, 168, .15);
+  --danger: #F59A92; --danger-soft: rgba(245, 154, 146, .15);
+  --warning: var(--honey); --warning-ink: var(--honey);
+  --success-ink: var(--success); --danger-ink: var(--danger);
+  --scrim: rgba(0, 0, 0, .6);
+  --grid-dot: rgba(244, 163, 191, .10); --spot: rgba(247, 245, 247, .06); --spot-strong: rgba(247, 245, 247, .11);
+  --shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 18px 40px -24px rgba(0, 0, 0, .55);
+  --shadow-pop: 0 26px 60px -26px rgba(0, 0, 0, .6), 0 0 0 1px var(--border);
+  --glow: radial-gradient(70% 90% at 80% 0%, rgba(244, 163, 191, .16), transparent 70%);
 }
+.theme-dark.pal-sunset { --accent: #F7BE8A; --accent-hover: #FACDA3; --on-accent: #3A1F08; --accent-ink: #F9C99C; --accent-soft: rgba(247, 190, 138, .16); --accent-line: rgba(247, 190, 138, .45); --accent-tint: rgba(247, 190, 138, .42); --bg: #2A2420; --surface: #352E29; --raised: #3D3530; --hover: #463D37; --active: #4F453E; --border: #4A403A; --border-strong: #625750; --on-inverse: #2A2420; --sun-1: #FFD27A; --sun-2: #F7A34B; --sun-3: #E8743A; --glow: radial-gradient(70% 90% at 80% 0%, rgba(247, 190, 138, .16), transparent 70%); }
+.theme-dark.pal-mint { --accent: #9BE0C8; --accent-hover: #B2E8D5; --on-accent: #0E2E24; --accent-ink: #A9E5D0; --accent-soft: rgba(155, 224, 200, .15); --accent-line: rgba(155, 224, 200, .45); --accent-tint: rgba(155, 224, 200, .4); --bg: #212A28; --surface: #2B3532; --raised: #323D3A; --hover: #3A4642; --active: #424F4B; --border: #3F4A46; --border-strong: #56625E; --on-inverse: #212A28; --sun-1: #CFF3E6; --sun-2: #7FD1B5; --sun-3: #1C7F68; --glow: radial-gradient(70% 90% at 80% 0%, rgba(155, 224, 200, .15), transparent 70%); }
+.theme-dark.pal-lavender { --accent: #C3B7F7; --accent-hover: #D3CAFA; --on-accent: #22184A; --accent-ink: #CEC4F9; --accent-soft: rgba(195, 183, 247, .16); --accent-line: rgba(195, 183, 247, .45); --accent-tint: rgba(195, 183, 247, .42); --bg: #25232F; --surface: #2F2C3A; --raised: #363342; --hover: #3E3B4B; --active: #474354; --border: #443F50; --border-strong: #5C5768; --on-inverse: #25232F; --sun-1: #E6DFFD; --sun-2: #B3A3F2; --sun-3: #6A4FD0; --glow: radial-gradient(70% 90% at 80% 0%, rgba(195, 183, 247, .16), transparent 70%); }
+.theme-dark.pal-mono { --accent: #EDEDEF; --accent-hover: #FFFFFF; --on-accent: #1A1A1C; --accent-ink: #EDEDEF; --accent-soft: rgba(255, 255, 255, .1); --accent-line: rgba(255, 255, 255, .35); --accent-tint: rgba(255, 255, 255, .28); --bg: #252527; --surface: #2F2F32; --raised: #363639; --hover: #3F3F42; --active: #47474B; --border: #444447; --border-strong: #5B5B5F; --on-inverse: #252527; --sun-1: #EDEDEA; --sun-2: #A9A9A5; --sun-3: #F2F2F0; --glow: none; }
+
+/* What the user picks on top of a palette (after the palettes so it wins). The light-white class is "bg-white" of the canvas:
+   renamed because Tailwind has a utility of that name. */
+.theme-light.text-neutral { --text: #1E1E21; --text-muted: #5E5E66; --text-subtle: #6A6A72; --inverse: #1E1E21; }
+.theme-dark.text-neutral { --text: #F2F2F3; --text-muted: #B4B4BB; --text-subtle: #9A9AA2; --inverse: #F2F2F3; }
+.theme-light.light-white {
+  --bg: #F7F7F8; --raised: #FAFAFA; --hover: #F2F2F3; --border: #ECECEE; --border-strong: #D9D9DD; --glow: none;
+  --shadow: 0 0 0 1px var(--border), 0 1px 2px rgba(0, 0, 0, .04);
+}
+
+/* "Gon" (D-492): the card, the panel and the row get smaller radii; buttons and tags stay round. */
+.corners-compact { --r-md: 10px; --r-lg: 14px; --r-xl: 16px; }
+.no-decor .decor { display: none; }
 
 /* Until the script sets a theme class only the page background is visible: follow the OS so dark users get no white flash. */
 @media (prefers-color-scheme: dark) {
   html:not(.theme-light):not(.theme-dark) {
     color-scheme: dark;
-    --bg: #070707;
+    --bg: #27222A;
   }
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", "Inter", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Nunito Variable", "Nunito", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Nunito Variable", "Nunito", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
   --font-emoji: "Sino Emoji", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
 
   /* Canvas radii (--r-xs ... --r-lg). xl is the 12 px of menus, written out because lg is larger than Tailwind's. */
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
   --radius-xl: 12px;
+  --radius-panel: var(--r-xl);
+  --radius-pill: var(--r-pill);
 
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --ease-std: cubic-bezier(.4, 0, .2, 1);
@@ -121,6 +201,7 @@
   }
 
   --shadow-popover: var(--shadow-pop);
+  --shadow-card: var(--shadow);
 
   /* Canvas roles. */
   --color-background: var(--bg);
@@ -132,9 +213,24 @@
   --color-border-strong: var(--border-strong);
   --color-muted-foreground: var(--text-muted);
   --color-subtle-foreground: var(--text-subtle);
-  --color-primary: var(--inverse);
-  --color-primary-hover: var(--inverse-hover);
-  --color-primary-foreground: var(--on-inverse);
+  /* The primary action (Button, Switch on) is the amber accent; `inverse` is for tooltip and toast. */
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-foreground: var(--on-accent);
+  --color-active: var(--active);
+  --color-brand-tint: var(--accent-tint);
+  --color-brand: var(--accent);
+  --color-brand-ink: var(--accent-ink);
+  --color-brand-soft: var(--accent-soft);
+  --color-brand-line: var(--accent-line);
+  --color-honey: var(--honey);
+  --color-honey-soft: var(--honey-soft);
+  --color-dusk-ink: var(--dusk-ink);
+  --color-dusk-soft: var(--dusk-soft);
+  --color-success-soft: var(--success-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-inverse: var(--inverse);
+  --color-on-inverse: var(--on-inverse);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
@@ -172,7 +268,15 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
-    font-feature-settings: "cv11";
+    font-weight: 500;
+  }
+
+  /* Screen titles and big numbers: Nunito 800 (D-486). `.display` is the canvas class for a big number. */
+  h1,
+  .display {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
 }
 

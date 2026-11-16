@@ -8,14 +8,14 @@ function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimi
     <SwitchPrimitive.Root
       data-slot="switch"
       className={cn(
-        'peer inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border border-border-strong bg-hover transition-[background-color,border-color] duration-(--dur-hover) ease-out outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid data-checked:border-primary data-checked:bg-primary disabled:cursor-not-allowed disabled:opacity-40',
+        'peer inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border-0 bg-border-strong transition-[background-color,border-color] duration-(--dur-hover) ease-out outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid data-checked:bg-primary disabled:cursor-not-allowed disabled:opacity-40',
         className,
       )}
       {...props}
     >
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className="pointer-events-none block size-4 translate-x-0.75 rounded-full bg-muted-foreground transition-[transform,background-color] duration-(--dur-hover) ease-out data-checked:translate-x-4.75 data-checked:bg-primary-foreground"
+        className="pointer-events-none block size-4.5 translate-x-0.75 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.2)] transition-[transform,background-color] duration-(--dur-hover) ease-out data-checked:translate-x-4.75 data-checked:bg-white"
       />
     </SwitchPrimitive.Root>
   )

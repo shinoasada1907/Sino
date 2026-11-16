@@ -17,7 +17,7 @@ export function AttachmentTrayView({ tray }: { tray: AttachmentTray }) {
               {preview ? (
                 <img src={preview} alt={file.name} className="size-14 rounded-md border object-cover" />
               ) : (
-                <div className="flex h-14 max-w-48 items-center gap-2 rounded-md border bg-surface pr-8 pl-2.5 text-sm">
+                <div className="flex h-14 max-w-48 items-center gap-2 rounded-lg bg-surface shadow-card pr-8 pl-2.5 text-sm">
                   <FileText className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.6} />
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-foreground">{file.name}</span>

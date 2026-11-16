@@ -50,7 +50,7 @@ export function AppShell() {
   const title = PAGES.find((page) => pathname === page.to || pathname.startsWith(`${page.to}/`))?.title ?? 'Sino'
 
   return (
-    <div className="grid h-svh grid-rows-[minmax(0,1fr)_auto] bg-background md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-1 xl:grid-cols-[248px_minmax(0,1fr)]">
+    <div className="grid h-svh grid-rows-[minmax(0,1fr)_auto] bg-background md:grid-cols-[auto_minmax(0,1fr)] md:grid-rows-1">
       {/* The theme follows the user to another browser, and a choice made here is saved (settings-backend, D-405). */}
       <ThemeSync />
       <Sidebar shell={shell} className="hidden xl:flex" />
@@ -65,7 +65,7 @@ export function AppShell() {
           onDismissNotice={dismiss}
           unread={unread}
         />
-        <main className="flex-1 min-h-0 overflow-y-auto bg-dots">
+        <main className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>

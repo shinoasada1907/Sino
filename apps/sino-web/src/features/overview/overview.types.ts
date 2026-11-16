@@ -26,6 +26,8 @@ export interface OverviewAccount {
   provider: ProviderType
   externalAccountId: string
   displayName: string
+  /** How the account is shown (email, phone, user name); the account list gives it, the sample data does not. */
+  address?: string
   status: AccountStatus
   lastSyncedAt: Instant | null
   /** 0..100 while the first sync runs, otherwise null. */

@@ -141,19 +141,19 @@ export function ChatThread({
       }}
     >
       {/* Thread Header matching screenshot */}
-      <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:px-5">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
         <div className="flex items-center gap-3 min-w-0">
           <Button asChild variant="ghost" size="sm" className="-ml-2">
             <Link to={{ pathname: '/messages', search: backSearch }}>
               <ChevronLeft className="size-4 md:size-5" strokeWidth={1.6} />
-              <span>Tin nhắn</span>
+              <span className="xl:hidden 2xl:inline">Tin nhắn</span>
             </Link>
           </Button>
           <div className="relative shrink-0">
             <ConversationAvatars item={item} members={members} />
             <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
           </div>
-          <div className="flex min-w-0 flex-col">
+          <div className="flex min-w-32 flex-col">
             <h1 className="truncate text-base font-bold text-foreground leading-tight">
               {onEditName ? (
                 <button
@@ -191,7 +191,7 @@ export function ChatThread({
           </Button>
           <Button type="button" variant="secondary" size="sm" className="cursor-pointer text-xs">
             <ExternalLink className="size-3.5 mr-1" strokeWidth={1.6} />
-            Mở trong {name}
+            <span className="max-2xl:sr-only">Mở trong {name}</span>
           </Button>
           <Button
             type="button"
@@ -462,8 +462,8 @@ function Bubble({
               className={cn(
                 'px-4 py-2.5 text-xs leading-relaxed max-w-xl transition-colors',
                 own
-                  ? 'rounded-2xl rounded-tr-xs bg-foreground text-background font-normal shadow-xs'
-                  : 'rounded-2xl rounded-tl-xs bg-surface border border-border/80 text-foreground shadow-xs',
+                  ? 'rounded-[20px] rounded-br-[8px] bg-primary text-primary-foreground font-normal'
+                  : 'rounded-[20px] rounded-bl-[8px] bg-raised text-foreground shadow-[inset_0_0_0_1px_var(--border)]',
               )}
             >
               <MessageText text={message.text} own={own} />
@@ -475,8 +475,8 @@ function Bubble({
           className={cn(
             'px-4 py-2.5 text-xs leading-relaxed max-w-xl transition-colors',
             own
-              ? 'rounded-2xl rounded-tr-xs bg-foreground text-background font-normal shadow-xs'
-              : 'rounded-2xl rounded-tl-xs bg-surface border border-border/80 text-foreground shadow-xs',
+              ? 'rounded-[20px] rounded-br-[8px] bg-primary text-primary-foreground font-normal'
+              : 'rounded-[20px] rounded-bl-[8px] bg-raised text-foreground shadow-[inset_0_0_0_1px_var(--border)]',
           )}
         >
           {message.quoteTag && (
@@ -510,7 +510,7 @@ function Bubble({
       )}
 
       {photo?.caption && (
-        <div className={cn('px-4 py-2.5 text-xs leading-relaxed rounded-2xl', own ? 'bg-foreground text-background' : 'bg-surface border border-border/80 text-foreground')}>
+        <div className={cn('px-4 py-2.5 text-xs leading-relaxed rounded-2xl', own ? 'bg-primary text-primary-foreground' : 'bg-raised text-foreground shadow-[inset_0_0_0_1px_var(--border)]')}>
           {photo.caption}
         </div>
       )}

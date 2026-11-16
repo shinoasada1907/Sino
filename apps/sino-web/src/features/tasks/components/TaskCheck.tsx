@@ -14,7 +14,7 @@ export function TaskCheck({ done, late = false, label, onToggle }: { done: boole
         onChange={onToggle}
         aria-label={label}
         className={cn(
-          'peer size-5.5 cursor-pointer appearance-none rounded-full border-[1.5px] border-border-strong transition-[border-color,background-color] duration-(--dur-hover) ease-out outline-none hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid checked:border-primary checked:bg-primary',
+          'peer size-5.5 cursor-pointer appearance-none rounded-[7px] border-2 border-border-strong transition-[border-color,background-color] duration-(--dur-hover) ease-out outline-none hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid checked:border-primary checked:bg-primary',
           late && !done && 'border-danger',
         )}
       />

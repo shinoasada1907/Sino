@@ -1,11 +1,14 @@
 import { useState, type ComponentProps } from 'react'
 import { cn } from '@/shared/lib/utils'
 
+// The pastel tints of the soft Sunset canvas (`.av.a1` ... `.av.a6`); the keys a-d stay because callers pick them by name.
 const PLACEHOLDERS = {
-  a: 'bg-[radial-gradient(circle_at_32%_30%,var(--text-muted),var(--hover)_70%)]',
-  b: 'bg-[conic-gradient(from_210deg,var(--border-strong),var(--surface),var(--text-subtle),var(--border-strong))]',
-  c: 'bg-[repeating-linear-gradient(135deg,var(--hover)_0_4px,var(--border-strong)_4px_6px)]',
-  d: 'bg-[linear-gradient(160deg,var(--text-subtle),var(--raised)_75%)]',
+  a: 'bg-[#FAC9D8]',
+  b: 'bg-[#FBD5BE]',
+  c: 'bg-[#D8CFF7]',
+  d: 'bg-[#FBE3A8]',
+  e: 'bg-[#BFE7D5]',
+  f: 'bg-[#F6C0BC]',
 }
 
 /**
@@ -26,7 +29,7 @@ function Avatar({
     <span
       data-slot="avatar"
       className={cn(
-        'relative inline-block size-9 shrink-0 rounded-full shadow-[inset_0_0_0_1px_var(--border)]',
+        'relative inline-block size-9 shrink-0 rounded-full font-extrabold text-[#4A2234]',
         PLACEHOLDERS[placeholder],
         className,
       )}

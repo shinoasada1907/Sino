@@ -183,8 +183,8 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       {online && realtimeDown && <RealtimeBanner state={realtimeDown} />}
       <div
         className={cn(
-          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)]',
-          chat ? (showInfo ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]') : 'xl:grid-cols-[232px_400px_minmax(0,1fr)]',
+          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:pl-0 md:*:overflow-hidden md:*:rounded-panel md:*:bg-surface md:*:shadow-card',
+          chat ? (showInfo ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]') : 'xl:grid-cols-[200px_380px_minmax(0,1fr)]',
         )}
       >
         {inbox ? (

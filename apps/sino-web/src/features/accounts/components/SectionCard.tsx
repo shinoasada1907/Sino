@@ -20,7 +20,7 @@ export function SectionCard({
     <section
       aria-labelledby={titleId}
       className={cn(
-        'flex min-w-0 flex-col gap-4 rounded-md border bg-surface p-5',
+        'flex min-w-0 flex-col gap-4 rounded-lg bg-surface shadow-card p-5',
         danger && 'gap-3.5 border-[color-mix(in_srgb,var(--danger)_35%,var(--border))]',
         className,
       )}

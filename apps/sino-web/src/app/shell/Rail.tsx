@@ -17,10 +17,10 @@ export function Rail({ shell, className }: { shell: ShellData | undefined; class
     <nav
       data-slot="rail"
       aria-label="Điều hướng chính"
-      className={cn('flex-col items-center gap-1.5 overflow-y-auto border-r bg-background py-4', className)}
+      className={cn('m-3 mr-0 w-17 flex-col items-center gap-1.5 overflow-y-auto rounded-panel bg-surface py-4 shadow-card', className)}
     >
       <span className="grid size-11 place-items-center text-foreground">
-        <SinoMark className="size-5" />
+        <SinoMark className="size-7.5 text-brand-ink" />
       </span>
       <div className="mt-5 flex grow flex-col items-center gap-1.5">
         {items('main')}
@@ -57,7 +57,7 @@ function RailLink({ item, shell }: { item: NavItem; shell: ShellData | undefined
       to={item.to}
       aria-label={name}
       title={item.label}
-      className="relative grid size-11 shrink-0 place-items-center rounded-sm border border-transparent text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:border-border aria-[current=page]:bg-raised aria-[current=page]:text-foreground"
+      className="relative grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:bg-brand-soft aria-[current=page]:text-brand-ink"
     >
       <Icon className="size-4.5" strokeWidth={1.6} />
       {value > 0 && item.alert && (
@@ -65,7 +65,7 @@ function RailLink({ item, shell }: { item: NavItem; shell: ShellData | undefined
           aria-hidden="true"
           className={cn(
             'absolute top-2.25 right-2.25 size-1.75 rounded-full shadow-[0_0_0_2px_var(--bg)]',
-            item.alert.tone === 'danger' ? 'bg-danger' : 'bg-foreground',
+            item.alert.tone === 'danger' ? 'bg-danger' : 'bg-primary',
           )}
         />
       )}

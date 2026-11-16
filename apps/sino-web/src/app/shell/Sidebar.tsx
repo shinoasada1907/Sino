@@ -93,12 +93,12 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
   return (
     <aside
       data-slot="sidebar"
-      className={cn('flex flex-col overflow-y-auto border-r bg-background px-3 py-4 text-foreground select-none', className)}
+      className={cn('m-3 mr-0 w-61 flex-col overflow-y-auto rounded-panel bg-surface px-3.5 py-4 text-foreground shadow-card select-none', className)}
     >
       {/* Brand logo */}
-      <div className="mb-4 flex h-9 items-center gap-2.5 px-2 text-foreground">
-        <SinoMark className="size-5" />
-        <span className="text-lg font-bold tracking-[-0.03em]">Sino</span>
+      <div className="mb-3 flex h-9 items-center gap-2.5 px-1.5 text-foreground">
+        <SinoMark className="size-7.5 text-brand-ink" />
+        <span className="text-[19px] font-extrabold tracking-[-0.02em]">Sino</span>
       </div>
 
       <nav aria-label="Điều hướng chính" className="flex grow flex-col gap-5 overflow-y-auto">
@@ -192,12 +192,12 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
       </nav>
 
       {/* Footer Profile & Menu */}
-      <div className="mt-auto flex flex-col gap-2 border-t pt-3">
+      <div className="mt-auto flex flex-col gap-2 pt-3">
         <SidebarMainItem to="/settings" icon={Settings2} label="Cài đặt" />
         <div
           className={cn(
-            'flex items-center justify-between gap-2.5 rounded-xl border p-2 transition-colors',
-            isProfileActive ? 'border-border/80 bg-surface-raised font-semibold' : 'bg-surface hover:bg-hover/60',
+            'flex items-center justify-between gap-2.5 rounded-lg p-2.5 transition-colors',
+            isProfileActive ? 'bg-active font-semibold' : 'bg-raised hover:bg-hover',
           )}
         >
           <Link
@@ -228,7 +228,7 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
 
 function SectionHeader({ children }: { children: string }) {
   return (
-    <div className="px-3 pt-2 pb-1 font-mono text-[11px] leading-4 font-semibold tracking-[0.06em] text-muted-foreground/75 uppercase">
+    <div className="px-3 pt-2 pb-1 text-xs leading-4 font-bold text-subtle-foreground">
       {children}
     </div>
   )
@@ -277,10 +277,8 @@ function SidebarMainItem({
       className={({ isActive }) => {
         const active = isMatch || (isActive && !targetUrl.search && !currentSearch)
         return cn(
-          'group flex h-10 shrink-0 items-center gap-3 rounded-lg border border-transparent px-3 text-sm font-medium transition-colors outline-none',
-          active
-            ? 'border-border/70 bg-surface-raised font-semibold text-foreground shadow-xs'
-            : 'text-muted-foreground hover:bg-hover hover:text-foreground'
+          'group flex h-10 shrink-0 items-center gap-3 rounded-full px-3.5 text-sm font-bold transition-colors outline-none',
+          active ? 'bg-brand-soft text-brand-ink' : 'text-muted-foreground hover:bg-hover hover:text-foreground'
         )
       }}
     >
@@ -297,14 +295,14 @@ function SidebarMainItem({
             {badge !== undefined && (
               <span
                 aria-hidden="true"
-                className="ml-auto rounded-md bg-secondary/80 px-2 py-0.5 font-mono text-xs font-medium text-foreground"
+                className="ml-auto inline-flex h-5 min-w-5.5 items-center justify-center rounded-full bg-primary px-1.5 text-[11.5px] font-extrabold text-primary-foreground"
               >
                 {badge}
               </span>
             )}
 
             {badge === undefined && showDotWhenActive && active && (
-              <span aria-hidden="true" className="ml-auto size-2 rounded-full bg-foreground shadow-xs" />
+              <span aria-hidden="true" className="ml-auto size-2 rounded-full bg-primary" />
             )}
           </>
         )
@@ -322,10 +320,8 @@ function SubAccountLink({ item }: { item: SubAccount }) {
     <NavLink
       to={item.to}
       className={cn(
-        'flex h-7 items-center gap-2.5 rounded-md px-3 pl-7 text-xs font-medium transition-colors',
-        active
-          ? 'font-semibold text-foreground bg-hover/60'
-          : 'text-muted-foreground hover:bg-hover/30 hover:text-foreground'
+        'flex h-7 items-center gap-2.5 rounded-full px-3 pl-7 text-xs font-bold transition-colors',
+        active ? 'bg-active text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground'
       )}
     >
       <span className={cn('size-1.5 shrink-0 rounded-full', item.dotClass ?? 'bg-muted-foreground/60')} />
@@ -339,7 +335,7 @@ function AddAccountLink({ to, label }: { to: string; label: string }) {
   return (
     <NavLink
       to={to}
-      className="flex h-7 items-center gap-2 rounded-md px-3 pl-7 text-xs text-muted-foreground/70 transition-colors hover:bg-hover/30 hover:text-foreground"
+      className="flex h-7 items-center gap-2 rounded-full px-3 pl-7 text-xs font-semibold text-subtle-foreground transition-colors hover:bg-hover hover:text-foreground"
     >
       <Plus className="size-3.5 shrink-0" strokeWidth={1.75} />
       <span className="truncate">{label}</span>

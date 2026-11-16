@@ -17,7 +17,7 @@ export function PublicFooter({ lang = 'vi', alternate }: { lang?: Lang; alternat
       <div className="mt-18 grid grid-cols-2 gap-8 border-t border-border pt-12 pb-8 md:mt-24 md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
         <div className={cn(column, 'col-span-2 gap-3.5 md:col-span-1')}>
           <Link className="inline-flex items-center gap-2.5 text-lg leading-6 font-bold tracking-[-0.03em]" to="/">
-            <SinoMark className="size-5" />
+            <SinoMark className="size-5 text-brand-ink" />
             Sino
           </Link>
           <span className="max-w-75 text-sm leading-5 text-muted-foreground">{words.tagline}</span>

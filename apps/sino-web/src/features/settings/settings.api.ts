@@ -15,6 +15,15 @@ export interface UserSettings {
   /** null: no reminder. */
   defaultReminderMinutes: number | null
   weekStart: 'MONDAY' | 'SUNDAY'
+  /** The look beyond light and dark (fe-ui-sunset, D-490). */
+  palette: 'SAKURA' | 'SUNSET' | 'MINT' | 'LAVENDER' | 'MONO'
+  /** `#RRGGBB`, or null for the accent of the palette. */
+  accentColor: string | null
+  corners: 'SOFT' | 'COMPACT'
+  decorations: boolean
+  /** What the user picks for the text and the light page (D-493, D-494); an older server does not send them. */
+  textTone?: 'TINTED' | 'NEUTRAL'
+  lightBackground?: 'TINTED' | 'WHITE'
 }
 
 export interface Notifications {
@@ -46,6 +55,12 @@ export const DEFAULT_SETTINGS: UserSettings = {
   morningTime: '09:00',
   defaultReminderMinutes: 15,
   weekStart: 'MONDAY',
+  palette: 'SAKURA',
+  accentColor: null,
+  corners: 'SOFT',
+  decorations: true,
+  textTone: 'TINTED',
+  lightBackground: 'TINTED',
 }
 
 /** The settings once `change` is applied, as the backend merges it. */

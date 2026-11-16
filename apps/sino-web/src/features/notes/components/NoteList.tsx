@@ -17,7 +17,7 @@ const FILTERS: { value: NotesFilter; label: string }[] = [
 ]
 
 const SOURCE_CHIP =
-  'inline-flex h-5.5 max-w-70 min-w-0 items-center gap-1.5 rounded-xs border bg-raised pr-2 pl-0.75 text-[11px] leading-4 font-medium text-muted-foreground'
+  'inline-flex h-5.5 max-w-70 min-w-0 items-center gap-1.5 rounded-full bg-hover pr-2.5 pl-0.75 text-[11px] leading-4 font-medium text-muted-foreground'
 
 const CHIP =
   'inline-flex h-8.5 shrink-0 cursor-pointer items-center rounded-full border bg-surface px-3 text-[13px] leading-4.5 font-medium text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-pressed:border-foreground aria-pressed:bg-raised aria-pressed:text-foreground'
@@ -96,7 +96,7 @@ export function NoteList({
             placeholder="Tìm trong ghi chú"
             value={query}
             onChange={(event) => onQuery(event.target.value)}
-            className="h-10 w-full min-w-0 rounded-sm border border-border bg-surface pr-3.5 pl-10.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none placeholder:text-subtle-foreground hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16"
+            className="h-10 w-full min-w-0 rounded-full border border-border-strong bg-surface pr-3.5 pl-10.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none placeholder:text-subtle-foreground hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16"
           />
         </span>
         <div role="group" aria-label="Lọc ghi chú" className="flex flex-wrap gap-2">
@@ -144,7 +144,7 @@ function NoteCard({ note, search, selected, now, showStandalone }: { note: NoteI
     <Link
       to={{ pathname: `/notes/${note.id}`, search }}
       aria-current={selected ? 'page' : undefined}
-      className="mx-2 flex flex-col gap-1.5 rounded-xl border border-transparent p-3.5 text-foreground max-md:mx-0 max-md:rounded-none max-md:border-x-0 max-md:border-t-0 max-md:border-b-border max-md:px-4 transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:border-border-strong aria-[current=page]:bg-raised"
+      className="mx-2 flex flex-col gap-1.5 rounded-md border border-transparent p-3.5 text-foreground max-md:mx-0 max-md:rounded-none max-md:border-x-0 max-md:border-t-0 max-md:border-b-border max-md:px-4 transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:bg-brand-soft"
     >
       <span className="flex min-w-0 items-center gap-2">
         {note.pinned && <Pin role="img" aria-label="Đã ghim" className="size-3.5 shrink-0" strokeWidth={1.6} />}

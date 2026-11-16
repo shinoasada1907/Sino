@@ -31,8 +31,8 @@ export function TaskRow({
     <div
       className={cn(
         // On a phone the rows are full-width lines (canvas `.mob .trk`); from 768 px rounded cards.
-        'grid grid-cols-[22px_minmax(0,1fr)] items-start gap-x-3.5 border-b px-1 py-3 transition-colors duration-(--dur-hover) ease-out hover:bg-hover md:rounded-xl md:border md:border-transparent md:px-3.5',
-        selected && 'border-border-strong bg-raised hover:bg-raised',
+        'grid grid-cols-[22px_minmax(0,1fr)] items-start gap-x-3.5 border-b px-1 py-3 transition-colors duration-(--dur-hover) ease-out hover:bg-hover md:bg-raised md:hover:bg-hover md:rounded-md md:border-b-0 md:px-3.5',
+        selected && 'bg-brand-soft hover:bg-brand-soft',
       )}
     >
       <TaskCheck done={done} late={meta[0]?.tone === 'over'} label={`Đánh dấu xong: ${task.title}`} onToggle={onToggle} />
@@ -63,7 +63,7 @@ export function TaskRow({
               )
             })}
             {task.source && (
-              <span className="inline-flex h-5.5 max-w-70 items-center gap-1.5 rounded-xs border bg-raised pr-2 pl-0.75 text-xs leading-4 font-medium text-muted-foreground">
+              <span className="inline-flex h-5.5 max-w-70 items-center gap-1.5 rounded-full bg-hover pr-2.5 pl-0.75 text-xs leading-4 font-medium text-muted-foreground">
                 <span className="grid size-4 shrink-0 place-items-center rounded-[4px] bg-surface text-foreground">
                   <ProviderIcon provider={task.source.provider} className="size-2.75" />
                 </span>

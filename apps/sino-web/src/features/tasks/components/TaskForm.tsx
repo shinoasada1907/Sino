@@ -18,7 +18,7 @@ const MAX_TITLE_LENGTH = 200
 const MAX_NOTES_LENGTH = 20_000
 const PRESET_TIMES = ['09:00', '17:00']
 const TEXTAREA =
-  'min-h-21 w-full resize-y rounded-sm border bg-surface px-3.5 py-2.5 text-sm text-foreground transition-colors duration-(--dur-hover) ease-out outline-none placeholder:text-subtle-foreground hover:border-border-strong focus-visible:border-foreground aria-invalid:border-danger'
+  'min-h-21 w-full resize-y rounded-md border bg-surface px-3.5 py-2.5 text-sm text-foreground transition-colors duration-(--dur-hover) ease-out outline-none placeholder:text-subtle-foreground hover:border-border-strong focus-visible:border-foreground aria-invalid:border-danger'
 
 /** The history state of the "Sửa" link: the form was opened from the detail, so closing it goes back there. */
 export interface EditState {

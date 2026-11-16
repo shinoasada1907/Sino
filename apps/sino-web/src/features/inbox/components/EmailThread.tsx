@@ -90,9 +90,9 @@ export function EmailThread({
 
   return (
     <>
-      <header className="flex items-start justify-between gap-4 border-b p-4 md:px-5 xl:px-6 xl:py-5">
+      <header className="flex items-start justify-between gap-4 p-4 md:px-5 xl:px-6 xl:py-5">
         <div className="flex min-w-0 flex-col gap-2">
-          <h2 className="text-lg leading-6.5 font-semibold tracking-[-0.01em] md:text-xl md:leading-7">{item.subject ?? item.title}</h2>
+          <h2 className="line-clamp-2 text-lg leading-6.5 font-extrabold tracking-[-0.01em] md:text-[20px] md:leading-7">{item.subject ?? item.title}</h2>
           <div className="flex flex-wrap items-center gap-2.5">
             {/* The mark stays beside the source: a thread in several accounts wraps its addresses next to it (f05b). */}
             <span className="flex min-w-0 items-start gap-2.5">
@@ -302,7 +302,7 @@ function MailCard({
   )
 
   return (
-    <article className="flex flex-col gap-4 rounded-md border bg-surface p-4 md:p-5">
+    <article className="flex flex-col gap-4 rounded-lg bg-surface shadow-card p-4 md:p-5">
       {onFold ? (
         <button
           type="button"

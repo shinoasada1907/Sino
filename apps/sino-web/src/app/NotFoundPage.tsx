@@ -8,7 +8,7 @@ export function NotFoundPage() {
     <main className="min-h-svh bg-background bg-dots">
       <div className="mx-auto flex max-w-160 flex-col items-start gap-5 px-6 pt-16 pb-10 md:pt-30">
         <span className="inline-flex items-center gap-2.5 text-lg font-bold tracking-[-0.03em] text-foreground">
-          <SinoMark className="size-5" />
+          <SinoMark className="size-5 text-brand-ink" />
           Sino
         </span>
         <span className="font-mono text-[96px] leading-none font-medium tracking-[-0.06em] md:text-[120px]">404</span>

@@ -45,8 +45,8 @@ export function Topbar({
   const unreadCount = realUnread > 0 ? realUnread : (noticeCount > 0 ? noticeCount : (shell?.unreadNotifications ?? 0))
 
   return (
-    <header data-slot="topbar" className={cn('border-b bg-background', className)}>
-      <div className="hidden h-18 items-center gap-4 px-8 xl:flex">
+    <header data-slot="topbar" className={cn('bg-transparent', className)}>
+      <div className="hidden h-16 items-center gap-3 px-8 xl:flex">
         <div className="relative w-full max-w-110">
           <Search
             className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
@@ -56,13 +56,13 @@ export function Topbar({
             type="search"
             placeholder="Tìm kiếm thư, tin nhắn hoặc liên hệ…"
             aria-label="Tìm trong Sino"
-            className="pr-16 pl-10.5"
+            className="h-10 pr-16 pl-10.5 shadow-card"
           />
           <Kbd className="absolute top-1/2 right-2.5 -translate-y-1/2">Ctrl K</Kbd>
         </div>
         <div className="ml-auto flex items-center gap-3">
           {/* Action button "Viết mới" */}
-          <Button asChild size="sm" className="gap-2 bg-foreground text-background hover:bg-foreground/90 font-medium rounded-lg px-3.5 h-9">
+          <Button asChild size="sm" className="gap-2 px-4">
             <Link to="/inbox/new">
               <SquarePen className="size-4" strokeWidth={1.8} />
               <span>Viết mới</span>
@@ -70,7 +70,7 @@ export function Topbar({
           </Button>
 
           {status && <Status tone={status.tone}>{status.text}</Status>}
-          <span aria-hidden="true" className="mx-1 h-6 w-px bg-border" />
+          <span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />
           <NotificationsMenu
             unreadCount={unreadCount}
             notices={notices}
@@ -93,8 +93,8 @@ export function Topbar({
       </div>
 
       <div className="flex h-15 items-center gap-1 pr-2 pl-4 md:h-16 md:gap-2 md:pr-4 md:pl-6 xl:hidden">
-        <SinoMark className="size-5 shrink-0 md:hidden" />
-        <span className="ml-2 truncate text-xl leading-7 font-semibold tracking-[-0.01em] md:ml-0">{title}</span>
+        <SinoMark className="size-6 shrink-0 text-brand-ink md:hidden" />
+        <span className="ml-2 truncate text-xl leading-7 font-extrabold tracking-[-0.01em] md:ml-0">{title}</span>
         {status && (
           <Status tone={status.tone} className="ml-3 hidden md:inline-flex">
             {status.short}

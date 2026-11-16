@@ -46,7 +46,7 @@ const FLAG_ICONS: Record<RowFlag['kind'], LucideIcon> = {
 }
 
 const CHIP =
-  'inline-flex h-8.5 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border bg-surface px-3 text-[13px] leading-4.5 font-medium text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-pressed:border-foreground aria-pressed:bg-raised aria-pressed:text-foreground'
+  'inline-flex h-8.5 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border bg-surface px-3 text-[13px] leading-4.5 font-medium text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-pressed:border-transparent aria-pressed:bg-brand-soft aria-pressed:text-brand-ink'
 
 /**
  * The conversation list in its three shapes: desktop (title, count, view buttons; canvas `Inbox`), tablet (source and
@@ -106,7 +106,7 @@ export function ConversationList({
   const compose = screen.kind === 'EMAIL'
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-col md:border-r', className)}>
+    <div className={cn('flex h-full min-h-0 flex-col', className)}>
       <header className="flex min-h-15 items-center gap-1 py-2 pr-2 pl-4 md:hidden">
         <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.018em]">{screen.title}</h1>
         <Spec className="ml-2.5 pt-1.5">{unread}</Spec>
@@ -139,13 +139,13 @@ export function ConversationList({
 
       {/* Desktop and tablet headers placed outside the scroller so the scrollbar starts at the conversation list */}
       {filters && (
-        <div role="group" aria-label="Lọc" className="hidden flex-wrap gap-2 border-b bg-background px-3 pt-3.5 pb-3 md:flex xl:hidden">
+        <div role="group" aria-label="Lọc" className="hidden flex-wrap gap-2 px-3 pt-3.5 pb-3 md:flex xl:hidden">
           <span className="relative inline-flex">
             <select
               aria-label="Nguồn"
               value={filter.source ?? ''}
               onChange={(event) => onFilter({ source: event.target.value || null })}
-              className={cn(CHIP, 'appearance-none pr-8', filter.source && 'border-foreground bg-raised text-foreground')}
+              className={cn(CHIP, 'appearance-none pr-8', filter.source && 'border-transparent bg-brand-soft text-brand-ink')}
             >
               <option value="">Tất cả nguồn</option>
               {sources.map((source) => (
@@ -170,7 +170,7 @@ export function ConversationList({
           {compose && <NewMailLink search={search} className="ml-auto" />}
         </div>
       )}
-      <div className="hidden flex-col gap-3.5 border-b bg-background px-4 pt-5 pb-3.5 xl:flex">
+      <div className="hidden flex-col gap-3.5 px-4 pt-5 pb-3.5 xl:flex">
         <div className="flex items-center gap-3">
           <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{screen.title}</h1>
           <Spec className="ml-auto">{unread}</Spec>
@@ -179,7 +179,7 @@ export function ConversationList({
         {filters && <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />}
       </div>
 
-      <section ref={scroller} aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto border-t md:border-t-0">
+      <section ref={scroller} aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto px-2 pb-2">
         {notice && notice.count > 0 && (
           <div role="status" className="pointer-events-none sticky top-3 z-2 flex h-0 justify-center">
             <button
@@ -248,6 +248,13 @@ function useArrivedRows(conversations: ConversationItem[], resetKey: string): { 
 // than one account, the row names its accounts at every width, after the source from 1280px (D-97; every account of a
 // thread found in several, f05b D-182). A row that has just arrived slides in (only fades when motion is reduced), or
 // appears at once when many arrived together.
+/** The pastel of an avatar follows the name, so a sender keeps the same colour in every list. */
+function pastelOf(name: string): 'a' | 'b' | 'c' | 'd' | 'e' | 'f' {
+  let sum = 0
+  for (const ch of name) sum += ch.codePointAt(0) ?? 0
+  return (['a', 'b', 'c', 'd', 'e', 'f'] as const)[sum % 6]
+}
+
 function ConversationRow({
   item,
   selected,
@@ -275,7 +282,7 @@ function ConversationRow({
       to={{ pathname: `${SCREENS[item.kind].path}/${item.id}`, search }}
       aria-current={selected ? 'page' : undefined}
       data-arrived={arrived ?? undefined}
-      className="grid grid-cols-[40px_minmax(0,1fr)_auto] data-[arrived=slide]:motion-safe:animate-row-in data-[arrived=slide]:motion-reduce:animate-fade-in items-start gap-x-3 border-b px-4 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3.5 md:rounded-xl md:border md:border-transparent md:p-3.5 md:aria-[current=page]:border-border-strong md:aria-[current=page]:bg-raised"
+      className="grid grid-cols-[40px_minmax(0,1fr)_auto] data-[arrived=slide]:motion-safe:animate-row-in data-[arrived=slide]:motion-reduce:animate-fade-in items-start gap-x-3 rounded-md px-3 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3.5 md:p-3.5 aria-[current=page]:bg-brand-soft"
     >
       {item.kind === 'CHAT' ? (
         <span className="relative grid size-10 shrink-0 place-items-center md:size-9">
@@ -296,8 +303,16 @@ function ConversationRow({
           )}
         </span>
       ) : (
-        <span className="grid size-10 place-items-center rounded-xl border bg-raised text-foreground md:size-9 md:rounded-sm">
-          <ProviderIcon provider={item.provider} />
+        <span className="relative grid size-10 shrink-0 place-items-center md:size-9">
+          <Avatar placeholder={pastelOf(displayName(item))} className="size-10 rounded-full md:size-9">
+            <span className="flex size-full items-center justify-center text-xs font-extrabold">{getInitials(displayName(item))}</span>
+          </Avatar>
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -bottom-1 grid size-4.5 place-items-center rounded-[6px] bg-surface text-foreground shadow-[0_0_0_2px_var(--surface)]"
+          >
+            <ProviderIcon provider={item.provider} className="size-3" />
+          </span>
         </span>
       )}
       <span className="flex min-w-0 flex-col gap-0.75">

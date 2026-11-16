@@ -40,7 +40,8 @@ export function useShellData(): { shell: ShellData | undefined; receivedAt: numb
       },
       unreadNotifications: 0,
       sync: {
-        state: 'OK',
+        // No account at all is "no source"; accounts that never synced say so instead (the bar used to claim there were none).
+        state: accounts.length === 0 ? 'IDLE' : 'OK',
         lastSyncedAt,
         progress: null,
       },

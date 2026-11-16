@@ -34,7 +34,7 @@ export function SelectBox({ className, children, ...props }: ComponentProps<'sel
   return (
     <div className={cn('relative has-disabled:opacity-45', className)}>
       <select
-        className="h-11 w-full cursor-pointer appearance-none rounded-sm border border-border bg-surface pr-10 pl-3.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16 disabled:cursor-not-allowed aria-invalid:border-danger"
+        className="h-11 w-full cursor-pointer appearance-none rounded-full border border-border-strong bg-surface pr-10 pl-3.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16 disabled:cursor-not-allowed aria-invalid:border-danger"
         {...props}
       >
         {children}
