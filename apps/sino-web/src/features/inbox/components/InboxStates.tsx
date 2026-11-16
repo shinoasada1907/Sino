@@ -47,21 +47,6 @@ export function ListSkeleton({ label }: { label?: string }) {
   )
 }
 
-/** The source column before the list has arrived: its shape while loading, empty when the list cannot load. */
-export function SourcesSkeleton({ loading, className }: { loading: boolean; className?: string }) {
-  return (
-    <aside aria-hidden="true" className={cn('min-h-0 border-r', className)}>
-      {loading && (
-        <div className="flex flex-col gap-4 px-5.5 py-6">
-          {[56, 72, 48, 64].map((width) => (
-            <Skel key={width} className="h-3" style={{ width: `${width}%` }} />
-          ))}
-        </div>
-      )}
-    </aside>
-  )
-}
-
 /** The reading column while the list loads. */
 export function ThreadSkeleton() {
   return (

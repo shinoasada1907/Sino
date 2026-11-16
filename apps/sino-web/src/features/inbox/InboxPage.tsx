@@ -16,8 +16,7 @@ import { ConversationList } from './components/ConversationList'
 import { EmailThread } from './components/EmailThread'
 import { NewMail } from './components/NewMail'
 import { NicknameDialog } from './components/NicknameDialog'
-import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
-import { SourcePane } from './components/SourcePane'
+import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, ThreadSkeleton } from './components/InboxStates'
 import { canSetNickname, displayName, failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
@@ -183,15 +182,10 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       {online && realtimeDown && <RealtimeBanner state={realtimeDown} />}
       <div
         className={cn(
-          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:pl-0 md:*:overflow-hidden md:*:rounded-panel md:*:bg-surface md:*:shadow-card',
-          chat ? (showInfo ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]') : 'xl:grid-cols-[200px_380px_minmax(0,1fr)]',
+          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:*:overflow-hidden md:*:rounded-panel md:*:bg-surface md:*:shadow-card',
+          chat ? (showInfo ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]') : 'xl:grid-cols-[380px_minmax(0,1fr)]',
         )}
       >
-        {inbox ? (
-          <SourcePane inbox={inbox} filter={filter} searchFor={searchFor} nameOf={nameOf} className={chat ? 'hidden' : 'hidden xl:block'} />
-        ) : (
-          <SourcesSkeleton loading={loading} className="hidden xl:block" />
-        )}
         <ConversationList
           screen={screen}
           conversations={conversations ?? []}

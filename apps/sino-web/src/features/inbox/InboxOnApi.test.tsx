@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -86,7 +86,8 @@ function held() {
 }
 
 const open = (path: string) => renderApp(path, { inbox: null })
-const sources = () => within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' }))
+// The source chips above the list: the source column is gone at 1280px, the sidebar and the list tabs carry the rest.
+const sources = () => within(screen.getByRole('group', { name: 'Nguồn' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 // The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
 const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
@@ -114,7 +115,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     expect(await list().findByRole('link', { name: /Trần Minh Anh/ })).toBeInTheDocument()
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Ngân hàng ACB'])
     expect(pane().getAllByText('1 chưa đọc')).not.toHaveLength(0)
-    expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('1')
+    expect(sources().getByRole('button', { name: 'Gmail · 1' })).toBeInTheDocument()
     expect(within(list().getByRole('link', { name: /Trần Minh Anh/ })).getByLabelText('Chưa đọc')).toBeInTheDocument()
     expect(asked).toEqual(['view=all&kind=email'])
   })
@@ -143,7 +144,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
         return undefined
       }),
     )
-    open('/inbox')
+    const { router } = open('/inbox')
     const user = userEvent.setup()
     expect(await list().findByRole('button', { name: 'Tải thêm' })).toBeInTheDocument()
 
@@ -153,7 +154,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     expect(list().queryByRole('button', { name: 'Tải thêm' })).toBeNull()
     unread.release()
 
-    await user.click(sources().getByRole('link', { name: /Đã lưu trữ/ }))
+    await act(() => router.navigate({ search: '?view=archived' }))
     expect(list().getByRole('status', { name: 'Đang tải danh sách' })).toBeInTheDocument()
     expect(list().queryByText('Không có cuộc trò chuyện nào')).toBeNull()
     archived.release()
@@ -241,7 +242,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     expect(rowTitles()).toEqual(['Trần Minh Anh'])
     await vi.waitFor(() => expect(changes).toEqual([['c-2', { archived: true }]]))
 
-    await user.click(sources().getByRole('link', { name: /Đã lưu trữ/ }))
+    await act(() => router.navigate({ search: '?view=archived' }))
     expect(await list().findByRole('link', { name: /Ngân hàng ACB/ })).toBeInTheDocument()
     // The list on screen did not load again; the archive view loaded when it was shown.
     expect(asked).toEqual(['view=all&kind=email', 'view=archived&kind=email'])
