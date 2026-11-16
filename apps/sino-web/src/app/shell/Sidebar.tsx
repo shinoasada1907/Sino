@@ -68,7 +68,7 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
         id: a.id,
         name: a.displayName ? `Zalo — ${a.displayName}` : a.address || 'Zalo',
         count: chatInbox?.counts.byAccount?.[a.id]?.unread ?? 0,
-        dotClass: 'bg-emerald-500',
+        dotClass: 'bg-success',
         to: `/messages?account=${encodeURIComponent(a.id)}`,
       }))
   }, [accounts, chatInbox?.counts])
@@ -206,7 +206,7 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
         >
           <Link
             to="/profile"
-            className="group flex min-w-0 flex-1 items-center gap-2.5 outline-none cursor-pointer"
+            className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-full outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Hồ sơ cá nhân"
           >
             <MeAvatar className="transition-transform group-hover:scale-105" />
@@ -286,7 +286,7 @@ function SidebarMainItem({
       className={({ isActive }) => {
         const active = isMatch || (isActive && !targetUrl.search && !currentSearch)
         return cn(
-          'group flex h-10 shrink-0 items-center gap-3 rounded-full px-3.5 text-sm font-bold transition-colors outline-none',
+          'group flex h-10 shrink-0 items-center gap-3 rounded-full px-3.5 text-sm font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
           active ? 'bg-brand-soft text-brand-ink' : 'text-muted-foreground hover:bg-hover hover:text-foreground'
         )
       }}

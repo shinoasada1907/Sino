@@ -1,10 +1,12 @@
 import { Plus, RefreshCw } from 'lucide-react'
+import { Link } from 'react-router'
 import { useShellData } from '@/app/shell/useShellData'
 import { formatDateLine } from '@/shared/time/local'
 import { useNow } from '@/shared/time/useNow'
 import { Avatar } from '@/shared/ui/avatar'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { SoonButton } from '@/shared/ui/soon-button'
 import { useAccounts } from '@/features/accounts/useAccounts'
 import { useMe } from '@/features/auth/useAuth'
 import { Status } from '@/shared/ui/status'
@@ -74,13 +76,15 @@ export function OverviewPage() {
             </Avatar>
           )}
           <div className="flex gap-2.5">
-            <Button type="button" variant="soft" size="sm">
+            <SoonButton variant="soft" size="sm">
               <RefreshCw strokeWidth={1.6} />
               Đồng bộ ngay
-            </Button>
-            <Button type="button" variant="primary" size="sm">
-              <Plus strokeWidth={1.6} />
-              Kết nối tài khoản
+            </SoonButton>
+            <Button asChild variant="primary" size="sm">
+              <Link to="/accounts?connect=new">
+                <Plus strokeWidth={1.6} />
+                Kết nối tài khoản
+              </Link>
             </Button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { Bell, ChevronLeft, ChevronRight, Mail, Plus, Repeat } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
+import { SoonButton } from '@/shared/ui/soon-button'
 import { Segmented } from '@/shared/ui/segmented'
 import type { CalendarView } from '../format'
 
@@ -49,10 +50,10 @@ export function CalendarHeader({
         </Button>
       </div>
       <Segmented label="Chế độ xem" value={view} options={VIEWS} onChange={onView} />
-      <Button type="button" variant="primary" size="sm">
+      <SoonButton variant="primary" size="sm">
         <Plus strokeWidth={1.6} />
         Lịch hẹn
-      </Button>
+      </SoonButton>
     </header>
   )
 }

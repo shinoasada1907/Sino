@@ -39,7 +39,7 @@ describe('Tổng quan', () => {
     expect(screen.getByText('Hai tài khoản đang chạy bình thường.')).toBeInTheDocument()
     expect(screen.getAllByText('Messenger cần đăng nhập lại')).not.toHaveLength(0)
     expect(screen.getByRole('button', { name: 'Đồng bộ ngay' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Kết nối tài khoản' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Kết nối tài khoản' })).toHaveAttribute('href', '/accounts?connect=new')
   })
 
   it('shows the unified inbox: waiting conversations and the share of each source', async () => {
@@ -179,11 +179,24 @@ describe('Tổng quan', () => {
     const { router } = openOverview()
     await screen.findByRole('heading', { level: 1 })
 
-    await user.click(screen.getByRole('button', { name: 'Đồng bộ ngay' }))
+    const sync = screen.getByRole('button', { name: 'Đồng bộ ngay' })
+    expect(sync).toHaveAttribute('aria-disabled', 'true')
+    await user.click(sync)
     await user.click(card('Tài khoản').getByRole('button', { name: 'Đăng nhập lại' }))
     await user.click(card('Lối tắt').getByRole('button', { name: /Tạo task/ }))
 
     expect(router.state.location.pathname).toBe('/overview')
+  })
+
+  it('opens the connect wizard from "Kết nối tài khoản"', async () => {
+    const user = userEvent.setup()
+    const { router } = openOverview()
+    await screen.findByRole('heading', { level: 1 })
+
+    await user.click(screen.getByRole('link', { name: 'Kết nối tài khoản' }))
+
+    expect(router.state.location.pathname).toBe('/accounts')
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
   })
 
   it('shows the address of an account under its name, not the id the provider gave it', async () => {

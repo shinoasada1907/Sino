@@ -5,6 +5,7 @@ import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { formatCount, providerNameOf } from '@/shared/format'
 import { useNow } from '@/shared/time/useNow'
 import { Button } from '@/shared/ui/button'
+import { SoonButton } from '@/shared/ui/soon-button'
 import { Input } from '@/shared/ui/input'
 import { Segmented } from '@/shared/ui/segmented'
 import { Status } from '@/shared/ui/status'
@@ -147,10 +148,10 @@ export function AccountsPage() {
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2.5">
-            <Button type="button" variant="secondary" size="sm">
+            <SoonButton variant="secondary" size="sm">
               <RefreshCw strokeWidth={1.6} />
               Đồng bộ tất cả
-            </Button>
+            </SoonButton>
             <Button type="button" variant="primary" size="sm" onClick={connect}>
               <Plus strokeWidth={1.6} />
               Kết nối tài khoản

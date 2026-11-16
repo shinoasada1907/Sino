@@ -44,8 +44,8 @@ export function ProfileHeaderCard({
             <h2 className="truncate text-xl font-bold tracking-tight text-foreground md:text-2xl">
               {profile.displayName}
             </h2>
-            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 gap-1">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
+            <Badge className="bg-success-soft text-success-ink border-success/20 gap-1">
+              <span className="size-1.5 rounded-full bg-success" />
               Đang hoạt động
             </Badge>
             <Badge className="text-muted-foreground">{ROLE_LABELS[profile.role] ?? profile.role}</Badge>

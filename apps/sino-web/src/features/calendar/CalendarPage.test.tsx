@@ -168,7 +168,9 @@ describe('Lịch on desktop', () => {
     await (await findDetail()).findByRole('heading', { level: 2, name: 'Về nhà ăn cơm' })
 
     await user.click(calendar().getByRole('button', { name: 'Lịch hẹn' }))
+    expect(calendar().getByRole('button', { name: 'Lịch hẹn' })).toHaveAttribute('aria-disabled', 'true')
     for (const button of [...detail().getAllByRole('button', { name: 'Sửa' }), detail().getByRole('button', { name: 'Thêm thao tác' }), detail().getByRole('button', { name: 'Xóa lịch hẹn' })]) {
+      expect(button).toHaveAttribute('aria-disabled', 'true')
       await user.click(button)
     }
 

@@ -4,6 +4,7 @@ import { cn } from '@/shared/lib/utils'
 import { WEEKDAY_NAMES } from '@/shared/time/local'
 import { dayMonthOfDate, weekdayOfDate } from '@/shared/time/localDate'
 import { Button } from '@/shared/ui/button'
+import { SoonButton } from '@/shared/ui/soon-button'
 import { Spec } from '@/shared/ui/spec'
 import type { CalendarData, CalendarRange } from '../calendar.types'
 import { itemsOfDay, weekDays } from '../format'
@@ -47,9 +48,9 @@ export function MobileCalendar({
         <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={onToday}>
           Hôm nay
         </Button>
-        <Button type="button" variant="ghost" size="icon" aria-label="Thêm lịch hẹn">
+        <SoonButton variant="ghost" size="icon" aria-label="Thêm lịch hẹn">
           <Plus strokeWidth={1.6} />
-        </Button>
+        </SoonButton>
       </header>
       <div role="group" aria-label={`Tuần ${weekTitle}`} className="grid shrink-0 grid-cols-7 gap-1 px-3 pb-3">
         {weekDays(week, today).map((day) => {

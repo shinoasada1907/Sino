@@ -40,7 +40,7 @@ describe('Tài khoản', () => {
     expect(await screen.findByText('TÀI KHOẢN · 3 ĐÃ KẾT NỐI')).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1, name: 'Tài khoản' })).not.toHaveLength(0)
     expect(screen.getByText(/Mỗi tài khoản là một danh tính của bạn ở một nhà cung cấp/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Đồng bộ tất cả' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Đồng bộ tất cả' })).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getAllByRole('button', { name: 'Kết nối tài khoản' })).not.toHaveLength(0)
     expect(screen.getByText('1 ổn định')).toBeInTheDocument()
     expect(screen.getByText('1 đang đồng bộ')).toBeInTheDocument()
