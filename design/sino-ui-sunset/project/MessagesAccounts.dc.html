@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Tin nhắn theo tài khoản</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} app" style="height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" active="messages" hint-size="256px,900px"></dc-import>
+  <dc-import name="AccountColumn" theme="{{theme}}" kind="chat" compact="{{open}}" selected="{{selected}}" hint-size="{{colSize}}"></dc-import>
+
+  <section class="pane" aria-label="Cuộc trò chuyện" style="flex: 0 0 320px; width: 320px; height: 876px;">
+    <div style="padding: 16px 14px 10px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <h1 class="h2" style="font-size: 17px;">Tin nhắn</h1>
+        <span class="small subtle trunc">{{scope}}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div class="seg" role="tablist" aria-label="Lọc" style="flex: 1;">
+          <button class="on" role="tab" aria-selected="true" style="flex: 1; padding: 0 8px;">Tất cả</button>
+          <button role="tab" aria-selected="false" style="flex: 1; padding: 0 8px;">Chưa đọc {{unread}}</button>
+          <button role="tab" aria-selected="false" style="flex: 1.3; padding: 0 8px;">Cần trả lời {{reply}}</button>
+        </div>
+        <button class="btn ghost" aria-haspopup="menu" style="height: 38px; padding: 0 10px;">Thêm<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div style="display: flex; gap: 6px;" aria-label="Loại chat">
+        <button class="tag solid" aria-pressed="true" style="border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700;">Mọi chat</button>
+        <button class="tag" aria-pressed="false" style="border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700;">Cá nhân</button>
+        <button class="tag" aria-pressed="false" style="border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700;">Nhóm</button>
+      </div>
+    </div>
+    <div style="flex: 1; overflow: auto; padding: 0 8px 12px;">
+      <sc-for list="{{chats}}" as="c" hint-placeholder-count="6">
+        <a href="#" class="{{c.cls}}" style="align-items: center;">
+          <span class="av {{c.av}}">{{c.ini}}<span class="pv {{c.pv}}">{{c.pl}}</span></span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; gap: 8px;"><span class="who trunc">{{c.who}}</span><span class="subtle small" style="margin-left: auto;">{{c.time}}</span></div>
+            <sc-if value="{{c.label}}" hint-placeholder-val="{{true}}"><div class="tiny subtle trunc">{{c.label}}</div></sc-if>
+            <div style="display: flex; gap: 8px; align-items: center;"><span class="muted small trunc" style="flex: 1;">{{c.last}}</span><sc-if value="{{c.n}}" hint-placeholder-val="{{true}}"><span class="tag accent" style="height: 18px; padding: 0 6px; font-weight: 700;">{{c.n}}</span></sc-if></div>
+          </div>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+
+  <sc-if value="{{closed}}" hint-placeholder-val="{{true}}">
+    <section class="main" aria-label="Chưa chọn cuộc trò chuyện" style="height: 900px; align-items: center; justify-content: center; gap: 12px;">
+      <div class="dots" style="width: 72px; height: 72px; border-radius: 24px; display: flex; align-items: center; justify-content: center; background-color: var(--accent-soft); color: var(--accent-ink);"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z"/></svg></div>
+      <p class="muted">Chọn một cuộc trò chuyện để đọc.</p>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{open}}" hint-placeholder-val="{{false}}">
+    <section class="main" aria-label="Gia đình" style="height: 900px; position: relative;">
+      <div class="top" style="padding: 0 16px 0 24px;">
+        <span class="av sm a4">GĐ</span>
+        <div style="display: flex; flex-direction: column; line-height: 1.25;"><span style="font-weight: 700;">Gia đình</span><span class="tiny subtle">An · Công việc · nhóm 6 người</span></div>
+        <div style="margin-left: auto; display: flex; gap: 2px;">
+          <button class="icon-btn" aria-label="Tìm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+          <button class="icon-btn tint" aria-label="Thông tin" aria-expanded="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+        </div>
+      </div>
+      <div style="flex: 1; overflow: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="align-self: center;" class="tag">Hôm nay</div>
+        <div style="display: flex; gap: 10px; align-items: flex-end;"><span class="av sm a2">B</span><div style="display: flex; flex-direction: column; gap: 3px; max-width: 56%;"><span class="tiny subtle" style="padding-left: 4px;">Bố</span><div class="bubble theirs" style="max-width: 100%;">Tuần này ai về được thì báo bố mẹ nhé.</div></div><span class="tiny subtle">07:40</span></div>
+        <div style="display: flex; gap: 10px; align-items: flex-end; flex-direction: row-reverse;"><div class="bubble mine" style="max-width: 56%;">Con về được, tầm 18:30 ạ.</div><span class="tiny subtle">08:02</span></div>
+        <div style="display: flex; gap: 10px; align-items: flex-end;"><span class="av sm a4">M</span><div style="display: flex; flex-direction: column; gap: 3px; max-width: 56%;"><span class="tiny subtle" style="padding-left: 4px;">Mẹ</span><div class="bubble theirs" style="max-width: 100%;">Cuối tuần này cả nhà về ăn cơm nhé, nhớ mua bánh cho bà.</div></div><span class="tiny subtle">08:15</span></div>
+      </div>
+      <div style="padding: 0 24px 20px;">
+        <div class="card" style="padding: 8px 8px 8px 14px; display: flex; align-items: center; gap: 6px; border-radius: 14px;">
+          <button class="icon-btn" aria-label="Đính kèm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+          <span class="muted" style="flex: 1;">Nhắn vào Gia đình…</span>
+          <button class="btn primary" aria-label="Gửi" style="width: 36px; padding: 0; border-radius: 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+
+      <aside class="card" aria-label="Thông tin nhóm" style="position: absolute; top: 72px; right: 16px; bottom: 16px; width: 288px; padding: 20px; display: flex; flex-direction: column; gap: 18px; box-shadow: var(--shadow-pop);">
+        <div style="display: flex; align-items: center;">
+          <span class="eyebrow">Thông tin</span>
+          <button class="icon-btn" aria-label="Đóng thông tin (Esc)" style="margin-left: auto; width: 32px; height: 32px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;">
+          <span class="av lg a4" style="width: 64px; height: 64px; font-size: 20px;">GĐ</span>
+          <div><div class="h2">Gia đình</div><div class="small subtle">An · Công việc · 6 thành viên</div></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span class="eyebrow">Ảnh và tệp</span>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;">
+            <div style="aspect-ratio: 1; border-radius: 8px; background: var(--accent-soft);"></div>
+            <div style="aspect-ratio: 1; border-radius: 8px; background: var(--dusk-soft);"></div>
+            <div style="aspect-ratio: 1; border-radius: 8px; background: var(--honey-soft);"></div>
+          </div>
+        </div>
+        <button class="btn" style="margin-top: auto;">Đặt biệt danh</button>
+      </aside>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"open":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const open = !!this.props.open;
+    // Closed: every account ("Tất cả"); open: one account picked, so rows drop the account name (D-430).
+    const selected = open ? 'zalo-2' : 'all';
+    const one = selected !== 'all';
+    const c = (av, ini, pv, pl, who, account, group, time, last, n, on) => {
+      const parts = [];
+      if (!one) parts.push(account);
+      if (group) parts.push('nhóm ' + group + ' người');
+      return { av, ini, pv, pl, who, time, last, n, label: parts.join(' · '), cls: 'row' + (n ? ' unread' : '') + (on ? ' on' : '') };
+    };
+    const all = [
+      c('a4', 'GĐ', 'zalo', 'Z', 'Gia đình', 'An · Công việc', 6, '08:15', 'Mẹ: Nhớ mua bánh cho bà nhé', '2', open),
+      c('a3', 'LH', 'zalo', 'Z', 'Lê Hoàng', 'An Nguyễn', 0, '07:52', 'Ok, mai mình gửi file thiết kế bản cuối', '1'),
+      c('a2', 'TT', 'zalo', 'Z', 'Thu Trang', 'An Nguyễn', 0, 'Hôm qua', 'Bạn: Ảnh đẹp quá, gửi nốt nhé', ''),
+      c('a5', 'DA', 'tele', 'T', 'Dev Sài Gòn', '@an.nguyen', 24, 'Hôm qua', 'Quang: PR đã merge rồi mọi người', ''),
+      c('a1', 'MA', 'zalo', 'Z', 'Trần Minh Anh', 'An · Công việc', 0, 'Thứ 4', 'Em gửi anh file hợp đồng qua mail rồi ạ', ''),
+      c('a3', 'CT', 'zalo', 'Z', 'Công ty — Văn phòng', 'An · Công việc', 38, '29/09', 'Thông báo nghỉ lễ 2/9', '')
+    ];
+    const chats = one ? all.filter((x, i) => i === 0 || i === 4 || i === 5) : all;
+    return {
+      theme: this.props.theme === 'dark' ? 'dark' : 'light',
+      open, closed: !open, selected,
+      colSize: open ? '76px,900px' : '244px,900px',
+      scope: one ? 'An · Công việc' : 'Tất cả tài khoản',
+      unread: one ? '2' : '5', reply: one ? '1' : '2',
+      chats
+    };
+  }
+}
+</script>
+</body>
+</html>

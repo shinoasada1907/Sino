@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Hộp thư theo tài khoản</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} app" style="height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" active="inbox" hint-size="256px,900px"></dc-import>
+  <dc-import name="AccountColumn" theme="{{theme}}" kind="email" selected="all" hint-size="244px,900px"></dc-import>
+
+  <section class="pane" aria-label="Danh sách thư" style="flex: 0 1 380px; height: 876px;">
+    <div style="padding: 16px 16px 10px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--border);">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <h1 class="h2" style="font-size: 17px;">Hộp thư</h1><span class="tag accent">7 chưa đọc</span>
+        <span class="small subtle" style="margin-left: auto;">Tất cả tài khoản</span>
+      </div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <sc-for list="{{filters}}" as="f" hint-placeholder-count="6"><button class="{{f.cls}}" aria-pressed="{{f.on}}" style="height: 26px; border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700;">{{f.label}}</button></sc-for>
+      </div>
+    </div>
+    <div style="flex: 1; overflow: auto; padding: 4px 8px 12px;">
+      <sc-for list="{{rows}}" as="m" hint-placeholder-count="5">
+        <a href="#" class="{{m.cls}}">
+          <span class="av {{m.av}}">{{m.ini}}<span class="pv gmail">G</span></span>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <div style="display: flex; gap: 8px; align-items: center;"><span class="who trunc">{{m.who}}</span><span class="subtle small num" style="margin-left: auto;">{{m.time}}</span></div>
+            <span class="tiny subtle trunc">{{m.account}}</span>
+            <span class="subj trunc">{{m.subj}}</span>
+            <span class="muted small trunc">{{m.preview}}</span>
+          </div>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+
+  <section class="main" aria-label="Nội dung thư" style="height: 900px;">
+    <div class="top" style="padding: 0 16px 0 28px;">
+      <div class="small muted" style="display: flex; align-items: center; gap: 8px;"><span class="pv gmail">G</span>an.nguyen@gmail.com · 3 thư</div>
+      <a href="#" class="btn" style="margin-left: auto;">Mở trong Gmail</a>
+    </div>
+    <div style="flex: 1; overflow: auto;">
+      <div style="max-width: 720px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 18px;">
+        <h2 class="h1" style="font-size: 24px;">Hợp đồng thuê văn phòng — bản sửa lần 2</h2>
+        <article class="card" style="padding: 24px 28px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="av a1">MA</span>
+            <div style="flex: 1;"><div style="font-weight: 700;">Trần Minh Anh</div><div class="small subtle">tới an.nguyen@gmail.com</div></div>
+            <span class="small subtle">09:41 hôm nay</span>
+          </div>
+          <p style="line-height: 1.7;">Em gửi lại bản đã sửa điều khoản 4 và phụ lục giá theo trao đổi hôm thứ Tư. Anh xem giúp và phản hồi trước thứ Tư 07/10 nhé.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const filters = [['Tất cả', true], ['Chưa đọc 7'], ['Cần trả lời 2'], ['Có tệp 3'], ['Đã hẹn giờ 1'], ['Đang tạm ẩn']]
+      .map(([label, on]) => ({ label, on: on ? 'true' : 'false', cls: on ? 'tag accent' : 'tag' }));
+    const m = (av, ini, who, account, time, subj, preview, unread, on) => ({
+      av, ini, who, account, time, subj, preview, cls: 'row' + (unread ? ' unread' : '') + (on ? ' on' : '')
+    });
+    const rows = [
+      m('a1', 'MA', 'Trần Minh Anh', 'an.nguyen@gmail.com', '09:41', 'Hợp đồng thuê văn phòng — bản sửa lần 2', 'Em gửi lại bản đã sửa điều khoản 4 và phụ lục giá.', true, true),
+      m('a5', 'PK', 'Phòng khám Ánh Dương', 'an.nguyen@gmail.com', '07:30', 'Nhắc lịch khám thứ Hai 05/10', 'Quý khách có lịch khám lúc 08:30.', true),
+      m('a3', 'HR', 'Phòng nhân sự', 'an@congty.vn', '07:05', 'Lịch nghỉ lễ quý IV', 'Công ty gửi lịch nghỉ lễ và trực quý IV.', true),
+      m('a2', 'TT', 'Thu Trang', 'an.nguyen@gmail.com', 'Hôm qua', 'Ảnh chuyến đi Đà Lạt', 'Mình gửi trước 40 tấm, phần còn lại để trong thư mục chung.', false),
+      m('a6', 'KT', 'Kế toán', 'an@congty.vn, an.nguyen@gmail.com', 'Thứ 3', 'Bảng lương tháng 9', 'Bảng lương đã gửi kèm, anh kiểm tra giúp.', false)
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', filters, rows };
+  }
+}
+</script>
+</body>
+</html>
