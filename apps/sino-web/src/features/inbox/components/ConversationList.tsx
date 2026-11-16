@@ -20,6 +20,7 @@ import {
   rowFlag,
   rowTime,
   sourceLabel,
+  FOLDERS,
   type InboxFilter,
   type InboxView,
   type RowFlag,
@@ -98,17 +99,21 @@ export function ConversationList({
   className?: string
 }) {
   const groups = groupConversations(conversations, now)
-  const arrived = useArrivedRows(conversations, `${filter.view} ${filter.source ?? ''} ${switching}`)
+  const arrived = useArrivedRows(conversations, `${filter.folder ?? filter.view} ${filter.source ?? ''} ${switching}`)
   const scroller = useRef<HTMLElement>(null)
   const label = (name: string, count: number | null) => (count ? `${name} · ${count}` : name)
+  // A mail folder has no tabs of the inbox: its list is whatever the server holds in it (D-502).
+  const folder = filter.folder ? FOLDERS[filter.folder] : null
   const filters = body === undefined
+  const tabs = filters && !folder
+  const title = folder?.title ?? screen.title
   // Only email starts a new conversation from Sino (f10-new-mail); Tin nhắn has no "Thư mới" (D-304).
   const compose = screen.kind === 'EMAIL'
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
       <header className="flex min-h-15 items-center gap-1 py-2 pr-2 pl-4 md:hidden">
-        <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.018em]">{screen.title}</h1>
+        <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.018em]">{title}</h1>
         <Spec className="ml-2.5 pt-1.5">{unread}</Spec>
         {compose && (
           <Button asChild variant="ghost" size="icon" className="ml-auto">
@@ -156,7 +161,7 @@ export function ConversationList({
             </select>
             <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.6} />
           </span>
-          {TABS.slice(1).map((tab) => (
+          {tabs && TABS.slice(1).map((tab) => (
             <button
               key={tab.value}
               type="button"
@@ -172,11 +177,11 @@ export function ConversationList({
       )}
       <div className="hidden flex-col gap-3.5 px-4 pt-5 pb-3.5 xl:flex">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{screen.title}</h1>
+          <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{title}</h1>
           <Spec className="ml-auto">{unread}</Spec>
           {compose && <NewMailLink search={search} />}
         </div>
-        {filters && <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />}
+        {tabs && <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />}
       </div>
 
       <section ref={scroller} aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto px-2 pb-2">
@@ -197,7 +202,7 @@ export function ConversationList({
         {body ?? (
           <>
             {groups.length === 0 &&
-              (switching ? <ListSkeleton label="Đang tải danh sách" /> : <p className="px-4 py-6 text-sm text-muted-foreground md:px-5.5">Không có cuộc trò chuyện nào</p>)}
+              (switching ? <ListSkeleton label="Đang tải danh sách" /> : <p className="px-4 py-6 text-sm text-muted-foreground md:px-5.5">{folder?.empty ?? 'Không có cuộc trò chuyện nào'}</p>)}
             {groups.map((group) => (
               <div key={group.label}>
                 <div className="px-4 pt-4 pb-1.5 font-mono text-[11px] leading-4 font-medium tracking-[0.04em] text-muted-foreground md:px-5.5">{group.label}</div>

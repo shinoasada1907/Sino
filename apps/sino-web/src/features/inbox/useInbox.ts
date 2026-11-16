@@ -21,7 +21,8 @@ export const inboxKey = (kind: ProviderKind) => [...FRAMES_KEY, kind] as const
 export const INBOX_UNREAD_QUERY_KEY = ['inbox-unread'] as const
 const LISTS_KEY = ['inbox', 'list'] as const
 /** The pages of one kind, view and source. */
-export const conversationsKey = (kind: ProviderKind, { view, source, account }: InboxFilter) => [...LISTS_KEY, kind, view, source, account] as const
+export const conversationsKey = (kind: ProviderKind, { view, source, account, folder }: InboxFilter) =>
+  [...LISTS_KEY, kind, folder ?? view, source, account] as const
 export const conversationKey = (conversationId: string) => ['inbox', 'conversation', conversationId] as const
 /** Under the conversation, so that a change the stream reports reads them again too (D-126). */
 export const messagesKey = (conversationId: string) => [...conversationKey(conversationId), 'messages'] as const
@@ -89,7 +90,7 @@ export interface ConversationListQuery {
 export function useConversationList(kind: ProviderKind, filter: InboxFilter, now: Date): ConversationListQuery {
   const query = useInfiniteQuery({
     queryKey: conversationsKey(kind, filter),
-    queryFn: ({ pageParam }) => fetchConversations(filter.account ? filter : { view: filter.view, source: filter.source, account: null }, pageParam, kind),
+    queryFn: ({ pageParam }) => fetchConversations(filter.account ? filter : { view: filter.view, folder: filter.folder, source: filter.source, account: null }, pageParam, kind),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: Infinity,

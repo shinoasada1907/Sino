@@ -35,11 +35,13 @@
 
 ## 2. Web
 
-- [ ] 2.1 **MF-10 — `sino-web`: `/inbox?folder=` (D-502)** · `sino-web`
+- [x] 2.1 **MF-10 — `sino-web`: `/inbox?folder=` (D-502)** · `sino-web`
   - **Goal:** ba mục sidebar mở đúng danh sách.
   - **Files:** `features/inbox/{format.ts,useInboxFilter.ts,inbox.api.ts,InboxPage.tsx}`, trạng thái rỗng trong `components/`, `app/shell/Sidebar.tsx` (mục sáng), handler MSW và dữ liệu mẫu; test.
   - **Acceptance criteria:** `mail-folders-ui` *Hộp thư mở theo thư mục* (mọi scenario); test hiện có của Hộp thư và Tin nhắn còn xanh; đối chiếu canvas "Sino UI".
   - **Test:** test tay trên Chrome thật ở 1440 (MSW trước, backend sau MF-02): bấm ba mục, xem request ở Network, tiêu đề, mục sáng, trạng thái rỗng, `?folder=drafts`. Rồi Vitest cho ánh xạ `folder` → request và giao diện.
+  - **Thực hiện:** `format.ts` thêm `FOLDERS`, `folderOf`, `requestView`; `filterConversations` không lọc thư mục ở client (server quyết, D-500), chỉ `?view=archived` cũ còn lọc `item.archived`. `useInboxFilter` đọc `folder` chỉ ở Hộp thư; `?folder=` thay `view` trên URL và trong request (`view=sent|trash|archived&kind=email`); giá trị lạ về hộp thư thường. `InboxPage`/`ConversationList`: tiêu đề, ẩn tab lọc, chữ rỗng riêng, nút quay lại. `Sidebar`: mục thư mục sáng theo `folder`, Hộp thư chỉ sáng khi không mở thư mục, link tài khoản giữ `folder`, link Hộp thư bỏ `folder`. `inboxSampleApi.ts` có dữ liệu mẫu ba thư mục. Canvas không có khung riêng: dùng lại khung Hộp thư.
+  - **Kiểm chứng:** `vitest run MailFolders.test.tsx format.test.ts` xanh (MailFolders 7 test: request, tiêu đề, tab ẩn, mục sáng, rỗng, `drafts`, chọn tài khoản, link dòng giữ folder, Tin nhắn bỏ qua folder). Tìm ra lỗi thật khi viết test: link Hộp thư (trỏ tài khoản đầu) mang `&folder=` nên sáng cùng mục thư mục; đã sửa. `pnpm lint`, `pnpm exec tsc -b`, `pnpm build` xanh. **CHƯA KIỂM CHỨNG trên Chrome thật** (không có Chrome trong phiên; stub 8091 dựng được nhưng vite tạm không nạp được cấu hình): ở 1440 bấm Đã gửi / Thư rác / Đã lưu trữ, xem Network `view=sent|trash|archived&kind=email`, tiêu đề, mục sáng, tab lọc ẩn, chữ rỗng, `?folder=drafts` về hộp thư thường, chọn tài khoản trong thư mục thì `folder` còn trong địa chỉ, `/messages?folder=sent` không đổi.
   - **Depends on:** hợp đồng ở `design.md`; người dùng trả lời về các thay đổi chưa commit trong `features/inbox/` (*Risks*).
 
 ## 3. Nghiệm thu

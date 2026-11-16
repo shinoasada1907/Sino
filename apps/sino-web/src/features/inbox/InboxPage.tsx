@@ -17,7 +17,7 @@ import { EmailThread } from './components/EmailThread'
 import { NewMail } from './components/NewMail'
 import { NicknameDialog } from './components/NicknameDialog'
 import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, ThreadSkeleton } from './components/InboxStates'
-import { canSetNickname, displayName, failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
+import { canSetNickname, displayName, FOLDERS, failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
 import { useNewMailNotice } from './useNewMailNotice'
@@ -41,7 +41,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const navigate = useNavigate()
   const validAccounts = inbox?.accounts.map((account) => account.id) ?? null
-  const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null, validAccounts)
+  const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null, validAccounts, kind === 'EMAIL')
   const list = useConversationList(kind, filter, now)
   const notice = useNewMailNotice(inbox?.accounts.map((account) => account.id) ?? [])
 
@@ -116,9 +116,10 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   }
 
   // The first sync of a new account
-  const wholeInbox = filter.view === 'all' && filter.source === null
+  const wholeInbox = filter.view === 'all' && !filter.folder && filter.source === null
   const syncing =
     inbox && wholeInbox && conversations?.length === 0 && !list.switching ? inbox.accounts.filter((entry) => entry.syncProgress !== null) : []
+  const folder = filter.folder ? FOLDERS[filter.folder] : null
   const unread = filter.account && inbox?.counts.byAccount?.[filter.account]
     ? inbox.counts.byAccount[filter.account].unread
     : filter.source
@@ -128,7 +129,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   // Every account holding the open thread, the primary copy first (f05b, D-182).
   const threadAccounts = item && inbox ? item.accountIds.flatMap((id) => inbox.accounts.filter((entry) => entry.id === id)) : []
   const chat = item?.kind === 'CHAT' && account !== undefined
-  const back = { to: `${screen.path}${search}`, label: `Quay lại ${screen.title}` }
+  const back = { to: `${screen.path}${search}`, label: `Quay lại ${folder?.title ?? screen.title}` }
   // The name is a button only in a 1-1 chat of a provider with nicknames (zalo-nicknames, D-420).
   const nicknamable = item !== undefined && inbox !== undefined && canSetNickname(item, inbox.providers)
   const editName = item && nicknamable ? () => setNicknameFor(item.id) : undefined
@@ -154,7 +155,8 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
     />
   )
 
-  let listMeta = online ? unreadLabel(unread) : `${unreadLabel(unread)} · đã lưu`
+  // The unread count is the inbox's; a folder says nothing of it.
+  let listMeta = folder ? '' : online ? unreadLabel(unread) : `${unreadLabel(unread)} · đã lưu`
   let listBody: ReactNode
   if (loading) {
     listMeta = 'đang tải'
