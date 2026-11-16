@@ -1,0 +1,22 @@
+{
+	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	handle /api/* {
+		reverse_proxy sino-api:8080
+	}
+
+	handle {
+		root * /srv
+		encode zstd gzip
+		# The public pages are prerendered at build time (public-pages-prerender, D-462): "/" serves home.html,
+		# "/privacy" and "/en/privacy" their .html file; every other path is the app shell.
+		rewrite / /home.html
+		try_files {path} {path}.html /index.html
+		file_server
+	}
+}
