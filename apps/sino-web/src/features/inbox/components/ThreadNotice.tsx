@@ -33,7 +33,7 @@ export function ThreadNotice({
       <div
         role={reconnect ? 'alert' : 'status'}
         className={cn(
-          'flex flex-wrap items-center gap-x-3.5 gap-y-3 rounded-md border bg-surface px-4.5 py-4',
+          'flex flex-wrap items-center gap-x-3.5 gap-y-3 rounded-lg bg-surface shadow-card px-4.5 py-4',
           reconnect && 'border-[color-mix(in_srgb,var(--danger)_35%,var(--border))]',
           block === 'PERMISSION' && 'border-[color-mix(in_srgb,var(--warning)_40%,var(--border))]',
         )}

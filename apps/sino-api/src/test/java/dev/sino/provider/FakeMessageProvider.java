@@ -6,6 +6,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,12 +27,14 @@ import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.MessageType;
+import dev.sino.provider.spi.Nicknames;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.OAuth2Connection;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
+import dev.sino.provider.spi.QrLogin;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.provider.spi.SkippedItem;
@@ -55,6 +58,9 @@ public final class FakeMessageProvider implements MessageProvider {
     private final ProviderCapabilities capabilities;
     private final List<List<RawMessage>> pages;
     private final OAuth2Connection oauth2;
+    private final QrLogin qrLogin;
+    private final boolean turnedOn;
+    private final ProviderKind kind;
     private final Long estimate;
     private final ProviderException estimateFailure;
     private final Map<Integer, ProviderException> failures;
@@ -64,6 +70,10 @@ public final class FakeMessageProvider implements MessageProvider {
     private final ProviderException contentFailure;
     private final Map<String, AttachmentContent> files;
     private final ProviderException fileFailure;
+    // null unless the builder called nicknames(...): then the fake declares NICKNAMES (zalo-nicknames, D-417).
+    private final Map<String, String> nicknames;
+    private final Queue<ProviderException> nicknameSetFailures = new ArrayDeque<>();
+    private final List<SetNickname> nicknameSets = new ArrayList<>();
     private final AtomicInteger calls = new AtomicInteger();
     private final AtomicInteger pushCalls = new AtomicInteger();
     private final AtomicInteger contentCalls = new AtomicInteger();
@@ -71,19 +81,26 @@ public final class FakeMessageProvider implements MessageProvider {
     private final List<SendMessageCommand> sent = new ArrayList<>();
     private final Queue<ProviderException> sendFailures = new ArrayDeque<>();
     private final Map<UUID, List<String>> foundSends = new HashMap<>();
+    private final Set<UUID> cannotTellSends = new HashSet<>();
     private final List<Search> searches = new ArrayList<>();
     private CountDownLatch[] held;
     private boolean findsSends = true;
+    private volatile UUID lastReadAccount;
 
     private FakeMessageProvider(Builder builder) {
         this.type = builder.type;
         this.displayName = builder.displayName;
         this.push = builder.push;
         this.pushFailure = builder.pushFailure;
-        this.capabilities = push == null && pushFailure == null ? builder.capabilities
+        this.nicknames = builder.nicknames == null ? null : new HashMap<>(builder.nicknames);
+        ProviderCapabilities capabilities = push == null && pushFailure == null ? builder.capabilities
                 : withPush(builder.capabilities);
+        this.capabilities = this.nicknames == null ? capabilities : withNicknames(capabilities);
         this.pages = List.copyOf(builder.pages);
         this.oauth2 = builder.oauth2;
+        this.qrLogin = builder.qrLogin;
+        this.turnedOn = builder.turnedOn;
+        this.kind = builder.kind;
         this.estimate = builder.estimate;
         this.estimateFailure = builder.estimateFailure;
         this.failures = Map.copyOf(builder.failures);
@@ -121,6 +138,11 @@ public final class FakeMessageProvider implements MessageProvider {
     }
 
     @Override
+    public ProviderKind kind() {
+        return kind;
+    }
+
+    @Override
     public ProviderCapabilities capabilities() {
         return capabilities;
     }
@@ -128,6 +150,81 @@ public final class FakeMessageProvider implements MessageProvider {
     @Override
     public Optional<OAuth2Connection> oauth2() {
         return Optional.ofNullable(oauth2);
+    }
+
+    @Override
+    public Optional<QrLogin> qrLogin() {
+        return Optional.ofNullable(qrLogin);
+    }
+
+    /** Present only once the builder called {@code nicknames(...)} (zalo-nicknames, D-417). */
+    @Override
+    public Optional<Nicknames> nicknames() {
+        if (nicknames == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new Nicknames() {
+
+            @Override
+            public void set(ProviderContext context, String friendId, String nickname) {
+                ProviderException failure;
+                synchronized (FakeMessageProvider.this) {
+                    nicknameSets.add(new SetNickname(friendId, nickname));
+                    failure = nicknameSetFailures.poll();
+                    if (failure == null) {
+                        if (nickname == null || nickname.isBlank()) {
+                            nicknames.remove(friendId);
+                        } else {
+                            nicknames.put(friendId, nickname);
+                        }
+                    }
+                }
+                if (failure != null) {
+                    throw failure;
+                }
+            }
+
+            @Override
+            public Map<String, String> list(ProviderContext context) {
+                synchronized (FakeMessageProvider.this) {
+                    return Map.copyOf(nicknames);
+                }
+            }
+
+        });
+    }
+
+    /** Makes the next {@code set} of a nickname fail with {@code failure} instead of taking effect. */
+    public synchronized void failNextNicknameSet(ProviderException failure) {
+        nicknameSetFailures.add(failure);
+    }
+
+    /** What {@link Nicknames#set} was asked, in order, failed attempts included. */
+    public synchronized List<SetNickname> nicknameSets() {
+        return List.copyOf(nicknameSets);
+    }
+
+    /** What the fake would answer {@link Nicknames#list} now. */
+    public synchronized Map<String, String> storedNicknames() {
+        return nicknames == null ? Map.of() : Map.copyOf(nicknames);
+    }
+
+    /** Forgets every {@code set} asked of this fake before, and any queued failure; a test starts clean with it. */
+    public synchronized void forgetNicknames() {
+        nicknameSets.clear();
+        nicknameSetFailures.clear();
+        if (nicknames != null) {
+            nicknames.clear();
+        }
+    }
+
+    /** One call to {@link Nicknames#set}: {@code nickname} null is a clear. */
+    public record SetNickname(String friendId, String nickname) {
+    }
+
+    @Override
+    public boolean turnedOn() {
+        return turnedOn;
     }
 
     @Override
@@ -193,6 +290,13 @@ public final class FakeMessageProvider implements MessageProvider {
         if (!capabilities.supports(ProviderCapability.SEND_MESSAGES)) {
             return MessageProvider.super.sendMessage(context, command);
         }
+        if (command.image() != null) {
+            // Refused before it is recorded: a picture a connector cannot send never reaches it (D-349).
+            capabilities.require(ProviderCapability.SEND_IMAGES);
+        }
+        if (command.file() != null) {
+            capabilities.require(ProviderCapability.SEND_FILES);
+        }
         CountDownLatch[] hold;
         int number;
         ProviderException failure;
@@ -224,6 +328,10 @@ public final class FakeMessageProvider implements MessageProvider {
         if (!findsSends) {
             return MessageProvider.super.findSentMessages(context, command, startedAt);
         }
+        if (cannotTellSends.contains(command.clientMessageId())) {
+            throw new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN,
+                    "sino-zalo cannot tell whether the message went out (409)");
+        }
         return foundSends.getOrDefault(command.clientMessageId(), List.of());
     }
 
@@ -235,6 +343,11 @@ public final class FakeMessageProvider implements MessageProvider {
     /** {@code false}: {@link #findSentMessages} cannot tell, as a connector without it does. */
     public synchronized void findsSends(boolean finds) {
         findsSends = finds;
+    }
+
+    /** {@link #findSentMessages} cannot tell whether the message Sino gave {@code clientMessageId} went out (409). */
+    public synchronized void cannotTell(UUID clientMessageId) {
+        cannotTellSends.add(clientMessageId);
     }
 
     /** The next sends fail with these, one each, in order; the send is still recorded. */
@@ -257,6 +370,7 @@ public final class FakeMessageProvider implements MessageProvider {
         sent.clear();
         sendFailures.clear();
         foundSends.clear();
+        cannotTellSends.clear();
         searches.clear();
         held = null;
         findsSends = true;
@@ -287,6 +401,7 @@ public final class FakeMessageProvider implements MessageProvider {
     @Override
     public Optional<MessageContent> fetchMessageContent(ProviderContext context, String externalMessageId) {
         contentCalls.incrementAndGet();
+        lastReadAccount = context.accountId();
         if (contentFailure != null) {
             throw contentFailure;
         }
@@ -298,6 +413,7 @@ public final class FakeMessageProvider implements MessageProvider {
     public AttachmentContent fetchAttachment(ProviderContext context, String externalMessageId,
             String externalAttachmentId) {
         fileCalls.incrementAndGet();
+        lastReadAccount = context.accountId();
         if (fileFailure != null) {
             throw fileFailure;
         }
@@ -318,6 +434,11 @@ public final class FakeMessageProvider implements MessageProvider {
         return contentCalls.get();
     }
 
+    /** The account the last {@link #fetchMessageContent} or {@link #fetchAttachment} was for, failed calls included. */
+    public UUID lastReadAccount() {
+        return lastReadAccount;
+    }
+
     /** How many times {@link #fetchUpdates} was called, failed calls included. */
     public int fetchCalls() {
         return calls.get();
@@ -330,6 +451,12 @@ public final class FakeMessageProvider implements MessageProvider {
 
     private static ProviderCapabilities withPush(ProviderCapabilities capabilities) {
         Set<ProviderCapability> values = EnumSet.of(ProviderCapability.PUSH_WEBHOOK);
+        values.addAll(capabilities.values());
+        return new ProviderCapabilities(values);
+    }
+
+    private static ProviderCapabilities withNicknames(ProviderCapabilities capabilities) {
+        Set<ProviderCapability> values = EnumSet.of(ProviderCapability.NICKNAMES);
         values.addAll(capabilities.values());
         return new ProviderCapabilities(values);
     }
@@ -386,6 +513,9 @@ public final class FakeMessageProvider implements MessageProvider {
         private ProviderCapabilities capabilities = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES);
         private final List<List<RawMessage>> pages = new ArrayList<>();
         private OAuth2Connection oauth2;
+        private QrLogin qrLogin;
+        private boolean turnedOn = true;
+        private ProviderKind kind = ProviderKind.EMAIL;
         private Long estimate;
         private ProviderException estimateFailure;
         private final Map<Integer, ProviderException> failures = new HashMap<>();
@@ -395,6 +525,7 @@ public final class FakeMessageProvider implements MessageProvider {
         private ProviderException contentFailure;
         private final Map<String, AttachmentContent> files = new HashMap<>();
         private ProviderException fileFailure;
+        private Map<String, String> nicknames;
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -413,6 +544,33 @@ public final class FakeMessageProvider implements MessageProvider {
         /** Makes the fake connect over OAuth2, like Gmail. */
         public Builder oauth2(OAuth2Connection oauth2) {
             this.oauth2 = oauth2;
+            return this;
+        }
+
+        /** Makes the fake connect by QR code, like Zalo. */
+        public Builder qrLogin(QrLogin qrLogin) {
+            this.qrLogin = qrLogin;
+            return this;
+        }
+
+        /**
+         * Makes the fake declare {@code NICKNAMES} (zalo-nicknames, D-417), starting with {@code initial}
+         * (friendId to nickname); empty for a fake with the capability but no nickname yet.
+         */
+        public Builder nicknames(Map<String, String> initial) {
+            this.nicknames = initial;
+            return this;
+        }
+
+        /** The kind the fake declares (D-306); without it, {@link ProviderKind#EMAIL}. */
+        public Builder kind(ProviderKind kind) {
+            this.kind = kind;
+            return this;
+        }
+
+        /** Makes the fake's own switch off (D-286): listed, not connectable. */
+        public Builder turnedOff() {
+            this.turnedOn = false;
             return this;
         }
 

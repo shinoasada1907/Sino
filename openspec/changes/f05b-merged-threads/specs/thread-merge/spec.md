@@ -26,6 +26,10 @@ Hai cuộc trò chuyện MUST thuộc một nhóm khi chúng cùng chủ, cùng 
 - **WHEN** nhóm gồm bản của `tienct07` (thư "hello" 17:41 là thư đến) và bản của `bonzed2001` (thư đó là thư đi)
 - **THEN** danh sách có một item, `accountId` là `tienct07`, `accountIds` = [`tienct07`, `bonzed2001`], `title` là "Sinon sama", và `needsReply` là false vì bản của `bonzed2001` không cần trả lời
 
+#### Scenario: Tài khoản nối hai bản bị xóa
+- **WHEN** bản của A và bản của C chung nhóm chỉ nhờ thư chung với bản của B, rồi tài khoản B bị xóa
+- **THEN** danh sách vẫn có một item cho A và C, không có B trong `accountIds` (D-188)
+
 ### Requirement: Số đếm và bộ lọc theo nhóm
 `GET /api/conversations/counts` MUST đếm mỗi nhóm một lần theo các trường gộp của nhóm; `byProvider` MUST đếm theo nhà cung cấp của nhóm. Lọc `accountId` MUST giữ nhóm có một bản thuộc tài khoản đó; lọc `provider` MUST theo nhà cung cấp của nhóm.
 
@@ -45,11 +49,15 @@ Mã của nhóm MUST là mã của cuộc trò chuyện cũ nhất trong các b�
 - **THEN** cả hai bản `archived = true`, và nhóm rời "Tất cả"
 
 ### Requirement: Thư của một nhóm
-`GET /api/conversations/{id}/messages` MUST trả thư của mọi bản trong phạm vi, mỗi `rfcMessageId` một lần; thư không có `rfcMessageId` MUST luôn có mặt. Khi một thư có ở nhiều bản, MUST lấy bản mà nó là thư đi, rồi bản chính, rồi bản cũ nhất. Trang và cursor MUST tính trên tập đã bỏ trùng. Nội dung, tệp đính kèm và xóa thư gửi lỗi MUST nhận thư của bất kỳ bản nào trong nhóm.
+`GET /api/conversations/{id}/messages` MUST trả thư của mọi bản trong phạm vi, mỗi `rfcMessageId` một lần; thư không có `rfcMessageId`, hoặc có `rfcMessageId` rỗng, MUST luôn có mặt. Khi một thư có ở nhiều bản, MUST lấy bản mà nó là thư đi, rồi bản cũ nhất; bản được chọn MUST NOT đổi khi bản chính đổi. Trang và cursor MUST tính trên tập đã bỏ trùng. Nội dung, tệp đính kèm và xóa thư gửi lỗi MUST nhận thư của bất kỳ bản nào trong nhóm.
 
 #### Scenario: Ba thư, không phải sáu
 - **WHEN** web mở nhóm "xin chào" 17:41 (mỗi bản 3 thư, chung 3 `Message-ID`)
 - **THEN** danh sách thư có 3 thư; thư "xin chào" 17:37 lấy từ bản của `tienct07`, có `clientMessageId`
+
+#### Scenario: Bản chính đổi giữa hai trang
+- **WHEN** web đã tải trang 1 của một nhóm, rồi bản kia có thư mới nên thành bản chính, rồi web tải trang 2 với cursor của trang 1
+- **THEN** hai trang có mỗi thư đúng một lần, không thiếu thư nào, kể cả thư mà hai hộp thư ghi giờ ở hai phía của cursor
 
 ### Requirement: Trả lời một nhóm
 `reply` của `GET /api/conversations/{id}` MUST tính trên bản chính. `POST /api/conversations/{id}/messages` MUST gửi từ tài khoản của bản chính, trong thread của bản chính, và lưu thư vào bản đó.
@@ -57,3 +65,11 @@ Mã của nhóm MUST là mã của cuộc trò chuyện cũ nhất trong các b�
 #### Scenario: Trả lời chuỗi "xin chào" 17:41
 - **WHEN** người dùng trả lời nhóm có bản chính là bản của `tienct07`
 - **THEN** thư đi từ `tienct07@gmail.com` trong thread `1a12fae4…`
+
+#### Scenario: Gửi lại sau khi bản chính đổi
+- **WHEN** thư trả lời ghi ở bản của `tienct07` gửi lỗi, bản của `bonzed2001` có thư mới nên thành bản chính, rồi web gửi lại cùng `clientMessageId`
+- **THEN** thư được gửi lại từ `tienct07@gmail.com` trong thread của bản đó, và vẫn chỉ có một thư mang `clientMessageId` đó
+
+#### Scenario: Gửi lại khi tài khoản giữ thư đã ra khỏi Hộp thư
+- **WHEN** thư trả lời ở bản của `tienct07` chưa rõ đã gửi hay chưa, rồi tài khoản `tienct07` bị tắt, và web gửi lại cùng `clientMessageId`
+- **THEN** `409 REPLY_NOT_ALLOWED` với `state` `ACCOUNT_UNAVAILABLE`, và không có thư nào được gửi thêm

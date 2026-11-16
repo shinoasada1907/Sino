@@ -35,6 +35,14 @@ public class ConversationSummaries {
     }
 
     /**
+     * {@link #lock} for each of these accounts, always in the same order, so two changes of a thread found in several
+     * accounts (F05b) never each hold the lock the other one waits for.
+     */
+    public void lockAll(Collection<UUID> accountIds) {
+        accountIds.stream().distinct().sorted().forEach(this::lock);
+    }
+
+    /**
      * Works out again, from all their stored messages, the summary of these conversations (F05 design, section 2, step
      * 5), so a page that holds a single old message cannot make it wrong. Written only where a value changed. The
      * caller holds the lock of their account.

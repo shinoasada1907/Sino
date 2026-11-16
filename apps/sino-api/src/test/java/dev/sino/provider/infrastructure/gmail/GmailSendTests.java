@@ -43,9 +43,11 @@ import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import com.jayway.jsonpath.JsonPath;
 
 import dev.sino.provider.ProviderCapability;
+import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.OAuth2Credentials;
+import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
@@ -92,6 +94,19 @@ class GmailSendTests {
     @Test
     void gmailSendsAndSaysSo() {
         assertThat(gmail().capabilities().supports(ProviderCapability.SEND_MESSAGES)).isTrue();
+    }
+
+    // Gmail sends mail with text only (D-349): a picture is refused before anything is asked of Gmail.
+    @Test
+    void gmailDoesNotSendPicturesAndRefusesOneWithoutCallingGmail() {
+        SendMessageCommand picture = new SendMessageCommand("thread-42", ConversationType.DIRECT, null, "msg-41",
+                REPLY.to(), CLIENT_MESSAGE_ID, null,
+                new OutgoingImage(new byte[] {1, 2, 3}, "image/png", "sticker.png", 64, 64));
+
+        assertThat(gmail().capabilities().supports(ProviderCapability.SEND_IMAGES)).isFalse();
+        assertThatExceptionOfType(ProviderException.class).isThrownBy(() -> gmail().sendMessage(context(), picture))
+                .extracting(ProviderException::errorCode).isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+        assertThat(gmail.getAllServeEvents()).isEmpty();
     }
 
     @Test

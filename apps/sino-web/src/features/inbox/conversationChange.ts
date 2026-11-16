@@ -38,11 +38,13 @@ export function countsAfter(counts: InboxCounts, before: ConversationItem, after
     : unread > 0
       ? [...counts.byProvider, { provider: after.provider, unread }]
       : counts.byProvider
+  const byKind = counts.unreadByKind
   return {
     ...counts,
     unread: Math.max(0, counts.unread + unread),
     byProvider,
     needsReply: Math.max(0, counts.needsReply + is.needsReply - was.needsReply),
     withAttachments: Math.max(0, counts.withAttachments + is.withAttachments - was.withAttachments),
+    unreadByKind: byKind && { ...byKind, [after.kind]: Math.max(0, byKind[after.kind] + unread) },
   }
 }

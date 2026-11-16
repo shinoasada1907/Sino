@@ -1,0 +1,5 @@
+node_modules/
+# Live Zalo session (cookies + imei): never commit.
+.session/
+logs/
+qr.png

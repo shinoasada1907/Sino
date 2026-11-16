@@ -20,6 +20,14 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  servlet:
+    multipart:
+      # The fence of an upload (custom-stickers, D-333): above it the server refuses the request before any module sees it,
+      # as 413 PAYLOAD_TOO_LARGE. The real rules are checked exactly by the modules and stay below it:
+      # sino.stickers.max-file-size (1MB, STICKER_TOO_LARGE) and a file sent in a chat (zalo-send-files, D-371: a picture
+      # 10 MB, any other file 25 MB, FILE_TOO_LARGE). 26MB leaves room for the other parts of the form.
+      max-file-size: 26MB
+      max-request-size: 26MB
 
 management:
   endpoints:
@@ -88,7 +96,25 @@ sino:
       topic: ${SINO_GOOGLE_PUBSUB_TOPIC:}
       audience: ${SINO_GOOGLE_PUBSUB_AUDIENCE:}
       service-account: ${SINO_GOOGLE_PUBSUB_SERVICE_ACCOUNT:}
+  zalo:
+    # F09, D-272: personal Zalo accounts through the sino-zalo service (apps/sino-zalo), off unless true. On, the
+    # secret is required and the app stops without it.
+    enabled: ${SINO_ZALO_ENABLED:false}
+    # Where sino-zalo listens: this machine or the Docker network, never the internet (D-282).
+    url: ${SINO_ZALO_URL:http://127.0.0.1:8090}
+    # The secret both services share, at least 32 bytes: the same value as SINO_ZALO_SECRET of sino-zalo. It only
+    # comes from the environment.
+    secret: ${SINO_ZALO_SECRET:}
   planner:
     # D-157: the time zone of the user's days for tasks and the calendar (an IANA name such as Asia/Ho_Chi_Minh).
     # New repeat rules take it and keep it. An unknown name stops the app.
     time-zone: ${SINO_PLANNER_TIME_ZONE:Asia/Ho_Chi_Minh}
+  stickers:
+    # custom-stickers, DN-1: the limits of the sticker library, checked exactly by the sticker service. Each must be
+    # positive and fit what the database takes (10MB, 16383 px) or the app stops. Keep spring.servlet.multipart.max-file-size
+    # (above) a little higher than max-file-size.
+    max-file-size: ${SINO_STICKERS_MAX_FILE_SIZE:1MB}
+    max-side: ${SINO_STICKERS_MAX_SIDE:1024}
+    max-per-owner: ${SINO_STICKERS_MAX_PER_OWNER:300}
+    # sticker-packs, DN-6: how many packs one owner may have.
+    max-packs-per-owner: ${SINO_STICKERS_MAX_PACKS_PER_OWNER:50}

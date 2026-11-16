@@ -36,7 +36,7 @@ export function MobileAccountDetail({
   return (
     <div className={cn('flex flex-col gap-5 px-4 pt-4.5 pb-5', className)}>
       <div className="flex flex-col items-start gap-3 py-1">
-        <AccountAvatar provider={account.provider} size="lg" />
+        <AccountAvatar provider={account.provider} size="lg" label={account.displayName || account.address} />
         <h2 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] break-all">{account.address}</h2>
         {'detail' in view ? <Status tone="err">{view.detail}</Status> : <Status tone={sync.tone}>{sync.label}</Status>}
       </div>
@@ -53,7 +53,7 @@ export function MobileAccountDetail({
           <Button asChild variant="primary">
             <Link to={`/accounts?reconnect=${account.id}`}>
               <RefreshCw strokeWidth={1.6} />
-              Đăng nhập lại {name}
+              {account.provider === 'zalo' ? 'Quét QR lại' : `Đăng nhập lại ${name}`}
             </Link>
           </Button>
         </div>
@@ -64,7 +64,7 @@ export function MobileAccountDetail({
       </MobileSection>
 
       <MobileSection title="Đồng bộ">
-        <div className="flex flex-col overflow-hidden rounded-md border bg-surface">
+        <div className="flex flex-col overflow-hidden rounded-lg bg-surface shadow-card">
           {account.storedMessages !== null && (
             <div className="grid min-h-16 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 border-b px-3.5 py-2.5">
               <RefreshCw className="size-4.5 text-muted-foreground" strokeWidth={1.6} />

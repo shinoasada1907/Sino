@@ -96,10 +96,13 @@ describe('the owner menu and the end of a session', () => {
     const user = userEvent.setup()
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Thêm' })).toBeInTheDocument()
-    expect(screen.getByText('an.nguyen@gmail.com')).toBeInTheDocument()
-    expect(screen.getByText('3 tài khoản · 1 cần xử lý')).toBeInTheDocument()
+    // The sidebar, hidden by CSS only, lists the Gmail account too: look in the page.
+    const page = within(screen.getByRole('main'))
+    expect(page.getByText('an.nguyen@gmail.com')).toBeInTheDocument()
+    expect(page.getByText('3 tài khoản · 1 cần xử lý')).toBeInTheDocument()
     const others = within(screen.getByRole('navigation', { name: 'Mục khác' }))
     expect(others.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
+      '/calendar',
       '/notes',
       '/accounts',
       '/services',

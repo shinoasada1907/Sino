@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.sino.conversation.application.InboxMessage.File;
+import dev.sino.conversation.application.InboxMessage.Image;
 import dev.sino.conversation.application.InboxMessage.Sender;
+import dev.sino.conversation.application.InboxMessage.StickerSprite;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.NormalizedMessage;
@@ -29,14 +31,42 @@ import dev.sino.provider.spi.NormalizedMessage;
 @Transactional(readOnly = true)
 public class MessageHistory {
 
-    private static final String SELECT = """
+    private static final String COLUMNS = """
             SELECT m.id, m.direction, m.status, m.sent_at, m.text_content, m.body_format, m.is_read, m.recipients,
                    m.client_message_id,
                    m.metadata ->> :subject AS subject,
-                   p.external_participant_id AS sender, p.display_name AS sender_name, p.is_self
+                   m.metadata ->> :stickerUrl AS sticker_url,
+                   m.metadata ->> :stickerSpriteUrl AS sticker_sprite_url,
+                   m.metadata ->> :stickerFrames AS sticker_frames,
+                   m.metadata ->> :stickerDurationMs AS sticker_duration_ms,
+                   m.metadata ->> :imageUrl AS image_url,
+                   m.metadata ->> :imageThumbUrl AS image_thumb_url,
+                   m.metadata ->> :imageCaption AS image_caption,
+                   m.metadata ->> :libraryStickerId AS library_sticker_id,
+                   p.external_participant_id AS sender, p.display_name AS sender_name, p.avatar_url AS sender_avatar_url, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
-            WHERE m.conversation_id = :conversation
             """;
+
+    private static final String SELECT = COLUMNS + "WHERE m.conversation_id = :conversation\n";
+
+    // The messages of every copy of a thread (F05b, D-184), each Message-ID once: from the copy it went from, which
+    // keeps what Sino knows of a message it sent, else the oldest copy. Not the primary one: it changes when another
+    // copy gets a new message, and the copy picked must not, or a page would leave out or repeat what another copy
+    // dates on the other side of its cursor. A message without one is always there, and so is one whose Message-ID
+    // header was empty: nothing says two of those are one. Only IDs and times are sorted for that; the page is cut from
+    // what is left, so it never brings back the other copy of a message, which its own mailbox may date differently,
+    // and only the messages of the page are read whole. The key is written out, not a parameter: DISTINCT ON and
+    // ORDER BY must be the same expression, and two parameters are two expressions to PostgreSQL.
+    private static final String EVERY_COPY = """
+            WITH shown AS (
+                SELECT DISTINCT ON (COALESCE('rfc:' || NULLIF(m.metadata ->> '%1$s', ''), 'id:' || m.id))
+                       m.id, m.sent_at
+                FROM unnest(ARRAY[:copies]::uuid[]) WITH ORDINALITY AS copy(id, rank)
+                JOIN message m ON m.conversation_id = copy.id
+                ORDER BY COALESCE('rfc:' || NULLIF(m.metadata ->> '%1$s', ''), 'id:' || m.id),
+                         m.direction = 'OUTBOUND' DESC, copy.rank, m.id
+            )
+            """.formatted(NormalizedMessage.RFC_MESSAGE_ID);
 
     private final JdbcClient jdbc;
     private final InboxService inbox;
@@ -47,18 +77,19 @@ public class MessageHistory {
     }
 
     /**
-     * Newest first, then by ID, {@code limit} at most, after {@code cursor} when given.
+     * Newest first, then by ID, {@code limit} at most, after {@code cursor} when given: the messages of every copy of
+     * the thread in the inbox, each once (F05b, D-184).
      *
      * @throws dev.sino.common.error.SinoException with {@code CONVERSATION_NOT_FOUND} when not in the inbox
      */
     public MessagePage page(UUID ownerId, UUID conversationId, MessageCursor cursor, int limit) {
-        inbox.requireInInbox(ownerId, conversationId);
+        List<UUID> copies = inbox.requireInInbox(ownerId, conversationId).conversationIds();
         // Keyset paging as for the inbox; one more row than asked tells whether there is a next page.
-        JdbcClient.StatementSpec query = jdbc.sql(SELECT + (cursor == null ? ""
-                : "AND m.sent_at <= :before AND (m.sent_at, m.id) < (:before, :beforeId)")
-                + " ORDER BY m.sent_at DESC, m.id DESC LIMIT :rows")
-                .param("subject", NormalizedMessage.SUBJECT).param("conversation", conversationId)
-                .param("rows", limit + 1);
+        JdbcClient.StatementSpec query = withMetadataKeys(jdbc.sql(EVERY_COPY + COLUMNS
+                + "WHERE m.id IN (SELECT id FROM shown"
+                + (cursor == null ? "" : " WHERE (sent_at, id) < (:before, :beforeId)")
+                + " ORDER BY sent_at DESC, id DESC LIMIT :rows) ORDER BY m.sent_at DESC, m.id DESC"))
+                .param("copies", copies).param("rows", limit + 1);
         if (cursor != null) {
             query = query.param("before", cursor.sentAt().atOffset(ZoneOffset.UTC)).param("beforeId", cursor.id());
         }
@@ -71,12 +102,24 @@ public class MessageHistory {
         return new MessagePage(items, new MessageCursor(last.sentAt(), last.id()));
     }
 
-    /** One message of a conversation the caller already found in the inbox, as {@link #page} lists it. */
+    /** One message of one copy of a conversation the caller already found in the inbox, as {@link #page} lists it. */
     Optional<InboxMessage> message(UUID conversationId, UUID messageId) {
-        return jdbc.sql(SELECT + "AND m.id = :message").param("subject", NormalizedMessage.SUBJECT)
+        return withMetadataKeys(jdbc.sql(SELECT + "AND m.id = :message"))
                 .param("conversation", conversationId).param("message", messageId)
                 .query((row, n) -> messageOf(row)).optional()
                 .map(message -> withFiles(List.of(message)).getFirst());
+    }
+
+    /** The names of the {@code metadata} values {@link #COLUMNS} reads, which the connectors write (NormalizedMessage). */
+    private static JdbcClient.StatementSpec withMetadataKeys(JdbcClient.StatementSpec query) {
+        return query.param("subject", NormalizedMessage.SUBJECT).param("stickerUrl", NormalizedMessage.STICKER_URL)
+                .param("stickerSpriteUrl", NormalizedMessage.STICKER_SPRITE_URL)
+                .param("stickerFrames", NormalizedMessage.STICKER_FRAMES)
+                .param("stickerDurationMs", NormalizedMessage.STICKER_DURATION_MS)
+                .param("imageUrl", NormalizedMessage.IMAGE_URL)
+                .param("imageThumbUrl", NormalizedMessage.IMAGE_THUMB_URL)
+                .param("imageCaption", NormalizedMessage.IMAGE_CAPTION)
+                .param("libraryStickerId", NormalizedMessage.LIBRARY_STICKER_ID);
     }
 
     private static InboxMessage messageOf(ResultSet row) throws SQLException {
@@ -86,11 +129,51 @@ public class MessageHistory {
                 MessageDirection.valueOf(row.getString("direction")),
                 MessageStatus.valueOf(row.getString("status")),
                 row.getObject("sent_at", OffsetDateTime.class).toInstant(),
-                sender == null ? null : new Sender(row.getString("sender_name"), sender, row.getBoolean("is_self")),
+                sender == null ? null : new Sender(row.getString("sender_name"), sender, row.getString("sender_avatar_url"), row.getBoolean("is_self")),
                 recipients == null ? null : recipients.to(), recipients == null ? null : recipients.cc(),
                 row.getString("subject"), row.getString("text_content"),
                 BodyFormat.valueOf(row.getString("body_format")), row.getBoolean("is_read"), List.of(),
-                row.getObject("client_message_id", UUID.class));
+                row.getObject("client_message_id", UUID.class), row.getString("sticker_url"),
+                spriteOf(row.getString("sticker_sprite_url"), row.getString("sticker_frames"),
+                        row.getString("sticker_duration_ms")),
+                imageOf(row.getString("image_url"), row.getString("image_thumb_url"),
+                        row.getString("image_caption")),
+                libraryStickerOf(row.getString("library_sticker_id")));
+    }
+
+    /** The sticker of the library a message Sino sent carries (ZS-05): none when the key is missing or is no ID. */
+    private static UUID libraryStickerOf(String id) {
+        if (id == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(id);
+        } catch (IllegalArgumentException notAnId) {
+            return null;
+        }
+    }
+
+    /** The picture of a photo as the connector stored it (ZL-16): none without its address, whatever else is there. */
+    private static Image imageOf(String url, String thumbUrl, String caption) {
+        return url == null ? null : new Image(url, thumbUrl, caption);
+    }
+
+    /**
+     * The sprite sheet of a sticker as the connector stored it (ZL-15). The metadata is text, so it is read back with
+     * care: all three values must be there and the numbers whole and above zero, else the sticker lists no sprite and
+     * shows still.
+     */
+    private static StickerSprite spriteOf(String url, String frames, String durationMs) {
+        if (url == null || frames == null || durationMs == null) {
+            return null;
+        }
+        try {
+            int frameCount = Integer.parseInt(frames);
+            int duration = Integer.parseInt(durationMs);
+            return frameCount > 1 && duration > 0 ? new StickerSprite(url, frameCount, duration) : null;
+        } catch (NumberFormatException unreadable) {
+            return null;
+        }
     }
 
     private List<InboxMessage> withFiles(List<InboxMessage> messages) {
@@ -109,7 +192,9 @@ public class MessageHistory {
                 });
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
-                List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId())).toList();
+                List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId(), m.sticker(),
+                m.stickerSprite(), m.image(), m.libraryStickerId())).toList();
     }
 
 }
+

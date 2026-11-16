@@ -249,6 +249,11 @@ public class Task {
         return status;
     }
 
+    /** Whether this task has made its next occurrence already (D-159). */
+    public boolean nextCreated() {
+        return nextCreated;
+    }
+
     public Instant completedAt() {
         return completedAt;
     }

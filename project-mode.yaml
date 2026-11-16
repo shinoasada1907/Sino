@@ -1,18 +1,62 @@
 # Operating mode for the Sino project.
 # 2026-09-30: TRAINING (initial choice). 2026-10-01: switched to HYBRID at the user's request.
 # Operating modes: AUTO | TRAINING | HYBRID
-mode: HYBRID
+mode: AUTO
+# 2026-10-15, afternoon (user: "chuyển về mode AUTO"): AUTO again. The agent implements, verifies, documents and
+# commits each task, then reports and stops. Architecture decisions stay with the user; `new_features` and
+# `task_overrides` below still hold until the user changes them.
+# 2026-10-15, morning (user): the agent implements only when the user sets `mode: AUTO`. In TRAINING and HYBRID the user
+# codes, tests and debugs every task. The agent splits the work into small steps and gives, for each step, the code
+# to type (only the new code, with its exact insertion point, explained) and a detailed step-by-step test and debug
+# guide. It does not run the code first in a sandbox, build, run tests, write docs, update PROJECT_STATE/tasks.md
+# or commit, unless the user asks for that one action. In AUTO it does the work itself and follows the full process.
 # Areas not listed below follow `default`.
+# 2026-10-27 (user): team mode. The main session is the manager; three engineer sessions (roles in
+# `.claude/agents/sino-api.md`, `sino-web.md`, `sino-zalo.md`) do the work of their app. The modes below still decide
+# who codes: in AUTO the engineers code, in TRAINING/HYBRID they write the step-by-step guide. Two approvals by the
+# user: the plan before any task is handed out, and the result before the manager commits (CLAUDE.md, *Đội Sino*).
 default: AUTO
 areas:
-  backend: AUTO           # Claude implements one small task at a time, verifies, reports, then waits
-  frontend: AUTO
-  config-devops: AUTO     # yaml, compose, env files, pom configuration, CI
-  docs: AUTO              # OpenSpec tasks/spec upkeep, PROJECT_STATE
+  backend: AUTO           # TRAINING on the morning of 2026-10-15
+  frontend: AUTO          # TRAINING on the morning of 2026-10-15
+  config-devops: AUTO     # TRAINING on the morning of 2026-10-15; yaml, compose, env files, pom configuration, CI
+  docs: AUTO              # TRAINING on the morning of 2026-10-15; OpenSpec tasks/spec upkeep, PROJECT_STATE
   architecture: TRAINING  # "Decision Needed" items: Claude proposes options + recommendation, the user decides
+# 2026-10-14 (user): new features are coded by the user from now on. Claude plans them (OpenSpec change,
+# small tasks) and guides each step: only the new code with its exact insertion point (never a whole file
+# re-printed), each part explained: what it does, why, which problem it solves, how it scales.
+# Backend, frontend and new integrations alike. Features already in progress keep their mode
+# unless the user says otherwise.
+new_features: TRAINING
 # Task-level override: when the user says they will code a task themselves ("để tôi làm BE-xx"),
 # that task runs in TRAINING (user codes; Claude gives hints, reviews, tests) until it is done.
-task_overrides: {}
+task_overrides:
+  custom-stickers: AUTO     # 2026-10-19: AUTO for this one feature (user: "oke triển khai đi", after the plan said the user codes it as a new feature). `new_features` stays TRAINING for the others; architecture decisions still go to the user (DN-1…DN-4 were taken as proposed: "oke").
+  inbox-notifications: AUTO # 2026-10-19: AUTO for this one feature (user: "AUTO đi", after being told new features are TRAINING). `new_features` stays TRAINING for the others; architecture decisions still go to the user.
+  f15-notes: AUTO           # 2026-10-19: AUTO for BE-90, BE-91, FE-90 and ACC, chữ và sơ đồ (user: "AUTO cho f15-notes … mình tự làm, kiểm chứng, commit trên dev rồi báo"); asked because `new_features` is TRAINING and F15 was planned 2026-10-12, before that rule. Architecture decisions still go to the user.
+  sticker-packs: AUTO       # 2026-10-20: AUTO for this one feature (user: "AUTO: Claude tự làm", asked because `new_features` is TRAINING): sticker packs and the edit-before-save step. Architecture decisions still go to the user (DN-1…DN-7 of its design).
+  zalo-send-images: AUTO    # 2026-10-20: AUTO, same answer as sticker-packs: stickers sent from the Zalo chat. Architecture decisions still go to the user (DN-1…DN-5 of its design).
+  zalo-send-files: AUTO     # 2026-10-21: AUTO (user: "AUTO: Claude tự làm", asked because `new_features` is TRAINING): pictures and files pasted, chosen or dropped into the Zalo chat. Scope, sending flow, limits and architecture were chosen by the user before the change was written.
+  settings-backend: AUTO    # 2026-10-21: AUTO (user: "Duyệt, AUTO"): saving the user's settings in sino-api (`/api/settings`, `/api/settings/storage`); backend by the session "sino-api-e0", web by "sino-web-03". Scope and the API contract chosen by the user in chat.
+  fe-ui-settings: AUTO      # 2026-10-21: AUTO (user: "AUTO: Claude tự làm", asked because `new_features` is TRAINING): the Cài đặt screen on sample data ("Chỉ giao diện, dữ liệu mẫu"), sticker management moved into it; design approved ("duyệt").
+  zalo-reactions: AUTO      # 2026-10-21: AUTO (user: "AUTO: Claude tự làm", asked because `new_features` is TRAINING): emoji reactions on Zalo chat messages, seen and dropped from Sino. Scope, emoji set, the path of incoming reactions (A: same feed as messages) and the canvas order were chosen by the user; the 5-part design was approved ("duyệt làm đi").
+  # 2026-10-27 (user, "AUTO: đội tự code", asked because `new_features` is TRAINING): the five changes that finish
+  # the Zalo chat, done one after the other by the team (roadmap F09, "Hoàn thiện chat Zalo"). Architecture
+  # decisions and the plan of each change still go to the user (approval 1), and each result before commit (approval 2).
+  zalo-avatars: AUTO
+  zalo-nicknames: AUTO
+  zalo-mentions: AUTO
+  zalo-media-library: AUTO
+  zalo-voice-messages: AUTO
+  fe-ui-profile: AUTO       # 2026-11-04: AUTO (user: "duyệt", asked because `new_features` is TRAINING): User profile page on sample data (`/profile`), personal info, password change, connected accounts & active sessions.
+  zalo-contacts: AUTO       # 2026-11-02: AUTO (user, in the sino-zalo engineer session sino-30: "Ghi đề án D ở đây, AUTO", asked because `new_features` is TRAINING): Zalo friends and groups kept in sino-api, the "Nhắn tin mới" picker. The engineer session wrote the plan at the user's order; approval 1 and 2 still go to the user.
+  public-pages-prerender: AUTO # 2026-11-04: AUTO (user: "Duyệt, giao việc", after the plan proposed it because `new_features` is TRAINING). Public pages carry their content in the served HTML. Each result still goes to the user before commit (approval 2).
+  profile-info: AUTO        # 2026-11-04: AUTO (user: "A, AUTO", asked because `new_features` is TRAINING): part 1 of profile management (profile fields + avatar, BE and web). Architecture decisions still go to the user (DN-1, DN-2 of its design); no task handed out before the plan is approved.
+  messages-by-account: AUTO # 2026-11-02: AUTO (user: "được làm đi", asked because `new_features` is TRAINING): Tin nhắn and Hộp thư split by account, Cá nhân / Nhóm in Tin nhắn, BE-111 moved from f05c. The plan still goes to the user (approval 1) and each result before commit (approval 2).
+  zalo-personal: AUTO       # 2026-10-15: AUTO from ZL-02 on ("chuyển sang mode AUTO tiếp tục phần tích hợp zalo"); 2026-10-14: TRAINING, the user coded ZL-01 ("Toàn bộ")
+  # 2026-10-16: BE-110 of f05c-messages-inbox-split ran in TRAINING ("phần này tôi làm được không" → "oke step by step
+  # nhé"): the user coded it in small steps, Claude wrote the tests from step 5 and, when asked, finished and committed it.
+  # BE-110 is done; f05c follows `backend: AUTO` again.
   # 2026-10-03: BE-11 started in TRAINING ("tôi muốn code tay BE-11"); the user typed the entity mapping and V3, then
   # handed it back ("thôi bạn auto luôn đi") to relearn Java and Spring first. BE-11 finished in AUTO.
   # 2026-10-01: F03 (BE-19..BE-26) started in TRAINING (the user coded BE-19 to learn Java), then the user

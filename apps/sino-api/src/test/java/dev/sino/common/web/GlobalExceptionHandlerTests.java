@@ -109,6 +109,32 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void moduleErrorCodeOfCategoryPayloadTooLargeBecomes413() throws Exception {
+        mvc.perform(get("/api/probe/too-large").with(apiUser()))
+                .andExpect(status().isContentTooLarge())
+                .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("FILE_TOO_BIG"));
+    }
+
+    @Test
+    void moduleErrorCodeOfCategoryUnsupportedMediaTypeBecomes415() throws Exception {
+        mvc.perform(get("/api/probe/media").with(apiUser()))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("FILE_TYPE_REFUSED"));
+    }
+
+    @Test
+    void anUploadAboveTheFenceOfTheServerIsPayloadTooLargeWithItsOwnCode() throws Exception {
+        // The multipart limit of the container throws before any controller runs; it is told apart from the checks of a module.
+        mvc.perform(post("/api/probe/upload").with(apiUser()).with(csrf()))
+                .andExpect(status().isContentTooLarge())
+                .andExpect(content().contentTypeCompatibleWith(APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"))
+                .andExpect(jsonPath("$.instance").value("/api/probe/upload"));
+    }
+
+    @Test
     void unknownApiPathIsResourceNotFound() throws Exception {
         mvc.perform(get("/api/probe/nowhere").with(apiUser()))
                 .andExpect(status().isNotFound())
@@ -225,7 +251,9 @@ class GlobalExceptionHandlerTests {
         THING_RULE_BROKEN(ErrorCategory.INVALID),
         SLOW_DOWN(ErrorCategory.RATE_LIMITED),
         PROVIDER_SAID_NO(ErrorCategory.PROVIDER_FAILED),
-        PROVIDER_GAVE_NO_ANSWER(ErrorCategory.PROVIDER_OUTCOME_UNKNOWN);
+        PROVIDER_GAVE_NO_ANSWER(ErrorCategory.PROVIDER_OUTCOME_UNKNOWN),
+        FILE_TOO_BIG(ErrorCategory.PAYLOAD_TOO_LARGE),
+        FILE_TYPE_REFUSED(ErrorCategory.UNSUPPORTED_MEDIA_TYPE);
 
         private final ErrorCategory category;
 
@@ -283,6 +311,21 @@ class GlobalExceptionHandlerTests {
         @GetMapping("/no-answer")
         void providerGivesNoAnswer() {
             throw new SinoException(ProbeErrorCode.PROVIDER_GAVE_NO_ANSWER, "The provider did not answer.");
+        }
+
+        @PostMapping("/upload")
+        void upload() {
+            throw new org.springframework.web.multipart.MaxUploadSizeExceededException(1024);
+        }
+
+        @GetMapping("/too-large")
+        void tooLarge() {
+            throw new SinoException(ProbeErrorCode.FILE_TOO_BIG, "The file is too large.");
+        }
+
+        @GetMapping("/media")
+        void refusedMedia() {
+            throw new SinoException(ProbeErrorCode.FILE_TYPE_REFUSED, "That kind of file is not kept.");
         }
 
         @GetMapping("/conflict")

@@ -5,9 +5,11 @@ import {
   editedLine,
   filterNotes,
   groupNotes,
+  hasAnchoredNotes,
   lengthLine,
   linkedDue,
   noteCounts,
+  notePreview,
   noteSource,
   noteTime,
   noteTitle,
@@ -34,9 +36,29 @@ function note(extra: Partial<NoteItem>): NoteItem {
     anchor: null,
     quote: null,
     linked: [],
+    kind: 'TEXT',
+    version: 0,
+    diagram: null,
     ...extra,
   }
 }
+
+// A diagram note of three blocks, the main one last in the list.
+const diagramNote = (extra: Partial<NoteItem> = {}): NoteItem =>
+  note({
+    kind: 'DIAGRAM',
+    title: null,
+    body: '',
+    diagram: {
+      blocks: [
+        { id: 'b1', x: 0, y: 0, text: 'Thuê homestay\ngần hồ', color: 'DEFAULT', main: false },
+        { id: 'b2', x: 0, y: 0, text: 'Đặt xe', color: 'YELLOW', main: false },
+        { id: 'b3', x: 0, y: 0, text: 'Chuyến đi Đà Lạt', color: 'DEFAULT', main: true },
+      ],
+      links: [{ id: 'l1', from: 'b3', fromSide: 'RIGHT', to: 'b1', toSide: 'LEFT', label: 'chỗ ở' }],
+    },
+    ...extra,
+  })
 
 const anchor = (extra: Partial<NoteAnchor>): NoteAnchor => ({
   kind: 'MESSAGE',
@@ -50,7 +72,7 @@ const anchor = (extra: Partial<NoteAnchor>): NoteAnchor => ({
 })
 
 describe('notes sample data', () => {
-  it('holds the six notes of the canvas, pinned first, the newest edit first in each group (D-205)', () => {
+  it('holds the six notes of the canvas and one diagram, pinned first, the newest edit first in each group (D-205)', () => {
     const { pinned, recent } = groupNotes(createNotesSample(now).notes)
 
     expect(titles(pinned)).toEqual(['Danh sách mua cho bà', 'Mã khách hàng phòng khám'])
@@ -59,8 +81,12 @@ describe('notes sample data', () => {
       'Hoàng thích nhận file qua Drive',
       'Số hợp đồng bảo hiểm',
       'Ý tưởng chuyến đi Đà Lạt tháng 12',
+      'Kế hoạch chuyến đi Đà Lạt',
     ])
-    expect([...pinned, ...recent].map((entry) => noteTime(entry.updatedAt, now, TZ))).toEqual(['08:31', 'Hôm qua', '09:52', '29/09', '27/09', '25/09'])
+    expect([...pinned, ...recent].map((entry) => noteTime(entry.updatedAt, now, TZ))).toEqual(['08:31', 'Hôm qua', '09:52', '29/09', '27/09', '25/09', '24/09'])
+    const plan = recent.at(-1)!
+    expect(plan).toMatchObject({ kind: 'DIAGRAM', body: '' })
+    expect(noteSource(plan).text).toBe('Sơ đồ · 7 khối · 6 nối')
   })
 })
 
@@ -105,7 +131,54 @@ describe('the list', () => {
     expect(ids(filterNotes(notes, 'all', 'HOMESTAY'))).toEqual(['trip'])
     expect(ids(filterNotes(notes, 'all', 'duong ve'))).toEqual(['đ'])
     expect(ids(filterNotes(notes, 'pinned', 'thanh toan'))).toEqual([])
-    expect(noteCounts(notes)).toEqual({ all: 3, linked: 1, pinned: 1 })
+    expect(noteCounts(notes)).toEqual({ all: 3, linked: 1, pinned: 1, diagram: 0 })
+  })
+})
+
+describe('diagram notes in the list (DG-01, fe-ui-diagram-notes)', () => {
+  it('names a diagram by its title, else by its main block, else "Sơ đồ mới" (D-206)', () => {
+    expect(noteTitle(diagramNote({ title: 'Kế hoạch' }))).toBe('Kế hoạch')
+    expect(noteTitle(diagramNote())).toBe('Chuyến đi Đà Lạt')
+    expect(noteTitle(diagramNote({ diagram: { blocks: [], links: [] } }))).toBe('Sơ đồ mới')
+  })
+
+  it('previews a diagram by its blocks, the main one first, on one line', () => {
+    expect(notePreview(diagramNote())).toBe('Chuyến đi Đà Lạt · Thuê homestay gần hồ · Đặt xe')
+    expect(notePreview(note({ body: 'Mã KH: AD-55120.' }))).toBe('Mã KH: AD-55120.')
+  })
+
+  it('passes over blocks without words, which show "Khối mới" on the canvas', () => {
+    const blocks = [
+      { id: 'main', x: 0, y: 0, text: '  ', color: 'DEFAULT' as const, main: true },
+      { id: 'new', x: 0, y: 0, text: '', color: 'DEFAULT' as const, main: false },
+      ...['Thuê homestay', 'Đặt xe', 'Chốt ngày'].map((text, i) => ({ id: `b${i}`, x: 0, y: 0, text, color: 'DEFAULT' as const, main: false })),
+    ]
+    const sketch = diagramNote({ diagram: { blocks, links: [] } })
+
+    expect(noteTitle(sketch)).toBe('Thuê homestay')
+    expect(notePreview(sketch)).toBe('Thuê homestay · Đặt xe · Chốt ngày')
+    expect(noteTitle(diagramNote({ diagram: { blocks: blocks.slice(0, 2), links: [] } }))).toBe('Sơ đồ mới')
+  })
+
+  it('says it is a diagram, with its blocks and links', () => {
+    expect(noteSource(diagramNote())).toEqual({ tone: 'diagram', text: 'Sơ đồ · 3 khối · 1 nối' })
+  })
+
+  it('filters the diagrams, and finds a diagram by the words of its blocks and links', () => {
+    const notes = [note({ id: 'text' }), diagramNote({ id: 'plan' })]
+    const ids = (found: NoteItem[]) => found.map((entry) => entry.id)
+
+    expect(ids(filterNotes(notes, 'diagram', ''))).toEqual(['plan'])
+    expect(ids(filterNotes(notes, 'all', 'homestay'))).toEqual(['plan'])
+    expect(ids(filterNotes(notes, 'all', 'cho o'))).toEqual(['plan'])
+    expect(noteCounts(notes)).toEqual({ all: 2, linked: 0, pinned: 0, diagram: 1 })
+  })
+
+  it('counts one diagram in the sample, and finds it with the trip idea by "homestay" (spec diagram-notes)', () => {
+    const sample = createNotesSample(now).notes
+
+    expect(noteCounts(sample).diagram).toBe(1)
+    expect(filterNotes(sample, 'all', 'homestay').map(noteTitle)).toEqual(['Ý tưởng chuyến đi Đà Lạt tháng 12', 'Kế hoạch chuyến đi Đà Lạt'])
   })
 })
 
@@ -140,5 +213,17 @@ describe('the editor', () => {
     // A whole day stays that day for a reader 14 hours ahead of UTC (found by a mutation check, NT-03).
     expect(linkedDue({ dueAt: null, dueDate: '2026-10-09' }, 'Pacific/Kiritimati')).toBe('hạn T6 09/10')
     expect(linkedDue({ dueAt: null, dueDate: null }, TZ)).toBeNull()
+  })
+})
+
+describe('hasAnchoredNotes (FE-90, D-178)', () => {
+  it('is true when at least one note is tied to something', () => {
+    expect(hasAnchoredNotes(createNotesSample(new Date('2026-10-02T07:05:00Z')).notes)).toBe(true)
+  })
+
+  it('is false when every note is standalone, and for no notes at all', () => {
+    const notes = createNotesSample(new Date('2026-10-02T07:05:00Z')).notes.map((note) => ({ ...note, anchor: null }))
+    expect(hasAnchoredNotes(notes)).toBe(false)
+    expect(hasAnchoredNotes([])).toBe(false)
   })
 })

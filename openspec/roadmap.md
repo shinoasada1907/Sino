@@ -110,7 +110,7 @@ Mục tiêu: có web app thật gọi API thật, để từ Phase 2 mỗi featu
 | F02-FE | Trang Accounts (canvas `Accounts`, `AccountDetail`, `MobileAccounts`): danh sách, badge trạng thái với wording dễ hiểu ("Needs login again"...), đổi tên, tắt/bật, xóa | — |
 | F03-FE | Provider card + badge capability (canvas `Services`, `ConnectWizard`); tiện ích "chỉ hiện hành động khi provider hỗ trợ" | — |
 
-**Quyết định mở phase — D-22: xác thực cho trình duyệt.** → **Accepted A (2026-10-07):** email + mật khẩu của owner, session cookie, CSRF, remember-me; bỏ HTTP Basic (D-32…D-36, xem `openspec/changes/fe-f01-web-foundation/design.md`). Phase 1 chia ba change: (1) `fe-f01-web-foundation` (D-22 + F01-FE), (2) F02-FE, (3) F03-FE. HTTP Basic (D-02) không hợp với SPA (phải giữ mật khẩu trong JS) và với SSE (`EventSource` không gửi được header). Các phương án sẽ so sánh khi mở phase: session cookie + CSRF token (form/JSON login), hoặc OAuth2 login bằng Google, hoặc token ngắn hạn. Phải chốt trước khi FE gọi API thật, và chắc chắn trước F08.
+**Quyết định mở phase — D-22: xác thực cho trình duyệt.** → **Accepted A (2026-10-07):** email + mật khẩu của owner, session cookie, CSRF, remember-me; bỏ HTTP Basic (D-32…D-36, xem `openspec/changes/archive/2026-10-15-fe-f01-web-foundation/design.md`). Phase 1 chia ba change: (1) `fe-f01-web-foundation` (D-22 + F01-FE) · ✅ DONE 2026-10-15 · `openspec/changes/archive/2026-10-15-fe-f01-web-foundation`, (2) F02-FE, (3) F03-FE. HTTP Basic (D-02) không hợp với SPA (phải giữ mật khẩu trong JS) và với SSE (`EventSource` không gửi được header). Các phương án sẽ so sánh khi mở phase: session cookie + CSRF token (form/JSON login), hoặc OAuth2 login bằng Google, hoặc token ngắn hạn. Phải chốt trước khi FE gọi API thật, và chắc chắn trước F08.
 
 > **Đổi cách làm frontend (D-42, D-43, D-44, người dùng 2026-10-07):** dựng giao diện trước với dữ liệu mẫu, mỗi màn một change (`fe-ui-<màn>`), bắt đầu từ **Tổng quan** (màn vượt MVP, nay vào phạm vi); kiểu dữ liệu của màn là hợp đồng giao backend để API khớp theo. Web chưa có xác thực trong lúc dựng giao diện; FE-02…FE-05 của change 1 tạm hoãn. Ở phần frontend, cách này thay luật vertical slice nói dưới đây. Chi tiết: `openspec/changes/fe-ui-overview/design.md`.
 
@@ -219,11 +219,23 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 #### F09 — Provider thứ hai · ~L
 
 > **Người dùng muốn Zalo và Messenger sau Gmail (2026-10-07).** Theo hiểu biết hiện tại, cả hai không có API chính thức đọc tin nhắn của tài khoản cá nhân (Messenger Platform dành cho Facebook Page; Zalo có API cho Official Account). Làm **spike khả thi** trước khi thiết kế; kết quả quyết định provider thứ hai.
+>
+> **Đã lên kế hoạch 2026-10-14: Zalo cá nhân qua zca-js** (thư viện không chính thức), `openspec/changes/zalo-personal`. Spike `spikes/zalo-zca/` trên nick phụ: đăng nhập QR và nhận tin chạy được; mở Zalo Web cùng nick thì Sino bị đá; không lấy được lịch sử cũ. Người dùng chọn: đọc + trả lời chữ, mọi người dùng kết nối được sau cảnh báo, service Node riêng `apps/sino-zalo` (D-270…D-290; D-289, D-290 thêm sau review cùng ngày). Các phép đo (24 giờ, bù tin) làm cùng lần chạy thật lúc nghiệm thu ZL-13, không chặn phần code (người dùng, cùng ngày). Người dùng tự code toàn bộ (TRAINING).
+>
+> **Thư viện sticker tự tạo (2026-10-19, `openspec/changes/custom-stickers`, ngoài các feature F01…F17):** người dùng tải PNG, GIF, WebP lên một thư viện riêng (lưu trong PostgreSQL `bytea`), xem và xóa trong màn **Sticker**; backend `/api/stickers` (module `sticker`) và web đã xong và đã chạy thật. **Chưa gửi được sticker đi đâu**: gửi qua Zalo là change `custom-stickers-send`, mở bằng một spike đo trên nick phụ (zca-js gửi ảnh PNG/GIF có được không, GIF còn động không, giới hạn dung lượng, `msgId`, nhịp gửi). Canvas `Sino UI` chưa có khung màn Sticker (task ST-00 bị bỏ qua theo lệnh người dùng, còn nợ).
 
 - **Quyết định lớn khi mở spec:** chọn provider nào (00: Telegram hoặc provider có API phù hợp). Với Telegram: **Bot API** chỉ thấy chat với bot, không đọc được tin cá nhân của người dùng; **MTProto/TDLib** đọc được tin cá nhân nhưng phức tạp hơn nhiều (đăng nhập bằng số điện thoại, session). Chọn sai thì không chứng minh được mục tiêu "unified".
 - **BE:** connector thứ hai, credential loại `TOKEN` (D-14), capability khác Gmail → đây là bài kiểm tra thật của contract F03 (nếu phải sửa core → contract có vấn đề, ghi lại).
 - **FE:** badge/filter đa provider.
 - **Bạn sẽ học:** đánh giá API bên thứ ba, giữ core không đổi khi thêm provider.
+
+> **Hoàn thiện chat Zalo (người dùng, 2026-10-27):** "tag thành viên … ghi âm ngay trên thanh chat, quản lý file phương tiện … đặt biệt danh, lấy avatar của đối phương". Năm change, làm lần lượt, dễ trước khó sau (người dùng chọn), AUTO cho cả năm, đội ba kỹ sư làm theo dây chuyền:
+>
+> 1. `zalo-avatars`: ảnh đại diện thật của cuộc trò chuyện và người gửi (Zalo đã gửi, sino-api đã lưu; web chưa vẽ).
+> 2. `zalo-nicknames`: biệt danh = "tên gợi nhớ" của Zalo, đồng bộ hai chiều (`changeFriendAlias`, `getAliasList`); chỉ bạn bè chat 1-1 (người dùng chọn).
+> 3. `zalo-mentions`: gõ `@` trong nhóm để tag thành viên (`mentions` của `sendMessage`), tô tên mình khi bị tag; cần danh sách thành viên nhóm.
+> 4. `zalo-media-library`: đọc tin thoại, video, link (hôm nay thoại chỉ là `[Tin nhắn thoại]`), rồi kho Ảnh/Video, File, Link, Âm thanh của mỗi cuộc trò chuyện, từ tin Sino đã lưu; tin trước lúc kết nối thì không có (người dùng chọn).
+> 5. `zalo-voice-messages`: ghi âm trên thanh chat và gửi (`uploadAttachment` + `sendVoice`); thử định dạng trước trên nick phụ (trình duyệt ghi webm/opus, tin thoại Zalo là m4a).
 
 #### F10 — Send Message · ~M
 
@@ -269,6 +281,13 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 >   - `app.<tên miền>`: chuyển `/api/**` tới `sino-api` nhưng **chặn `/api/admin/**`**;
 >   - `admin.<tên miền>`: **chỉ** chuyển `/api/auth/**` và `/api/admin/**`;
 >   - trước `admin.<tên miền>` đặt thêm một lớp chặn truy cập: chỉ IP của người vận hành, hoặc Cloudflare Access.
+
+> **Nhiều sản phẩm Sino (người dùng, 2026-10-13):** "sau này sẽ có nhiều sino khác nên tôi muốn cái landing page này là chung cho các sino luôn và admin cũng tương tự".
+> - **Landing chung:** `apps/sino-site` là site của cả nhà Sino. `/` là trang thương hiệu; mỗi sản phẩm một trang (`/messages` cho Sino Messages, là App home page khai với Google); Privacy/Terms chung, mỗi sản phẩm một mục (`site-public-pages` D-253, D-254).
+>   - **Tạm bỏ 2026-10-27 (người dùng):** xóa `apps/sino-site` (bản cuối ở tag `sino-site-v0`). Trước mắt `sino-web` lo trang giới thiệu Sino Messages và Privacy; site chung của nhà Sino dựng lại khi có sản phẩm thứ hai.
+> - **Admin chung:** `apps/sino-admin` (khi làm) là admin của mọi sản phẩm, mỗi sản phẩm một mục. Dữ liệu của mỗi sản phẩm ở lại backend của sản phẩm đó và đọc qua `/api/admin/**` của nó (như `sino-api` đã có); admin không đọc thẳng database.
+> - **Backend chung (nền tảng):** đăng nhập một lần cho mọi sản phẩm và cho admin (OIDC; ưu tiên Keycloak hoặc dịch vụ có sẵn hơn tự viết), danh sách sản phẩm, có thể cả nội dung landing. Dựng khi sản phẩm thứ hai bắt đầu, vì hôm nay chưa có gì dùng chung để đặt vào đó.
+> - **Câu còn mở:** các sản phẩm có dùng chung tài khoản người dùng không (một tài khoản Sino cho mọi sản phẩm). Trả lời trước khi dựng backend chung.
 > - **Nội dung landing:** giữ trong code (git là lịch sử phiên bản; Privacy/Terms phải được đọc lại trước khi đổi). Chỉ xem headless CMS khi có người không viết code cần sửa chữ thường xuyên.
 
 ---

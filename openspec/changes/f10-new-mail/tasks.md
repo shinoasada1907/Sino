@@ -11,6 +11,7 @@
 - [ ] 1.1 **BE-84 — `POST /api/conversations`: tạo cuộc trò chuyện, gửi thread mới, chống trùng (D-192, D-195, D-197)**
   - **Thực hiện:** design mục Backend 1–3 và chốt kỹ thuật (tóm tắt của cuộc trò chuyện mới, đồng bộ nhập trước, contract provider, sự kiện).
   - **Acceptance criteria:** spec `new-mail` *Tạo cuộc trò chuyện bằng một thư mới*, *Không gửi trùng thư mới*, *Thư mới đã được đồng bộ nhập trước*, phần `409`/`502`/`504` của *Gửi thư mới lỗi và kết quả không rõ*.
+  - **Thêm từ `f05c-messages-inbox-split` (D-307, 2026-10-16):** tài khoản gửi phải có provider loại `EMAIL` (`ProviderKind`, BE-110); tài khoản của provider `CHAT` → `422`. Thêm test cho trường hợp này; nếu BE-110 chưa vào `dev` khi làm BE-84 thì làm BE-110 trước.
 
 - [ ] 1.2 **BE-85 — Thư mở đầu chưa gửi xong và đối chiếu (D-195, D-196)**
   - **Thực hiện:** design mục Backend 4, 5: `OPENING_NOT_SENT`, "Gửi lại" qua `/messages` gửi như thư mới, "Bỏ" xóa cuộc trò chuyện, đối chiếu `UNKNOWN` không có thread.

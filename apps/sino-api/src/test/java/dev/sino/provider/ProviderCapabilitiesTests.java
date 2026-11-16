@@ -1,6 +1,9 @@
 package dev.sino.provider;
 
+import static dev.sino.provider.ProviderCapability.ATTACHMENTS;
 import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
+import static dev.sino.provider.ProviderCapability.SEND_FILES;
+import static dev.sino.provider.ProviderCapability.SEND_IMAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
 import static dev.sino.provider.ProviderCapability.THREADS;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,6 +38,25 @@ class ProviderCapabilitiesTests {
         ProviderCapabilities capabilities = ProviderCapabilities.of(THREADS, READ_MESSAGES, READ_MESSAGES);
 
         assertThat(capabilities.values()).containsExactly(READ_MESSAGES, THREADS);
+    }
+
+    // A connector can send text and still not pictures (Gmail), so sending pictures is a capability of its own (D-349),
+    // and it is not what ATTACHMENTS already says (the metadata of files a message carries).
+    @Test
+    void sendingPicturesIsItsOwnCapabilityDeclaredAfterSendingMessages() {
+        assertThat(ProviderCapabilities.of(SEND_MESSAGES).supports(SEND_IMAGES)).isFalse();
+        assertThat(ProviderCapabilities.of(SEND_IMAGES).supports(SEND_MESSAGES)).isFalse();
+        assertThat(ProviderCapabilities.of(ATTACHMENTS, SEND_IMAGES, SEND_MESSAGES, READ_MESSAGES).values())
+                .containsExactly(READ_MESSAGES, SEND_MESSAGES, SEND_IMAGES, ATTACHMENTS);
+    }
+
+    // Sending a file from the computer is not sending a sticker's picture (zalo-send-files, D-372): its own capability.
+    @Test
+    void sendingFilesIsItsOwnCapabilityDeclaredAfterSendingPictures() {
+        assertThat(ProviderCapabilities.of(SEND_MESSAGES, SEND_IMAGES).supports(SEND_FILES)).isFalse();
+        assertThat(ProviderCapabilities.of(SEND_FILES).supports(SEND_IMAGES)).isFalse();
+        assertThat(ProviderCapabilities.of(ATTACHMENTS, SEND_FILES, SEND_IMAGES, SEND_MESSAGES).values())
+                .containsExactly(SEND_MESSAGES, SEND_IMAGES, SEND_FILES, ATTACHMENTS);
     }
 
     @Test

@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useMatches } from 'react-router'
-import { useInboxUnread } from '@/features/inbox/useInbox'
+import { useUnreadByKind } from '@/features/inbox/useInbox'
 import { navCountsOf } from '@/features/tasks/format'
 import { useTasks } from '@/features/tasks/useTasks'
 import { useNow } from '@/shared/time/useNow'
@@ -9,7 +9,10 @@ import { Rail } from './Rail'
 import { Sidebar } from './Sidebar'
 import { TabBar } from './TabBar'
 import { Topbar } from './Topbar'
+import { useArrivalNotices } from './useArrivalNotices'
 import { useShellData } from './useShellData'
+import { ThemeSync } from '@/features/settings/ThemeSync'
+import { useTabUnread } from './useTabUnread'
 
 // The app frame around every screen. Sidebar >= 1280 px, Rail 768-1279 px, TabBar < 768 px (canvas `Breakpoints`).
 /** What a route can ask of the shell through its `handle`. */
@@ -22,32 +25,47 @@ export interface ShellHandle {
 
 export function AppShell() {
   useEventStream()
-  const { shell: sample, receivedAt } = useShellData()
-  // The inbox count is the real one (D-93), so that new mail changes it; the task counts come from the task list
-  // (D-83, FE-70), so every change of a task shows on the navigation; the other counts are still sample data.
-  const inboxUnread = useInboxUnread()
+  const { shell: base, receivedAt } = useShellData()
+  // The counts of Tin nhắn and Hộp thư are the real ones (D-93, f05c), so that new mail changes them; the task counts come
+  // from the task list (D-83, FE-70), so every change of a task shows on the navigation. The shell data brings the counts
+  // of accounts from the account list (D-326) and flags no notification or registration (D-325); the owner and the sync
+  // line are still sample data.
+  const unread = useUnreadByKind()
+  // The browser tab says there is news too (NF-01, D-317): chats and mail together, the chats as 0 while the backend cannot count them.
+  useTabUnread(unread && unread.EMAIL + (unread.CHAT ?? 0))
+  // And a bar under the top bar says the new messages that came while the owner was elsewhere (NF-02, D-318).
+  const { notices, dismiss } = useArrivalNotices()
   const { tasks } = useTasks()
   // Ticks every minute, so a task due at noon counts as late once noon has passed.
   const now = useNow()
-  const navCounts = sample && {
-    ...sample.navCounts,
-    ...(inboxUnread === undefined ? {} : { inboxUnread }),
+  const navCounts = base && {
+    ...base.navCounts,
+    ...(unread === undefined ? {} : { messagesUnread: unread.CHAT, inboxUnread: unread.EMAIL }),
     ...(tasks === undefined ? {} : navCountsOf(tasks, now)),
   }
-  const shell = sample && navCounts && { ...sample, navCounts }
+  const shell = base && navCounts && { ...base, navCounts }
   const { pathname } = useLocation()
   const handle: ShellHandle = Object.assign({}, ...useMatches().map((match) => (match.handle ?? {}) as ShellHandle))
   // A sub-page such as /accounts/acc-gmail keeps the title of its section.
   const title = PAGES.find((page) => pathname === page.to || pathname.startsWith(`${page.to}/`))?.title ?? 'Sino'
 
   return (
-    <div className="grid h-svh grid-rows-[minmax(0,1fr)_auto] bg-background md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-1 xl:grid-cols-[248px_minmax(0,1fr)]">
+    <div className="grid h-svh grid-rows-[minmax(0,1fr)_auto] bg-background md:grid-cols-[auto_minmax(0,1fr)] md:grid-rows-1">
+      {/* The theme follows the user to another browser, and a choice made here is saved (settings-backend, D-405). */}
+      <ThemeSync />
       <Sidebar shell={shell} className="hidden xl:flex" />
       <Rail shell={shell} className="hidden md:flex xl:hidden" />
-      <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
-        <Topbar shell={shell} receivedAt={receivedAt} title={title} className={handle.mobilePageHeader ? 'max-md:hidden' : undefined} />
-        {/* Row 2 even when a page hides the top bar: a hidden item gives up its row, and main would fall into the auto one. */}
-        <main className="row-start-2 min-h-0 overflow-y-auto bg-dots">
+      <div className="flex min-h-0 min-w-0 flex-col">
+        <Topbar
+          shell={shell}
+          receivedAt={receivedAt}
+          title={title}
+          className={handle.mobilePageHeader ? 'max-md:hidden' : undefined}
+          notices={notices}
+          onDismissNotice={dismiss}
+          unread={unread}
+        />
+        <main className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>

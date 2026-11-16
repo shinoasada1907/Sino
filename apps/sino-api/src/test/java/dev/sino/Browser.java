@@ -1,10 +1,12 @@
 package dev.sino;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,12 +76,46 @@ public final class Browser {
             request.header("X-XSRF-TOKEN", cookies.get("XSRF-TOKEN"));
         }
         extraHeaders.forEach(request::header);
+        return perform(request, method + " " + path);
+    }
+
+    /**
+     * Sends a file as a {@code multipart/form-data} POST, with the CSRF token, as a browser does for a file input: the part
+     * {@code file} with the name, the type and the bytes, then the text parts in {@code fields}. The file name goes into the
+     * header as UTF-8, as browsers write it.
+     */
+    public Response upload(String path, String fileName, String contentType, byte[] content, Map<String, String> fields) {
+        String boundary = "----sino" + Long.toHexString(System.nanoTime());
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        fields.forEach((name, value) -> {
+            body.writeBytes(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + name + "\"\r\n\r\n" + value + "\r\n")
+                    .getBytes(StandardCharsets.UTF_8));
+        });
+        body.writeBytes(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"" + fileName
+                + "\"\r\nContent-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        body.writeBytes(content);
+        body.writeBytes(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(baseUrl + path))
+                .header("Accept", "application/json")
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray()));
+        if (!cookies.isEmpty()) {
+            request.header("Cookie", String.join("; ", cookies.entrySet().stream()
+                    .map(cookie -> cookie.getKey() + "=" + cookie.getValue()).toList()));
+        }
+        if (cookies.containsKey("XSRF-TOKEN")) {
+            request.header("X-XSRF-TOKEN", cookies.get("XSRF-TOKEN"));
+        }
+        return perform(request, "POST " + path);
+    }
+
+    private Response perform(HttpRequest.Builder request, String what) {
         try {
             HttpResponse<String> response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
             response.headers().allValues("Set-Cookie").forEach(this::remember);
             return new Response(response.statusCode(), response.headers().map(), response.body());
         } catch (IOException | InterruptedException e) {
-            throw new IllegalStateException("Request failed: " + method + " " + path, e);
+            throw new IllegalStateException("Request failed: " + what, e);
         }
     }
 

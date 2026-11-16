@@ -12,7 +12,13 @@ public enum IdentityErrorCode implements ErrorCode {
     INVALID_CREDENTIALS(ErrorCategory.UNAUTHENTICATED),
 
     /** Five wrong sign-ins in a row for one email: it is locked for fifteen minutes (D-35). */
-    LOGIN_LOCKED(ErrorCategory.RATE_LIMITED);
+    LOGIN_LOCKED(ErrorCategory.RATE_LIMITED),
+
+    /** The picture is above the size limit (413). */
+    AVATAR_TOO_LARGE(ErrorCategory.PAYLOAD_TOO_LARGE),
+
+    /** The user has no picture. */
+    AVATAR_NOT_FOUND(ErrorCategory.NOT_FOUND);
 
     private final ErrorCategory category;
 

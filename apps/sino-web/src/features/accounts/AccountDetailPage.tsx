@@ -86,7 +86,7 @@ export function AccountDetailPage() {
         </Button>
 
         <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-5">
-          <AccountAvatar provider={account.provider} size="lg" />
+          <AccountAvatar provider={account.provider} size="lg" label={account.displayName || account.address} />
           <div className="flex min-w-0 flex-col gap-1.5">
             <h1 className="truncate text-[28px] leading-9 font-semibold tracking-[-0.018em] xl:text-[40px] xl:leading-12 xl:font-bold xl:tracking-[-0.028em]">
               {account.address}
@@ -127,7 +127,9 @@ export function AccountDetailPage() {
           </div>
         </header>
 
-        {account.status === 'AUTH_EXPIRED' && <ReauthAlert {...reauthNotice(account, nameOf, now)} accountId={account.id} />}
+        {account.status === 'AUTH_EXPIRED' && (
+          <ReauthAlert {...reauthNotice(account, nameOf, now)} accountId={account.id} provider={account.provider} />
+        )}
 
         <div className="grid grid-cols-12 gap-4">
           <SectionCard title="Kênh đã kết nối" meta={<Spec>{channelSummary(account)}</Spec>} className="col-span-7">

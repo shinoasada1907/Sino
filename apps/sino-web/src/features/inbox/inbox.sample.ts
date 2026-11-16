@@ -1,10 +1,15 @@
+import type { ProviderKind } from '@/shared/domain'
 import { clockFrom } from '@/shared/time/canvasClock'
-import type { ConversationDetail, ConversationItem, InboxData, Message } from './inbox.types'
+import type { ConversationDetail, ConversationItem, InboxCounts, InboxData, Message } from './inbox.types'
 
-/** The whole inbox at once: the frame and every conversation, as the server holds them before any paging or filter. */
-export type InboxSample = InboxData & { conversations: ConversationItem[] }
+/**
+ * The whole inbox at once: the frame and every conversation, as the server holds them before any paging or filter.
+ * `counts` covers both kinds; `countsByKind` is what `counts?kind=` answers for Tin nhắn and Hộp thư (f05c).
+ */
+export type InboxSample = InboxData & { conversations: ConversationItem[]; countsByKind: Record<ProviderKind, InboxCounts> }
 
 const base = {
+  avatarUrl: null,
   memberCount: null,
   snippetFrom: null,
   unreadCount: 0,
@@ -103,6 +108,34 @@ export function createInboxSample(now: Date): InboxSample {
       needsReply: true,
       scheduledSend: { at: at('2026-10-02T08:00:00+07:00'), failed: true },
     },
+    // The two chats the canvas added with Tin nhắn (f05c, CV-01).
+    {
+      ...base,
+      id: 'conv-10',
+      accountId: 'acc-zalo',
+      provider: 'zalo',
+      kind: 'CHAT',
+      title: 'Hà',
+      subject: null,
+      snippet: 'Chị ơi tối nay em qua lấy đồ nhé.',
+      lastMessageAt: at('2026-10-02T07:52:00+07:00'),
+      unreadCount: 1,
+    },
+    {
+      ...base,
+      id: 'conv-11',
+      accountId: 'acc-zalo',
+      provider: 'zalo',
+      kind: 'CHAT',
+      title: 'Nhóm sửa nhà',
+      subject: null,
+      memberCount: 4,
+      snippetFrom: 'Kiến trúc sư',
+      snippet: 'Em gửi lại bản vẽ tầng 2 đã chỉnh cầu thang.',
+      lastMessageAt: at('2026-10-01T19:30:00+07:00'),
+      unreadCount: 2,
+      hasAttachments: true,
+    },
     {
       ...base,
       id: 'conv-6',
@@ -158,9 +191,9 @@ export function createInboxSample(now: Date): InboxSample {
   return {
     generatedAt: now.toISOString(),
     providers: [
-      { type: 'gmail', displayName: 'Gmail' },
-      { type: 'zalo', displayName: 'Zalo' },
-      { type: 'messenger', displayName: 'Messenger' },
+      { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' },
+      { type: 'zalo', displayName: 'Zalo', kind: 'CHAT' },
+      { type: 'messenger', displayName: 'Messenger', kind: 'CHAT' },
     ],
     accounts: [
       { id: 'acc-gmail', provider: 'gmail', externalAccountId: 'an.nguyen@gmail.com', address: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null, sending: 'READY' },
@@ -177,19 +210,45 @@ export function createInboxSample(now: Date): InboxSample {
         sending: 'NOT_SUPPORTED',
       },
     ],
-    counts: {
-      unread: 12,
-      byProvider: [
-        { provider: 'gmail', unread: 7 },
-        { provider: 'zalo', unread: 4 },
-        { provider: 'messenger', unread: 1 },
-      ],
-      needsReply: 3,
-      withAttachments: 5,
-      scheduled: 1,
-      snoozed: 1,
-    },
+    counts: bothKinds(countsByKind),
+    countsByKind,
     conversations,
+  }
+}
+
+// Hộp thư and Tin nhắn as the canvas counts them (f05c, CV-01); the snoozed email is "Nhà sách Lumen".
+const unreadByKind = { EMAIL: 7, CHAT: 5 }
+const countsByKind: Record<ProviderKind, InboxCounts> = {
+  EMAIL: { unread: 7, byProvider: [{ provider: 'gmail', unread: 7 }], needsReply: 2, withAttachments: 3, scheduled: 1, snoozed: 1, unreadByKind },
+  CHAT: {
+    unread: 5,
+    byProvider: [
+      { provider: 'zalo', unread: 4 },
+      { provider: 'messenger', unread: 1 },
+    ],
+    needsReply: 1,
+    withAttachments: 2,
+    scheduled: 1,
+    snoozed: 0,
+    unreadByKind,
+  },
+}
+
+/** What `fetchInbox(kind)` answers from a sample: the counts of that kind, or of both without one. */
+export function frameOf({ generatedAt, providers, accounts, counts, countsByKind }: InboxSample, kind?: ProviderKind): InboxData {
+  return { generatedAt, providers, accounts, counts: kind ? countsByKind[kind] : counts }
+}
+
+/** The counts without `kind`: both screens added up, as the backend answers them. */
+function bothKinds({ EMAIL, CHAT }: Record<ProviderKind, InboxCounts>): InboxCounts {
+  return {
+    unread: EMAIL.unread + CHAT.unread,
+    byProvider: [...EMAIL.byProvider, ...CHAT.byProvider],
+    needsReply: EMAIL.needsReply + CHAT.needsReply,
+    withAttachments: EMAIL.withAttachments + CHAT.withAttachments,
+    scheduled: EMAIL.scheduled + CHAT.scheduled,
+    snoozed: EMAIL.snoozed + CHAT.snoozed,
+    unreadByKind,
   }
 }
 
@@ -290,12 +349,12 @@ export function createConversationSample(conversationId: string, now: Date): Con
           { id: 'note-list', kind: 'NOTE', title: 'Danh sách mua cho bà', at: null, allDay: false, remindAt: null, pinned: true },
         ],
         members: [
-          { name: 'Mẹ', owner: true, joinedRecently: false },
-          { name: 'Bố', owner: false, joinedRecently: false },
-          { name: 'Hà', owner: false, joinedRecently: true },
-          { name: 'Minh', owner: false, joinedRecently: false },
-          { name: 'Bà ngoại', owner: false, joinedRecently: false },
-          { name: 'Ông ngoại', owner: false, joinedRecently: false },
+          { name: 'Mẹ', avatarUrl: null, owner: true, joinedRecently: false },
+          { name: 'Bố', avatarUrl: null, owner: false, joinedRecently: false },
+          { name: 'Hà', avatarUrl: null, owner: false, joinedRecently: true },
+          { name: 'Minh', avatarUrl: null, owner: false, joinedRecently: false },
+          { name: 'Bà ngoại', avatarUrl: null, owner: false, joinedRecently: false },
+          { name: 'Ông ngoại', avatarUrl: null, owner: false, joinedRecently: false },
         ],
         files: {
           total: 14,

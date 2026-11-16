@@ -1,0 +1,12 @@
+{
+  "name": "zalo-zca-spike",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway feasibility spike for F09: a personal Zalo account through zca-js (unofficial).",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "zca-js": "2.2.0"
+  }
+}

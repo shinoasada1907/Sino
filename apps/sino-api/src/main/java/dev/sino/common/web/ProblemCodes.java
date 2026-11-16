@@ -14,6 +14,8 @@ final class ProblemCodes {
     static final String RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND";
     static final String METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED";
     static final String UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE";
+    /** An upload above the multipart limit of the server, refused before any module looked at it. */
+    static final String PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE";
     static final String CONCURRENT_MODIFICATION = "CONCURRENT_MODIFICATION";
     static final String INTERNAL_ERROR = "INTERNAL_ERROR";
 

@@ -13,7 +13,7 @@
 <style>body{margin:0}</style>
 </helmet>
 <div class="{{rootClass}}">
-<dc-import name="Sidebar" theme="{{theme}}" active="inbox" hint-size="248px,100vh"></dc-import>
+<dc-import name="Sidebar" theme="{{theme}}" active="{{navActive}}" hint-size="248px,100vh"></dc-import>
 <div class="app-main">
 <dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
 <div class="convo">
@@ -23,7 +23,7 @@
 <sc-if value="{{is.reconnect}}" hint-placeholder-val="{{true}}">
 <header class="thread-head">
 <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0;">
-<a class="btn btn-ghost btn-sm back" href="Inbox.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Hộp thư</a>
+<a class="btn btn-ghost btn-sm back" href="Messages.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Tin nhắn</a>
 <div style="display: flex; align-items: center; gap: 14px;"><span class="avatar av-b"><span class="sub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span></span><div class="who-text"><h1 class="t-large">Lê Hoàng</h1><span class="t-small c-muted">Messenger · qua an.nguyen.92</span></div><span class="status" style="margin-left: 8px;"><span class="dot dot-err"></span><span class="ink-err">Ngắt kết nối từ 21:04 hôm qua</span></span></div>
 </div>
 </header>
@@ -101,6 +101,8 @@ class Component extends DCLogic {
       theme,
       rootClass: `sino theme-${theme} app`,
       is: { reconnect: state === 'reconnect', permission: state === 'permission' },
+      // The reconnect example is a Messenger chat (Tin nhắn); the permission one is a Gmail thread (Hộp thư).
+      navActive: state === 'reconnect' ? 'messages' : 'inbox',
     };
   }
 }

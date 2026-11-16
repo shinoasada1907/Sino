@@ -13,13 +13,15 @@ vi.mock('./inbox.api', async (importOriginal) => (await import('@/test/inboxSamp
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')
-const NO_COUNTS: InboxData['counts'] = { unread: 0, byProvider: [], needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0 }
+const NO_COUNTS: InboxData['counts'] = { unread: 0, byProvider: [], needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0, unreadByKind: null }
 
 function open(path: string, inbox: InboxSample | null = createInboxSample(NOW)) {
   return renderApp(path, { shell: createShellSample(NOW), inbox })
 }
 
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
+// The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
+const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
 const thread = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện đang mở' }))
 const chat = (title: string) => within(screen.getByRole('region', { name: `Cuộc trò chuyện ${title}` }))
 
@@ -39,7 +41,7 @@ describe('states of the inbox', () => {
     open('/inbox', null)
 
     expect(await screen.findByRole('status', { name: 'Đang tải hộp thư' })).toBeInTheDocument()
-    expect(list().getByText('đang tải')).toBeInTheDocument()
+    expect(pane().getAllByText('đang tải')).not.toHaveLength(0)
     // No rows; "Thư mới" stays (f10-new-mail).
     expect(list().queryAllByRole('link').filter((link) => link.querySelector('[data-slot="row-title"]'))).toHaveLength(0)
   })
@@ -52,7 +54,7 @@ describe('states of the inbox', () => {
     const card = await list().findByRole('status', { name: 'Đồng bộ lần đầu · Gmail' })
     expect(card).toHaveTextContent('35%')
     expect(within(card).getByRole('img', { name: 'Đã đồng bộ 35%' })).toBeInTheDocument()
-    expect(list().getByText('đang đồng bộ')).toBeInTheDocument()
+    expect(pane().getAllByText('đang đồng bộ')).not.toHaveLength(0)
     expect(list().queryByText('Không có cuộc trò chuyện nào')).toBeNull()
     expect(screen.queryByRole('group', { name: 'Lọc danh sách' })).toBeNull()
     expect(screen.queryByRole('group', { name: 'Nguồn' })).toBeNull()
@@ -64,9 +66,9 @@ describe('states of the inbox', () => {
     open('/inbox', { ...sample, accounts: [], conversations: [], counts: NO_COUNTS })
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Hộp thư đang trống.' })).toBeInTheDocument()
-    for (const provider of ['Gmail', 'Zalo', 'Messenger']) {
-      expect(screen.getByRole('link', { name: `Kết nối ${provider}` })).toHaveAttribute('href', '/accounts?connect=new')
-    }
+    // Only the email providers: chats are connected from Tin nhắn (f05c, D-305).
+    expect(screen.getByRole('link', { name: 'Kết nối Gmail' })).toHaveAttribute('href', '/accounts?connect=new')
+    expect(screen.queryByRole('link', { name: /Kết nối (Zalo|Messenger)/ })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Danh sách cuộc trò chuyện' })).toBeNull()
   })
 
@@ -79,7 +81,7 @@ describe('states of the inbox', () => {
     expect(within(alert).getByRole('heading', { name: 'Không tải được hộp thư' })).toBeInTheDocument()
     expect(alert).toHaveTextContent('ERR_TIMEOUT · yêu cầu 7f3a-91c2 · 14:05')
     expect(within(alert).getByRole('button', { name: 'Trạng thái hệ thống' })).toBeInTheDocument()
-    expect(list().getByText('không tải được')).toBeInTheDocument()
+    expect(pane().getAllByText('không tải được')).not.toHaveLength(0)
     expect(thread().getByText('Nội dung sẽ hiện ở đây khi hộp thư tải xong.')).toBeInTheDocument()
 
     await user.click(within(alert).getByRole('button', { name: 'Thử lại' }))
@@ -89,7 +91,7 @@ describe('states of the inbox', () => {
   })
 
   it('keeps the saved inbox while offline, and sends what was written once back online', async () => {
-    open('/inbox/conv-2')
+    open('/messages/conv-2')
     const user = userEvent.setup()
     const box = await chat('Gia đình').findByRole('textbox', { name: 'Nhắn tin tới Gia đình' })
     await chat('Gia đình').findByText('Để con mang thêm trái cây nữa nhé.')
@@ -99,7 +101,8 @@ describe('states of the inbox', () => {
     const banner = screen.getByText('Bạn đang ngoại tuyến.').closest('[role="status"]')!
     expect(banner).toHaveTextContent('Đang hiện dữ liệu đã lưu lúc 14:05. Thư bạn soạn sẽ gửi khi có mạng.')
     expect(within(banner as HTMLElement).getByRole('button', { name: 'Thử kết nối lại' })).toBeInTheDocument()
-    expect(list().getByText('11 chưa đọc · đã lưu')).toBeInTheDocument()
+    // Tin nhắn: 5 chats unread, less the one just opened.
+    expect(pane().getAllByText('4 chưa đọc · đã lưu')).not.toHaveLength(0)
     expect(chat('Gia đình').getByText('Sẽ gửi khi có mạng')).toBeInTheDocument()
 
     await user.type(box, 'Con về lúc 6 giờ')
@@ -118,7 +121,7 @@ describe('states of the inbox', () => {
   })
 
   it('replaces the message box with a way to sign in again when the account access expired', async () => {
-    open('/inbox/conv-4')
+    open('/messages/conv-4')
 
     const alert = await chat('Lê Hoàng').findByRole('alert')
     expect(alert).toHaveTextContent('Cần đăng nhập lại Messenger để nhận và gửi tin')

@@ -1,0 +1,32 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-12T10:00:00Z"},
+  "title": "Sino UI — Sunset",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1240, "title": "Nền tảng · 5 bộ màu, chữ, thành phần"},
+    "Sidebar.dc.html": {"x": 0, "y": 1360, "w": 268, "h": 900, "title": "Sidebar"},
+    "Dashboard.dc.html": {"x": 348, "y": 1360, "w": 1440, "h": 1000, "title": "Tổng quan · Anh đào, sáng", "expand": "fill"},
+    "DashboardLight.dc.html": {"x": 1868, "y": 1360, "w": 1440, "h": 1000, "title": "Tổng quan · Oải hương, tối", "expand": "fill"},
+    "Inbox.dc.html": {"x": 348, "y": 2480, "w": 1440, "h": 900, "title": "Hộp thư · sáng", "expand": "fill"},
+    "InboxLight.dc.html": {"x": 1868, "y": 2480, "w": 1440, "h": 900, "title": "Hộp thư · tối", "expand": "fill"},
+    "Messages.dc.html": {"x": 348, "y": 3500, "w": 1440, "h": 900, "title": "Tin nhắn", "expand": "fill"},
+    "Calendar.dc.html": {"x": 1868, "y": 3500, "w": 1440, "h": 900, "title": "Lịch", "expand": "fill"},
+    "Tasks.dc.html": {"x": 348, "y": 4520, "w": 1440, "h": 900, "title": "Việc cần làm", "expand": "fill"},
+    "Notes.dc.html": {"x": 1868, "y": 4520, "w": 1440, "h": 900, "title": "Ghi chú", "expand": "fill"},
+    "Accounts.dc.html": {"x": 348, "y": 5540, "w": 1440, "h": 900, "title": "Tài khoản", "expand": "fill"},
+    "Settings.dc.html": {"x": 1868, "y": 5540, "w": 1440, "h": 1000, "title": "Cài đặt · Giao diện (bấm chọn bộ màu)", "expand": "fill", "is_interactive": true},
+    "MobileInbox.dc.html": {"x": 348, "y": 6660, "w": 390, "h": 844, "title": "Di động · Hộp thư"},
+    "MobileChat.dc.html": {"x": 818, "y": 6660, "w": 390, "h": 844, "title": "Di động · Trò chuyện, tối"},
+    "Landing.dc.html": {"x": 0, "y": 7640, "w": 1440, "h": 3200, "title": "Web site · Trang giới thiệu", "expand": "fill"},
+    "Privacy.dc.html": {"x": 1520, "y": 7640, "w": 1440, "h": 1400, "title": "Web site · Chính sách quyền riêng tư", "expand": "fill"}
+  },
+  "order": [
+    "Main.dc.html", "Sidebar.dc.html", "Dashboard.dc.html", "DashboardLight.dc.html", "Inbox.dc.html", "InboxLight.dc.html",
+    "Messages.dc.html", "Calendar.dc.html", "Tasks.dc.html", "Notes.dc.html", "Accounts.dc.html", "Settings.dc.html",
+    "MobileInbox.dc.html", "MobileChat.dc.html", "Landing.dc.html", "Privacy.dc.html"
+  ],
+  "notes": {},
+  "designSystems": []
+}

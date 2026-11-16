@@ -4,7 +4,9 @@ import {
   ArchiveRestore,
   Calendar,
   CalendarPlus,
+  Check,
   Clock,
+  Copy,
   Ellipsis,
   ExternalLink,
   Search,
@@ -30,6 +32,7 @@ import { MailBody } from './MailBody'
 import { LatestPreview } from './LatestPreview'
 import { MailDot } from './icons'
 import { ThreadNotice } from './ThreadNotice'
+import { copyFileLinkToClipboard } from '../clipboard'
 
 type Mail = Message & { kind: 'MESSAGE' }
 
@@ -87,9 +90,9 @@ export function EmailThread({
 
   return (
     <>
-      <header className="flex items-start justify-between gap-4 border-b p-4 md:px-5 xl:px-6 xl:py-5">
+      <header className="flex items-start justify-between gap-4 p-4 md:px-5 xl:px-6 xl:py-5">
         <div className="flex min-w-0 flex-col gap-2">
-          <h2 className="text-lg leading-6.5 font-semibold tracking-[-0.01em] md:text-xl md:leading-7">{item.subject ?? item.title}</h2>
+          <h2 className="line-clamp-2 text-lg leading-6.5 font-extrabold tracking-[-0.01em] md:text-[20px] md:leading-7">{item.subject ?? item.title}</h2>
           <div className="flex flex-wrap items-center gap-2.5">
             {/* The mark stays beside the source: a thread in several accounts wraps its addresses next to it (f05b). */}
             <span className="flex min-w-0 items-start gap-2.5">
@@ -299,7 +302,7 @@ function MailCard({
   )
 
   return (
-    <article className="flex flex-col gap-4 rounded-md border bg-surface p-4 md:p-5">
+    <article className="flex flex-col gap-4 rounded-lg bg-surface shadow-card p-4 md:p-5">
       {onFold ? (
         <button
           type="button"
@@ -357,10 +360,24 @@ function MailCard({
   )
 }
 
-// Canvas `.att`: a file of an email. From the API it downloads through Sino (D-125); the sample data has no address.
-function MailFile({ file }: { file: Attachment }) {
+// Canvas `.att`: a file of an email, or of a chat message (zalo-send-files, ZF-08). From the API it downloads through
+// Sino (D-125); the sample data, and a file still on its way, have no address.
+export function MailFile({ file }: { file: Attachment }) {
+  const [copied, setCopied] = useState(false)
   const className =
-    'inline-flex h-13 min-w-0 max-w-full cursor-pointer items-center gap-2.5 rounded-sm border bg-raised pr-3.5 pl-2 text-left text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid'
+    'group/file inline-flex h-13 min-w-0 max-w-full items-center gap-2.5 rounded-sm border bg-raised pr-2 pl-2 text-left text-foreground outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid'
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const target = file.url || file.name
+    const success = await copyFileLinkToClipboard(target)
+    if (success) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   const content = (
     <>
       <span className="grid size-9 shrink-0 place-items-center rounded-[8px] border bg-surface font-mono text-[10px] leading-none font-semibold tracking-[0.04em] text-muted-foreground">
@@ -370,6 +387,15 @@ function MailFile({ file }: { file: Attachment }) {
         <span className="truncate text-sm font-semibold">{file.name}</span>
         {file.sizeBytes !== null && <Spec>{formatFileSize(file.sizeBytes)}</Spec>}
       </span>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="ml-auto flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-hover hover:text-foreground transition-colors cursor-pointer"
+        title="Sao chép liên kết tệp"
+        aria-label={`Sao chép liên kết ${file.name}`}
+      >
+        {copied ? <Check className="size-3.5 text-emerald-500" strokeWidth={2} /> : <Copy className="size-3.5" strokeWidth={1.6} />}
+      </button>
     </>
   )
   return file.url ? (
@@ -377,9 +403,9 @@ function MailFile({ file }: { file: Attachment }) {
       {content}
     </a>
   ) : (
-    <button type="button" className={className}>
+    <div className={className}>
       {content}
-    </button>
+    </div>
   )
 }
 

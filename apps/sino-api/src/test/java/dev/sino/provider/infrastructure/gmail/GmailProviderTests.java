@@ -25,6 +25,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.OAuth2Connection;
@@ -69,6 +70,11 @@ class GmailProviderTests {
         assertThat(gmail.displayName()).isEqualTo("Gmail");
         assertThat(gmail.capabilities()).isEqualTo(ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
                 ProviderCapability.SEND_MESSAGES, ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS));
+    }
+
+    @Test
+    void isAnEmailProvider() {
+        assertThat(gmail().kind()).isEqualTo(ProviderKind.EMAIL);
     }
 
     @Test

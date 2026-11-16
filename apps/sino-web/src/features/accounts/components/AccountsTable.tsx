@@ -30,7 +30,7 @@ export function AccountsTable({
 }) {
   return (
     // `relative` keeps absolutely positioned children (the sr-only header) inside the scroll box.
-    <div className="relative overflow-x-auto rounded-md border bg-surface">
+    <div className="relative overflow-x-auto rounded-lg bg-surface shadow-card">
       <div role="table" aria-label="Tài khoản đã kết nối" className="min-w-224">
         <div role="rowgroup">
           <div role="row" className={cn(COLUMNS, 'h-10 border-b font-mono text-[11px] leading-4 font-medium text-muted-foreground uppercase')}>
@@ -70,7 +70,7 @@ function AccountRow({ account, now, name }: { account: AccountItem; now: Date; n
       className={cn(COLUMNS, 'relative min-h-16 border-b py-3 transition-colors duration-(--dur-hover) ease-out last:border-b-0 hover:bg-hover')}
     >
       <div role="cell" className="flex min-w-0 items-center gap-3">
-        <AccountAvatar provider={account.provider} />
+        <AccountAvatar provider={account.provider} label={account.displayName || account.address} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-sm font-semibold">{account.displayName}</span>
           <Spec className="truncate">{account.address}</Spec>

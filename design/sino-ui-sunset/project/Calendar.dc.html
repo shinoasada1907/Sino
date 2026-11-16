@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Lịch</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} app" style="height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" active="calendar" hint-size="248px,900px"></dc-import>
+  <main class="main" style="height: 900px;">
+    <div class="top">
+      <h1 class="crumb" style="font-size: 17px;">Tháng 10, 2026</h1>
+      <div style="display: flex; gap: 2px;">
+        <button class="icon-btn" aria-label="Tuần trước"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button class="icon-btn" aria-label="Tuần sau"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+      <button class="btn">Hôm nay</button>
+      <div class="seg" style="margin-left: auto;"><button>Ngày</button><button class="on">Tuần</button><button>Tháng</button><button>Lịch trình</button></div>
+      <button class="btn primary">Sự kiện mới</button>
+    </div>
+    <div style="flex: 1; overflow: auto; display: flex; flex-direction: column;">
+      <div style="display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 1;">
+        <div></div>
+        <sc-for list="{{days}}" as="d" hint-placeholder-count="7">
+          <div style="padding: 12px 10px; display: flex; align-items: baseline; gap: 8px;">
+            <span class="small subtle">{{d.w}}</span>
+            <span class="{{d.numCls}}">{{d.n}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); position: relative; flex: 1;">
+        <div style="display: flex; flex-direction: column;">
+          <sc-for list="{{hours}}" as="h" hint-placeholder-count="12"><div class="tiny subtle mono" style="height: 60px; padding: 0 10px; text-align: right; transform: translateY(-7px);">{{h}}</div></sc-for>
+        </div>
+        <sc-for list="{{cols}}" as="c" hint-placeholder-count="7">
+          <div style="position: relative; border-left: 1px solid var(--border); background-image: repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px 60px); {{c.bg}}">
+            <sc-for list="{{c.events}}" as="e" hint-placeholder-count="1">
+              <div style="position: absolute; left: 4px; right: 6px; top: {{e.top}}; height: {{e.h}}; padding: 6px 8px; border-radius: 8px; background: {{e.bg}}; box-shadow: inset 3px 0 0 {{e.bar}}; overflow: hidden; display: flex; flex-direction: column; gap: 1px;">
+                <span class="small" style="font-weight: 600; color: var(--text);">{{e.title}}</span>
+                <span class="tiny" style="color: {{e.ink}};">{{e.time}}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{c.now}}" hint-placeholder-val="{{false}}"><div style="position: absolute; left: -4px; right: 0; top: 365px; height: 2px; background: var(--accent);"><span style="position: absolute; left: -1px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent);"></span></div></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const w = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+    const n = ['28', '29', '30', '01', '02', '03', '04'];
+    const days = w.map((x, i) => ({ w: x, n: n[i], numCls: i === 4 ? 'tag accent display' : 'display' }))
+      .map((d) => ({ ...d, numCls: d.numCls.includes('tag') ? 'tag accent' : 'h2' }));
+    const hours = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+    const kinds = {
+      accent: ['var(--accent-soft)', 'var(--accent)', 'var(--accent-ink)'],
+      dusk: ['var(--dusk-soft)', 'var(--dusk-ink)', 'var(--dusk-ink)'],
+      honey: ['var(--honey-soft)', 'var(--honey)', 'var(--honey)'],
+      ok: ['var(--success-soft)', 'var(--success)', 'var(--success)']
+    };
+    const ev = (start, len, title, time, k) => ({ top: (start - 8) * 60 + 'px', h: len * 60 - 4 + 'px', title, time, bg: kinds[k][0], bar: kinds[k][1], ink: kinds[k][2] });
+    const events = [
+      [ev(9, 1, 'Họp đầu tuần', '09:00 – 10:00', 'dusk')],
+      [ev(14, 1.5, 'Xem bản hợp đồng', '14:00 – 15:30', 'accent')],
+      [ev(10, 1, 'Gọi kế toán', '10:00 – 11:00', 'honey'), ev(16, 1, 'Gym', '16:00 – 17:00', 'ok')],
+      [ev(14, 2, 'Ký hợp đồng VP', '14:00 – 16:00 · Q.1', 'accent')],
+      [ev(9, 0.75, 'Xác nhận lịch khám', '09:00', 'ok'), ev(16, 1, 'Gọi Minh Anh', '16:00 · phụ lục giá', 'accent')],
+      [ev(18.5, 1.5, 'Về nhà ăn cơm', '18:30 · Gia đình', 'dusk')],
+      []
+    ];
+    const cols = events.map((evs, i) => ({ events: evs, now: i === 4, bg: i === 4 ? 'background-color: var(--accent-soft);' : (i > 4 ? 'background-color: var(--raised);' : '') }));
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', days, hours, cols };
+  }
+}
+</script>
+</body>
+</html>

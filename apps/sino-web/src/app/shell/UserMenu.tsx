@@ -1,12 +1,13 @@
-import { LogOut, Moon, Sun } from 'lucide-react'
+import { LogOut, Moon, Sun, User } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import { useLogout, useMe } from '@/features/auth/useAuth'
 import { useTheme } from '@/shared/theme/themeContext'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/ui/dropdown-menu'
 
 /**
  * The menu behind "Tài khoản Sino của bạn" (the sidebar's "…" and the rail's avatar): who is signed in, light or dark,
- * and signing out. The canvas draws the button without its menu; the content follows the spec `web-app-foundation`.
+ * profile navigation, and signing out. The canvas draws the button without its menu; the content follows the spec `web-app-foundation`.
  */
 export function UserMenu({ children }: { children: ReactNode }) {
   const { data: me } = useMe()
@@ -22,6 +23,12 @@ export function UserMenu({ children }: { children: ReactNode }) {
           <span className="truncate font-mono text-[11px] leading-4 font-medium text-muted-foreground">{me?.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
+            <User className="size-4" strokeWidth={1.6} />
+            <span>Hồ sơ cá nhân</span>
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={toggleTheme}>
           {theme === 'dark' ? <Sun strokeWidth={1.6} /> : <Moon strokeWidth={1.6} />}
           {theme === 'dark' ? 'Giao diện sáng' : 'Giao diện tối'}

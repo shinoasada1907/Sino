@@ -25,7 +25,8 @@ describe('overview sample data', () => {
 
   it('agrees with the shell data shown in the navigation', () => {
     expect(shell.accountCount).toBe(overview.accounts.length)
-    expect(shell.navCounts.inboxUnread).toBe(overview.inbox!.unreadCount)
+    // The overview card counts both kinds; the navigation splits them into Tin nhắn and Hộp thư (f05c).
+    expect(shell.navCounts.inboxUnread + (shell.navCounts.messagesUnread ?? 0)).toBe(overview.inbox!.unreadCount)
     expect(shell.navCounts.accountsNeedingAction).toBe(
       overview.accounts.filter((account) => account.status === 'AUTH_EXPIRED' || account.status === 'ERROR').length,
     )

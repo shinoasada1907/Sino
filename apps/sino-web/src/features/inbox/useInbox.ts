@@ -2,19 +2,26 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
+import type { ProviderKind } from '@/shared/domain'
 import { applyChange, countsAfter, type ConversationChange } from './conversationChange'
 import { filterConversations, withOutbox, type InboxFilter } from './format'
-import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadCount, sendMessage, updateConversation } from './inbox.api'
-import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation } from './inbox.types'
+import { stickerTurns } from './stickerQueue'
+import { isPicture, outgoingFiles } from './outgoingFiles'
+import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, fileTypeOf, sendFile, sendMessage, sendSticker, updateConversation, updateNickname } from './inbox.api'
+import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation, UnreadByKind } from './inbox.types'
 import { LEAVE_FREELY, rememberSender, type NewMailDraft } from './newMail'
+import { SCREENS } from './screen'
 
-/** Accounts, providers and counts of the inbox. */
+/** Everything of Tin nhắn and Hộp thư: frames, lists, open conversations; what the stream reads again. */
 export const INBOX_QUERY_KEY = ['inbox'] as const
+const FRAMES_KEY = ['inbox', 'frame'] as const
+/** Accounts, providers and the counts of one screen (f05c): each kind has its own counts. */
+export const inboxKey = (kind: ProviderKind) => [...FRAMES_KEY, kind] as const
 /** Apart from `['inbox']`: the shell keeps it on every page, and it is one light request (D-93). */
 export const INBOX_UNREAD_QUERY_KEY = ['inbox-unread'] as const
 const LISTS_KEY = ['inbox', 'list'] as const
-/** The pages of one view and source. */
-export const conversationsKey = ({ view, source }: InboxFilter) => [...LISTS_KEY, view, source] as const
+/** The pages of one kind, view and source. */
+export const conversationsKey = (kind: ProviderKind, { view, source, account }: InboxFilter) => [...LISTS_KEY, kind, view, source, account] as const
 export const conversationKey = (conversationId: string) => ['inbox', 'conversation', conversationId] as const
 /** Under the conversation, so that a change the stream reports reads them again too (D-126). */
 export const messagesKey = (conversationId: string) => [...conversationKey(conversationId), 'messages'] as const
@@ -37,14 +44,19 @@ export interface InboxQuery {
   retry: () => void
 }
 
-/** The unread conversations for the count of the navigation; undefined until it arrives. */
-export function useInboxUnread(): number | undefined {
-  const { data } = useQuery({ queryKey: INBOX_UNREAD_QUERY_KEY, queryFn: fetchUnreadCount, staleTime: Infinity })
+/** The unread conversations of Tin nhắn and Hộp thư for the navigation (f05c); undefined until they arrive. */
+export function useUnreadByKind(): UnreadByKind | undefined {
+  const { data } = useQuery({
+    queryKey: INBOX_UNREAD_QUERY_KEY,
+    queryFn: fetchUnreadByKind,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+  })
   return data
 }
 
-export function useInbox(): InboxQuery {
-  const { data, dataUpdatedAt, error, errorUpdatedAt, refetch } = useQuery({ queryKey: INBOX_QUERY_KEY, queryFn: fetchInbox, staleTime: Infinity })
+export function useInbox(kind: ProviderKind): InboxQuery {
+  const { data, dataUpdatedAt, error, errorUpdatedAt, refetch } = useQuery({ queryKey: inboxKey(kind), queryFn: () => fetchInbox(kind), staleTime: Infinity })
   return { inbox: data, receivedAt: dataUpdatedAt, error, failedAt: errorUpdatedAt, retry: () => void refetch() }
 }
 
@@ -74,10 +86,10 @@ export interface ConversationListQuery {
  * are filtered again here so that a change (read, archived) shows at once, and the rows of the view shown before stay
  * while the new one loads.
  */
-export function useConversationList(filter: InboxFilter, now: Date): ConversationListQuery {
+export function useConversationList(kind: ProviderKind, filter: InboxFilter, now: Date): ConversationListQuery {
   const query = useInfiniteQuery({
-    queryKey: conversationsKey(filter),
-    queryFn: ({ pageParam }) => fetchConversations(filter, pageParam),
+    queryKey: conversationsKey(kind, filter),
+    queryFn: ({ pageParam }) => fetchConversations(filter.account ? filter : { view: filter.view, source: filter.source, account: null }, pageParam, kind),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: Infinity,
@@ -88,7 +100,9 @@ export function useConversationList(filter: InboxFilter, now: Date): Conversatio
   const load = useCallback(() => void fetchNextPage({ cancelRefetch: false }), [fetchNextPage])
   // A row can come twice when the list changed between two pages.
   const seen = new Set<string>()
-  const loaded = (data?.pages.flatMap((page) => page.items) ?? []).filter((item) => !seen.has(item.id) && seen.add(item.id))
+  const loaded = (data?.pages.flatMap((page) => page.items) ?? []).filter(
+    (item) => item.kind === kind && !seen.has(item.id) && seen.add(item.id),
+  )
   return {
     conversations: data && filterConversations(loaded, filter, now),
     loaded,
@@ -223,8 +237,17 @@ function updateItem(queryClient: QueryClient, conversationId: string, change: (i
   queryClient.setQueryData<OpenConversation>(conversationKey(conversationId), (open) => open && { ...open, item: change(open.item) })
 }
 
+// Every counts of a frame moves with the row; the frame of the other kind keeps its own numbers but both of `unreadByKind`.
 function moveCounts(queryClient: QueryClient, before: ConversationItem, after: ConversationItem) {
-  queryClient.setQueryData<InboxData>(INBOX_QUERY_KEY, (inbox) => inbox && { ...inbox, counts: countsAfter(inbox.counts, before, after) })
+  for (const kind of ['EMAIL', 'CHAT'] as const) {
+    queryClient.setQueryData<InboxData>(inboxKey(kind), (inbox) => {
+      if (!inbox) {
+        return inbox
+      }
+      const moved = countsAfter(inbox.counts, before, after)
+      return { ...inbox, counts: kind === after.kind ? moved : { ...inbox.counts, unreadByKind: moved.unreadByKind } }
+    })
+  }
 }
 
 /**
@@ -264,6 +287,18 @@ export function useUpdateConversation() {
 }
 
 /**
+ * Sets, changes or clears the nickname of a 1-1 chat (zalo-nicknames, D-420). Not optimistic: the provider can refuse, so
+ * nothing changes until the server answers with the row as it stored it; a refusal leaves the rows as they are.
+ */
+export function useSetNickname() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, nickname }: { id: string; nickname: string }) => updateNickname(id, nickname),
+    onSuccess: (stored, { id }) => updateItem(queryClient, id, () => stored),
+  })
+}
+
+/**
  * "Đánh dấu chưa đọc" and "Lưu trữ" / "Bỏ lưu trữ" of an open conversation: the change, then back to the list it came
  * from, as Gmail does (D-73). Staying would read it again at once (opening reads), and an archived row has left the list.
  */
@@ -272,7 +307,7 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
   const navigate = useNavigate()
   const change = (change: ConversationChange) => {
     mutate({ id: item.id, change })
-    void navigate({ pathname: '/inbox', search: backSearch })
+    void navigate({ pathname: SCREENS[item.kind].path, search: backSearch })
   }
   return { markUnread: () => change({ read: false }), toggleArchive: () => change({ archived: !item.archived }) }
 }
@@ -281,11 +316,42 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
  * Sends a message. It shows at once at the end of the conversation as "Đang gửi", becomes the stored message when the
  * server answers (and the row's preview), or is marked "Không gửi được" when sending fails.
  */
-// What a reply on its way needs: a resend carries the ID of the first try; `attempt` tells this try from a later one.
-interface Outgoing {
-  text: string
-  clientMessageId: string
-  attempt: number
+// What a reply on its way needs: a resend carries the ID of the first try; `attempt` tells this try from a later one. It is
+// a text, a sticker of the library (zalo-send-images), which the server turns into a picture, or a picture or file from
+// the computer (zalo-send-files). `paced`: it waits its turn in the queue of stickers and files.
+type Try =
+  | { kind: 'TEXT'; text: string; clientMessageId: string }
+  | { kind: 'STICKER'; stickerId: string; clientMessageId: string }
+  | { kind: 'FILE'; file: File; clientMessageId: string }
+type Outgoing = Try & { attempt: number; paced: boolean }
+
+/** The text the server stores a sticker with; shown while the sticker has no picture to show. */
+const STICKER_TEXT = '[Sticker]'
+/** The text the server stores a picture with (zalo-send-files, D-373); a file is stored with its name. */
+const PICTURE_TEXT = '[Ảnh]'
+
+/**
+ * Stickers, files and the text sent with files, of every conversation, go through one queue (D-355, D-377): the limit of
+ * sino-zalo is per account.
+ */
+const PACED_SCOPE = 'paced-sends'
+
+/** What a message on its way shows before the server has it. */
+function pendingContent(outgoing: Outgoing): Pick<Mail, 'text' | 'attachments'> & Partial<Pick<Mail, 'libraryStickerId'>> {
+  switch (outgoing.kind) {
+    case 'STICKER':
+      return { text: STICKER_TEXT, attachments: [], libraryStickerId: outgoing.stickerId }
+    case 'FILE': {
+      const { file } = outgoing
+      const picture = isPicture(file)
+      return {
+        text: picture ? PICTURE_TEXT : file.name,
+        attachments: [{ name: file.name, type: fileTypeOf(file), sizeBytes: file.size, image: picture, caption: null }],
+      }
+    }
+    default:
+      return { text: outgoing.text, attachments: [] }
+  }
 }
 
 const storedId = (error: unknown) => (error instanceof ApiError && typeof error.extra.messageId === 'string' ? error.extra.messageId : null)
@@ -305,9 +371,10 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
   // The latest try of each message: an older try that ends late must not let go of a newer one.
   const attempts = useRef(new Map<string, number>())
 
-  const mutation = useMutation({
-    mutationFn: ({ text, clientMessageId }: Outgoing) => sendMessage(conversationId, text, clientMessageId),
-    onMutate: ({ text, clientMessageId }: Outgoing) => {
+  // What happens before, after and instead of the answer is the same for a text and for a sticker; they differ in the request.
+  const callbacks = {
+    onMutate: (outgoing: Outgoing) => {
+      const { clientMessageId } = outgoing
       const pending: Mail = {
         id: `local-${clientMessageId}`,
         kind: 'MESSAGE',
@@ -315,8 +382,7 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
         sender: 'Bạn',
         to: null,
         at: new Date().toISOString(),
-        text,
-        attachments: [],
+        ...pendingContent(outgoing),
         status: 'SENDING',
         linked: [],
         clientMessageId,
@@ -328,7 +394,7 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
           : [...mails, pending],
       )
     },
-    onSuccess: (sent, { clientMessageId }) => {
+    onSuccess: (sent: Mail, { clientMessageId }: Outgoing) => {
       editMail(clientMessageId, () => ({ ...sent, clientMessageId }))
       updateItem(queryClient, conversationId, (item) => ({
         ...item,
@@ -337,7 +403,7 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
         lastMessageAt: sent.at,
       }))
     },
-    onError: (error, { clientMessageId }) => {
+    onError: (error: unknown, { clientMessageId }: Outgoing) => {
       const code = error instanceof ApiError ? error.code : null
       if (code === 'SEND_IN_PROGRESS') {
         // Another try with this ID is still running; the server's copy tells how it ends (see onSettled).
@@ -351,13 +417,34 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
         void queryClient.invalidateQueries({ queryKey: conversationKey(conversationId), exact: true })
       }
     },
-    onSettled: async (_sent, _error, { clientMessageId, attempt }) => {
+    onSettled: async (_sent: Mail | undefined, _error: unknown, { clientMessageId, attempt }: Outgoing) => {
       await queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) })
       const pages = queryClient.getQueryData<MessagePages>(messagesKey(conversationId))
       const stored = pages?.pages.some((page) => page.items.some((message) => message.kind === 'MESSAGE' && message.clientMessageId === clientMessageId))
       if (stored && attempts.current.get(clientMessageId) === attempt) {
         editOutbox((mails) => mails.filter((mail) => mail.clientMessageId !== clientMessageId))
       }
+    },
+  }
+  const request = (outgoing: Outgoing) => {
+    switch (outgoing.kind) {
+      case 'STICKER':
+        return sendSticker(conversationId, outgoing.stickerId, outgoing.clientMessageId)
+      case 'FILE':
+        return sendFile(conversationId, outgoing.file, outgoing.clientMessageId)
+      default:
+        return sendMessage(conversationId, outgoing.text, outgoing.clientMessageId)
+    }
+  }
+  const texts = useMutation({ ...callbacks, mutationFn: request })
+  // One at a time, in the order they were sent, and a little over a second apart (D-355, D-377, stickerQueue). Each shows
+  // at once (`onMutate` does not wait for its turn), and one that is refused does not hold back the next.
+  const paced = useMutation({
+    ...callbacks,
+    scope: { id: PACED_SCOPE },
+    mutationFn: async (outgoing: Outgoing) => {
+      await stickerTurns.wait()
+      return request(outgoing)
     },
   })
 
@@ -380,22 +467,64 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) }),
   })
-  const sendTry = (text: string, clientMessageId: string) => {
-    const attempt = (attempts.current.get(clientMessageId) ?? 0) + 1
-    attempts.current.set(clientMessageId, attempt)
-    mutation.mutate({ text, clientMessageId, attempt })
+  const sendTry = (next: Try, inTurn = next.kind !== 'TEXT') => {
+    const attempt = (attempts.current.get(next.clientMessageId) ?? 0) + 1
+    attempts.current.set(next.clientMessageId, attempt)
+    const outgoing: Outgoing = { ...next, attempt, paced: inTurn }
+    if (outgoing.paced) {
+      paced.mutate(outgoing)
+    } else {
+      texts.mutate(outgoing)
+    }
+  }
+  // What a failed message is sent again as; null for a picture or file this page no longer holds (D-378).
+  const retryOf = (mail: Mail): Try | null => {
+    const clientMessageId = mail.clientMessageId
+    if (!clientMessageId) {
+      return null
+    }
+    const file = outgoingFiles.fileOf(clientMessageId)
+    if (file) {
+      return { kind: 'FILE', file, clientMessageId }
+    }
+    if (mail.libraryStickerId) {
+      return { kind: 'STICKER', stickerId: mail.libraryStickerId, clientMessageId }
+    }
+    return mail.attachments.length > 0 ? null : { kind: 'TEXT', text: mail.text, clientMessageId }
   }
 
   return {
-    send: (text: string) => sendTry(text, crypto.randomUUID()),
+    send: (text: string) => sendTry({ kind: 'TEXT', text, clientMessageId: crypto.randomUUID() }),
+    /** Sends a sticker of the user's library as a picture (zalo-send-images); it shows at once and goes in its turn. */
+    sendSticker: (stickerId: string) => sendTry({ kind: 'STICKER', stickerId, clientMessageId: crypto.randomUUID() }),
+    /**
+     * Sends pictures and files from the computer, one message each in their order, then `text` when there is some
+     * (zalo-send-files, D-377): all of them in turn, a little over a second apart. Each shows at once.
+     */
+    sendFiles: (files: File[], text = '') => {
+      for (const file of files) {
+        const clientMessageId = crypto.randomUUID()
+        outgoingFiles.keep(clientMessageId, file)
+        sendTry({ kind: 'FILE', file, clientMessageId })
+      }
+      if (text.trim() !== '') {
+        sendTry({ kind: 'TEXT', text: text.trim(), clientMessageId: crypto.randomUUID() }, true)
+      }
+    },
+    /** Whether "Gửi lại" can send a failed message again: not a picture or file this page no longer holds. */
+    canResend: (mail: Mail) => retryOf(mail) !== null,
     resend: (mail: Mail) => {
-      if (mail.clientMessageId) {
-        sendTry(mail.text, mail.clientMessageId)
+      const next = retryOf(mail)
+      if (next) {
+        sendTry(next)
       }
     },
     /** Throws away a failed reply: in this browser only, or on the server too when it kept it. */
     discard: (mail: Mail) => {
       editOutbox((mails) => mails.filter((entry) => entry.clientMessageId !== mail.clientMessageId))
+      if (mail.clientMessageId) {
+        outgoingFiles.forget(mail.clientMessageId)
+      }
       if (!mail.local) {
         discarding.mutate(mail)
       }
@@ -457,7 +586,7 @@ export function useCreateConversation(backSearch: string): NewMailSend {
       } else if (problem?.code === 'VALIDATION_FAILED') {
         setOutcome({ ...NO_OUTCOME, fieldErrors: fieldErrorsOf(problem.errors.map((entry) => entry.field)) })
       } else if (problem?.code === 'SEND_NOT_ALLOWED' || problem?.code === 'ACCOUNT_NOT_FOUND') {
-        void queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY, exact: true })
+        void queryClient.invalidateQueries({ queryKey: FRAMES_KEY })
         setOutcome({ ...NO_OUTCOME, fieldErrors: { from: 'Tài khoản này không gửi được thư nữa' } })
       } else if (problem?.status === 404 || problem?.status === 405) {
         setOutcome({ ...NO_OUTCOME, notice: 'Sino chưa gửi được thư mới. Bạn gửi trong Gmail.' })
@@ -506,7 +635,7 @@ function fieldErrorsOf(fields: string[]): NewMailSend['fieldErrors'] {
 
 /** The frame, the lists and the count of the navigation: after a conversation came or went. */
 function refreshInbox(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY, exact: true })
+  void queryClient.invalidateQueries({ queryKey: FRAMES_KEY })
   void queryClient.invalidateQueries({ queryKey: LISTS_KEY })
   void queryClient.invalidateQueries({ queryKey: INBOX_UNREAD_QUERY_KEY })
 }

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Trang giới thiệu</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} pal-{{pal}}" style="background: var(--bg); min-height: 3200px; position: relative; overflow: hidden;">
+  <div style="max-width: 1200px; margin: 0 auto; padding: 20px 24px 40px; display: flex; flex-direction: column; gap: 28px; position: relative;">
+
+    <!-- Nav: one pill bar -->
+    <header class="card" style="display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 18px; border-radius: 999px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 10px;"><div class="sun"></div><b class="display" style="font-size: 19px;">Sino</b></div>
+      <nav aria-label="Trang" style="display: flex; gap: 4px; margin-left: 24px; flex-wrap: wrap;">
+        <a href="#" class="nav-item on" style="height: 36px;">Giới thiệu</a>
+        <a href="#tinh-nang" class="nav-item" style="height: 36px;">Tính năng</a>
+        <a href="#cach" class="nav-item" style="height: 36px;">Cách hoạt động</a>
+        <a href="#rieng-tu" class="nav-item" style="height: 36px;">Quyền riêng tư</a>
+        <a href="#hoi" class="nav-item" style="height: 36px;">Câu hỏi</a>
+      </nav>
+      <div style="margin-left: auto; display: flex; gap: 6px;">
+        <a href="#" class="btn ghost">Đăng nhập</a>
+        <a href="#" class="btn primary">Mở Sino Messages</a>
+      </div>
+    </header>
+
+    <!-- Hero: bento -->
+    <section style="display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px;">
+      <div class="card glow" style="position: relative; overflow: hidden; padding: 44px 40px; display: flex; flex-direction: column; gap: 18px; min-height: 460px;">
+        <span class="spark" style="top: 34px; right: 60px;"></span><span class="spark sm" style="top: 84px; right: 110px;"></span><span class="spark sm" style="bottom: 60px; right: 40px;"></span>
+        <div class="dots" style="position: absolute; right: 30px; bottom: 90px; width: 84px; height: 56px;"></div>
+        <span class="tag accent" style="align-self: flex-start;">HỘP THƯ CHUNG · VIỆC CẦN LÀM</span>
+        <h1 class="display" style="font-size: 54px; line-height: 1.04; color: var(--accent-ink);">Mọi hộp thư Gmail ở một nơi.<br>Việc cần làm ngay bên cạnh.</h1>
+        <p class="muted" style="font-size: 17px; max-width: 520px;">Sino gom các tài khoản Gmail của bạn vào một hộp thư chung. Đọc, trả lời và ghi việc cần làm ở cùng một chỗ, không phải mở từng tài khoản. Zalo, Messenger và Telegram sẽ đến sau.</p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;"><a href="#" class="btn primary lg">Mở Sino Messages</a><a href="#cach" class="btn soft lg">Xem cách hoạt động</a></div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto;">
+          <span class="tag">Token được mã hóa trước khi lưu</span><span class="tag">Chỉ xin quyền đọc và gửi thư</span><span class="tag">Thu hồi quyền bất cứ lúc nào</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-rows: auto auto; gap: 20px;">
+        <figure class="card" aria-label="Ảnh minh họa hộp thư chung của Sino với thư từ hai tài khoản Gmail, một việc cần làm và một thư trả lời đã gửi" style="margin: 0; padding: 18px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 0 4px 6px;"><span class="eyebrow">HỘP THƯ CHUNG · 2 TÀI KHOẢN GMAIL</span><span class="tag solid" style="margin-left: auto; height: 22px;">4</span></div>
+          <div class="row on unread" style="align-items: center;"><span class="av a1">MA<span class="pv gmail">G</span></span><div style="flex: 1; min-width: 0;"><div style="display: flex;"><span class="who">Trần Minh Anh</span><span class="subtle small" style="margin-left: auto;">09:41</span></div><div class="small muted trunc">Hợp đồng thuê văn phòng — bản sửa lần 2</div></div></div>
+          <div class="row unread" style="align-items: center;"><span class="av a5">PK<span class="pv gmail">G</span></span><div style="flex: 1; min-width: 0;"><div style="display: flex;"><span class="who">Phòng khám Ánh Dương</span><span class="subtle small" style="margin-left: auto;">08:30</span></div><div class="small muted trunc">Lịch khám thứ Hai 05/10</div></div></div>
+          <div class="row" style="align-items: center;"><span class="av a2">TH<span class="pv gmail">G</span></span><div style="flex: 1; min-width: 0;"><div style="display: flex;"><span class="who">Nguyễn Thị Hoa</span><span class="subtle small" style="margin-left: auto;">07:38</span></div><div class="small muted trunc">Cuối tuần cả nhà về ăn cơm</div></div></div>
+        </figure>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px;">
+            <span class="eyebrow">VIỆC CẦN LÀM</span>
+            <div style="display: flex; gap: 10px; align-items: center;"><span class="check" aria-hidden="true"></span><span style="font-weight: 800;">Gửi lại hợp đồng</span></div>
+            <span class="tag honey" style="align-self: flex-start;">hạn T4 07/10</span>
+          </div>
+          <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px; background: var(--accent-soft); box-shadow: none;">
+            <span class="eyebrow">TRONG CÙNG CHUỖI THƯ · 09:52</span>
+            <span style="font-weight: 800;" class="ink">Đã trả lời Trần Minh Anh</span>
+            <span class="icon-btn fill" aria-hidden="true" style="width: 32px; height: 32px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Providers -->
+    <section class="card" aria-label="Dịch vụ kết nối được" style="padding: 16px 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+      <span class="eyebrow">KẾT NỐI VỚI</span>
+      <span class="tag" style="height: 34px;"><span class="pv gmail">G</span>Gmail</span>
+      <span class="tag" style="height: 34px;"><span class="pv zalo">Z</span>Zalo · sắp có</span>
+      <span class="tag" style="height: 34px;"><span class="pv msg">M</span>Messenger · sắp có</span>
+      <span class="tag" style="height: 34px;"><span class="pv tele">T</span>Telegram · sắp có</span>
+    </section>
+
+    <!-- Features: bento -->
+    <section id="tinh-nang" style="display: flex; flex-direction: column; gap: 18px;">
+      <div style="text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center;"><span class="tag accent">TÍNH NĂNG</span><h2 class="display" style="font-size: 38px;">Một hộp thư làm được nhiều hơn đọc thư.</h2><p class="muted" style="font-size: 16px; max-width: 640px;">Mỗi tài khoản vẫn là của bạn. Sino chỉ bỏ đi việc phải mở từng hộp thư để biết ai đang chờ mình.</p></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+        <sc-for list="{{features}}" as="f" hint-placeholder-count="5">
+          <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px; grid-column: span {{f.span}};">
+            <span class="icon-btn tint" aria-hidden="true" style="width: 44px; height: 44px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{f.d}}"/></svg></span>
+            <h3 class="h2" style="font-size: 18px;">{{f.t}}</h3>
+            <p class="muted">{{f.b}}</p>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section id="cach" class="card dots" style="padding: 36px; display: flex; flex-direction: column; gap: 22px; background-color: var(--accent-soft); box-shadow: none;">
+      <div style="display: flex; flex-direction: column; gap: 8px;"><span class="tag solid" style="align-self: flex-start;">CÁCH HOẠT ĐỘNG</span><h2 class="display" style="font-size: 38px; color: var(--accent-ink);">Ba bước, vài phút.</h2></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+        <sc-for list="{{steps}}" as="s" hint-placeholder-count="3">
+          <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 10px;">
+            <span class="display ink" style="font-size: 40px; line-height: 1;">{{s.n}}</span>
+            <h3 class="h2" style="font-size: 18px;">{{s.t}}</h3>
+            <p class="muted">{{s.b}}</p>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- Planning -->
+    <section style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: stretch;">
+      <div class="card glow" style="padding: 36px; display: flex; flex-direction: column; gap: 12px; justify-content: center; position: relative; overflow: hidden;">
+        <span class="spark" style="top: 30px; right: 40px;"></span>
+        <span class="tag accent" style="align-self: flex-start;">KẾ HOẠCH</span>
+        <h2 class="display" style="font-size: 38px;">Việc cần làm ở ngay cạnh hộp thư.</h2>
+      </div>
+      <div class="card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; padding: 0 4px 6px;"><span class="h3">Hôm nay · Thứ Sáu 02/10</span><span class="tag solid" style="margin-left: auto;">4 việc</span></div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--raised);"><span class="check" aria-hidden="true"></span><span style="flex: 1; font-weight: 700;">Gửi lại hóa đơn tháng 9 cho kế toán</span><span class="tag bad">Quá hạn 2 ngày</span></div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--raised);"><span class="check" aria-hidden="true"></span><span style="flex: 1; font-weight: 700;">Gọi Minh Anh về phụ lục giá</span><span class="tag accent">16:00</span></div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--raised);"><span class="check" aria-hidden="true"></span><span style="flex: 1; font-weight: 700;">Chuyển tiền nhà tháng 10</span><span class="tag">Hằng tháng</span></div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--raised);"><span class="check" aria-hidden="true"></span><span style="flex: 1; font-weight: 700;">Mua bánh bông lan trứng muối cho bà</span><span class="tag honey">18:00</span></div>
+      </div>
+    </section>
+
+    <!-- Privacy -->
+    <section id="rieng-tu" style="display: flex; flex-direction: column; gap: 18px;">
+      <div style="text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center;"><span class="tag accent">QUYỀN RIÊNG TƯ</span><h2 class="display" style="font-size: 38px;">Riêng tư là mặc định, không phải một tùy chọn.</h2></div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px;">
+        <sc-for list="{{privacy}}" as="p" hint-placeholder-count="4">
+          <div class="card" style="padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+            <span class="icon-btn fill" aria-hidden="true" style="width: 40px; height: 40px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg></span>
+            <h3 class="h3" style="font-size: 16px;">{{p.t}}</h3>
+            <p class="small muted">{{p.b}}</p>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="hoi" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 20px; align-items: start;">
+      <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 8px;"><span class="tag accent" style="align-self: flex-start;">CÂU HỎI THƯỜNG GẶP</span><h2 class="display" style="font-size: 38px;">Trước khi bắt đầu.</h2></div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <sc-for list="{{faq}}" as="q" hint-placeholder-count="6">
+          <div class="card" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;"><span style="font-weight: 800; flex: 1;">{{q.q}}</span><span class="icon-btn tint" aria-hidden="true" style="width: 30px; height: 30px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="{{q.icon}}"/></svg></span></div>
+            <sc-if value="{{q.open}}" hint-placeholder-val="{{false}}"><p class="muted small">{{q.a}}</p></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- Band -->
+    <section aria-label="Bắt đầu" class="card glow" style="padding: 48px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; position: relative; overflow: hidden;">
+      <span class="spark" style="top: 28px; left: 40%;"></span><span class="spark sm" style="bottom: 30px; right: 30%;"></span>
+      <div class="dots" style="position: absolute; right: 30px; top: 24px; width: 96px; height: 60px;"></div>
+      <div style="flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 10px;">
+        <h2 class="display" style="font-size: 40px; color: var(--accent-ink);">Bớt mở từng hộp thư. Bớt quên việc.</h2>
+        <p class="muted" style="font-size: 16px;">Kết nối tài khoản Gmail đầu tiên và xem hộp thư chung của bạn sau vài phút.</p>
+      </div>
+      <div style="display: flex; gap: 10px;"><a href="#" class="btn primary lg">Mở Sino Messages</a><a href="#" class="btn soft lg">Đăng nhập</a></div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 8px 8px 0;" class="small muted">
+      <div style="display: flex; align-items: center; gap: 8px;"><div class="sun" style="width: 22px; height: 22px; border-radius: 7px;"></div><b style="color: var(--text);">Sino</b><span>© 2026</span></div>
+      <nav aria-label="Chân trang" style="margin-left: auto; display: flex; gap: 16px;"><a href="#" style="color: inherit;">Chính sách quyền riêng tư</a><a href="#" style="color: inherit;">Privacy Policy (EN)</a><a href="#" style="color: inherit;">Liên hệ</a></nav>
+    </footer>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"palette":{"editor":"enum","options":["sakura","sunset","mint","lavender","mono"],"default":"sakura"},"$preview":{"width":1440,"height":3200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const features = [
+      { t: 'Hộp thư hợp nhất', b: 'Thư từ mọi tài khoản Gmail của bạn xếp chung theo thời gian, mỗi dòng ghi rõ tài khoản nhận. Lọc thư chưa đọc, thư cần trả lời hay thư đã lưu trữ.', span: 2, d: 'M3 13l3-8h12l3 8M3 13v6h18v-6M3 13h5l1 3h6l1-3h5' },
+      { t: 'Thư mới tự hiện', b: 'Có thư mới là hộp thư cập nhật ngay, không cần tải lại trang. Lỗi của từng tài khoản hiện đúng chỗ.', span: 1, d: 'M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 004 0' },
+      { t: 'Trả lời ngay trong Sino', b: 'Thư trả lời đi từ đúng tài khoản đã nhận và nằm trong đúng chuỗi thư. Mạng chập chờn cũng không làm thư gửi hai lần.', span: 1, d: 'M9 14L4 9l5-5M4 9h10a6 6 0 016 6v3' },
+      { t: 'Đọc thư an toàn', b: 'Thư HTML hiện trong một khung cách ly. Ảnh trong thư chỉ tải khi bạn bấm Hiện ảnh, để người gửi không biết bạn đã mở thư.', span: 1, d: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z' },
+      { t: 'Việc cần làm', b: 'Mỗi việc có hạn, giờ, lặp lại và ghi chú. Việc quá hạn được nêu rõ, việc lặp tự sang lần kế tiếp.', span: 1, d: 'M9 11l3 3 8-8M20 12v7H4V5h11' }
+    ];
+    const steps = [
+      { n: '01', t: 'Kết nối Gmail', b: 'Sino cho bạn xem lại từng quyền nó xin, rồi chuyển sang trang đăng nhập chính thức của Google. Mật khẩu Gmail không đi qua Sino.' },
+      { n: '02', t: 'Sino nhập thư', b: 'Bạn chọn nhập 30 ngày, 90 ngày hay cả hộp thư. Sau đó thư mới tự hiện, không cần tải lại trang.' },
+      { n: '03', t: 'Trả lời và lên việc', b: 'Trả lời ngay trong Sino, và ghi việc cần làm với hạn, giờ và lặp lại.' }
+    ];
+    const privacy = [
+      { t: 'Thông tin đăng nhập được mã hóa', b: 'Token Google của từng tài khoản được mã hóa AES-256-GCM trước khi lưu; khóa mã hóa được giữ tách khỏi cơ sở dữ liệu.' },
+      { t: 'Chỉ xin quyền cần dùng', b: 'Sino đọc thư và gửi thư trả lời. Sino không xin quyền xóa thư, đổi cài đặt Gmail hay đọc danh bạ.' },
+      { t: 'Bạn xem quyền trước khi đồng ý', b: 'Sino liệt kê quyền nó xin trước khi chuyển bạn sang Google, và Google hỏi lại trên trang đồng ý của chính Google.' },
+      { t: 'Thu hồi bất cứ lúc nào', b: 'Ngắt kết nối trong Sino thì quyền bị thu hồi ở Google và token bị xóa khỏi Sino.' }
+    ];
+    const qa = [
+      ['Sino hỗ trợ những dịch vụ nào?', 'Hiện tại là Gmail, nhiều tài khoản cùng lúc. Zalo, Messenger và Telegram sẽ được thêm dần. Với mỗi dịch vụ, Sino chỉ hiện những thao tác dịch vụ đó cho phép.'],
+      ['Sino có dùng thư của tôi để quảng cáo hay huấn luyện AI không?', ''],
+      ['Ngắt kết nối thì thư đã lưu có bị xóa không?', ''],
+      ['Nếu gửi thư bị lỗi giữa chừng thì sao?', ''],
+      ['Lịch của Sino có đồng bộ với Google Calendar không?', ''],
+      ['Có ứng dụng cho điện thoại không?', '']
+    ];
+    const faq = qa.map(([q, a], i) => ({ q, a, open: i === 0, icon: i === 0 ? 'M5 12h14' : 'M12 5v14M5 12h14' }));
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', pal: this.props.palette || 'sakura', features, steps, privacy, faq };
+  }
+}
+</script>
+</body>
+</html>

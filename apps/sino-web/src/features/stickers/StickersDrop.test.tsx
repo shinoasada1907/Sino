@@ -1,0 +1,284 @@
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { delay, http, HttpResponse } from 'msw'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { API_STICKERS, sticker } from '@/test/fixtures/stickersApi'
+import { server } from '@/test/msw/server'
+import { stubPictureDecoding } from '@/test/pictureDecoding'
+import { renderApp } from '@/test/renderApp'
+import type { StickerItem } from './stickers.types'
+
+// ST-14: drag and drop, several files at once, the refusals of the server said in Vietnamese (spec web-sticker-library).
+// A drag of files carries `types: ['Files']`; a selection of text carries `['text/plain']`.
+
+const list = (items: StickerItem[]) => http.get('/api/stickers', () => HttpResponse.json({ items }))
+const problem = (status: number, code: string) =>
+  HttpResponse.json({ title: 'Error', status, code, instance: '/api/stickers' }, { status, headers: { 'Content-Type': 'application/problem+json' } })
+const library = () => within(screen.getByRole('region', { name: 'Thư viện sticker' }))
+const region = () => screen.getByRole('region', { name: 'Thư viện sticker' })
+const input = () => screen.getByLabelText('Chọn tệp sticker') as HTMLInputElement
+// `applyAccept: false`: `accept` only tunes the picker of the browser; the page must hold on its own.
+const pickerUser = () => userEvent.setup({ applyAccept: false })
+const pngFile = (name = 'moi.png') => new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], name, { type: 'image/png' })
+const made = (overrides: Partial<StickerItem> = {}) => sticker({ id: 'st-new', name: 'moi', createdAt: '2026-10-19T10:00:00Z', ...overrides })
+const dragOf = (files: File[]) => ({ dataTransfer: { files, types: ['Files'] } })
+const textDrag = { dataTransfer: { files: [], types: ['text/plain'] } }
+const DROP_HINT = 'Thả ảnh PNG, JPEG, GIF hoặc WebP để thêm sticker'
+
+async function openLibrary() {
+  renderApp('/stickers')
+  await library().findByRole('img', { name: 'meo' })
+}
+
+/** A choice or a drop opens the "Thêm sticker" step (SP-08); "Lưu" hands what it holds to the queue these tests are about. */
+async function saveStep() {
+  const step = await screen.findByRole('dialog', { name: 'Thêm sticker' })
+  await userEvent.click(within(step).getByRole('button', { name: /^Lưu \d+ sticker$/ }))
+}
+
+
+// The screen also reads the packs (SP-06); these tests are about a library in no pack, so there is none. jsdom decodes
+// no picture: the step's PNG of each still one is a stand-in (SP-08).
+beforeEach(() => {
+  server.use(http.get('/api/sticker-packs', () => HttpResponse.json({ items: [] })))
+  stubPictureDecoding()
+})
+
+describe('Sticker screen: drag and drop (ST-14)', () => {
+  it('uploads a file dropped on the screen as one chosen with the button', async () => {
+    let posts = 0
+    server.use(
+      list(API_STICKERS),
+      http.post('/api/stickers', () => {
+        posts += 1
+        return HttpResponse.json(made(), { status: 201 })
+      }),
+    )
+    await openLibrary()
+
+    fireEvent.drop(region(), dragOf([pngFile('moi.png')]))
+    await saveStep()
+
+    expect(await library().findByRole('img', { name: 'moi' })).toBeInTheDocument()
+    expect(posts).toBe(1)
+  })
+
+  it('shows where to drop while files are dragged over the screen, and takes it away when they leave or drop', async () => {
+    server.use(list(API_STICKERS), http.post('/api/stickers', () => HttpResponse.json(made(), { status: 201 })))
+    await openLibrary()
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+
+    fireEvent.dragEnter(region(), dragOf([]))
+    expect(await screen.findByText(DROP_HINT)).toBeInTheDocument()
+    fireEvent.dragLeave(region(), dragOf([]))
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+
+    fireEvent.dragEnter(region(), dragOf([]))
+    await screen.findByText(DROP_HINT)
+    fireEvent.drop(region(), dragOf([pngFile()]))
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+    await saveStep()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await library().findByRole('status', { name: 'Kết quả lưu' })).toHaveTextContent('Đã lưu 1 sticker.')
+  })
+
+  it('keeps the hint while the pointer crosses from one element of the screen to another', async () => {
+    server.use(list(API_STICKERS))
+    await openLibrary()
+    const picture = library().getByRole('img', { name: 'meo' })
+
+    fireEvent.dragEnter(region(), dragOf([]))
+    fireEvent.dragEnter(picture, dragOf([])) // enters the picture before it has left the screen
+    fireEvent.dragLeave(region(), dragOf([]))
+
+    expect(screen.getByText(DROP_HINT)).toBeInTheDocument()
+    fireEvent.dragLeave(picture, dragOf([]))
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+  })
+
+  it('allows a drop of files, which needs dragover cancelled, and leaves a drag of text to the browser', async () => {
+    server.use(list(API_STICKERS))
+    await openLibrary()
+
+    // `fireEvent` gives false when the handler called `preventDefault()`.
+    expect(fireEvent.dragOver(region(), dragOf([]))).toBe(false)
+    expect(fireEvent.dragOver(region(), textDrag)).toBe(true)
+    fireEvent.dragEnter(region(), textDrag)
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+  })
+
+  it('refuses a dropped file of another type on the spot, with no request', async () => {
+    let posts = 0
+    server.use(
+      list(API_STICKERS),
+      http.post('/api/stickers', () => {
+        posts += 1
+        return HttpResponse.json(made(), { status: 201 })
+      }),
+    )
+    await openLibrary()
+
+    fireEvent.drop(region(), dragOf([new File(['%PDF-1.7'], 'ghi-chu.pdf', { type: 'application/pdf' })]))
+
+    expect(await library().findByRole('alert')).toHaveTextContent(/ghi-chu\.pdf.*không phải ảnh dùng được/i)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(posts).toBe(0)
+  })
+
+  it('ignores a drop that carries no file', async () => {
+    server.use(list(API_STICKERS))
+    await openLibrary()
+
+    fireEvent.drop(region(), dragOf([]))
+
+    expect(library().queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+// Since SP-10 a failed picture stays in the "Thêm sticker" step, with why under it, and goes again with the next "Lưu".
+const step = () => within(screen.getByRole('dialog', { name: 'Thêm sticker' }))
+/** The picture of the batch with this file name, as the step lists it. */
+const inBatch = (fileName: string) =>
+  within(step().getByRole('list', { name: 'Ảnh trong lượt' }))
+    .getAllByRole('listitem')
+    .find((item) => within(item).getAllByRole('button')[0].textContent === fileName)!
+const closed = () => waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+describe('Sticker screen: several files and the words of the refusals (ST-14, SP-10)', () => {
+  it('goes on with the other files when the server refuses one, and keeps that one in the step with the cause in Vietnamese', async () => {
+    const user = pickerUser()
+    let calls = 0
+    server.use(
+      list(API_STICKERS),
+      http.post('/api/stickers', () => {
+        const call = calls++
+        return call === 1 ? problem(409, 'STICKER_DUPLICATE') : HttpResponse.json(made({ id: `st-${call}`, name: call === 0 ? 'a' : 'c' }), { status: 201 })
+      }),
+    )
+    await openLibrary()
+
+    await user.upload(input(), [pngFile('a.png'), pngFile('b.png'), pngFile('c.png')])
+    await saveStep()
+
+    await waitFor(() => expect(within(step().getByRole('list', { name: 'Ảnh trong lượt' })).getAllByRole('listitem')).toHaveLength(1))
+    const kept = inBatch('b.png')
+    expect(kept).toHaveTextContent('Sticker này đã có trong thư viện.')
+    expect(kept).not.toHaveTextContent('STICKER_DUPLICATE')
+    // The last one sent is the newest, so it is first; the step is open, so Radix hides the grid from the tree.
+    expect(
+      within(screen.getByRole('region', { name: 'Thư viện sticker', hidden: true }))
+        .getAllByRole('img', { hidden: true })
+        .map((picture) => picture.getAttribute('alt'))
+        .filter((alt) => alt && !alt.startsWith('Xem trước')),
+    ).toEqual(['c', 'a', 'nhay', 'meo'])
+  })
+
+  it('sends them one after the other, never two at once', async () => {
+    const user = pickerUser()
+    let inFlight = 0
+    let mostInFlight = 0
+    let ids = 0
+    server.use(
+      list(API_STICKERS),
+      http.post('/api/stickers', async () => {
+        inFlight += 1
+        mostInFlight = Math.max(mostInFlight, inFlight)
+        await delay(15)
+        inFlight -= 1
+        return HttpResponse.json(made({ id: `st-${ids++}` }), { status: 201 })
+      }),
+    )
+    await openLibrary()
+
+    await user.upload(input(), [pngFile('a.png'), pngFile('b.png'), pngFile('c.png')])
+    await saveStep()
+    await closed()
+
+    expect(mostInFlight).toBe(1)
+    expect(ids).toBe(3)
+  })
+
+  it('says a file is waiting for its turn while the one before it is sent', async () => {
+    const user = pickerUser()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    let ids = 0
+    server.use(
+      list(API_STICKERS),
+      http.post('/api/stickers', async () => {
+        await gate
+        return HttpResponse.json(made({ id: `st-${ids++}` }), { status: 201 })
+      }),
+    )
+    await openLibrary()
+
+    await user.upload(input(), [pngFile('a.png'), pngFile('b.png')])
+    await saveStep()
+
+    await waitFor(() => expect(inBatch('a.png')).toHaveTextContent('Đang gửi…'))
+    expect(inBatch('b.png')).toHaveTextContent('Đang chờ')
+    release()
+    await closed()
+    expect(library().getByRole('status', { name: 'Kết quả lưu' })).toHaveTextContent('Đã lưu 2 sticker.')
+  })
+
+  it('says the library is full and to delete some', async () => {
+    const user = pickerUser()
+    server.use(list(API_STICKERS), http.post('/api/stickers', () => problem(409, 'STICKER_LIMIT_REACHED')))
+    await openLibrary()
+
+    await user.upload(input(), pngFile())
+    await saveStep()
+
+    await waitFor(() => expect(inBatch('moi.png')).toHaveTextContent(/thư viện đã đầy/i))
+    expect(inBatch('moi.png')).toHaveTextContent(/xóa bớt/i)
+    expect(inBatch('moi.png')).not.toHaveTextContent('STICKER_LIMIT_REACHED')
+  })
+
+  it('says the picture could not be read when the server cannot', async () => {
+    const user = pickerUser()
+    server.use(list(API_STICKERS), http.post('/api/stickers', () => problem(422, 'STICKER_INVALID_IMAGE')))
+    await openLibrary()
+
+    await user.upload(input(), pngFile('hong.png'))
+    await saveStep()
+
+    await waitFor(() => expect(inBatch('hong.png')).toHaveTextContent(/không đọc được/i))
+  })
+
+  it('says there is no connection, and sends that file again with the next "Lưu", which then goes through', async () => {
+    const user = pickerUser()
+    let calls = 0
+    server.use(
+      list(API_STICKERS),
+      http.post('/api/stickers', () => {
+        calls += 1
+        return calls === 1 ? HttpResponse.error() : HttpResponse.json(made(), { status: 201 })
+      }),
+    )
+    await openLibrary()
+    await user.upload(input(), pngFile('moi.png'))
+    await saveStep()
+    await waitFor(() => expect(inBatch('moi.png')).toHaveTextContent(/không kết nối được/i))
+
+    await saveStep()
+
+    await closed()
+    expect(library().getByRole('img', { name: 'moi' })).toBeInTheDocument()
+    expect(calls).toBe(2)
+  })
+
+  it('shows a plain sentence, not the code, for a failure it does not know, and offers a second try', async () => {
+    const user = pickerUser()
+    server.use(list(API_STICKERS), http.post('/api/stickers', () => problem(500, 'INTERNAL')))
+    await openLibrary()
+
+    await user.upload(input(), pngFile('moi.png'))
+    await saveStep()
+
+    await waitFor(() => expect(inBatch('moi.png')).toHaveTextContent('Không tải lên được. Hãy thử lại.'))
+    expect(inBatch('moi.png')).not.toHaveTextContent('INTERNAL')
+    expect(step().getByRole('button', { name: 'Lưu 1 sticker' })).toBeEnabled()
+  })
+})

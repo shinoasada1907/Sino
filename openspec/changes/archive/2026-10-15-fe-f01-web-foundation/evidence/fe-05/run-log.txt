@@ -1,0 +1,125 @@
+FE-05 real run, 2026-10-15. Output of the CDP driver (headless Chrome, temporary profile), verbatim except: repeated
+`200` lines condensed as "(…)", and two Vite module requests (/src/shared/api/*.ts) the first filter caught by mistake
+left out of s1.
+Backend: ./mvnw spring-boot:test-run on :18080 (worktree of d074b5c, Testcontainers PostgreSQL 18, owner of profile `test`).
+Web: vite dev on :15173, proxy /api/ -> :18080. Cookie values cut to 8 characters.
+"GET /api/auth/me -> ?" is a request the page cancelled before it answered (the app asks again at once).
+Screenshots of each step: the PNG files next to this log.
+
+== s1 (signed out, open /accounts)
+  at /login?returnTo=%2Faccounts
+  [network] opening /accounts signed out
+    GET /api/auth/me -> ?   cookies sent: []
+    GET /api/auth/me -> 401   cookies sent: []
+      Set-Cookie: XSRF-TOKEN=dcb61f5a…; Path=/
+      WWW-Authenticate: (none)
+  [shot] 01-chua-dang-nhap.png
+== s1b (five wrong passwords for thu@example.com)
+  attempt 1: "Email hoặc mật khẩu không đúng Còn 4 lần thử trước khi phải đợi 15 phút."; password field empty: true, focused: true
+  [shot] 02-sai-mat-khau.png
+  attempt 2: "Email hoặc mật khẩu không đúng Còn 3 lần thử trước khi phải đợi 15 phút."; password field empty: true, focused: true
+  attempt 3: "Email hoặc mật khẩu không đúng Còn 2 lần thử trước khi phải đợi 15 phút."; password field empty: true, focused: true
+  attempt 4: "Email hoặc mật khẩu không đúng Còn 1 lần thử trước khi phải đợi 15 phút."; password field empty: true, focused: true
+  attempt 5: "Tạm khóa đăng nhập Sai mật khẩu quá nhiều lần. Thử lại sau 15 phút."; password field empty: true, focused: true
+  [shot] 03-tam-khoa.png
+  [network] five wrong passwords for thu@example.com
+    POST /api/auth/login -> 401   cookies sent: [XSRF-TOKEN]
+      WWW-Authenticate: (none)
+    POST /api/auth/login -> 401   cookies sent: [XSRF-TOKEN]
+      WWW-Authenticate: (none)
+    POST /api/auth/login -> 401   cookies sent: [XSRF-TOKEN]
+      WWW-Authenticate: (none)
+    POST /api/auth/login -> 401   cookies sent: [XSRF-TOKEN]
+      WWW-Authenticate: (none)
+    POST /api/auth/login -> 429   cookies sent: [XSRF-TOKEN]
+== s2 (sign in, "Giữ đăng nhập trên máy này" on)
+  switch "Giữ đăng nhập" checked: true
+  at /accounts
+  [network] sign in with "Giữ đăng nhập" on
+    POST /api/auth/login -> 204   cookies sent: [XSRF-TOKEN]
+      Set-Cookie: JSESSIONID=2EB26C20…; Path=/; HttpOnly; SameSite=Lax
+      Set-Cookie: remember-me=b3duZXIl…; Expires=Sat, 14 Nov 2026 04:33:07 GMT; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax
+    GET /api/auth/me -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/accounts -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/providers -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/conversations/counts -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/tasks -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/providers -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/events/stream -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+  [cookies] after sign-in: remember-me=b3duZXIl…(HttpOnly, Lax, expires 2026-11-14)  XSRF-TOKEN=dcb61f5a…(JS-readable, -, session)  JSESSIONID=2EB26C20…(HttpOnly, Lax, session)
+  [shot] 04-dang-nhap-ghi-nho.png
+== s3 (reload, owner menu, theme)
+  after reload at /accounts
+  [network] reload
+    GET /api/auth/me -> ?   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/auth/me -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/accounts -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    (… providers, conversations/counts, tasks, events/stream: 200)
+  menu: Test | Owner | owner@sino.test | Giao | diện | sáng | Đăng | xuất
+  [shot] 05-menu-nguoi-dung.png
+  theme now dark (sino.theme = null), choosing "Giao diện sáng"
+  html class: theme-light, sino.theme = light
+  after reload html class: theme-light
+  [shot] 06-giao-dien-sang.png
+  back to: theme-dark, sino.theme = dark
+  (the requests logged after this point all came from the reload; switching the theme sent none)
+== backend killed (Stop-Process -Force) and started again
+== s4 (reload after the restart, then without JSESSIONID)
+  [cookies] before reload, backend restarted: JSESSIONID=2EB26C20…(HttpOnly, Lax, session)  XSRF-TOKEN=dcb61f5a…(JS-readable, -, session)  remember-me=b3duZXIl…(HttpOnly, Lax, expires 2026-11-14)
+  after reload at /accounts
+  [network] reload after the restart
+    GET /api/auth/me -> ?   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+    GET /api/auth/me -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID, remember-me]
+      Set-Cookie: XSRF-TOKEN=; Expires=Thu, 01 Jan 1970 00:00:10 GMT; Path=/
+      Set-Cookie: XSRF-TOKEN=4a9b5239…; Path=/
+      Set-Cookie: JSESSIONID=E70D7457…; Path=/; HttpOnly; SameSite=Lax
+    GET /api/accounts -> 200   cookies sent: [remember-me, XSRF-TOKEN, JSESSIONID]
+    (… providers, conversations/counts, tasks, events/stream: 200)
+  [cookies] after reload: XSRF-TOKEN=4a9b5239…(JS-readable, -, session)  remember-me=b3duZXIl…(HttpOnly, Lax, expires 2026-11-14)  JSESSIONID=E70D7457…(HttpOnly, Lax, session)
+  JSESSIONID changed: true
+  [shot] 07-sau-khoi-dong-lai.png
+  [cookies] JSESSIONID deleted by hand: XSRF-TOKEN=4a9b5239…(JS-readable, -, session)  remember-me=b3duZXIl…(HttpOnly, Lax, expires 2026-11-14)
+  after reload at /accounts
+  [network] reload without JSESSIONID
+    GET /api/auth/me -> ?   cookies sent: [remember-me, XSRF-TOKEN]
+    GET /api/auth/me -> 200   cookies sent: [remember-me, XSRF-TOKEN]
+      Set-Cookie: XSRF-TOKEN=; Expires=Thu, 01 Jan 1970 00:00:10 GMT; Path=/
+      Set-Cookie: XSRF-TOKEN=0d33bd31…; Path=/
+      Set-Cookie: JSESSIONID=3201C472…; Path=/; HttpOnly; SameSite=Lax
+    GET /api/accounts -> 200   cookies sent: [remember-me, XSRF-TOKEN, JSESSIONID]
+    (… providers, conversations/counts, tasks, events/stream: 200)
+  [cookies] after reload: XSRF-TOKEN=0d33bd31…(JS-readable, -, session)  remember-me=b3duZXIl…(HttpOnly, Lax, expires 2026-11-14)  JSESSIONID=3201C472…(HttpOnly, Lax, session)
+== s5 (sign out, open /accounts again)
+  at /login
+  [network] sign out
+    POST /api/auth/logout -> 204   cookies sent: [remember-me, XSRF-TOKEN, JSESSIONID]
+      Set-Cookie: remember-me=; Expires=Thu, 01 Jan 1970 00:00:10 GMT; Path=/
+      Set-Cookie: XSRF-TOKEN=; Expires=Thu, 01 Jan 1970 00:00:10 GMT; Path=/
+  [cookies] after sign-out: JSESSIONID=3201C472…(HttpOnly, Lax, session)
+  [shot] 08-dang-xuat.png
+  opening /accounts again: /login?returnTo=%2Faccounts
+  [network] open /accounts after sign-out
+    GET /api/auth/me -> ?   cookies sent: [JSESSIONID]
+    GET /api/auth/me -> 401   cookies sent: [JSESSIONID]
+      Set-Cookie: XSRF-TOKEN=24ea5778…; Path=/
+      WWW-Authenticate: (none)
+  [shot] 09-mo-lai-sau-dang-xuat.png
+== s6a (sign in, "Giữ đăng nhập trên máy này" off)
+  switch "Giữ đăng nhập" checked: false
+  at /accounts
+  [network] sign in with "Giữ đăng nhập" off
+    POST /api/auth/login -> 204   cookies sent: [JSESSIONID, XSRF-TOKEN]
+      Set-Cookie: JSESSIONID=0BC45120…; Path=/; HttpOnly; SameSite=Lax
+    GET /api/auth/me -> 200   cookies sent: [XSRF-TOKEN, JSESSIONID]
+    (… accounts, providers, conversations/counts, tasks, events/stream: 200)
+  [cookies] after sign-in: JSESSIONID=0BC45120…(HttpOnly, Lax, session)  XSRF-TOKEN=24ea5778…(JS-readable, -, session)
+  [shot] 10-dang-nhap-khong-ghi-nho.png
+== backend killed (Stop-Process -Force) and started again
+== s6b (reload after the restart, no remember-me)
+  [cookies] before reload, backend restarted: JSESSIONID=0BC45120…(HttpOnly, Lax, session)  XSRF-TOKEN=24ea5778…(JS-readable, -, session)
+  after reload at /login?returnTo=%2Faccounts
+  [network] reload after the restart
+    GET /api/auth/me -> ?   cookies sent: [XSRF-TOKEN, JSESSIONID]
+    GET /api/auth/me -> 401   cookies sent: [XSRF-TOKEN, JSESSIONID]
+      WWW-Authenticate: (none)
+  [shot] 11-het-phien.png

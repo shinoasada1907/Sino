@@ -45,6 +45,7 @@ import dev.sino.identity.infrastructure.AppUserRepository;
 import dev.sino.provider.FakeMessageProvider;
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.MessageProvider;
@@ -430,6 +431,11 @@ class PushWatchTests {
         @Override
         public ProviderType type() {
             return ScriptedProvider.TYPE;
+        }
+
+        @Override
+        public ProviderKind kind() {
+            return ProviderKind.EMAIL;
         }
 
         @Override

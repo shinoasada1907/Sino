@@ -1,14 +1,16 @@
 package dev.sino.conversation.api;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -26,8 +28,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import dev.sino.conversation.application.MessageBodies;
 import dev.sino.conversation.application.MessageBody;
@@ -38,6 +42,7 @@ import dev.sino.conversation.application.MessageHistory;
 import dev.sino.conversation.application.MessagePage;
 import dev.sino.conversation.application.ReplyService;
 import dev.sino.conversation.application.ReplyService.Sent;
+import dev.sino.conversation.application.UploadedFiles;
 import dev.sino.identity.CurrentUser;
 
 /**
@@ -65,14 +70,40 @@ class ConversationMessagesController {
     }
 
     /**
-     * Sends a reply (F10): {@code 201} with the message, or {@code 200} with it when this {@code clientMessageId} was
-     * sent before (D-131). The addressees are worked out here, never taken from the request (D-133).
+     * Sends a reply (F10), a text or a sticker of the user's library (ZS-05): {@code 201} with the message, or {@code 200}
+     * with it when this {@code clientMessageId} was sent before (D-131). The addressees are worked out here, never taken
+     * from the request (D-133).
      */
     @PostMapping
     ResponseEntity<MessageResponse> send(@PathVariable UUID id, @Valid @RequestBody SendRequest request) {
-        Sent sent = replies.send(currentUser.requireOwnerId(), id, request.text(), request.clientMessageId());
+        Sent sent = request.stickerId() == null
+                ? replies.send(currentUser.requireOwnerId(), id, request.text(), request.clientMessageId())
+                : replies.sendSticker(currentUser.requireOwnerId(), id, request.stickerId(),
+                        request.clientMessageId());
         return ResponseEntity.status(sent.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(MessageResponse.from(sent.message()));
+    }
+
+    /**
+     * Sends a picture or a file from the user's computer (zalo-send-files, D-370): a {@code multipart/form-data} request
+     * with the parts {@code file} and {@code clientMessageId}; the same answers as {@link #send}. The kind is told from
+     * the bytes, not from the name or the type the browser gave (D-371).
+     */
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ResponseEntity<MessageResponse> sendFile(@PathVariable UUID id, @RequestPart("file") MultipartFile file,
+            @RequestParam("clientMessageId") UUID clientMessageId) {
+        Sent sent = replies.sendFile(currentUser.requireOwnerId(), id,
+                UploadedFiles.of(file.getOriginalFilename(), file.getContentType(), bytesOf(file)), clientMessageId);
+        return ResponseEntity.status(sent.created() ? HttpStatus.CREATED : HttpStatus.OK)
+                .body(MessageResponse.from(sent.message()));
+    }
+
+    private static byte[] bytesOf(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException("The upload could not be read.", e);
+        }
     }
 
     /** Discards a message Sino failed to send. */
@@ -140,8 +171,17 @@ class ConversationMessagesController {
     record MessagePageResponse(List<MessageResponse> items, String nextCursor) {
     }
 
-    /** {@code clientMessageId}: made by the web for each message and sent again unchanged when it retries. */
-    record SendRequest(@NotBlank @Size(max = 100_000) String text, @NotNull UUID clientMessageId) {
+    /**
+     * {@code clientMessageId}: made by the web for each message and sent again unchanged when it retries. Exactly one of
+     * {@code text} and {@code stickerId}: a text, or a sticker of the library (ZS-05, D-351).
+     */
+    record SendRequest(@Size(max = 100_000) String text, UUID stickerId, @NotNull UUID clientMessageId) {
+
+        @AssertTrue(message = "send either a text or a sticker, not both and not neither")
+        boolean isTextOrSticker() {
+            return stickerId == null ? text != null && !text.isBlank() : text == null;
+        }
+
     }
 
     record MessageBodyResponse(String format, String html, boolean remoteImages) {

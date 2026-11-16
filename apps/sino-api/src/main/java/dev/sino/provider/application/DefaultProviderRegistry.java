@@ -11,7 +11,9 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 import dev.sino.common.error.SinoException;
+import dev.sino.provider.ConnectMethod;
 import dev.sino.provider.ProviderDescriptor;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.ProviderRegistryErrorCode;
 import dev.sino.provider.ProviderType;
@@ -34,16 +36,31 @@ class DefaultProviderRegistry implements ProviderRegistry {
         for (MessageProvider provider : providers) {
             ProviderType type = Objects.requireNonNull(provider.type(),
                     () -> provider.getClass().getName() + " returned no provider type");
+            ProviderKind kind = Objects.requireNonNull(provider.kind(),
+                    () -> provider.getClass().getName() + " returned no provider kind");
             MessageProvider previous = byType.putIfAbsent(type, provider);
             if (previous != null) {
                 throw new IllegalStateException("Duplicate provider type '" + type + "': "
                         + previous.getClass().getName() + " and " + provider.getClass().getName());
             }
-            found.add(new ProviderDescriptor(type, provider.displayName(), provider.capabilities()));
+            ConnectMethod connectMethod = connectMethodOf(provider);
+            found.add(new ProviderDescriptor(type, provider.displayName(), kind, provider.capabilities(),
+                    connectMethod, connectMethod != null && provider.turnedOn()));
         }
         found.sort(Comparator.comparing(descriptor -> descriptor.type().value()));
         this.providers = Map.copyOf(byType);
         this.descriptors = List.copyOf(found);
+    }
+
+    // One way per connector: the web would not know which step to show, and the account module which flow to run.
+    private static ConnectMethod connectMethodOf(MessageProvider provider) {
+        boolean oauth2 = provider.oauth2().isPresent();
+        boolean qr = provider.qrLogin().isPresent();
+        if (oauth2 && qr) {
+            throw new IllegalStateException(provider.getClass().getName()
+                    + " connects both over OAuth2 and by QR code: a connector has one way to connect");
+        }
+        return oauth2 ? ConnectMethod.OAUTH2 : qr ? ConnectMethod.QR : null;
     }
 
     @Override

@@ -1,10 +1,12 @@
-import type { AccountStatus, Instant, ProviderInfo, ProviderType } from '@/shared/domain'
+import type { AccountStatus, Instant, ProviderInfo, ProviderKind, ProviderType } from '@/shared/domain'
+import type { Reaction, ReactionKind } from './reactions'
 
 /**
  * Data contract of the Hộp thư screens (D-42), handed to the backend for F05 and F06; see the change design.md.
  */
 
-export type ConversationKind = 'EMAIL' | 'CHAT'
+/** The kind of the conversation's provider, not of the conversation itself (f05c, D-306). */
+export type ConversationKind = ProviderKind
 export type LinkedKind = 'TASK' | 'EVENT' | 'NOTE'
 
 /** The frame of the list screen: `GET /api/accounts`, `GET /api/providers`, `GET /api/conversations/counts`. */
@@ -65,10 +67,19 @@ export interface InboxCounts {
   /** Conversations with an unread message ("12 chưa đọc"). */
   unread: number
   byProvider: { provider: ProviderType; unread: number }[]
+  byAccount?: Record<string, { unread: number; needsReply: number; withAttachments: number }>
   needsReply: number
   withAttachments: number
   scheduled: number
   snoozed: number
+  /** Unread conversations of both kinds, whatever kind the counts were asked for; null from a backend before f05c (D-307). */
+  unreadByKind: Record<ProviderKind, number> | null
+}
+
+/** The numbers of Tin nhắn and Hộp thư on the navigation; `CHAT` is null from a backend before f05c, which cannot tell. */
+export interface UnreadByKind {
+  EMAIL: number
+  CHAT: number | null
 }
 
 export interface ConversationItem {
@@ -79,8 +90,12 @@ export interface ConversationItem {
   accountIds: string[]
   provider: ProviderType
   kind: ConversationKind
-  /** The other person or the group. */
+  /** The other person or the group; for a 1-1 chat with a nickname it stays the provider's name (zalo-nicknames, D-416). */
   title: string
+  /** The nickname the user gave a 1-1 chat at the provider; absent when there is none. Shown by `displayName`. */
+  nickname?: string
+  /** The picture of the other person, or of the group when it has one of its own (zalo-avatars, D-411); null for mail, for no picture and for an address that is not https (D-413). */
+  avatarUrl: string | null
   /** Email subject; null for chats. */
   subject: string | null
   /** Size of a group chat; null otherwise. */
@@ -98,6 +113,8 @@ export interface ConversationItem {
   scheduledSend: { at: Instant; failed: boolean } | null
   /** Due time of a task, start of an appointment; null for a note. */
   linked: { kind: LinkedKind; at: Instant | null; allDay: boolean }[]
+  tags?: string[]
+  attachmentFiles?: { name: string; type: string; size?: string }[]
 }
 
 /** Detail: `GET /api/conversations/{id}` + `GET /api/conversations/{id}/messages` (F06). */
@@ -117,9 +134,16 @@ export interface ConversationDetail {
   canSend: boolean | null
   /** Who a reply goes to (D-133); null when the backend does not tell, or in the sample data. */
   replyTo: Recipient[] | null
+  /** A sticker of the library can be sent here (zalo-send-images, D-356): the sticker button shows. False when the backend does not tell. */
+  canSendImages?: boolean
+  /** A picture or a file from the computer can be sent here (zalo-send-files, D-372): the tray of the reply box shows. */
+  canSendFiles?: boolean
   /** The opening mail of a new conversation has not gone yet: no reply box and no notice (f10-new-mail, D-195). */
   opening?: boolean
+  /** The emoji the provider lets the user drop (zalo-reactions, D-387); absent or empty: no emoji bar. */
+  reactionSet?: ReactionKind[]
   previousCursor: string | null
+  linkedUrl?: { title: string; subtitle: string; url: string }
 }
 
 /** Someone a reply goes to; a person without a name shows by the address. */
@@ -150,12 +174,36 @@ export interface Attachment {
   url?: string
 }
 
+/**
+ * The sprite sheet of a Zalo sticker that moves (ZL-15): `frames` pictures side by side in one row, one run of them
+ * lasting `durationMs`.
+ */
+export interface StickerSprite {
+  url: string
+  frames: number
+  durationMs: number
+}
+
+/**
+ * The picture of a Zalo photo (ZL-16): where it is shown from, a smaller one when Zalo names a different one, and the
+ * caption its sender typed with it. Addresses are checked again by `photoOf` before the page loads them.
+ */
+export interface MessageImage {
+  url: string
+  thumbUrl: string | null
+  caption: string | null
+}
+
 export type Message =
   | {
       id: string
       kind: 'MESSAGE'
       direction: 'IN' | 'OUT'
       sender: string
+      /** The sender's address/ID (from provider) */
+      senderAddress?: string
+      /** The sender's avatar URL if provided directly on message */
+      senderAvatar?: string | null
       /** An own message: the address it went from, named in a thread of several accounts (f05b, D-184). */
       ownAddress?: string
       to: string | null
@@ -173,15 +221,40 @@ export type Message =
       linked: { kind: LinkedKind; title: string }[]
       /** Made by the web for a message sent from Sino; sending again reuses it, so it never goes twice (D-131). */
       clientMessageId?: string
+      /** The address of a sticker's picture (ZL-14, D-279); absent when the message is no sticker or has no picture. */
+      sticker?: string
+      /** The sprite sheet of a sticker that moves (ZL-15); absent for a still sticker or any other message. */
+      stickerSprite?: StickerSprite
+      /** The picture of a photo (ZL-16); absent when the message is no photo or has no picture the backend trusts. */
+      image?: MessageImage
+      /**
+       * The sticker of the user's library that this message Sino sent is (zalo-send-images, D-352); the picture is
+       * `/api/stickers/{id}/content`, whatever address the provider gives its copy. Absent for any other message.
+       */
+      libraryStickerId?: string
       /** Only in this browser: the server never stored it (a send that did not reach it, or not allowed). */
       local?: boolean
+      /** Optional structured code/json payload card attached to message. */
+      codePayload?: { filename: string; content: string; note?: string }
+      /** Optional quote or pill prefix (e.g. Japanese approval quote). */
+      quoteTag?: string
+      /** The emoji on the message, most people first (zalo-reactions, D-387); absent when the backend does not tell. */
+      reactions?: Reaction[]
+      /** The user can drop an emoji on it: the bar shows (D-387). */
+      canReact?: boolean
     }
   | { id: string; kind: 'SYSTEM'; at: Instant; text: string }
 
 export interface Member {
   name: string
+  /** The picture the provider gave for them (zalo-avatars, D-412); null when it gave none, for the account itself and for an address that is not https (D-413). */
+  avatarUrl: string | null
   owner: boolean
   joinedRecently: boolean
+  role?: string
+  id?: string
+  location?: string
+  self?: boolean
 }
 
 export interface SharedFile {
@@ -191,4 +264,5 @@ export interface SharedFile {
   /** Photos show as thumbnails, other files as rows. */
   image: boolean
   at: Instant
+  url?: string
 }

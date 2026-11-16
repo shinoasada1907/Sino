@@ -33,9 +33,9 @@ import {
 const TZ = 'Asia/Ho_Chi_Minh'
 const now = new Date('2026-10-02T07:05:00Z') // Friday 14:05 in Vietnam
 const nameOf = providerNameOf([
-  { type: 'gmail', displayName: 'Gmail' },
-  { type: 'zalo', displayName: 'Zalo' },
-  { type: 'messenger', displayName: 'Messenger' },
+  { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' },
+  { type: 'zalo', displayName: 'Zalo', kind: 'CHAT' },
+  { type: 'messenger', displayName: 'Messenger', kind: 'CHAT' },
 ])
 
 function account(extra: Partial<AccountItem>): AccountItem {

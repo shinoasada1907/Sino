@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Việc cần làm</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} app" style="height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" active="tasks" hint-size="248px,900px"></dc-import>
+  <main class="main" style="height: 900px;">
+    <div class="top">
+      <h1 class="crumb" style="font-size: 17px;">Việc cần làm</h1>
+      <div class="seg"><button class="on">Danh sách</button><button>Bảng</button></div>
+      <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span>Tìm việc</span><span class="kbd">/</span></div>
+    </div>
+    <div style="flex: 1; overflow: auto;">
+      <div class="page" style="max-width: 920px; margin: 0 auto; gap: 24px;">
+        <div class="card" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <label for="new-task" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Thêm việc</label>
+          <input id="new-task" class="input" style="border: 0; height: 30px; padding: 0; background: transparent; box-shadow: none;" placeholder="Thêm việc… gõ “mai 9h” để đặt hạn">
+          <span class="kbd">T</span>
+        </div>
+        <sc-for list="{{sections}}" as="s" hint-placeholder-count="3">
+          <section style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; align-items: center; gap: 8px; padding: 0 4px 6px;"><span class="h3">{{s.title}}</span><span class="subtle small">{{s.count}}</span></div>
+            <sc-for list="{{s.items}}" as="t" hint-placeholder-count="3">
+              <div class="row" style="align-items: center; padding: 10px 12px; border-radius: 10px;">
+                <span class="{{t.check}}" aria-hidden="true"></span>
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                  <span class="trunc" style="{{t.style}}">{{t.title}}</span>
+                  <sc-if value="{{t.link}}" hint-placeholder-val="{{true}}"><span class="small subtle trunc" style="display: inline-flex; gap: 6px; align-items: center;"><span class="pv {{t.pv}}" style="width: 14px; height: 14px; flex-basis: 14px; font-size: 8px;">{{t.pl}}</span>{{t.link}}</span></sc-if>
+                </div>
+                <sc-if value="{{t.repeat}}" hint-placeholder-val="{{false}}"><span class="tag">{{t.repeat}}</span></sc-if>
+                <span class="{{t.dueCls}}">{{t.due}}</span>
+              </div>
+            </sc-for>
+          </section>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const t = (title, due, dueCls, o = {}) => ({
+      title, due, dueCls, link: o.link || '', pv: o.pv || 'gmail', pl: o.pl || 'G', repeat: o.repeat || '',
+      check: o.done ? 'check on' : 'check',
+      style: o.done ? 'text-decoration: line-through; color: var(--text-subtle);' : 'font-weight: 500;'
+    });
+    const sections = [
+      { title: 'Quá hạn', count: '1', items: [
+        t('Gửi lại hóa đơn tháng 9 cho kế toán', '30/09', 'tag bad', { link: 'Điện lực Hà Nội · Hóa đơn tiền điện tháng 9' })
+      ] },
+      { title: 'Hôm nay', count: '4', items: [
+        t('Gọi Minh Anh về phụ lục giá', '16:00', 'tag accent', { link: 'Trần Minh Anh · Hợp đồng thuê văn phòng' }),
+        t('Chuyển tiền nhà tháng 10', '17:00', 'tag', { repeat: 'Hằng tháng' }),
+        t('Mua bánh bông lan trứng muối', '18:00', 'tag honey', { link: 'Gia đình · Zalo', pv: 'zalo', pl: 'Z' }),
+        t('Xác nhận lịch khám', '07:45', 'tag', { done: true })
+      ] },
+      { title: 'Sắp tới', count: '3', items: [
+        t('Trả lời: Hợp đồng thuê văn phòng', 'T4 07/10', 'tag honey', { link: 'Trần Minh Anh · Gmail' }),
+        t('Ký hợp đồng văn phòng', 'T5 08/10', 'tag dusk'),
+        t('Gia hạn tên miền sino.vn', '15/10', 'tag', { repeat: 'Hằng năm' })
+      ] }
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', sections };
+  }
+}
+</script>
+</body>
+</html>

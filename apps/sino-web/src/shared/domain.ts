@@ -12,8 +12,14 @@ export type ProviderType = string
 /** Same values as `AccountStatus` in the backend. */
 export type AccountStatus = 'CONNECTED' | 'DEGRADED' | 'AUTH_EXPIRED' | 'ERROR' | 'DISABLED'
 
+/** Email providers belong to Hộp thư, chat providers to Tin nhắn (f05c, D-306). */
+export type ProviderKind = 'EMAIL' | 'CHAT'
+
 /** One entry of the provider catalog (`GET /api/providers`). */
 export interface ProviderInfo {
   type: ProviderType
   displayName: string
+  kind: ProviderKind
+  /** The provider lets the user give a 1-1 chat a nickname (`NICKNAMES`, zalo-nicknames, D-420); absent otherwise. */
+  nicknames?: true
 }

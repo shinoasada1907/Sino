@@ -175,15 +175,23 @@ class RealGmailMessagesTests {
                 withFiles += files.stream().filter(list -> !list.isEmpty()).count();
                 cursor = (String) body.get("nextCursor");
             } while (cursor != null);
+            // A thread found in several accounts lists the messages of every copy in the inbox, each Message-ID once
+            // (F05b, D-184).
             assertThat((long) seen.size()).as("every message of a conversation, page after page")
-                    .isEqualTo(jdbc.queryForObject("SELECT count(*) FROM message WHERE conversation_id = ?",
-                            Long.class, conversation));
+                    .isEqualTo(jdbc.queryForObject("""
+                            SELECT count(DISTINCT COALESCE('rfc:' || NULLIF(m.metadata ->> 'rfcMessageId', ''),
+                                                           'id:' || m.id))
+                            FROM message m JOIN conversation c ON c.id = m.conversation_id
+                            JOIN connected_account a ON a.id = c.account_id
+                            WHERE c.thread_group_id = (SELECT thread_group_id FROM conversation WHERE id = ?)
+                              AND a.removed_at IS NULL AND a.status <> 'DISABLED'
+                            """, Long.class, conversation));
             listed += seen.size();
         }
 
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("conversations", conversations.size());
-        report.put("messages listed (= stored)", listed);
+        report.put("messages listed (= stored, each Message-ID of a thread once)", listed);
         report.put("pages of 20", pages);
         report.put("slowest page ms", slowest);
         report.put("messages whose addressees Sino does not know (stored before BE-54)", toUnknown);

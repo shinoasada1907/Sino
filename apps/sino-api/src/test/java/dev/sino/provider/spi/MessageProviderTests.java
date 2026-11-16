@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import dev.sino.provider.ProviderKind;
 import org.junit.jupiter.api.Test;
 
 import dev.sino.provider.ProviderCapabilities;
@@ -20,6 +21,11 @@ class MessageProviderTests {
         @Override
         public ProviderType type() {
             return ProviderType.of("read-only");
+        }
+
+        @Override
+        public ProviderKind kind() {
+            return ProviderKind.EMAIL;
         }
 
         @Override
@@ -42,6 +48,17 @@ class MessageProviderTests {
     @Test
     void aConnectorDeclaresNoOAuth2ConnectionByDefault() {
         assertThat(readOnly.oauth2()).isEmpty();
+    }
+
+    @Test
+    void aConnectorDeclaresNoQrLoginByDefault() {
+        assertThat(readOnly.qrLogin()).isEmpty();
+    }
+
+    // Only a connector with a switch of its own can be off (D-286).
+    @Test
+    void aConnectorIsTurnedOnByDefault() {
+        assertThat(readOnly.turnedOn()).isTrue();
     }
 
     @Test

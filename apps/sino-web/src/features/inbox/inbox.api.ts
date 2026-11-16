@@ -1,6 +1,8 @@
 import { api } from '@/shared/api/client'
-import type { AccountStatus, Instant, ProviderInfo } from '@/shared/domain'
+import { toProviderInfo, type ProviderEntry } from '@/shared/api/providers'
+import type { AccountStatus, Instant, ProviderKind } from '@/shared/domain'
 import type { InboxFilter } from './format'
+import type { Reaction, ReactionKind } from './reactions'
 import type {
   Attachment,
   ConversationItem,
@@ -11,10 +13,14 @@ import type {
   Member,
   Message,
   MessageBody,
+  MessageImage,
   MessagePage,
   OpenConversation,
+  StickerSprite,
+  UnreadByKind,
 } from './inbox.types'
 import type { NewMailDraft } from './newMail'
+import { pictureOf } from './sticker'
 
 /*
  * The requests of the Hộp thư screens, on the F05 and F06 APIs (D-56): what the API does not give yet is null. Sending
@@ -34,9 +40,7 @@ interface AccountResponse {
 }
 
 /** One provider of `GET /api/providers` (F03). */
-interface ProviderResponse {
-  type: string
-  displayName: string
+interface ProviderResponse extends ProviderEntry {
   capabilities?: string[]
 }
 
@@ -44,10 +48,18 @@ interface ProviderResponse {
 interface CountsResponse {
   unread: number
   byProvider: Record<string, number>
+  byAccount?: Record<string, { unread: number; needsReply: number; withAttachments: number }>
   needsReply: number
   withAttachments: number
   scheduled: number
   snoozed: number
+  /** Absent on a backend before f05c (D-307). */
+  unreadByKind?: Record<ProviderKind, number>
+}
+
+/** The `kind` parameter of the inbox requests (f05c, D-307); none asks for both kinds. */
+function kindQuery(kind: ProviderKind | undefined): Record<string, string> {
+  return kind ? { kind: kind.toLowerCase() } : {}
 }
 
 /** One item of `GET /api/conversations`; snooze, scheduled sending and linked items are empty until those features. */
@@ -59,6 +71,10 @@ interface ConversationResponse {
   provider: string
   kind: ConversationKind
   title: string
+  /** The nickname of a 1-1 chat (zalo-nicknames, D-416); null or absent when there is none. */
+  nickname?: string | null
+  /** The picture of the other person or of the group (zalo-avatars, D-411); absent on a backend before it. Kept by `pictureOf` (D-413). */
+  avatarUrl?: string | null
   subject: string | null
   memberCount: number | null
   snippetFrom: string | null
@@ -79,6 +95,10 @@ interface ReplyResponse {
   /** `OPENING_NOT_SENT`: the opening mail of a new conversation has not gone yet (f10-new-mail, D-195). */
   state: 'READY' | 'NEEDS_PERMISSION' | 'ACCOUNT_UNAVAILABLE' | 'NOT_SUPPORTED' | 'OPENING_NOT_SENT'
   to: PersonResponse[]
+  /** A sticker of the library can be sent here (zalo-send-images, D-356); absent on a backend before it. */
+  canSendImages?: boolean
+  /** A picture or a file from the computer can be sent here (zalo-send-files, D-372); absent on a backend before it. */
+  canSendFiles?: boolean
 }
 
 const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = {
@@ -93,6 +113,7 @@ const CAN_SEND: Record<ReplyResponse['state'], boolean | null> = {
 interface ParticipantResponse {
   externalId: string
   name: string | null
+  /** Zalo's picture of them since zalo-avatars (D-410); null before, and for the connected account. Kept by `pictureOf` (D-413). */
   avatarUrl: string | null
   self: boolean
 }
@@ -101,6 +122,7 @@ interface ParticipantResponse {
 interface PersonResponse {
   name: string | null
   address: string
+  avatarUrl?: string | null
 }
 
 /** A file of a message; the provider may not give its name, type or size. */
@@ -129,10 +151,28 @@ interface MessageResponse {
   attachments: AttachmentResponse[]
   /** For a message sent from Sino (F10); absent on a backend before F10. */
   clientMessageId?: string | null
+  /** The address of a sticker's picture (ZL-14, D-279); absent when the message is no sticker. */
+  sticker?: string | null
+  /** The sprite sheet of a sticker that moves (ZL-15); absent or null for any other. */
+  stickerSprite?: StickerSprite | null
+  /** The picture of a photo (ZL-16); absent or null for any other message. */
+  image?: MessageImage | null
+  /** The sticker of the library that a message Sino sent is (zalo-send-images); absent or null for any other. */
+  libraryStickerId?: string | null
+  /** The emoji on the message (zalo-reactions, D-387); absent on a backend before it. */
+  reactions?: Reaction[] | null
+  canReact?: boolean
 }
 
-function toItem({ snippet, linked, accountIds, ...rest }: ConversationResponse): ConversationItem {
-  return { ...rest, accountIds: accountIds ?? [rest.accountId], snippet: snippet ?? '', linked: linked ?? [] }
+function toItem({ snippet, linked, accountIds, avatarUrl, nickname, ...rest }: ConversationResponse): ConversationItem {
+  return {
+    ...rest,
+    accountIds: accountIds ?? [rest.accountId],
+    avatarUrl: pictureOf(avatarUrl),
+    snippet: snippet ?? '',
+    linked: linked ?? [],
+    ...(nickname ? { nickname } : {}),
+  }
 }
 
 function toAccount(account: AccountResponse, providers: ProviderResponse[]): InboxAccount {
@@ -152,8 +192,8 @@ function sendingOf({ provider, status, capabilities }: AccountResponse, provider
 }
 
 // The API does not say who runs a group or who joined lately.
-function toMember({ externalId, name, self }: ParticipantResponse): Member {
-  return { name: self ? 'Bạn' : (name ?? externalId), owner: false, joinedRecently: false }
+function toMember({ externalId, name, avatarUrl, self }: ParticipantResponse): Member {
+  return { id: externalId, name: self ? 'Bạn' : (name ?? externalId), avatarUrl: pictureOf(avatarUrl), owner: false, joinedRecently: false, self }
 }
 
 // "PDF" from "hop-dong.pdf", otherwise from the type ("image/png" gives "PNG"), otherwise "TỆP".
@@ -172,7 +212,9 @@ export function attachmentUrl(conversationId: string, messageId: string, attachm
 }
 
 function toAttachment({ fileName, mimeType, sizeBytes }: AttachmentResponse, url: string): Attachment {
-  return { name: fileName ?? 'Tệp không tên', type: fileType(fileName, mimeType), sizeBytes, image: mimeType?.startsWith('image/') ?? false, caption: null, url }
+  const isImg = mimeType?.startsWith('image/') ?? false
+  const directUrl = isImg && !url.includes('?inline=true') ? `${url}?inline=true` : url
+  return { name: fileName ?? 'Tệp không tên', type: fileType(fileName, mimeType), sizeBytes, image: isImg, caption: null, url: directUrl }
 }
 
 type Mail = Extract<Message, { kind: 'MESSAGE' }>
@@ -197,7 +239,7 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId }: MessageResponse): Mail {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId, reactions, canReact }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -205,6 +247,8 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     kind: 'MESSAGE',
     direction: outbound ? 'OUT' : 'IN',
     sender: senderName(sender, outbound),
+    senderAddress: sender?.address,
+    senderAvatar: pictureOf(sender?.avatarUrl),
     ...(sender?.self ? { ownAddress: sender.address } : {}),
     to: recipients || null,
     at: sentAt,
@@ -214,34 +258,54 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     status: outbound ? ownStatus(status) : null,
     linked: [],
     ...(clientMessageId ? { clientMessageId } : {}),
+    ...(sticker ? { sticker } : {}),
+    ...(stickerSprite ? { stickerSprite } : {}),
+    ...(image ? { image } : {}),
+    ...(libraryStickerId ? { libraryStickerId } : {}),
+    ...(reactions?.length ? { reactions } : {}),
+    ...(canReact ? { canReact } : {}),
   }
 }
 
-/** `GET /api/conversations/counts`, the unread conversations only: the count of the navigation (D-93). */
-export async function fetchUnreadCount(): Promise<number> {
-  return (await api.get<CountsResponse>('/api/conversations/counts')).unread
+/** The numbers of the navigation from the counts: a backend before f05c tells only the total (spec web-app-shell). */
+export function unreadByKindOf({ unread, unreadByKind }: { unread: number; unreadByKind?: Record<ProviderKind, number> | null }): UnreadByKind {
+  return unreadByKind ?? { EMAIL: unread, CHAT: null }
 }
 
-/** `GET /api/accounts`, `GET /api/providers` and `GET /api/conversations/counts`. */
-export async function fetchInbox(): Promise<InboxData> {
+/** `GET /api/conversations/counts`: the unread of Tin nhắn and Hộp thư for the navigation (D-93, f05c). */
+export async function fetchUnreadByKind(): Promise<UnreadByKind> {
+  return unreadByKindOf(await api.get<CountsResponse>('/api/conversations/counts'))
+}
+
+/** `GET /api/accounts`, `GET /api/providers` and `GET /api/conversations/counts`, the counts of one kind or of both. */
+export async function fetchInbox(kind?: ProviderKind): Promise<InboxData> {
+  const query = new URLSearchParams(kindQuery(kind)).toString()
   const [accounts, providers, counts] = await Promise.all([
     api.get<AccountResponse[]>('/api/accounts'),
     api.get<ProviderResponse[]>('/api/providers'),
-    api.get<CountsResponse>('/api/conversations/counts'),
+    api.get<CountsResponse>(`/api/conversations/counts${query ? `?${query}` : ''}`),
   ])
   return {
     generatedAt: new Date().toISOString(),
-    providers: providers.map(({ type, displayName }): ProviderInfo => ({ type, displayName })),
+    providers: providers.map((provider) => ({ ...toProviderInfo(provider), ...(provider.capabilities?.includes('NICKNAMES') ? { nicknames: true as const } : {}) })),
     accounts: accounts.map((account) => toAccount(account, providers)),
-    counts: { ...counts, byProvider: Object.entries(counts.byProvider).map(([provider, unread]) => ({ provider, unread })) },
+    counts: {
+      ...counts,
+      byProvider: Object.entries(counts.byProvider).map(([provider, unread]) => ({ provider, unread })),
+      byAccount: counts.byAccount,
+      unreadByKind: counts.unreadByKind ?? null,
+    },
   }
 }
 
-/** `GET /api/conversations`: one page of a view and a source; `cursor` is the `nextCursor` of the page before. */
-export async function fetchConversations({ view, source }: InboxFilter, cursor: string | null): Promise<ConversationPage> {
-  const params = new URLSearchParams({ view })
+/** `GET /api/conversations`: one page of a view, a source and a kind; `cursor` is the `nextCursor` of the page before. */
+export async function fetchConversations({ view, source, account }: InboxFilter, cursor: string | null, kind?: ProviderKind): Promise<ConversationPage> {
+  const params = new URLSearchParams({ view, ...kindQuery(kind) })
   if (source) {
     params.set('provider', source)
+  }
+  if (account) {
+    params.set('accountId', account)
   }
   if (cursor) {
     params.set('cursor', cursor)
@@ -253,9 +317,9 @@ export async function fetchConversations({ view, source }: InboxFilter, cursor: 
 /** `GET /api/conversations/{id}`: the row, the people, and whether Sino can reply (F10); the messages come from `fetchMessages`. */
 export async function fetchConversation(conversationId: string): Promise<OpenConversation> {
   // `reply` is absent on a backend before F10.
-  const { participants, reply, ...item } = await api.get<ConversationResponse & { participants: ParticipantResponse[]; reply?: ReplyResponse }>(
-    `/api/conversations/${encodeURIComponent(conversationId)}`,
-  )
+  const { participants, reply, reactionSet, ...item } = await api.get<
+    ConversationResponse & { participants: ParticipantResponse[]; reply?: ReplyResponse; reactionSet?: ReactionKind[] | null }
+  >(`/api/conversations/${encodeURIComponent(conversationId)}`)
   return {
     item: toItem(item),
     detail: {
@@ -268,8 +332,12 @@ export async function fetchConversation(conversationId: string): Promise<OpenCon
       // A state this web does not know yet does not open the reply box.
       canSend: reply ? (CAN_SEND[reply.state] ?? null) : null,
       replyTo: reply ? reply.to.map(({ name, address }) => ({ name, address })) : null,
+      // Only where the backend tells about replies at all; a missing flag is a button that does not show.
+      ...(reply ? { canSendImages: reply.canSendImages === true, canSendFiles: reply.canSendFiles === true } : {}),
       previousCursor: null,
       ...(reply?.state === 'OPENING_NOT_SENT' ? { opening: true } : {}),
+      // zalo-reactions, D-387: absent on a backend before it, and empty for a provider without emoji.
+      ...(reactionSet?.length ? { reactionSet } : {}),
     },
   }
 }
@@ -303,6 +371,20 @@ export async function updateConversation(conversationId: string, change: { read?
 }
 
 /**
+ * `PATCH /api/conversations/{id}` with a nickname (zalo-nicknames, D-416): the server sends it to the provider first and
+ * stores it only when the provider agrees, so the answer is the row as stored. An empty text clears the nickname.
+ */
+export async function updateNickname(conversationId: string, nickname: string): Promise<ConversationItem> {
+  return toItem(await api.patch<ConversationResponse>(`/api/conversations/${encodeURIComponent(conversationId)}`, { nickname }))
+}
+
+/** `POST /api/conversations/read-all`: marks every conversation of the user (or of a specific kind) as read in Sino. */
+export async function markAllConversationsRead(kind?: ProviderKind): Promise<void> {
+  const query = kind ? `?kind=${encodeURIComponent(kind.toLowerCase())}` : ''
+  await api.post(`/api/conversations/read-all${query}`, {})
+}
+
+/**
  * `POST /api/conversations/{id}/messages` (F10, D-131): sends a reply and returns it as the server stored it. Sending
  * again with the same `clientMessageId` never sends twice.
  */
@@ -310,6 +392,31 @@ export async function sendMessage(conversationId: string, text: string, clientMe
   const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, { text, clientMessageId })
   return toMessage(conversationId, sent)
 }
+
+/**
+ * `POST /api/conversations/{id}/messages` with a sticker of the library (zalo-send-images, D-351): the server reads its
+ * picture and sends it as an image, and returns the message as it stored it. Sending again with the same
+ * `clientMessageId` never sends twice.
+ */
+export async function sendSticker(conversationId: string, stickerId: string, clientMessageId: string): Promise<Mail> {
+  const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, { stickerId, clientMessageId })
+  return toMessage(conversationId, sent)
+}
+
+/**
+ * `POST /api/conversations/{id}/messages` with a picture or a file from the computer (zalo-send-files, D-370): a form with
+ * the file and the `clientMessageId`. The server tells a picture from a file by its bytes, sends it, and returns the
+ * message as it stored it; sending again with the same `clientMessageId` never sends twice.
+ */
+export async function sendFile(conversationId: string, file: File, clientMessageId: string): Promise<Mail> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  form.append('clientMessageId', clientMessageId)
+  return toMessage(conversationId, await api.upload<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, form))
+}
+
+/** "PDF", "PNG"… for a file this page sends, as for one the server lists. */
+export const fileTypeOf = (file: File) => fileType(file.name, file.type)
 
 /** `DELETE /api/conversations/{id}/messages/{messageId}` (F10): throws away a reply the provider refused. */
 export async function discardMessage(conversationId: string, messageId: string): Promise<void> {

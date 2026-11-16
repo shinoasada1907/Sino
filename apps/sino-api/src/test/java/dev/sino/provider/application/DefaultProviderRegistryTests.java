@@ -8,21 +8,30 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import dev.sino.common.error.ErrorCategory;
 import dev.sino.common.error.SinoException;
+import dev.sino.provider.ConnectMethod;
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderDescriptor;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.ProviderRegistryErrorCode;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.MessageProvider;
+import dev.sino.provider.spi.OAuth2Connection;
 import dev.sino.provider.spi.ProviderContext;
+import dev.sino.provider.spi.QrChallenge;
+import dev.sino.provider.spi.QrLogin;
+import dev.sino.provider.spi.QrLoginState;
 import dev.sino.provider.spi.SyncBatch;
 import dev.sino.provider.spi.SyncCursor;
 
@@ -30,6 +39,26 @@ class DefaultProviderRegistryTests {
 
     private static final ProviderType GMAIL = ProviderType.of("gmail");
     private static final ProviderType TELEGRAM = ProviderType.of("telegram");
+    private static final OAuth2Connection GOOGLE = new OAuth2Connection("google", Set.of("openid"), Set.of(),
+            Set.of(), Map.of(), null);
+    private static final QrLogin NO_QR = new QrLogin() {
+
+        @Override
+        public QrChallenge start() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public QrLoginState status(String loginId) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void cancel(String loginId) {
+            throw new UnsupportedOperationException();
+        }
+
+    };
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(DefaultProviderRegistry.class);
@@ -91,6 +120,23 @@ class DefaultProviderRegistryTests {
     }
 
     @Test
+    void refusesAConnectorWithoutAKind() {
+        MessageProvider broken = new StubProvider("gmail") {
+
+            @Override
+            public ProviderKind kind() {
+                return null;
+            }
+
+        };
+
+        assertThatThrownBy(() -> new DefaultProviderRegistry(List.of(broken)))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining(broken.getClass().getName())
+                .hasMessageContaining("returned no provider kind");
+    }
+
+    @Test
     void anUnknownTypeIsNotFound() {
         DefaultProviderRegistry registry = new DefaultProviderRegistry(List.of(new StubProvider("gmail")));
 
@@ -117,8 +163,106 @@ class DefaultProviderRegistryTests {
                 new NamedStubProvider("gmail", "Gmail", READ_MESSAGES, SEND_MESSAGES)));
 
         assertThat(registry.descriptors()).containsExactly(
-                new ProviderDescriptor(GMAIL, "Gmail", ProviderCapabilities.of(READ_MESSAGES, SEND_MESSAGES)),
-                new ProviderDescriptor(TELEGRAM, "telegram", ProviderCapabilities.of(READ_MESSAGES)));
+                new ProviderDescriptor(GMAIL, "Gmail", ProviderKind.EMAIL,
+                        ProviderCapabilities.of(READ_MESSAGES, SEND_MESSAGES), null, false),
+                new ProviderDescriptor(TELEGRAM, "telegram", ProviderKind.EMAIL,
+                        ProviderCapabilities.of(READ_MESSAGES), null, false));
+    }
+
+    @Test
+    void aConnectorOverOAuth2CanBeConnectedThatWay() {
+        MessageProvider gmail = new StubProvider("gmail") {
+
+            @Override
+            public Optional<OAuth2Connection> oauth2() {
+                return Optional.of(GOOGLE);
+            }
+
+        };
+
+        assertThat(new DefaultProviderRegistry(List.of(gmail)).descriptors()).singleElement().satisfies(descriptor -> {
+            assertThat(descriptor.connectMethod()).isEqualTo(ConnectMethod.OAUTH2);
+            assertThat(descriptor.connectable()).isTrue();
+        });
+    }
+
+    @Test
+    void aConnectorWithAQrLoginIsConnectedByQrCode() {
+        MessageProvider zalo = new StubProvider("zalo") {
+
+            @Override
+            public Optional<QrLogin> qrLogin() {
+                return Optional.of(NO_QR);
+            }
+
+        };
+
+        assertThat(new DefaultProviderRegistry(List.of(zalo)).descriptors()).singleElement().satisfies(descriptor -> {
+            assertThat(descriptor.connectMethod()).isEqualTo(ConnectMethod.QR);
+            assertThat(descriptor.connectable()).isTrue();
+        });
+    }
+
+    // D-286: switched off, it stays listed, says how it would connect, and cannot be connected.
+    @Test
+    void aConnectorTurnedOffIsListedButNotConnectable() {
+        MessageProvider zalo = new StubProvider("zalo") {
+
+            @Override
+            public Optional<QrLogin> qrLogin() {
+                return Optional.of(NO_QR);
+            }
+
+            @Override
+            public boolean turnedOn() {
+                return false;
+            }
+
+        };
+
+        assertThat(new DefaultProviderRegistry(List.of(zalo)).descriptors()).singleElement().satisfies(descriptor -> {
+            assertThat(descriptor.connectMethod()).isEqualTo(ConnectMethod.QR);
+            assertThat(descriptor.connectable()).isFalse();
+        });
+    }
+
+    @Test
+    void refusesAConnectorWithTwoWaysToConnect() {
+        MessageProvider both = new StubProvider("zalo") {
+
+            @Override
+            public Optional<OAuth2Connection> oauth2() {
+                return Optional.of(GOOGLE);
+            }
+
+            @Override
+            public Optional<QrLogin> qrLogin() {
+                return Optional.of(NO_QR);
+            }
+
+        };
+
+        assertThatThrownBy(() -> new DefaultProviderRegistry(List.of(both)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(both.getClass().getName())
+                .hasMessageContaining("OAuth2")
+                .hasMessageContaining("QR");
+    }
+
+    @Test
+    void aDescriptorCarriesTheKindItsConnectorDeclares() {
+        MessageProvider zalo = new StubProvider("zalo") {
+
+            @Override
+            public ProviderKind kind() {
+                return ProviderKind.CHAT;
+            }
+
+        };
+        DefaultProviderRegistry registry = new DefaultProviderRegistry(List.of(zalo, new StubProvider("gmail")));
+
+        assertThat(registry.descriptors()).extracting(ProviderDescriptor::kind)
+                .containsExactly(ProviderKind.EMAIL, ProviderKind.CHAT);
     }
 
     @Test
@@ -178,6 +322,11 @@ class DefaultProviderRegistryTests {
         @Override
         public ProviderType type() {
             return type;
+        }
+
+        @Override
+        public ProviderKind kind() {
+            return ProviderKind.EMAIL;
         }
 
         @Override

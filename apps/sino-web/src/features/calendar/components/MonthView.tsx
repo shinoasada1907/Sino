@@ -14,7 +14,7 @@ const SHOWN = 3
 const ITEM =
   'flex h-5 min-w-0 shrink-0 items-center gap-1.25 overflow-hidden rounded-[5px] px-1.5 text-[11px] leading-3.5 font-medium whitespace-nowrap text-foreground outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid [&_svg]:size-2.75 [&_svg]:text-muted-foreground'
 const KIND: Record<'event' | 'task' | 'reminder', string> = {
-  event: 'border-l-2 border-foreground bg-raised',
+  event: 'border-l-2 border-primary bg-brand-soft',
   task: 'border border-dashed border-border-strong',
   reminder: 'pl-0.5 text-muted-foreground',
 }

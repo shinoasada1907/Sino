@@ -34,21 +34,43 @@ public class Replies {
         this.providers = providers;
     }
 
-    /** For a conversation already found in the owner's inbox. */
+    /**
+     * For a conversation already found in the owner's inbox: from its primary copy, the one a reply goes from (F05b,
+     * D-186).
+     */
     public Reply of(UUID ownerId, InboxItem conversation) {
-        return new Reply(stateOf(ownerId, conversation), recipientsOf(conversation.id()));
+        return of(ownerId, conversation, conversation.primaryId());
+    }
+
+    /** From one copy of the conversation, and the account of that copy. */
+    Reply of(UUID ownerId, InboxItem conversation, UUID copy) {
+        UUID accountId = conversation.accountOf(copy);
+        ReplyState state = stateOf(ownerId, conversation, accountId);
+        boolean ready = state == ReplyState.READY;
+        return new Reply(state, recipientsOf(copy),
+                ready && sends(ownerId, conversation, accountId, ProviderCapability.SEND_IMAGES),
+                ready && sends(ownerId, conversation, accountId, ProviderCapability.SEND_FILES));
+    }
+
+    // Both the connector and the account must send pictures, or files; each is a message, so the reply is READY first
+    // (D-356, zalo-send-files D-372).
+    private boolean sends(UUID ownerId, InboxItem conversation, UUID accountId, ProviderCapability what) {
+        boolean providerSends = providers.find(conversation.provider())
+                .map(connector -> connector.capabilities().supports(what)).orElse(false);
+        return providerSends && directory.find(ownerId, accountId).map(directory::capabilitiesOf)
+                .map(capabilities -> capabilities.supports(what)).orElse(false);
     }
 
     // In this order: reconnecting cannot help a provider that never sends, and a reconnect also grants the scopes.
     // A paused sync does not matter.
-    private ReplyState stateOf(UUID ownerId, InboxItem conversation) {
+    private ReplyState stateOf(UUID ownerId, InboxItem conversation, UUID accountId) {
         boolean providerSends = providers.find(conversation.provider())
                 .map(connector -> connector.capabilities().supports(ProviderCapability.SEND_MESSAGES))
                 .orElse(false);
         if (!providerSends) {
             return ReplyState.NOT_SUPPORTED;
         }
-        Optional<AccountSummary> account = directory.find(ownerId, conversation.accountId());
+        Optional<AccountSummary> account = directory.find(ownerId, accountId);
         AccountStatus status = account.map(AccountSummary::status).orElse(AccountStatus.DISABLED);
         if (status == AccountStatus.AUTH_EXPIRED || status == AccountStatus.DISABLED) {
             return ReplyState.ACCOUNT_UNAVAILABLE;
@@ -59,7 +81,8 @@ public class Replies {
 
     /**
      * D-133: the Reply-To, else the sender, of the newest incoming message; with no incoming message, whom the newest
-     * outgoing one went to. A message stored before Sino read addressees has no Reply-To, so it goes to the sender.
+     * outgoing one went to, or the chat thread itself ({@code DIRECT} / {@code GROUP}) when only self-sent messages
+     * without stored recipients exist.
      */
     private List<Address> recipientsOf(UUID conversationId) {
         Optional<Newest> incoming = newest(conversationId, MessageDirection.INBOUND);
@@ -72,10 +95,19 @@ public class Replies {
             return message.sender() == null ? List.of() : List.of(message.sender());
         }
         // A key missing from what the store kept reads as null, like unknown addressees.
-        return newest(conversationId, MessageDirection.OUTBOUND)
+        List<Address> outgoing = newest(conversationId, MessageDirection.OUTBOUND)
                 .map(message -> message.recipients() == null || message.recipients().to() == null ? List.<Address>of()
                         : message.recipients().to())
                 .orElse(List.of());
+        if (!outgoing.isEmpty()) {
+            return outgoing;
+        }
+        return jdbc.sql("""
+                SELECT title, external_conversation_id FROM conversation
+                WHERE id = :conversation AND type IN ('DIRECT', 'GROUP')
+                """).param("conversation", conversationId)
+                .query((row, n) -> new Address(row.getString("title"), row.getString("external_conversation_id")))
+                .list();
     }
 
     private Optional<Newest> newest(UUID conversationId, MessageDirection direction) {

@@ -35,7 +35,7 @@ export function MobileAccountList({
       {accounts.length === 0 ? (
         <p className="text-sm text-muted-foreground">Chưa kết nối tài khoản nào.</p>
       ) : (
-        <nav aria-label="Tài khoản đã kết nối" className="flex flex-col overflow-hidden rounded-md border bg-surface">
+        <nav aria-label="Tài khoản đã kết nối" className="flex flex-col overflow-hidden rounded-lg bg-surface shadow-card">
           {accounts.map((account) => (
             <MobileAccountItem key={account.id} account={account} now={now} name={nameOf(account.provider)} />
           ))}
@@ -63,7 +63,7 @@ function MobileAccountItem({ account, now, name }: { account: AccountItem; now: 
       to={`/accounts/${account.id}`}
       className="grid min-h-16 grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b px-3.5 py-2.5 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none last:border-b-0 hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
     >
-      <AccountAvatar provider={account.provider} />
+      <AccountAvatar provider={account.provider} label={account.displayName || account.address} />
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="text-sm font-semibold">{name}</span>
         {'detail' in view ? (

@@ -13,8 +13,9 @@ import { ACCOUNTS_QUERY_KEY } from '@/features/accounts/useAccounts'
 import type { Me } from '@/features/auth/auth.api'
 import { ME_QUERY_KEY } from '@/features/auth/useAuth'
 import { filterConversations } from '@/features/inbox/format'
-import { createInboxSample, type InboxSample } from '@/features/inbox/inbox.sample'
-import { conversationsKey, INBOX_QUERY_KEY, INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
+import { unreadByKindOf } from '@/features/inbox/inbox.api'
+import { createInboxSample, frameOf, type InboxSample } from '@/features/inbox/inbox.sample'
+import { conversationsKey, INBOX_UNREAD_QUERY_KEY, inboxKey } from '@/features/inbox/useInbox'
 import { VIEWS } from '@/features/inbox/useInboxFilter'
 import { createOverviewSample } from '@/features/overview/overview.sample'
 import type { OverviewData } from '@/features/overview/overview.types'
@@ -24,12 +25,12 @@ import type { TasksData } from '@/features/tasks/tasks.types'
 import { TASKS_QUERY_KEY } from '@/features/tasks/useTasks'
 import { serveInboxSample } from './inboxSampleApi'
 
-const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' }
+const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn', avatarUrl: null }
 
 /**
  * Renders the whole app at `path` with the given shell, overview, accounts, inbox and tasks data already in the query
  * cache; `inbox: null`, `accounts: null` and `tasks: null` leave those screens to their requests (answered by MSW, or to see them loading or
- * failing). The inbox sample fills the frame and one page of every view and source; a test file that mocks inbox.api
+ * failing), and `shell: null` leaves the shell data to what the app has of its own today (`useShellData`). The inbox sample fills the frame and one page of every view and source; a test file that mocks inbox.api
  * with `sampleInboxApi` gets its later requests answered from the same sample. The owner is signed in unless `me`
  * says otherwise: `null` is signed out, `'request'` leaves the sign-in check to its request (answered by MSW).
  */
@@ -43,7 +44,7 @@ export function renderApp(
     tasks = createTasksSample(new Date()),
     me = SIGNED_IN,
   }: {
-    shell?: ShellData
+    shell?: ShellData | null
     overview?: OverviewData
     accounts?: AccountsData | null
     inbox?: InboxSample | null
@@ -52,7 +53,9 @@ export function renderApp(
   } = {},
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  queryClient.setQueryData(SHELL_QUERY_KEY, shell)
+  if (shell) {
+    queryClient.setQueryData(SHELL_QUERY_KEY, shell)
+  }
   queryClient.setQueryData(OVERVIEW_QUERY_KEY, overview)
   if (accounts) {
     queryClient.setQueryData(ACCOUNTS_QUERY_KEY, accounts)
@@ -76,19 +79,23 @@ export function renderApp(
   return { ...view, router, queryClient }
 }
 
-function seedInbox(queryClient: QueryClient, { conversations, ...frame }: InboxSample) {
-  queryClient.setQueryData(INBOX_QUERY_KEY, frame)
-  queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, frame.counts.unread)
-  for (const source of [null, ...frame.providers.map((provider) => provider.type)]) {
-    for (const view of VIEWS) {
-      const items = filterConversations(conversations, { view, source }, new Date())
-      queryClient.setQueryData(conversationsKey({ view, source }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
+// Each screen has its frame and its lists, of its kind only (f05c).
+function seedInbox(queryClient: QueryClient, sample: InboxSample) {
+  queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, unreadByKindOf(sample.counts))
+  for (const kind of ['EMAIL', 'CHAT'] as const) {
+    queryClient.setQueryData(inboxKey(kind), frameOf(sample, kind))
+    const conversations = sample.conversations.filter((item) => item.kind === kind)
+    for (const source of [null, ...sample.providers.filter((provider) => provider.kind === kind).map((provider) => provider.type)]) {
+      for (const view of VIEWS) {
+        const items = filterConversations(conversations, { view, source, account: null }, new Date())
+        queryClient.setQueryData(conversationsKey(kind, { view, source, account: null }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
+      }
     }
   }
 }
 
-/** The element of one shell part (`sidebar`, `rail`, `tabbar`, `topbar`); all are in the DOM because jsdom ignores CSS. */
-export function shellPart(name: 'sidebar' | 'rail' | 'tabbar' | 'topbar'): HTMLElement {
+/** The element of one shell part (`sidebar`, `rail`, `tabbar`, `topbar`, `notice-bar`); all are in the DOM because jsdom ignores CSS. */
+export function shellPart(name: 'sidebar' | 'rail' | 'tabbar' | 'topbar' | 'notice-bar'): HTMLElement {
   const element = document.querySelector<HTMLElement>(`[data-slot="${name}"]`)
   if (!element) {
     throw new Error(`No [data-slot="${name}"] in the page`)

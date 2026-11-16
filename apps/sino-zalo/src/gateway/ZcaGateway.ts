@@ -1,0 +1,934 @@
+import {
+  type API,
+  type Credentials,
+  LoginQRCallbackEventType,
+  type Message,
+  type StickerDetail,
+  ThreadType as ZcaThreadType,
+  type UploadAttachmentImageResponse,
+  Zalo,
+  ZaloApiError,
+} from "zca-js";
+import {
+  type QrLoginEvents,
+  type QrLoginHandle,
+  SessionRejectedError,
+  type ThreadInfo,
+  type ThreadType,
+  type ZaloAlias,
+  type ZaloConnection,
+  type ZaloContacts,
+  type ZaloFriendContact,
+  type ZaloGroupContact,
+  type ZaloGateway,
+  type ZaloFile,
+  type ZaloImage,
+  type ZaloMessage,
+  type ZaloPhoto,
+  type ZaloSharedFile,
+  ZaloRejectedError,
+  type ZaloSession,
+  type ZaloSticker,
+  type ZaloStickerArt,
+  ZaloUnavailableError,
+} from "./ZaloGateway.ts";
+
+/** ZaloGateway over zca-js, the unofficial Zalo Web client (D-283). */
+export class ZcaGateway implements ZaloGateway {
+  startQrLogin(events: QrLoginEvents): QrLoginHandle {
+    let abort: (() => unknown) | null = null;
+    let ended = false;
+    let scanned = { displayName: "", avatarUrl: null as string | null };
+
+    const end = (report: () => void) => {
+      if (!ended) {
+        ended = true;
+        report();
+      }
+    };
+
+    const zalo = new Zalo({ checkUpdate: false, logging: false });
+    zalo
+      .loginQR({}, (event) => {
+        switch (event.type) {
+          case LoginQRCallbackEventType.QRCodeGenerated:
+            abort = event.actions.abort;
+            // Cancelled before Zalo gave the code: stop here.
+            if (ended) event.actions.abort();
+            else events.qrReady(event.data.image);
+            break;
+          case LoginQRCallbackEventType.QRCodeScanned:
+            abort = event.actions.abort;
+            scanned = {
+              displayName: event.data.display_name,
+              avatarUrl: event.data.avatar || null,
+            };
+            events.scanned(scanned.displayName, scanned.avatarUrl);
+            break;
+          // zca-js waits forever after these two unless told to abort or retry.
+          case LoginQRCallbackEventType.QRCodeExpired:
+            event.actions.abort();
+            end(() => events.expired());
+            break;
+          case LoginQRCallbackEventType.QRCodeDeclined:
+            event.actions.abort();
+            end(() => events.declined());
+            break;
+          case LoginQRCallbackEventType.GotLoginInfo:
+            break;
+        }
+      })
+      .then((api) => {
+        const context = api.getContext();
+        const session = {
+          cookie: context.cookie.toJSON()?.cookies ?? [],
+          imei: context.imei,
+          userAgent: context.userAgent,
+        };
+        end(() => events.done({ ownId: api.getOwnId(), ...scanned }, session));
+      })
+      .catch((error: unknown) => end(() => events.failed(reasonOf(error))));
+
+    return {
+      cancel: () => {
+        ended = true;
+        abort?.();
+      },
+    };
+  }
+
+  async loginWithSession(session: ZaloSession): Promise<ZaloConnection> {
+    // selfListen: what the account sends from the phone shows in Sino too (D-279).
+    const zalo = new Zalo({ checkUpdate: false, logging: false, selfListen: true });
+    let api: API;
+    try {
+      api = await zalo.login({
+        cookie: session.cookie as Credentials["cookie"],
+        imei: session.imei,
+        userAgent: session.userAgent,
+      });
+    } catch (error) {
+      throw isRefusal(error)
+        ? new SessionRejectedError(reasonOf(error))
+        : new ZaloUnavailableError(reasonOf(error));
+    }
+
+    // The stickers of a category, once Zalo has given them, for the stickers of that category that come later.
+    const categories = new Map<number, StickerDetail[]>();
+    const photoUrl = photoUrlSender(api);
+
+    return {
+      ownId: api.getOwnId(),
+      listener: (events) => {
+        const listener = api.listener;
+        listener.on("connected", () => events.connected());
+        // Zalo sends the key that decrypts its events right after connecting; before it, nothing can be read.
+        listener.on("cipher_key", () => events.ready());
+        listener.on("message", (message) => events.message(toZaloMessage(message)));
+        listener.on("old_messages", (messages, type) =>
+          events.oldMessages(messages.map(toZaloMessage), threadTypeOf(type)),
+        );
+        listener.on("closed", (code, reason) => events.closed(code, reason));
+        // An "error" event nobody listens to would crash the process.
+        listener.on("error", (error) => events.error(reasonOf(error)));
+        return {
+          // zca-js would reconnect after a kick too and then report 1006 (spike log),
+          // so SessionManager decides when to reconnect (D-276).
+          start: () => listener.start({ retryOnClose: false }),
+          stop: () => listener.stop(),
+          requestOldMessages: (threadType, lastId) =>
+            listener.requestOldMessages(zcaThreadType(threadType), lastId),
+        };
+      },
+      sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
+      // A GIF keeps zca-js's own GIF branch; a still picture goes as a sticker without the photo frame.
+      sendImage: (threadId, threadType, image) =>
+        image.fileName.endsWith(".gif")
+          ? sendImage(api.sendMessage, threadId, threadType, image)
+          : sendPhotoSticker(api.uploadAttachment, photoUrl, threadId, threadType, image),
+      sendFile: (threadId, threadType, file) => sendFile(api.sendMessage, threadId, threadType, file),
+      stickerArt: async (stickerId, catId) => {
+        try {
+          // `await` here, or a rejection would pass the catch below.
+          return await findStickerArt(api, categories, stickerId, catId);
+        } catch (error) {
+          throw new ZaloUnavailableError(reasonOf(error));
+        }
+      },
+      threadInfo: async (threadId, threadType) => {
+        try {
+          // `await` here, or a rejection would pass the catch below.
+          return await (threadType === "USER"
+            ? userInfo(api, threadId)
+            : groupInfo(api, threadId));
+        } catch (error) {
+          throw new ZaloUnavailableError(reasonOf(error));
+        }
+      },
+      userAvatars: async (userIds) => {
+        try {
+          // `await` here, or a rejection would pass the catch below.
+          return await avatarsOf(api, userIds);
+        } catch (error) {
+          throw new ZaloUnavailableError(reasonOf(error));
+        }
+      },
+      setAlias: async (friendId, alias) => {
+        try {
+          await api.changeFriendAlias(alias, friendId);
+        } catch (error) {
+          throw aliasErrorOf(error);
+        }
+      },
+      removeAlias: async (friendId) => {
+        try {
+          await api.removeFriendAlias(friendId);
+        } catch (error) {
+          throw aliasErrorOf(error);
+        }
+      },
+      aliasList: async () => {
+        try {
+          // `await` here, or a rejection would pass the catch below.
+          return await aliasListOf(api);
+        } catch (error) {
+          throw aliasErrorOf(error);
+        }
+      },
+      contacts: async () => {
+        try {
+          return await contactsOf(api);
+        } catch (error) {
+          throw new ZaloUnavailableError(reasonOf(error));
+        }
+      },
+    };
+  }
+}
+
+/**
+ * A Zalo error with a code is a refusal (D-415, same test as `deliver` for a send): not a friend, an alias Zalo
+ * does not accept. Any other failure (no answer, a 5xx, an answer it cannot read) says nothing about the alias.
+ */
+function aliasErrorOf(error: unknown): Error {
+  if (error instanceof ZaloApiError && error.code !== null) {
+    return new ZaloRejectedError(reasonOf(error));
+  }
+  return new ZaloUnavailableError(reasonOf(error));
+}
+
+/**
+ * Every nickname Zalo knows for this account's friends, every page of `getAliasList` joined (D-415). zca-js puts
+ * no limit on the page size itself: `getAliasList.js` passes `count` straight into the request with no clamp, so
+ * the real maximum Zalo's server accepts is not known from the code (NK-01). sino-zalo asks for zca-js's own
+ * documented default of 100 per page, a value already known to work, and stops once a page comes back with fewer
+ * items than that: this assumes Zalo never answers a non-final page with fewer items than asked for, which is the
+ * usual shape of such an API but is not confirmed against a real account with more than 100 friends (NK-20).
+ *
+ * Pages that never end throw instead of looping (D-424): a full page whose friends were all on earlier pages (Zalo
+ * not honouring `page`), or more than `MAX_ALIAS_PAGES` pages. A list that stopped there could be partial, and
+ * sino-api clears every nickname missing from it, so the caller gets a failure (`502`) rather than such a list.
+ */
+export async function aliasListOf(api: Pick<API, "getAliasList">): Promise<ZaloAlias[]> {
+  const aliases = new Map<string, string>();
+  for (let page = 1; page <= MAX_ALIAS_PAGES; page++) {
+    const response = await api.getAliasList(ALIAS_PAGE_SIZE, page);
+    const known = aliases.size;
+    for (const item of response.items) {
+      aliases.set(item.userId, item.alias);
+    }
+    if (response.items.length < ALIAS_PAGE_SIZE) {
+      return [...aliases].map(([friendId, alias]) => ({ friendId, alias }));
+    }
+    if (aliases.size === known) {
+      throw new Error(`Zalo gave page ${page} of the aliases again: every friend on it was on an earlier page`);
+    }
+  }
+  throw new Error(`Zalo gave more than ${MAX_ALIAS_PAGES} full pages of aliases`);
+}
+
+/**
+ * Every friend and group of the account (zalo-contacts, D-425): one `getAllFriends` (zca-js asks for up to 20,000),
+ * then the group ids of `getAllGroups` asked of `getGroupInfo` `GROUP_BATCH` at a time, one call after the other.
+ * zca-js sets no limit on the ids of one `getGroupInfo` call; what Zalo accepts is not known from the code (CT-20).
+ * A group Zalo leaves out of its answer (one the account left in between) is skipped. Any failure goes to the
+ * caller, so a partial list never comes out.
+ */
+export async function contactsOf(
+  api: Pick<API, "getAllFriends" | "getAllGroups" | "getGroupInfo">,
+): Promise<ZaloContacts> {
+  const friends: ZaloFriendContact[] = (await api.getAllFriends()).map((user) => ({
+    id: user.userId,
+    name: user.displayName || user.zaloName || user.userId,
+    avatarUrl: user.avatar || null,
+  }));
+  const groupIds = Object.keys((await api.getAllGroups()).gridVerMap ?? {});
+  const groups: ZaloGroupContact[] = [];
+  for (let start = 0; start < groupIds.length; start += GROUP_BATCH) {
+    const batch = groupIds.slice(start, start + GROUP_BATCH);
+    const { gridInfoMap } = await api.getGroupInfo(batch);
+    for (const groupId of batch) {
+      const group = gridInfoMap?.[groupId];
+      if (group === undefined) {
+        continue;
+      }
+      groups.push({
+        id: groupId,
+        name: group.name || groupId,
+        avatarUrl: group.fullAvt || group.avt || null,
+        memberCount: Number.isInteger(group.totalMember) ? group.totalMember : null,
+      });
+    }
+  }
+  return { friends, groups };
+}
+
+/** Group ids per `getGroupInfo` call (D-425); 50 until CT-20 measures what Zalo takes. */
+const GROUP_BATCH = 50;
+
+const ALIAS_PAGE_SIZE = 100;
+/** 5,000 nicknames, more than any friend list we expect; past that, the pages are taken as never ending (D-424). */
+const MAX_ALIAS_PAGES = 50;
+
+/** A zca-js message in the contract's shape (D-279 reads `zaloType`, `text`, the sticker and the photo). */
+export function toZaloMessage(message: Message): ZaloMessage {
+  const data = message.data;
+  const ts = Number(data.ts);
+  const sticker =
+    data.msgType === "chat.sticker"
+      ? stickerOf(data.content)
+      : data.msgType === "chat.gif"
+        ? gifStickerOf(data.msgId, data.content)
+        : undefined;
+  const photo =
+    data.msgType === "chat.photo" ? photoOf(data.content, data.propertyExt?.type === NO_BORDER) : undefined;
+  const file = data.msgType === "share.file" ? sharedFileOf(data.content) : undefined;
+  const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
+  const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
+  const mediaShape = MEASURED_TYPES.has(data.msgType) ? photoShapeOf(data) : undefined;
+  return {
+    msgId: data.msgId,
+    threadId: message.threadId,
+    threadType: threadTypeOf(message.type),
+    fromId: data.uidFrom,
+    fromName: data.dName ?? "",
+    isSelf: message.isSelf,
+    zaloType: data.msgType,
+    text: typeof data.content === "string" ? data.content : null,
+    sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
+    ...(sticker === undefined ? {} : { sticker }),
+    ...(photo === undefined ? {} : { photo }),
+    ...(file === undefined ? {} : { file }),
+    ...(contentShape === undefined ? {} : { contentShape }),
+    ...(photoShape === undefined ? {} : { photoShape }),
+    ...(mediaShape === undefined ? {} : { mediaShape }),
+  };
+}
+
+/**
+ * The types whose content is only measured, not read yet (zalo-media-library, ML-01, D-475): a voice message, a video, a
+ * recommended link and a link card. Each gets `mediaShape` in the log, built as `photoShape` is (keys, kinds, hosts).
+ */
+const MEASURED_TYPES = new Set(["chat.voice", "chat.video.msg", "chat.recommended", "chat.link"]);
+
+/** The types of message the pipeline knows what to do with (D-279); any other is shown as a placeholder. */
+const KNOWN_TYPES = new Set(["webchat", "chat.photo", "chat.sticker", "chat.gif", "share.file", "chat.voice"]);
+
+/**
+ * Whether a message is one the pipeline could not show as it means to: a type nobody has handled, or a photo, a sticker
+ * or a gif whose content named nothing to show. Its content is then described in the log (`contentShapeOf`).
+ */
+function unseen(msgType: string, photo: ZaloPhoto | undefined, sticker: ZaloSticker | undefined): boolean {
+  switch (msgType) {
+    case "chat.photo":
+      return photo === undefined;
+    case "chat.sticker":
+      return sticker === undefined;
+    case "chat.gif":
+      return !sticker?.url;
+    default:
+      return !KNOWN_TYPES.has(msgType);
+  }
+}
+
+/**
+ * The file a `share.file` content names (zalo-send-files, ZF-08): `title` is its name and `href` where Zalo serves it,
+ * as zca-js reads them; `params`, a JSON text, says `fileSize` (a number or a numeric text). undefined without a name
+ * or a web address; the message then stays the text `[Tệp]` in Sino and its content is described in the log.
+ */
+function sharedFileOf(content: unknown): ZaloSharedFile | undefined {
+  const fields = objectOf(content);
+  if (fields === null) {
+    return undefined;
+  }
+  const name = typeof fields.title === "string" ? fields.title.trim() : "";
+  const url = webAddress(fields.href);
+  if (name === "" || url === null) {
+    return undefined;
+  }
+  const size = Number(objectOf(fields.params)?.fileSize);
+  return { name, url, sizeBytes: Number.isSafeInteger(size) && size >= 0 ? size : null };
+}
+
+/**
+ * The picture a `chat.photo` content names (ZL-16). `href` is the picture as the chat shows it and `thumb` its
+ * thumbnail (zca-js reads them so when it quotes a photo, `sendMessage.js`); when `href` is missing the same
+ * addresses may be in `params`, a JSON text. `title` is the caption the sender typed, empty for none. undefined
+ * when the content names no web address at all; the message then stays the text `[Ảnh]` in Sino. Not yet seen on
+ * a real photo (ZL-16): the log line of SessionManager says whether a picture was found.
+ *
+ * A photo that is a Zalo sticker (the tigers the user sends, ZL-18) has `href`, `thumb` and `params.hd` on
+ * b-f11-zpc.zdn.vn and the browser gets 404 from all three. What marks it is in `params`: a whole number
+ * `pStickerType` and `webp`, whose web address is the picture to show; the address the photo would have shown
+ * becomes its fallback. Only a `pStickerType` that is a whole number switches to `webp`, so a photo without one is
+ * read exactly as before.
+ *
+ * Such a photo is marked `sticker` (ZL-19), as is one Zalo draws in a bubble without a border (`borderless`, the
+ * `propertyExt.type` of the message): chat.zalo.me draws a photo with either as a sticker, so Sino does too.
+ */
+function photoOf(content: unknown, borderless: boolean): ZaloPhoto | undefined {
+  const fields = objectOf(content);
+  if (fields === null) {
+    return undefined;
+  }
+  const params = objectOf(fields.params) ?? {};
+  const thumbUrl = webAddress(fields.thumb) ?? webAddress(params.thumbUrl);
+  const shown =
+    webAddress(fields.href) ??
+    ["rawUrl", "normalUrl", "oriUrl", "hdUrl", "hd"].map((key) => webAddress(params[key])).find((a) => a !== null) ??
+    thumbUrl;
+  const typed = Number.isSafeInteger(params.pStickerType);
+  const sticker = typed ? addressIn(params.webp, 2) : null;
+  const url = sticker ?? shown;
+  if (url === null) {
+    return undefined;
+  }
+  const second = sticker === null ? thumbUrl : shown;
+  const caption = typeof fields.title === "string" ? fields.title.trim() : "";
+  return {
+    url,
+    thumbUrl: second === url ? null : second,
+    caption: caption === "" ? null : caption,
+    ...(typed || borderless ? { sticker: true as const } : {}),
+  };
+}
+
+/**
+ * The first web address in a value: the value itself, or one inside it, in an object (the key `url` first, then the
+ * others in order), in a list, or in JSON text, down `depth` levels. null when there is none.
+ */
+function addressIn(value: unknown, depth: number): string | null {
+  const own = webAddress(value);
+  if (own !== null || depth === 0) {
+    return own;
+  }
+  const inner = Array.isArray(value)
+    ? value
+    : Object.entries(objectOf(value) ?? {})
+        .sort(([a], [b]) => Number(b === "url") - Number(a === "url"))
+        .map(([, field]) => field);
+  for (const field of inner) {
+    const found = addressIn(field, depth - 1);
+    if (found !== null) {
+      return found;
+    }
+  }
+  return null;
+}
+
+/** The fields of a value that is an object, or of JSON text that holds one; null for anything else (an array too). */
+function objectOf(value: unknown): Record<string, unknown> | null {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+}
+
+/**
+ * What a content looks like, for the log when no picture was found in it (ZL-16): up to 20 keys, each with the kind of
+ * its value (`url` for a web address, the length for other text) and never the value itself, since an address can open
+ * the picture. A content that is no object is described as a whole.
+ */
+function contentShapeOf(content: unknown): string {
+  const fields = objectOf(content);
+  if (fields === null) {
+    return `content:${kindOf(content)}`;
+  }
+  return (
+    Object.entries(fields)
+      .slice(0, 20)
+      .map(([key, value]) => `${key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30)}:${kindOf(value)}`)
+      .join(",") || "empty"
+  );
+}
+
+/**
+ * Where a photo's content keeps its addresses, for the log (ZL-18). The photos that load come from photo-stal-*.zdn.vn
+ * and the ones that do not (404) from b-f11-zpc.zdn.vn, so which address was chosen, and whether another one is in
+ * the content or in `params`, is what the log has to say. Each key of the content (up to 20), then each of `params`
+ * (up to 20, `params.` before the name), with the kind of its value and, for a web address, its host: a host opens
+ * nothing, the path does. Last the numbers Zalo puts beside the content (`propertyExt`, `paramsExt`), which may say
+ * what sort of image it is; their text is left out.
+ */
+function photoShapeOf(data: Message["data"]): string {
+  const content = objectOf(data.content);
+  const parts =
+    content === null ? [`content:${kindOf(data.content)}`] : keysOf("", content);
+  const params = content === null ? null : objectOf(content.params);
+  if (params !== null) {
+    parts.push(...keysOf("params.", params));
+    // One object deeper (up to three objects, ten keys each): `params.webp` is where the picture of a Zalo sticker is.
+    const objects = Object.entries(params)
+      .slice(0, 20)
+      .filter(([, value]) => typeof value === "object" && value !== null && !Array.isArray(value))
+      .slice(0, 3);
+    for (const [key, value] of objects) {
+      parts.push(...keysOf(`params.${safeKey(key)}.`, value as Record<string, unknown>, 10));
+    }
+  }
+  for (const [name, ext] of [["propertyExt", data.propertyExt], ["paramsExt", data.paramsExt]] as const) {
+    for (const [key, value] of Object.entries(typeof ext === "object" && ext !== null ? ext : {}).slice(0, 10)) {
+      if (typeof value === "number" && Number.isSafeInteger(value)) {
+        parts.push(`${name}.${safeKey(key)}:${value}`);
+      }
+    }
+  }
+  return parts.join(",");
+}
+
+function keysOf(prefix: string, fields: Record<string, unknown>, limit = 20): string[] {
+  return Object.entries(fields)
+    .slice(0, limit)
+    .map(([key, value]) => `${prefix}${safeKey(key)}:${kindWithHostOf(value)}`);
+}
+
+function safeKey(key: string): string {
+  return key.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 30);
+}
+
+/** `kindOf`, but a web address says its host: `url(photo-stal-11.zdn.vn)`, or `url(unreadable)`. */
+function kindWithHostOf(value: unknown): string {
+  const kind = kindOf(value);
+  if (kind !== "url") {
+    return kind;
+  }
+  try {
+    const host = new URL(value as string).hostname;
+    return /^[A-Za-z0-9.-]{1,100}$/.test(host) ? `url(${host})` : "url(unreadable)";
+  } catch {
+    return "url(unreadable)";
+  }
+}
+
+function kindOf(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  if (typeof value === "string") {
+    return webAddress(value) === null ? `string(${value.length})` : "url";
+  }
+  return typeof value;
+}
+
+/** The text of a web address, trimmed, or null when the value is anything else. */
+function webAddress(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.startsWith("https://") || trimmed.startsWith("http://") ? trimmed : null;
+}
+
+/**
+ * The picture of a sticker: what Zalo names for the sticker itself and, when it names nothing (zca-js drops a sticker
+ * Zalo refuses, so a sticker of a pack it does not serve comes back as no answer at all), what the sticker's category
+ * lists for it. Null when neither has a picture or the category cannot be named. A category is asked for once and
+ * kept in `categories`; one that failed is not kept, so the next sticker asks again. A failure of either question
+ * is the caller's to handle.
+ */
+export async function findStickerArt(
+  api: Pick<API, "getStickersDetail" | "getStickerCategoryDetail">,
+  categories: Map<number, StickerDetail[]>,
+  stickerId: string,
+  catId: string | undefined,
+): Promise<ZaloStickerArt | null> {
+  const [detail] = await api.getStickersDetail(Number(stickerId));
+  const own = detail === undefined ? null : stickerArtOf(detail);
+  if (own !== null) {
+    return { ...own, via: "detail" };
+  }
+  const category = wholeNumber(catId);
+  if (category === null || category <= 0) {
+    return null;
+  }
+  let stickers = categories.get(category);
+  if (stickers === undefined) {
+    stickers = await api.getStickerCategoryDetail(category);
+    categories.set(category, stickers);
+  }
+  const listed = stickers.find((candidate) => String(candidate.id) === String(Number(stickerId)));
+  const art = listed === undefined ? null : stickerArtOf(listed);
+  return art === null ? null : { ...art, via: "category" };
+}
+
+/**
+ * The still picture and the sprite sheet of a sticker out of Zalo's detail. `stickerUrl` is a still 130x130 PNG,
+ * not a moving picture; the sticker moves only when Zalo names a sprite sheet with more than one frame and a
+ * duration. Zalo's `duration` is the milliseconds each frame lasts (7 frames at 150, 19 at 100 on the first real
+ * stickers), so one run lasts `duration` times the frames. null when the detail names no picture at all.
+ */
+export function stickerArtOf(
+  detail: Pick<StickerDetail, "stickerUrl" | "stickerSpriteUrl" | "stickerWebpUrl" | "totalFrames" | "duration">,
+): ZaloStickerArt | null {
+  const url = detail.stickerUrl || detail.stickerWebpUrl || null;
+  const frames = detail.totalFrames;
+  const frameMs = Math.round(detail.duration);
+  const sprite =
+    detail.stickerSpriteUrl && Number.isSafeInteger(frames) && frames > 1 && frameMs > 0
+      ? { url: detail.stickerSpriteUrl, frames, durationMs: frames * frameMs }
+      : null;
+  return url === null && sprite === null ? null : { url, sprite };
+}
+
+/** The sticker a `chat.gif` content names (D-279). */
+function gifStickerOf(msgId: string, content: unknown): ZaloSticker | undefined {
+  const url = gifUrlOf(content);
+  return {
+    id: msgId,
+    catId: "0",
+    type: 0,
+    url,
+  };
+}
+
+/** Extracts the URL from a `chat.gif` content payload. */
+function gifUrlOf(content: unknown): string | null {
+  if (typeof content === "string") {
+    const trimmed = content.trim();
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
+    if (trimmed.startsWith("{")) {
+      try {
+        return gifUrlOf(JSON.parse(trimmed));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+  if (typeof content === "object" && content !== null) {
+    const fields = content as Record<string, unknown>;
+    const candidate = fields.href || fields.url || fields.normalUrl || fields.oriUrl || fields.thumbUrl || fields.thumb;
+    if (typeof candidate === "string" && (candidate.startsWith("http://") || candidate.startsWith("https://"))) {
+      return candidate;
+    }
+    if (typeof fields.params === "string") {
+      try {
+        return gifUrlOf(JSON.parse(fields.params));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+/** The sticker a `chat.sticker` content names, or undefined when it names none we can use. */
+function stickerOf(content: unknown): ZaloSticker | undefined {
+  if (typeof content !== "object" || content === null) {
+    return undefined;
+  }
+  const fields = content as Record<string, unknown>;
+  const id = wholeNumber(fields.id);
+  if (id === null || id <= 0) {
+    return undefined;
+  }
+  return {
+    id: String(id),
+    catId: String(wholeNumber(fields.catId) ?? 0),
+    type: wholeNumber(fields.type) ?? 0,
+    url: null,
+  };
+}
+
+/** A whole number given as a number or as text, else null. */
+function wholeNumber(value: unknown): number | null {
+  const number = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof number === "number" && Number.isSafeInteger(number) ? number : null;
+}
+
+/** Sends a text through zca-js; refusal and unknown as in `deliver` (D-280). */
+export async function sendText(
+  send: API["sendMessage"],
+  threadId: string,
+  threadType: ThreadType,
+  text: string,
+): Promise<string> {
+  const response = await deliver(send, text, threadId, threadType);
+  const msgId = response.message?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
+}
+
+/**
+ * Sends a picture alone through zca-js (D-353): `msg` is empty and the bytes go as the one attachment. The msgId is the
+ * one of the picture's message, in `attachment[0]`; `message` is null for a message that is only a picture. A name
+ * ending `.gif` makes zca-js use its own GIF branch, which takes the size from `metadata`. Refusal and unknown as in
+ * `deliver`.
+ */
+export async function sendImage(
+  send: API["sendMessage"],
+  threadId: string,
+  threadType: ThreadType,
+  image: ZaloImage,
+): Promise<string> {
+  const response = await deliver(
+    send,
+    {
+      msg: "",
+      attachments: [
+        {
+          data: image.data,
+          filename: image.fileName,
+          metadata: { totalSize: image.data.length, width: image.width, height: image.height },
+        },
+      ],
+    },
+    threadId,
+    threadType,
+  );
+  const msgId = response.attachment[0]?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
+}
+
+/**
+ * The bubble layout without a border, read in the code of chat.zalo.me (2026-10-20). A still sticker goes out as a
+ * photo in this bubble but without the marks of a Zalo AI sticker (`pStickerType`, `webp`): the Zalo phone app draws
+ * a photo with those marks sent from the web or a PC as an empty placeholder, Zalo PC's own included (ZS-09,
+ * 2026-10-21). NO_BORDER also marks a received photo as a sticker (`photoOf`).
+ */
+const NO_BORDER = 3;
+
+/** Posts the params of a photo sent by its address, as chat.zalo.me's `sendPhotoByUrl` does; Zalo's answer. */
+export type PhotoUrlSend = (group: boolean, params: Record<string, unknown>) => Promise<unknown>;
+
+/**
+ * `photo_url` is not in zca-js: it is added with `api.custom`, which gives the session's own URL builder, AES
+ * encryption and request, once per connection (a second `custom` of one name throws).
+ */
+function photoUrlSender(api: API): PhotoUrlSend {
+  api.custom<unknown, { group: boolean; params: Record<string, unknown> }>("sinoPhotoUrl", async ({ utils, props }) => {
+    const url = utils.makeURL(`${api.zpwServiceMap.file[0]}/api/${props.group ? "group" : "message"}/photo_url`, {
+      nretry: 0,
+    });
+    const encrypted = utils.encodeAES(JSON.stringify(props.params));
+    if (!encrypted) {
+      throw new Error("zca-js could not encrypt the photo sticker");
+    }
+    return utils.resolve(
+      await utils.request(url, { method: "POST", body: new URLSearchParams({ params: encrypted }) }),
+    );
+  });
+  const send = (api as unknown as { sinoPhotoUrl: (props: { group: boolean; params: Record<string, unknown> }) => Promise<unknown> })
+    .sinoPhotoUrl;
+  return (group, params) => send({ group, params });
+}
+
+/**
+ * Sends a still picture as a sticker (zalo-send-images, DN-2 = B since 2026-10-20): the picture is uploaded as a
+ * photo, then sent by its address in the bubble without a border. An upload alone puts nothing in the chat, so any
+ * failure before the send is a refusal; the send itself is a refusal or unknown as in `deliver`.
+ */
+export async function sendPhotoSticker(
+  upload: API["uploadAttachment"],
+  photoUrl: PhotoUrlSend,
+  threadId: string,
+  threadType: ThreadType,
+  image: ZaloImage,
+): Promise<string> {
+  let uploaded: UploadAttachmentImageResponse;
+  try {
+    const [result] = await upload(
+      [
+        {
+          data: image.data,
+          filename: image.fileName,
+          metadata: { totalSize: image.data.length, width: image.width, height: image.height },
+        },
+      ],
+      threadId,
+      zcaThreadType(threadType),
+    );
+    if (result?.fileType !== "image") {
+      throw new Error("Zalo did not take the picture as a photo");
+    }
+    uploaded = result;
+  } catch (error) {
+    throw new ZaloRejectedError(`Upload failed: ${reasonOf(error)}`);
+  }
+  try {
+    const answer = await photoUrl(threadType === "GROUP", photoStickerParams(threadId, threadType, image, uploaded));
+    const msgId = (answer as { msgId?: unknown } | null)?.msgId;
+    if (msgId === undefined || msgId === null) {
+      throw new Error("Zalo answered the photo sticker without a msgId");
+    }
+    return String(msgId);
+  } catch (error) {
+    if (error instanceof ZaloApiError && error.code !== null) {
+      throw new ZaloRejectedError(reasonOf(error));
+    }
+    throw error;
+  }
+}
+
+/** What chat.zalo.me posts to `photo_url` for a photo, in the bubble without a border and with no AI sticker mark. */
+export function photoStickerParams(
+  threadId: string,
+  threadType: ThreadType,
+  image: ZaloImage,
+  uploaded: UploadAttachmentImageResponse,
+): Record<string, unknown> {
+  const width = uploaded.width || image.width;
+  const height = uploaded.height || image.height;
+  return {
+    clientId: Date.now(),
+    title: "",
+    oriUrl: uploaded.normalUrl,
+    thumbUrl: uploaded.thumbUrl,
+    hdUrl: uploaded.hdUrl,
+    width,
+    height,
+    properties: JSON.stringify({
+      subType: 0,
+      color: -1,
+      size: -1,
+      type: NO_BORDER,
+      ext: JSON.stringify({ sSrcStr: "", sSrcType: -1 }),
+    }),
+    contentId: uploaded.photoId,
+    thumb_width: width,
+    thumb_height: height,
+    ...(threadType === "GROUP" ? { grid: threadId, visibility: 0 } : { toId: threadId }),
+  };
+}
+
+/**
+ * Sends a picture or file from the computer alone through zca-js (zalo-send-files, D-375). zca-js picks the path by the
+ * ending of the name: a photo goes as Zalo's plain photo (with its frame, unlike a sticker's picture) with its size in
+ * pixels, a GIF down its GIF path, any other file is uploaded as a file, which waits for Zalo to say so on the
+ * session's websocket. The msgId is the one of that message, in `attachment[0]`. Refusal and unknown as in `deliver`.
+ */
+export async function sendFile(
+  send: API["sendMessage"],
+  threadId: string,
+  threadType: ThreadType,
+  file: ZaloFile,
+): Promise<string> {
+  const metadata =
+    file.kind === "PHOTO"
+      ? { totalSize: file.data.length, width: file.width, height: file.height }
+      : { totalSize: file.data.length };
+  const response = await deliver(
+    send,
+    { msg: "", attachments: [{ data: file.data, filename: file.fileName as `${string}.${string}`, metadata }] },
+    threadId,
+    threadType,
+  );
+  const msgId = response.attachment[0]?.msgId;
+  if (msgId === undefined) {
+    throw new Error("Zalo answered the send without a msgId");
+  }
+  return String(msgId);
+}
+
+/**
+ * Hands a message to zca-js. Only a Zalo error code is a refusal (ZaloRejectedError); any other failure (no answer,
+ * a 5xx, an answer it cannot read) may come after Zalo took the message, so it stays unknown (D-280).
+ */
+async function deliver(
+  send: API["sendMessage"],
+  message: Parameters<API["sendMessage"]>[0],
+  threadId: string,
+  threadType: ThreadType,
+): Promise<Awaited<ReturnType<API["sendMessage"]>>> {
+  try {
+    return await send(message, threadId, zcaThreadType(threadType));
+  } catch (error) {
+    if (error instanceof ZaloApiError && error.code !== null) {
+      throw new ZaloRejectedError(reasonOf(error));
+    }
+    throw error;
+  }
+}
+
+function threadTypeOf(type: ZcaThreadType): ThreadType {
+  return type === ZcaThreadType.User ? "USER" : "GROUP";
+}
+
+function zcaThreadType(threadType: ThreadType): ZcaThreadType {
+  return threadType === "USER" ? ZcaThreadType.User : ZcaThreadType.Group;
+}
+
+type Profiles = Awaited<ReturnType<API["getUserInfo"]>>["changed_profiles"];
+
+/** zca-js asks for "<id>_0"; which key Zalo answers with is checked at ZL-13, so both are read. */
+function profileOf(profiles: Profiles, userId: string): Profiles[string] | undefined {
+  return profiles[userId] ?? profiles[`${userId}_0`];
+}
+
+async function userInfo(api: API, userId: string): Promise<ThreadInfo> {
+  const { changed_profiles: profiles } = await api.getUserInfo(userId);
+  const profile = profileOf(profiles, userId);
+  return {
+    title: profile?.displayName || profile?.zaloName || null,
+    avatarUrl: profile?.avatar || null,
+  };
+}
+
+/**
+ * The picture of each user from one `getUserInfo` call: zca-js takes a list and puts no limit on it (`getUserInfo.js`).
+ * A user missing from Zalo's answer, or in it without a picture, maps to null.
+ */
+export async function avatarsOf(
+  api: Pick<API, "getUserInfo">,
+  userIds: readonly string[],
+): Promise<Map<string, string | null>> {
+  const { changed_profiles: profiles } = await api.getUserInfo([...userIds]);
+  return new Map(userIds.map((userId) => [userId, profileOf(profiles, userId)?.avatar || null]));
+}
+
+async function groupInfo(api: API, groupId: string): Promise<ThreadInfo> {
+  const group = (await api.getGroupInfo(groupId)).gridInfoMap[groupId];
+  return {
+    title: group?.name || null,
+    avatarUrl: group?.fullAvt || group?.avt || null,
+  };
+}
+
+/** How Zalo answers a revoked cookie, as the spike saw it (spikes/zalo-zca/logs/login.jsonl). */
+function isRefusal(error: unknown): boolean {
+  return error instanceof ZaloApiError && error.message === "Đăng nhập thất bại";
+}
+
+/** The error's name and first line: zca-js puts whole Zalo responses after the first line. */
+function reasonOf(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "Unknown error";
+  }
+  const firstLine = error.message.split("\n", 1)[0] ?? "";
+  return `${error.name}: ${firstLine}`;
+}

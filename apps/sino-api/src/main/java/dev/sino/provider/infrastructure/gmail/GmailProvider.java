@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.infrastructure.gmail.GmailApi.HistoryPage;
 import dev.sino.provider.infrastructure.gmail.GmailApi.MessageList;
@@ -117,6 +118,11 @@ class GmailProvider implements MessageProvider {
     @Override
     public String displayName() {
         return "Gmail";
+    }
+
+    @Override
+    public ProviderKind kind() {
+        return ProviderKind.EMAIL;
     }
 
     @Override
@@ -246,6 +252,14 @@ class GmailProvider implements MessageProvider {
      */
     @Override
     public SendMessageResult sendMessage(ProviderContext context, SendMessageCommand command) {
+        if (command.image() != null) {
+            // A picture is refused before anything is asked of Gmail (D-349).
+            capabilities().require(ProviderCapability.SEND_IMAGES);
+        }
+        if (command.file() != null) {
+            // Attachments for Gmail are a later change (zalo-send-files, non-goals).
+            capabilities().require(ProviderCapability.SEND_FILES);
+        }
         String accessToken = accessTokenOf(context);
         String from = api.profile(accessToken).emailAddress();
         Optional<Part> answered = Optional.ofNullable(command.replyToExternalMessageId())

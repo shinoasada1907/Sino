@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Ghi chú</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} app" style="height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" active="notes" hint-size="248px,900px"></dc-import>
+  <section class="pane" aria-label="Danh sách ghi chú" style="flex: 0 1 320px; height: 900px;">
+    <div style="padding: 16px; display: flex; align-items: center; gap: 8px;">
+      <h1 class="h2" style="font-size: 17px;">Ghi chú</h1><span class="subtle small">12</span>
+      <button class="btn primary" style="margin-left: auto; height: 30px;">Ghi chú mới</button>
+    </div>
+    <div style="flex: 1; overflow: auto; padding: 0 8px 12px;">
+      <sc-for list="{{notes}}" as="n" hint-placeholder-count="6">
+        <a href="#" class="{{n.cls}}" style="flex-direction: column; gap: 4px;">
+          <div style="display: flex; width: 100%; gap: 8px;"><span class="who trunc" style="font-weight: 600;">{{n.title}}</span><span class="subtle small" style="margin-left: auto;">{{n.time}}</span></div>
+          <span class="muted small" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{n.body}}</span>
+          <sc-if value="{{n.tag}}" hint-placeholder-val="{{true}}"><span class="{{n.tagCls}}">{{n.tag}}</span></sc-if>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+  <main class="main" style="height: 900px;">
+    <div class="top" style="padding: 0 16px 0 32px;">
+      <span class="small subtle">Sửa lần cuối 09:52 · đã lưu</span>
+      <div style="margin-left: auto; display: flex; gap: 2px;">
+        <button class="icon-btn" aria-label="Ghim"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M8 3h8l-1 6 3 4H6l3-4z"/></svg></button>
+        <button class="icon-btn" aria-label="Thêm"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+      </div>
+    </div>
+    <div style="flex: 1; overflow: auto;">
+      <article style="max-width: 720px; margin: 0 auto; padding: 48px 40px; display: flex; flex-direction: column; gap: 18px; font-size: 15px; line-height: 1.75;">
+        <h2 class="display" style="font-size: 32px; line-height: 1.15;">Điều khoản 4 — thời hạn thanh toán</h2>
+        <div style="display: flex; gap: 8px; align-items: center;"><span class="tag accent"><span class="pv gmail" style="width: 14px; height: 14px; flex-basis: 14px; font-size: 8px;">G</span>Gắn với thư: Hợp đồng thuê văn phòng</span><span class="tag dusk">Ký T5 08/10</span></div>
+        <blockquote style="margin: 0; padding: 12px 16px; border-radius: 10px; background: var(--accent-soft); color: var(--text);">“điều khoản 4 (thời hạn thanh toán)”</blockquote>
+        <p>Bản cũ: thanh toán trước ngày 5 hằng tháng, phạt 0,05%/ngày. Bản mới đổi thành <b>trước ngày 10</b>, phạt giữ nguyên.</p>
+        <h3 class="h2" style="font-size: 17px; margin-top: 8px;">Cần hỏi lại</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 10px; align-items: center;"><span class="check on" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span><span style="text-decoration: line-through; color: var(--text-subtle);">Phụ lục giá có gồm phí dịch vụ không</span></div>
+          <div style="display: flex; gap: 10px; align-items: center;"><span class="check" aria-hidden="true"></span><span>Tháng đầu có được miễn tiền nhà không</span></div>
+          <div style="display: flex; gap: 10px; align-items: center;"><span class="check" aria-hidden="true"></span><span>Ai chịu phí sửa chữa nhỏ dưới 2 triệu</span></div>
+        </div>
+      </article>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const n = (title, time, body, tag, tagCls, on) => ({ title, time, body, tag, tagCls, cls: on ? 'row on' : 'row' });
+    const notes = [
+      n('Điều khoản 4 — thời hạn thanh toán', '09:52', 'Bản cũ: thanh toán trước ngày 5 hằng tháng. Bản mới đổi thành trước ngày 10.', 'Thư · Minh Anh', 'tag accent', true),
+      n('Danh sách đồ đi Đà Lạt', 'Hôm qua', 'Áo khoác, sạc dự phòng, thẻ nhớ, thuốc say xe.', '', ''),
+      n('Ý tưởng quà sinh nhật bà', '30/09', 'Khăn len màu be, sách nấu ăn, bánh bông lan trứng muối.', 'Zalo · Gia đình', 'tag honey'),
+      n('Số điện thoại bảo trì toà nhà', '28/09', 'Anh Tuấn 09•• ••• 112, giờ hành chính.', '', ''),
+      n('Checklist ký hợp đồng', '27/09', 'CMND, con dấu, bản in 2 bộ, biên bản bàn giao.', 'Lịch · T5 08/10', 'tag dusk'),
+      n('Mật khẩu wifi văn phòng mới', '25/09', 'Hỏi lễ tân tầng 3 khi chuyển vào.', '', '')
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', notes };
+  }
+}
+</script>
+</body>
+</html>

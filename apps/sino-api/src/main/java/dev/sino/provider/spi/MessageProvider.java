@@ -7,6 +7,7 @@ import java.util.OptionalLong;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
+import dev.sino.provider.ProviderKind;
 import dev.sino.provider.ProviderType;
 
 /**
@@ -21,6 +22,12 @@ public interface MessageProvider {
     default String displayName() {
         return type().value();
     }
+
+    /**
+     * Email or chat, for every conversation of the provider whatever its {@code ConversationType} (D-306). No
+     * default: a connector that forgets to declare it does not build.
+     */
+    ProviderKind kind();
 
     /** Only what the connector really supports. */
     ProviderCapabilities capabilities();
@@ -47,6 +54,32 @@ public interface MessageProvider {
      */
     default Optional<OAuth2Connection> oauth2() {
         return Optional.empty();
+    }
+
+    /**
+     * How the connector is connected by a QR code, or empty when it is not (D-275). A connector has this or
+     * {@link #oauth2()}, never both; as with OAuth2, the {@code account} module drives the login and registers the
+     * account.
+     */
+    default Optional<QrLogin> qrLogin() {
+        return Optional.empty();
+    }
+
+    /**
+     * Nicknames of the provider's friends, or empty when it has none (zalo-nicknames, D-417). Present only with
+     * {@link ProviderCapability#NICKNAMES}.
+     */
+    default Optional<Nicknames> nicknames() {
+        return Optional.empty();
+    }
+
+    /**
+     * False while the connector's own switch is off (D-286). It stays in the registry, so its accounts and their
+     * stored messages stay readable, but it cannot be connected and every call out fails with
+     * {@link ProviderErrorCode#PROVIDER_UNAVAILABLE}.
+     */
+    default boolean turnedOn() {
+        return true;
     }
 
     /**
@@ -99,6 +132,13 @@ public interface MessageProvider {
      */
     default Optional<PushRegistration> registerPush(ProviderContext context) {
         return Optional.empty();
+    }
+
+    /**
+     * Stops anything the connector keeps for this account (such as a session or listener, D-284). Called after the
+     * removal or disabling of the account has committed; a failure is only logged. Does nothing by default.
+     */
+    default void disconnect(ProviderContext context) {
     }
 
 }

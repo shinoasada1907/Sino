@@ -22,6 +22,7 @@ import {
   linkedMeta,
   mailSender,
   mailTime,
+  memberAvatar,
   memberPlaceholder,
   newMailText,
   notArrivedSince,
@@ -46,9 +47,9 @@ const TZ = 'Asia/Ho_Chi_Minh'
 const now = new Date('2026-10-02T07:05:00Z') // Friday 14:05 in Vietnam
 const vn = (time: string) => new Date(`${time}+07:00`).toISOString()
 const nameOf = providerNameOf([
-  { type: 'gmail', displayName: 'Gmail' },
-  { type: 'zalo', displayName: 'Zalo' },
-  { type: 'messenger', displayName: 'Messenger' },
+  { type: 'gmail', displayName: 'Gmail', kind: 'EMAIL' },
+  { type: 'zalo', displayName: 'Zalo', kind: 'CHAT' },
+  { type: 'messenger', displayName: 'Messenger', kind: 'CHAT' },
 ])
 
 function item(extra: Partial<ConversationItem>): ConversationItem {
@@ -59,6 +60,7 @@ function item(extra: Partial<ConversationItem>): ConversationItem {
     provider: 'gmail',
     kind: 'EMAIL',
     title: 'Trần Minh Anh',
+    avatarUrl: null,
     subject: 'Hợp đồng',
     memberCount: null,
     snippetFrom: null,
@@ -116,6 +118,8 @@ describe('the flag line of a row', () => {
       tone: 'err',
       text: 'Thư hẹn giờ không gửi được',
     })
+    // A chat sends a message, not a mail (f05c, canvas Messages).
+    expect(rowFlag(item({ kind: 'CHAT', scheduledSend: { at: vn('2026-10-01T21:00'), failed: true } }), now, TZ)?.text).toBe('Tin hẹn giờ không gửi được')
   })
 
   it('says when a snoozed conversation came back, then a scheduled reply', () => {
@@ -239,7 +243,7 @@ describe('filters', () => {
   const archived = item({ id: 'archived', archived: true, unreadCount: 1 })
   const all = [visible, unreadZalo, scheduled, failed, snoozed, back, archived]
   const ids = (view: Parameters<typeof filterConversations>[1]['view'], source: string | null = null) =>
-    filterConversations(all, { source, view }, now).map((entry) => entry.id)
+    filterConversations(all, { source, account: null, view }, now).map((entry) => entry.id)
 
   it('hides archived and snoozed conversations from the inbox', () => {
     expect(ids('all')).toEqual(['visible', 'unread-zalo', 'scheduled', 'failed', 'back'])
@@ -337,9 +341,20 @@ describe('the open conversation', () => {
   })
 
   it('gives each member of a group the placeholder of their place, anyone else the striped one', () => {
-    const members = ['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => ({ name, owner: false, joinedRecently: false }))
+    const members = ['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => ({ name, avatarUrl: null, owner: false, joinedRecently: false }))
     expect(['Mẹ', 'Bố', 'Hà', 'Minh', 'Bà ngoại'].map((name) => memberPlaceholder(name, members))).toEqual(['a', 'd', 'c', 'b', 'a'])
     expect(memberPlaceholder('Lê Hoàng', null)).toBe('c')
+  })
+
+  it('finds the picture of a group member by name; someone not in the list, without a picture or no list has none', () => {
+    const members = [
+      { name: 'Mẹ', avatarUrl: 'https://ava.example/me.jpg', owner: true, joinedRecently: false },
+      { name: 'Bố', avatarUrl: null, owner: false, joinedRecently: false },
+    ]
+    expect(memberAvatar('Mẹ', members)).toBe('https://ava.example/me.jpg')
+    expect(memberAvatar('Bố', members)).toBeNull()
+    expect(memberAvatar('Lê Hoàng', members)).toBeNull()
+    expect(memberAvatar('Mẹ', null)).toBeNull()
   })
 
   it('says an email is still sending or failed, and nothing once it went out', () => {
@@ -445,6 +460,7 @@ describe('conversations that arrive while the list is open (FE-54, MotionSpec C)
   it('says how many new emails came', () => {
     expect(newMailText(1)).toBe('1 thư mới')
     expect(newMailText(1200)).toBe('1.200 thư mới')
+    expect(newMailText(2, 'CHAT')).toBe('2 tin mới')
   })
 })
 

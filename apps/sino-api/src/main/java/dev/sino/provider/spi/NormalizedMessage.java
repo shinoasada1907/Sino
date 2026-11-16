@@ -37,6 +37,43 @@ public record NormalizedMessage(
     public static final String SUBJECT = "subject";
 
     /**
+     * Metadata key, the address of a sticker's picture: {@code https} on a host its provider serves pictures from,
+     * checked by the connector that wrote it. Left out when the message is no sticker or the picture is unknown.
+     */
+    public static final String STICKER_URL = "stickerUrl";
+
+    /**
+     * Metadata keys of a sticker that moves (ZL-15): the address of its sprite sheet (checked like
+     * {@link #STICKER_URL}), the number of frames laid side by side in one row, and the milliseconds one run of
+     * them lasts. All three or none; left out when the sticker is still or any of them is unusable.
+     */
+    public static final String STICKER_SPRITE_URL = "stickerSpriteUrl";
+
+    public static final String STICKER_FRAMES = "stickerFrames";
+
+    public static final String STICKER_DURATION_MS = "stickerDurationMs";
+
+    /**
+     * Metadata keys of a photo (ZL-16): the address of the picture, the address of a smaller one when the provider
+     * names a different one, and the caption its sender typed. Addresses are checked like {@link #STICKER_URL}. The
+     * thumbnail and the caption are left out when there is none; with no safe address for the picture there is no
+     * key at all and the message stays its placeholder text.
+     */
+    public static final String IMAGE_URL = "imageUrl";
+
+    public static final String IMAGE_THUMB_URL = "imageThumbUrl";
+
+    public static final String IMAGE_CAPTION = "imageCaption";
+
+    /**
+     * Metadata key, the ID (as text) of the sticker of the library that a message Sino sent carries (ZS-05, D-352). Sino
+     * writes it itself, no connector does, and the store keeps it when the connector brings the same message in again,
+     * so the message stays the user's own sticker whatever address the provider gives its copy. Not the
+     * {@code stickerId} the Zalo connector writes for a sticker of Zalo's own, which is a number of Zalo's.
+     */
+    public static final String LIBRARY_STICKER_ID = "libraryStickerId";
+
+    /**
      * Metadata key, the {@code Message-ID} of an email: the same in every mailbox that holds the message, so Sino finds
      * its copies in the other accounts of the owner (F05b, D-180). Left out when there is none.
      */

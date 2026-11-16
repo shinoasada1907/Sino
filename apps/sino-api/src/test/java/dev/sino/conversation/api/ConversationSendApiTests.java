@@ -528,6 +528,61 @@ class ConversationSendApiTests {
                 .containsOnly("UNKNOWN").hasSize(2);
     }
 
+    // D-280: when sino-zalo restarted before an older send settled (409 CANNOT_TELL -> OUTCOME_UNKNOWN), that older
+    // message must stay UNKNOWN even after ten minutes, and reconciliation must still check newer messages.
+    @Test
+    void aMessageSinoZaloCannotTellAboutStaysUnknownWhileANewerOneSettles() throws Exception {
+        UUID newer = UUID.randomUUID();
+        mail.failNextSends(
+                new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, "no answer"),
+                new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, "no answer"));
+        send(TEXT, clientMessageId).andExpect(status().isGatewayTimeout());
+        jdbc.update("update message set sent_at = now() - interval '11 minutes' where client_message_id = ?",
+                clientMessageId);
+        send("Tin mới hơn", newer).andExpect(status().isGatewayTimeout());
+        mail.cannotTell(clientMessageId);
+        mail.sent(newer, "gm-2");
+
+        sentMessages.reconcile(account);
+
+        assertThat(mail.searchedSends()).containsExactly(clientMessageId, newer);
+        assertThat(stored()).containsExactly(
+                Map.of("external_message_id", "sino:" + clientMessageId, "status", "UNKNOWN",
+                        "client_message_id", clientMessageId),
+                Map.of("external_message_id", "gm-2", "status", "SENT",
+                        "client_message_id", newer));
+    }
+
+    // On a chat provider (DIRECT / GROUP), a thread whose only message was sent from the user's phone has no
+    // stored recipients, yet replying goes to the thread itself and carries the conversation's type (D-280).
+    @Test
+    void aChatConversationWithOnlyAnOutboundMessageRepliesToItsThreadAndPassesItsType() throws Exception {
+        NormalizedConversation group = new NormalizedConversation("g-99", ConversationType.GROUP, "Nhóm dự án",
+                null, List.of(ME), null);
+        NormalizedMessage fromPhone = new NormalizedMessage("z-1", "g-99", ME.externalParticipantId(),
+                MessageDirection.OUTBOUND, MessageType.TEXT, "Mình vừa gửi từ điện thoại", MessageStatus.SENT,
+                true, null, MONDAY, List.of(), Map.of(), null, null);
+        transactions.executeWithoutResult(t -> store.store(account, new SyncBatch(List.of(group),
+                List.of(fromPhone), List.of(), new SyncCursor("next"), false)));
+        UUID groupConversation = jdbc.queryForObject(
+                "select id from conversation where account_id = ? and external_conversation_id = 'g-99'",
+                UUID.class, account);
+        mail.failNextSends(new ProviderException(ProviderErrorCode.OUTCOME_UNKNOWN, "no answer"));
+
+        mvc.perform(post("/api/conversations/{id}/messages", groupConversation).with(user("owner@sino.test"))
+                .with(csrf()).contentType(APPLICATION_JSON).content(body(TEXT, clientMessageId)))
+                .andExpect(status().isGatewayTimeout());
+        sentMessages.reconcile(account);
+
+        assertThat(mail.sentMessages()).singleElement().satisfies(command -> {
+            assertThat(command.externalConversationId()).isEqualTo("g-99");
+            assertThat(command.conversationType()).isEqualTo(ConversationType.GROUP);
+            assertThat(command.to()).containsExactly(new Address("Nhóm dự án", "g-99"));
+        });
+        assertThat(mail.searchedAttempts()).singleElement()
+                .satisfies(search -> assertThat(search.command().conversationType()).isEqualTo(ConversationType.GROUP));
+    }
+
     // Pausing the sync must not keep a send unsettled: the sweep does not wait for a sync.
     @Test
     void theSweepSettlesTheSendsOfAPausedAccountButLeavesOneToReconnect() throws Exception {

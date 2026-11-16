@@ -39,26 +39,26 @@ describe('Hộp thư on tablet and mobile', () => {
     const headings = await screen.findAllByRole('heading', { level: 1, name: 'Hộp thư' })
     const header = mobileHeader(headings.find((heading) => heading.closest('header'))!)
 
-    expect(within(header).getByText('12 chưa đọc')).toBeInTheDocument()
+    expect(within(header).getByText('7 chưa đọc')).toBeInTheDocument()
     expect(within(header).getByRole('button', { name: 'Tìm kiếm' })).toBeInTheDocument()
     expect(within(header).getByRole('button', { name: 'Bộ lọc' })).toBeInTheDocument()
     expect(shellPart('topbar')).toHaveClass('max-md:hidden')
     expect(document.querySelector('[data-slot="tabbar"]')).not.toBeNull()
   })
 
-  it('filters by source with the mobile chips', async () => {
-    const { router } = open('/inbox')
+  it('filters by source with the mobile chips, the chat sources on Tin nhắn (f05c)', async () => {
+    const { router } = open('/messages')
     const user = userEvent.setup()
     const chips = within(await screen.findByRole('group', { name: 'Nguồn' }))
 
-    expect(chips.getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Tất cả · 12', 'Gmail · 7', 'Zalo · 4', 'Messenger'])
-    expect(chips.getByRole('button', { name: 'Tất cả · 12' })).toHaveAttribute('aria-pressed', 'true')
+    expect(chips.getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Tất cả · 5', 'Zalo · 4', 'Messenger'])
+    expect(chips.getByRole('button', { name: 'Tất cả · 5' })).toHaveAttribute('aria-pressed', 'true')
 
     await user.click(chips.getByRole('button', { name: 'Zalo · 4' }))
 
     expect(router.state.location.search).toBe('?source=zalo')
     expect(chips.getByRole('button', { name: 'Zalo · 4' })).toHaveAttribute('aria-pressed', 'true')
-    expect(rowTitles()).toEqual(['Nhóm chạy bộ Hồ Tây', 'Gia đình'])
+    expect(rowTitles()).toEqual(['Nhóm chạy bộ Hồ Tây', 'Gia đình', 'Hà', 'Nhóm sửa nhà'])
   })
 
   it('filters by source and view with the tablet chips', async () => {
@@ -76,11 +76,11 @@ describe('Hộp thư on tablet and mobile', () => {
   })
 
   it('opens a conversation as a mobile sub-page with a way back and no tab bar', async () => {
-    open('/inbox/conv-2?source=zalo')
-    const back = await screen.findByRole('link', { name: 'Quay lại Hộp thư' })
+    open('/messages/conv-2?source=zalo')
+    const back = await screen.findByRole('link', { name: 'Quay lại Tin nhắn' })
     const header = mobileHeader(back)
 
-    expect(back).toHaveAttribute('href', '/inbox?source=zalo')
+    expect(back).toHaveAttribute('href', '/messages?source=zalo')
     expect(within(header).getByRole('heading', { level: 1, name: 'Gia đình' })).toBeInTheDocument()
     expect(within(header).getByText('Zalo · 6 người')).toBeInTheDocument()
     expect(within(header).getByRole('button', { name: 'Thông tin cuộc trò chuyện' })).toBeInTheDocument()

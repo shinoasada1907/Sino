@@ -97,7 +97,7 @@ export function TaskDetail({
           ) : (
             <Link
               to={`/inbox/${task.source.conversationId}`}
-              className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-md border bg-raised px-3.5 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+              className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-md bg-raised px-3.5 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
             >
               <ProviderMark provider={task.source.provider} />
               <span className="flex min-w-0 flex-col gap-0.5">
@@ -127,7 +127,7 @@ export function TaskDetail({
             }
           }}
           placeholder="Thêm ghi chú…"
-          className="min-h-21 w-full resize-y rounded-sm border bg-surface px-3.5 py-2.5 text-sm text-foreground transition-colors duration-(--dur-hover) ease-out outline-none placeholder:text-subtle-foreground hover:border-border-strong focus-visible:border-foreground"
+          className="min-h-21 w-full resize-y rounded-md border bg-surface px-3.5 py-2.5 text-sm text-foreground transition-colors duration-(--dur-hover) ease-out outline-none placeholder:text-subtle-foreground hover:border-border-strong focus-visible:border-foreground"
         />
       </div>
 

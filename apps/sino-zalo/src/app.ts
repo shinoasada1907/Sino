@@ -1,0 +1,56 @@
+import Fastify, {
+  type FastifyInstance,
+  type FastifyServerOptions,
+} from "fastify";
+import { requireSecret } from "./auth.ts";
+import type { Config } from "./config.ts";
+import type { ZaloGateway } from "./gateway/ZaloGateway.ts";
+import { LoginStore } from "./logins/LoginStore.ts";
+import { registerLoginRoutes } from "./logins/routes.ts";
+import { registerReadRoutes } from "./messages/readRoutes.ts";
+import { registerSendRoutes } from "./messages/sendRoutes.ts";
+import { type Notifier, WebhookNotifier } from "./notify.ts";
+import { registerAliasRoutes } from "./sessions/aliasRoutes.ts";
+import { registerContactRoutes } from "./sessions/contactRoutes.ts";
+import { SessionManager } from "./sessions/SessionManager.ts";
+import { registerSessionRoutes } from "./sessions/routes.ts";
+
+export interface AppOptions {
+  readonly logger?: FastifyServerOptions["logger"];
+  /** Defaults to the webhook to sino-api; tests pass one that records the calls. */
+  readonly notifier?: Notifier;
+  /** The clock of sessions and sends; tests move it by hand. */
+  readonly now?: () => number;
+  /** How long a send may take before its outcome counts as unknown (504); 10 seconds by default. */
+  readonly sendTimeoutMs?: number;
+  /** How long a contact list may take before it counts as Zalo not answering (502); 15 seconds by default. */
+  readonly contactsTimeoutMs?: number;
+}
+
+export function buildApp(
+  config: Config,
+  gateway: ZaloGateway,
+  options: AppOptions = {},
+): FastifyInstance {
+  const app = Fastify({ logger: options.logger ?? false });
+
+  app.addHook("onRequest", requireSecret(config.secret));
+
+  const notifier = options.notifier ?? new WebhookNotifier(config, app.log);
+  const sessions = new SessionManager(gateway, notifier, { log: app.log, now: options.now });
+  app.addHook("onClose", async () => sessions.stopAll());
+
+  app.get("/health", async () => ({
+    status: "UP",
+    sessions: sessions.counts(),
+  }));
+
+  registerLoginRoutes(app, new LoginStore(gateway, { log: app.log }));
+  registerSessionRoutes(app, sessions);
+  registerReadRoutes(app, sessions);
+  registerSendRoutes(app, sessions, { now: options.now, sendTimeoutMs: options.sendTimeoutMs });
+  registerAliasRoutes(app, sessions, { now: options.now });
+  registerContactRoutes(app, sessions, { timeoutMs: options.contactsTimeoutMs });
+
+  return app;
+}

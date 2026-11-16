@@ -18,6 +18,9 @@ public enum ConnectErrorCode {
     /** A reconnect came back with another account at the provider. */
     CONNECT_WRONG_ACCOUNT,
 
+    /** The account at the provider is already connected by another Sino user (D-290). */
+    CONNECT_ACCOUNT_IN_USE,
+
     /** Anything else: the provider failed, the code exchange failed, no refresh token, no profile. */
     CONNECT_FAILED
 

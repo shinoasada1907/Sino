@@ -11,7 +11,7 @@ import type { InboxAccount, InboxData } from '../inbox.types'
 import { MailDot } from './icons'
 
 const ITEM =
-  'grid h-11 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-sm border border-transparent px-2.5 text-sm font-medium text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:border-border aria-[current=page]:bg-raised aria-[current=page]:font-semibold aria-[current=page]:text-foreground'
+  'grid h-11 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-full border border-transparent px-2.5 text-sm font-bold text-muted-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:border-border aria-[current=page]:bg-raised aria-[current=page]:font-semibold aria-[current=page]:text-foreground'
 
 const QUICK_FILTERS: { view: InboxView; label: string; icon: LucideIcon | ComponentType<SVGProps<SVGSVGElement>>; count?: keyof InboxData['counts'] }[] = [
   { view: 'unread', label: 'Chưa đọc', icon: MailDot, count: 'unread' },
@@ -47,7 +47,7 @@ export function SourcePane({
   className?: string
 }) {
   return (
-    <aside aria-label="Nguồn và bộ lọc" className={cn('min-h-0 overflow-auto border-r', className)}>
+    <aside aria-label="Nguồn và bộ lọc" className={cn('min-h-0 overflow-auto', className)}>
       <div className="flex flex-col gap-6 px-3 py-5">
         <Section title="Nguồn">
           <Link to={{ search: searchFor({ source: null }) }} aria-current={filter.source === null ? 'page' : undefined} className={ITEM}>

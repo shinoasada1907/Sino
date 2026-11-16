@@ -16,8 +16,11 @@ import { badgeOf, NAV_ITEMS } from './navItems'
 import { syncStatus } from './syncStatus'
 import { useShellData } from './useShellData'
 
-/** The screens behind the "Thêm" tab, in the order of the canvas. */
-const OTHER_SCREENS = ['/notes', '/accounts', '/services', '/registrations', '/notifications', '/settings']
+/**
+ * The screens behind the "Thêm" tab, in the order of the canvas; Lịch first since it left the tab bar (f05c, D-301).
+ * Sticker is reached from Cài đặt since fe-ui-settings (D-397).
+ */
+const OTHER_SCREENS = ['/calendar', '/notes', '/accounts', '/services', '/registrations', '/notifications', '/settings']
 
 const THEMES: { value: Theme; label: string }[] = [
   { value: 'light', label: 'Sáng' },
@@ -38,7 +41,9 @@ export function MorePage() {
   const signOut = useLogout()
   const clock = useNow()
   const now = new Date(Math.max(clock.getTime(), receivedAt))
+  // The shell data brings the counts of accounts from the account list (D-326), as on the navigation.
   const attention = shell?.navCounts.accountsNeedingAction ?? 0
+  const counts = shell?.navCounts
   const status = shell ? syncStatus(shell.sync, now) : null
 
   return (
@@ -51,7 +56,7 @@ export function MorePage() {
           <Avatar className="size-12" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-base font-semibold">{me?.displayName ?? shell?.owner.displayName}</span>
-            {shell && (
+            {shell && shell.accountCount !== null && (
               <span className="text-sm text-muted-foreground">
                 {shell.accountCount} tài khoản{attention > 0 ? ` · ${attention} cần xử lý` : ''}
               </span>
@@ -64,7 +69,7 @@ export function MorePage() {
         <Group title="Đi tới">
           <nav aria-label="Mục khác" className="flex flex-col overflow-hidden rounded-md border bg-surface">
             {OTHER_SCREENS.map((to) => (
-              <ScreenLink key={to} to={to} unreadNotifications={shell?.unreadNotifications ?? 0} counts={shell?.navCounts} />
+              <ScreenLink key={to} to={to} unreadNotifications={shell?.unreadNotifications ?? 0} counts={counts} />
             ))}
           </nav>
         </Group>

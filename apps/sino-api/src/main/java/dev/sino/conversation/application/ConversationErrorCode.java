@@ -58,7 +58,35 @@ public enum ConversationErrorCode implements ErrorCode {
     SEND_OUTCOME_STILL_UNKNOWN(ErrorCategory.CONFLICT, "SEND_OUTCOME_UNKNOWN"),
 
     /** Only a message Sino failed to send can be discarded (F10). */
-    MESSAGE_NOT_DELETABLE(ErrorCategory.CONFLICT);
+    MESSAGE_NOT_DELETABLE(ErrorCategory.CONFLICT),
+
+    /**
+     * No sticker with this ID in the caller's library: one of another user is reported the same way (ZS-05). The same code
+     * as the sticker module's own, which the web already tells.
+     */
+    STICKER_NOT_FOUND(ErrorCategory.NOT_FOUND),
+
+    /** A sticker the library keeps but a message cannot carry, such as one above 1 MiB (ZS-05, D-349). */
+    STICKER_NOT_SENDABLE(ErrorCategory.INVALID),
+    /**
+     * A picture above 10 MB or a file above 25 MB from the computer (zalo-send-files, D-371); {@code maxBytes} says which
+     * limit. Nothing is written or sent.
+     */
+    FILE_TOO_LARGE(ErrorCategory.PAYLOAD_TOO_LARGE),
+    /** An empty file from the computer (zalo-send-files, D-371). Nothing is written or sent. */
+    FILE_EMPTY(ErrorCategory.INVALID),
+
+    /**
+     * A nickname was sent for a group, a channel or mail, or for a chat whose provider has no {@code NICKNAMES}
+     * (zalo-nicknames, D-416). The stored nickname, if any, does not change.
+     */
+    NICKNAME_NOT_SUPPORTED(ErrorCategory.INVALID),
+
+    /** The provider refused the nickname Sino tried to set (D-416); the one stored stays as it was. */
+    NICKNAME_REJECTED(ErrorCategory.INVALID),
+
+    /** The provider could not be reached to set the nickname (D-416); the one stored stays as it was. */
+    NICKNAME_UNAVAILABLE(ErrorCategory.PROVIDER_FAILED);
 
     private final ErrorCategory category;
     private final String code;
@@ -118,6 +146,36 @@ public enum ConversationErrorCode implements ErrorCode {
     static SinoException replyNotAllowed(ReplyState state) {
         return new SinoException(REPLY_NOT_ALLOWED, "This account cannot send a reply now.",
                 Map.of("state", state.name()));
+    }
+
+    static SinoException stickerNotFound() {
+        return new SinoException(STICKER_NOT_FOUND, "There is no such sticker in the library.");
+    }
+
+    static SinoException stickerNotSendable(String why) {
+        return new SinoException(STICKER_NOT_SENDABLE, "This sticker cannot be sent as a picture: " + why);
+    }
+
+    static SinoException fileTooLarge(boolean picture, long maxBytes) {
+        return new SinoException(FILE_TOO_LARGE, (picture ? "A picture" : "A file") + " is at most " + maxBytes
+                + " bytes.", Map.of("maxBytes", maxBytes));
+    }
+
+    static SinoException fileEmpty() {
+        return new SinoException(FILE_EMPTY, "The file is empty.");
+    }
+
+    static SinoException nicknameNotSupported() {
+        return new SinoException(NICKNAME_NOT_SUPPORTED, "Only a 1-1 chat whose provider supports nicknames can "
+                + "have one.");
+    }
+
+    static SinoException nicknameRejected() {
+        return new SinoException(NICKNAME_REJECTED, "The provider refused this nickname.");
+    }
+
+    static SinoException nicknameUnavailable() {
+        return new SinoException(NICKNAME_UNAVAILABLE, "The nickname could not be set now; try again shortly.");
     }
 
     static SinoException noRecipient() {

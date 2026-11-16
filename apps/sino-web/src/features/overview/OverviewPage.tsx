@@ -2,7 +2,11 @@ import { Plus, RefreshCw } from 'lucide-react'
 import { useShellData } from '@/app/shell/useShellData'
 import { formatDateLine } from '@/shared/time/local'
 import { useNow } from '@/shared/time/useNow'
+import { Avatar } from '@/shared/ui/avatar'
+import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { useAccounts } from '@/features/accounts/useAccounts'
+import { useMe } from '@/features/auth/useAuth'
 import { Status } from '@/shared/ui/status'
 import { AccountsCard } from './cards/AccountsCard'
 import { ActivityCard } from './cards/ActivityCard'
@@ -20,7 +24,11 @@ import { useOverview } from './useOverview'
  */
 export function OverviewPage() {
   const { shell } = useShellData()
-  const { overview, receivedAt } = useOverview()
+  const { overview: base, receivedAt } = useOverview()
+  // There is no `/api/overview` yet, so the account card and the greeting read the real list of accounts; the other cards stay empty.
+  const { list } = useAccounts()
+  const overview = base && (list ? { ...base, accounts: list.accounts, providers: list.providers } : base)
+  const { data: me } = useMe()
   const clock = useNow()
   // Data that arrives between two clock ticks is measured from its arrival, as in the top bar.
   const now = new Date(Math.max(clock.getTime(), receivedAt))
@@ -39,13 +47,14 @@ export function OverviewPage() {
 
   return (
     <div className="flex flex-col gap-3 px-4 pt-1 pb-5 md:gap-5 md:p-6 xl:gap-7 xl:p-8">
-      <header className="flex flex-col gap-1.5 py-1 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:gap-x-8 md:py-0">
+      <header className="relative flex flex-col gap-1.5 overflow-hidden rounded-lg bg-surface bg-(image:--glow) p-5 shadow-card md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-x-8 md:p-7 xl:p-8">
+        <span aria-hidden="true" className="decor dots pointer-events-none absolute top-5 right-6 hidden h-12 w-18 opacity-80 md:block" />
         <div className="flex min-w-0 flex-col gap-1.5 xl:gap-2.5">
-          <span className="font-mono text-xs leading-4 font-medium text-muted-foreground tabular-nums">
+          <Badge tone="accent" className="self-start font-mono tabular-nums">
             <span className="md:hidden">{formatDateLine(now, undefined, { year: false })}</span>
             <span className="hidden md:inline">{formatDateLine(now)}</span>
-          </span>
-          <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.018em] xl:text-[40px] xl:leading-12 xl:font-bold xl:tracking-[-0.028em]">
+          </Badge>
+          <h1 className="text-[28px] leading-9 text-brand-ink xl:text-[44px] xl:leading-[1.05]">
             {greeting(now)}
             {name ? `, ${name}` : ''}.
           </h1>
@@ -54,15 +63,26 @@ export function OverviewPage() {
             {summary.issue && <Status tone="err">{summary.issue}</Status>}
           </div>
         </div>
-        <div className="hidden gap-2.5 md:flex">
-          <Button type="button" variant="secondary" size="sm">
-            <RefreshCw strokeWidth={1.6} />
-            Đồng bộ ngay
-          </Button>
-          <Button type="button" variant="primary" size="sm">
-            <Plus strokeWidth={1.6} />
-            Kết nối tài khoản
-          </Button>
+        <div className="relative hidden flex-col items-end gap-4 md:flex">
+          {me && (
+            <Avatar src={me.avatarUrl} placeholder="a" className="size-24 text-[28px] shadow-[0_0_0_5px_var(--surface),0_14px_30px_-14px_var(--accent)]">
+              {!me.avatarUrl && (
+                <span aria-hidden="true" className="absolute inset-0 grid place-items-center">
+                  {me.displayName.trim().slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </Avatar>
+          )}
+          <div className="flex gap-2.5">
+            <Button type="button" variant="soft" size="sm">
+              <RefreshCw strokeWidth={1.6} />
+              Đồng bộ ngay
+            </Button>
+            <Button type="button" variant="primary" size="sm">
+              <Plus strokeWidth={1.6} />
+              Kết nối tài khoản
+            </Button>
+          </div>
         </div>
       </header>
 

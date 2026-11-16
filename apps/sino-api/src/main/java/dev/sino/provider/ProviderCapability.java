@@ -12,6 +12,20 @@ public enum ProviderCapability {
     /** Send messages and replies through {@code sendMessage}. */
     SEND_MESSAGES,
 
+    /**
+     * Send a picture as a message (D-349): {@code sendMessage} takes a command with an
+     * {@link dev.sino.provider.spi.OutgoingImage}. A connector with it also has {@link #SEND_MESSAGES}. Not what
+     * {@link #ATTACHMENTS} says, which is only that messages Sino reads carry the metadata of their files.
+     */
+    SEND_IMAGES,
+
+    /**
+     * Send a picture or a file from the user's computer as a message (zalo-send-files, D-372): {@code sendMessage}
+     * takes a command with an {@link dev.sino.provider.spi.OutgoingFile}. A connector with it also has
+     * {@link #SEND_MESSAGES}.
+     */
+    SEND_FILES,
+
     /** Normalized messages carry attachment metadata. */
     ATTACHMENTS,
 
@@ -25,6 +39,12 @@ public enum ProviderCapability {
     PUSH_WEBHOOK,
 
     /** The provider groups messages into threads or reply chains. */
-    THREADS
+    THREADS,
+
+    /**
+     * A 1-1 chat can be given a nickname at the provider (zalo-nicknames, D-414, D-417): {@code nicknames()} is
+     * then present.
+     */
+    NICKNAMES
 
 }

@@ -10,6 +10,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,12 +28,17 @@ import com.jayway.jsonpath.JsonPath;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -46,6 +52,9 @@ import dev.sino.account.infrastructure.ConnectedAccountRepository;
 import dev.sino.conversation.ConversationStore;
 import dev.sino.identity.infrastructure.AppUser;
 import dev.sino.identity.infrastructure.AppUserRepository;
+import dev.sino.provider.FakeMessageProvider;
+import dev.sino.provider.ProviderKind;
+import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.ProviderType;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageDirection;
@@ -64,8 +73,9 @@ import dev.sino.provider.spi.SyncCursor;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ConversationsApiTests.Connectors.class })
 @ActiveProfiles("test")
+@ExtendWith(OutputCaptureExtension.class)
 class ConversationsApiTests {
 
     private static final Instant MONDAY = Instant.parse("2026-10-05T08:00:00Z");
@@ -94,6 +104,20 @@ class ConversationsApiTests {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private ProviderRegistry registry;
+
+    /** A chat connector that is not Zalo, for the conversations the tests store under "telegram" (D-306). */
+    @TestConfiguration(proxyBeanMethods = false)
+    static class Connectors {
+
+        @Bean
+        FakeMessageProvider telegram() {
+            return FakeMessageProvider.builder("telegram").kind(ProviderKind.CHAT).build();
+        }
+
+    }
 
     private UUID owner;
     private UUID otherUser;
@@ -152,6 +176,7 @@ class ConversationsApiTests {
                 .andExpect(jsonPath("$.items[0].provider").value("gmail"))
                 .andExpect(jsonPath("$.items[0].kind").value("EMAIL"))
                 .andExpect(jsonPath("$.items[0].title").value("Alice"))
+                .andExpect(jsonPath("$.items[0].avatarUrl").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].subject").value("Báo cáo tháng 9"))
                 .andExpect(jsonPath("$.items[0].memberCount").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].snippetFrom").value(nullValue()))
@@ -168,9 +193,9 @@ class ConversationsApiTests {
 
         Map<String, Object> item = JsonPath.read(body, "$.items[0]");
         assertThat(item.keySet()).as("no message text beyond the snippet, no HTML").containsExactlyInAnyOrder("id",
-                "accountId", "provider", "kind", "title", "subject", "memberCount", "snippetFrom", "snippet",
-                "lastMessageAt", "unreadCount", "needsReply", "hasAttachments", "archived", "snooze", "scheduledSend",
-                "linked");
+                "accountId", "accountIds", "provider", "kind", "title", "avatarUrl", "nickname", "subject",
+                "memberCount", "snippetFrom", "snippet", "lastMessageAt", "unreadCount", "needsReply",
+                "hasAttachments", "archived", "snooze", "scheduledSend", "linked");
     }
 
     @Test
@@ -187,6 +212,71 @@ class ConversationsApiTests {
                 .andExpect(jsonPath("$.items[0].subject").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].memberCount").value(3))
                 .andExpect(jsonPath("$.items[0].snippetFrom").value("Bob"));
+    }
+
+    @Test
+    void aChatShowsItsPictureAndMailNeverDoes() throws Exception {
+        UUID zalo = connect(owner, "zalo", "100000000000000001");
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        NormalizedParticipant bob = new NormalizedParticipant("bob", "Bob", "https://ava.zalo.test/bob.jpg", false);
+        store(zalo, new NormalizedConversation("direct", ConversationType.DIRECT, "Bob",
+                "https://ava.zalo.test/bob.jpg", List.of(bob, OWNER), THURSDAY), message("direct", "m-1",
+                MessageDirection.INBOUND, "bob", THURSDAY, "Chào", false, Map.of()));
+        store(zalo, new NormalizedConversation("group", ConversationType.GROUP, "Nhóm", "https://ava.zalo.test/g.jpg",
+                List.of(bob, OWNER), WEDNESDAY), message("group", "m-1", MessageDirection.INBOUND, "bob", WEDNESDAY,
+                "Họp", false, Map.of()));
+        store(zalo, new NormalizedConversation("plain", ConversationType.DIRECT, "Lan", null, List.of(OWNER), TUESDAY),
+                message("plain", "m-1", MessageDirection.INBOUND, "lan", TUESDAY, "Hi", false, Map.of()));
+        // Gmail never stores a picture; even if a row had one, a mail thread has none to show (D-411).
+        store(gmail, new NormalizedConversation("mail", ConversationType.THREAD, "Báo cáo", "https://mail.test/x.png",
+                List.of(ALICE, OWNER), MONDAY), message("mail", "m-1", MessageDirection.INBOUND, "alice@example.test",
+                MONDAY, "Thư", false, Map.of()));
+
+        String body = mvc.perform(get("/api/conversations").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].kind").value("CHAT"))
+                .andExpect(jsonPath("$.items[0].avatarUrl").value("https://ava.zalo.test/bob.jpg"))
+                .andExpect(jsonPath("$.items[1].avatarUrl").value("https://ava.zalo.test/g.jpg"))
+                .andExpect(jsonPath("$.items[2].avatarUrl").value(nullValue()))
+                .andExpect(jsonPath("$.items[3].kind").value("EMAIL"))
+                .andExpect(jsonPath("$.items[3].avatarUrl").value(nullValue()))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<Map<String, Object>>read(body, "$.items[2]")).as("null, not left out")
+                .containsKey("avatarUrl");
+
+        mvc.perform(get("/api/conversations/{id}", conversationId(zalo, "group")).with(apiUser()))
+                .andExpect(jsonPath("$.avatarUrl").value("https://ava.zalo.test/g.jpg"))
+                .andExpect(jsonPath("$.participants[0].avatarUrl").value("https://ava.zalo.test/bob.jpg"));
+        mvc.perform(get("/api/conversations/{id}", conversationId(zalo, "plain")).with(apiUser()))
+                .andExpect(jsonPath("$.avatarUrl").value(nullValue()));
+        mvc.perform(get("/api/conversations/{id}", conversationId(gmail, "mail")).with(apiUser()))
+                .andExpect(jsonPath("$.avatarUrl").value(nullValue()));
+        mvc.perform(patch("/api/conversations/{id}", conversationId(zalo, "direct")).with(apiUser()).with(csrf())
+                .contentType(APPLICATION_JSON).content("{\"read\": true}"))
+                .andExpect(jsonPath("$.avatarUrl").value("https://ava.zalo.test/bob.jpg"));
+    }
+
+    @Test
+    void aPictureStaysWhenALaterPageGivesNone() throws Exception {
+        UUID zalo = connect(owner, "zalo", "100000000000000001");
+        NormalizedParticipant withPicture = new NormalizedParticipant("bob", "Bob", "https://ava.zalo.test/bob.jpg",
+                false);
+        store(zalo, new NormalizedConversation("group", ConversationType.GROUP, "Nhóm", "https://ava.zalo.test/g.jpg",
+                List.of(withPicture, OWNER), TUESDAY), message("group", "m-1", MessageDirection.INBOUND, "bob",
+                TUESDAY, "Họp", false, Map.of()));
+
+        NormalizedParticipant without = new NormalizedParticipant("bob", "Bob", null, false);
+        store(zalo, new NormalizedConversation("group", ConversationType.GROUP, "Nhóm", null, List.of(without, OWNER),
+                WEDNESDAY), message("group", "m-2", MessageDirection.INBOUND, "bob", WEDNESDAY, "Nhớ nhé", false,
+                Map.of()));
+
+        UUID id = conversationId(zalo, "group");
+        mvc.perform(get("/api/conversations/{id}", id).with(apiUser()))
+                .andExpect(jsonPath("$.avatarUrl").value("https://ava.zalo.test/g.jpg"))
+                .andExpect(jsonPath("$.participants[0].externalId").value("bob"))
+                .andExpect(jsonPath("$.participants[0].avatarUrl").value("https://ava.zalo.test/bob.jpg"));
+        mvc.perform(get("/api/conversations").with(apiUser()))
+                .andExpect(jsonPath("$.items[0].avatarUrl").value("https://ava.zalo.test/g.jpg"));
     }
 
     @ParameterizedTest
@@ -240,6 +330,119 @@ class ConversationsApiTests {
         assertThat(subjects(get("/api/conversations").param("provider", "Gmail")))
                 .containsExactly("Thread work", "Thread home");
         assertThat(subjects(get("/api/conversations").param("provider", ""))).hasSize(3);
+    }
+
+    @Test
+    void theKindFilterKeepsOnlyTheConversationsOfProvidersOfThatKind() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        UUID chat = connect(owner, "telegram", "4242");
+        mail(gmail, "mail", MONDAY);
+        // A chat provider may use THREAD: the kind is the provider's, not the conversation's (D-306).
+        store(chat, thread("chat", "Nhóm bạn", ALICE, OWNER), message("chat", "m-1", MessageDirection.INBOUND,
+                "alice@example.test", TUESDAY, "Chào", false, Map.of()));
+
+        assertThat(kinds(get("/api/conversations").param("kind", "chat"))).containsExactly("CHAT");
+        assertThat(kinds(get("/api/conversations").param("kind", "email"))).containsExactly("EMAIL");
+        assertThat(kinds(get("/api/conversations"))).as("no kind keeps both kinds").containsExactly("CHAT", "EMAIL");
+        mvc.perform(get("/api/conversations/{id}", conversationId(chat, "chat")).with(apiUser()))
+                .andExpect(jsonPath("$.kind").value("CHAT"))
+                .andExpect(jsonPath("$.subject").value(nullValue()));
+    }
+
+    @Test
+    void aKindThatIsNeitherEmailNorChatIsABadRequest() throws Exception {
+        for (String kind : List.of("fax", "EMAIL", "")) {
+            mvc.perform(get("/api/conversations").param("kind", kind).with(apiUser()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+            mvc.perform(get("/api/conversations/counts").param("kind", kind).with(apiUser()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        }
+    }
+
+    @Test
+    void aKindThatIsNotTheProvidersLeavesAnEmptyPage() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        mail(gmail, "mail", MONDAY);
+
+        mvc.perform(get("/api/conversations").param("kind", "chat").param("provider", "gmail").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", empty()))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    @Test
+    void theCountsOfAKindCoverThatKindWhileTheUnreadByKindKeepsBoth() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        UUID chat = connect(owner, "telegram", "4242");
+        for (String name : List.of("a", "b", "c")) {
+            mail(gmail, name, MONDAY);
+        }
+        mail(gmail, "archived", TUESDAY);
+        archive(gmail, "archived");
+        mail(chat, "x", MONDAY);
+        mail(chat, "y", TUESDAY);
+        mail(chat, "archived", WEDNESDAY);
+        archive(chat, "archived");
+
+        mvc.perform(get("/api/conversations/counts").param("kind", "email").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unread").value(3))
+                .andExpect(jsonPath("$.needsReply").value(3))
+                .andExpect(jsonPath("$.byProvider.gmail").value(3))
+                .andExpect(jsonPath("$.byProvider.telegram").doesNotExist())
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(3))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(2));
+        mvc.perform(get("/api/conversations/counts").param("kind", "chat").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(2))
+                .andExpect(jsonPath("$.needsReply").value(2))
+                .andExpect(jsonPath("$.byProvider.telegram").value(2))
+                .andExpect(jsonPath("$.byProvider.gmail").doesNotExist())
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(3))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(2));
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(5))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(3))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(2));
+    }
+
+    @Test
+    void theUnreadByKindHasBothKindsEvenWithNoChatOrNoAccount() throws Exception {
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(0))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(0))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(0));
+        mvc.perform(get("/api/conversations/counts").param("kind", "chat").with(apiUser()))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(0))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(0));
+
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        mail(gmail, "mail", MONDAY);
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(1))
+                .andExpect(jsonPath("$.unreadByKind.CHAT").value(0));
+    }
+
+    @Test
+    void aProviderWithoutAConnectorIsEmailAndSaysSoOncePerRun(CapturedOutput output) throws Exception {
+        UUID icq = connect(owner, "icq", "4242");
+        mail(icq, "old", MONDAY);
+
+        assertThat(kinds(get("/api/conversations").param("kind", "email"))).containsExactly("EMAIL");
+        assertThat(kinds(get("/api/conversations").param("kind", "email"))).containsExactly("EMAIL");
+        assertThat(kinds(get("/api/conversations").param("kind", "chat"))).isEmpty();
+        mvc.perform(get("/api/conversations/counts").param("kind", "email").with(apiUser()))
+                .andExpect(jsonPath("$.byProvider.icq").value(1))
+                .andExpect(jsonPath("$.unreadByKind.EMAIL").value(1));
+
+        assertThat(output.getAll().lines().filter(line -> line.contains("WARN") && line.contains("icq"))).hasSize(1);
+    }
+
+    @Test
+    void aSwitchedOffConnectorStaysInTheRegistryWithItsKind() {
+        assertThat(registry.find(ProviderType.of("zalo"))).isPresent().get()
+                .extracting(provider -> provider.kind()).isEqualTo(ProviderKind.CHAT);
     }
 
     @Test
@@ -422,6 +625,24 @@ class ConversationsApiTests {
     }
 
     @Test
+    void markAllReadMarksEveryMessageOfUserRead() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        store(gmail, thread("report1", "Báo cáo 1", ALICE, OWNER),
+                message("report1", "m-1", MessageDirection.INBOUND, "alice@example.test", MONDAY, "Một", false, Map.of()));
+        store(gmail, thread("report2", "Báo cáo 2", ALICE, OWNER),
+                message("report2", "m-2", MessageDirection.INBOUND, "alice@example.test", TUESDAY, "Hai", false, Map.of()));
+
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(2));
+
+        mvc.perform(post("/api/conversations/read-all").with(apiUser()).with(csrf()))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(0));
+    }
+
+    @Test
     void archivingMovesAConversationBetweenTheViews() throws Exception {
         UUID gmail = connect(owner, "gmail", "owner@gmail.test");
         mail(gmail, "report", MONDAY);
@@ -564,6 +785,13 @@ class ConversationsApiTests {
             throws Exception {
         return JsonPath.read(mvc.perform(request.with(apiUser())).andExpect(status().isOk()).andReturn()
                 .getResponse().getContentAsString(), "$.items[*].subject");
+    }
+
+    private List<String> kinds(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
+            throws Exception {
+        List<String> kinds = JsonPath.read(mvc.perform(request.with(apiUser())).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.items[*].kind");
+        return kinds.stream().distinct().sorted().toList();
     }
 
     private List<List<Boolean>> readStates(UUID conversation) {

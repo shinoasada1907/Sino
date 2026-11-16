@@ -19,6 +19,8 @@ public class SendingProviders {
     public static final String MAIL = "fake-mail";
     public static final String READER = "fake-read";
     public static final String CHAT = "fake-chat";
+    public static final String PICTURE_CHAT = "fake-picture-chat";
+    public static final String NICK_CHAT = "fake-nick-chat";
     public static final String READ_SCOPE = "mail.read";
     public static final String SEND_SCOPE = "mail.send";
     // The Google client MAIL connects with; fake values, not secrets.
@@ -41,12 +43,28 @@ public class SendingProviders {
         return FakeMessageProvider.builder(READER).build();
     }
 
+    /** Sends text, pictures (D-349) and files from the computer (zalo-send-files, D-372) without OAuth2. */
+    @Bean
+    FakeMessageProvider pictureChatProvider() {
+        return FakeMessageProvider.builder(PICTURE_CHAT)
+                .capabilities(ProviderCapability.READ_MESSAGES, ProviderCapability.SEND_MESSAGES,
+                        ProviderCapability.SEND_IMAGES, ProviderCapability.SEND_FILES)
+                .build();
+    }
+
     /** Sends without OAuth2, so without any scope to check. */
     @Bean
     FakeMessageProvider chatProvider() {
         return FakeMessageProvider.builder(CHAT)
                 .capabilities(ProviderCapability.READ_MESSAGES, ProviderCapability.SEND_MESSAGES)
                 .build();
+    }
+
+    /** Declares {@code NICKNAMES} (zalo-nicknames, D-417), with no nickname set at the start of each test. */
+    @Bean
+    FakeMessageProvider nickChatProvider() {
+        return FakeMessageProvider.builder(NICK_CHAT).capabilities(ProviderCapability.READ_MESSAGES)
+                .nicknames(Map.of()).build();
     }
 
 }
