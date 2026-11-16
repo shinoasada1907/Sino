@@ -71,6 +71,8 @@ interface ConversationResponse {
   provider: string
   kind: ConversationKind
   title: string
+  /** The nickname of a 1-1 chat (zalo-nicknames, D-416); null or absent when there is none. */
+  nickname?: string | null
   /** The picture of the other person or of the group (zalo-avatars, D-411); absent on a backend before it. Kept by `pictureOf` (D-413). */
   avatarUrl?: string | null
   subject: string | null
@@ -162,8 +164,15 @@ interface MessageResponse {
   canReact?: boolean
 }
 
-function toItem({ snippet, linked, accountIds, avatarUrl, ...rest }: ConversationResponse): ConversationItem {
-  return { ...rest, accountIds: accountIds ?? [rest.accountId], avatarUrl: pictureOf(avatarUrl), snippet: snippet ?? '', linked: linked ?? [] }
+function toItem({ snippet, linked, accountIds, avatarUrl, nickname, ...rest }: ConversationResponse): ConversationItem {
+  return {
+    ...rest,
+    accountIds: accountIds ?? [rest.accountId],
+    avatarUrl: pictureOf(avatarUrl),
+    snippet: snippet ?? '',
+    linked: linked ?? [],
+    ...(nickname ? { nickname } : {}),
+  }
 }
 
 function toAccount(account: AccountResponse, providers: ProviderResponse[]): InboxAccount {
@@ -203,7 +212,9 @@ export function attachmentUrl(conversationId: string, messageId: string, attachm
 }
 
 function toAttachment({ fileName, mimeType, sizeBytes }: AttachmentResponse, url: string): Attachment {
-  return { name: fileName ?? 'Tệp không tên', type: fileType(fileName, mimeType), sizeBytes, image: mimeType?.startsWith('image/') ?? false, caption: null, url }
+  const isImg = mimeType?.startsWith('image/') ?? false
+  const directUrl = isImg && !url.includes('?inline=true') ? `${url}?inline=true` : url
+  return { name: fileName ?? 'Tệp không tên', type: fileType(fileName, mimeType), sizeBytes, image: isImg, caption: null, url: directUrl }
 }
 
 type Mail = Extract<Message, { kind: 'MESSAGE' }>
@@ -276,7 +287,7 @@ export async function fetchInbox(kind?: ProviderKind): Promise<InboxData> {
   ])
   return {
     generatedAt: new Date().toISOString(),
-    providers: providers.map(toProviderInfo),
+    providers: providers.map((provider) => ({ ...toProviderInfo(provider), ...(provider.capabilities?.includes('NICKNAMES') ? { nicknames: true as const } : {}) })),
     accounts: accounts.map((account) => toAccount(account, providers)),
     counts: {
       ...counts,
@@ -357,6 +368,20 @@ export async function fetchMessageBody(conversationId: string, messageId: string
 /** `PATCH /api/conversations/{id}`: read or archived, in Sino only (D-67); returns the row as the server stored it. */
 export async function updateConversation(conversationId: string, change: { read?: boolean; archived?: boolean }): Promise<ConversationItem> {
   return toItem(await api.patch<ConversationResponse>(`/api/conversations/${encodeURIComponent(conversationId)}`, change))
+}
+
+/**
+ * `PATCH /api/conversations/{id}` with a nickname (zalo-nicknames, D-416): the server sends it to the provider first and
+ * stores it only when the provider agrees, so the answer is the row as stored. An empty text clears the nickname.
+ */
+export async function updateNickname(conversationId: string, nickname: string): Promise<ConversationItem> {
+  return toItem(await api.patch<ConversationResponse>(`/api/conversations/${encodeURIComponent(conversationId)}`, { nickname }))
+}
+
+/** `POST /api/conversations/read-all`: marks every conversation of the user (or of a specific kind) as read in Sino. */
+export async function markAllConversationsRead(kind?: ProviderKind): Promise<void> {
+  const query = kind ? `?kind=${encodeURIComponent(kind.toLowerCase())}` : ''
+  await api.post(`/api/conversations/read-all${query}`, {})
 }
 
 /**

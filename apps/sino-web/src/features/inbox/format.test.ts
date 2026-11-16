@@ -243,7 +243,7 @@ describe('filters', () => {
   const archived = item({ id: 'archived', archived: true, unreadCount: 1 })
   const all = [visible, unreadZalo, scheduled, failed, snoozed, back, archived]
   const ids = (view: Parameters<typeof filterConversations>[1]['view'], source: string | null = null) =>
-    filterConversations(all, { source, view }, now).map((entry) => entry.id)
+    filterConversations(all, { source, account: null, view }, now).map((entry) => entry.id)
 
   it('hides archived and snoozed conversations from the inbox', () => {
     expect(ids('all')).toEqual(['visible', 'unread-zalo', 'scheduled', 'failed', 'back'])

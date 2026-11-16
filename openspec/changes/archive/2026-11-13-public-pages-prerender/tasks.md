@@ -31,14 +31,18 @@ Thứ tự: PP-02 → PP-03 có thể làm trước; PP-01 chờ DN-1; PP-04 ch�
 
 ## 3. Deploy và nộp lại
 
-- [ ] 3.1 **PP-04 — Caddy và nhánh deploy** · quản lý (chờ nghiệm thu PP-01…PP-03, DN-2; người dùng cho phép mới merge, push, deploy)
+- [x] 3.1 **PP-04 — Caddy và nhánh deploy** · quản lý (chờ nghiệm thu PP-01…PP-03, DN-2; người dùng cho phép mới merge, push, deploy)
   - Đối chiếu `Sino-deploy`, `origin/deploy/devtest` và server trước khi đụng tới.
   - `apps/sino-web/Caddyfile`: `/` → `/home.html`; `try_files {path} {path}.html /index.html` (D-462). Build image, chạy thử bằng curl: `/`, `/privacy`, `/en/privacy`, `/inbox`, `/api/auth/me`, không có chuyển hướng dấu `/`. Dọn container sau test.
   - Sau khi deploy: curl trên `daiquangia.io.vn`, cả với User-Agent Googlebot, thấy toàn văn Privacy; kiểm tra Cloudflare không phục vụ bản cũ.
+  - **Thực hiện (quản lý, 2026-11-13):** Google vẫn báo Privacy "does not have sufficient content"; curl trang thật ra `<div id="root"></div>` rỗng. `origin/deploy/devtest` (`8b3c5ed`) đã có PP-01…PP-03 qua lần merge `dev` (không cần cherry-pick như DN-2), nhưng `Caddyfile` còn `try_files {path} /index.html` nên bỏ qua file sinh sẵn. Sửa `Caddyfile` trong `../Sino-deploy` (khớp origin, 0/0): `rewrite / /home.html`, `try_files {path} {path}.html /index.html`. Người dùng nghiệm thu ("Commit và push"): commit `0fa6f6c` trên `deploy/devtest`, đã push; workflow `images` dựng image `ghcr.io/.../sino-web` (run 43351589040). Người dùng deploy lên server.
+  - **Kiểm chứng trên `daiquangia.io.vn` (2026-11-13, curl User-Agent Googlebot):** `/` 200, 68 KB, tiêu đề trang giới thiệu; `/privacy` 200, 27 KB; `/en/privacy` 200, 25 KB, `lang="en"`, khoảng 1290 từ, có Limited Use, Cloudflare, `gmail.readonly`, 0 chỗ `[chưa điền`; `/inbox` 200 khung app; `/api/auth/me` 401 (backend thật trả lời); `cf-cache-status: DYNAMIC`, không có bản cũ trong cache. **Phát hiện:** Cloudflare *Email Address Obfuscation* đổi email liên hệ trong HTML thành `[email protected]` (chỉ JavaScript mới giải mã ra); người xem có JavaScript vẫn thấy email vì React vẽ lại trang. Tính năng này bật mặc định ở mọi domain Cloudflare, không ai cấu hình nó. Người dùng đã tắt; curl lại lúc 02:55 UTC: `/privacy`, `/en/privacy` có `tienct07@gmail.com` ngay trong HTML (6 chỗ), 0 chỗ `[email protected]`, không còn script giải mã.
+  - **Kiểm chứng (image build ở máy, `docker run -p 8099:80`, User-Agent Googlebot):** `/` 200, 68 KB, tiêu đề trang giới thiệu; `/privacy` 200, 26 KB, `lang="vi"`; `/en/privacy` 200, 24 KB, `lang="en"`, khoảng 1290 từ, có câu Limited Use, Cloudflare, email liên hệ, 0 chỗ `[chưa điền`; `/inbox`, `/overview`, `/en` 200 khung app 467 B; `/api/auth/me` 502 (không chạy `sino-api`, log Caddy: không tìm thấy host `sino-api`, đúng là đã chuyển proxy); không chuyển hướng nào. Trình duyệt built-in mở `/en/privacy`: React thay nội dung tạo sẵn (0 nút `[data-prerendered]`), h1 đúng, 12 mục, không tài nguyên lỗi. Đã xóa container và image thử. **CHƯA KIỂM CHỨNG:** người đã đăng nhập vào `/` sang `/overview` với backend thật (đã kiểm ở PP-03 bằng server giả); bản trên `daiquangia.io.vn`, chờ deploy.
 
-- [ ] 3.2 **PP-05 — Nộp lại Branding** · người dùng, quản lý hướng dẫn
+- [x] 3.2 **PP-05 — Nộp lại Branding** · người dùng, quản lý hướng dẫn
   - Dùng URL Inspection để đối chiếu, chọn "I have fixed the issues", đọc kết quả.
   - Nếu Google vẫn từ chối: ghi đúng lý do mới vào đây rồi quay lại thiết kế.
+  - **Thực hiện (2026-11-13):** người dùng đã chọn "I have fixed the issues" và nộp lại, sau khi Privacy có đủ chữ và email trong HTML gốc (xem PP-04). Không dùng URL Inspection. **Kết quả (2026-11-13, Verification Center):** "Your branding has been verified and is being shown to users." Data access (scope `gmail.send`, `gmail.readonly`) vẫn chưa xác minh; đó là việc riêng, ngoài change này.
 
-- [ ] 3.3 **PP-06 — Tài liệu và đóng change** · quản lý
+- [x] 3.3 **PP-06 — Tài liệu và đóng change** · quản lý
   - Mục mới trong file kiến thức của phase, sinh lại `.docx`, `genoffice docs check`; `PROJECT_STATE.md`; ghi WP-04 đã có phần `owner.ts`; `openspec archive public-pages-prerender -y`.

@@ -71,7 +71,7 @@ export function TasksPage() {
         aria-label="Danh sách việc"
         // A scrolling flex column shrinks its children once they overflow; the quick add (52 px) must keep its height.
         className={cn(
-          'min-h-0 flex-col gap-3 overflow-auto px-4 pt-1 pb-5 *:shrink-0 md:gap-5.5 md:p-6 xl:px-8 xl:pt-7 xl:pb-10',
+          'min-h-0 flex-col gap-3 overflow-auto px-4 pt-1 pb-5 *:shrink-0 md:gap-5.5 md:p-6 md:*:w-full md:*:max-w-[920px] md:*:self-center xl:px-8 xl:pt-7 xl:pb-10',
           taskId ? 'hidden xl:flex' : 'flex',
         )}
       >

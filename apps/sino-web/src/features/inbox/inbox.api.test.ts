@@ -93,7 +93,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       }),
     )
 
-    const page = await fetchConversations({ view: 'unread', source: 'gmail' }, null)
+    const page = await fetchConversations({ view: 'unread', source: 'gmail', account: null }, null)
 
     expect(asked).toEqual(['?view=unread&provider=gmail'])
     expect(page.nextCursor).toBe('MjAyNi0xMC0wMQ')
@@ -111,7 +111,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       }),
     )
 
-    const page = await fetchConversations({ view: 'all', source: null }, 'a/b+c')
+    const page = await fetchConversations({ view: 'all', source: null, account: null }, 'a/b+c')
 
     expect(asked).toEqual(['?view=all&cursor=a%2Fb%2Bc'])
     expect(page).toEqual({ items: [], nextCursor: null })
@@ -184,8 +184,8 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
         }),
       )
 
-      await fetchConversations({ view: 'unread', source: 'gmail' }, null, 'EMAIL')
-      await fetchConversations({ view: 'all', source: null }, null, 'CHAT')
+      await fetchConversations({ view: 'unread', source: 'gmail', account: null }, null, 'EMAIL')
+      await fetchConversations({ view: 'all', source: null, account: null }, null, 'CHAT')
 
       expect(asked).toEqual(['?view=unread&kind=email&provider=gmail', '?view=all&kind=chat'])
     })
@@ -217,8 +217,8 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       firstUnreadId: null,
       linked: null,
       members: [
-        { name: 'Trần Minh Anh', avatarUrl: null, owner: false, joinedRecently: false },
-        { name: 'Bạn', avatarUrl: null, owner: false, joinedRecently: false },
+        { id: 'minhanh@acme.vn', name: 'Trần Minh Anh', avatarUrl: null, owner: false, joinedRecently: false, self: false },
+        { id: 'an.nguyen@gmail.com', name: 'Bạn', avatarUrl: null, owner: false, joinedRecently: false, self: true },
       ],
       files: null,
       canSend: null,
@@ -250,7 +250,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
 
     const { detail } = await fetchConversation('c-1')
 
-    expect(detail.members).toEqual([{ name: 'ai.do@example.com', avatarUrl: null, owner: false, joinedRecently: false }])
+    expect(detail.members).toEqual([{ id: 'ai.do@example.com', name: 'ai.do@example.com', avatarUrl: null, owner: false, joinedRecently: false, self: false }])
   })
 
   it('reports a conversation the API does not know as CONVERSATION_NOT_FOUND', async () => {
@@ -497,7 +497,7 @@ describe('the pictures of a chat (zalo-avatars, D-411, D-412)', () => {
       ),
     )
 
-    const { items } = await fetchConversations({ view: 'all', source: null }, null)
+    const { items } = await fetchConversations({ view: 'all', source: null, account: null }, null)
 
     expect(items.map(({ id, avatarUrl }) => [id, avatarUrl])).toEqual([
       ['z-1', PICTURE],
@@ -536,7 +536,7 @@ describe('the pictures of a chat (zalo-avatars, D-411, D-412)', () => {
     const { item, detail } = await fetchConversation('z-1')
 
     expect(item.avatarUrl).toBeNull()
-    expect(detail.members).toEqual([{ name: 'Tuấn', avatarUrl: null, owner: false, joinedRecently: false }])
+    expect(detail.members).toEqual([{ id: 'u-1', name: 'Tuấn', avatarUrl: null, owner: false, joinedRecently: false, self: false }])
   })
 
   // D-413: the page loads a picture only from an https address without user info, as for the pictures in a message (`pictureOf`).
@@ -561,7 +561,7 @@ describe('the pictures of a chat (zalo-avatars, D-411, D-412)', () => {
       ),
     )
 
-    const { items } = await fetchConversations({ view: 'all', source: null }, null)
+    const { items } = await fetchConversations({ view: 'all', source: null, account: null }, null)
     const { item, detail } = await fetchConversation('z-1')
 
     expect(items[0].avatarUrl).toBeNull()

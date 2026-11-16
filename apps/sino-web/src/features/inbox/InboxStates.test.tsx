@@ -20,6 +20,8 @@ function open(path: string, inbox: InboxSample | null = createInboxSample(NOW)) 
 }
 
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
+// The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
+const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
 const thread = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện đang mở' }))
 const chat = (title: string) => within(screen.getByRole('region', { name: `Cuộc trò chuyện ${title}` }))
 
@@ -39,7 +41,7 @@ describe('states of the inbox', () => {
     open('/inbox', null)
 
     expect(await screen.findByRole('status', { name: 'Đang tải hộp thư' })).toBeInTheDocument()
-    expect(list().getByText('đang tải')).toBeInTheDocument()
+    expect(pane().getAllByText('đang tải')).not.toHaveLength(0)
     // No rows; "Thư mới" stays (f10-new-mail).
     expect(list().queryAllByRole('link').filter((link) => link.querySelector('[data-slot="row-title"]'))).toHaveLength(0)
   })
@@ -52,7 +54,7 @@ describe('states of the inbox', () => {
     const card = await list().findByRole('status', { name: 'Đồng bộ lần đầu · Gmail' })
     expect(card).toHaveTextContent('35%')
     expect(within(card).getByRole('img', { name: 'Đã đồng bộ 35%' })).toBeInTheDocument()
-    expect(list().getByText('đang đồng bộ')).toBeInTheDocument()
+    expect(pane().getAllByText('đang đồng bộ')).not.toHaveLength(0)
     expect(list().queryByText('Không có cuộc trò chuyện nào')).toBeNull()
     expect(screen.queryByRole('group', { name: 'Lọc danh sách' })).toBeNull()
     expect(screen.queryByRole('group', { name: 'Nguồn' })).toBeNull()
@@ -79,7 +81,7 @@ describe('states of the inbox', () => {
     expect(within(alert).getByRole('heading', { name: 'Không tải được hộp thư' })).toBeInTheDocument()
     expect(alert).toHaveTextContent('ERR_TIMEOUT · yêu cầu 7f3a-91c2 · 14:05')
     expect(within(alert).getByRole('button', { name: 'Trạng thái hệ thống' })).toBeInTheDocument()
-    expect(list().getByText('không tải được')).toBeInTheDocument()
+    expect(pane().getAllByText('không tải được')).not.toHaveLength(0)
     expect(thread().getByText('Nội dung sẽ hiện ở đây khi hộp thư tải xong.')).toBeInTheDocument()
 
     await user.click(within(alert).getByRole('button', { name: 'Thử lại' }))
@@ -100,7 +102,7 @@ describe('states of the inbox', () => {
     expect(banner).toHaveTextContent('Đang hiện dữ liệu đã lưu lúc 14:05. Thư bạn soạn sẽ gửi khi có mạng.')
     expect(within(banner as HTMLElement).getByRole('button', { name: 'Thử kết nối lại' })).toBeInTheDocument()
     // Tin nhắn: 5 chats unread, less the one just opened.
-    expect(list().getByText('4 chưa đọc · đã lưu')).toBeInTheDocument()
+    expect(pane().getAllByText('4 chưa đọc · đã lưu')).not.toHaveLength(0)
     expect(chat('Gia đình').getByText('Sẽ gửi khi có mạng')).toBeInTheDocument()
 
     await user.type(box, 'Con về lúc 6 giờ')

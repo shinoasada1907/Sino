@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Hộp thư</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} app" style="height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" active="inbox" hint-size="248px,900px"></dc-import>
+
+  <section class="pane" aria-label="Danh sách thư" style="flex: 0 1 400px; height: 900px;">
+    <div style="padding: 16px 16px 10px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--border);">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <h1 class="h2" style="font-size: 17px;">Hộp thư</h1><span class="tag accent">7 chưa đọc</span>
+        <button class="icon-btn" aria-label="Lọc" style="margin-left: auto;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg></button>
+      </div>
+      <div class="search" style="margin: 0; flex: none; width: 100%;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span>Tìm trong hộp thư</span><span class="kbd">/</span></div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <sc-for list="{{filters}}" as="f" hint-placeholder-count="5"><button class="{{f.cls}}" style="height: 26px; border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 500;">{{f.label}}</button></sc-for>
+      </div>
+    </div>
+    <div style="flex: 1; overflow: auto; padding: 4px 8px 12px;">
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+        <div class="group-h">{{g.title}}</div>
+        <sc-for list="{{g.items}}" as="m" hint-placeholder-count="2">
+          <a href="#" class="{{m.cls}}">
+            <span class="av {{m.av}}">{{m.ini}}<span class="pv gmail">G</span></span>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+              <div style="display: flex; gap: 8px; align-items: center;"><span class="who trunc">{{m.who}}</span><span class="subtle small num" style="margin-left: auto;">{{m.time}}</span></div>
+              <span class="subj trunc">{{m.subj}}</span>
+              <span class="muted small" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{m.preview}}</span>
+              <sc-if value="{{m.tag}}" hint-placeholder-val="{{true}}"><div style="display: flex; gap: 6px; padding-top: 4px;"><span class="{{m.tagCls}}">{{m.tag}}</span></div></sc-if>
+            </div>
+          </a>
+        </sc-for>
+      </sc-for>
+    </div>
+  </section>
+
+  <section class="main" aria-label="Nội dung thư" style="height: 900px; background: var(--bg);">
+    <div class="top" style="gap: 4px; padding: 0 16px 0 28px;">
+      <div class="small muted" style="display: flex; align-items: center; gap: 8px;"><span class="pv gmail">G</span>an.nguyen@gmail.com · 3 thư · 2 tệp</div>
+      <div style="margin-left: auto; display: flex; gap: 2px;">
+        <button class="icon-btn" aria-label="Lưu trữ (E)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/></svg></button>
+        <button class="icon-btn" aria-label="Tạm ẩn (H)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M5 3L2 6M19 3l3 3"/></svg></button>
+        <button class="icon-btn" aria-label="Tạo task (T)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7H4V5h11"/></svg></button>
+        <button class="icon-btn" aria-label="Thêm"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+        <a href="#" class="btn" style="margin-left: 8px;">Mở trong Gmail</a>
+      </div>
+    </div>
+    <div style="flex: 1; overflow: auto;">
+      <div style="max-width: 760px; margin: 0 auto; padding: 32px 32px 24px; display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <h2 class="h1" style="font-size: 24px;">Hợp đồng thuê văn phòng — bản sửa lần 2</h2>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <span class="tag honey"><span class="dot"></span>Trả lời · hạn T4 07/10 · nhắc T2 09:00</span>
+            <span class="tag dusk">Ký hợp đồng T5 08/10 14:00</span>
+            <span class="tag">Ghi chú: Điều khoản 4</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div class="row" style="padding: 10px 12px;"><span class="av sm a6">B</span><span class="who">Bạn</span><span class="muted trunc" style="flex: 1;">Gửi anh bản hợp đồng đầu tiên, anh xem trước phần thời hạn và giá thuê nhé.</span><span class="subtle small">28/09</span></div>
+          <div class="row" style="padding: 10px 12px;"><span class="av sm a1">MA</span><span class="who">Trần Minh Anh</span><span class="muted trunc" style="flex: 1;">Em đã xem, có hai điểm cần sửa ở điều khoản 4 và phụ lục.</span><span class="subtle small">30/09</span></div>
+        </div>
+        <article class="card" style="padding: 24px 28px; display: flex; flex-direction: column; gap: 18px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="av a1">MA</span>
+            <div style="flex: 1;"><div style="font-weight: 600;">Trần Minh Anh</div><div class="small subtle">tới An Nguyễn</div></div>
+            <span class="small subtle">09:41 hôm nay</span>
+          </div>
+          <div style="font-size: 14px; line-height: 1.7; display: flex; flex-direction: column; gap: 12px;">
+            <p>Chào anh An,</p>
+            <p>Em gửi lại bản đã sửa <mark style="background: var(--accent-soft); color: inherit; border-radius: 4px; padding: 0 3px;">điều khoản 4 (thời hạn thanh toán)</mark> và phụ lục giá theo trao đổi hôm thứ Tư. Các chỗ thay đổi em đã đánh dấu trong file.</p>
+            <p>Anh xem giúp và phản hồi trước thứ Tư 07/10 để bên em kịp trình ký nhé.</p>
+            <p>Cảm ơn anh,<br>Minh Anh</p>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--border);"><span class="tag bad" style="border-radius: 6px;">PDF</span><div style="min-width: 0;"><div class="trunc" style="font-weight: 500;">Hop-dong-thue-VP-v2.pdf</div><div class="tiny subtle">1,4 MB</div></div></div>
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--border);"><span class="tag ok" style="border-radius: 6px;">XLSX</span><div style="min-width: 0;"><div class="trunc" style="font-weight: 500;">Phu-luc-gia.xlsx</div><div class="tiny subtle">86 KB</div></div></div>
+          </div>
+        </article>
+      </div>
+    </div>
+    <div style="padding: 0 32px 24px;">
+      <div class="card" style="max-width: 760px; margin: 0 auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-pop);">
+        <div class="small subtle">Trả lời Trần Minh Anh</div>
+        <div class="muted" style="min-height: 36px;">Anh đã nhận, tối nay anh xem và phản hồi em trước thứ Tư nhé…</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="tag"><span class="pv gmail" style="width: 14px; height: 14px; flex-basis: 14px; font-size: 8px;">G</span>an.nguyen@gmail.com</span>
+          <button class="icon-btn" aria-label="Đính kèm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 11l-8.5 8.5a5 5 0 01-7-7L14 4a3.5 3.5 0 015 5l-8.5 8.5a2 2 0 01-3-3L15 7"/></svg></button>
+          <button class="btn ghost" style="margin-left: auto;">Gửi lúc…</button>
+          <button class="btn primary">Gửi <span class="kbd" style="background: rgba(0,0,0,.12); border-color: transparent; color: inherit;">Ctrl ↵</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const filters = [['Tất cả', true], ['Chưa đọc 7'], ['Cần trả lời 2'], ['Có tệp 3'], ['Đã hẹn giờ 1']]
+      .map(([label, on]) => ({ label, cls: on ? 'tag accent' : 'tag' }));
+    const m = (av, ini, who, time, subj, preview, tag, tagCls, unread, on) => ({
+      av, ini, who, time, subj, preview, tag, tagCls,
+      cls: 'row' + (unread ? ' unread' : '') + (on ? ' on' : '')
+    });
+    const groups = [
+      { title: 'Hôm nay', items: [
+        m('a1', 'MA', 'Trần Minh Anh', '09:41', 'Hợp đồng thuê văn phòng — bản sửa lần 2', 'Em gửi lại bản đã sửa điều khoản 4 và phụ lục giá theo trao đổi.', 'Task · hạn T4 07/10', 'tag honey', true, true),
+        m('a5', 'PK', 'Phòng khám Ánh Dương', '07:30', 'Nhắc lịch khám thứ Hai 05/10', 'Quý khách có lịch khám lúc 08:30. Vui lòng đến trước 15 phút.', 'Lịch hẹn · T2 08:30', 'tag dusk', true)
+      ] },
+      { title: 'Hôm qua', items: [
+        m('a2', 'TT', 'Thu Trang', '10:15', 'Ảnh chuyến đi Đà Lạt', 'Mình gửi trước 40 tấm, phần còn lại để trong thư mục chung.', 'Hẹn gửi · T7 08:00', 'tag accent', true)
+      ] },
+      { title: 'Tuần này', items: [
+        m('a6', 'ĐL', 'Điện lực Hà Nội', 'Thứ 3', 'Hóa đơn tiền điện tháng 9', 'Số tiền cần thanh toán 1.284.000 đ, hạn thanh toán 10/10/2026.', '', '', false),
+        m('a3', 'NV', 'Ngân hàng Việt', 'Thứ 2', 'Sao kê tháng 9', 'Sao kê tài khoản của quý khách đã sẵn sàng.', '', '', false)
+      ] }
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', filters, groups };
+  }
+}
+</script>
+</body>
+</html>

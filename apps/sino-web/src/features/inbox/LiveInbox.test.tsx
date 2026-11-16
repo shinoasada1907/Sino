@@ -149,7 +149,8 @@ describe('the notice of each screen (f05c)', () => {
 
     expect(await list().findByRole('button', { name: '2 thư mới' })).toBeInTheDocument()
     expect(list().queryByRole('button', { name: /3 thư mới|tin mới/ })).toBeNull()
-    // The list stays silent about the chats; the bar of the shell, on every screen, tells them (NF-02).
-    expect(await within(shellPart('notice-bar')).findByText('1 tin mới')).toBeInTheDocument()
+    // The list stays silent about the chats; the bell of the top bar, on every screen, tells them in its menu (NF-02).
+    await userEvent.setup().click((await screen.findAllByRole('button', { name: /^Thông báo/ }))[0])
+    expect(await screen.findByText('1 tin mới')).toBeInTheDocument()
   })
 })

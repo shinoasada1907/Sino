@@ -173,7 +173,7 @@ export function ConnectWizard({
                 className={cn(
                   'block h-0.75 rounded-[2px] bg-border',
                   step < state.step && 'bg-muted-foreground',
-                  step === state.step && 'bg-foreground',
+                  step === state.step && 'bg-primary',
                 )}
               />
               <Spec className={cn('truncate', step === state.step && 'text-foreground')}>{wizardStep(step, identity, connectMethod).label}</Spec>
@@ -295,7 +295,7 @@ function ProviderChoice({
           <label
             key={provider.type}
             className={cn(
-              'grid cursor-pointer grid-cols-[18px_36px_minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-xl border bg-surface px-4 py-3.5 transition-[border-color,background-color] duration-(--dur-hover) ease-out hover:border-border-strong has-checked:border-foreground has-checked:bg-raised',
+              'grid cursor-pointer grid-cols-[18px_36px_minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-lg bg-surface shadow-card px-4 py-3.5 transition-[border-color,background-color] duration-(--dur-hover) ease-out hover:border-border-strong has-checked:border-foreground has-checked:bg-raised',
               !provider.connectable && 'cursor-not-allowed opacity-50 hover:border-border',
             )}
           >
@@ -332,7 +332,7 @@ function AccountRow({ account, tone, label }: { account: AccountItem; tone: Stat
   return (
     <>
       <div className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-3">
-        <AccountAvatar provider={account.provider} />
+        <AccountAvatar provider={account.provider} label={account.displayName || account.address} />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-sm font-semibold">{account.displayName}</span>
           <Spec className="truncate">{account.address}</Spec>
@@ -391,15 +391,15 @@ function SignIn({ type, identity, failed }: { type: string; identity: string; fa
   return (
     <div className="flex flex-col gap-5 pt-2">
       <div aria-hidden="true" className="flex items-center gap-3.5">
-        <span className="grid size-10 place-items-center rounded-xl border bg-raised text-foreground">
-          <SinoMark className="size-5" />
+        <span className="grid size-10 place-items-center rounded-md bg-raised text-foreground">
+          <SinoMark className="size-5 text-brand-ink" />
         </span>
         <span className={DASH} />
         <span className="grid size-7 place-items-center rounded-[7px] border bg-raised text-foreground">
           <Lock className="size-3.5" strokeWidth={1.6} />
         </span>
         <span className={DASH} />
-        <span className="grid size-10 place-items-center rounded-xl border bg-raised text-foreground">
+        <span className="grid size-10 place-items-center rounded-md bg-raised text-foreground">
           <ProviderIcon provider={type} className="size-5" />
         </span>
       </div>
@@ -450,7 +450,7 @@ function SyncChoice({
             id={rangeId}
             value={options.range}
             onChange={(event) => onOptions({ ...options, range: event.target.value as SyncRange })}
-            className="h-11 w-full cursor-pointer appearance-none rounded-sm border border-border bg-surface pr-10 pl-3.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16"
+            className="h-11 w-full cursor-pointer appearance-none rounded-full border border-border-strong bg-surface pr-10 pl-3.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16"
           >
             {RANGES.map((range) => (
               <option key={range.value} value={range.value}>
@@ -481,7 +481,7 @@ function SyncChoice({
         </label>
       </div>
       {parts && (
-        <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5 rounded-md border bg-surface px-4 py-3 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5 rounded-lg bg-surface shadow-card px-4 py-3 text-sm text-muted-foreground">
           <span>
             Ước tính <span className="font-mono text-[13px] leading-[18px] font-medium text-foreground">{parts.messages}</span>
           </span>

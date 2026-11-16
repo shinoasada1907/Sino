@@ -13,8 +13,9 @@ import dev.sino.identity.infrastructure.AppUserRepository;
 
 /**
  * Makes sure the owner from {@code sino.owner.*} exists, once per startup. Runs after Flyway, because runners
- * start only when the context, and with it the migrated database, is ready. Idempotent: the email is the key, a
- * changed display name is written back.
+ * start only when the context, and with it the migrated database, is ready. Idempotent: the email is the key. The
+ * configured display name is used only when the owner is created; after that the stored name wins, because the user
+ * edits it on the Profile screen (D-476).
  */
 @Component
 @EnableConfigurationProperties(OwnerProperties.class)
@@ -33,10 +34,13 @@ class OwnerProvisioner implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        AppUser user = users.findByEmail(owner.email())
-                .orElseGet(() -> new AppUser(owner.email(), owner.displayName()));
-        user.rename(owner.displayName());
-        user = users.save(user);
+        AppUser user = users.findByEmail(owner.email()).orElse(null);
+        if (user == null) {
+            user = users.save(new AppUser(owner.email(), owner.displayName()));
+        } else if (!user.displayName().equals(owner.displayName())) {
+            log.info("Owner user {} keeps its stored display name; SINO_OWNER_DISPLAY_NAME differs and only applies "
+                    + "when the owner is first created, change the name on the Profile screen", user.id());
+        }
         log.info("Owner user {} is ready", user.id());
     }
 

@@ -12,7 +12,7 @@ export function TabBar({ shell, className }: { shell: ShellData | undefined; cla
     <nav
       data-slot="tabbar"
       aria-label="Điều hướng chính"
-      className={cn('grid grid-cols-5 border-t bg-background px-2 pt-1.5 pb-5.5', className)}
+      className={cn('grid grid-cols-5 bg-surface px-2 pt-1.5 pb-5.5 shadow-[0_-10px_30px_-22px_var(--accent)]', className)}
     >
       {TAB_ITEMS.map((item) => {
         const count = badgeOf(item.label, item.count, shell?.navCounts)
@@ -25,11 +25,11 @@ export function TabBar({ shell, className }: { shell: ShellData | undefined; cla
             key={item.to}
             to={item.to}
             {...(item.to === '/more' ? { 'aria-current': underMore ? ('page' as const) : undefined } : {})}
-            className="group relative flex min-h-13 flex-col items-center justify-center gap-1 rounded-sm text-[11px] leading-3.5 font-medium text-muted-foreground outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:font-semibold aria-[current=page]:text-foreground"
+            className="group relative flex min-h-13 flex-col items-center justify-center gap-1 rounded-sm text-[11px] leading-3.5 font-bold text-subtle-foreground outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-[current=page]:font-extrabold aria-[current=page]:text-brand-ink"
           >
             <span
               aria-hidden="true"
-              className="absolute -top-1.5 hidden h-0.5 w-5.5 rounded-full bg-foreground group-aria-[current=page]:block"
+              className="absolute -top-1.5 hidden h-0.5 w-5.5 rounded-full bg-primary group-aria-[current=page]:block"
             />
             <Icon className="size-5.5" strokeWidth={1.6} />
             <span>{item.label}</span>
@@ -46,7 +46,7 @@ export function TabBar({ shell, className }: { shell: ShellData | undefined; cla
                 aria-hidden="true"
                 className={cn(
                   'absolute top-1.5 left-[calc(50%+7px)] size-1.75 rounded-full shadow-[0_0_0_2px_var(--bg)]',
-                  item.alert?.tone === 'danger' ? 'bg-danger' : 'bg-foreground',
+                  item.alert?.tone === 'danger' ? 'bg-danger' : 'bg-primary',
                 )}
               />
             )}

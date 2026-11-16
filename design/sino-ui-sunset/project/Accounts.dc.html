@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Tài khoản</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} app" style="min-height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" active="accounts" hint-size="248px,900px"></dc-import>
+  <main class="main">
+    <div class="top"><h1 class="crumb" style="font-size: 17px;">Tài khoản</h1><button class="btn primary" style="margin-left: auto;">Kết nối tài khoản <span class="kbd" style="background: rgba(0,0,0,.12); border-color: transparent; color: inherit;">N</span></button></div>
+    <div class="page">
+      <div class="card" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--danger-soft); border-color: transparent; box-shadow: none;">
+        <span class="pv msg" style="width: 28px; height: 28px; flex-basis: 28px; font-size: 13px; border-radius: 8px;">M</span>
+        <div style="flex: 1;"><div style="font-weight: 600;">Messenger mất quyền truy cập từ 21:04 hôm qua</div><div class="small muted">Tin mới từ Messenger chưa về Sino. Đăng nhập lại để tiếp tục đồng bộ.</div></div>
+        <button class="btn">Để sau</button><button class="btn primary">Đăng nhập lại</button>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+        <sc-for list="{{accounts}}" as="a" hint-placeholder-count="3">
+          <a href="#" class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 16px; text-decoration: none; color: inherit;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="pv {{a.pv}}" style="width: 36px; height: 36px; flex-basis: 36px; font-size: 15px; border-radius: 10px;">{{a.pl}}</span>
+              <div style="flex: 1; min-width: 0;"><div class="h2">{{a.name}}</div><div class="small subtle trunc">{{a.id}}</div></div>
+              <span class="{{a.statusCls}}"><span class="dot"></span>{{a.status}}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+              <sc-for list="{{a.stats}}" as="s" hint-placeholder-count="3"><div style="padding: 10px 12px; border-radius: 10px; background: var(--raised);"><div class="display num" style="font-size: 20px;">{{s.v}}</div><div class="tiny subtle">{{s.l}}</div></div></sc-for>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <sc-for list="{{a.channels}}" as="c" hint-placeholder-count="2"><div style="display: flex; align-items: center; gap: 10px;"><span class="small" style="flex: 1;">{{c.l}}</span><span class="{{c.sw}}" aria-hidden="true"></span></div></sc-for>
+            </div>
+            <div class="small subtle" style="border-top: 1px solid var(--border); padding-top: 12px;">{{a.foot}}</div>
+          </a>
+        </sc-for>
+      </div>
+      <a href="#" class="card" style="padding: 22px; display: flex; align-items: center; gap: 16px; border-style: dashed; box-shadow: none; background: transparent; text-decoration: none; color: inherit;">
+        <div style="display: flex; gap: 6px;"><span class="pv tele" style="width: 28px; height: 28px; flex-basis: 28px; border-radius: 8px;">T</span><span class="pv gmail" style="width: 28px; height: 28px; flex-basis: 28px; border-radius: 8px;">G</span></div>
+        <div style="flex: 1;"><div style="font-weight: 600;">Thêm nguồn tin nhắn</div><div class="small muted">Telegram, một Gmail khác hoặc Zalo thứ hai. Mất khoảng 1 phút.</div></div>
+        <span class="ink" style="font-weight: 600;">Kết nối →</span>
+      </a>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ch = (l, on) => ({ l, sw: on ? 'switch on' : 'switch' });
+    const accounts = [
+      { pv: 'gmail', pl: 'G', name: 'Gmail', id: 'an.nguyen@gmail.com', status: 'Ổn định', statusCls: 'tag ok',
+        stats: [{ v: '1.284', l: 'thư 24 giờ' }, { v: '5', l: 'chưa đọc' }, { v: '2', l: 'nhãn theo dõi' }],
+        channels: [ch('Nhận thư mới', true), ch('Gửi thư từ Sino', true)], foot: 'Kết nối 29/09 · đồng bộ 1 phút trước' },
+      { pv: 'zalo', pl: 'Z', name: 'Zalo', id: '+84 9•• ••• 218', status: 'Chậm', statusCls: 'tag honey',
+        stats: [{ v: '312', l: 'tin 24 giờ' }, { v: '4', l: 'chưa đọc' }, { v: '64%', l: 'ổn định' }],
+        channels: [ch('Nhận tin nhắn', true), ch('Gửi ảnh và tệp', false)], foot: 'Mất kết nối 4 phút lúc 13:58' },
+      { pv: 'msg', pl: 'M', name: 'Messenger', id: 'An Nguyễn', status: 'Hết quyền', statusCls: 'tag bad',
+        stats: [{ v: '0', l: 'tin 24 giờ' }, { v: '1', l: 'chưa đọc' }, { v: '—', l: 'ổn định' }],
+        channels: [ch('Nhận tin nhắn', true), ch('Gửi tin từ Sino', true)], foot: 'Hết quyền từ 21:04 hôm qua' }
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', accounts };
+  }
+}
+</script>
+</body>
+</html>

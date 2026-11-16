@@ -1,11 +1,10 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { delay, http } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { accountsWithStatus } from '@/test/accountsWithStatus'
 import { server } from '@/test/msw/server'
 import { renderApp } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
-import { SHELL_QUERY_KEY } from './useShellData'
 
 // The shell sample says 1 account needs action; each test gives the account list another number, so the two cannot agree by chance.
 function shellSayingOne() {
@@ -51,9 +50,7 @@ describe('"Thêm" page: the counts of accounts (NS-01, NS-03, D-321, D-326)', ()
 
 describe('"Thêm" page: what has no source yet is not flagged (NS-02, D-325)', () => {
   it('has no count on the Thông báo and Đăng ký rows', async () => {
-    const { queryClient } = renderApp('/more', { shell: null })
-    // Before the data comes the rows have no count either; the point is that they have none after.
-    await waitFor(() => expect(queryClient.getQueryData(SHELL_QUERY_KEY)).toBeDefined())
+    renderApp('/more')
 
     const others = within(await screen.findByRole('navigation', { name: 'Mục khác' }))
     expect(others.getByRole('link', { name: 'Thông báo' })).toHaveAccessibleName('Thông báo')
@@ -61,12 +58,12 @@ describe('"Thêm" page: what has no source yet is not flagged (NS-02, D-325)', (
     expect(others.queryByText(/mới/)).not.toBeInTheDocument()
   })
 
-  it('still counts the notifications once the data has some', async () => {
-    const shell = createShellSample(new Date())
-    shell.unreadNotifications = 3
-    renderApp('/more', { shell })
+  // The shell data no longer carries a count of notifications (useShellData: derived from the owner and the accounts), so the
+  // row stays plain whatever the inbox holds; the bell of the top bar counts the unread itself.
+  it('keeps the Thông báo row plain even while there is unread mail', async () => {
+    renderApp('/more')
 
     const others = within(await screen.findByRole('navigation', { name: 'Mục khác' }))
-    expect(others.getByRole('link', { name: /^Thông báo/ })).toHaveAccessibleName('Thông báo, 3 chưa đọc')
+    expect(others.getByRole('link', { name: /^Thông báo/ })).toHaveAccessibleName('Thông báo')
   })
 })

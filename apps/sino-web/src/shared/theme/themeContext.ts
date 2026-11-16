@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { Appearance } from './appearance'
 import type { Theme, ThemePreference } from './theme'
 
 export type ThemeContextValue = {
@@ -9,6 +10,12 @@ export type ThemeContextValue = {
   /** Whether the preference was chosen in this browser (now or on an earlier visit), not just the default. */
   chosenHere: boolean
   choose: (preference: ThemePreference) => void
+  /** The palette, own accent colour, corners and decorations in use (fe-ui-sunset, D-489). */
+  appearance: Appearance
+  /** Whether the look was chosen in this browser (now or earlier), not just the default. */
+  appearanceChosenHere: boolean
+  /** Changes some of the look at once and remembers it in this browser. */
+  chooseAppearance: (change: Partial<Appearance>) => void
   /** Light to dark and back; leaves "follow the OS". */
   toggleTheme: () => void
 }

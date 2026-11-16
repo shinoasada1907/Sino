@@ -8,7 +8,9 @@ import { fetchCalendar } from './calendar.api'
 
 vi.mock('./calendar.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./calendar.api')>()
-  return { ...api, fetchCalendar: vi.fn(api.fetchCalendar) }
+  // The real request answers an empty calendar until F17; these tests need the canvas sample.
+  const { createCalendarSample } = await import('./calendar.sample')
+  return { ...api, fetchCalendar: vi.fn(async (range: Parameters<typeof api.fetchCalendar>[0]) => createCalendarSample(new Date(), range)) }
 })
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.

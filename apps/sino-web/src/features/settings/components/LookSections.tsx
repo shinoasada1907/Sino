@@ -4,8 +4,9 @@ import { useMediaQuery } from '@/shared/lib/useMediaQuery'
 import type { ThemePreference } from '@/shared/theme/theme'
 import { useTheme } from '@/shared/theme/themeContext'
 import { Segmented } from '@/shared/ui/segmented'
-import { DATE_FORMATS, MOTION_LEVELS } from '../settings.sample'
+import { DATE_FORMATS, MOTION_LEVELS } from '../settings.options'
 import { useSettingValues } from '../useSettings'
+import { AccentColorControl, BackgroundSoon, CornersControl, DecorationsControl, LightBackgroundControl, PaletteTiles, TextToneControl } from './AppearanceControls'
 import { SettingRow, SettingSection, SettingSelect } from './SettingRow'
 
 /**
@@ -16,11 +17,11 @@ const PREVIEWS: { value: ThemePreference; label: string; frame: CSSProperties; p
   {
     value: 'system',
     label: 'Theo hệ thống',
-    frame: { background: 'linear-gradient(90deg, #070707 50%, #F2F2EF 50%)', border: '1px solid var(--border)' },
-    parts: ['#1B1B1D', '#ECECEA', '#2A2A2D'],
+    frame: { background: 'linear-gradient(90deg, #27222A 50%, #FDF1F4 50%)', border: '1px solid var(--border)' },
+    parts: ['#3A343D', '#FCEAF0', '#463F49'],
   },
-  { value: 'dark', label: 'Tối', frame: { background: '#070707', border: '1px solid #2A2A2D' }, parts: ['#1B1B1D', '#232326', '#151516'] },
-  { value: 'light', label: 'Sáng', frame: { background: '#F2F2EF', border: '1px solid #DEDEDA' }, parts: ['#FFFFFF', '#ECECEA', '#FFFFFF'] },
+  { value: 'dark', label: 'Tối', frame: { background: '#27222A', border: '1px solid #463F49' }, parts: ['#3A343D', '#433C46', '#322C35'] },
+  { value: 'light', label: 'Sáng', frame: { background: '#FDF1F4', border: '1px solid #F5DDE5' }, parts: ['#FFFFFF', '#FCEAF0', '#FFFFFF'] },
 ]
 
 /** Canvas `.theme-tiles`: three tiles, the chosen one pressed; picking one changes the app's theme at once (D-395). */
@@ -34,7 +35,7 @@ export function ThemeTiles() {
           type="button"
           aria-pressed={preference === value}
           onClick={() => choose(value)}
-          className="flex cursor-pointer flex-col gap-2.5 rounded-md border bg-surface p-2.5 text-left text-[13px] leading-[18px] font-medium text-foreground transition-[border-color,background-color] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-pressed:border-foreground aria-pressed:bg-raised"
+          className="flex cursor-pointer flex-col gap-2.5 rounded-lg bg-surface shadow-card p-2.5 text-left text-[13px] leading-[18px] font-medium text-foreground transition-[border-color,background-color] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid aria-pressed:border-foreground aria-pressed:bg-raised"
         >
           <span aria-hidden="true" className="grid h-18 grid-cols-[22px_minmax(0,1fr)] grid-rows-[14px_minmax(0,1fr)] gap-1 overflow-hidden rounded-[8px] p-1.5" style={frame}>
             <span className="row-span-2 block rounded-[3px]" style={{ background: parts[0] }} />
@@ -52,6 +53,17 @@ export function AppearanceSection() {
   return (
     <SettingSection id="giao-dien" title="Giao diện">
       <SettingRow title="Theme" description="Theo hệ thống sẽ tự đổi giữa sáng và tối theo máy của bạn." control={<ThemeTiles />} />
+      <SettingRow title="Bộ màu" description="Đổi màu nền và màu nhấn của mọi màn, lưu theo tài khoản." control={<PaletteTiles />} />
+      <SettingRow
+        title="Màu nhấn riêng"
+        description="Một mã #RRGGBB đè lên màu nhấn của bộ. Sino tự chỉnh độ đậm để chữ trên nút vẫn dễ đọc."
+        control={<AccentColorControl />}
+      />
+      <SettingRow title="Độ bo" description="Gọn: góc thẻ nhỏ hơn và dòng danh sách sát hơn, hiện được nhiều thư hơn." control={<CornersControl />} />
+      <SettingRow title="Màu chữ" description="Theo bộ màu: chữ ngả theo bộ. Trung tính: chữ xám." control={<TextToneControl />} />
+      <SettingRow title="Nền sáng" description="Phớt màu của bộ, hoặc trắng. Chỉ áp ở theme sáng." control={<LightBackgroundControl />} />
+      <SettingRow title="Họa tiết trang trí" description="Dấu cộng và chấm bi ở các thẻ lớn." inline control={<DecorationsControl />} />
+      <SettingRow title="Ảnh nền Tổng quan" description="Chọn ảnh riêng cho màn Tổng quan." inline control={<BackgroundSoon />} />
     </SettingSection>
   )
 }

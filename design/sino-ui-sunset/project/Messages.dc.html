@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Tin nhắn</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}} app" style="height: 900px;">
+  <dc-import name="Sidebar" theme="{{theme}}" active="messages" hint-size="248px,900px"></dc-import>
+
+  <section class="pane" aria-label="Cuộc trò chuyện" style="flex: 0 1 340px; height: 900px;">
+    <div style="padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;"><h1 class="h2" style="font-size: 17px;">Tin nhắn</h1><span class="tag accent">5 mới</span></div>
+      <div class="seg" style="width: 100%;"><button class="on" style="flex: 1;">Tất cả</button><button style="flex: 1;">Zalo</button><button style="flex: 1;">Telegram</button><button style="flex: 1;">Nhóm</button></div>
+    </div>
+    <div style="flex: 1; overflow: auto; padding: 0 8px 12px;">
+      <sc-for list="{{chats}}" as="c" hint-placeholder-count="7">
+        <a href="#" class="{{c.cls}}" style="align-items: center;">
+          <span class="av {{c.av}}">{{c.ini}}<span class="pv {{c.pv}}">{{c.pl}}</span></span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; gap: 8px;"><span class="who trunc">{{c.who}}</span><span class="subtle small" style="margin-left: auto;">{{c.time}}</span></div>
+            <div style="display: flex; gap: 8px; align-items: center;"><span class="muted small trunc" style="flex: 1;">{{c.last}}</span><sc-if value="{{c.n}}" hint-placeholder-val="{{true}}"><span class="tag accent" style="height: 18px; padding: 0 6px; font-weight: 700;">{{c.n}}</span></sc-if></div>
+          </div>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+
+  <section class="main" aria-label="Gia đình" style="height: 900px;">
+    <div class="top" style="padding: 0 16px 0 24px;">
+      <span class="av sm a4">GĐ</span>
+      <div style="display: flex; flex-direction: column; line-height: 1.25;"><span style="font-weight: 600;">Gia đình</span><span class="tiny subtle">Zalo · nhóm 6 người · Mẹ đang nhập…</span></div>
+      <div style="margin-left: auto; display: flex; gap: 2px;">
+        <button class="icon-btn" aria-label="Tìm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+        <button class="icon-btn" aria-label="Thông tin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+      </div>
+    </div>
+    <div style="flex: 1; overflow: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 10px;">
+      <div style="align-self: center;" class="tag">Hôm nay</div>
+      <sc-for list="{{msgs}}" as="m" hint-placeholder-count="6">
+        <div style="display: flex; gap: 10px; align-items: flex-end; {{m.rowStyle}}">
+          <sc-if value="{{m.theirs}}" hint-placeholder-val="{{true}}"><span class="av sm {{m.av}}">{{m.ini}}</span></sc-if>
+          <div style="display: flex; flex-direction: column; gap: 3px; max-width: 64%; {{m.colStyle}}">
+            <sc-if value="{{m.name}}" hint-placeholder-val="{{true}}"><span class="tiny subtle" style="padding-left: 4px;">{{m.name}}</span></sc-if>
+            <div class="{{m.cls}}" style="max-width: 100%;">{{m.text}}</div>
+            <sc-if value="{{m.react}}" hint-placeholder-val="{{false}}"><span class="tag" style="height: 20px; align-self: flex-start;"><svg width="11" height="11" viewBox="0 0 24 24" fill="var(--accent)" aria-hidden="true"><path d="M12 21s-8-5.2-8-11a4.5 4.5 0 018-2.8A4.5 4.5 0 0120 10c0 5.8-8 11-8 11z"/></svg>2</span></sc-if>
+          </div>
+          <span class="tiny subtle">{{m.time}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="padding: 0 24px 20px;">
+      <div class="card" style="padding: 8px 8px 8px 14px; display: flex; align-items: center; gap: 6px; border-radius: 14px;">
+        <button class="icon-btn" aria-label="Đính kèm"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <span class="muted" style="flex: 1;">Nhắn vào Gia đình…</span>
+        <button class="icon-btn" aria-label="Sticker"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 007 0M9 9.5v.5M15 9.5v.5"/></svg></button>
+        <button class="btn primary" aria-label="Gửi" style="width: 36px; padding: 0; border-radius: 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="pane" aria-label="Thông tin nhóm" style="flex: 0 0 280px; height: 900px; border-right: 0; border-left: 1px solid var(--border); padding: 24px 20px; gap: 20px;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;">
+      <span class="av lg a4" style="width: 64px; height: 64px; font-size: 20px;">GĐ</span>
+      <div><div class="h2">Gia đình</div><div class="small subtle">Zalo · 6 thành viên</div></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span class="eyebrow">Từ cuộc trò chuyện này</span>
+      <div class="row" style="padding: 10px; align-items: center; background: var(--raised);"><span class="check"></span><span class="small" style="flex: 1;">Mua bánh bông lan trứng muối</span><span class="tag honey">18:00</span></div>
+      <div class="row" style="padding: 10px; align-items: center; background: var(--raised);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--dusk-ink)" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16"/></svg><span class="small" style="flex: 1;">Về nhà ăn cơm</span><span class="tag dusk">T7 18:30</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span class="eyebrow">Ảnh và tệp</span>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;">
+        <div style="aspect-ratio: 1; border-radius: 8px; background: linear-gradient(160deg, #F7C38A, #E8743A);"></div>
+        <div style="aspect-ratio: 1; border-radius: 8px; background: linear-gradient(160deg, #C9BDF5, #F2A27E);"></div>
+        <div style="aspect-ratio: 1; border-radius: 8px; background: linear-gradient(160deg, #F5D98A, #F7A34B);"></div>
+      </div>
+    </div>
+    <button class="btn" style="margin-top: auto;">Đặt biệt danh</button>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const c = (av, ini, pv, pl, who, time, last, n, on) => ({ av, ini, pv, pl, who, time, last, n, cls: 'row' + (n ? ' unread' : '') + (on ? ' on' : '') });
+    const chats = [
+      c('a4', 'GĐ', 'zalo', 'Z', 'Gia đình', '08:15', 'Mẹ: Nhớ mua bánh cho bà nhé', '3', true),
+      c('a3', 'LH', 'msg', 'M', 'Lê Hoàng', '07:52', 'Ok, mai mình gửi file thiết kế bản cuối', '1'),
+      c('a2', 'TT', 'zalo', 'Z', 'Thu Trang', 'Hôm qua', 'Bạn: Ảnh đẹp quá, gửi nốt nhé', ''),
+      c('a5', 'DA', 'tele', 'T', 'Dev Sài Gòn', 'Hôm qua', 'Quang: PR đã merge rồi mọi người', '1'),
+      c('a1', 'MA', 'zalo', 'Z', 'Trần Minh Anh', 'Thứ 4', 'Em gửi anh file hợp đồng qua mail rồi ạ', ''),
+      c('a6', 'BN', 'tele', 'T', 'Bảo Ngọc', 'Thứ 3', 'Cuối tuần đi cà phê không?', ''),
+      c('a3', 'CT', 'zalo', 'Z', 'Công ty — Văn phòng', '29/09', 'Thông báo nghỉ lễ 2/9', '')
+    ];
+    const m = (who, text, time, mine, react) => {
+      const map = { Mẹ: ['a4', 'M'], Bố: ['a2', 'B'], 'Chị Hà': ['a3', 'H'] };
+      const [av, ini] = map[who] || ['a1', '?'];
+      return {
+        text, time, react, theirs: !mine, name: mine ? '' : who, av, ini,
+        cls: mine ? 'bubble mine' : 'bubble theirs',
+        rowStyle: mine ? 'justify-content: flex-end; flex-direction: row-reverse;' : '',
+        colStyle: mine ? 'align-items: flex-end;' : ''
+      };
+    };
+    const msgs = [
+      m('Bố', 'Tuần này ai về được thì báo bố mẹ nhé.', '07:40'),
+      m('Chị Hà', 'Nhà chị về tối thứ Bảy.', '07:58'),
+      m('', 'Con về được, tầm 18:30 ạ.', '08:02', true),
+      m('Mẹ', 'Cuối tuần này cả nhà về ăn cơm nhé, nhớ mua bánh cho bà.', '08:15', false, true),
+      m('Mẹ', 'Bánh bông lan trứng muối ở tiệm đầu ngõ ấy.', '08:15'),
+      m('', 'Dạ, con ghi lại rồi ạ.', '08:16', true)
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', chats, msgs };
+  }
+}
+</script>
+</body>
+</html>

@@ -158,7 +158,7 @@ export function AccountsPage() {
           </div>
         </header>
 
-        <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5 rounded-md border bg-surface px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-x-7 gap-y-2.5 rounded-lg bg-surface shadow-card px-5 py-3.5">
           {ribbon.map((item) => (
             <Status key={item.label} tone={item.tone}>
               {item.label}

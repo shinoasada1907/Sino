@@ -65,7 +65,7 @@ export function EventDetail({ event, now, nameOf, close }: { event: CalendarEven
         <Section title="Tạo từ tin nhắn">
           <Link
             to={`/inbox/${event.source.conversationId}`}
-            className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-md border bg-raised px-3.5 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+            className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-md bg-raised px-3.5 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
           >
             <span className="grid size-6 shrink-0 place-items-center rounded-[7px] border bg-raised text-foreground">
               <ProviderIcon provider={event.source.provider} className="size-3.5" />

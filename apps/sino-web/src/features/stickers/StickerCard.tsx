@@ -41,7 +41,7 @@ export function StickerCard({
   const moveFailed = move.isError && !(move.error instanceof ApiError && move.error.code === 'STICKER_NOT_FOUND')
 
   return (
-    <li className="group flex min-w-0 flex-col gap-2 rounded-xl border bg-surface p-2.5">
+    <li className="group flex min-w-0 flex-col gap-2 rounded-lg bg-surface shadow-card p-2.5">
       <div className="relative grid aspect-square place-items-center overflow-hidden rounded-lg bg-raised">
         <img src={stickerContentUrl(sticker.id)} alt={sticker.name} loading="lazy" width={sticker.width} height={sticker.height} className="size-full object-contain" />
         {sticker.kind === 'ANIMATED' && (

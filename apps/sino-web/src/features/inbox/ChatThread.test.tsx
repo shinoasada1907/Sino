@@ -18,6 +18,8 @@ function open(path: string) {
 const chat = (title: string) => within(screen.getByRole('region', { name: `Cuộc trò chuyện ${title}` }))
 const info = () => within(screen.getByRole('complementary', { name: 'Thông tin cuộc trò chuyện' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
+// The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
+const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
 
 describe('a chat conversation', () => {
   beforeEach(() => {
@@ -62,36 +64,35 @@ describe('a chat conversation', () => {
     expect(family.getByText('Gửi qua Zalo · +84 9•• ••• 218')).toBeInTheDocument()
   })
 
-  it('lists the linked items, members, files and account in the info column', async () => {
+  // The info column is the profile card of chat-ui-refactor: who, three buttons, push switch, then the files of the chat.
+  it('shows the profile card and the files of the chat in the info column', async () => {
+    open('/messages/conv-2')
+
+    expect(await info().findByRole('heading', { level: 3, name: 'Gia đình' })).toBeInTheDocument()
+    expect(info().getByRole('button', { name: 'Hồ sơ' })).toBeInTheDocument()
+    expect(info().getByRole('button', { name: 'Tắt tiếng' })).toBeInTheDocument()
+    expect(info().getByRole('switch')).toBeChecked()
+    expect(info().getByText('Lich-trinh-ve-que.docx')).toBeInTheDocument()
+    expect(info().getByText(/^TỆP TÀI LIỆU \(/)).toBeInTheDocument()
+  })
+
+  it('mutes from the profile card', async () => {
     open('/messages/conv-2')
     const user = userEvent.setup()
 
-    expect(await info().findByRole('link', { name: /Mua bánh bông lan trứng muối cho bà/ })).toHaveTextContent(
-      'TASK · T7 03/10 17:00 · NHẮC 18:00 HÔM NAY',
-    )
-    expect(info().getByRole('link', { name: /Về nhà ăn cơm/ })).toHaveTextContent('LỊCH HẸN · T7 03/10 18:30')
-    expect(info().getByRole('link', { name: /Danh sách mua cho bà/ })).toHaveTextContent('GHI CHÚ · ĐÃ GHIM')
-    expect(info().getByText('Trưởng nhóm')).toBeInTheDocument()
-    expect(info().getByText('mới')).toBeInTheDocument()
-    expect(info().queryByText('Ông ngoại')).toBeNull()
-    await user.click(info().getByRole('button', { name: 'Xem thêm 1 người' }))
-    expect(info().getByText('Ông ngoại')).toBeInTheDocument()
-    expect(info().getByRole('img', { name: '6 ảnh gần nhất' })).toBeInTheDocument()
-    expect(info().getByText('Lich-trinh-ve-que.docx')).toBeInTheDocument()
-    expect(info().getByText('24 KB · 27/09')).toBeInTheDocument()
-    expect(info().getByRole('link', { name: /\+84 9•• ••• 218/ })).toHaveAttribute('href', '/accounts/acc-zalo')
-    expect(info().getByRole('switch', { name: 'Tắt thông báo nhóm này' })).not.toBeChecked()
-    expect(info().getByRole('switch', { name: 'Hiện trong Tổng quan' })).toBeChecked()
+    await user.click(await info().findByRole('button', { name: 'Tắt tiếng' }))
+
+    expect(info().getByRole('button', { name: 'Bật tiếng' })).toBeInTheDocument()
   })
 
-  it('counts the sections it has, and leaves out the ones the backend has nothing for', async () => {
+  it('leaves out the sections the backend has nothing for', async () => {
     open('/messages/conv-4')
 
     expect(await chat('Lê Hoàng').findByText('Bản thiết kế cuối cậu xem chưa?')).toBeInTheDocument()
     expect(chat('Lê Hoàng').queryByText('Lê Hoàng', { selector: '[data-slot="bubble-name"]' })).toBeNull()
-    expect(info().queryByText('Thành viên')).toBeNull()
-    expect(info().queryByText('Ảnh và tệp')).toBeNull()
-    expect(info().getByText('Tài khoản dùng')).toBeInTheDocument()
+    expect(info().queryByText(/^TỆP TÀI LIỆU/)).toBeNull()
+    expect(info().queryByText(/^ẢNH & VIDEO/)).toBeNull()
+    expect(info().getByRole('heading', { level: 3, name: 'Lê Hoàng' })).toBeInTheDocument()
   })
 
   it('reads the conversation, so Tin nhắn counts one unread conversation less (D-70)', async () => {
@@ -102,7 +103,7 @@ describe('a chat conversation', () => {
     expect(await chat('Gia đình').findByText('3 tin chưa đọc')).toBeInTheDocument()
     await user.click(chat('Gia đình').getByRole('link', { name: 'Tin nhắn' }))
 
-    expect(await list().findByText('4 chưa đọc')).toBeInTheDocument()
+    expect(await pane().findAllByText('4 chưa đọc')).not.toHaveLength(0)
     expect(within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' })).getByRole('link', { name: /Zalo/ })).toHaveTextContent('3')
     expect(within(list().getByRole('link', { name: /Gia đình/ })).queryByText('tin chưa đọc', { exact: false })).toBeNull()
   })

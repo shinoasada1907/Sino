@@ -88,6 +88,29 @@ public class UserSettings implements Persistable<UUID> {
     @Column(name = "week_start", nullable = false)
     private WeekStart weekStart;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "palette", nullable = false)
+    private Palette palette;
+
+    /** {@code #RRGGBB}, or {@code null} for no colour of the user's own. */
+    @Column(name = "accent_color")
+    private String accentColor;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "corners", nullable = false)
+    private Corners corners;
+
+    @Column(name = "decorations", nullable = false)
+    private boolean decorations;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "text_tone", nullable = false)
+    private TextTone textTone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "light_background", nullable = false)
+    private LightBackground lightBackground;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -130,7 +153,8 @@ public class UserSettings implements Persistable<UUID> {
                 new Notifications(notifyNewMessages, notifyImportantOnly, notifySyncErrors, notifyNewRegistrations,
                         notifyReminders, notifyScheduledFailed),
                 quietHoursStart == null ? null : new QuietHours(quietHoursStart, quietHoursEnd),
-                ZoneId.of(timeZone), morningTime, defaultReminderMinutes, weekStart);
+                ZoneId.of(timeZone), morningTime, defaultReminderMinutes, weekStart, palette, accentColor, corners,
+                decorations, textTone, lightBackground);
     }
 
     /** Keeps {@code settings} in place of what the row held. */
@@ -153,6 +177,12 @@ public class UserSettings implements Persistable<UUID> {
         morningTime = settings.morningTime();
         defaultReminderMinutes = settings.defaultReminderMinutes();
         weekStart = settings.weekStart();
+        palette = settings.palette();
+        accentColor = settings.accentColor();
+        corners = settings.corners();
+        decorations = settings.decorations();
+        textTone = settings.textTone();
+        lightBackground = settings.lightBackground();
         updatedAt = Objects.requireNonNull(now, "now");
     }
 

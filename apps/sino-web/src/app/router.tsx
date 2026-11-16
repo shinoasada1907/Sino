@@ -18,6 +18,7 @@ import { MorePage } from './shell/MorePage'
 import { AppShell, type ShellHandle } from './shell/AppShell'
 import { PAGES } from './shell/navItems'
 import { UnderConstructionPage } from './UnderConstructionPage'
+import { NotificationsPage } from '@/features/notifications/NotificationsPage'
 
 /** Screens already built, with what they ask of the shell; every other page shows the under-construction page (D-42). */
 const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellHandle }> = {
@@ -31,6 +32,7 @@ const SCREENS: Record<string, { element: RouteObject['element']; handle?: ShellH
   '/calendar': { element: <CalendarPage />, handle: { mobilePageHeader: true } },
   '/more': { element: <MorePage />, handle: { mobilePageHeader: true } },
   '/settings': { element: <SettingsPage />, handle: { mobilePageHeader: true } },
+  '/notifications': { element: <NotificationsPage />, handle: { mobilePageHeader: true } },
 }
 
 // Every page sits behind RequireAuth except sign-in, 404 and the public pages (spec web-app-foundation, web-public-pages).

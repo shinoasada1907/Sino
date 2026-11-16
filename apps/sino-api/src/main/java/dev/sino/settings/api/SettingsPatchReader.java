@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -13,12 +14,16 @@ import java.util.stream.Collectors;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import dev.sino.settings.domain.Corners;
 import dev.sino.settings.domain.DateFormat;
+import dev.sino.settings.domain.LightBackground;
 import dev.sino.settings.domain.Motion;
 import dev.sino.settings.domain.NotificationsChange;
+import dev.sino.settings.domain.Palette;
 import dev.sino.settings.domain.QuietHours;
 import dev.sino.settings.domain.Settings;
 import dev.sino.settings.domain.SettingsChange;
+import dev.sino.settings.domain.TextTone;
 import dev.sino.settings.domain.Theme;
 import dev.sino.settings.domain.WeekStart;
 
@@ -61,6 +66,12 @@ final class SettingsPatchReader {
         private LocalTime morningTime;
         private Optional<Integer> defaultReminderMinutes;
         private WeekStart weekStart;
+        private Palette palette;
+        private Optional<String> accentColor;
+        private Corners corners;
+        private Boolean decorations;
+        private TextTone textTone;
+        private LightBackground lightBackground;
 
         Result read(ObjectNode body) {
             for (Map.Entry<String, JsonNode> field : body.properties()) {
@@ -75,11 +86,18 @@ final class SettingsPatchReader {
                     case "morningTime" -> morningTime = morningTime(value);
                     case "defaultReminderMinutes" -> defaultReminderMinutes = reminder(value);
                     case "weekStart" -> weekStart = choice("weekStart", value, WeekStart.class);
+                    case "palette" -> palette = choice("palette", value, Palette.class);
+                    case "accentColor" -> accentColor = accentColor(value);
+                    case "corners" -> corners = choice("corners", value, Corners.class);
+                    case "decorations" -> decorations = decorations(value);
+                    case "textTone" -> textTone = choice("textTone", value, TextTone.class);
+                    case "lightBackground" -> lightBackground = choice("lightBackground", value, LightBackground.class);
                     default -> refuse(field.getKey(), null, "is not a setting");
                 }
             }
             SettingsChange change = new SettingsChange(theme, dateFormat, motion, notifications, quietHours, timeZone,
-                    morningTime, defaultReminderMinutes, weekStart);
+                    morningTime, defaultReminderMinutes, weekStart, palette, accentColor, corners, decorations,
+                    textTone, lightBackground);
             return new Result(change, List.copyOf(violations));
         }
 
@@ -175,6 +193,24 @@ final class SettingsPatchReader {
             }
             String minutes = Settings.REMINDER_MINUTES.stream().map(String::valueOf).collect(Collectors.joining(", "));
             return refuse("defaultReminderMinutes", null, "must be one of " + minutes + ", or null");
+        }
+
+        /** Kept in capitals, so that {@code #ff8a3c} and {@code #FF8A3C} are one colour. */
+        private Optional<String> accentColor(JsonNode value) {
+            if (value.isNull()) {
+                return Optional.empty();
+            }
+            if (value.isString() && Settings.ACCENT_COLOR.matcher(value.stringValue()).matches()) {
+                return Optional.of(value.stringValue().toUpperCase(Locale.ROOT));
+            }
+            return refuse("accentColor", null, "must be a colour written #RRGGBB, or null");
+        }
+
+        private Boolean decorations(JsonNode value) {
+            if (value.isBoolean()) {
+                return value.booleanValue();
+            }
+            return refuse("decorations", null, "must be true or false");
         }
 
         private LocalTime time(String field, String part, JsonNode value) {

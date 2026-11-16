@@ -8,8 +8,11 @@ export function syncStatus(sync: ShellData['sync'], now: Date): { tone: StatusTo
     const text = `Đang đồng bộ lần đầu · ${sync.progress ?? 0}%`
     return { tone: 'warn', text, short: text }
   }
-  if (sync.state === 'IDLE' || sync.lastSyncedAt === null) {
+  if (sync.state === 'IDLE') {
     return { tone: 'off', text: 'Chưa có nguồn nào', short: 'Chưa có nguồn nào' }
+  }
+  if (sync.lastSyncedAt === null) {
+    return { tone: 'off', text: 'Chưa đồng bộ lần nào', short: 'Chưa đồng bộ' }
   }
   const ago = formatAgo(new Date(sync.lastSyncedAt), now)
   return { tone: 'ok', text: `Đồng bộ ${ago}`, short: ago }

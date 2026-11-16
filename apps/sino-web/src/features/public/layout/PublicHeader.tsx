@@ -42,7 +42,7 @@ export function PublicHeader({ nav, lang = 'vi' }: { nav: NavKind; lang?: Lang }
       <div className={wrap}>
         <div className="flex h-15 items-center gap-3 md:h-18 md:gap-7">
           <Link className="inline-flex items-center gap-2.5 text-lg leading-6 font-bold tracking-[-0.03em] text-foreground" to="/">
-            <SinoMark className="size-5" />
+            <SinoMark className="size-5 text-brand-ink" />
             Sino
           </Link>
           <nav className="hidden gap-0.5 lg:flex" aria-label={label}>

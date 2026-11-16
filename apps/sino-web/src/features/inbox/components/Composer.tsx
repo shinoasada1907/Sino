@@ -8,6 +8,7 @@ import { Status } from '@/shared/ui/status'
 import type { AttachmentTray } from '../useAttachmentTray'
 import { AttachmentTrayView } from './AttachmentTray'
 import { StickerPicker } from './StickerPicker'
+import { extractClipboardFiles } from '../clipboard'
 
 /**
  * The reply box of the canvas (`.composer`): an email has the sending account and "Gửi lúc…" and sends with Ctrl Enter
@@ -89,9 +90,10 @@ export function Composer({
   }
   // Only a paste that carries files goes to the tray; pasting text stays as it is.
   const takePastedFiles = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const pasted = Array.from(event.clipboardData?.files ?? [])
+    const pasted = extractClipboardFiles(event.clipboardData)
     if (tray && onSendFiles && pasted.length > 0) {
       event.preventDefault()
+      event.stopPropagation()
       tray.add(pasted)
     }
   }

@@ -1,6 +1,7 @@
 package dev.sino.settings.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -31,6 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -55,7 +57,9 @@ class SettingsApiTests {
              "notifications": {"newMessages": true, "importantOnly": false, "syncErrors": true,
                                "newRegistrations": true, "reminders": true, "scheduledFailed": true},
              "quietHours": {"start": "22:00", "end": "07:00"}, "timeZone": "Asia/Ho_Chi_Minh", "morningTime": "09:00",
-             "defaultReminderMinutes": 15, "weekStart": "MONDAY"}
+             "defaultReminderMinutes": 15, "weekStart": "MONDAY", "palette": "SAKURA", "accentColor": null,
+             "corners": "SOFT", "decorations": true,
+             "textTone": "TINTED", "lightBackground": "TINTED"}
             """;
 
     @Autowired
@@ -135,7 +139,9 @@ class SettingsApiTests {
                  "notifications": {"newMessages": false, "importantOnly": true, "syncErrors": false,
                                    "newRegistrations": false, "reminders": false, "scheduledFailed": false},
                  "quietHours": {"start": "23:30", "end": "06:15"}, "timeZone": "Europe/Paris", "morningTime": "05:00",
-                 "defaultReminderMinutes": 1440, "weekStart": "SUNDAY"}
+                 "defaultReminderMinutes": 1440, "weekStart": "SUNDAY", "palette": "LAVENDER",
+                 "accentColor": "#112233", "corners": "COMPACT", "decorations": false,
+                 "textTone": "NEUTRAL", "lightBackground": "WHITE"}
                 """;
 
         mvc.perform(change(everything)).andExpect(status().isOk()).andExpect(content().json(everything, true));
@@ -191,6 +197,96 @@ class SettingsApiTests {
                 .andExpect(jsonPath("$.motion").value("OFF"));
     }
 
+    // ----- appearance (fe-ui-sunset, D-490) -----
+
+    @Test
+    void anAppearanceFieldChangesAloneAndTheRestStays() throws Exception {
+        mvc.perform(change("{\"palette\": \"MINT\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.palette").value("MINT"))
+                .andExpect(jsonPath("$.accentColor").value(nullValue()))
+                .andExpect(jsonPath("$.corners").value("SOFT"))
+                .andExpect(jsonPath("$.decorations").value(true))
+                .andExpect(jsonPath("$.theme").value("SYSTEM"));
+        mvc.perform(asOwner(get("/api/settings"))).andExpect(jsonPath("$.palette").value("MINT"));
+
+        mvc.perform(change("{\"corners\": \"COMPACT\", \"decorations\": false}"))
+                .andExpect(jsonPath("$.palette").value("MINT"))
+                .andExpect(jsonPath("$.corners").value("COMPACT"))
+                .andExpect(jsonPath("$.decorations").value(false));
+    }
+
+    @Test
+    void theAccentColourIsKeptInCapitalsAndNullClearsIt() throws Exception {
+        mvc.perform(change("{\"accentColor\": \"#ff8a3c\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accentColor").value("#FF8A3C"));
+        mvc.perform(asOwner(get("/api/settings"))).andExpect(jsonPath("$.accentColor").value("#FF8A3C"));
+
+        mvc.perform(change("{\"accentColor\": null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accentColor").value(nullValue()));
+        mvc.perform(asOwner(get("/api/settings"))).andExpect(jsonPath("$.accentColor").value(nullValue()));
+    }
+
+    @Test
+    void aWrongAppearanceValueChangesNothingNotEvenTheValidFieldsBesideIt() throws Exception {
+        mvc.perform(change("{\"palette\": \"MINT\"}")).andExpect(status().isOk());
+
+        mvc.perform(change("{\"palette\": \"MONO\", \"accentColor\": \"hồng\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("accentColor"));
+
+        mvc.perform(asOwner(get("/api/settings")))
+                .andExpect(jsonPath("$.palette").value("MINT"))
+                .andExpect(jsonPath("$.accentColor").value(nullValue()));
+    }
+
+    @Test
+    void theTextToneAndTheLightBackgroundChangeTogetherOrAloneAndAWrongOneChangesNothing() throws Exception {
+        mvc.perform(change("{\"textTone\": \"NEUTRAL\", \"lightBackground\": \"WHITE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.textTone").value("NEUTRAL"))
+                .andExpect(jsonPath("$.lightBackground").value("WHITE"));
+
+        mvc.perform(change("{\"textTone\": \"TINTED\"}"))
+                .andExpect(jsonPath("$.textTone").value("TINTED"))
+                .andExpect(jsonPath("$.lightBackground").value("WHITE"));
+
+        mvc.perform(change("{\"lightBackground\": \"GREY\", \"textTone\": \"NEUTRAL\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("lightBackground"));
+        mvc.perform(asOwner(get("/api/settings")))
+                .andExpect(jsonPath("$.textTone").value("TINTED"))
+                .andExpect(jsonPath("$.lightBackground").value("WHITE"));
+    }
+
+    @Test
+    void theDatabaseRefusesWhatTheApiNeverTakes() {
+        jdbc.update("""
+                insert into user_settings (user_id, theme, date_format, motion, notify_new_messages,
+                    notify_important_only, notify_sync_errors, notify_new_registrations, notify_reminders,
+                    notify_scheduled_failed, time_zone, morning_time, week_start, updated_at)
+                select id, 'SYSTEM', 'DMY', 'FULL', true, false, true, true, true, true, 'Asia/Ho_Chi_Minh', '09:00',
+                    'MONDAY', now() from app_user limit 1
+                """);
+
+        assertThat(jdbc.queryForObject(
+                "select concat(palette, coalesce(accent_color, '-'), corners, decorations, text_tone, light_background) from user_settings", String.class))
+                .isEqualTo("SAKURA-SOFTtTINTEDTINTED");
+        assertThatThrownBy(() -> jdbc.update("update user_settings set palette = 'NEON'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("update user_settings set accent_color = 'red'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("update user_settings set text_tone = 'DARK'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("update user_settings set light_background = 'GREY'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("update user_settings set corners = 'ROUND'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     // ----- refused -----
 
     @ParameterizedTest(name = "{0} -> {1}")
@@ -202,6 +298,24 @@ class SettingsApiTests {
             {"dateFormat": "YMD"}                                      | dateFormat
             {"motion": false}                                          | motion
             {"weekStart": "TUESDAY"}                                   | weekStart
+            {"palette": "NEON"}                                        | palette
+            {"palette": "mint"}                                        | palette
+            {"palette": null}                                          | palette
+            {"accentColor": "hồng"}                                    | accentColor
+            {"accentColor": "#FFF"}                                    | accentColor
+            {"accentColor": "FF8A3C"}                                  | accentColor
+            {"accentColor": "#GG8A3C"}                                 | accentColor
+            {"accentColor": 16747068}                                  | accentColor
+            {"corners": "ROUND"}                                       | corners
+            {"corners": null}                                          | corners
+            {"decorations": "yes"}                                     | decorations
+            {"decorations": null}                                      | decorations
+            {"textTone": "DARK"}                                      | textTone
+            {"textTone": "neutral"}                                    | textTone
+            {"textTone": null}                                         | textTone
+            {"lightBackground": "GREY"}                                | lightBackground
+            {"lightBackground": true}                                  | lightBackground
+            {"lightBackground": null}                                  | lightBackground
             {"timeZone": "Asia/Hanoi_Not_A_Zone"}                      | timeZone
             {"timeZone": "+07:00"}                                     | timeZone
             {"timeZone": null}                                         | timeZone
@@ -304,7 +418,9 @@ class SettingsApiTests {
              "notifications": {"newMessages": false, "importantOnly": true, "syncErrors": true,
                                "newRegistrations": true, "reminders": false, "scheduledFailed": true},
              "quietHours": null, "timeZone": "Asia/Tokyo", "morningTime": "07:30",
-             "defaultReminderMinutes": 60, "weekStart": "SUNDAY"}
+             "defaultReminderMinutes": 60, "weekStart": "SUNDAY", "palette": "SAKURA", "accentColor": null,
+             "corners": "SOFT", "decorations": true,
+             "textTone": "TINTED", "lightBackground": "TINTED"}
             """;
 
     @Test

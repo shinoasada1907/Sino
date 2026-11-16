@@ -250,6 +250,36 @@ public class InboxService implements InboxIds {
                 nickname));
     }
 
+    /**
+     * Marks every message across all conversations of the user (or of a specific {@code kind}) as read.
+     */
+    @Transactional
+    public int markAllRead(UUID ownerId, ProviderKind kind) {
+        Map<UUID, ProviderType> accounts = kinds.ofKind(accountsOf(ownerId), kind);
+        if (accounts.isEmpty()) {
+            return 0;
+        }
+        summaries.lockAll(accounts.keySet());
+        int updated = jdbc.sql("""
+                UPDATE message SET is_read = true, updated_at = now()
+                WHERE conversation_id IN (
+                    SELECT id FROM conversation WHERE account_id IN (:accounts)
+                ) AND NOT is_read
+                """).param("accounts", accounts.keySet())
+                .update();
+        jdbc.sql("""
+                UPDATE conversation SET unread_count = 0, updated_at = now()
+                WHERE account_id IN (:accounts) AND unread_count > 0
+                """).param("accounts", accounts.keySet())
+                .update();
+        if (updated > 0) {
+            for (UUID accountId : accounts.keySet()) {
+                events.publishEvent(new ConversationChanged(accountId, accountId, Instant.now()));
+            }
+        }
+        return updated;
+    }
+
     // Outside any transaction (D-422): calls the provider, never writes. The capability and the conversation's type
     // are both checked here, since a 1-1 chat of a provider without NICKNAMES must fail the same way as a group.
     private void setNickname(UUID ownerId, InboxItem conversation, String nickname) {

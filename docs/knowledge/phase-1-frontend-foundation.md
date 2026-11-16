@@ -3,7 +3,7 @@
 > **Dành cho:** người học Java và web qua chính dự án Sino.
 > **Cách đọc:** mỗi mục trả lời 5 câu: *Ở đâu* trong code · *Là gì* · *Để làm gì* · *Vì sao chọn* (và phương án đã bỏ) · *Bẫy* hay gặp.
 > **Phạm vi:** change 1 của Phase 1, `openspec/changes/fe-f01-web-foundation` (D-22 + F01-FE), change `openspec/changes/fe-ui-overview` (dựng giao diện trước với dữ liệu mẫu, D-42), change `openspec/changes/fe-ui-accounts` (màn Tài khoản), change `openspec/changes/fe-ui-connect` (luồng kết nối tài khoản) change `openspec/changes/fe-ui-inbox` (màn Hộp thư), rồi nối web vào API (FE-02…FE-04, AC-06, FE-30 = CN-05; D-56). Đã xong: BE-27, BE-28, BE-29, FE-01, FE-02, FE-03, FE-04, UI-01, UI-02, UI-03, AC-01…AC-04, AC-06, CN-01…CN-03, CN-05, IN-01…IN-06.
-> **Cập nhật:** 2026-10-08. Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
+> **Cập nhật:** 2026-11-12 (mục 27, `profile-info` PI-04). Đường dẫn backend tính từ `apps/sino-api/`, frontend từ `apps/sino-web/`.
 
 ---
 
@@ -1904,6 +1904,173 @@ Vậy một truy vấn chưa có dữ liệu trong `AppShell` làm nó render l�
   - "Chính sách quyền riêng tư" mở `/privacy`.
 - **Cổng kiểm tra:** `pnpm lint` 0 lỗi; `tsc -b` 0; `pnpm build` 0; `pnpm test` 1305/1309 (4 ca đỏ là các test tải lên `FormData` đã đỏ sẵn trên Node 26, ghi ở phase 5, mục 24.2).
 
+## 27. Màn Hồ sơ trên API thật (`profile-info`, PI-04)
+
+Màn `/profile` được dựng trước trên dữ liệu mẫu (`fe-ui-profile`). PI-04 nối khối **Thông tin cá nhân** vào `GET`/`PATCH /api/profile` mà `sino-api` làm ở PI-01, PI-02 (phase 0, mục 26). Các khối chưa có máy chủ (đổi mật khẩu, 2FA, phiên đăng nhập) được khoá và gắn nhãn "Sắp có" (D-479). Đổi ảnh bằng tệp là PI-05, chưa làm.
+
+```text
+ProfilePage
+  useProfile()
+    useQuery ['profile','me']  --GET /api/profile-->  sino-api
+    useMutation(patchProfile)  --PATCH, chỉ trường đã đổi-->
+       onSuccess(saved):
+         setQueryData(['profile','me'], saved)     -> form, thẻ đầu trang
+         setQueryData(ME_QUERY_KEY, tên + ảnh mới)  -> thanh trên, menu người dùng
+  chưa tải xong: thẻ đầu trang dùng bản tạm dựng từ `me`
+  ProfileInfoForm   400 -> errors[].field -> câu tiếng Việt dưới đúng ô
+  SecuritySection, ActiveSessionsSection   <fieldset disabled> + "Sắp có"
+```
+
+### 27.1 Ở đâu
+Tính từ `apps/sino-web/src/`:
+- `features/profile/profile.api.ts`: `fetchProfile`, `patchProfile` (mới).
+- `features/profile/profile.types.ts`: `UserProfile` theo đúng câu trả lời của API, `EDITABLE_FIELDS`, `ProfileChange`.
+- `features/profile/useProfile.ts`: truy vấn, lưu, bản tạm từ `me`.
+- `features/profile/components/ProfileInfoForm.tsx`: form, tính trường đã đổi, lỗi theo trường.
+- `features/profile/components/{SecuritySection,ActiveSessionsSection,ProfileHeaderCard}.tsx`: khối "Sắp có", thẻ đầu trang.
+- `features/auth/auth.api.ts`: `Me` có thêm `avatarUrl: string | null`.
+- `test/fixtures/profileApi.ts`: backend hồ sơ giả cho test; test ở `features/profile/ProfilePage.test.tsx` (10 ca).
+- Đã xoá `features/profile/profile.sample.ts`.
+
+### 27.2 Kiểu dữ liệu đi theo API, không theo màn hình
+Trước PI-04, `UserProfileData` là thứ màn hình muốn có: chuỗi trống thay cho "chưa nhập", `twoFactorEnabled`, danh sách phiên. Nay `UserProfile` chép đúng câu trả lời của `GET /api/profile`: trường tùy chọn là `string | null`, `role` là `'OWNER'`, `joinedAt` là chuỗi ISO. Việc đổi `null` thành `''` cho ô nhập chỉ xảy ra ở một chỗ, `valuesOf` trong form.
+- **Vì sao:** kiểu khớp API thì TypeScript bắt được lúc biên dịch khi API đổi. Kiểu theo màn hình thì lỗi chỉ lộ ra lúc chạy.
+- **`Me.avatarUrl` bắt buộc, không phải `avatarUrl?`:** trường bắt buộc buộc mọi chỗ tạo một `Me` (kể cả test) phải ghi rõ giá trị. Cái giá là sửa hai dòng test (`SignIn.test.tsx`, `renderApp.tsx`). Nếu để tùy chọn, chỗ nào quên thì cũng không ai biết.
+- **Thứ không có trong API thì bỏ:** dòng "2FA đã kích hoạt" ở thẻ đầu trang bị bỏ, vì API không có `twoFactorEnabled`. Hiện một trạng thái bảo mật mà máy chủ không biết là nói sai với người dùng.
+
+### 27.3 `PATCH` chỉ gửi trường đã đổi
+`changeOf(profile, values)` so từng ô (đã cắt khoảng trắng) với bản đã lưu và chỉ giữ trường khác nhau. Ô trống gửi `""`, máy chủ hiểu là xoá trường (D-480).
+- **Vì sao cắt khoảng trắng trước khi so:** máy chủ cũng cắt. Người dùng gõ thêm một dấu cách cuối tên thì đó không phải thay đổi; không cắt thì nút Lưu sáng lên và gửi một `PATCH` vô ích.
+- **Cùng một phép so cho hai việc:** nếu không có trường nào đổi thì `dirty` là `false`, nên nút "Lưu thay đổi" và "Khôi phục" bị tắt. Không phải giữ một biến "đã sửa chưa" riêng, vốn dễ lệch với dữ liệu thật.
+- **Vì sao không gửi cả form:** hai tab cùng mở hồ sơ, tab A sửa số điện thoại, tab B sửa chức danh. Gửi cả form thì tab lưu sau ghi đè số điện thoại cũ lên số mới của tab kia. Chỉ gửi trường đã đổi thì hai thay đổi cùng sống.
+
+### 27.4 Lưu xong là thanh trên đổi ngay: `setQueryData` vào hai cache
+`PATCH /api/profile` trả về cả hồ sơ đã lưu. `onSuccess` ghi bản đó vào cache `['profile','me']` và ghi tên cùng ảnh mới vào cache `me` (`ME_QUERY_KEY`), là cache mà thanh trên và menu người dùng đọc.
+- **Vì sao `setQueryData` mà không `invalidateQueries`:** `invalidateQueries` đánh dấu cache cũ rồi gọi lại `GET`, tốn thêm một request và có một khoảnh khắc hiện tên cũ. Máy chủ đã trả đúng bản mới, nên ghi thẳng là đủ.
+- **Vì sao ghi bản của máy chủ chứ không ghi chữ người dùng gõ:** máy chủ có thể đã cắt khoảng trắng. Form cũng lấy lại giá trị từ bản đã lưu (`setValues(valuesOf(saved))`), nên ô nhập hiện đúng thứ đã được lưu.
+- **Bẫy:** cập nhật `me` bằng hàm `(previous) => previous ? {...} : previous`. Nếu cache `me` đang trống (chưa đăng nhập xong) thì giữ nguyên, không tạo ra một `me` thiếu email.
+
+### 27.5 Bản tạm từ `me` khi hồ sơ chưa về
+Lúc hồ sơ đang tải hoặc tải lỗi, `useProfile` trả một "bản tạm" dựng từ `me` (tên, email, ảnh; các trường khác `null`) và cờ `loaded`.
+- Thẻ đầu trang luôn có tên người đang đăng nhập, không bị trống.
+- Form chỉ hiện khi `loaded` là `true`. Nếu dựng form từ bản tạm, người dùng có thể bấm Lưu và xoá mất số điện thoại thật chỉ vì bản tạm có `phoneNumber: null`.
+- Tải lỗi thì hiện "Không tải được thông tin cá nhân." kèm "Thử lại" (`query.refetch()`).
+
+Phần bản tạm này có từ một thay đổi chưa commit trong working tree, được người dùng giao lại cho Claude (2026-11-12). Kỹ sư giữ nó làm nền thay vì viết lại.
+
+### 27.6 Lỗi 400 dưới đúng ô, bằng tiếng Việt
+Máy chủ trả `400 VALIDATION_FAILED` với `errors[{field, message}]`. Form chỉ dùng `field` để biết ô nào sai; câu hiện dưới ô lấy từ `FIELD_MESSAGES` của web, mỗi trường một câu nói đủ quy tắc (ví dụ "Số điện thoại chỉ gồm chữ số, khoảng trắng và + ( ) - . , tối đa 30 ký tự.").
+- **Vì sao không hiện `message` của máy chủ:** câu của máy chủ là tiếng Anh, viết cho lập trình viên đọc log (`phoneNumber has only digits…`). Bản đầu của PI-04 hiện nguyên câu đó; lúc nghiệm thu, người dùng chọn sửa trước khi commit. Có test riêng: máy chủ trả câu tiếng Anh thì ô vẫn hiện câu tiếng Việt.
+- **Liên kết lỗi với ô:** ô sai có `aria-invalid` và `aria-describedby` trỏ tới dòng lỗi; dòng lỗi có `role="alert"` để trình đọc màn hình đọc ngay. Gõ lại ô nào thì lỗi của ô đó mất.
+- **Lỗi không gắn với ô nào** (500, mất mạng, hoặc 400 chỉ có trường lạ) thì hiện câu chung "Không lưu được thông tin cá nhân. Vui lòng thử lại." Chữ người dùng đã gõ vẫn giữ, nên bấm lưu lại là gửi đúng thay đổi đó.
+- **`noValidate` trên form:** ô tên không còn `required` của trình duyệt. Nếu để, trình duyệt chặn tên trống bằng bong bóng riêng của nó, trông khác các lỗi còn lại và chỉ kiểm được đúng một luật. Luật thật chỉ nằm ở máy chủ (một nguồn sự thật, như D-478 ở backend).
+
+### 27.7 Khối chưa có máy chủ: `<fieldset disabled>` và "Sắp có"
+Đổi mật khẩu và phiên đăng nhập chưa có API (phần 2, 3 của quản lý hồ sơ). Bản dữ liệu mẫu có mutation giả: bấm "Đổi mật khẩu" thì chờ 350 ms rồi báo thành công, dù không có gì thay đổi.
+- Nay cả khối nằm trong `<fieldset disabled>`. Thuộc tính này tắt mọi ô nhập và nút bên trong cùng lúc, không phải thêm `disabled` cho từng cái.
+- Danh sách phiên để trống kèm nhãn "Sắp có", không bày thiết bị giả.
+- **Vì sao:** một nút báo "đã đổi mật khẩu" mà thật ra không đổi là nói dối người dùng, nguy hiểm hơn nhiều so với một nút bị tắt.
+
+### 27.8 Backend giả cho test: bật theo từng test
+`test/fixtures/profileApi.ts` giả `GET`/`PATCH /api/profile` với đúng luật của backend (tên 1-200, ký tự và độ dài số điện thoại, 100/100/500, trường lạ là 400). Nó giữ bản đã lưu và mọi body `PATCH` nhận được, để test kiểm "chỉ gửi trường đã đổi".
+- **Khác backend cài đặt** (mục 26.6): cài đặt được đọc ở mọi màn nên handler luôn bật. Hồ sơ chỉ màn `/profile` đọc, nên test nào cần thì tự bật: `server.use(...profileHandlers)`. Handler luôn bật mà không ai cần chỉ làm test khác chậm và khó hiểu hơn.
+- **Bẫy:** fixture giả lập luật của backend, nên khi luật backend đổi thì phải đổi cả fixture. Lỗi kiểu này không test nào bắt được; chỉ lượt chạy trên backend thật (PI-10) mới bắt được.
+
+### 27.9 Kiểm chứng
+- **Test tay** (kỹ sư): `sino-api` không chạy, nên kỹ sư dựng một máy chủ giả Node ở 8080 cùng `pnpm dev`, rồi xem ở cỡ 1024. Form hiện giá trị máy chủ. Gõ `abc` vào số điện thoại và đổi tên rồi lưu: máy chủ nhận đúng `{"displayName":"Tên Mới","phoneNumber":"abc"}`, lỗi hiện dưới ô số. Sửa số rồi lưu được; tải lại trang thì giá trị mới còn.
+- **Test tự động:** 10 ca trong `ProfilePage.test.tsx`.
+- **Nghiệm thu nội bộ** (quản lý, worktree sạch gồm HEAD và đúng các file PI-04): `tsc -b` 0 lỗi, `oxlint` 0 lỗi, build đầy đủ có prerender xanh. Vitest 1163 xanh, 215 đỏ; một worktree HEAD thuần đỏ đúng 215 ca đó, nên PI-04 không làm đỏ thêm ca nào. Phần đỏ là nợ có sẵn của `dev` (inbox, shell, router), không thuộc change này.
+- **Chưa kiểm:** backend thật; Chrome ở 1440 và 390 px, hai theme. Hai việc này làm ở PI-10.
+- Commit `7d82d18`.
+
+## 28. Trang công khai có chữ ngay trong HTML (`public-pages-prerender`)
+
+Google từ chối Branding với lý do trang Privacy "does not have sufficient content". Mở bằng Chrome thì trang đủ chữ, nhưng curl thì chỉ thấy `<div id="root"></div>`: `sino-web` là SPA, chữ chỉ có sau khi JavaScript chạy, còn công cụ kiểm tra của Google đọc HTML thô. Change này làm cho `/`, `/privacy`, `/en/privacy` có sẵn chữ trong HTML mà vẫn chỉ có một bản nội dung là các component React. Google duyệt Branding ngày 2026-11-13.
+
+```text
+pnpm build
+  tsc -b
+  vite build                        -> dist/index.html (khung rỗng), JS, CSS, manifest
+  vite build --ssr prerender/entry  -> .prerender/entry.js
+  node scripts/prerender.mjs --strict
+     renderToString(<StaticRouter> Landing | PrivacyVi | PrivacyEn)
+     chép index.html, thêm: title, lang, CSS trang công khai, nội dung trong
+       <div data-prerendered>, script nhỏ ẩn nội dung khi có JS
+     kiểm câu mốc, không còn "[chưa điền"   (sai -> build đỏ)
+     -> dist/home.html, dist/privacy.html, dist/en/privacy.html
+
+Caddy (nhánh deploy/devtest)
+  /              -> rewrite /home.html
+  /privacy       -> try_files {path} {path}.html /index.html -> privacy.html
+  /en/privacy    -> en/privacy.html
+  /inbox, ...    -> index.html (khung rỗng, như cũ)
+  /api/*         -> sino-api
+
+Trình duyệt có JS: html.js ẩn [data-prerendered], createRoot vẽ lại như trước
+Máy không chạy JS: đọc thẳng chữ đã tạo sẵn
+```
+
+### 28.1 Ở đâu
+- `apps/sino-web/src/prerender/entry.tsx`: render ba trang bằng `renderToString` và `StaticRouter`.
+- `apps/sino-web/scripts/prerender.mjs`, `scripts/prerender-html.mjs` (phần thuần, có test `prerender-html.test.ts`): ghép HTML, kiểm câu mốc.
+- `apps/sino-web/src/features/public/pageTitles.ts`: tiêu đề dùng chung cho app và bước prerender.
+- `apps/sino-web/src/features/public/owner.ts`: bốn giá trị chủ sở hữu (email, người đứng tên, ngày hiệu lực, máy chủ); `privacy.vi.tsx`, `privacy.en.tsx` thêm Cloudflare.
+- `vite.config.ts`: `build.manifest: true` để script tìm được file CSS của trang công khai.
+- `apps/sino-web/Caddyfile` trên nhánh `deploy/devtest`: `rewrite` và `try_files` mới (commit `0fa6f6c`).
+
+### 28.2 Prerender mà không hydrate
+Hydrate là bắt React "nhận" HTML có sẵn, đòi lần render đầu ở trình duyệt khớp từng nút với HTML server. `HomeGate` lần đầu hiện dấu chờ trong lúc hỏi phiên đăng nhập, nên không khớp với trang giới thiệu đã tạo sẵn. Thay vì sửa cổng phiên, change chọn không hydrate (D-463): một dòng script trong `<head>` thêm class `js` vào `<html>`, CSS `html.js [data-prerendered]{display:none}` ẩn nội dung tạo sẵn ngay, rồi `createRoot` thay nó như trước. Người có JavaScript thấy đúng trình tự cũ, chủ tài khoản vào `/` vẫn sang `/overview` mà không thấy trang giới thiệu lóe lên; máy không có JavaScript thì script không chạy và đọc được toàn bộ chữ.
+
+### 28.3 Build đỏ khi đầu ra sai
+Lỗi "trang rỗng" chỉ lộ ra khi Google từ chối, cách nhau vài ngày. Vì vậy script kiểm mỗi file có các câu mốc của trang đó, và với cờ `--strict` thì không còn `[chưa điền` (D-465). Đổi chữ mà quên câu mốc thì build đỏ ở máy và ở Docker, trước khi lên server.
+
+### 28.4 Có file đúng chưa đủ: máy chủ phải trả nó
+PP-02, PP-03 đã nằm trên `deploy/devtest` mà trang thật vẫn rỗng. Nguyên nhân là Caddy: `try_files {path} /index.html` thử file tên `en/privacy` (không có), rồi trả `index.html`. Thêm `{path}.html` vào giữa là đủ. Chọn `privacy.html` thay cho `privacy/index.html` (D-461) để tránh `file_server` tự chuyển hướng thêm dấu `/`. Bài học: kiểm bằng curl ở đúng chỗ người khác sẽ đọc (image thật, rồi tên miền thật), không chỉ đọc `dist`.
+
+### 28.5 Cloudflare sửa HTML trên đường đi
+Sau deploy, HTML thật có đủ chữ nhưng email liên hệ thành `[email protected]`. Đó là *Email Address Obfuscation* của Cloudflare, bật mặc định ở mọi domain: nó đổi email trong HTML và thêm script giải mã. Trình duyệt vẫn thấy email (React còn vẽ lại cả trang), nhưng máy không chạy JavaScript thì không. Người dùng tắt tính năng này; curl lại thấy email trong HTML gốc. Proxy phía trước cũng là một "người viết" HTML, nên phép kiểm cuối phải đọc thứ đi ra khỏi proxy.
+
+### 28.6 Kiểm chứng
+- **Image ở máy** (`docker run -p 8099:80`, curl với User-Agent Googlebot): `/` 200, 68 KB; `/privacy` 200, `lang="vi"`; `/en/privacy` 200, `lang="en"`, khoảng 1290 từ, có câu Limited Use; `/inbox` khung app; `/api/auth/me` 502 vì lượt thử không chạy `sino-api`; không chuyển hướng. Trình duyệt: React thay nội dung tạo sẵn, 12 mục.
+- **Trang thật `daiquangia.io.vn`:** cùng kết quả, `/api/auth/me` 401, `cf-cache-status: DYNAMIC`; sau khi tắt che email, email có trong HTML gốc.
+- **Google:** Branding "verified and is being shown to users" (2026-11-13). Data access (scope Gmail) là việc riêng, chưa làm.
+
+## 29. Cài đặt giao diện lưu trên máy chủ (`fe-ui-sunset`, SU-09)
+
+Giao diện mới cho người dùng tự chọn bộ màu (5 bộ), một màu nhấn riêng, độ bo Mềm/Gọn và bật/tắt họa tiết. Lựa chọn phải đi theo tài khoản, đăng nhập máy khác vẫn thấy, nên được lưu ở `sino-api` chứ không chỉ trong trình duyệt. SU-09 là hợp đồng API, làm trước phía web.
+
+### 29.1 Ở đâu
+- `db/migration/V28__settings_add_appearance.sql`: thêm `palette`, `accent_color`, `corners`, `decorations` vào bảng `user_settings`.
+- `settings/domain`: enum mới `Palette`, `Corners`; `Settings`, `SettingsChange`, `UserSettings` có thêm 4 trường.
+- `settings/api`: `SettingsPatchReader` đọc 4 trường từ PATCH, `SettingsResponse` trả chúng ra.
+
+```text
+PATCH /api/settings {"palette":"MINT"}
+   -> SettingsPatchReader   kiểm từng trường, sai thì gom lỗi, 400
+   -> SettingsChange        trường không gửi = null (giữ nguyên)
+   -> Settings.with(change) ghép lên cài đặt cũ
+   -> UserSettings          ghi xuống hàng user_settings
+   -> SettingsResponse      trả toàn bộ cài đặt
+```
+
+### 29.2 Vì sao 4 cột chứ không một cột JSON (D-490 = A)
+Mọi cài đặt cũ đều là một cột có kiểu rõ ràng. Thêm cột theo đúng cách đó thì cơ sở dữ liệu tự kiểm được giá trị (`CHECK palette IN (...)`, `CHECK accent_color ~ '^#[0-9A-Fa-f]{6}$'`), Java có enum để trình biên dịch bắt lỗi, và phía web dùng lại kiểu `SettingsChange` đang có. Một cột JSON thì thêm trường dễ hơn, nhưng không ai kiểm giá trị bên trong.
+
+Cột mới có `DEFAULT`, nên hàng của người dùng cũ đọc ra giá trị mặc định (`SAKURA`, không màu riêng, `SOFT`, có họa tiết) mà không cần chạy lệnh cập nhật dữ liệu.
+
+### 29.3 Ba trạng thái của một trường xóa được: `Optional` trong `SettingsChange`
+`accentColor` có thể "không gửi" (giữ nguyên), "gửi null" (xóa màu riêng) hoặc "gửi một mã màu". Một biến `String` chỉ có hai trạng thái (null hay có giá trị), nên `SettingsChange` dùng `Optional<String>`: biến bằng `null` là không gửi, `Optional.empty()` là xóa, `Optional.of("#FF8A3C")` là đặt màu. `quietHours` và `defaultReminderMinutes` đã làm đúng như vậy từ D-402.
+
+### 29.4 Một màu, một cách viết
+`#ff8a3c` và `#FF8A3C` là một màu. `SettingsPatchReader` đổi sang chữ hoa trước khi lưu (`toUpperCase(Locale.ROOT)`), để so sánh và hiển thị không bị lệch. `Locale.ROOT` tránh trường hợp máy chạy ở ngôn ngữ có luật chữ hoa riêng (ví dụ chữ "i" trong tiếng Thổ Nhĩ Kỳ).
+
+### 29.5 `char(7)` hay `varchar(7)`
+Ban đầu `accent_color` là `char(7)` vì mã màu luôn dài 7 ký tự. Hibernate kiểm lược đồ lúc khởi động và từ chối: PostgreSQL gọi `char(n)` là `bpchar`, khác kiểu `varchar` mà một trường `String` mong đợi. Đổi sang `varchar(7)`: độ dài đúng 7 đã có `CHECK` lo, nên không mất gì.
+
+### 29.6 Kiểm chứng
+- **Test tay** (kỹ sư): app ở worktree, cổng 8091, trên bản sao DB, Gmail/Zalo/sync tắt. GET mặc định đúng; PATCH từng trường trả 200 và GET lại đúng; PATCH sai (`NEON`, `hồng`, `#FFF`, `ROUND`, `"yes"`) trả 400 và không trường nào đổi; `accentColor: null` về null; DB đúng.
+- **Test tự động:** quản lý chạy lại trong worktree sạch (`dev` cộng các file SU-09): 110 test của `dev.sino.settings` và 2 `ModularityTests`, 0 lỗi. Commit `b098198`.
+
 ## Tự kiểm tra
 
 1. Vì sao HTTP Basic không hợp với một web app chạy trong trình duyệt? Nêu ba lý do.
@@ -2110,3 +2277,14 @@ Vậy một truy vấn chưa có dữ liệu trong `AppShell` làm nó render l�
 174. Vì sao tổng số tài khoản là `null` khi danh sách chưa về, còn số cần xử lý là 0? "Chưa biết" và "bằng 0" khác nhau ở chỗ nào trên màn hình?
 175. Gieo cache shell với `accountCount: 9` mà danh sách có 3 tài khoản. Cột bên hiện số nào, và vì sao đây là điều ta muốn?
 176. Test `shell: null` của chuông xanh ngay lần đầu dù code sai. Vì sao, và thêm đúng một dòng nào để nó đỏ khi code sai?
+177. Vì sao `UserProfile` để trường tùy chọn là `string | null` chứ không đổi sẵn thành `''`? Việc đổi sang `''` xảy ra ở đâu?
+178. Người dùng gõ thêm một dấu cách vào cuối tên. Nút "Lưu thay đổi" có sáng không, và vì sao?
+179. Sau khi lưu, thanh trên hiện tên mới mà không gọi lại `/api/auth/me`. Cơ chế nào làm việc đó, và vì sao không dùng `invalidateQueries`?
+180. Vì sao form chỉ hiện khi hồ sơ đã tải xong, dù thẻ đầu trang đã có bản tạm từ `me`?
+181. Máy chủ trả `400` với `errors[{field: "phoneNumber", message: "phoneNumber has only digits…"}]`. Dưới ô hiện câu gì, và vì sao không hiện `message`?
+182. Vì sao khối Đổi mật khẩu bị khoá thay vì giữ mutation giả báo "đổi thành công"?
+183. Backend hồ sơ giả trong test không luôn bật như backend cài đặt. Vì sao? Khi luật số điện thoại ở `sino-api` đổi, test nào sẽ báo?
+184. Trang Privacy mở bằng Chrome thì đủ chữ, mà Google lại nói "không đủ nội dung". Bạn kiểm bằng lệnh gì để thấy thứ Google thấy?
+185. Vì sao bước prerender không hydrate? Một dòng script trong `<head>` giải quyết việc gì?
+186. `dist/en/privacy.html` có đủ chữ, nhưng `https://.../en/privacy` vẫn trả khung rỗng. Dòng nào của Caddyfile gây ra, và sửa thế nào?
+187. Sau khi deploy, email liên hệ trong HTML thành `[email protected]`. Ai đổi nó, và vì sao người xem bằng trình duyệt không nhận ra?

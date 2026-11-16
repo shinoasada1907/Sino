@@ -1,17 +1,18 @@
 import {
-  CheckCheck,
+  Calendar,
   ChevronLeft,
+  Clock,
   Code2,
-  Lock,
-  Mic,
+  ExternalLink,
   PanelRight,
-  Paperclip,
+  Pencil,
   Pin,
   Search,
-  SendHorizontal,
-  Smile,
+  SquareCheck,
+  StickyNote,
+  type LucideIcon,
 } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -19,8 +20,8 @@ import { Avatar } from '@/shared/ui/avatar'
 import { Button } from '@/shared/ui/button'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
-import { bubbleMeta, disconnectedSince, formatFileSize, getInitials, memberAvatar, memberPlaceholder, notArrivedSince, sendBlock, withDayLines } from '../format'
-import type { ConversationDetail, ConversationItem, InboxAccount, Member, Message } from '../inbox.types'
+import { bubbleMeta, disconnectedSince, displayName, formatFileSize, getInitials, linkParts, memberAvatar, memberPlaceholder, notArrivedSince, sendBlock, threadSubtitle, withDayLines } from '../format'
+import type { ConversationDetail, ConversationItem, InboxAccount, LinkedKind, Member, Message } from '../inbox.types'
 import { useSendMessage } from '../useInbox'
 import { ConversationAvatars } from './ConversationAvatars'
 import { LatestPreview } from './LatestPreview'
@@ -30,6 +31,8 @@ import { pictureOf, spriteOf } from '../sticker'
 import { stickerContentUrl } from '@/features/stickers/stickers.api'
 import { outgoingFiles } from '../outgoingFiles'
 import { useAttachmentTray } from '../useAttachmentTray'
+import { Composer } from './Composer'
+import { extractClipboardFiles } from '../clipboard'
 import { MailFile } from './EmailThread'
 import { PhotoPicture } from './PhotoPicture'
 import { StickerPicture } from './StickerPicture'
@@ -38,9 +41,14 @@ import { useReactToMessage } from '../useReactToMessage'
 import { PREVIEW_SET, REACTIONS_PREVIEW } from '../reactionsPreview'
 import { ReactionChips } from './ReactionChips'
 import { ReactionPicker } from './ReactionPicker'
-import { StickerPicker } from './StickerPicker'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
+
+const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string; name: string }> = {
+  TASK: { icon: SquareCheck, to: '/tasks', name: 'Task' },
+  EVENT: { icon: Calendar, to: '/calendar', name: 'Lịch hẹn' },
+  NOTE: { icon: StickyNote, to: '/notes', name: 'Ghi chú' },
+}
 
 const BOTTOM_SLACK = 80
 const nearBottom = (body: HTMLElement) => body.scrollHeight - body.scrollTop - body.clientHeight <= BOTTOM_SLACK
@@ -54,6 +62,7 @@ export function ChatThread({
   nameOf,
   showInfo,
   onToggleInfo,
+  onEditName,
 }: {
   item: ConversationItem
   detail: ConversationDetail | undefined
@@ -63,7 +72,10 @@ export function ChatThread({
   nameOf: ProviderNameOf
   showInfo?: boolean
   onToggleInfo?: () => void
+  /** Opens the "Đặt biệt danh" box; given only for a 1-1 chat of a provider with nicknames, so the name is a button there alone. */
+  onEditName?: () => void
 }) {
+  const shownName = displayName(item)
   const [unreadAtOpen] = useState(item.unreadCount)
   const members = detail?.members ?? null
   const group = item.memberCount !== null
@@ -73,18 +85,27 @@ export function ChatThread({
   const previewReactions = REACTIONS_PREVIEW && item.kind === 'CHAT' && detail !== undefined && detail.reactionSet === undefined
   const reacting = useReactToMessage(item.id, previewReactions)
   const tray = useAttachmentTray()
-  const sendsFiles = detail?.canSendFiles === true
+  const block = sendBlock(account, detail?.canSend)
+  const sendsFiles = detail?.canSendFiles !== false && !block
   const placed = useRef(false)
   const newest = detail?.messages?.at(-1)
   const newestId = newest?.id
   const newestIsOwn = newest?.kind === 'MESSAGE' && newest.direction === 'OUT'
   const atBottom = useRef(true)
-  const block = sendBlock(account, detail?.canSend)
   const expiredAt = account.status === 'AUTH_EXPIRED' ? account.statusChangedAt : null
 
-  const [inputText, setInputText] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const handlePaste = (e: React.ClipboardEvent) => {
+    // If paste occurred inside textarea or input, Composer handles it directly.
+    if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
+      return
+    }
+    const files = extractClipboardFiles(e.clipboardData)
+    if (files.length > 0 && sendsFiles) {
+      e.preventDefault()
+      e.stopPropagation()
+      tray.add(files)
+    }
+  }
 
   useEffect(() => {
     const body = bodyRef.current
@@ -104,30 +125,11 @@ export function ChatThread({
 
   const carriesFiles = (event: DragEvent) => sendsFiles && event.dataTransfer.types.includes('Files')
 
-  const handleSend = () => {
-    if (tray.items.length > 0 && sendsFiles) {
-      sendMessage.sendFiles(tray.items.map((i) => i.file), inputText.trim())
-      tray.clear()
-      setInputText('')
-    } else if (inputText.trim()) {
-      sendMessage.send(inputText.trim())
-      setInputText('')
-    }
-  }
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
-
-  const primaryAvatar = members?.[0]?.avatarUrl || item.avatarUrl
-
   return (
     <section
-      aria-label={`Cuộc trò chuyện ${item.title}`}
+      aria-label={`Cuộc trò chuyện ${shownName}`}
       className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] md:border-r bg-background"
+      onPaste={handlePaste}
       onDragOver={(event) => {
         if (carriesFiles(event)) event.preventDefault()
       }}
@@ -139,26 +141,38 @@ export function ChatThread({
       }}
     >
       {/* Thread Header matching screenshot */}
-      <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:px-5">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
         <div className="flex items-center gap-3 min-w-0">
-          <Button asChild variant="ghost" size="icon-sm" className="-ml-2 md:hidden">
+          <Button asChild variant="ghost" size="sm" className="-ml-2">
             <Link to={{ pathname: '/messages', search: backSearch }}>
-              <ChevronLeft className="size-5" strokeWidth={1.6} />
+              <ChevronLeft className="size-4 md:size-5" strokeWidth={1.6} />
+              <span className="xl:hidden 2xl:inline">Tin nhắn</span>
             </Link>
           </Button>
           <div className="relative shrink-0">
-            {primaryAvatar ? (
-              <img src={primaryAvatar} alt="" className="size-10 rounded-full object-cover border border-border/60" />
-            ) : (
-              <ConversationAvatars item={item} members={members} />
-            )}
+            <ConversationAvatars item={item} members={members} />
             <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
           </div>
-          <div className="flex min-w-0 flex-col">
-            <h1 className="truncate text-base font-bold text-foreground leading-tight">{item.title}</h1>
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              <span>Đang hoạt động • {account.address || name}</span>
+          <div className="flex min-w-32 flex-col">
+            <h1 className="truncate text-base font-bold text-foreground leading-tight">
+              {onEditName ? (
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-label={`${shownName}, đặt biệt danh`}
+                  title="Đặt biệt danh"
+                  onClick={onEditName}
+                  className="-mx-1.5 inline-flex max-w-full cursor-pointer items-center gap-2 rounded-sm px-1.5 font-[inherit] outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid"
+                >
+                  <span className="truncate">{shownName}</span>
+                  <Pencil className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} aria-hidden="true" />
+                </button>
+              ) : (
+                shownName
+              )}
+            </h1>
+            <span className="truncate text-xs text-muted-foreground mt-0.5">
+              {threadSubtitle(item, [account], nameOf)}
             </span>
           </div>
           {expiredAt && (
@@ -174,6 +188,10 @@ export function ChatThread({
           </Button>
           <Button type="button" variant="ghost" size="icon-sm" className="size-8 cursor-pointer" aria-label="Ghim hội thoại" title="Ghim hội thoại">
             <Pin className="size-4" strokeWidth={1.6} />
+          </Button>
+          <Button type="button" variant="secondary" size="sm" className="cursor-pointer text-xs">
+            <ExternalLink className="size-3.5 mr-1" strokeWidth={1.6} />
+            <span className="max-2xl:sr-only">Mở trong {name}</span>
           </Button>
           <Button
             type="button"
@@ -200,7 +218,7 @@ export function ChatThread({
             event.currentTarget.scrollTop = event.currentTarget.scrollHeight
           }
         }}
-        className="flex min-h-0 flex-col gap-3 overflow-y-auto p-4 md:p-6"
+        className="flex min-h-0 flex-col gap-4 overflow-auto px-4 py-5 md:px-5 xl:px-6"
       >
         {detail?.messages === null && <LatestPreview item={item} now={now} />}
         {withDayLines(detail?.messages ?? [], now).map(({ message, dayLine }) => {
@@ -242,102 +260,145 @@ export function ChatThread({
         )}
       </div>
 
-      {/* Chat Composer matching screenshot */}
+      {/* Chat Composer */}
       {block ? (
         <ThreadNotice block={block} kind={item.kind} providerName={name} account={account} />
-      ) : (
-        <div className="flex flex-col border-t bg-background">
-          {/* Main Input Row */}
-          <div className="flex items-center gap-2 px-4 py-2.5">
-            {/* Attachment Button */}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-              onClick={() => fileInputRef.current?.click()}
-              title="Đính kèm tệp"
-            >
-              <Paperclip className="size-4" strokeWidth={1.6} />
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              hidden
-              onChange={(e) => {
-                if (e.target.files) tray.add(Array.from(e.target.files))
-                e.target.value = ''
-              }}
-            />
+      ) : detail ? (
+        <Composer
+          kind="CHAT"
+          label={`Nhắn tin tới ${shownName}`}
+          placeholder={`Nhắn tin tới ${shownName}…`}
+          account={account.address}
+          via={`${name} · ${account.address}`}
+          onSend={sendMessage.send}
+          onSendSticker={detail.canSendImages ? sendMessage.sendSticker : undefined}
+          tray={sendsFiles ? tray : undefined}
+          onSendFiles={sendsFiles ? sendMessage.sendFiles : undefined}
+        />
+      ) : null}
+    </section>
+  )
+}
 
-            {/* Sticker / Emoji Picker */}
-            {detail?.canSendImages && (
-              <StickerPicker onPick={sendMessage.sendSticker} focusAfterPick={inputRef} className="size-8 text-muted-foreground hover:text-foreground shrink-0" />
-            )}
-            {!detail?.canSendImages && (
-              <Button type="button" variant="ghost" size="icon-sm" className="size-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer" title="Biểu cảm">
-                <Smile className="size-4" strokeWidth={1.6} />
-              </Button>
-            )}
+function getDomain(urlStr: string): string {
+  try {
+    return new URL(urlStr).hostname.replace(/^www\./, '')
+  } catch {
+    return urlStr
+  }
+}
 
-            {/* Text Input */}
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Nhập tin nhắn..."
-              className="min-h-9 flex-1 rounded-lg border border-border/80 bg-surface px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-border-strong focus:bg-background focus:ring-1 focus:ring-ring"
-            />
+function getYouTubeId(urlStr: string): string | null {
+  try {
+    const u = new URL(urlStr)
+    if (u.hostname.includes('youtube.com')) {
+      return u.searchParams.get('v')
+    }
+    if (u.hostname.includes('youtu.be')) {
+      return u.pathname.slice(1)
+    }
+  } catch {
+    return null
+  }
+  return null
+}
 
-            {/* Mic button */}
-            <Button type="button" variant="ghost" size="icon-sm" className="size-8 text-muted-foreground hover:text-foreground shrink-0 cursor-pointer" title="Tin nhắn thoại">
-              <Mic className="size-4" strokeWidth={1.6} />
-            </Button>
+function LinkPreviewCard({ url, own }: { url: string; own: boolean }) {
+  const domain = getDomain(url)
+  const ytId = getYouTubeId(url)
+  const isImageLink = /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(url)
+  const thumbUrl = ytId ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg` : isImageLink ? url : null
+  const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`
 
-            {/* Send Pill Button */}
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={!inputText.trim() && tray.items.length === 0}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-foreground px-3.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer shadow-xs"
-            >
-              <span>Gửi</span>
-              <SendHorizontal className="size-3.5" />
-            </button>
-          </div>
-
-          {/* Technical Status Footer */}
-          <div className="flex items-center justify-between border-t border-border/40 px-4 py-1.5 font-mono text-[11px] text-muted-foreground bg-surface/30">
-            <span className="flex items-center gap-1.5">
-              <span>Định dạng: Markdown cơ bản</span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-emerald-500" />
-                <span>Mã hóa: Bật</span>
-              </span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Lock className="size-3 text-muted-foreground" />
-              <span>{name} Gateway</span>
-            </span>
-          </div>
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className={cn(
+        'group/link mt-2 flex max-w-sm flex-col overflow-hidden rounded-xl border text-left transition-all hover:opacity-95',
+        own
+          ? 'border-white/20 bg-white/10 text-background'
+          : 'border-border/80 bg-background/80 text-foreground shadow-xs',
+      )}
+    >
+      {thumbUrl && (
+        <div className="relative aspect-video w-full overflow-hidden bg-black/20">
+          <img src={thumbUrl} alt="" className="size-full object-cover transition-transform duration-200 group-hover/link:scale-105" />
         </div>
       )}
-    </section>
+      <div className="flex items-center gap-2.5 p-2.5">
+        <div className="relative grid size-7 shrink-0 place-items-center rounded-md border border-border/40 bg-surface/80 p-0.5 overflow-hidden">
+          <img
+            src={faviconUrl}
+            alt=""
+            className="size-4 object-contain"
+            onError={(e) => {
+              ;(e.currentTarget as HTMLElement).style.display = 'none'
+            }}
+          />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-mono text-[10px] uppercase tracking-wider opacity-70">{domain}</span>
+          <span className="truncate text-xs font-semibold underline-offset-2 group-hover/link:underline">{url}</span>
+        </div>
+        <ExternalLink className="size-3.5 shrink-0 opacity-60 group-hover/link:opacity-100" strokeWidth={1.6} />
+      </div>
+    </a>
+  )
+}
+
+function MessageText({ text, own }: { text: string; own: boolean }) {
+  const lines = text.split('\n')
+  const urls: string[] = []
+  lines.forEach((l) => {
+    linkParts(l).forEach((p) => {
+      if (p.href && !urls.includes(p.href)) {
+        urls.push(p.href)
+      }
+    })
+  })
+
+  return (
+    <div className="space-y-1">
+      <div className="space-y-0.5">
+        {lines.map((line, lineIdx) => (
+          <p key={lineIdx} className="break-words">
+            {linkParts(line).map((part, partIdx) =>
+              part.href ? (
+                <a
+                  key={partIdx}
+                  href={part.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="underline underline-offset-3 decoration-current/40 hover:decoration-current hover:opacity-90 break-all transition-all font-medium text-inherit"
+                >
+                  {part.text}
+                </a>
+              ) : (
+                <Fragment key={partIdx}>{part.text}</Fragment>
+              ),
+            )}
+          </p>
+        ))}
+      </div>
+      {urls.map((url) => (
+        <LinkPreviewCard key={url} url={url} own={own} />
+      ))}
+    </div>
   )
 }
 
 function Bubble({
   message,
-  showName: _showName,
+  showName,
   members,
   conversationAvatar,
   isGroup,
-  sending: _sending,
-  providerName: _providerName,
+  sending,
+  providerName,
   reactionSet,
   previewReactions,
   reacting,
@@ -366,8 +427,12 @@ function Bubble({
   const still = library ?? (brokenSticker ? null : pictureOf(message.sticker))
   const sprite = brokenSprite ? null : spriteOf(message.stickerSprite)
   const photo = photoOf(message.image)
+  const imageAttachment = message.attachments.find((a) => a.image)
   const preview = own && !photo && message.clientMessageId ? outgoingFiles.previewOf(message.clientMessageId) : null
-  const photoSrc = preview ?? (photoStep === 'FULL' ? photo?.url : photoStep === 'THUMB' ? photo?.thumbUrl : null)
+  const photoSrc =
+    preview ??
+    (photoStep === 'FULL' ? photo?.url : photoStep === 'THUMB' ? photo?.thumbUrl : null) ??
+    (imageAttachment?.url ?? null)
   const [onlyFile] = message.attachments
   const fileOnly = message.attachments.length === 1 && onlyFile !== undefined && !onlyFile.image && message.text === onlyFile.name
 
@@ -380,26 +445,38 @@ function Bubble({
 
   const content = (
     <div className={cn('flex flex-col gap-1', own ? 'items-end' : 'items-start')}>
-      {/* Header text with Sender + Time */}
-      <div className={cn('flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5', own ? 'flex-row-reverse' : 'flex-row')}>
-        <span className="font-semibold text-foreground/90">{message.sender}</span>
-        <span className="font-mono text-[11px] text-muted-foreground">
-          {new Date(message.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}
+      {!own && showName && (
+        <span data-slot="bubble-name" className="pl-0.5 text-xs leading-4 font-semibold text-muted-foreground">
+          {message.sender}
         </span>
-      </div>
+      )}
 
       {/* Bubble Content */}
       {fileOnly ? null : sprite || still ? (
         <StickerPicture still={still} sprite={library ? null : sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => (library ? setBrokenLibrary(true) : setBrokenSticker(true))} />
       ) : photoSrc ? (
-        <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
+        <div className="flex flex-col gap-1.5">
+          <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
+          {message.text && message.text !== '[Ảnh]' && message.text !== imageAttachment?.name && (
+            <div
+              className={cn(
+                'px-4 py-2.5 text-xs leading-relaxed max-w-xl transition-colors',
+                own
+                  ? 'rounded-[20px] rounded-br-[8px] bg-primary text-primary-foreground font-normal'
+                  : 'rounded-[20px] rounded-bl-[8px] bg-raised text-foreground shadow-[inset_0_0_0_1px_var(--border)]',
+              )}
+            >
+              <MessageText text={message.text} own={own} />
+            </div>
+          )}
+        </div>
       ) : (
         <div
           className={cn(
             'px-4 py-2.5 text-xs leading-relaxed max-w-xl transition-colors',
             own
-              ? 'rounded-2xl rounded-tr-xs bg-foreground text-background font-normal shadow-xs'
-              : 'rounded-2xl rounded-tl-xs bg-surface border border-border/80 text-foreground shadow-xs',
+              ? 'rounded-[20px] rounded-br-[8px] bg-primary text-primary-foreground font-normal'
+              : 'rounded-[20px] rounded-bl-[8px] bg-raised text-foreground shadow-[inset_0_0_0_1px_var(--border)]',
           )}
         >
           {message.quoteTag && (
@@ -428,45 +505,89 @@ function Bubble({
             </div>
           )}
 
-          {!message.quoteTag && !message.codePayload && <p>{message.text}</p>}
+          {!message.quoteTag && !message.codePayload && <MessageText text={message.text} own={own} />}
         </div>
       )}
 
       {photo?.caption && (
-        <div className={cn('px-4 py-2.5 text-xs leading-relaxed rounded-2xl', own ? 'bg-foreground text-background' : 'bg-surface border border-border/80 text-foreground')}>
+        <div className={cn('px-4 py-2.5 text-xs leading-relaxed rounded-2xl', own ? 'bg-primary text-primary-foreground' : 'bg-raised text-foreground shadow-[inset_0_0_0_1px_var(--border)]')}>
           {photo.caption}
         </div>
       )}
 
       {/* Attachments */}
-      {message.attachments.map((file) =>
-        file.image && preview ? null : file.image ? (
-          <div
-            key={file.name}
-            className="flex h-35 w-55 items-end rounded-[14px] md:h-45 md:w-70 border bg-[repeating-linear-gradient(135deg,var(--surface)_0_10px,var(--raised)_10px_20px)] p-3"
+      {message.attachments.map((file) => {
+        if (file.image) {
+          if (photoSrc && (file.url === photoSrc || file.url === imageAttachment?.url || preview)) {
+            return null
+          }
+          if (file.url) {
+            return <PhotoPicture key={file.url} src={file.url} onError={() => {}} />
+          }
+          return (
+            <div
+              key={file.name}
+              className="flex h-35 w-55 items-end rounded-[14px] md:h-45 md:w-70 border bg-[repeating-linear-gradient(135deg,var(--surface)_0_10px,var(--raised)_10px_20px)] p-3"
+            >
+              <Spec className="text-foreground">{['Ảnh', file.caption, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}</Spec>
+            </div>
+          )
+        }
+        return <MailFile key={file.url ?? file.name} file={file} />
+      })}
+
+      {/* Linked items */}
+      {message.linked && message.linked.length > 0 && message.linked.map((linked) => {
+        const { icon: Icon, to, name } = LINKED[linked.kind]
+        return (
+          <Link
+            key={linked.title}
+            to={to}
+            className="inline-flex h-7 max-w-full items-center gap-2 rounded-full border bg-surface pr-3 pl-2.5 text-xs leading-4 font-medium whitespace-nowrap text-foreground outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
           >
-            <Spec className="text-foreground">{['Ảnh', file.caption, formatFileSize(file.sizeBytes)].filter(Boolean).join(' · ')}</Spec>
-          </div>
-        ) : (
-          <MailFile key={file.url ?? file.name} file={file} />
-        ),
-      )}
+            <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+            <span className="truncate">
+              {name}: {linked.title}
+            </span>
+          </Link>
+        )
+      })}
 
       <ReactionChips reactions={reactions} kinds={reactionSet} own={own} />
-
-      {/* Outbound delivery status */}
-      {own && (
-        <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground mt-0.5">
-          <CheckCheck className="size-3 text-emerald-500" />
-          <span>Đã gửi qua Sino Ops</span>
-        </div>
+      {reacting.failure && reacting.failure.messageId === message.id && (
+        <p role="alert" className="text-xs leading-4 text-danger-ink">
+          {reacting.failure.text}
+        </p>
       )}
 
-      {/* Inbound / other status */}
-      {!own && (
-        <span className="font-mono text-[10px] text-muted-foreground">
-          {bubbleMeta(message)}
-        </span>
+      <span className={cn('inline-flex items-center gap-1.5 font-mono text-[10px] leading-4 font-medium', message.status === 'FAILED' ? 'text-danger-ink' : 'text-muted-foreground')}>
+        {message.status === 'SENDING' && <Clock className="size-3" strokeWidth={1.6} />}
+        {bubbleMeta(message)}
+      </span>
+      {message.status === 'UNKNOWN' && (
+        <p role="status" className="text-xs leading-4 text-muted-foreground">
+          {message.local ? 'Mất kết nối khi gửi. Gửi lại không làm tin bị gửi hai lần.' : `Sino đang kiểm tra với ${providerName}.`}
+        </p>
+      )}
+      {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && !sending.canResend(message) && (
+        <p className="text-xs leading-4 text-muted-foreground">Chọn lại tệp để gửi.</p>
+      )}
+      {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && (
+        <div className="flex flex-wrap gap-2">
+          {sending.canResend(message) && (
+            <Button type="button" variant="secondary" size="sm" onClick={() => sending.resend(message)}>
+              Gửi lại
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="sm" onClick={() => sending.discard(message)}>
+            Bỏ
+          </Button>
+        </div>
+      )}
+      {sending.discardFailed !== undefined && sending.discardFailed === message.clientMessageId && (
+        <p role="alert" className="text-xs leading-4 text-danger-ink">
+          Không bỏ được tin này. Hãy thử lại.
+        </p>
       )}
     </div>
   )

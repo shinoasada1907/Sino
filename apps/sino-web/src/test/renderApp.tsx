@@ -25,7 +25,7 @@ import type { TasksData } from '@/features/tasks/tasks.types'
 import { TASKS_QUERY_KEY } from '@/features/tasks/useTasks'
 import { serveInboxSample } from './inboxSampleApi'
 
-const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn' }
+const SIGNED_IN: Me = { email: 'an.nguyen@gmail.com', displayName: 'An Nguyễn', avatarUrl: null }
 
 /**
  * Renders the whole app at `path` with the given shell, overview, accounts, inbox and tasks data already in the query
@@ -87,8 +87,8 @@ function seedInbox(queryClient: QueryClient, sample: InboxSample) {
     const conversations = sample.conversations.filter((item) => item.kind === kind)
     for (const source of [null, ...sample.providers.filter((provider) => provider.kind === kind).map((provider) => provider.type)]) {
       for (const view of VIEWS) {
-        const items = filterConversations(conversations, { view, source }, new Date())
-        queryClient.setQueryData(conversationsKey(kind, { view, source }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
+        const items = filterConversations(conversations, { view, source, account: null }, new Date())
+        queryClient.setQueryData(conversationsKey(kind, { view, source, account: null }), { pages: [{ items, nextCursor: null }], pageParams: [null] })
       }
     }
   }

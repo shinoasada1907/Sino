@@ -88,6 +88,8 @@ function held() {
 const open = (path: string) => renderApp(path, { inbox: null })
 const sources = () => within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
+// The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
+const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
 const thread = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện đang mở' }))
 // Rows only: the list also has "Thư mới" (f10-new-mail).
 const rowTitles = () =>
@@ -111,7 +113,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
 
     expect(await list().findByRole('link', { name: /Trần Minh Anh/ })).toBeInTheDocument()
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Ngân hàng ACB'])
-    expect(list().getByText('1 chưa đọc')).toBeInTheDocument()
+    expect(pane().getAllByText('1 chưa đọc')).not.toHaveLength(0)
     expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('1')
     expect(within(list().getByRole('link', { name: /Trần Minh Anh/ })).getByLabelText('Chưa đọc')).toBeInTheDocument()
     expect(asked).toEqual(['view=all&kind=email'])
@@ -123,7 +125,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     const user = userEvent.setup()
     await list().findByRole('link', { name: /Trần Minh Anh/ })
 
-    await user.click(within(list().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' }))
+    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' }))
 
     expect(router.state.location.search).toBe('?source=gmail&view=unread')
     await vi.waitFor(() => expect(rowTitles()).toEqual(['Trần Minh Anh']))
@@ -145,9 +147,9 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     const user = userEvent.setup()
     expect(await list().findByRole('button', { name: 'Tải thêm' })).toBeInTheDocument()
 
-    await user.click(within(list().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' }))
+    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' }))
     expect(rowTitles()).toEqual(['Trần Minh Anh'])
-    expect(list().getByRole('group', { name: 'Lọc danh sách' })).toBeInTheDocument()
+    expect(pane().getByRole('group', { name: 'Lọc danh sách' })).toBeInTheDocument()
     expect(list().queryByRole('button', { name: 'Tải thêm' })).toBeNull()
     unread.release()
 
@@ -222,7 +224,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     expect(within(notice).queryByRole('button')).toBeNull()
     expect(thread().queryByRole('textbox')).toBeNull()
 
-    expect(await list().findByText('Đã đọc hết')).toBeInTheDocument()
+    expect(await pane().findAllByText('Đã đọc hết')).not.toHaveLength(0)
     expect(within(list().getByRole('link', { name: /Trần Minh Anh/ })).queryByLabelText('Chưa đọc')).toBeNull()
     expect(changes).toEqual([['c-1', { read: true }]])
   })
@@ -262,7 +264,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
 
     expect(router.state.location.pathname).toBe('/inbox')
     expect(within(list().getByRole('link', { name: /Trần Minh Anh/ })).getByLabelText('Chưa đọc')).toBeInTheDocument()
-    expect(list().getByText('1 chưa đọc')).toBeInTheDocument()
+    expect(pane().getAllByText('1 chưa đọc')).not.toHaveLength(0)
     await vi.waitFor(() => expect(changes).toEqual([['c-1', { read: true }], ['c-1', { read: false }]]))
 
     // Opening it again is a new opening: it is read again.
@@ -274,9 +276,9 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     const { changes } = backend({ refuse: true })
     open('/inbox/c-1')
 
-    expect(await list().findByText('Đã đọc hết')).toBeInTheDocument()
+    expect(await pane().findAllByText('Đã đọc hết')).not.toHaveLength(0)
     await vi.waitFor(() => expect(changes).toEqual([['c-1', { read: true }]]))
-    expect(await list().findByText('1 chưa đọc')).toBeInTheDocument()
+    expect(await pane().findAllByText('1 chưa đọc')).not.toHaveLength(0)
     expect(within(list().getByRole('link', { name: /Trần Minh Anh/ })).getByLabelText('Chưa đọc')).toBeInTheDocument()
     // Long enough for a second request to arrive if the page sent one after the count came back.
     await new Promise((resolve) => setTimeout(resolve, 300))

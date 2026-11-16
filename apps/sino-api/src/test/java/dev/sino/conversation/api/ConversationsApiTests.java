@@ -10,6 +10,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -621,6 +622,24 @@ class ConversationsApiTests {
                 .andExpect(jsonPath("$.unreadCount").value(1));
         assertThat(readStates(id)).as("only the newest message is unread again")
                 .containsExactly(List.of(true, false), List.of(false, false));
+    }
+
+    @Test
+    void markAllReadMarksEveryMessageOfUserRead() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        store(gmail, thread("report1", "Báo cáo 1", ALICE, OWNER),
+                message("report1", "m-1", MessageDirection.INBOUND, "alice@example.test", MONDAY, "Một", false, Map.of()));
+        store(gmail, thread("report2", "Báo cáo 2", ALICE, OWNER),
+                message("report2", "m-2", MessageDirection.INBOUND, "alice@example.test", TUESDAY, "Hai", false, Map.of()));
+
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(2));
+
+        mvc.perform(post("/api/conversations/read-all").with(apiUser()).with(csrf()))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(0));
     }
 
     @Test

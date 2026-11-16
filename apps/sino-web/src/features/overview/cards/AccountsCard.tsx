@@ -34,12 +34,12 @@ function AccountRow({ account, now, name }: { account: OverviewAccount; now: Dat
 
   return (
     <div className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-3">
-      <AccountAvatar provider={account.provider} />
+      <AccountAvatar provider={account.provider} label={account.displayName} />
       {'progress' in view && view.progress !== undefined ? (
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex justify-between gap-2">
             <span className="text-sm font-semibold">{name}</span>
-            <Spec className="truncate">{account.externalAccountId}</Spec>
+            <Spec className="truncate">{account.address || account.displayName}</Spec>
           </div>
           <Progress value={view.progress} />
         </div>
@@ -49,7 +49,7 @@ function AccountRow({ account, now, name }: { account: OverviewAccount; now: Dat
           {'detail' in view ? (
             <span className="truncate text-sm text-danger-ink">{view.detail}</span>
           ) : (
-            <Spec className="truncate">{account.externalAccountId}</Spec>
+            <Spec className="truncate">{account.address || account.displayName}</Spec>
           )}
         </div>
       )}

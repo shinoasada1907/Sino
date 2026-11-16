@@ -1,5 +1,5 @@
 // Turns the raw inbox data (instants, counts, codes) into the Vietnamese text of the Hộp thư screens.
-import type { AccountStatus, ProviderKind } from '@/shared/domain'
+import type { AccountStatus, ProviderInfo, ProviderKind } from '@/shared/domain'
 import { formatCount, type ProviderNameOf } from '@/shared/format'
 import {
   calendarDaysBetween,
@@ -15,7 +15,7 @@ import type { AccountSending, ConversationItem, InboxData, LinkedItem, LinkedKin
 export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
 export interface InboxFilter {
   source: string | null
-  account?: string | null
+  account: string | null
   view: InboxView
 }
 export type RowFlag = {
@@ -140,7 +140,10 @@ export function rowAccounts<A extends { id: string; provider: string }>(item: Co
 /** The subtitle of a conversation in the mobile header: "Zalo · 6 người" for a group, the source name otherwise. */
 export function mobileThreadSubtitle(item: ConversationItem, nameOf: ProviderNameOf): string {
   const name = nameOf(item.provider)
-  return item.memberCount ? `${name} · ${item.memberCount} người` : name
+  if (item.memberCount) {
+    return `${name} · ${item.memberCount} người`
+  }
+  return item.nickname ? `${name} · ${item.title}` : name
 }
 
 export function unreadLabel(count: number): string {
@@ -180,7 +183,7 @@ export function filterConversations(items: ConversationItem[], { source, account
     if (source !== null && item.provider !== source) {
       return false
     }
-    if (account != null && !item.accountIds.includes(account) && item.accountId !== account) {
+    if (account !== null && !item.accountIds.includes(account) && item.accountId !== account) {
       return false
     }
     if (view === 'archived') {
@@ -231,7 +234,7 @@ export function parseRecipients(text: string): { addresses: string[]; invalid: s
     }
     seen.add(entry.toLowerCase())
     const valid = entry.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry)
-    ;(valid ? addresses : invalid).push(entry)
+      ; (valid ? addresses : invalid).push(entry)
   }
   return { addresses, invalid }
 }
@@ -266,10 +269,26 @@ export function threadMeta(messages: Message[]): string {
   return files > 0 ? `${mails.length} thư · ${files} tệp` : `${mails.length} thư`
 }
 
-/** "Gmail · an.nguyen@gmail.com", "Gmail · tienct07@gmail.com, bonzed2001@gmail.com", "Zalo · nhóm 6 người · qua +84 9•• ••• 218" */
+/** The name a conversation shows: the nickname the user gave it, else the provider's name (zalo-nicknames, D-420). */
+export function displayName({ nickname, title }: Pick<ConversationItem, 'nickname' | 'title'>): string {
+  return nickname || title
+}
+
+/**
+ * "Gmail · an.nguyen@gmail.com", "Gmail · tienct07@gmail.com, bonzed2001@gmail.com", "Zalo · nhóm 6 người · qua +84 9•• ••• 218";
+ * a chat with a nickname names the provider's own name too: "Zalo · Nguyễn Thu Hà · qua An Nguyễn".
+ */
 export function threadSubtitle(item: ConversationItem, accounts: { address: string }[], nameOf: ProviderNameOf): string {
   const addresses = accounts.map((account) => account.address).join(', ')
-  return item.kind === 'EMAIL' ? `${nameOf(item.provider)} · ${addresses}` : `${sourceLabel(item, nameOf)} · qua ${addresses}`
+  if (item.kind === 'EMAIL') {
+    return `${nameOf(item.provider)} · ${addresses}`
+  }
+  return item.nickname ? `${nameOf(item.provider)} · ${item.title} · qua ${addresses}` : `${sourceLabel(item, nameOf)} · qua ${addresses}`
+}
+
+/** A 1-1 chat of a provider with `NICKNAMES` can be given a nickname; a group and an email cannot. */
+export function canSetNickname(item: ConversationItem, providers: ProviderInfo[]): boolean {
+  return item.kind === 'CHAT' && item.memberCount === null && providers.some((provider) => provider.type === item.provider && provider.nicknames === true)
 }
 
 /** The line under "Không tải được hộp thư": the code and request of the error when it carries them, then the time. */
@@ -414,7 +433,7 @@ export function paragraphs(text: string): string[][] {
     .map((paragraph) => paragraph.split('\n'))
 }
 
-const PLACEHOLDERS = ['a', 'd', 'b', 'c'] as const
+const PLACEHOLDERS = ['a', 'd', 'c', 'b'] as const
 
 /** Generates 1-2 letter initials for an avatar fallback (e.g. "Dev Rice" -> "DR", "Nguyễn" -> "NG"). */
 export function getInitials(name: string): string {
@@ -428,7 +447,7 @@ export function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-/** The placeholder picture of a group member follows their place in the group. */
+/** The placeholder picture of a group member follows their place in the group; anyone else gets the striped one. */
 export function memberPlaceholder(name: string, members: Member[] | null): (typeof PLACEHOLDERS)[number] {
   const index = members?.findIndex((member) => member.name === name) ?? -1
   return index >= 0 ? PLACEHOLDERS[index % PLACEHOLDERS.length] : 'c'
@@ -461,8 +480,9 @@ export function memberAvatar(name: string, members: Member[] | null, address?: s
   if (partial?.avatarUrl) return partial.avatarUrl
 
   // 5. Fallback for 2-person conversation: first other member with an avatar
-  const otherWithAvatar = members.find((m) => !m.self && m.name !== 'Bạn' && m.avatarUrl)
-  if (otherWithAvatar?.avatarUrl) return otherWithAvatar.avatarUrl
+  // Only with exactly one other person: in a group the picture of one member must never stand for another.
+  const others = members.filter((m) => !m.self && m.name !== 'Bạn')
+  if (others.length === 1 && others[0].avatarUrl) return others[0].avatarUrl
 
   return null
 }

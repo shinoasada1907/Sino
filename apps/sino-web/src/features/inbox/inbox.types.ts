@@ -90,8 +90,10 @@ export interface ConversationItem {
   accountIds: string[]
   provider: ProviderType
   kind: ConversationKind
-  /** The other person or the group. */
+  /** The other person or the group; for a 1-1 chat with a nickname it stays the provider's name (zalo-nicknames, D-416). */
   title: string
+  /** The nickname the user gave a 1-1 chat at the provider; absent when there is none. Shown by `displayName`. */
+  nickname?: string
   /** The picture of the other person, or of the group when it has one of its own (zalo-avatars, D-411); null for mail, for no picture and for an address that is not https (D-413). */
   avatarUrl: string | null
   /** Email subject; null for chats. */

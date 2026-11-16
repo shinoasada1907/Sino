@@ -17,6 +17,8 @@ function open(path: string) {
 
 const sources = () => within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
+// The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
+const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
 const thread = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện đang mở' }))
 const row = (name: RegExp) => list().getByRole('link', { name })
 // Rows only: the list also has "Thư mới" (f10-new-mail).
@@ -38,8 +40,8 @@ describe('Hộp thư on desktop', () => {
   it('lists the emails by day, each with its source, preview, flag and time', async () => {
     open('/inbox')
 
-    expect(await list().findByRole('heading', { level: 1, name: 'Hộp thư' })).toBeInTheDocument()
-    expect(list().getByText('7 chưa đọc')).toBeInTheDocument()
+    expect(await pane().findAllByRole('heading', { level: 1, name: 'Hộp thư' })).not.toHaveLength(0)
+    expect(pane().getAllByText('7 chưa đọc')).not.toHaveLength(0)
     expect(list().getByText('HÔM NAY')).toBeInTheDocument()
     expect(list().getByText('HÔM QUA')).toBeInTheDocument()
     expect(list().getByText('TUẦN NÀY')).toBeInTheDocument()
@@ -55,7 +57,7 @@ describe('Hộp thư on desktop', () => {
   it('lists the chats of Tin nhắn the same way, with their sources, counts and accounts (f05c)', async () => {
     open('/messages')
 
-    expect(await list().findByText('5 chưa đọc')).toBeInTheDocument()
+    expect(await pane().findAllByText('5 chưa đọc')).not.toHaveLength(0)
     const family = within(row(/Gia đình/))
     expect(family.getByText('Zalo · nhóm 6 người')).toHaveClass('hidden', 'xl:inline')
     expect(family.getByText('Hà: Con mua bánh bông lan trứng muối được không mẹ?')).toBeInTheDocument()
@@ -127,10 +129,10 @@ describe('Hộp thư on desktop', () => {
     await user.click(await sources().findByRole('link', { name: /Gmail/ }))
     expect(router.state.location.search).toBe('?source=gmail')
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương', 'Thu Trang', 'Điện lực Hà Nội'])
-    expect(list().getByText('7 chưa đọc')).toBeInTheDocument()
+    expect(pane().getAllByText('7 chưa đọc')).not.toHaveLength(0)
     expect(sources().getByRole('link', { name: /Gmail/ })).toHaveAttribute('aria-current', 'page')
 
-    const views = within(list().getByRole('group', { name: 'Lọc danh sách' }))
+    const views = within(pane().getByRole('group', { name: 'Lọc danh sách' }))
     await user.click(views.getByRole('button', { name: 'Chưa đọc' }))
     expect(router.state.location.search).toBe('?source=gmail&view=unread')
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương'])
@@ -197,7 +199,7 @@ describe('Hộp thư on desktop', () => {
 
     await user.click(row(/Phòng khám/))
 
-    expect(await list().findByText('6 chưa đọc')).toBeInTheDocument()
+    expect(await pane().findAllByText('6 chưa đọc')).not.toHaveLength(0)
     expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('6')
     expect(within(row(/Phòng khám/)).queryByLabelText('Chưa đọc')).toBeNull()
   })

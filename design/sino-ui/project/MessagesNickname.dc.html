@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino · Tin nhắn · đặt biệt danh</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sino.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div class="{{rootClass}}" style="position: relative;">
+<dc-import name="Sidebar" theme="{{theme}}" active="messages" hint-size="248px,100vh"></dc-import>
+<div class="app-main">
+<dc-import name="Topbar" theme="{{theme}}" hint-size="100%,72px"></dc-import>
+<div class="inbox" style="grid-template-columns: 64px 400px minmax(0, 1fr);">
+
+<nav class="pane" aria-label="Tài khoản" style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 0;">
+<a class="rail-item is-active" href="Messages.dc.html" aria-current="page" aria-label="Tất cả" title="Tất cả"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"></path><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"></path></svg></a>
+<span class="rail-sep" aria-hidden="true"></span>
+<a class="rail-item" href="#an-nguyen" aria-label="An Nguyễn, Zalo" title="An Nguyễn"><span style="font: 600 13px/16px var(--font-sans); color: var(--text);">AN</span></a>
+<a class="rail-item" href="#cua-hang" aria-label="Cửa hàng An, Zalo" title="Cửa hàng An"><span style="font: 600 13px/16px var(--font-sans); color: var(--text);">CA</span></a>
+</nav>
+
+<section class="pane" aria-label="Danh sách cuộc trò chuyện">
+<div class="list-head">
+<div class="card-head"><h1 class="t-large">Tin nhắn</h1></div>
+<div class="chips" role="group" aria-label="Loại cuộc trò chuyện">
+<button class="chip" type="button" aria-pressed="true">Mọi chat</button>
+<button class="chip" type="button" aria-pressed="false">Cá nhân</button>
+<button class="chip" type="button" aria-pressed="false">Nhóm</button>
+</div>
+</div>
+<div class="day-sep">HÔM NAY</div>
+<div class="list-flat">
+<a class="mrow" href="MessagesOpen.dc.html"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Gia đình</span></div><span class="spec ellipsis">An Nguyễn · nhóm 6 người</span><span class="mrow-preview ellipsis">Bạn: Để con mang thêm trái cây nữa nhé.</span></div><div class="mrow-meta"><span class="spec">08:24</span></div></a>
+<a class="mrow is-selected" href="#ha" aria-current="page"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">{{shownName}}</span></div><span class="spec ellipsis">An Nguyễn</span><span class="mrow-preview ellipsis">Chị ơi tối nay em qua lấy đồ nhé.</span></div><div class="mrow-meta"><span class="spec c-text">07:52</span></div></a>
+</div>
+<div class="day-sep">HÔM QUA</div>
+<div class="list-flat">
+<a class="mrow" href="#sua-nha"><span class="pmark"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><div class="mrow-top"><span class="mrow-sender">Nhóm sửa nhà</span></div><span class="spec ellipsis">Cửa hàng An · nhóm 4 người</span><span class="mrow-preview ellipsis">Kiến trúc sư: Em gửi lại bản vẽ tầng 2 đã chỉnh cầu thang.</span></div><div class="mrow-meta"><span class="spec">19:30</span></div></a>
+</div>
+</section>
+
+<section class="chat" aria-label="Cuộc trò chuyện với {{shownName}}" style="position: relative; border-right: 0;">
+<header class="thread-head">
+<div style="display: flex; align-items: center; gap: 14px; min-width: 0;">
+<span class="avatar av-c" aria-hidden="true"></span>
+<div class="who-text">
+<h2 class="t-large" style="margin: 0;"><button type="button" aria-haspopup="dialog" aria-label="{{nameLabel}}" title="Đặt biệt danh" onClick="{{openDialog}}" style="appearance: none; display: inline-flex; align-items: center; gap: 8px; margin: -2px -8px; padding: 2px 8px; border: 0; border-radius: var(--r-sm); background: transparent; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer;">{{shownName}}<svg class="ic ic-16 c-muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg></button></h2>
+<span class="t-small c-muted ellipsis">{{subline}}</span>
+</div>
+</div>
+<div class="thread-tools">
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Tìm trong cuộc trò chuyện"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Lưu trữ"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg></button>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Thông tin"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg></button>
+</div>
+</header>
+
+<div class="chat-body">
+<span class="day-sep">HÔM NAY</span>
+<div class="bubble-row"><span class="avatar av-c avatar-sm" aria-hidden="true"></span><div class="bubble-col"><div class="bubble">Chị ơi tối nay em qua lấy đồ nhé.</div><span class="bubble-meta">07:52</span></div></div>
+<div class="bubble-row out"><div class="bubble-col"><div class="bubble">Ừ, chị để ở bàn ngoài cho em.</div><span class="bubble-meta">07:55 · Đã xem</span></div></div>
+</div>
+
+<div class="composer">
+<div class="composer-box">
+<label class="sr" for="nick-chat-box">Nhắn tin tới {{shownName}}</label>
+<textarea id="nick-chat-box" rows="1" placeholder="Nhắn tin tới {{shownName}}…"></textarea>
+<div class="composer-bar">
+<span class="spec">Gửi qua Zalo · An Nguyễn</span>
+<span class="kbd" style="margin-left: auto;">Enter</span>
+<button class="btn btn-primary btn-sm" type="button">Gửi<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></button>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+
+<sc-if value="{{open}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: var(--scrim);">
+<section class="modal" role="dialog" aria-modal="true" aria-labelledby="nick-title" style="width: 440px;">
+<header class="modal-head">
+<h2 class="t-large" id="nick-title">Đặt biệt danh</h2>
+<button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Đóng" onClick="{{closeDialog}}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+</header>
+<div class="modal-body">
+<div class="field">
+<label class="field-label" for="nick-input">Biệt danh</label>
+<sc-if value="{{is.empty}}" hint-placeholder-val="{{ false }}"><input class="input is-focus" id="nick-input" type="text" maxlength="50" placeholder="Ví dụ: Em Hà" defaultValue=""></sc-if>
+<sc-if value="{{is.set}}" hint-placeholder-val="{{ false }}"><input class="input is-focus" id="nick-input" type="text" maxlength="50" placeholder="Ví dụ: Em Hà" defaultValue="Em Hà"></sc-if>
+<sc-if value="{{is.error}}" hint-placeholder-val="{{ false }}"><input class="input is-invalid is-focus" id="nick-input" type="text" maxlength="50" aria-invalid="true" aria-describedby="nick-error" defaultValue="Em gái"></sc-if>
+<sc-if value="{{is.error}}" hint-placeholder-val="{{ false }}"><span class="field-error" id="nick-error" role="alert"><svg class="ic ic-16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>Zalo không cho đặt biệt danh cho người này.</span></sc-if>
+<span class="field-help">Tên Zalo: Nguyễn Thu Hà · tối đa 50 ký tự</span>
+</div>
+<p class="t-small c-muted" style="margin: 0;">Biệt danh được đặt trong Zalo của bạn, nên cũng hiện trên điện thoại. Chỉ bạn thấy.</p>
+</div>
+<footer class="modal-foot" style="justify-content: space-between;">
+<span>
+<sc-if value="{{hasNickname}}" hint-placeholder-val="{{ false }}"><button class="btn btn-ghost" type="button" style="color: var(--danger-ink);"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Xóa biệt danh</button></sc-if>
+</span>
+<span style="display: inline-flex; gap: 8px;">
+<button class="btn btn-secondary" type="button" onClick="{{closeDialog}}">Hủy</button>
+<sc-if value="{{is.error}}" hint-placeholder-val="{{ false }}"><button class="btn btn-primary" type="button">Lưu</button></sc-if>
+<sc-if value="{{saveOff}}" hint-placeholder-val="{{ false }}"><button class="btn btn-primary" type="button" disabled="disabled">Lưu</button></sc-if>
+</span>
+</footer>
+</section>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"dialog":{"editor":"enum","options":["closed","empty","set","error"],"default":"set"},"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme === 'light' ? 'light' : 'dark';
+    const s = this.state || {};
+    const states = ['closed', 'empty', 'set', 'error'];
+    const picked = states.includes(this.props.dialog) ? this.props.dialog : 'set';
+    const open = s.open === undefined ? picked !== 'closed' : s.open;
+    const kind = picked === 'closed' ? 'set' : picked;
+    const hasNickname = picked !== 'empty';
+    const shownName = hasNickname ? 'Em Hà' : 'Nguyễn Thu Hà';
+    return {
+      theme,
+      rootClass: `sino theme-${theme} app`,
+      open,
+      is: { empty: kind === 'empty', set: kind === 'set', error: kind === 'error' },
+      hasNickname,
+      saveOff: kind !== 'error',
+      shownName,
+      subline: hasNickname ? 'Zalo · Nguyễn Thu Hà · qua An Nguyễn' : 'Zalo · qua An Nguyễn',
+      nameLabel: `${shownName}, đặt biệt danh`,
+      openDialog: () => this.setState({ open: true }),
+      closeDialog: () => this.setState({ open: false }),
+    };
+  }
+}
+</script>
+</body>
+</html>

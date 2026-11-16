@@ -59,7 +59,7 @@ export function LoginPage() {
     <div className="grid h-svh bg-background md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside aria-hidden="true" className="hidden flex-col justify-between gap-8 overflow-hidden border-r bg-surface bg-dots px-14 py-12 md:flex">
         <span className="inline-flex items-center gap-2.5 text-lg leading-6 font-bold tracking-[-0.03em] text-foreground">
-          <SinoMark className="size-5" />
+          <SinoMark className="size-5 text-brand-ink" />
           Sino
         </span>
         <div className="flex flex-col gap-7">
@@ -80,7 +80,7 @@ export function LoginPage() {
         <div className="grid grow place-items-start justify-items-center px-4 pt-10 pb-10 md:place-items-center md:px-6 md:pt-6 md:pb-14">
           <form aria-labelledby={headingId} onSubmit={submit} className="flex w-full max-w-100 flex-col gap-5.5">
             <span className="inline-flex items-center gap-2.5 text-lg leading-6 font-bold tracking-[-0.03em] text-foreground md:hidden">
-              <SinoMark className="size-5" />
+              <SinoMark className="size-5 text-brand-ink" />
               Sino
             </span>
             <div className="flex flex-col gap-2">

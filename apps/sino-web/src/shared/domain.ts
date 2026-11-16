@@ -20,4 +20,6 @@ export interface ProviderInfo {
   type: ProviderType
   displayName: string
   kind: ProviderKind
+  /** The provider lets the user give a 1-1 chat a nickname (`NICKNAMES`, zalo-nicknames, D-420); absent otherwise. */
+  nicknames?: true
 }

@@ -40,3 +40,4 @@
 ## 3. Nghiệm thu (để sau, như các màn khác)
 
 - [ ] 3.1 **WP-04 — Nghiệm thu, tài liệu, archive** (1440 / 1024 / 768 / 390 × 2 theme; nhắc người dùng điền `owner.ts` ~~giống `sino-site/site.config.ts`~~ trước khi nộp Google; người dùng duyệt các cam kết của Privacy và `GOOGLE_APP_NAME`, chuyển từ SI-03a của `site-public-pages`). **LÝ DO:** `sino-site` đã xóa 2026-10-27 (người dùng; bản cuối ở tag `sino-site-v0`).
+  - **Đã xong ở `public-pages-prerender` (PP-01, 2026-11-04):** `owner.ts` có đủ bốn giá trị do người dùng đưa, Privacy nêu Cloudflare; Google duyệt Branding ngày 2026-11-13. Phần còn lại của WP-04 (nghiệm thu các cỡ màn × 2 theme, tài liệu, archive) vẫn mở.

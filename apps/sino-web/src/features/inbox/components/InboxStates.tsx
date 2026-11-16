@@ -93,7 +93,7 @@ export function MailsSkeleton() {
 export function FirstSyncCard({ name, progress }: { name: string; progress: number }) {
   const title = `Đồng bộ lần đầu · ${name}`
   return (
-    <div role="status" aria-label={title} className="flex flex-col gap-2.5 rounded-md border bg-surface p-4">
+    <div role="status" aria-label={title} className="flex flex-col gap-2.5 rounded-lg bg-surface shadow-card p-4">
       <div className="flex items-center justify-between gap-3">
         <Status tone="warn">{title}</Status>
         <Spec>{progress}%</Spec>
@@ -224,8 +224,8 @@ export function NoSources({ screen, providers }: { screen: InboxScreen; provider
         {!none && (
           <ul className="flex flex-col gap-2.5">
             {providers.map((provider, index) => (
-              <li key={provider.type} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-md border bg-surface px-4 py-3.5">
-                <span className="grid size-10 place-items-center rounded-xl border bg-raised text-foreground">
+              <li key={provider.type} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-lg bg-surface shadow-card px-4 py-3.5">
+                <span className="grid size-10 place-items-center rounded-md bg-raised text-foreground">
                   <ProviderIcon provider={provider.type} className="size-5" />
                 </span>
                 <span className="flex min-w-0 flex-col gap-0.5">

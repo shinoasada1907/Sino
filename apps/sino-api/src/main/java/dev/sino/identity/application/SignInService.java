@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
-import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -12,7 +11,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import dev.sino.common.error.SinoException;
-import dev.sino.identity.infrastructure.AppUserRepository;
 
 /**
  * Checks who signs in and who is signed in. The web layer turns a successful sign-in into a session and cookies.
@@ -22,12 +20,10 @@ public class SignInService {
 
     private final AuthenticationManager authenticationManager;
     private final LoginAttempts attempts;
-    private final AppUserRepository users;
 
-    SignInService(AuthenticationManager authenticationManager, LoginAttempts attempts, AppUserRepository users) {
+    SignInService(AuthenticationManager authenticationManager, LoginAttempts attempts) {
         this.authenticationManager = authenticationManager;
         this.attempts = attempts;
-        this.users = users;
     }
 
     /**
@@ -59,22 +55,11 @@ public class SignInService {
         }
     }
 
-    /** The signed-in user by the name of its authentication (the owner's email). */
-    public OwnerProfile profileOf(String email) {
-        return users.findByEmail(email)
-                .map(user -> new OwnerProfile(user.email(), user.displayName()))
-                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException("No such user"));
-    }
-
     // Whole seconds, rounded up, so the client never retries a moment too early.
     private static SinoException lockedFor(Duration remaining) {
         long seconds = remaining.toSeconds() + (remaining.toNanosPart() > 0 ? 1 : 0);
         return new SinoException(IdentityErrorCode.LOGIN_LOCKED, "Too many failed sign-ins. Try again later.",
                 Map.of("retryAfterSeconds", seconds));
-    }
-
-    /** What the web app may know about the signed-in user. */
-    public record OwnerProfile(String email, String displayName) {
     }
 
 }

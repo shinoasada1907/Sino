@@ -15,9 +15,10 @@ import { ConversationInfo } from './components/ConversationInfo'
 import { ConversationList } from './components/ConversationList'
 import { EmailThread } from './components/EmailThread'
 import { NewMail } from './components/NewMail'
-import { FirstSyncCard, ListSkeleton, LoadFailed, OfflineBanner, RealtimeBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
+import { NicknameDialog } from './components/NicknameDialog'
+import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, SourcesSkeleton, ThreadSkeleton } from './components/InboxStates'
 import { SourcePane } from './components/SourcePane'
-import { failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
+import { canSetNickname, displayName, failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
 import { useNewMailNotice } from './useNewMailNotice'
@@ -31,7 +32,6 @@ import { SCREENS, screenFrame } from './screen'
  * Right column: Rich email reading pane and quick reply card.
  */
 export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compose?: boolean }) {
-  const isEmail = kind === 'EMAIL'
   const screen = SCREENS[kind]
   const { conversationId } = useParams()
   const { inbox: whole, receivedAt, error: frameError, failedAt: frameFailedAt, retry: retryFrame } = useInbox(kind)
@@ -47,13 +47,13 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const notice = useNewMailNotice(inbox?.accounts.map((account) => account.id) ?? [])
 
   const conversations = list.conversations
-  // Default to selecting the first conversation on desktop if none selected
-  const activeConversationId = conversationId ?? ((isEmail || kind === 'CHAT') && conversations && conversations.length > 0 ? conversations[0].id : undefined)
   const [showInfo, setShowInfo] = useState(true)
+  // The conversation whose "Đặt biệt danh" box is open; opening another conversation closes it.
+  const [nicknameFor, setNicknameFor] = useState<string | null>(null)
 
   const opened = useConversation(
-    activeConversationId,
-    list.loaded.find((conversation) => conversation.id === activeConversationId),
+    conversationId,
+    list.loaded.find((conversation) => conversation.id === conversationId),
   )
   const { item: found, detail, notFound } = opened
   const { mutate: update } = useUpdateConversation()
@@ -90,17 +90,22 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
     }
   }, [elsewhere, navigate])
 
-  // Scope email to the first available account if no account is selected
-  useEffect(() => {
-    if (isEmail && !filter.account && validAccounts && validAccounts.length > 0) {
-      navigate({ pathname: screen.path, search: searchFor({ account: validAccounts[0] }) }, { replace: true })
-    }
-  }, [isEmail, filter.account, validAccounts, screen.path, searchFor, navigate])
-
   const nameOf = providerNameOf(inbox?.providers ?? [])
-  const selected = activeConversationId !== undefined
+  const selected = conversationId !== undefined || compose
   const error = frameError ?? list.error
   const failedAt = frameFailedAt ?? list.failedAt
+
+  // No sources yet on this screen: a placeholder takes its place
+  if (inbox && inbox.accounts.length === 0) {
+    return (
+      <div className="flex h-full min-h-0 flex-col bg-background">
+        {!online && <OfflineBanner savedAt={receivedAt} />}
+        {online && realtimeDown && <RealtimeBanner state={realtimeDown} />}
+        <NoSources screen={screen} providers={inbox.providers} />
+      </div>
+    )
+  }
+
   const loading = (!inbox || !conversations) && !error
   const retry = () => {
     if (frameError) {
@@ -125,10 +130,14 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const threadAccounts = item && inbox ? item.accountIds.flatMap((id) => inbox.accounts.filter((entry) => entry.id === id)) : []
   const chat = item?.kind === 'CHAT' && account !== undefined
   const back = { to: `${screen.path}${search}`, label: `Quay lại ${screen.title}` }
+  // The name is a button only in a 1-1 chat of a provider with nicknames (zalo-nicknames, D-420).
+  const nicknamable = item !== undefined && inbox !== undefined && canSetNickname(item, inbox.providers)
+  const editName = item && nicknamable ? () => setNicknameFor(item.id) : undefined
   const mobileHeader = item && (
     <MobilePageHeader
       back={back}
-      title={item.title}
+      title={displayName(item)}
+      onTitle={editName && { label: `${displayName(item)}, đặt biệt danh`, open: editName }}
       subtitle={mobileThreadSubtitle(item, nameOf)}
       media={item.kind === 'CHAT' ? <ConversationAvatars item={item} members={detail?.members ?? null} /> : undefined}
       action={
@@ -174,21 +183,15 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       {online && realtimeDown && <RealtimeBanner state={realtimeDown} />}
       <div
         className={cn(
-          'grid min-h-0 flex-1 md:grid-cols-[340px_minmax(0,1fr)]',
-          isEmail
-            ? 'xl:grid-cols-[430px_minmax(0,1fr)]'
-            : chat
-              ? showInfo
-                ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]'
-                : 'xl:grid-cols-[340px_minmax(0,1fr)]'
-              : 'xl:grid-cols-[232px_400px_minmax(0,1fr)]',
+          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:pl-0 md:*:overflow-hidden md:*:rounded-panel md:*:bg-surface md:*:shadow-card',
+          chat ? (showInfo ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]') : 'xl:grid-cols-[200px_380px_minmax(0,1fr)]',
         )}
       >
-        {!isEmail && (inbox ? (
+        {inbox ? (
           <SourcePane inbox={inbox} filter={filter} searchFor={searchFor} nameOf={nameOf} className={chat ? 'hidden' : 'hidden xl:block'} />
         ) : (
           <SourcesSkeleton loading={loading} className="hidden xl:block" />
-        ))}
+        )}
         <ConversationList
           screen={screen}
           conversations={conversations ?? []}
@@ -197,7 +200,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
           sources={inbox ? sourceCounts(inbox, nameOf) : []}
           filter={filter}
           onFilter={(change) => navigate({ search: searchFor(change) })}
-          selectedId={activeConversationId ?? null}
+          selectedId={conversationId ?? null}
           search={search}
           now={now}
           nameOf={nameOf}
@@ -222,8 +225,12 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
                 nameOf={nameOf}
                 showInfo={showInfo}
                 onToggleInfo={() => setShowInfo((prev) => !prev)}
+                onEditName={editName}
               />
             </div>
+            {nicknamable && (
+              <NicknameDialog item={item} open={nicknameFor === item.id} onOpenChange={(open) => setNicknameFor(open ? item.id : null)} />
+            )}
             {showInfo && (
               <ConversationInfo
                 key={`info-${item.id}`}

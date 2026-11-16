@@ -176,7 +176,7 @@ export function WeekView({
                     role="img"
                     aria-label={`Bây giờ ${formatClock(now)}`}
                     style={{ top: minuteTop(now.toISOString(), day.date) }}
-                    className="pointer-events-none absolute right-0 -left-px z-2 border-t-2 border-foreground before:absolute before:-top-1.5 before:-left-1.25 before:size-2.5 before:rounded-full before:bg-foreground before:content-['']"
+                    className="pointer-events-none absolute right-0 -left-px z-2 border-t-2 border-primary before:absolute before:-top-1.5 before:-left-1.25 before:size-2.5 before:rounded-full before:bg-primary before:content-['']"
                   />
                 )}
               </div>
@@ -209,7 +209,7 @@ function EventBlock({
       data-past={past ? 'true' : undefined}
       style={style}
       // The lines keep their height: a one-hour block shows its title first and cuts what does not fit at the bottom.
-      className="absolute flex flex-col gap-0.5 overflow-hidden rounded-[8px] border *:shrink-0 border-l-[3px] border-border-strong border-l-foreground bg-raised px-2 py-1.25 text-xs leading-4 font-semibold text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid data-past:opacity-55 aria-[current=page]:border-foreground aria-[current=page]:bg-hover aria-[current=page]:shadow-[0_0_0_1px_var(--text)]"
+      className="absolute flex flex-col gap-0.5 overflow-hidden rounded-[8px] border *:shrink-0 border-l-[3px] border-border-strong border-l-primary bg-brand-soft px-2 py-1.25 text-xs leading-4 font-semibold text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid data-past:opacity-55 aria-[current=page]:border-foreground aria-[current=page]:bg-hover aria-[current=page]:shadow-[0_0_0_1px_var(--text)]"
     >
       <span className="truncate">{event.title}</span>
       <span className="inline-flex items-center gap-1 font-mono text-[10px] leading-3.5 font-medium text-muted-foreground">

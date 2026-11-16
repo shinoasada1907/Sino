@@ -23,11 +23,15 @@ import org.springframework.test.jdbc.JdbcTestUtils;
 import dev.sino.TestcontainersConfiguration;
 import dev.sino.identity.infrastructure.AppUser;
 import dev.sino.identity.infrastructure.AppUserRepository;
+import dev.sino.settings.domain.Corners;
 import dev.sino.settings.domain.DateFormat;
 import dev.sino.settings.domain.Motion;
 import dev.sino.settings.domain.Notifications;
+import dev.sino.settings.domain.Palette;
 import dev.sino.settings.domain.Settings;
+import dev.sino.settings.domain.LightBackground;
 import dev.sino.settings.domain.Theme;
+import dev.sino.settings.domain.TextTone;
 import dev.sino.settings.domain.UserSettings;
 import dev.sino.settings.domain.WeekStart;
 import dev.sino.settings.infrastructure.UserSettingsRepository;
@@ -49,7 +53,8 @@ class SettingsServiceTests {
 
     private static final Settings CHANGED = new Settings(Theme.LIGHT, DateFormat.ISO, Motion.OFF,
             new Notifications(true, true, false, false, true, false), null, ZoneId.of("Europe/Paris"),
-            LocalTime.of(12, 0), null, WeekStart.SUNDAY);
+            LocalTime.of(12, 0), null, WeekStart.SUNDAY, Palette.LAVENDER, "#112233", Corners.COMPACT, false,
+            TextTone.NEUTRAL, LightBackground.WHITE);
 
     @Autowired
     private SettingsService service;

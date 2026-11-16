@@ -1,8 +1,8 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createShellSample } from '@/app/shell/shell.sample'
 import { renderApp } from '@/test/renderApp'
+import { createAccountsSample } from '@/features/accounts/accounts.sample'
 import { createOverviewSample } from './overview.sample'
 import type { OverviewData } from './overview.types'
 
@@ -12,7 +12,8 @@ const NOW = new Date('2026-10-02T07:05:00Z')
 function openOverview(change?: (overview: OverviewData) => void) {
   const overview = createOverviewSample(NOW)
   change?.(overview)
-  return renderApp('/overview', { shell: createShellSample(NOW), overview })
+  // The shell data comes from the signed-in owner (useShellData); the greeting uses the last word of the name.
+  return renderApp('/overview', { overview, me: { email: 'an.nguyen@gmail.com', displayName: 'Nguyễn Văn An', avatarUrl: null } })
 }
 
 const card = (name: string) => within(screen.getByRole('region', { name }))
@@ -183,5 +184,25 @@ describe('Tổng quan', () => {
     await user.click(card('Lối tắt').getByRole('button', { name: /Tạo task/ }))
 
     expect(router.state.location.pathname).toBe('/overview')
+  })
+
+  it('shows the address of an account under its name, not the id the provider gave it', async () => {
+    const accounts = createAccountsSample(NOW)
+    accounts.accounts = [{ ...accounts.accounts[0], provider: 'gmail', externalAccountId: '18480547064123456789', displayName: 'Tiến Nguyễn', address: 'bonzed2001@gmail.com' }]
+    renderApp('/overview', { overview: createOverviewSample(NOW), accounts, me: { email: 'an.nguyen@gmail.com', displayName: 'Nguyễn Văn An', avatarUrl: null } })
+
+    const accountCard = card('Tài khoản')
+    expect(await accountCard.findByText('bonzed2001@gmail.com')).toBeInTheDocument()
+    expect(accountCard.queryByText('18480547064123456789')).not.toBeInTheDocument()
+  })
+
+  it('falls back to the display name when an account has no address, never to the provider id', async () => {
+    const accounts = createAccountsSample(NOW)
+    accounts.accounts = [{ ...accounts.accounts[0], provider: 'zalo', externalAccountId: '5551234567890123', displayName: 'Tiến Nguyễn', address: '' }]
+    renderApp('/overview', { overview: createOverviewSample(NOW), accounts, me: { email: 'an.nguyen@gmail.com', displayName: 'Nguyễn Văn An', avatarUrl: null } })
+
+    const accountCard = card('Tài khoản')
+    expect((await accountCard.findAllByText('Tiến Nguyễn')).length).toBeGreaterThan(0)
+    expect(accountCard.queryByText('5551234567890123')).not.toBeInTheDocument()
   })
 })

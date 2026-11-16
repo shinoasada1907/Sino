@@ -20,18 +20,27 @@
 <button class="btn btn-ghost btn-icon" type="button" aria-label="Tìm kiếm" style="margin-left: auto;"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
 <button class="btn btn-ghost btn-icon" type="button" aria-label="Bộ lọc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M7 12h10"></path><path d="M10 18h4"></path></svg></button>
 </header>
-<div class="chip-row" role="group" aria-label="Nguồn">
-<sc-for list="{{chips}}" as="c" hint-placeholder-count="3"><button class="chip" type="button" aria-pressed="{{c.pressed}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+<div class="chip-row" role="group" aria-label="Tài khoản">
+<sc-for list="{{chips}}" as="c" hint-placeholder-count="4"><button class="chip" type="button" aria-pressed="{{c.pressed}}" onClick="{{c.pick}}">{{c.label}}</button></sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; padding: 0 16px 10px;">
+<div class="seg" role="group" aria-label="Lọc danh sách">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3"><button type="button" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}" style="padding: 0 8px;">{{t.label}}<span class="spec">{{t.count}}</span></button></sc-for>
+</div>
+<button class="btn btn-ghost btn-sm" type="button" aria-haspopup="menu" aria-expanded="false">Thêm<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+<div class="chip-row" role="group" aria-label="Loại cuộc trò chuyện">
+<sc-for list="{{kinds}}" as="k" hint-placeholder-count="3"><button class="chip" type="button" aria-pressed="{{k.pressed}}" onClick="{{k.pick}}">{{k.label}}</button></sc-for>
 </div>
 </div>
 <main style="min-height: 0; overflow: auto; border-top: 1px solid var(--border);">
 <div class="day-sep" style="padding-left: 16px;">HÔM NAY</div>
-<a class="mob-row is-unread" href="MobileConversation.dc.html"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Gia đình</span><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="mrow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div></a>
-<div class="mob-row is-unread"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Hà</span><span class="mrow-preview ellipsis">Chị ơi tối nay em qua lấy đồ nhé.</span></div><div class="mrow-meta"><span class="spec c-text">07:52</span><span class="badge badge-solid">1</span></div></div>
+<a class="mob-row is-unread" href="MobileConversation.dc.html"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Gia đình</span><span class="spec ellipsis">An Nguyễn · nhóm 6 người</span><span class="mrow-preview ellipsis">Hà: Con mua bánh bông lan trứng muối được không mẹ?</span></div><div class="mrow-meta"><span class="spec c-text">08:20</span><span class="badge badge-solid">3</span></div></a>
+<div class="mob-row is-unread"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Hà</span><span class="spec ellipsis">An Nguyễn</span><span class="mrow-preview ellipsis">Chị ơi tối nay em qua lấy đồ nhé.</span></div><div class="mrow-meta"><span class="spec c-text">07:52</span><span class="badge badge-solid">1</span></div></div>
 <div class="day-sep" style="padding-left: 16px;">HÔM QUA</div>
-<div class="mob-row"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Lê Hoàng</span><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối cho bạn.</span></div><div class="mrow-meta"><span class="spec">21:02</span></div></div>
-<div class="mob-row is-unread"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Nhóm sửa nhà</span><span class="mrow-preview ellipsis">Kiến trúc sư: Em gửi lại bản vẽ tầng 2 đã chỉnh cầu thang.</span></div><div class="mrow-meta"><span class="spec c-text">19:30</span><span class="badge badge-solid">2</span></div></div>
-<div class="mob-row"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Nhóm chạy bộ Hồ Tây</span><span class="mrow-preview ellipsis">Tuấn: Sáng Chủ nhật 6 giờ, điểm hẹn cũ nhé.</span></div><div class="mrow-meta"><span class="spec">18:47</span></div></div>
+<div class="mob-row"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path><path d="m8 13 3-3 2.5 2L16 9.5"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Lê Hoàng</span><span class="spec ellipsis">an.nguyen.92</span><span class="mrow-preview ellipsis">Ok, mai mình gửi file thiết kế bản cuối cho bạn.</span></div><div class="mrow-meta"><span class="spec">21:02</span></div></div>
+<div class="mob-row is-unread"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Nhóm sửa nhà</span><span class="spec ellipsis">Cửa hàng An · nhóm 4 người</span><span class="mrow-preview ellipsis">Kiến trúc sư: Em gửi lại bản vẽ tầng 2 đã chỉnh cầu thang.</span></div><div class="mrow-meta"><span class="spec c-text">19:30</span><span class="badge badge-solid">2</span></div></div>
+<div class="mob-row"><span class="pmark pmark-lg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><div class="mrow-main"><span class="mrow-sender">Nhóm chạy bộ Hồ Tây</span><span class="spec ellipsis">An Nguyễn · nhóm 12 người</span><span class="mrow-preview ellipsis">Tuấn: Sáng Chủ nhật 6 giờ, điểm hẹn cũ nhé.</span></div><div class="mrow-meta"><span class="spec">18:47</span></div></div>
 </main>
 <dc-import name="TabBar" theme="{{theme}}" active="messages" hint-size="390px,80px"></dc-import>
 </div>
@@ -40,13 +49,27 @@
 class Component extends DCLogic {
   renderVals() {
     const theme = this.props.theme === 'light' ? 'light' : 'dark';
-    const pick = (this.state && this.state.source) || 'all';
+    const st = this.state || {};
+    const pick = st.account || 'all';
     const chips = [
       { id: 'all', label: 'Tất cả · 5' },
-      { id: 'zalo', label: 'Zalo · 4' },
-      { id: 'messenger', label: 'Messenger' },
-    ].map((c) => ({ ...c, pressed: c.id === pick, pick: () => this.setState({ source: c.id }) }));
-    return { theme, rootClass: `sino theme-${theme} mob`, chips };
+      { id: 'an', label: 'An Nguyễn · 3' },
+      { id: 'shop', label: 'Cửa hàng An · 2' },
+      { id: 'msg', label: 'an.nguyen.92' },
+    ].map((c) => ({ ...c, pressed: c.id === pick, pick: () => this.setState({ account: c.id }) }));
+    const view = st.view || 'all';
+    const tabs = [
+      { id: 'all', label: 'Tất cả', count: '' },
+      { id: 'unread', label: 'Chưa đọc', count: '5' },
+      { id: 'reply', label: 'Cần trả lời', count: '1' },
+    ].map((t) => ({ ...t, pressed: t.id === view, pick: () => this.setState({ view: t.id }) }));
+    const kind = st.kind || 'all';
+    const kinds = [
+      { id: 'all', label: 'Mọi chat' },
+      { id: 'direct', label: 'Cá nhân' },
+      { id: 'group', label: 'Nhóm' },
+    ].map((k) => ({ ...k, pressed: k.id === kind, pick: () => this.setState({ kind: k.id }) }));
+    return { theme, rootClass: `sino theme-${theme} mob`, chips, tabs, kinds };
   }
 }
 </script>

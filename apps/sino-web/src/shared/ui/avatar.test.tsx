@@ -31,7 +31,7 @@ describe('Avatar (zalo-avatars, D-412)', () => {
     expect(image).toHaveClass('absolute', 'inset-0', 'size-full', 'rounded-full', 'object-cover')
     // The circle keeps its size and its placeholder: it shows while the picture loads and when it fails.
     expect(circle(container)).toHaveClass('size-7', 'rounded-full')
-    expect(circle(container).className).toContain('conic-gradient')
+    expect(circle(container).className).toContain('bg-[#FBD5BE]')
   })
 
   it('is decoration, loads without a referrer, lazily and off the main thread (D-408)', () => {
@@ -51,7 +51,7 @@ describe('Avatar (zalo-avatars, D-412)', () => {
 
     expect(picture(container)).toBeNull()
     expect(circle(container)).toBeInTheDocument()
-    expect(circle(container).className).toContain('linear-gradient(160deg')
+    expect(circle(container).className).toContain('bg-[#FBE3A8]')
   })
 
   it('tries a new address after one failed, and does not try the failed one again', () => {

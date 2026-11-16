@@ -4,6 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { stubViewport } from '@/test/matchMedia'
 import { renderApp } from '@/test/renderApp'
+// The real request answers an empty calendar until F17 (D-42); these tests read the canvas sample.
+vi.mock('./calendar.api', async (importOriginal) => {
+  const api = await importOriginal<typeof import('./calendar.api')>()
+  const { createCalendarSample } = await import('./calendar.sample')
+  return { ...api, fetchCalendar: async (range: Parameters<typeof api.fetchCalendar>[0]) => createCalendarSample(new Date(), range) }
+})
+
 
 // Friday 2 October 2026, 14:05 in Vietnam: the moment the canvas shows.
 const NOW = new Date('2026-10-02T07:05:00Z')

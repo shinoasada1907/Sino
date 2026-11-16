@@ -160,3 +160,26 @@ describe('the theme saved on the server (D-405)', () => {
     expect(html).toHaveClass('theme-dark')
   })
 })
+
+describe('the own accent colour on the saved settings (fe-ui-sunset, D-489)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    html.className = ''
+    html.removeAttribute('style')
+  })
+
+  it('sends nothing while it is typed, and one PATCH when "Áp dụng" is pressed', async () => {
+    resetSettingsBackend({ ...DEFAULT_SETTINGS })
+    await open()
+    const user = userEvent.setup()
+
+    await user.type(screen.getByRole('textbox', { name: 'Màu nhấn riêng' }), '#6A4FD0')
+    expect(html.style.getPropertyValue('--accent')).toBe('')
+    expect(settingsBackend.patches().filter((p) => 'accentColor' in p)).toEqual([])
+
+    await user.click(screen.getByRole('button', { name: 'Áp dụng' }))
+    await waitFor(() => expect(settingsBackend.saved().accentColor).toBe('#6A4FD0'))
+    expect(settingsBackend.patches().filter((p) => 'accentColor' in p)).toHaveLength(1)
+    expect(html.style.getPropertyValue('--accent')).not.toBe('')
+  })
+})

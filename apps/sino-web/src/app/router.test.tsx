@@ -7,7 +7,8 @@ describe('routes', () => {
   it('sends / to /overview', async () => {
     const { router } = renderApp('/')
 
-    expect(await within(shellPart('sidebar')).findByRole('link', { name: /Tổng quan/ })).toHaveAttribute('aria-current', 'page')
+    // Tổng quan, Dịch vụ and the other screens of the canvas are on the rail; the sidebar of messages-by-account lists the mail, the chats and the plan.
+    expect(await within(shellPart('rail')).findByRole('link', { name: /Tổng quan/ })).toHaveAttribute('aria-current', 'page')
     expect(router.state.location.pathname).toBe('/overview')
   })
 
@@ -15,14 +16,14 @@ describe('routes', () => {
     renderApp('/services')
 
     expect(await screen.findByRole('heading', { name: 'Màn Dịch vụ đang được dựng' })).toBeInTheDocument()
-    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Dịch vụ' })).toHaveAttribute('aria-current', 'page')
+    expect(within(shellPart('rail')).getByRole('link', { name: 'Dịch vụ' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Về Tổng quan' })).toHaveAttribute('href', '/overview')
   })
 
   it('opens the screen of a navigation item when it is clicked', async () => {
     const { router } = renderApp('/overview')
 
-    await userEvent.click(await within(shellPart('sidebar')).findByRole('link', { name: 'Dịch vụ' }))
+    await userEvent.click(await within(shellPart('rail')).findByRole('link', { name: 'Dịch vụ' }))
 
     // A screen not built yet (Ghi chú has its own since fe-ui-notes).
     expect(router.state.location.pathname).toBe('/services')

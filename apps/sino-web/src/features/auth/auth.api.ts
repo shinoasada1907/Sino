@@ -5,6 +5,8 @@ import { ApiError } from '@/shared/api/problem'
 export interface Me {
   email: string
   displayName: string
+  /** `/api/profile/avatar?v=<hash>`, or null when the owner has no picture (profile-info). */
+  avatarUrl: string | null
 }
 
 export interface Credentials {

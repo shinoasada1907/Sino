@@ -14,7 +14,6 @@ import { server } from '@/test/msw/server'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
 import type { ShellData } from './shell.types'
-import { SHELL_QUERY_KEY } from './useShellData'
 
 // The counts of Tin nhắn and Hộp thư come from the inbox counts (D-93, f05c), not from the shell data.
 function inboxWithUnread(email: number, chat: number) {
@@ -43,60 +42,69 @@ async function atCanvasMoment(test: () => Promise<void>) {
   }
 }
 
+// The sidebar is the one of messages-by-account: the mail and the chats by account, then the plan; Tổng quan, Tài khoản, Dịch vụ and
+// Đăng ký are on the rail and the tab bar only.
 describe('sidebar (desktop)', () => {
-  it('links every main screen', async () => {
+  it('links the screens of the sidebar, the mail and the chats by account', async () => {
     renderApp('/overview')
     const sidebar = within(shellPart('sidebar'))
     await sidebar.findByText('An Nguyễn')
 
     const expected: [string | RegExp, string][] = [
-      [/^Tổng quan/, '/overview'],
-      [/^Tin nhắn/, '/messages'],
-      [/^Hộp thư/, '/inbox'],
+      [/^Hộp thư/, '/inbox?account=acc-gmail'],
+      ['Đã gửi', '/inbox?folder=sent'],
+      ['Thư rác', '/inbox?folder=trash'],
+      ['Đã lưu trữ', '/inbox?folder=archive'],
+      [/^Zalo, /, '/messages'],
+      [/^Messenger/, '/messages?channel=messenger'],
       ['Lịch', '/calendar'],
       [/^Việc cần làm/, '/tasks'],
       ['Ghi chú', '/notes'],
-      [/^Tài khoản/, '/accounts'],
-      ['Dịch vụ', '/services'],
-      [/^Đăng ký/, '/registrations'],
       ['Cài đặt', '/settings'],
+      ['Hồ sơ cá nhân', '/profile'],
     ]
     for (const [name, href] of expected) {
       expect(sidebar.getByRole('link', { name })).toHaveAttribute('href', href)
     }
+    expect(sidebar.getByText('THƯ ĐIỆN TỬ (GMAIL)')).toBeInTheDocument()
+    expect(sidebar.getByText('TIN NHẮN')).toBeInTheDocument()
     expect(sidebar.getByText('KẾ HOẠCH')).toBeInTheDocument()
-    expect(sidebar.getByText('DANH TÍNH')).toBeInTheDocument()
-    // Tin nhắn comes before Hộp thư, right after Tổng quan (f05c, D-300).
-    expect(sidebar.getAllByRole('link').slice(0, 3).map((link) => link.getAttribute('href'))).toEqual(['/overview', '/messages', '/inbox'])
+  })
+
+  it('lists the accounts under their source, and a way to add one', async () => {
+    renderApp('/overview')
+    const sidebar = within(shellPart('sidebar'))
+    await sidebar.findByText('An Nguyễn')
+
+    expect(sidebar.getByRole('link', { name: /^an\.nguyen@gmail\.com/ })).toHaveAttribute('href', '/inbox?account=acc-gmail')
+    expect(sidebar.getByRole('link', { name: /^Zalo — An Nguyễn/ })).toHaveAttribute('href', '/messages?account=acc-zalo')
+    expect(sidebar.getByRole('link', { name: 'Thêm tài khoản email' })).toHaveAttribute('href', '/accounts?add=gmail')
+    expect(sidebar.getByRole('link', { name: 'Thêm tài khoản Zalo' })).toHaveAttribute('href', '/accounts?add=zalo')
+    expect(sidebar.getByRole('link', { name: 'Thêm tài khoản Messenger' })).toHaveAttribute('href', '/accounts?add=messenger')
   })
 
   it('marks only the open screen as current', async () => {
-    renderApp('/overview')
+    renderApp('/calendar')
     const sidebar = within(shellPart('sidebar'))
 
-    expect(await sidebar.findByRole('link', { name: /^Tổng quan/ })).toHaveAttribute('aria-current', 'page')
-    expect(sidebar.getByRole('link', { name: /^Hộp thư/ })).not.toHaveAttribute('aria-current')
+    expect(await sidebar.findByRole('link', { name: 'Lịch' })).toHaveAttribute('aria-current', 'page')
+    expect(sidebar.getByRole('link', { name: 'Ghi chú' })).not.toHaveAttribute('aria-current')
+    expect(sidebar.getByRole('link', { name: 'Cài đặt' })).not.toHaveAttribute('aria-current')
   })
 
-  it('takes the owner from the shell data, the inbox count from the inbox (D-93), the task count from the tasks (D-83) and the account count from the accounts (D-326)', () =>
+  it('takes the owner from the signed-in user, the mail and chat counts from the inbox (D-93), the task count from the tasks (D-83) and the account count from the accounts (D-326)', () =>
     atCanvasMoment(async () => {
       const tasks = createTasksSample(new Date())
       renderApp('/overview', {
         inbox: inboxWithUnread(5, 3),
         accounts: accountsWithStatus('CONNECTED', 'CONNECTED'),
         tasks: { ...tasks, tasks: tasks.tasks.filter((task) => task.id !== 'task-bill') },
-        shell: shellWith((s) => {
-          s.navCounts.inboxUnread = 99
-          s.navCounts.messagesUnread = 99
-          s.navCounts.tasksDue = 7
-          s.owner.displayName = 'Bình Trần'
-          s.accountCount = 9
-        }),
+        me: { email: 'binh.tran@gmail.com', displayName: 'Bình Trần', avatarUrl: null },
       })
       const sidebar = within(shellPart('sidebar'))
 
       expect(await sidebar.findByRole('link', { name: 'Hộp thư, 5 chưa đọc' })).toBeInTheDocument()
-      expect(sidebar.getByRole('link', { name: 'Tin nhắn, 3 chưa đọc' })).toBeInTheDocument()
+      expect(sidebar.getByRole('link', { name: 'Zalo, 3 chưa đọc' })).toBeInTheDocument()
       // The sample has three due tasks, one of them the late bill.
       expect(sidebar.getByRole('link', { name: 'Việc cần làm, 2 tới hạn' })).toBeInTheDocument()
       expect(sidebar.getByText('Bình Trần')).toBeInTheDocument()
@@ -104,20 +112,20 @@ describe('sidebar (desktop)', () => {
     }))
 
   it('shows no count when it is zero', async () => {
-    renderApp('/overview', { inbox: inboxWithUnread(0, 0), shell: shellWith((s) => (s.navCounts.inboxUnread = 0)) })
+    renderApp('/overview', { inbox: inboxWithUnread(0, 0) })
     const sidebar = within(shellPart('sidebar'))
 
     expect(await sidebar.findByRole('link', { name: 'Hộp thư' })).toBeInTheDocument()
-    expect(sidebar.getByRole('link', { name: 'Tin nhắn' })).toBeInTheDocument()
+    expect(sidebar.getByRole('link', { name: 'Zalo' })).toBeInTheDocument()
   })
 
-  it('gives Hộp thư every unread and Tin nhắn no number when the backend does not count by kind (spec web-app-shell)', async () => {
+  it('gives Hộp thư every unread and Zalo no number when the backend does not count by kind (spec web-app-shell)', async () => {
     const inbox = createInboxSample(new Date())
     renderApp('/overview', { inbox: { ...inbox, counts: { ...inbox.counts, unread: 12, unreadByKind: null } } })
     const sidebar = within(shellPart('sidebar'))
 
     expect(await sidebar.findByRole('link', { name: 'Hộp thư, 12 chưa đọc' })).toBeInTheDocument()
-    expect(sidebar.getByRole('link', { name: 'Tin nhắn' })).toBeInTheDocument()
+    expect(sidebar.getByRole('link', { name: 'Zalo' })).toBeInTheDocument()
   })
 })
 
@@ -240,23 +248,17 @@ describe('the Sticker screen inside Cài đặt (SE-04, D-397)', () => {
 })
 
 describe('top bar', () => {
-  it('shows when the last sync was', async () => {
-    renderApp('/overview')
+  // The sync line is now the latest sync of the accounts (useShellData); the first-sync progress has no source here.
+  const syncedAt = (when: string | null) => {
+    const accounts = accountsWithStatus('CONNECTED', 'CONNECTED')
+    return { ...accounts, accounts: accounts.accounts.map((account, index) => ({ ...account, lastSyncedAt: index === 0 ? when : null })) }
+  }
 
-    expect(await within(shellPart('topbar')).findAllByText('Đồng bộ 2 phút trước')).not.toHaveLength(0)
-  })
-
-  it('measures the time since the last sync when it renders, not when the shell first appeared', async () => {
+  it('shows when the last sync was, the latest of any account', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
       vi.setSystemTime(new Date('2026-10-02T07:00:00Z'))
-      const { queryClient } = renderApp('/overview', {
-        shell: shellWith((s) => (s.sync = { state: 'SYNCING', lastSyncedAt: null, progress: 10 })),
-      })
-      await within(shellPart('topbar')).findAllByText('Đang đồng bộ lần đầu · 10%')
-
-      vi.setSystemTime(new Date('2026-10-02T07:00:50Z'))
-      act(() => queryClient.setQueryData(SHELL_QUERY_KEY, shellWith((s) => (s.sync = { state: 'OK', lastSyncedAt: '2026-10-02T06:58:50Z', progress: null }))))
+      renderApp('/overview', { accounts: syncedAt('2026-10-02T06:58:00Z') })
 
       expect(await within(shellPart('topbar')).findAllByText('Đồng bộ 2 phút trước')).not.toHaveLength(0)
     } finally {
@@ -264,34 +266,40 @@ describe('top bar', () => {
     }
   })
 
-  it('shows the progress of a first sync', async () => {
-    renderApp('/overview', { shell: shellWith((s) => (s.sync = { state: 'SYNCING', lastSyncedAt: null, progress: 35 })) })
+  it('measures the time since the last sync when it renders, not when the shell first appeared', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-10-02T07:00:00Z'))
+      const { queryClient } = renderApp('/overview', { accounts: syncedAt(null) })
+      await within(shellPart('topbar')).findAllByText('Chưa đồng bộ lần nào')
 
-    expect(await within(shellPart('topbar')).findAllByText('Đang đồng bộ lần đầu · 35%')).not.toHaveLength(0)
+      vi.setSystemTime(new Date('2026-10-02T07:00:50Z'))
+      act(() => queryClient.setQueryData(ACCOUNTS_QUERY_KEY, syncedAt('2026-10-02T06:58:50Z')))
+
+      expect(await within(shellPart('topbar')).findAllByText('Đồng bộ 2 phút trước')).not.toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('says when no source is connected yet', async () => {
-    renderApp('/overview', { shell: shellWith((s) => (s.sync = { state: 'IDLE', lastSyncedAt: null, progress: null })) })
+    renderApp('/overview', { accounts: accountsWithStatus() })
 
     expect(await within(shellPart('topbar')).findAllByText('Chưa có nguồn nào')).not.toHaveLength(0)
   })
 
-  it('says no source is connected once every account is gone, even after earlier syncs', async () => {
-    renderApp('/overview', {
-      shell: shellWith((s) => (s.sync = { state: 'IDLE', lastSyncedAt: new Date(Date.now() - 3_600_000).toISOString(), progress: null })),
-    })
+  it('says that nothing has synced yet when accounts exist but none has synced', async () => {
+    renderApp('/overview', { accounts: syncedAt(null) })
 
-    expect(await within(shellPart('topbar')).findAllByText('Chưa có nguồn nào')).not.toHaveLength(0)
+    expect(await within(shellPart('topbar')).findAllByText('Chưa đồng bộ lần nào')).not.toHaveLength(0)
   })
 
-  it('links the bell to the notifications with the unread count, and offers the theme switch', async () => {
+  it('has a bell with the unread of the mail and the chats, and offers the theme switch and the search', async () => {
     renderApp('/overview')
     const topbar = within(shellPart('topbar'))
 
-    const bells = await topbar.findAllByRole('link', { name: 'Thông báo, 3 mới' })
-    for (const bell of bells) {
-      expect(bell).toHaveAttribute('href', '/notifications')
-    }
+    // The sample inbox has 7 unread mails and 5 unread chats.
+    expect(await topbar.findAllByRole('button', { name: 'Thông báo, 12 mới' })).toHaveLength(2) // desktop bar and tablet bar
     expect(topbar.getAllByRole('button', { name: /Chuyển sang giao diện/ })).not.toHaveLength(0)
     expect(topbar.getByRole('searchbox', { name: 'Tìm trong Sino' })).toBeInTheDocument()
   })
@@ -310,21 +318,18 @@ describe('top bar', () => {
     const topbar = within(shellPart('topbar'))
 
     expect(await topbar.findAllByRole('button', { name: /Chuyển sang giao diện/ })).toHaveLength(1)
-    expect(topbar.getAllByRole('button', { name: 'Tìm kiếm' })).toHaveLength(1)
   })
-
 })
 
 describe('the counts of accounts (NS-01, NS-03, D-321, D-326)', () => {
   // The shell sample says 1; each test gives the list another number, so the two cannot agree by chance.
-  it('takes it from the account list, not from the shell data', async () => {
+  it('takes it from the account list, not from the shell data (the sidebar has no Tài khoản link, the rail has)', async () => {
     renderApp('/overview', {
       accounts: accountsWithStatus('AUTH_EXPIRED', 'ERROR', 'CONNECTED'),
       shell: shellWith((s) => (s.navCounts.accountsNeedingAction = 7)),
     })
 
     expect(await within(shellPart('rail')).findByRole('link', { name: 'Tài khoản, 2 cần xử lý' })).toHaveAttribute('href', '/accounts')
-    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Tài khoản, 2 cần xử lý' })).toBeInTheDocument()
   })
 
   it('shows nothing on Tài khoản when no account needs action, whatever the shell data says', async () => {
@@ -334,7 +339,6 @@ describe('the counts of accounts (NS-01, NS-03, D-321, D-326)', () => {
     })
 
     expect(await within(shellPart('rail')).findByRole('link', { name: 'Tài khoản' })).toHaveAttribute('href', '/accounts')
-    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
   })
 
   it('shows nothing while the account list has not come, rather than the sample count', async () => {
@@ -342,7 +346,6 @@ describe('the counts of accounts (NS-01, NS-03, D-321, D-326)', () => {
     renderApp('/overview', { accounts: null, shell: shellWith((s) => (s.navCounts.accountsNeedingAction = 1)) })
 
     expect(await within(shellPart('rail')).findByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
-    expect(within(shellPart('sidebar')).getByRole('link', { name: 'Tài khoản' })).toBeInTheDocument()
     // Nor does the foot of the sidebar say how many accounts there are: the sample says 3.
     expect(within(shellPart('sidebar')).queryByText(/tài khoản$/)).not.toBeInTheDocument()
   })
@@ -372,35 +375,32 @@ describe('the counts of accounts (NS-01, NS-03, D-321, D-326)', () => {
 })
 
 // `shell: null`: the shell data is what the app has of its own today, not a sample handed in by the test.
+// The bell counts what is unread in the inbox, plus what has just arrived (NotificationsMenu); nothing else flags it.
 describe('what has no source yet is not flagged (NS-02, D-325)', () => {
-  it('rings no bell: no dot and no count in its name', async () => {
-    const { queryClient } = renderApp('/overview', { shell: null })
+  it('rings no bell when nothing is unread: no number in its name', async () => {
+    renderApp('/overview', { inbox: inboxWithUnread(0, 0) })
     const topbar = within(shellPart('topbar'))
-    // Before the data comes the bell has no count either; the point is that it has none after.
-    await waitFor(() => expect(queryClient.getQueryData(SHELL_QUERY_KEY)).toBeDefined())
 
-    const bells = await topbar.findAllByRole('link', { name: 'Thông báo' })
+    const bells = await topbar.findAllByRole('button', { name: 'Thông báo' })
 
     expect(bells).toHaveLength(2) // desktop bar and tablet bar
     for (const bell of bells) {
-      expect(bell).toHaveAttribute('href', '/notifications')
       expect(bell.querySelector('span')).toBeNull()
     }
-    expect(topbar.queryByRole('link', { name: /mới/ })).not.toBeInTheDocument()
+    expect(topbar.queryByRole('button', { name: /mới/ })).not.toBeInTheDocument()
   })
 
-  it('flags no new registration on Đăng ký, on any size', async () => {
-    const { queryClient } = renderApp('/overview', { shell: null })
-    await waitFor(() => expect(queryClient.getQueryData(SHELL_QUERY_KEY)).toBeDefined())
+  it('flags nothing about the registrations: there is no link to them in the sidebar', async () => {
+    renderApp('/overview')
 
-    expect(await within(shellPart('sidebar')).findByRole('link', { name: 'Đăng ký' })).toHaveAttribute('href', '/registrations')
-    expect(within(shellPart('sidebar')).queryByRole('link', { name: /^Đăng ký, / })).not.toBeInTheDocument()
+    await within(shellPart('sidebar')).findByText('An Nguyễn')
+    expect(within(shellPart('sidebar')).queryByRole('link', { name: /Đăng ký/ })).not.toBeInTheDocument()
   })
 
-  it('still shows the count of the notifications once the data has one', async () => {
-    renderApp('/overview', { shell: shellWith((s) => (s.unreadNotifications = 3)) })
+  it('counts the unread of the mail and the chats on the bell', async () => {
+    renderApp('/overview', { inbox: inboxWithUnread(3, 1) })
 
-    expect(await within(shellPart('topbar')).findAllByRole('link', { name: 'Thông báo, 3 mới' })).toHaveLength(2)
+    expect(await within(shellPart('topbar')).findAllByRole('button', { name: 'Thông báo, 4 mới' })).toHaveLength(2)
   })
 })
 
@@ -471,44 +471,52 @@ describe('the mark on the browser tab (NF-01, D-317)', () => {
   })
 })
 
-describe('the bar of new messages (NF-02, D-318, D-319)', () => {
+// The new messages that came while the owner was elsewhere are told inside the bell now (NotificationsMenu, messages-by-account);
+// there is no bar under the top bar any more.
+describe('the notice of new messages (NF-02, D-318, D-319)', () => {
   const sample = createInboxSample(new Date())
   const ZALO = sample.accounts.find((account) => account.provider === 'zalo')!.id
   const sync = (accountId: string, newInbound: number) =>
     act(() => publishConversationsChanged({ accountId, conversationIds: ['c-1'], newInbound, source: 'sync', at: new Date().toISOString() }))
 
-  it('tells a new chat on a screen that is not the list of chats', async () => {
+  it('tells a new chat in the menu of the bell, on a screen that is not the list of chats', async () => {
+    const user = userEvent.setup()
+    server.use(http.get('/api/conversations', () => HttpResponse.json({ items: [], nextCursor: null })))
+    renderApp('/tasks', { inbox: inboxWithUnread(0, 0) })
+    await screen.findByRole('main')
+
+    sync(ZALO, 1)
+
+    const bell = (await within(shellPart('topbar')).findAllByRole('button', { name: 'Thông báo, 1 mới' }))[0]
+    await user.click(bell)
+    const menu = within(await screen.findByRole('menu'))
+    expect(await menu.findByText('1 tin mới')).toBeInTheDocument()
+    expect(menu.getByRole('link', { name: 'Xem' })).toHaveAttribute('href', '/messages')
+  })
+
+  it('has no bar between the top bar and the page', async () => {
     renderApp('/tasks')
     await screen.findByRole('main')
 
     sync(ZALO, 1)
 
-    const bar = within(shellPart('notice-bar'))
-    expect(await bar.findByText('1 tin mới')).toBeInTheDocument()
-    expect(bar.getByRole('link', { name: /^Xem/ })).toHaveAttribute('href', '/messages')
+    expect(document.querySelector('[data-slot="notice-bar"]')).toBeNull()
   })
 
-  it('sits between the top bar and the page', async () => {
-    renderApp('/tasks')
-    const main = await screen.findByRole('main')
-
-    const bar = shellPart('notice-bar')
-
-    expect(shellPart('topbar').compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(bar.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('goes to the list and lets the notice go when "Xem" is pressed', async () => {
+  it('lets the notice go when "Xem" is pressed', async () => {
     const user = userEvent.setup()
-    const { router } = renderApp('/tasks')
+    server.use(http.get('/api/conversations', () => HttpResponse.json({ items: [], nextCursor: null })))
+    const { router } = renderApp('/tasks', { inbox: inboxWithUnread(0, 0) })
     await screen.findByRole('main')
     sync(ZALO, 2)
-    const bar = within(shellPart('notice-bar'))
 
-    await user.click(await bar.findByRole('link', { name: /^Xem/ }))
+    await user.click((await within(shellPart('topbar')).findAllByRole('button', { name: 'Thông báo, 2 mới' }))[0])
+    await user.click(await within(await screen.findByRole('menu')).findByRole('link', { name: 'Xem' }))
 
     expect(router.state.location.pathname).toBe('/messages')
-    expect(bar.queryByText(/mới/)).not.toBeInTheDocument()
+    // The menu stays open after the link (the rest of the page is hidden from the tree while it is), so close it.
+    await user.keyboard('{Escape}')
+    expect(await within(shellPart('topbar')).findAllByRole('button', { name: 'Thông báo' })).not.toHaveLength(0)
   })
 
   it('leaves the open list to its own notice', async () => {
@@ -517,20 +525,7 @@ describe('the bar of new messages (NF-02, D-318, D-319)', () => {
 
     sync(ZALO, 1)
 
-    // The list says "1 tin mới" itself (D-92); the bar of the shell stays empty.
+    // The list says "1 tin mới" itself (D-92).
     expect(await screen.findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
-    expect(within(shellPart('notice-bar')).queryByText(/mới/)).not.toBeInTheDocument()
-  })
-
-  it('closes with its button', async () => {
-    const user = userEvent.setup()
-    renderApp('/tasks')
-    await screen.findByRole('main')
-    sync(ZALO, 1)
-    const bar = within(shellPart('notice-bar'))
-
-    await user.click(await bar.findByRole('button', { name: /^Đóng thông báo/ }))
-
-    expect(bar.queryByText(/mới/)).not.toBeInTheDocument()
   })
 })
