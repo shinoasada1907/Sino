@@ -407,6 +407,118 @@ class ConversationsApiTests {
                 .andExpect(jsonPath("$.unreadByKind.CHAT").value(2));
     }
 
+    // D-425: every account of the owner has an entry (0 when empty), of the asked kind only, from its own copies.
+    @Test
+    void theCountsByAccountHaveEveryAccountOfTheKind() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        UUID first = connect(owner, "telegram", "1");
+        UUID second = connect(owner, "telegram", "2");
+        UUID empty = connect(owner, "telegram", "3");
+        UUID off = connect(owner, "telegram", "4");
+        disable(off);
+        UUID gone = connect(owner, "telegram", "5");
+        remove(gone);
+        UUID foreign = connect(otherUser, "telegram", "6");
+        chat(first, "a", "A", ConversationType.DIRECT, MONDAY);
+        for (String name : List.of("b", "c", "d")) {
+            chat(second, name, name, ConversationType.DIRECT, MONDAY);
+        }
+        chat(second, "read", "read", ConversationType.DIRECT, TUESDAY, true);
+        chat(second, "archived", "archived", ConversationType.DIRECT, TUESDAY, false);
+        archive(second, "archived");
+        chat(foreign, "theirs", "theirs", ConversationType.DIRECT, MONDAY);
+        mail(gmail, "mail", MONDAY);
+
+        mvc.perform(get("/api/conversations/counts").param("kind", "chat").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unread").value(4))
+                .andExpect(jsonPath("$.byAccount.length()").value(3))
+                .andExpect(jsonPath("$.byAccount['" + first + "'].unread").value(1))
+                .andExpect(jsonPath("$.byAccount['" + second + "'].unread").value(3))
+                .andExpect(jsonPath("$.byAccount['" + second + "'].needsReply").value(4))
+                .andExpect(jsonPath("$.byAccount['" + empty + "'].unread").value(0))
+                .andExpect(jsonPath("$.byAccount['" + empty + "'].needsReply").value(0))
+                .andExpect(jsonPath("$.byAccount['" + empty + "'].withAttachments").value(0))
+                .andExpect(jsonPath("$.byAccount['" + gmail + "']").doesNotExist());
+        mvc.perform(get("/api/conversations/counts").param("kind", "email").with(apiUser()))
+                .andExpect(jsonPath("$.byAccount.length()").value(1))
+                .andExpect(jsonPath("$.byAccount['" + gmail + "'].unread").value(1));
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.byAccount.length()").value(4));
+    }
+
+    @Test
+    void theCountsByAccountLeaveOutWhatTheInboxLeavesOut() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        mail(gmail, "inbox", MONDAY);
+        mail(gmail, "junk", TUESDAY);
+        jdbc.update("update conversation set has_junk = true, has_inbox = false where external_conversation_id = 'junk'");
+
+        mvc.perform(get("/api/conversations/counts").with(apiUser()))
+                .andExpect(jsonPath("$.unread").value(1))
+                .andExpect(jsonPath("$.byAccount['" + gmail + "'].unread").value(1));
+    }
+
+    // D-426: direct is DIRECT, group is GROUP and CHANNEL, before the page is cut.
+    @Test
+    void theChatTypeKeepsDirectChatsOrGroups() throws Exception {
+        UUID first = connect(owner, "telegram", "1");
+        UUID second = connect(owner, "telegram", "2");
+        chat(first, "ha", "Hà", ConversationType.DIRECT, MONDAY);
+        chat(first, "family", "Gia đình", ConversationType.GROUP, TUESDAY);
+        chat(first, "news", "Tin tức", ConversationType.CHANNEL, WEDNESDAY);
+        chat(second, "tuan", "Tuấn", ConversationType.DIRECT, THURSDAY);
+
+        assertThat(titles(get("/api/conversations").param("kind", "chat").param("chatType", "group")))
+                .containsExactly("Tin tức", "Gia đình");
+        assertThat(titles(get("/api/conversations").param("kind", "chat").param("chatType", "direct")
+                .param("accountId", first.toString()))).containsExactly("Hà");
+        assertThat(titles(get("/api/conversations").param("chatType", "direct").param("view", "unread")))
+                .containsExactly("Tuấn", "Hà");
+        assertThat(titles(get("/api/conversations"))).as("no chatType keeps every type").hasSize(4);
+        archive(first, "ha");
+        assertThat(titles(get("/api/conversations").param("chatType", "direct").param("view", "archived")))
+                .containsExactly("Hà");
+    }
+
+    @Test
+    void aFullPageOfGroupsStaysFullWhenDirectChatsAreBetween() throws Exception {
+        UUID account = connect(owner, "telegram", "1");
+        for (int n = 0; n < 40; n++) {
+            boolean group = n % 8 < 5;
+            chat(account, "c" + n, (group ? "G" : "D") + n,
+                    group ? ConversationType.GROUP : ConversationType.DIRECT, MONDAY.plusSeconds(n));
+        }
+
+        String first = mvc.perform(get("/api/conversations").param("chatType", "group").param("limit", "20")
+                .with(apiUser())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        List<String> titles = JsonPath.read(first, "$.items[*].title");
+        String cursor = JsonPath.read(first, "$.nextCursor");
+        assertThat(titles).hasSize(20).allMatch(title -> title.startsWith("G"));
+        assertThat(cursor).isNotNull();
+        String second = mvc.perform(get("/api/conversations").param("chatType", "group").param("limit", "20")
+                .param("cursor", cursor).with(apiUser())).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+        assertThat((List<String>) JsonPath.read(second, "$.items[*].title")).hasSize(5);
+        assertThat((Object) JsonPath.read(second, "$.nextCursor")).isNull();
+    }
+
+    @Test
+    void aChatTypeOtherThanDirectOrGroupIsABadRequestAndAnEmailThreadIsNeither() throws Exception {
+        for (String value : List.of("channel", "GROUP", "")) {
+            mvc.perform(get("/api/conversations").param("chatType", value).with(apiUser()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        }
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        mail(gmail, "mail", MONDAY);
+        for (String value : List.of("direct", "group")) {
+            mvc.perform(get("/api/conversations").param("kind", "email").param("chatType", value).with(apiUser()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.items", empty()));
+        }
+    }
+
     @Test
     void theUnreadByKindHasBothKindsEvenWithNoChatOrNoAccount() throws Exception {
         mvc.perform(get("/api/conversations/counts").with(apiUser()))
@@ -785,6 +897,22 @@ class ConversationsApiTests {
             throws Exception {
         return JsonPath.read(mvc.perform(request.with(apiUser())).andExpect(status().isOk()).andReturn()
                 .getResponse().getContentAsString(), "$.items[*].subject");
+    }
+
+    private List<String> titles(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
+            throws Exception {
+        return JsonPath.read(mvc.perform(request.with(apiUser())).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString(), "$.items[*].title");
+    }
+
+    private void chat(UUID account, String id, String title, ConversationType type, Instant at) {
+        chat(account, id, title, type, at, false);
+    }
+
+    private void chat(UUID account, String id, String title, ConversationType type, Instant at, boolean read) {
+        store(account, new NormalizedConversation(id, type, title, null, List.of(ALICE, OWNER), at),
+                message(id, "m-1", MessageDirection.INBOUND, "alice@example.test", at, "Chào " + title, read,
+                        Map.of()));
     }
 
     private List<String> kinds(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)

@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import tools.jackson.databind.JsonNode;
 
+import dev.sino.conversation.application.ChatType;
 import dev.sino.conversation.application.InboxCounts;
 import dev.sino.conversation.application.InboxCursor;
 import dev.sino.conversation.application.InboxPage;
@@ -52,17 +53,18 @@ class ConversationsController {
     /**
      * A {@code cursor} that this API did not hand out, like a {@code view}, {@code kind} or {@code limit} out of range,
      * is a 400. {@code kind} ({@code email} or {@code chat}) keeps the conversations of that kind of provider; none
-     * keeps both (f05c, D-307).
+     * keeps both (f05c, D-307). {@code chatType} ({@code direct} or {@code group}) keeps 1-1 chats or groups (D-426).
      */
     @GetMapping
     ConversationPageResponse list(
             @RequestParam(defaultValue = "all") @Pattern(regexp = InboxView.PARAMETER_VALUES) String view,
             @RequestParam(required = false) @Pattern(regexp = KIND_VALUES) String kind,
+            @RequestParam(required = false) @Pattern(regexp = ChatType.PARAMETER_VALUES) String chatType,
             @RequestParam(required = false) String provider, @RequestParam(required = false) UUID accountId,
             @RequestParam(required = false) InboxCursor cursor,
             @RequestParam(defaultValue = "30") @Min(1) @Max(100) int limit) {
-        InboxPage page = inbox.page(currentUser.requireOwnerId(), InboxView.of(view), kindOf(kind), provider,
-                accountId, cursor, limit);
+        InboxPage page = inbox.page(currentUser.requireOwnerId(), InboxView.of(view), kindOf(kind),
+                chatType == null ? null : ChatType.of(chatType), provider, accountId, cursor, limit);
         return new ConversationPageResponse(page.items().stream().map(ConversationResponse::from).toList(),
                 page.next() == null ? null : page.next().encode());
     }
