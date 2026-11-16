@@ -46,6 +46,8 @@ class ProfileApiTests {
     void resetTheProfile() {
         jdbc.update("update app_user set display_name = 'Test Owner', phone_number = null, job_title = null, "
                 + "location = null, bio = null where email = 'owner@sino.test'");
+        // ProfileAvatarApiTests shares the database and may leave a picture behind when it runs first.
+        jdbc.update("delete from user_avatar");
     }
 
     private static MockHttpServletRequestBuilder asOwner(MockHttpServletRequestBuilder request) {
