@@ -15,7 +15,8 @@ function open(path: string) {
   return renderApp(path, { shell: createShellSample(NOW), inbox: createInboxSample(NOW) })
 }
 
-const sources = () => within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' }))
+// The source chips above the list: the source column is gone at 1280px, the sidebar and the list tabs carry the rest.
+const sources = () => within(screen.getByRole('group', { name: 'Nguồn' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 // The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
 const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
@@ -68,13 +69,10 @@ describe('Hộp thư on desktop', () => {
     expect(within(row(/Lê Hoàng/)).getByText('Tin hẹn giờ không gửi được')).toBeInTheDocument()
     expect(within(row(/Nhóm sửa nhà/)).getByText('Kiến trúc sư: Em gửi lại bản vẽ tầng 2 đã chỉnh cầu thang.')).toBeInTheDocument()
 
-    expect(sources().getByRole('link', { name: /Tất cả/ })).toHaveTextContent('5')
-    expect(sources().getByRole('link', { name: /Zalo/ })).toHaveTextContent('4')
-    expect(sources().getByRole('link', { name: /Messenger/ })).toHaveTextContent('cần đăng nhập lại')
-    expect(sources().getByRole('link', { name: /Cần trả lời/ })).toHaveTextContent('1')
-    expect(sources().getByRole('link', { name: /Có tệp/ })).toHaveTextContent('2')
-    expect(sources().getByRole('link', { name: /\+84 9•• ••• 218/ })).toHaveTextContent('64%')
-    expect(sources().queryByRole('link', { name: /an\.nguyen@gmail\.com/ })).toBeNull()
+    expect(sources().getByRole('button', { name: 'Tất cả · 5' })).toBeInTheDocument()
+    expect(sources().getByRole('button', { name: 'Zalo · 4' })).toBeInTheDocument()
+    expect(sources().getByRole('button', { name: 'Messenger' })).toBeInTheDocument()
+    expect(sources().queryByRole('button', { name: /Gmail/ })).toBeNull()
   })
 
   it('names the account of each row when a source has more than one, at every width', async () => {
@@ -106,45 +104,43 @@ describe('Hộp thư on desktop', () => {
     expect(await thread().findByText('Gmail · an.nguyen@gmail.com, an@congty.vn')).toBeInTheDocument()
   })
 
-  it('counts each source and quick filter of Hộp thư, and lists its accounts', async () => {
+  it('counts each source of Hộp thư, and has no source column', async () => {
     open('/inbox')
 
-    expect(await sources().findByRole('link', { name: /Tất cả/ })).toHaveAttribute('aria-current', 'page')
-    expect(sources().getByRole('link', { name: /Tất cả/ })).toHaveTextContent('7')
-    expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('7')
-    expect(sources().queryByRole('link', { name: /Zalo|Messenger/ })).toBeNull()
-    expect(sources().getByRole('link', { name: /Cần trả lời/ })).toHaveTextContent('2')
-    expect(sources().getByRole('link', { name: /Có tệp/ })).toHaveTextContent('3')
-    expect(sources().getByRole('link', { name: /Đã hẹn giờ/ })).toHaveTextContent('1')
-    expect(sources().getByRole('link', { name: /Đang tạm ẩn/ })).toHaveTextContent('1')
-    expect(sources().getByRole('link', { name: /an\.nguyen@gmail\.com/ })).toHaveAttribute('href', '/accounts/acc-gmail')
-    expect(sources().queryByRole('link', { name: /\+84 9•• ••• 218/ })).toBeNull()
-    expect(sources().getByRole('link', { name: 'Thêm nguồn' })).toHaveAttribute('href', '/accounts?connect=new')
+    expect(await sources().findByRole('button', { name: 'Tất cả · 7' })).toHaveAttribute('aria-pressed', 'true')
+    expect(sources().getByRole('button', { name: 'Gmail · 7' })).toBeInTheDocument()
+    expect(sources().queryByRole('button', { name: /Zalo|Messenger/ })).toBeNull()
+    expect(screen.queryByRole('complementary', { name: 'Nguồn và bộ lọc' })).toBeNull()
   })
 
   it('filters by source and by quick filter, keeping the choice in the address', async () => {
     const { router } = open('/inbox')
     const user = userEvent.setup()
 
-    await user.click(await sources().findByRole('link', { name: /Gmail/ }))
+    await user.click(await sources().findByRole('button', { name: /Gmail/ }))
     expect(router.state.location.search).toBe('?source=gmail')
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương', 'Thu Trang', 'Điện lực Hà Nội'])
     expect(pane().getAllByText('7 chưa đọc')).not.toHaveLength(0)
-    expect(sources().getByRole('link', { name: /Gmail/ })).toHaveAttribute('aria-current', 'page')
+    expect(sources().getByRole('button', { name: /Gmail/ })).toHaveAttribute('aria-pressed', 'true')
 
     const views = within(pane().getByRole('group', { name: 'Lọc danh sách' }))
     await user.click(views.getByRole('button', { name: 'Chưa đọc' }))
     expect(router.state.location.search).toBe('?source=gmail&view=unread')
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương'])
     expect(views.getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
-    expect(sources().getByRole('link', { name: /Chưa đọc/ })).toHaveAttribute('aria-current', 'page')
+  })
 
-    await user.click(sources().getByRole('link', { name: /Đã hẹn giờ/ }))
-    expect(router.state.location.search).toBe('?source=gmail&view=scheduled')
+  it('still filters by the views that no longer have a button, from the address', async () => {
+    open('/inbox?source=gmail&view=scheduled')
+
+    expect(await list().findByRole('link', { name: /Thu Trang/ })).toBeInTheDocument()
     expect(rowTitles()).toEqual(['Thu Trang'])
+  })
 
-    await user.click(sources().getByRole('link', { name: /Tất cả/ }))
-    await user.click(sources().getByRole('link', { name: /Đang tạm ẩn/ }))
+  it('lists the snoozed emails from the address', async () => {
+    open('/inbox?view=snoozed')
+
+    expect(await list().findByRole('link', { name: /Nhà sách Lumen/ })).toBeInTheDocument()
     expect(rowTitles()).toEqual(['Nhà sách Lumen'])
   })
 
@@ -200,7 +196,7 @@ describe('Hộp thư on desktop', () => {
     await user.click(row(/Phòng khám/))
 
     expect(await pane().findAllByText('6 chưa đọc')).not.toHaveLength(0)
-    expect(sources().getByRole('link', { name: /Gmail/ })).toHaveTextContent('6')
+    expect(sources().getByRole('button', { name: 'Gmail · 6' })).toBeInTheDocument()
     expect(within(row(/Phòng khám/)).queryByLabelText('Chưa đọc')).toBeNull()
   })
 

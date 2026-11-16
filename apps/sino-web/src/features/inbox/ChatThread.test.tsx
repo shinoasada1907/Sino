@@ -104,7 +104,7 @@ describe('a chat conversation', () => {
     await user.click(chat('Gia đình').getByRole('link', { name: 'Tin nhắn' }))
 
     expect(await pane().findAllByText('4 chưa đọc')).not.toHaveLength(0)
-    expect(within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' })).getByRole('link', { name: /Zalo/ })).toHaveTextContent('3')
+    expect(within(screen.getByRole('group', { name: 'Nguồn' })).getByRole('button', { name: 'Zalo · 3' })).toBeInTheDocument()
     expect(within(list().getByRole('link', { name: /Gia đình/ })).queryByText('tin chưa đọc', { exact: false })).toBeNull()
   })
 })

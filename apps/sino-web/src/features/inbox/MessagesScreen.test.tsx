@@ -24,7 +24,8 @@ function open(path: string, inbox: ReturnType<typeof createInboxSample> | null =
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 // The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
 const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
-const sources = () => within(screen.getByRole('complementary', { name: 'Nguồn và bộ lọc' }))
+// The source chips above the list: the source column is gone at 1280px, the sidebar and the list tabs carry the rest.
+const sources = () => within(screen.getByRole('group', { name: 'Nguồn' }))
 const rowTitles = () =>
   list()
     .queryAllByRole('link')
@@ -69,12 +70,13 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
   it('offers only the chat sources, and drops an email source from the address', async () => {
     const { router } = open('/messages?source=gmail&view=unread')
 
-    expect(await sources().findByRole('link', { name: /^Zalo/ })).toBeInTheDocument()
-    expect(sources().getByRole('link', { name: /^Messenger/ })).toBeInTheDocument()
-    expect(sources().queryByRole('link', { name: /^Gmail/ })).toBeNull()
-    expect(sources().getByRole('link', { name: /^Tất cả/ })).toHaveAttribute('aria-current', 'page')
-    expect(sources().getByRole('link', { name: /^Chưa đọc/ })).toHaveAttribute('aria-current', 'page')
+    expect(await sources().findByRole('button', { name: /^Zalo/ })).toBeInTheDocument()
+    expect(sources().getByRole('button', { name: /^Messenger/ })).toBeInTheDocument()
+    expect(sources().queryByRole('button', { name: /^Gmail/ })).toBeNull()
+    expect(sources().getByRole('button', { name: /^Tất cả/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
     expect(router.state.location.pathname).toBe('/messages')
+    expect(screen.queryByRole('complementary', { name: 'Nguồn và bộ lọc' })).toBeNull()
   })
 
   it('has no Thư mới on Tin nhắn', async () => {
