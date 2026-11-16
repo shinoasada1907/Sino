@@ -39,6 +39,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.matching.StringValuePattern;
 
+import dev.sino.provider.spi.Mailbox;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageProviderContractTest;
 import dev.sino.provider.spi.NormalizedConversation;
@@ -374,7 +375,7 @@ class GmailSyncTests {
     }
 
     @Test
-    void draftsSpamAndTrashAreLeftOut() {
+    void draftsAreLeftOutAndSpamAndTrashComeInWithTheirMailbox() {
         profile("", "1010");
         history("", "1000", absent(), """
                 {"history": [{"id": "1001", "messagesAdded": [{"message": {"id": "draft-1"}},
@@ -388,7 +389,10 @@ class GmailSyncTests {
 
         SyncBatch batch = gmailAt("").fetchUpdates(context(), new SyncCursor("v1|history|1000|-"));
 
-        assertThat(batch.messages()).extracting(NormalizedMessage::externalMessageId).containsExactly(REPORT);
+        assertThat(batch.messages()).extracting(NormalizedMessage::externalMessageId)
+                .containsExactly("spam-1", "trash-1", REPORT);
+        assertThat(batch.messages()).extracting(NormalizedMessage::mailbox)
+                .containsExactly(Mailbox.SPAM, Mailbox.TRASH, Mailbox.INBOX);
         assertThat(batch.skipped()).isEmpty();
     }
 

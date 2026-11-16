@@ -64,7 +64,9 @@ public class InboxService implements InboxIds {
                    (array_agg(c.account_id ORDER BY c.created_at, c.id))[1] AS account_id,
                    max(c.last_message_at) AS last_message_at, max(c.unread_count) AS unread_count,
                    bool_and(c.needs_reply) AS needs_reply, bool_or(c.has_attachments) AS has_attachments,
-                   bool_and(c.archived) AS archived
+                   bool_and(c.archived) AS archived,
+                   bool_or(c.has_inbox) AS has_inbox, bool_or(c.has_archive) AS has_archive,
+                   bool_or(c.has_junk) AS has_junk, bool_or(c.has_sent) AS has_sent
             FROM conversation c
             WHERE c.account_id IN (:accounts) %1$s
             GROUP BY c.thread_group_id %2$s
@@ -152,9 +154,10 @@ public class InboxService implements InboxIds {
     }
 
     /**
-     * Groups that are not archived, each once, by the fields of their row (D-187). With a {@code kind}, every count
-     * but {@code unreadByKind} is of the accounts of that kind (the same accounts as {@link #page}); the unread by
-     * kind is always of both, so the navigation can ask without one.
+     * Groups in the inbox (D-500: not archived, not only in Gmail's archive, spam or trash), each once, by the
+     * fields of their row (D-187). With a {@code kind}, every count but {@code unreadByKind} is of the accounts of that
+     * kind (the same accounts as {@link #page}); the unread by kind is always of both, so the navigation can ask
+     * without one.
      */
     public InboxCounts counts(UUID ownerId, ProviderKind kind) {
         Map<UUID, ProviderType> everyAccount = accountsOf(ownerId);
@@ -168,14 +171,15 @@ public class InboxService implements InboxIds {
         }
         // Every copy of a group has the provider of the group: one account of each group names it.
         List<AccountCounts> perAccount = jdbc.sql("""
-                SELECT g.account_id,
-                       count(*) FILTER (WHERE g.unread_count > 0) AS unread,
-                       count(*) FILTER (WHERE g.needs_reply) AS needs_reply,
-                       count(*) FILTER (WHERE g.has_attachments) AS with_attachments
-                FROM (%s) g
-                WHERE NOT g.archived
-                GROUP BY g.account_id
-                """.formatted(GROUPS.formatted("", ""))).param("accounts", everyAccount.keySet())
+                SELECT c.account_id,
+                       count(*) FILTER (WHERE c.unread_count > 0) AS unread,
+                       count(*) FILTER (WHERE c.needs_reply) AS needs_reply,
+                       count(*) FILTER (WHERE c.has_attachments) AS with_attachments
+                FROM (%s) c
+                WHERE %s
+                GROUP BY c.account_id
+                """.formatted(GROUPS.formatted("", ""), InboxView.ALL.condition()))
+                .param("accounts", everyAccount.keySet())
                 .query((row, n) -> new AccountCounts(row.getObject("account_id", UUID.class), row.getLong("unread"),
                         row.getLong("needs_reply"), row.getLong("with_attachments")))
                 .list();

@@ -78,8 +78,8 @@ class GmailProvider implements MessageProvider {
     private static final ProviderCapabilities WITH_PUSH = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
             ProviderCapability.SEND_MESSAGES, ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS,
             ProviderCapability.PUSH_WEBHOOK);
-    // Not mail Sino shows: left out without counting it as skipped. Spam and trash stay out until MF-02 (D-500).
-    private static final Set<String> HIDDEN_LABELS = Set.of("DRAFT", "SPAM", "TRASH");
+    // Not mail Sino shows: left out without counting it as skipped. Spam and trash come in with their mailbox (D-498).
+    private static final Set<String> HIDDEN_LABELS = Set.of("DRAFT");
 
     private final OAuth2Connection connection;
     private final GmailApi api;
@@ -149,9 +149,9 @@ class GmailProvider implements MessageProvider {
     /**
      * The first sync (an initial cursor) lists the mail since {@code since}, {@value GmailApi#PAGE_SIZE} messages a
      * page, then goes on with the changes since the mailbox's history id when it started; later calls read those
-     * changes. Mail from before {@code since} never comes in, not even when a change touches it. Drafts, spam and
-     * trash are left out until MF-02 (D-500), and so is a message deleted meanwhile; a message Sino cannot
-     * read is a skipped item. Any other failure fails the whole call, never half a batch.
+     * changes. Mail from before {@code since} never comes in, not even when a change touches it. Spam and trash come
+     * in with their mailbox (D-498); drafts are left out, and so is a message deleted meanwhile; a message Sino
+     * cannot read is a skipped item. Any other failure fails the whole call, never half a batch.
      */
     @Override
     public SyncBatch fetchUpdates(ProviderContext context, SyncCursor cursor) {
@@ -353,7 +353,7 @@ class GmailProvider implements MessageProvider {
         return new AttachmentContent(GmailMessageNormalizer.bytesOf(data), part.mimeType());
     }
 
-    // Archived mail is shown too: it still belongs to its thread. Spam and trash wait for MF-02 (D-500).
+    // Archived, spam and trashed mail is shown too: it still belongs to its thread and carries its mailbox.
     private static boolean isShown(GmailMessage message) {
         return message.labelIds().stream().noneMatch(HIDDEN_LABELS::contains);
     }

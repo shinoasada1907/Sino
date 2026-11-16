@@ -70,7 +70,18 @@ public class ConversationSummaries {
                             WHERE m.conversation_id = c.id AND NOT m.is_read)::integer AS unread_count,
                            EXISTS (SELECT 1 FROM attachment a JOIN message m ON m.id = a.message_id
                                    WHERE m.conversation_id = c.id AND a.content_id IS NULL) AS has_attachments,
-                           COALESCE(latest.needs_reply, false) AS needs_reply
+                           COALESCE(latest.needs_reply, false) AS needs_reply,
+                           -- Mail folders (D-499): mail with no mailbox is in the inbox when it came in.
+                           EXISTS (SELECT 1 FROM message m WHERE m.conversation_id = c.id
+                                   AND (m.mailbox = 'INBOX' OR (m.mailbox IS NULL AND m.direction = 'INBOUND')))
+                               AS has_inbox,
+                           EXISTS (SELECT 1 FROM message m WHERE m.conversation_id = c.id
+                                   AND m.mailbox = 'ARCHIVE') AS has_archive,
+                           EXISTS (SELECT 1 FROM message m WHERE m.conversation_id = c.id
+                                   AND m.mailbox IN ('SPAM', 'TRASH')) AS has_junk,
+                           EXISTS (SELECT 1 FROM message m WHERE m.conversation_id = c.id
+                                   AND m.direction = 'OUTBOUND'
+                                   AND (m.mailbox IS NULL OR m.mailbox NOT IN ('SPAM', 'TRASH'))) AS has_sent
                     FROM conversation c
                     LEFT JOIN LATERAL (
                         SELECT m.sent_at,
@@ -94,14 +105,20 @@ public class ConversationSummaries {
                     unread_count = s.unread_count,
                     has_attachments = s.has_attachments,
                     needs_reply = s.needs_reply,
+                    has_inbox = s.has_inbox,
+                    has_archive = s.has_archive,
+                    has_junk = s.has_junk,
+                    has_sent = s.has_sent,
                     updated_at = now()
                 FROM summary s
                 WHERE c.id = s.id
                   AND (c.last_message_at, c.last_message_preview, c.last_message_from, c.counterpart, c.unread_count,
-                       c.has_attachments, c.needs_reply)
+                       c.has_attachments, c.needs_reply, c.has_inbox, c.has_archive, c.has_junk,
+                       c.has_sent)
                       IS DISTINCT FROM
                       (s.last_message_at, s.preview, s.last_message_from, s.counterpart, s.unread_count,
-                       s.has_attachments, s.needs_reply)
+                       s.has_attachments, s.needs_reply, s.has_inbox, s.has_archive, s.has_junk,
+                       s.has_sent)
                 """).param("conversations", conversations).param("bulk", NormalizedMessage.BULK).update();
     }
 

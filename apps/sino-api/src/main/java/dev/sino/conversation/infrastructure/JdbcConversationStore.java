@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.sino.conversation.ConversationStore;
 import dev.sino.conversation.StoreResult;
 import dev.sino.provider.spi.ConversationType;
+import dev.sino.provider.spi.Mailbox;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageDirection;
 import dev.sino.provider.spi.NormalizedAttachment;
@@ -76,12 +77,12 @@ public class JdbcConversationStore implements ConversationStore {
                     message.attachments()));
             if (stored.change() == Change.INSERTED) {
                 created++;
-                if (message.direction() == MessageDirection.INBOUND) {
+                boolean arrives = arrivesInInbox(message);
+                if (arrives) {
                     createdInbound++;
                 }
                 // New mail from someone else brings an archived conversation back; an answer of the account does not.
-                if (message.direction() == MessageDirection.INBOUND
-                        && message.sentAt().isAfter(conversation.lastMessageAt())) {
+                if (arrives && message.sentAt().isAfter(conversation.lastMessageAt())) {
                     unarchived.add(conversation.id());
                 }
             } else if (stored.change() == Change.UPDATED || filesChanged) {
@@ -93,6 +94,13 @@ public class JdbcConversationStore implements ConversationStore {
         unarchive(unarchived);
         groups.group(otherAccounts, storedMessages);
         return new StoreResult(created, updated, Set.copyOf(touched), createdInbound);
+    }
+
+    // Mail from someone else that lands in the inbox (D-500): spam, trash and Gmail-archived mail is neither news nor
+    // a reason to bring an archived conversation back; a message of a provider without folders has no mailbox.
+    private static boolean arrivesInInbox(NormalizedMessage message) {
+        return message.direction() == MessageDirection.INBOUND
+                && (message.mailbox() == null || message.mailbox() == Mailbox.INBOX);
     }
 
     // Step 1. A conversation the batch names but does not describe gets a minimal row that never overwrites one.
@@ -214,10 +222,11 @@ public class JdbcConversationStore implements ConversationStore {
                 INSERT INTO message AS m (conversation_id, sender_participant_id, external_message_id, direction, type,
                                           text_content, status, sent_at, reply_to_external_message_id, is_read,
                                           provider_read, metadata, recipients, html_content, body_format,
-                                          created_at, updated_at)
+                                          mailbox, created_at, updated_at)
                 VALUES (:conversation, :sender, :externalId, :direction, :type, :text, :status, :sentAt, :replyTo,
                         :read, :read, cast(:metadata AS jsonb), cast(:recipients AS jsonb), :html,
-                        CASE WHEN cast(:html AS text) IS NULL THEN 'TEXT' ELSE 'HTML' END, now(), now())
+                        CASE WHEN cast(:html AS text) IS NULL THEN 'TEXT' ELSE 'HTML' END,
+                        :mailbox, now(), now())
                 ON CONFLICT (conversation_id, external_message_id) DO UPDATE
                 SET sender_participant_id = EXCLUDED.sender_participant_id,
                     direction = EXCLUDED.direction,
@@ -235,9 +244,11 @@ public class JdbcConversationStore implements ConversationStore {
                     is_read = CASE WHEN m.provider_read IS DISTINCT FROM EXCLUDED.provider_read
                                    THEN EXCLUDED.provider_read ELSE m.is_read END,
                     provider_read = EXCLUDED.provider_read,
+                    mailbox = EXCLUDED.mailbox,
                     updated_at = now()
                 WHERE (m.sender_participant_id, m.direction, m.type, m.text_content, m.status, m.sent_at,
-                       m.reply_to_external_message_id, m.metadata, m.recipients, m.body_format, m.provider_read)
+                       m.reply_to_external_message_id, m.metadata, m.recipients, m.body_format, m.provider_read,
+                       m.mailbox)
                       IS DISTINCT FROM
                       (EXCLUDED.sender_participant_id, EXCLUDED.direction, EXCLUDED.type, EXCLUDED.text_content,
                        EXCLUDED.status, EXCLUDED.sent_at, EXCLUDED.reply_to_external_message_id,
@@ -245,7 +256,7 @@ public class JdbcConversationStore implements ConversationStore {
                                                                    m.metadata -> cast(:libraryKey AS text))),
                        coalesce(EXCLUDED.recipients, m.recipients),
                        CASE WHEN coalesce(m.html_content, EXCLUDED.html_content) IS NULL THEN 'TEXT' ELSE 'HTML' END,
-                       EXCLUDED.provider_read)
+                       EXCLUDED.provider_read, EXCLUDED.mailbox)
                 RETURNING id, xmax = 0
                 """)
                 .param("conversation", conversationId).param("sender", senderId)
@@ -258,6 +269,7 @@ public class JdbcConversationStore implements ConversationStore {
                 .param("recipients", message.recipients() == null ? null
                         : JSON.writeValueAsString(message.recipients()))
                 .param("html", keptHtml(message.htmlContent()))
+                .param("mailbox", message.mailbox() == null ? null : message.mailbox().name())
                 // xmax is 0 for a row this statement inserted, and set for one it updated.
                 .query((row, n) -> new StoredMessage(row.getObject(1, UUID.class),
                         row.getBoolean(2) ? Change.INSERTED : Change.UPDATED))
