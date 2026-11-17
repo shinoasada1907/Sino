@@ -74,7 +74,7 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
     expect(sources().getByRole('button', { name: /^an\.nguyen\.92/ })).toBeInTheDocument()
     expect(sources().queryByRole('button', { name: /^an\.nguyen@gmail/ })).toBeNull()
     expect(sources().getByRole('button', { name: /^Tất cả/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: /^Chưa đọc/ })).toHaveAttribute('aria-pressed', 'true')
     expect(router.state.location.pathname).toBe('/messages')
     expect(screen.queryByRole('complementary', { name: 'Nguồn và bộ lọc' })).toBeNull()
   })

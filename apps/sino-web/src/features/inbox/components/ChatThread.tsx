@@ -199,8 +199,9 @@ export function ChatThread({
             size="icon-sm"
             onClick={onToggleInfo}
             className={cn('size-8 cursor-pointer', showInfo && 'bg-hover text-foreground')}
-            aria-label="Chi tiết hội thoại"
-            title="Chi tiết hội thoại"
+            aria-label="Thông tin"
+            aria-pressed={showInfo}
+            title="Thông tin"
           >
             <PanelRight className="size-4" strokeWidth={1.6} />
           </Button>

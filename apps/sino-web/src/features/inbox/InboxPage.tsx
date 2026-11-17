@@ -10,7 +10,6 @@ import { cn } from '@/shared/lib/utils'
 import { useNow } from '@/shared/time/useNow'
 import { Button } from '@/shared/ui/button'
 import { ChatThread } from './components/ChatThread'
-import { AccountPane } from './components/AccountPane'
 import { ConversationAvatars } from './components/ConversationAvatars'
 import { ConversationInfo } from './components/ConversationInfo'
 import { ConversationList } from './components/ConversationList'
@@ -51,7 +50,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const notice = useNewMailNotice(filter.account ? [filter.account] : (inbox?.accounts.map((account) => account.id) ?? []))
 
   const conversations = list.conversations
-  const [showInfo, setShowInfo] = useState(true)
+  const [showInfo, setShowInfo] = useState(false)
   // The conversation whose "Đặt biệt danh" box is open; opening another conversation closes it.
   const [nicknameFor, setNicknameFor] = useState<string | null>(null)
 
@@ -67,6 +66,19 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   // The address of another copy of a thread opens the thread under its own ID (f05b, D-183); it is read there.
   const canonicalId = item && item.id !== conversationId ? item.id : null
   const unreadOpen = item !== undefined && canonicalId === null && item.unreadCount > 0
+  // Esc closes the info of the chat, unless a dialog (a nickname, a picture) has it first.
+  useEffect(() => {
+    if (!showInfo) {
+      return
+    }
+    const close = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('[role="dialog"]')) {
+        setShowInfo(false)
+      }
+    }
+    document.addEventListener('keydown', close)
+    return () => document.removeEventListener('keydown', close)
+  }, [showInfo])
   const online = useOnline()
   const realtimeDown = useRealtimeDown()
   const readOnce = useRef<string | null>(null)
@@ -101,7 +113,6 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
     return stays ? { search: searchFor(change) } : { pathname: screen.path, search: searchFor(change) }
   }
   // The account column shows when no chat is open; an open chat gets the 64 px strip of MA-06 instead (D-437).
-  const accountColumn = !!inbox && (kind === 'EMAIL' || conversationId === undefined)
   const selected = conversationId !== undefined || compose
   const error = frameError ?? list.error
   const failedAt = frameFailedAt ?? list.failedAt
@@ -193,22 +204,17 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       <div
         className={cn(
           'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:*:overflow-hidden',
-          chat
-            ? showInfo
-              ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]'
-              : 'xl:grid-cols-[340px_minmax(0,1fr)]'
-            : accountColumn
-              ? 'xl:grid-cols-[232px_340px_minmax(0,1fr)] 2xl:grid-cols-[232px_380px_minmax(0,1fr)]'
-              : 'xl:grid-cols-[380px_minmax(0,1fr)]',
+          // The info of a chat opens over the chat (not a column of its own), so a chat gets the rest of the width.
+          kind === 'CHAT' ? 'xl:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]' : 'xl:grid-cols-[380px_minmax(0,1fr)]',
         )}
       >
-        {accountColumn && <AccountPane inbox={inbox} filter={filter} to={toFilter} nameOf={nameOf} className={`hidden xl:flex ${CARD}`} />}
         <ConversationList
           screen={screen}
           conversations={conversations ?? []}
           unread={listMeta}
           total={inbox?.counts.unread ?? null}
           accountOptions={inbox ? accountCounts(inbox) : []}
+          counts={inbox ? countsFor(inbox.counts, filter.account) : undefined}
           filter={filter}
           onFilter={(change) => navigate(toFilter(change))}
           selectedId={conversationId ?? null}
@@ -219,28 +225,27 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
           switching={list.switching}
           more={list.more}
           notice={notice}
-          className={cn(chat ? (selected ? 'hidden xl:flex' : 'flex') : selected ? 'hidden md:flex' : 'flex', CARD)}
+          className={cn(selected ? 'hidden md:flex' : 'flex', CARD)}
         />
         {chat && item && account ? (
-          <>
-            <div className="flex min-h-0 min-w-0 flex-col *:last:min-h-0 *:last:flex-1">
-              {mobileHeader}
-              <ChatThread
-                key={item.id}
-                item={item}
-                detail={detail}
-                account={account}
-                backSearch={search}
-                now={now}
-                nameOf={nameOf}
-                showInfo={showInfo}
-                onToggleInfo={() => setShowInfo((prev) => !prev)}
-                onEditName={editName}
-              />
-            </div>
+          <div className="relative flex min-h-0 min-w-0 flex-col *:nth-2:min-h-0 *:nth-2:flex-1">
+            {mobileHeader}
+            <ChatThread
+              key={item.id}
+              item={item}
+              detail={detail}
+              account={account}
+              backSearch={search}
+              now={now}
+              nameOf={nameOf}
+              showInfo={showInfo}
+              onToggleInfo={() => setShowInfo((prev) => !prev)}
+              onEditName={editName}
+            />
             {nicknamable && (
               <NicknameDialog item={item} open={nicknameFor === item.id} onOpenChange={(open) => setNicknameFor(open ? item.id : null)} />
             )}
+            {/* Over the right edge of the chat, opened by "Thông tin", closed by its button or Esc (D-437). */}
             {showInfo && (
               <ConversationInfo
                 key={`info-${item.id}`}
@@ -250,10 +255,10 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
                 now={now}
                 nameOf={nameOf}
                 onClose={() => setShowInfo(false)}
-                className="hidden h-full min-h-0 border-l-0 xl:flex xl:rounded-panel xl:bg-surface xl:shadow-card"
+                className="absolute inset-y-0 right-0 z-10 hidden w-85 max-w-full border-l-0 xl:flex xl:rounded-panel xl:bg-surface xl:shadow-popover"
               />
             )}
-          </>
+          </div>
         ) : compose ? (
           <div className="flex min-h-0 min-w-0 flex-col">
             <MobilePageHeader back={back} title="Thư mới" />

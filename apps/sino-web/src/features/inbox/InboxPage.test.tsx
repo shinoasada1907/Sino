@@ -121,10 +121,10 @@ describe('Hộp thư on desktop', () => {
     expect(sources().getByRole('button', { name: /an\.nguyen@gmail/ })).toHaveAttribute('aria-pressed', 'true')
 
     const views = within(pane().getByRole('group', { name: 'Lọc danh sách' }))
-    await user.click(views.getByRole('button', { name: 'Chưa đọc' }))
+    await user.click(views.getByRole('button', { name: /^Chưa đọc/ }))
     expect(router.state.location.search).toBe('?account=acc-gmail&view=unread')
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương'])
-    expect(views.getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
+    expect(views.getByRole('button', { name: /^Chưa đọc/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('still filters by the views that no longer have a button, from the address', async () => {

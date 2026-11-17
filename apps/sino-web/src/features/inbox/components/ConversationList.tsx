@@ -6,7 +6,6 @@ import { calendarDaysBetween } from '@/shared/time/local'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Avatar } from '@/shared/ui/avatar'
-import { Segmented } from '@/shared/ui/segmented'
 import { Spec } from '@/shared/ui/spec'
 import {
   arrivedRows,
@@ -27,6 +26,7 @@ import {
 import type { ConversationItem, InboxAccount } from '../inbox.types'
 import { SCREENS, type InboxScreen } from '../screen'
 import type { LoadMore } from '../useInbox'
+import { ChatFilters, ViewTabs } from './ChatFilters'
 import { ListSkeleton } from './InboxStates'
 
 const TABS: { value: InboxView; label: string }[] = [
@@ -60,6 +60,7 @@ export function ConversationList({
   unread,
   total,
   accountOptions,
+  counts,
   filter,
   onFilter,
   selectedId,
@@ -80,6 +81,8 @@ export function ConversationList({
   /** Unread messages of every source, for the "Tất cả" chip; null while unknown. */
   total: number | null
   accountOptions: AccountCount[]
+  /** The unread and "cần trả lời" counts of the chosen account (D-431), for the tabs of Tin nhắn. */
+  counts?: { unread: number; needsReply: number }
   filter: InboxFilter
   onFilter: (change: Partial<InboxFilter>) => void
   selectedId: string | null
@@ -105,6 +108,8 @@ export function ConversationList({
   const title = folder?.title ?? screen.title
   // Only email starts a new conversation from Sino (f10-new-mail); Tin nhắn has no "Thư mới" (D-304).
   const compose = screen.kind === 'EMAIL'
+  // Tin nhắn has its own tabs, "Thêm" and chips of chat type, the same at every width (D-435, D-436).
+  const chatFilters = tabs && screen.kind === 'CHAT' && counts !== undefined
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
@@ -157,7 +162,7 @@ export function ConversationList({
             </select>
             <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.6} />
           </span>
-          {tabs && TABS.slice(1).map((tab) => (
+          {tabs && !chatFilters && TABS.slice(1).map((tab) => (
             <button
               key={tab.value}
               type="button"
@@ -177,8 +182,9 @@ export function ConversationList({
           <Spec className="ml-auto">{unread}</Spec>
           {compose && <NewMailLink search={search} />}
         </div>
-        {tabs && <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />}
+        {tabs && !chatFilters && <ViewTabs value={filter.view} counts={counts ?? { unread: 0, needsReply: 0 }} onChange={(view) => onFilter({ view })} className="self-start" />}
       </div>
+      {chatFilters && <ChatFilters filter={filter} counts={counts} onFilter={onFilter} />}
 
       <section ref={scroller} aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto px-2 pb-2">
         {notice && notice.count > 0 && (

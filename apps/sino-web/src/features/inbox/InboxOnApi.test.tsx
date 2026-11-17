@@ -133,7 +133,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     const user = userEvent.setup()
     await list().findByRole('link', { name: /Trần Minh Anh/ })
 
-    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' }))
+    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: /^Chưa đọc/ }))
 
     expect(router.state.location.search).toBe('?account=acc-1&view=unread')
     await vi.waitFor(() => expect(rowTitles()).toEqual(['Trần Minh Anh']))
@@ -155,7 +155,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     const user = userEvent.setup()
     expect(await list().findByRole('button', { name: 'Tải thêm' })).toBeInTheDocument()
 
-    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' }))
+    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: /^Chưa đọc/ }))
     expect(rowTitles()).toEqual(['Trần Minh Anh'])
     expect(pane().getByRole('group', { name: 'Lọc danh sách' })).toBeInTheDocument()
     expect(list().queryByRole('button', { name: 'Tải thêm' })).toBeNull()

@@ -17,6 +17,8 @@ function open(path: string) {
 
 const chat = (title: string) => within(screen.getByRole('region', { name: `Cuộc trò chuyện ${title}` }))
 const info = () => within(screen.getByRole('complementary', { name: 'Thông tin cuộc trò chuyện' }))
+// The info of a chat opens over it only when asked for (MA-06, D-437).
+const openInfo = async () => userEvent.setup().click(await screen.findByRole('button', { name: 'Thông tin' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 // The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
 const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
@@ -67,6 +69,7 @@ describe('a chat conversation', () => {
   // The info column is the profile card of chat-ui-refactor: who, three buttons, push switch, then the files of the chat.
   it('shows the profile card and the files of the chat in the info column', async () => {
     open('/messages/conv-2')
+    await openInfo()
 
     expect(await info().findByRole('heading', { level: 3, name: 'Gia đình' })).toBeInTheDocument()
     expect(info().getByRole('button', { name: 'Hồ sơ' })).toBeInTheDocument()
@@ -79,6 +82,7 @@ describe('a chat conversation', () => {
   it('mutes from the profile card', async () => {
     open('/messages/conv-2')
     const user = userEvent.setup()
+    await openInfo()
 
     await user.click(await info().findByRole('button', { name: 'Tắt tiếng' }))
 
@@ -90,6 +94,7 @@ describe('a chat conversation', () => {
 
     expect(await chat('Lê Hoàng').findByText('Bản thiết kế cuối cậu xem chưa?')).toBeInTheDocument()
     expect(chat('Lê Hoàng').queryByText('Lê Hoàng', { selector: '[data-slot="bubble-name"]' })).toBeNull()
+    await openInfo()
     expect(info().queryByText(/^TỆP TÀI LIỆU/)).toBeNull()
     expect(info().queryByText(/^ẢNH & VIDEO/)).toBeNull()
     expect(info().getByRole('heading', { level: 3, name: 'Lê Hoàng' })).toBeInTheDocument()
