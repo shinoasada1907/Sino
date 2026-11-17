@@ -45,6 +45,7 @@ export const API_CONVERSATIONS = [
 export const API_COUNTS = {
   unread: 1,
   byProvider: { gmail: 1 },
+  byAccount: { 'acc-1': { unread: 1, needsReply: 1, withAttachments: 1 } },
   needsReply: 1,
   withAttachments: 1,
   scheduled: 0,

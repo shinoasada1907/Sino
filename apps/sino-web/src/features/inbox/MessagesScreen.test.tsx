@@ -24,8 +24,8 @@ function open(path: string, inbox: ReturnType<typeof createInboxSample> | null =
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 // The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
 const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
-// The source chips above the list: the source column is gone at 1280px, the sidebar and the list tabs carry the rest.
-const sources = () => within(screen.getByRole('group', { name: 'Nguồn' }))
+// The account chips above the list (messages-by-account, D-428).
+const sources = () => within(screen.getByRole('group', { name: 'Tài khoản' }))
 const rowTitles = () =>
   list()
     .queryAllByRole('link')
@@ -62,21 +62,39 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
 
     expect(await list().findByText('Nhóm sửa nhà')).toBeInTheDocument()
     expect(api.fetchInbox).toHaveBeenCalledWith('CHAT')
-    expect(api.fetchConversations).toHaveBeenCalledWith({ view: 'all', source: null, account: null, folder: null }, null, 'CHAT')
+    expect(api.fetchConversations).toHaveBeenCalledWith({ view: 'all', account: null, chatType: null, folder: null }, null, 'CHAT')
     expect(pane().getAllByText('5 chưa đọc')).not.toHaveLength(0)
     expect(rowTitles()).not.toContain('Trần Minh Anh')
   })
 
-  it('offers only the chat sources, and drops an email source from the address', async () => {
-    const { router } = open('/messages?source=gmail&view=unread')
+  it('offers only the chat accounts, and drops an email account and the old ?source= from the address', async () => {
+    const { router } = open('/messages?account=acc-gmail&source=zalo&view=unread')
 
-    expect(await sources().findByRole('button', { name: /^Zalo/ })).toBeInTheDocument()
-    expect(sources().getByRole('button', { name: /^Messenger/ })).toBeInTheDocument()
-    expect(sources().queryByRole('button', { name: /^Gmail/ })).toBeNull()
+    expect(await sources().findByRole('button', { name: /^\+84/ })).toBeInTheDocument()
+    expect(sources().getByRole('button', { name: /^an\.nguyen\.92/ })).toBeInTheDocument()
+    expect(sources().queryByRole('button', { name: /^an\.nguyen@gmail/ })).toBeNull()
     expect(sources().getByRole('button', { name: /^Tất cả/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: /^Chưa đọc/ })).toHaveAttribute('aria-pressed', 'true')
     expect(router.state.location.pathname).toBe('/messages')
     expect(screen.queryByRole('complementary', { name: 'Nguồn và bộ lọc' })).toBeNull()
+  })
+
+  it('keeps the open chat when the account chosen holds it, and leaves it for the list when not (D-434)', async () => {
+    const { router } = open('/messages/conv-2?account=acc-zalo')
+    const user = userEvent.setup()
+    expect(await screen.findByRole('region', { name: 'Cuộc trò chuyện Gia đình' })).toBeInTheDocument()
+
+    await user.click(await sources().findByRole('button', { name: /^Tất cả/ }))
+    expect(router.state.location.pathname).toBe('/messages/conv-2')
+    expect(router.state.location.search).toBe('')
+
+    await user.click(sources().getByRole('button', { name: /^[+]84/ }))
+    expect(router.state.location.pathname).toBe('/messages/conv-2')
+    expect(router.state.location.search).toBe('?account=acc-zalo')
+
+    await user.click(sources().getByRole('button', { name: /^an[.]nguyen[.]92/ }))
+    expect(router.state.location.pathname).toBe('/messages')
+    expect(router.state.location.search).toBe('?account=acc-messenger')
   })
 
   it('has no Thư mới on Tin nhắn', async () => {
@@ -87,11 +105,11 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
   })
 
   it('opens a chat under /messages, with Tin nhắn as its way back', async () => {
-    open('/messages/conv-2?source=zalo')
+    open('/messages/conv-2?account=acc-zalo')
 
     expect(await screen.findByRole('region', { name: 'Cuộc trò chuyện Gia đình' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Tin nhắn' })).toHaveAttribute('href', '/messages?source=zalo')
-    expect(screen.getByRole('link', { name: 'Quay lại Tin nhắn' })).toHaveAttribute('href', '/messages?source=zalo')
+    expect(screen.getByRole('link', { name: 'Tin nhắn' })).toHaveAttribute('href', '/messages?account=acc-zalo')
+    expect(screen.getByRole('link', { name: 'Quay lại Tin nhắn' })).toHaveAttribute('href', '/messages?account=acc-zalo')
   })
 
   it('moves an old link of a chat to Tin nhắn without a step in the history, and reads it once there', async () => {

@@ -7,12 +7,12 @@ import { SOON } from './SectionHead'
 
 const PROVIDERS = [
   { id: 'gmail', name: 'Gmail', soon: false },
-  { id: 'zalo', name: 'Zalo', soon: true },
+  { id: 'zalo', name: 'Zalo', soon: false },
   { id: 'messenger', name: 'Messenger', soon: true },
   { id: 'telegram', name: 'Telegram', soon: true },
 ]
 
-/** Canvas `lp-strip`: Gmail connects today; the others carry "Sắp có" (D-241). */
+/** Canvas `lp-strip`: Gmail and Zalo connect today; the others carry "Sắp có" (D-241). */
 export function ProviderStrip() {
   return (
     <div

@@ -1,6 +1,6 @@
 import { Clock, Info } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, type To } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import type { ProviderKind } from '@/shared/domain'
 import { providerNameOf } from '@/shared/format'
@@ -17,11 +17,14 @@ import { EmailThread } from './components/EmailThread'
 import { NewMail } from './components/NewMail'
 import { NicknameDialog } from './components/NicknameDialog'
 import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, ThreadSkeleton } from './components/InboxStates'
-import { canSetNickname, displayName, FOLDERS, failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
+import { canSetNickname, displayName, FOLDERS, failureDetail, failureReason, matchesAccountAndChat, mobileThreadSubtitle, accountCounts, countsFor, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
 import { useNewMailNotice } from './useNewMailNotice'
 import { SCREENS, screenFrame } from './screen'
+
+// The list and the info column are floating cards 12 px from the edge (canvas `.pane`); the thread is not a card, it sits on the page (`.main`).
+const CARD = 'md:rounded-panel md:bg-surface md:shadow-card'
 
 /**
  * Tin nhắn (`/messages`, chats; canvas `Messages`) and Hộp thư (`/inbox`, emails; canvas `Inbox`), one screen per kind
@@ -41,12 +44,13 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const navigate = useNavigate()
   const validAccounts = inbox?.accounts.map((account) => account.id) ?? null
-  const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null, validAccounts, kind === 'EMAIL')
+  const { filter, search, searchFor } = useInboxFilter(validAccounts, kind)
   const list = useConversationList(kind, filter, now)
-  const notice = useNewMailNotice(inbox?.accounts.map((account) => account.id) ?? [])
+  // The notice counts the account being watched only; mail of another one moves its number in the account column (D-433).
+  const notice = useNewMailNotice(filter.account ? [filter.account] : (inbox?.accounts.map((account) => account.id) ?? []))
 
   const conversations = list.conversations
-  const [showInfo, setShowInfo] = useState(true)
+  const [showInfo, setShowInfo] = useState(false)
   // The conversation whose "Đặt biệt danh" box is open; opening another conversation closes it.
   const [nicknameFor, setNicknameFor] = useState<string | null>(null)
 
@@ -62,6 +66,19 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   // The address of another copy of a thread opens the thread under its own ID (f05b, D-183); it is read there.
   const canonicalId = item && item.id !== conversationId ? item.id : null
   const unreadOpen = item !== undefined && canonicalId === null && item.unreadCount > 0
+  // Esc closes the info of the chat, unless a dialog (a nickname, a picture) has it first.
+  useEffect(() => {
+    if (!showInfo) {
+      return
+    }
+    const close = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('[role="dialog"]')) {
+        setShowInfo(false)
+      }
+    }
+    document.addEventListener('keydown', close)
+    return () => document.removeEventListener('keydown', close)
+  }, [showInfo])
   const online = useOnline()
   const realtimeDown = useRealtimeDown()
   const readOnce = useRef<string | null>(null)
@@ -90,6 +107,12 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   }, [elsewhere, navigate])
 
   const nameOf = providerNameOf(inbox?.providers ?? [])
+  // Where the list goes for a change of filter: an open conversation the new filter leaves out closes, back to the list (D-434).
+  const toFilter = (change: Partial<typeof filter>): To => {
+    const stays = !item || matchesAccountAndChat(item, { ...filter, ...change })
+    return stays ? { search: searchFor(change) } : { pathname: screen.path, search: searchFor(change) }
+  }
+  // The account column shows when no chat is open; an open chat gets the 64 px strip of MA-06 instead (D-437).
   const selected = conversationId !== undefined || compose
   const error = frameError ?? list.error
   const failedAt = frameFailedAt ?? list.failedAt
@@ -116,15 +139,11 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   }
 
   // The first sync of a new account
-  const wholeInbox = filter.view === 'all' && !filter.folder && filter.source === null
+  const wholeInbox = filter.view === 'all' && !filter.folder && filter.account === null && !filter.chatType
   const syncing =
     inbox && wholeInbox && conversations?.length === 0 && !list.switching ? inbox.accounts.filter((entry) => entry.syncProgress !== null) : []
   const folder = filter.folder ? FOLDERS[filter.folder] : null
-  const unread = filter.account && inbox?.counts.byAccount?.[filter.account]
-    ? inbox.counts.byAccount[filter.account].unread
-    : filter.source
-      ? (inbox?.counts.byProvider.find((entry) => entry.provider === filter.source)?.unread ?? 0)
-      : (inbox?.counts.unread ?? 0)
+  const unread = inbox ? countsFor(inbox.counts, filter.account).unread : 0
   const account = item && inbox?.accounts.find((entry) => entry.id === item.accountId)
   // Every account holding the open thread, the primary copy first (f05b, D-182).
   const threadAccounts = item && inbox ? item.accountIds.flatMap((id) => inbox.accounts.filter((entry) => entry.id === id)) : []
@@ -184,49 +203,49 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       {online && realtimeDown && <RealtimeBanner state={realtimeDown} />}
       <div
         className={cn(
-          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:*:overflow-hidden md:*:rounded-panel md:*:bg-surface md:*:shadow-card',
-          chat ? (showInfo ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]') : 'xl:grid-cols-[380px_minmax(0,1fr)]',
+          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:*:overflow-hidden',
+          // The info of a chat opens over the chat (not a column of its own), so a chat gets the rest of the width.
+          kind === 'CHAT' ? 'xl:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]' : 'xl:grid-cols-[380px_minmax(0,1fr)]',
         )}
       >
         <ConversationList
           screen={screen}
           conversations={conversations ?? []}
           unread={listMeta}
-          total={unread}
-          sources={inbox ? sourceCounts(inbox, nameOf) : []}
+          total={inbox?.counts.unread ?? null}
+          accountOptions={inbox ? accountCounts(inbox) : []}
+          counts={inbox ? countsFor(inbox.counts, filter.account) : undefined}
           filter={filter}
-          onFilter={(change) => navigate({ search: searchFor(change) })}
+          onFilter={(change) => navigate(toFilter(change))}
           selectedId={conversationId ?? null}
           search={search}
           now={now}
-          nameOf={nameOf}
           accounts={inbox?.accounts ?? []}
           body={listBody}
           switching={list.switching}
           more={list.more}
           notice={notice}
-          className={chat ? (selected ? 'hidden xl:flex' : 'flex') : selected ? 'hidden md:flex' : 'flex'}
+          className={cn(selected ? 'hidden md:flex' : 'flex', CARD)}
         />
         {chat && item && account ? (
-          <>
-            <div className="flex min-h-0 min-w-0 flex-col *:last:min-h-0 *:last:flex-1">
-              {mobileHeader}
-              <ChatThread
-                key={item.id}
-                item={item}
-                detail={detail}
-                account={account}
-                backSearch={search}
-                now={now}
-                nameOf={nameOf}
-                showInfo={showInfo}
-                onToggleInfo={() => setShowInfo((prev) => !prev)}
-                onEditName={editName}
-              />
-            </div>
+          <div className="relative flex min-h-0 min-w-0 flex-col *:nth-2:min-h-0 *:nth-2:flex-1">
+            {mobileHeader}
+            <ChatThread
+              key={item.id}
+              item={item}
+              detail={detail}
+              account={account}
+              backSearch={search}
+              now={now}
+              nameOf={nameOf}
+              showInfo={showInfo}
+              onToggleInfo={() => setShowInfo((prev) => !prev)}
+              onEditName={editName}
+            />
             {nicknamable && (
               <NicknameDialog item={item} open={nicknameFor === item.id} onOpenChange={(open) => setNicknameFor(open ? item.id : null)} />
             )}
+            {/* Over the right edge of the chat, opened by "Thông tin", closed by its button or Esc (D-437). */}
             {showInfo && (
               <ConversationInfo
                 key={`info-${item.id}`}
@@ -236,10 +255,10 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
                 now={now}
                 nameOf={nameOf}
                 onClose={() => setShowInfo(false)}
-                className="hidden h-full min-h-0 xl:flex"
+                className="absolute inset-y-0 right-0 z-10 hidden w-85 max-w-full border-l-0 xl:flex xl:rounded-panel xl:bg-surface xl:shadow-popover"
               />
             )}
-          </>
+          </div>
         ) : compose ? (
           <div className="flex min-h-0 min-w-0 flex-col">
             <MobilePageHeader back={back} title="Thư mới" />

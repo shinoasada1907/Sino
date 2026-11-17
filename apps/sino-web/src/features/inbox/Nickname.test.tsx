@@ -52,7 +52,7 @@ describe('the name of a chat', () => {
       ),
     )
 
-    const { items } = await fetchConversations({ view: 'all', source: null, account: null }, null)
+    const { items } = await fetchConversations({ view: 'all', account: null }, null)
 
     expect(items[0].nickname).toBe('Mẹ')
     expect(items[1]).not.toHaveProperty('nickname')

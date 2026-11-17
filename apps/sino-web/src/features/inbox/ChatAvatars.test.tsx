@@ -1,4 +1,5 @@
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { renderApp } from '@/test/renderApp'
@@ -15,6 +16,8 @@ const PICTURE = (name: string) => `https://s120-ava-talk.zadn.vn/${encodeURIComp
 const GROUP_PICTURE = 'https://s120-ava-grp-talk.zadn.vn/gia-dinh.jpg'
 
 const chat = (title: string) => within(screen.getByRole('region', { name: `Cuộc trò chuyện ${title}` }))
+// The info of a chat opens over it only when asked for (MA-06, D-437).
+const openInfo = async () => userEvent.setup().click(await screen.findByRole('button', { name: 'Thông tin' }))
 const info = () => within(screen.getByRole('complementary', { name: 'Thông tin cuộc trò chuyện' }))
 const pictures = (scope: { container: HTMLElement } | HTMLElement) =>
   Array.from(('container' in scope ? scope.container : scope).querySelectorAll('[data-slot="avatar"] img')).map((image) => image.getAttribute('src'))
@@ -30,6 +33,7 @@ async function openFamily({ group = null, members = {} }: { group?: string | nul
   })
   renderApp('/messages/conv-2', { shell: createShellSample(NOW), inbox: sample })
   await chat('Gia đình').findByText('Tuần sau ông bà lên chơi, mấy đứa sắp xếp về nhé.')
+  await openInfo()
 }
 
 describe('the pictures in a Zalo chat (zalo-avatars)', () => {

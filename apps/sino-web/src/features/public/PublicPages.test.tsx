@@ -77,6 +77,18 @@ describe('/ of sino-web (WP-01, web-public-pages, D-310)', () => {
 })
 
 describe('the Sino Messages page at / (WP-02, web-public-pages)', () => {
+  it('lists Gmail and Zalo as connectable and Messenger and Telegram as coming soon', async () => {
+    renderApp('/', { me: null })
+
+    await screen.findByRole('heading', { level: 1, name: 'Mọi hộp thư Gmail ở một nơi. Việc cần làm ngay bên cạnh.' })
+    const items = [...document.querySelectorAll('[data-slot="provider"]')]
+    const byName = (n: string) => items.find((el) => el.textContent!.startsWith(n))!
+    expect(byName('Gmail')).not.toHaveAttribute('data-soon')
+    expect(byName('Zalo')).not.toHaveAttribute('data-soon')
+    expect(byName('Messenger')).toHaveAttribute('data-soon')
+    expect(byName('Telegram')).toHaveAttribute('data-soon')
+  })
+
   it('has the sections of sino-site, each under the id the top bar links to', async () => {
     renderApp('/', { me: null })
 

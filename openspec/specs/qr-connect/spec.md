@@ -1,0 +1,64 @@
+# qr-connect Specification
+
+## Purpose
+TBD - created by archiving change zalo-personal. Update Purpose after archive.
+## Requirements
+### Requirement: Bắt đầu kết nối bằng mã QR
+`POST /api/accounts/connect/{provider}/qr` với `acceptRisk` = true và `accountId` tùy chọn (kết nối lại) MUST gọi `qrLogin().start()` của connector và trả `201` với `loginId`, `qrImage` (PNG base64) và `expiresAt`. Lần kết nối đang chờ MUST được giữ trong HTTP session, gắn với owner và `accountId` nếu có. Thiếu hoặc sai `acceptRisk` MUST trả `400`. Provider không có `qrLogin()` MUST trả `422 CONNECT_METHOD_MISMATCH`. Provider đang tắt MUST trả `409 PROVIDER_DISABLED`. `accountId` không thuộc owner MUST trả `404`. Provider không đưa mã QR MUST trả `502 QR_UNAVAILABLE`. Endpoint MUST đòi đăng nhập và CSRF như các endpoint ghi khác.
+
+#### Scenario: Bắt đầu kết nối Zalo
+- **WHEN** người dùng đã đăng nhập gọi `POST /api/accounts/connect/zalo/qr` với `acceptRisk` = true
+- **THEN** response là `201` với `loginId`, `qrImage` và `expiresAt`
+
+#### Scenario: Chưa đồng ý rủi ro
+- **WHEN** request không có `acceptRisk`
+- **THEN** response là `400` và không có lời gọi nào tới connector
+
+#### Scenario: Provider kết nối bằng OAuth2
+- **WHEN** người dùng gọi `POST /api/accounts/connect/gmail/qr`
+- **THEN** response là `422 CONNECT_METHOD_MISMATCH`
+
+### Requirement: Hỏi trạng thái và hoàn tất kết nối QR
+`GET /api/accounts/connect/{provider}/qr/{loginId}` MUST trả `state` của lần đăng nhập (`WAITING`, `SCANNED` kèm `displayName`, `DONE`, `EXPIRED`, `DECLINED`, `FAILED` kèm `code`). Khi connector báo `DONE`, server MUST gọi use case đăng ký kết nối của F02 với hồ sơ và credential nhận được, MUST xóa lần kết nối đang chờ khỏi session, và MUST trả `DONE` với `accountId` và `reconnected`. Lần đăng nhập kết thúc mà không có account (`EXPIRED`, `DECLINED`, `FAILED`) MUST cũng được xóa khỏi session. `loginId` không có trong session của người gọi MUST trả `404 QR_LOGIN_NOT_FOUND`. Provider không trả lời một lần hỏi MUST cho `502 QR_UNAVAILABLE` và MUST giữ lần kết nối đang chờ, để lần hỏi sau hỏi lại. Hai lần hỏi cùng lúc của một session MUST không đăng ký account hai lần.
+
+#### Scenario: Provider chậm một lần
+- **WHEN** `sino-zalo` không trả lời một lần hỏi trạng thái
+- **THEN** response là `502 QR_UNAVAILABLE`, và lần hỏi sau trả trạng thái như thường
+
+#### Scenario: Kết nối mới thành công
+- **WHEN** người dùng quét mã, xác nhận, và web hỏi trạng thái
+- **THEN** response có `state` = `DONE`, `accountId` của account Zalo mới, `reconnected` = false, và account có `status` = `CONNECTED`
+
+#### Scenario: loginId của người khác
+- **WHEN** một session khác gọi `GET` với `loginId` không do nó tạo
+- **THEN** response là `404`
+
+### Requirement: Kết nối lại phải đúng tài khoản cũ
+Khi lần kết nối đang chờ có `accountId`, server MUST so `externalAccountId` của hồ sơ nhận được với account đó. Khớp thì MUST kết nối lại account đó (credential mới, `status` = `CONNECTED`). Không khớp thì MUST NOT tạo hay sửa account nào và MUST trả `state` = `FAILED` với `code` = `CONNECT_WRONG_ACCOUNT`.
+
+#### Scenario: Quét lại sau khi bị đá
+- **WHEN** account Zalo đang `AUTH_EXPIRED` và người dùng quét lại bằng đúng nick đó
+- **THEN** account có `status` = `CONNECTED` với credential mới, `reconnected` = true
+
+#### Scenario: Quét nhầm nick
+- **WHEN** người dùng kết nối lại account của nick A nhưng quét bằng nick B
+- **THEN** `state` = `FAILED`, `code` = `CONNECT_WRONG_ACCOUNT`, và không account nào thay đổi
+
+### Requirement: Một tài khoản kết nối QR chỉ thuộc một owner
+Khi connector báo `DONE`, trước khi đăng ký, server MUST kiểm tra xem có account chưa xóa nào của owner khác cùng `provider` và `externalAccountId` không, kể cả account đang tắt. Có thì server MUST NOT tạo hay sửa account nào, MUST bỏ credential vừa nhận, và MUST trả `state` = `FAILED` với `code` = `CONNECT_ACCOUNT_IN_USE`. Account đã xóa MUST NOT chặn.
+
+#### Scenario: Nick đã thuộc người khác
+- **WHEN** owner B quét QR bằng nick Zalo mà owner A đang có trong Sino
+- **THEN** response có `state` = `FAILED`, `code` = `CONNECT_ACCOUNT_IN_USE`, owner B không có account mới và account của owner A không đổi
+
+#### Scenario: Owner cũ đã xóa account
+- **WHEN** owner A đã xóa account Zalo của nick đó và owner B quét QR bằng nick đó
+- **THEN** owner B có account Zalo mới với `status` = `CONNECTED`
+
+### Requirement: Hủy kết nối QR
+`DELETE /api/accounts/connect/{provider}/qr/{loginId}` MUST gọi `qrLogin().cancel(loginId)`, xóa lần kết nối đang chờ khỏi session và trả `204`, kể cả khi lần kết nối đã hết hạn.
+
+#### Scenario: Đóng hộp thoại khi đang hiện mã
+- **WHEN** người dùng đóng hộp thoại trong lúc mã đang chờ quét
+- **THEN** connector nhận `cancel` và lần hỏi trạng thái sau đó trả `404`
+

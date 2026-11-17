@@ -4,6 +4,7 @@ import type { AccountStatus, Instant, ProviderKind } from '@/shared/domain'
 import { requestView, type InboxFilter } from './format'
 import type { Reaction, ReactionKind } from './reactions'
 import type {
+  AccountCounts,
   Attachment,
   ConversationItem,
   ConversationKind,
@@ -48,7 +49,8 @@ interface ProviderResponse extends ProviderEntry {
 interface CountsResponse {
   unread: number
   byProvider: Record<string, number>
-  byAccount?: Record<string, { unread: number; needsReply: number; withAttachments: number }>
+  /** Per account, by copy: a thread held by two accounts counts in both, so the sum can exceed `unread` (messages-by-account, D-425). */
+  byAccount: Record<string, AccountCounts>
   needsReply: number
   withAttachments: number
   scheduled: number
@@ -298,14 +300,14 @@ export async function fetchInbox(kind?: ProviderKind): Promise<InboxData> {
   }
 }
 
-/** `GET /api/conversations`: one page of a view, a source and a kind; `cursor` is the `nextCursor` of the page before. */
-export async function fetchConversations({ view, folder, source, account }: InboxFilter, cursor: string | null, kind?: ProviderKind): Promise<ConversationPage> {
+/** `GET /api/conversations`: one page of a view, an account, a chat type and a kind; `cursor` is the `nextCursor` of the page before. */
+export async function fetchConversations({ view, folder, account, chatType }: InboxFilter, cursor: string | null, kind?: ProviderKind): Promise<ConversationPage> {
   const params = new URLSearchParams({ view: requestView({ view, folder }), ...kindQuery(kind) })
-  if (source) {
-    params.set('provider', source)
-  }
   if (account) {
     params.set('accountId', account)
+  }
+  if (chatType) {
+    params.set('chatType', chatType)
   }
   if (cursor) {
     params.set('cursor', cursor)

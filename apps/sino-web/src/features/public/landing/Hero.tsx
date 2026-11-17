@@ -71,8 +71,8 @@ export function Hero() {
           Mọi hộp thư Gmail ở một nơi. Việc cần làm ngay bên cạnh.
         </h1>
         <p className={cn(lead, enter, d2)}>
-          Sino gom các tài khoản Gmail của bạn vào một hộp thư chung. Đọc, trả lời và ghi việc cần làm ở cùng một chỗ, không
-          phải mở từng tài khoản. Zalo, Messenger và Telegram sẽ đến sau.
+          Sino gom các tài khoản Gmail và Zalo của bạn vào một hộp thư chung. Đọc, trả lời và ghi việc cần làm ở cùng một chỗ, không
+          phải mở từng tài khoản. Messenger và Telegram sẽ đến sau.
         </p>
         <div data-slot="cta" className={cn('flex w-full flex-wrap gap-3 max-md:*:grow', enter, d2)}>
           <BorderGlow>

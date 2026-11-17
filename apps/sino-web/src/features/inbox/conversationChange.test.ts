@@ -30,6 +30,10 @@ const counts: InboxCounts = {
     { provider: 'gmail', unread: 3 },
     { provider: 'zalo', unread: 2 },
   ],
+  byAccount: {
+    'acc-1': { unread: 3, needsReply: 3, withAttachments: 4 },
+    'acc-2': { unread: 2, needsReply: 1, withAttachments: 2 },
+  },
   needsReply: 4,
   withAttachments: 6,
   scheduled: 1,
@@ -56,6 +60,7 @@ describe('countsAfter', () => {
     expect(countsAfter(counts, item, { ...item, unreadCount: 0 })).toEqual({
       ...counts,
       unread: 4,
+      byAccount: { ...counts.byAccount, 'acc-1': { unread: 2, needsReply: 3, withAttachments: 4 } },
       byProvider: [
         { provider: 'gmail', unread: 2 },
         { provider: 'zalo', unread: 2 },
@@ -82,6 +87,7 @@ describe('countsAfter', () => {
     expect(out).toEqual({
       ...counts,
       unread: 4,
+      byAccount: { ...counts.byAccount, 'acc-1': { unread: 2, needsReply: 2, withAttachments: 3 } },
       byProvider: [
         { provider: 'gmail', unread: 2 },
         { provider: 'zalo', unread: 2 },
@@ -96,6 +102,22 @@ describe('countsAfter', () => {
     expect(countsAfter(counts, { ...item, archived: true }, { ...item, archived: true, unreadCount: 0 })).toEqual(counts)
   })
 
+  it('moves the numbers of every account holding the thread, and gives the others theirs back when it is undone (messages-by-account, D-432)', () => {
+    const both = { ...item, accountIds: ['acc-1', 'acc-2'] }
+    const read = countsAfter(counts, both, { ...both, unreadCount: 0 })
+    expect(read.byAccount['acc-1'].unread).toBe(2)
+    expect(read.byAccount['acc-2'].unread).toBe(1)
+    // The total counts the thread once, though two accounts hold it.
+    expect(read.unread).toBe(4)
+    expect(countsAfter(read, { ...both, unreadCount: 0 }, both)).toEqual(counts)
+  })
+
+  it('starts the numbers of an account the counts did not list, and leaves it out when nothing moves', () => {
+    const elsewhere = { ...item, accountId: 'acc-9', accountIds: ['acc-9'] }
+    expect(countsAfter(counts, { ...elsewhere, unreadCount: 0 }, elsewhere).byAccount['acc-9']).toEqual({ unread: 1, needsReply: 0, withAttachments: 0 })
+    expect(countsAfter(counts, elsewhere, { ...elsewhere, unreadCount: 1 }).byAccount).toEqual(counts.byAccount)
+  })
+
   it('adds the source when the server listed none of its conversations as unread', () => {
     const none = { ...counts, byProvider: [{ provider: 'zalo', unread: 2 }] }
     expect(countsAfter(none, { ...item, unreadCount: 0 }, item).byProvider).toEqual([
@@ -105,7 +127,7 @@ describe('countsAfter', () => {
   })
 
   it('never goes below zero when the counts were already behind', () => {
-    const zero = { ...counts, unread: 0, byProvider: [{ provider: 'gmail', unread: 0 }], needsReply: 0, withAttachments: 0 }
+    const zero = { ...counts, unread: 0, byProvider: [{ provider: 'gmail', unread: 0 }], byAccount: { 'acc-1': { unread: 0, needsReply: 0, withAttachments: 0 } }, needsReply: 0, withAttachments: 0 }
     expect(countsAfter(zero, item, { ...item, archived: true })).toEqual(zero)
   })
 })

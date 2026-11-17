@@ -49,15 +49,15 @@ describe('Hộp thư on tablet and mobile', () => {
   it('filters by source with the mobile chips, the chat sources on Tin nhắn (f05c)', async () => {
     const { router } = open('/messages')
     const user = userEvent.setup()
-    const chips = within(await screen.findByRole('group', { name: 'Nguồn' }))
+    const chips = within(await screen.findByRole('group', { name: 'Tài khoản' }))
 
-    expect(chips.getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Tất cả · 5', 'Zalo · 4', 'Messenger'])
+    expect(chips.getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Tất cả · 5', '+84 9•• ••• 218 · 4', 'an.nguyen.92'])
     expect(chips.getByRole('button', { name: 'Tất cả · 5' })).toHaveAttribute('aria-pressed', 'true')
 
-    await user.click(chips.getByRole('button', { name: 'Zalo · 4' }))
+    await user.click(chips.getByRole('button', { name: '+84 9•• ••• 218 · 4' }))
 
-    expect(router.state.location.search).toBe('?source=zalo')
-    expect(chips.getByRole('button', { name: 'Zalo · 4' })).toHaveAttribute('aria-pressed', 'true')
+    expect(router.state.location.search).toBe('?account=acc-zalo')
+    expect(chips.getByRole('button', { name: '+84 9•• ••• 218 · 4' })).toHaveAttribute('aria-pressed', 'true')
     expect(rowTitles()).toEqual(['Nhóm chạy bộ Hồ Tây', 'Gia đình', 'Hà', 'Nhóm sửa nhà'])
   })
 
@@ -66,21 +66,21 @@ describe('Hộp thư on tablet and mobile', () => {
     const user = userEvent.setup()
     const chips = within(await screen.findByRole('group', { name: 'Lọc' }))
 
-    await user.selectOptions(chips.getByRole('combobox', { name: 'Nguồn' }), 'Gmail · 7')
-    expect(router.state.location.search).toBe('?source=gmail')
+    await user.selectOptions(chips.getByRole('combobox', { name: 'Tài khoản' }), 'an.nguyen@gmail.com · 7')
+    expect(router.state.location.search).toBe('?account=acc-gmail')
 
     await user.click(chips.getByRole('button', { name: 'Chưa đọc' }))
-    expect(router.state.location.search).toBe('?source=gmail&view=unread')
+    expect(router.state.location.search).toBe('?account=acc-gmail&view=unread')
     expect(chips.getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương'])
   })
 
   it('opens a conversation as a mobile sub-page with a way back and no tab bar', async () => {
-    open('/messages/conv-2?source=zalo')
+    open('/messages/conv-2?account=acc-zalo')
     const back = await screen.findByRole('link', { name: 'Quay lại Tin nhắn' })
     const header = mobileHeader(back)
 
-    expect(back).toHaveAttribute('href', '/messages?source=zalo')
+    expect(back).toHaveAttribute('href', '/messages?account=acc-zalo')
     expect(within(header).getByRole('heading', { level: 1, name: 'Gia đình' })).toBeInTheDocument()
     expect(within(header).getByText('Zalo · 6 người')).toBeInTheDocument()
     expect(within(header).getByRole('button', { name: 'Thông tin cuộc trò chuyện' })).toBeInTheDocument()

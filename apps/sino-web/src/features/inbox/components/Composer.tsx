@@ -108,7 +108,7 @@ export function Composer({
     }
   }
   return (
-    <div className="relative flex flex-wrap items-end gap-2 border-t bg-background px-3 pt-2.5 pb-6 md:flex-col md:flex-nowrap md:items-stretch md:px-5 md:pt-3 md:pb-4 xl:px-6 xl:pt-4 xl:pb-5">
+    <div className="relative flex flex-wrap items-end gap-2 border-t bg-background md:border-t-0 px-3 pt-2.5 pb-6 md:flex-col md:flex-nowrap md:items-stretch md:px-5 md:pt-3 md:pb-4 xl:px-6 xl:pt-4 xl:pb-5">
       {from && (
         <p className="order-first w-full text-sm [overflow-wrap:anywhere] text-muted-foreground md:order-none xl:hidden">
           Gửi từ <span className="text-foreground">{from}</span>
@@ -121,7 +121,7 @@ export function Composer({
           Tới <span className="text-foreground">{to}</span>
         </p>
       )}
-      <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-surface py-2.5 pr-3 pl-3.5 transition-[border-color,box-shadow] duration-(--dur-hover) ease-out focus-within:border-foreground focus-within:ring-3 focus-within:ring-foreground/14 max-md:contents">
+      <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-surface py-2.5 pr-3 pl-3.5 transition-[border-color,box-shadow] duration-(--dur-hover) ease-out focus-within:border-foreground focus-within:ring-3 focus-within:ring-foreground/14 md:border-transparent md:shadow-card md:focus-within:border-foreground max-md:contents">
         {tray && onSendFiles && <AttachmentTrayView tray={tray} />}
         <label htmlFor={id} className="sr-only">
           {label}

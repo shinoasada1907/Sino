@@ -22,7 +22,7 @@ function backend() {
     // The shell keeps the account list on every screen (NS-01): a stream that opens again reads it, with the imports, again.
     http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
     http.get('/api/conversations/counts', () =>
-      HttpResponse.json({ unread: unread(), byProvider: { gmail: unread() }, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0 }),
+      HttpResponse.json({ unread: unread(), byProvider: { gmail: unread() }, byAccount: {}, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0 }),
     ),
     http.get('/api/conversations', () => {
       listReads += 1
@@ -117,7 +117,7 @@ describe('the notice of each screen (f05c)', () => {
       http.get('/api/providers', () => HttpResponse.json([...API_PROVIDERS, { type: 'zalo', displayName: 'Zalo', kind: 'CHAT', capabilities: ['READ_MESSAGES'] }])),
       http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
       http.get('/api/conversations/counts', () =>
-        HttpResponse.json({ unread: 1, byProvider: {}, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0, unreadByKind: { EMAIL: 1, CHAT: 1 } }),
+        HttpResponse.json({ unread: 1, byProvider: {}, byAccount: {}, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0, unreadByKind: { EMAIL: 1, CHAT: 1 } }),
       ),
       http.get('/api/conversations', ({ request }) =>
         HttpResponse.json({ items: new URL(request.url).searchParams.get('kind') === 'chat' ? [chat] : API_CONVERSATIONS, nextCursor: null }),
@@ -136,6 +136,19 @@ describe('the notice of each screen (f05c)', () => {
 
     expect(await list().findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
     expect(list().queryByRole('button', { name: /thư mới/ })).toBeNull()
+  })
+
+  it('follows the account being viewed: mail of another account says nothing (messages-by-account, D-433)', async () => {
+    twoKinds()
+    renderApp('/inbox?account=acc-1', { inbox: null })
+    await list().findByRole('link', { name: /Trần Minh Anh/ })
+    lastStream().open()
+
+    lastStream().emit('conversations.changed', { ...event('sync', 3), accountId: 'acc-2' })
+    lastStream().emit('conversations.changed', event('sync', 1))
+
+    expect(await list().findByRole('button', { name: '1 thư mới' })).toBeInTheDocument()
+    expect(list().queryByRole('button', { name: /3 thư mới|4 thư mới/ })).toBeNull()
   })
 
   it('says nothing on Hộp thư for new chats', async () => {

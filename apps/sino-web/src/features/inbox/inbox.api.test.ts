@@ -58,6 +58,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
         { provider: 'gmail', unread: 1 },
         { provider: 'zalo', unread: 4 },
       ],
+      byAccount: { 'acc-1': { unread: 1, needsReply: 1, withAttachments: 1 } },
       needsReply: 1,
       withAttachments: 1,
       scheduled: 0,
@@ -84,7 +85,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
     expect(sending).toEqual({ ready: 'READY', 'read-only': 'NEEDS_PERMISSION', expired: 'UNAVAILABLE', chat: 'NOT_SUPPORTED' })
   })
 
-  it('asks for one page of a view and a source, and turns the items into the screen contract', async () => {
+  it('asks for one page of a view and an account, and turns the items into the screen contract', async () => {
     const asked: string[] = []
     server.use(
       http.get('/api/conversations', ({ request }) => {
@@ -93,16 +94,16 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       }),
     )
 
-    const page = await fetchConversations({ view: 'unread', source: 'gmail', account: null }, null)
+    const page = await fetchConversations({ view: 'unread', account: 'acc-1' }, null)
 
-    expect(asked).toEqual(['?view=unread&provider=gmail'])
+    expect(asked).toEqual(['?view=unread&accountId=acc-1'])
     expect(page.nextCursor).toBe('MjAyNi0xMC0wMQ')
     expect(page.items[0]).toEqual({ ...API_CONVERSATIONS[0], avatarUrl: null, linked: [] })
     // An item without text (only a file) has no preview; an API before f05b has one account for each item.
     expect(page.items[1]).toEqual(expect.objectContaining({ id: 'c-2', snippet: '', linked: [], accountIds: ['acc-1'] }))
   })
 
-  it('asks for the next page with the cursor, and for every source without a provider', async () => {
+  it('asks for the next page with the cursor, and for every account without an accountId', async () => {
     const asked: string[] = []
     server.use(
       http.get('/api/conversations', ({ request }) => {
@@ -111,7 +112,7 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
       }),
     )
 
-    const page = await fetchConversations({ view: 'all', source: null, account: null }, 'a/b+c')
+    const page = await fetchConversations({ view: 'all', account: null }, 'a/b+c')
 
     expect(asked).toEqual(['?view=all&cursor=a%2Fb%2Bc'])
     expect(page).toEqual({ items: [], nextCursor: null })
@@ -184,10 +185,26 @@ describe('the Hộp thư requests on the F05 API (D-56)', () => {
         }),
       )
 
-      await fetchConversations({ view: 'unread', source: 'gmail', account: null }, null, 'EMAIL')
-      await fetchConversations({ view: 'all', source: null, account: null }, null, 'CHAT')
+      await fetchConversations({ view: 'unread', account: 'acc-1' }, null, 'EMAIL')
+      await fetchConversations({ view: 'all', account: null }, null, 'CHAT')
 
-      expect(asked).toEqual(['?view=unread&kind=email&provider=gmail', '?view=all&kind=chat'])
+      expect(asked).toEqual(['?view=unread&kind=email&accountId=acc-1', '?view=all&kind=chat'])
+    })
+
+    it('asks for the account and the kind of chat, and never for a provider (messages-by-account, D-425)', async () => {
+      const asked: string[] = []
+      server.use(
+        http.get('/api/conversations', ({ request }) => {
+          asked.push(new URL(request.url).search)
+          return HttpResponse.json({ items: [], nextCursor: null })
+        }),
+      )
+
+      await fetchConversations({ view: 'all', account: 'acc-zalo', chatType: 'group' }, null, 'CHAT')
+      await fetchConversations({ view: 'all', account: null, chatType: 'direct' }, 'abc', 'CHAT')
+
+      expect(asked).toEqual(['?view=all&kind=chat&accountId=acc-zalo&chatType=group', '?view=all&kind=chat&chatType=direct&cursor=abc'])
+      expect(asked.join()).not.toContain('provider')
     })
 
     it('gives the navigation the unread of each kind', async () => {
@@ -497,7 +514,7 @@ describe('the pictures of a chat (zalo-avatars, D-411, D-412)', () => {
       ),
     )
 
-    const { items } = await fetchConversations({ view: 'all', source: null, account: null }, null)
+    const { items } = await fetchConversations({ view: 'all', account: null }, null)
 
     expect(items.map(({ id, avatarUrl }) => [id, avatarUrl])).toEqual([
       ['z-1', PICTURE],
@@ -561,7 +578,7 @@ describe('the pictures of a chat (zalo-avatars, D-411, D-412)', () => {
       ),
     )
 
-    const { items } = await fetchConversations({ view: 'all', source: null, account: null }, null)
+    const { items } = await fetchConversations({ view: 'all', account: null }, null)
     const { item, detail } = await fetchConversation('z-1')
 
     expect(items[0].avatarUrl).toBeNull()

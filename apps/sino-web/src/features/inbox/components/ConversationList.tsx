@@ -1,13 +1,11 @@
 import { Calendar, CalendarClock, ChevronDown, Clock, ListFilter, Paperclip, Search, SquareCheck, SquarePen, StickyNote, TriangleAlert, type LucideIcon , Users } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { calendarDaysBetween } from '@/shared/time/local'
 import { Button } from '@/shared/ui/button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Avatar } from '@/shared/ui/avatar'
-import { Segmented } from '@/shared/ui/segmented'
 import { Spec } from '@/shared/ui/spec'
 import {
   arrivedRows,
@@ -16,19 +14,19 @@ import {
   groupConversations,
   newMailText,
   previewText,
-  rowAccounts,
   rowFlag,
+  rowLabel,
   rowTime,
-  sourceLabel,
   FOLDERS,
   type InboxFilter,
   type InboxView,
   type RowFlag,
-  type SourceCount,
+  type AccountCount,
 } from '../format'
 import type { ConversationItem, InboxAccount } from '../inbox.types'
 import { SCREENS, type InboxScreen } from '../screen'
 import type { LoadMore } from '../useInbox'
+import { ChatFilters, ViewTabs } from './ChatFilters'
 import { ListSkeleton } from './InboxStates'
 
 const TABS: { value: InboxView; label: string }[] = [
@@ -61,13 +59,13 @@ export function ConversationList({
   conversations,
   unread,
   total,
-  sources,
+  accountOptions,
+  counts,
   filter,
   onFilter,
   selectedId,
   search,
   now,
-  nameOf,
   accounts,
   body,
   switching = false,
@@ -82,14 +80,15 @@ export function ConversationList({
   unread: string
   /** Unread messages of every source, for the "Tất cả" chip; null while unknown. */
   total: number | null
-  sources: SourceCount[]
+  accountOptions: AccountCount[]
+  /** The unread and "cần trả lời" counts of the chosen account (D-431), for the tabs of Tin nhắn. */
+  counts?: { unread: number; needsReply: number }
   filter: InboxFilter
   onFilter: (change: Partial<InboxFilter>) => void
   selectedId: string | null
   search: string
   now: Date
-  nameOf: ProviderNameOf
-  /** The owner's accounts, to name those of a row when its source has more than one (D-97, f05b D-182). */
+  /** The accounts of the screen, to name those of a row when there is more than one (D-430, f05b D-182). */
   accounts: InboxAccount[]
   body?: ReactNode
   switching?: boolean
@@ -99,7 +98,7 @@ export function ConversationList({
   className?: string
 }) {
   const groups = groupConversations(conversations, now)
-  const arrived = useArrivedRows(conversations, `${filter.folder ?? filter.view} ${filter.source ?? ''} ${switching}`)
+  const arrived = useArrivedRows(conversations, `${filter.folder ?? filter.view} ${filter.account ?? ''} ${filter.chatType ?? ''} ${switching}`)
   const scroller = useRef<HTMLElement>(null)
   const label = (name: string, count: number | null) => (count ? `${name} · ${count}` : name)
   // A mail folder has no tabs of the inbox: its list is whatever the server holds in it (D-502).
@@ -109,6 +108,8 @@ export function ConversationList({
   const title = folder?.title ?? screen.title
   // Only email starts a new conversation from Sino (f10-new-mail); Tin nhắn has no "Thư mới" (D-304).
   const compose = screen.kind === 'EMAIL'
+  // Tin nhắn has its own tabs, "Thêm" and chips of chat type, the same at every width (D-435, D-436).
+  const chatFilters = tabs && screen.kind === 'CHAT' && counts !== undefined
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
@@ -130,13 +131,13 @@ export function ConversationList({
         </Button>
       </header>
       {filters && (
-        <div role="group" aria-label="Nguồn" className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] md:hidden">
-          <button type="button" aria-pressed={filter.source === null} onClick={() => onFilter({ source: null })} className={CHIP}>
+        <div role="group" aria-label="Tài khoản" className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] md:hidden">
+          <button type="button" aria-pressed={filter.account === null} onClick={() => onFilter({ account: null })} className={CHIP}>
             {label('Tất cả', total)}
           </button>
-          {sources.map((source) => (
-            <button key={source.type} type="button" aria-pressed={filter.source === source.type} onClick={() => onFilter({ source: source.type })} className={CHIP}>
-              {label(source.name, source.unread)}
+          {accountOptions.map((option) => (
+            <button key={option.id} type="button" aria-pressed={filter.account === option.id} onClick={() => onFilter({ account: option.id })} className={CHIP}>
+              {label(option.name, option.unread)}
             </button>
           ))}
         </div>
@@ -147,21 +148,21 @@ export function ConversationList({
         <div role="group" aria-label="Lọc" className="hidden flex-wrap gap-2 px-3 pt-3.5 pb-3 md:flex xl:hidden">
           <span className="relative inline-flex">
             <select
-              aria-label="Nguồn"
-              value={filter.source ?? ''}
-              onChange={(event) => onFilter({ source: event.target.value || null })}
-              className={cn(CHIP, 'appearance-none pr-8', filter.source && 'border-transparent bg-brand-soft text-brand-ink')}
+              aria-label="Tài khoản"
+              value={filter.account ?? ''}
+              onChange={(event) => onFilter({ account: event.target.value || null })}
+              className={cn(CHIP, 'appearance-none pr-8', filter.account && 'border-transparent bg-brand-soft text-brand-ink')}
             >
-              <option value="">Tất cả nguồn</option>
-              {sources.map((source) => (
-                <option key={source.type} value={source.type}>
-                  {label(source.name, source.unread)}
+              <option value="">Tất cả tài khoản</option>
+              {accountOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {label(option.name, option.unread)}
                 </option>
               ))}
             </select>
             <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.6} />
           </span>
-          {tabs && TABS.slice(1).map((tab) => (
+          {tabs && !chatFilters && TABS.slice(1).map((tab) => (
             <button
               key={tab.value}
               type="button"
@@ -175,14 +176,15 @@ export function ConversationList({
           {compose && <NewMailLink search={search} className="ml-auto" />}
         </div>
       )}
-      <div className="hidden flex-col gap-3.5 px-4 pt-5 pb-3.5 xl:flex">
+      <div className="hidden flex-col gap-3.5 px-4 pt-4 pb-3 xl:flex">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{title}</h1>
+          <h1 className="text-[17px] leading-6 font-extrabold tracking-[-0.005em]">{title}</h1>
           <Spec className="ml-auto">{unread}</Spec>
           {compose && <NewMailLink search={search} />}
         </div>
-        {tabs && <Segmented label="Lọc danh sách" value={filter.view} options={TABS} onChange={(view) => onFilter({ view })} className="self-start" />}
+        {tabs && !chatFilters && <ViewTabs value={filter.view} counts={counts ?? { unread: 0, needsReply: 0 }} onChange={(view) => onFilter({ view })} className="self-start" />}
       </div>
+      {chatFilters && <ChatFilters filter={filter} counts={counts} onFilter={onFilter} />}
 
       <section ref={scroller} aria-label="Danh sách cuộc trò chuyện" className="min-h-0 flex-1 overflow-auto px-2 pb-2">
         {notice && notice.count > 0 && (
@@ -215,8 +217,7 @@ export function ConversationList({
                       arrived={arrived.ids.has(item.id) ? (arrived.slide ? 'slide' : 'show') : null}
                       search={search}
                       now={now}
-                      nameOf={nameOf}
-                      accounts={rowAccounts(item, accounts)}
+                      label={rowLabel(item, accounts, filter.account)}
                     />
                   ))}
                 </div>
@@ -266,28 +267,26 @@ function ConversationRow({
   arrived,
   search,
   now,
-  nameOf,
-  accounts,
+  label,
 }: {
   item: ConversationItem
   selected: boolean
   arrived: 'slide' | 'show' | null
   search: string
   now: Date
-  nameOf: ProviderNameOf
-  accounts: InboxAccount[]
+  /** The line of account and group size under the title (D-430). */
+  label: string | null
 }) {
   const unread = item.unreadCount > 0
   const flag = rowFlag(item, now)
   const today = calendarDaysBetween(new Date(item.lastMessageAt), now) === 0
-  const named = accounts.length > 0
 
   return (
     <Link
       to={{ pathname: `${SCREENS[item.kind].path}/${item.id}`, search }}
       aria-current={selected ? 'page' : undefined}
       data-arrived={arrived ?? undefined}
-      className="grid grid-cols-[40px_minmax(0,1fr)_auto] data-[arrived=slide]:motion-safe:animate-row-in data-[arrived=slide]:motion-reduce:animate-fade-in items-start gap-x-3 rounded-md px-3 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3.5 md:p-3.5 aria-[current=page]:bg-brand-soft"
+      className="grid grid-cols-[40px_minmax(0,1fr)_auto] data-[arrived=slide]:motion-safe:animate-row-in data-[arrived=slide]:motion-reduce:animate-fade-in items-start gap-x-3 rounded-md px-3 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3 md:px-3.5 md:py-3 md:in-[.corners-compact]:py-2 aria-[current=page]:bg-brand-soft"
     >
       {item.kind === 'CHAT' ? (
         <span className="relative grid size-10 shrink-0 place-items-center md:size-9">
@@ -321,22 +320,10 @@ function ConversationRow({
         </span>
       )}
       <span className="flex min-w-0 flex-col gap-0.75">
-        {/* Each side takes its text; when both do not fit, they share the line evenly, so a long name keeps the account. */}
-        <span className="grid grid-cols-[minmax(0,auto)_minmax(0,auto)] items-baseline justify-start gap-x-2.5">
-          <span data-slot="row-title" className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>
-            {displayName(item)}
-          </span>
-          <Spec className={cn('truncate', !named && 'hidden xl:inline')}>
-            {named ? (
-              <>
-                <span className="hidden xl:inline">{sourceLabel(item, nameOf)} · </span>
-                {accounts.map((account) => account.address).join(', ')}
-              </>
-            ) : (
-              sourceLabel(item, nameOf)
-            )}
-          </Spec>
+        <span data-slot="row-title" className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>
+          {displayName(item)}
         </span>
+        {label && <Spec className="truncate">{label}</Spec>}
         {item.subject && (
           <span className={cn('truncate text-sm', unread ? 'font-bold text-foreground' : 'font-medium text-muted-foreground')}>{item.subject}</span>
         )}

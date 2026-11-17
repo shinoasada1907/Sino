@@ -54,7 +54,7 @@ BE-111 làm đúng như task và spec của `f05c` (D-306, D-307, D-308: `kind` 
 ### D-428 — Bộ lọc trong địa chỉ · agent chốt (phần 1)
 `InboxFilter` đổi `source: string | null` thành `account: string | null`, thêm `chatType: 'direct' | 'group' | null` (chỉ Tin nhắn dùng); địa chỉ là `account=<id>`, `view=…`, `chat=direct|group`. `account` không có trong danh sách tài khoản của màn → "Tất cả"; `source` cũ bị bỏ qua. `fetchConversations` gửi `accountId` và `chatType`; bỏ gửi `provider` (API vẫn nhận). Hàm tạo địa chỉ (`searchFor`) giữ các tham số khác khi đổi một tham số.
 
-### D-429 — Cột tài khoản · agent chốt (phần 1)
+### ~~D-429 — Cột tài khoản · agent chốt (phần 1)~~ → thay bằng D-439 (cột bỏ; phần ô chọn tablet và chip điện thoại vẫn giữ)
 Thay "Nguồn" và "Tài khoản" của `SourcePane` bằng một danh sách: "Tất cả", rồi tài khoản xếp dưới tên nhà cung cấp (nhãn nhóm nhỏ, không bấm được), mỗi tài khoản: chấm trạng thái (`accountTone` hôm nay), tên hay địa chỉ, số `byAccount[id].unread`. Bấm là lọc; "Xem tài khoản" ở đầu danh sách khi đang lọc. Dải 64px (D-437) dùng chữ cái đầu tên tài khoản (không dùng `AccountAvatar`, vì hai tài khoản Zalo sẽ giống nhau). Tablet: ô chọn; điện thoại: hàng chip, thay hàng chip "Nguồn" hiện có của `ConversationList` (`md:hidden`).
 
 ### D-430 — Nhãn dòng · agent chốt (phần 1, điểm 3)
@@ -79,7 +79,7 @@ Chat vẫn mở nếu khớp bộ lọc mới (`accountIds` có tài khoản, `m
 ### D-436 — Tab và menu "Thêm" · agent chốt theo DN-3
 Ba tab là ba giá trị `view` (`all`, `unread`, `reply`); "Thêm" là menu của thư viện giao diện đang có (shadcn `DropdownMenu`, nếu `src/shared/ui` đã có; không thì dùng `Popover` đang có, không thêm thư viện), mục chọn được ghi lên nút. Số trên tab theo D-431.
 
-### D-437 — Bố cục Tin nhắn khi mở chat · agent chốt theo DN-2 (phần 1)
+### D-437 — Bố cục Tin nhắn khi mở chat · agent chốt theo DN-2 (phần 1) · **sửa theo D-439:** không còn cột tài khoản 232px và dải 64px ở dòng "Từ 1280px"; phần còn lại giữ
 
 | Cỡ màn | Chưa mở chat | Đang mở chat |
 |---|---|---|
@@ -91,6 +91,10 @@ Cột Thông tin chỉ mở bằng nút "Thông tin" (i) ở đầu khung chat, 
 
 ### D-438 — Không có nhánh dự phòng cho backend cũ · agent chốt (phần 2)
 Backend làm trước (MA-02, MA-03) và cả hai cùng lên `dev`; web không viết đường cho `counts` thiếu `byAccount`. Trước khi backend xong, web dựng và test trên MSW theo hợp đồng ở đây.
+
+### D-439 — Bỏ cột tài khoản, chọn tài khoản ở sidebar · **người dùng chốt 2026-11-17**
+Người dùng xem màn thật sau MA-05 (ảnh `/inbox` ở desktop): cột "Tài khoản" (`AccountPane`, `5de16e3`) "dư", vì sidebar đã hiện tài khoản dưới Hộp thư và dưới Zalo. Bỏ cột ở cả hai màn và bỏ dải 64px của D-437. Lọc vẫn bằng `?account=` (MA-04); sidebar dẫn tới đó (sidebar do người dùng tự làm, `app/shell/Sidebar.tsx`). Giữ ô chọn tablet, chip điện thoại (sidebar thu lại ở các cỡ đó) và nhãn dòng D-430. Gỡ code trong MA-06.
+**Phương án bị loại:** bỏ luôn ô chọn và chip (tablet và điện thoại sẽ không còn cách lọc theo tài khoản).
 
 ## Conflict
 

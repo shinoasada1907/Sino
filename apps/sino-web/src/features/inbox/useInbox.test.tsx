@@ -26,7 +26,7 @@ vi.mock('./inbox.api', async (importOriginal) => {
 })
 
 const now = new Date('2026-10-02T07:05:00Z')
-const ALL = { view: 'all', source: null, account: null } as const
+const ALL = { view: 'all', account: null } as const
 const [first, second] = API_CONVERSATIONS.map((item) => ({ ...item, avatarUrl: null, snippet: item.snippet ?? '', linked: [] })) as ConversationItem[]
 const FRAME: InboxData = {
   generatedAt: now.toISOString(),
@@ -34,7 +34,7 @@ const FRAME: InboxData = {
   accounts: [
     { id: 'acc-1', provider: 'gmail', externalAccountId: '115758365451560723981', address: 'an.nguyen@gmail.com', status: 'CONNECTED', syncProgress: null, statusChangedAt: null, sending: 'READY' },
   ],
-  counts: { unread: 1, byProvider: [{ provider: 'gmail', unread: 1 }], needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0, unreadByKind: null },
+  counts: { unread: 1, byProvider: [{ provider: 'gmail', unread: 1 }], byAccount: { 'acc-1': { unread: 1, needsReply: 1, withAttachments: 1 } }, needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0, unreadByKind: null },
 }
 const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOUND' }
 const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })
@@ -185,7 +185,12 @@ describe('useUpdateConversation', () => {
 
     await waitFor(() => expect(rowsOf(queryClient)[0].unreadCount).toBe(0))
     expect(queryClient.getQueryData<OpenConversation>(conversationKey('c-1'))?.item.unreadCount).toBe(0)
-    expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts).toMatchObject({ unread: 0, byProvider: [{ provider: 'gmail', unread: 0 }], needsReply: 1 })
+    expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts).toMatchObject({
+      unread: 0,
+      byProvider: [{ provider: 'gmail', unread: 0 }],
+      byAccount: { 'acc-1': { unread: 0, needsReply: 1 } },
+      needsReply: 1,
+    })
 
     await waitFor(() => expect(answer).toBeDefined())
     answer!()
@@ -222,6 +227,37 @@ describe('useUpdateConversation', () => {
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(rowsOf(queryClient)[0]).toEqual(first)
     expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts).toEqual(FRAME.counts)
+  })
+})
+
+describe('useUpdateConversation, a thread held by two accounts (messages-by-account, D-432)', () => {
+  const both = { ...first, accountIds: ['acc-1', 'acc-2'] }
+  const counts = { ...FRAME.counts, byAccount: { ...FRAME.counts.byAccount, 'acc-2': { unread: 1, needsReply: 0, withAttachments: 0 } } }
+  const setupBoth = () => {
+    const made = setup({ list: [both, second] })
+    made.queryClient.setQueryData(inboxKey('EMAIL'), { ...FRAME, counts })
+    return made
+  }
+
+  it('moves the count of each account at once, and puts both back when the server refuses', async () => {
+    let refuse: (() => void) | undefined
+    server.use(
+      http.patch('/api/conversations/:id', async () => {
+        await new Promise<void>((resolve) => (refuse = resolve))
+        return problem(NOT_FOUND, 404)
+      }),
+    )
+    const { queryClient, wrapper } = setupBoth()
+    const { result } = renderHook(() => useUpdateConversation(), { wrapper })
+
+    act(() => result.current.mutate({ id: 'c-1', change: { read: true } }))
+
+    await waitFor(() => expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts.byAccount['acc-2'].unread).toBe(0))
+    expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts.byAccount['acc-1'].unread).toBe(0)
+    await waitFor(() => expect(refuse).toBeDefined())
+    refuse!()
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(queryClient.getQueryData<InboxData>(inboxKey('EMAIL'))?.counts).toEqual(counts)
   })
 })
 

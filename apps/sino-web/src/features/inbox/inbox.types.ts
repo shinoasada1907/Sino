@@ -62,12 +62,19 @@ export interface InboxAccount {
 
 export type AccountSending = 'READY' | 'NEEDS_PERMISSION' | 'UNAVAILABLE' | 'NOT_SUPPORTED'
 
+export interface AccountCounts {
+  unread: number
+  needsReply: number
+  withAttachments: number
+}
+
 /** Counts of conversations that are not archived (D-70). */
 export interface InboxCounts {
   /** Conversations with an unread message ("12 chưa đọc"). */
   unread: number
   byProvider: { provider: ProviderType; unread: number }[]
-  byAccount?: Record<string, { unread: number; needsReply: number; withAttachments: number }>
+  /** Per account, by copy: a thread held by two accounts counts in both, so the sum can exceed `unread` (messages-by-account, D-425). */
+  byAccount: Record<string, AccountCounts>
   needsReply: number
   withAttachments: number
   scheduled: number

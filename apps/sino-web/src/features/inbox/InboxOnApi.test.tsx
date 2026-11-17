@@ -35,6 +35,13 @@ function backend({ items = API_CONVERSATIONS, pageSize = 30, refuse = false }: {
       HttpResponse.json({
         unread: counted((item) => item.unreadCount > 0),
         byProvider: { gmail: counted((item) => item.unreadCount > 0) },
+        byAccount: {
+          'acc-1': {
+            unread: counted((item) => item.unreadCount > 0),
+            needsReply: counted((item) => item.needsReply),
+            withAttachments: counted((item) => item.hasAttachments),
+          },
+        },
         needsReply: counted((item) => item.needsReply),
         withAttachments: counted((item) => item.hasAttachments),
         scheduled: 0,
@@ -86,8 +93,8 @@ function held() {
 }
 
 const open = (path: string) => renderApp(path, { inbox: null })
-// The source chips above the list: the source column is gone at 1280px, the sidebar and the list tabs carry the rest.
-const sources = () => within(screen.getByRole('group', { name: 'Nguồn' }))
+// The account chips above the list (messages-by-account, D-428).
+const sources = () => within(screen.getByRole('group', { name: 'Tài khoản' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 // The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
 const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
@@ -115,22 +122,22 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     expect(await list().findByRole('link', { name: /Trần Minh Anh/ })).toBeInTheDocument()
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Ngân hàng ACB'])
     expect(pane().getAllByText('1 chưa đọc')).not.toHaveLength(0)
-    expect(sources().getByRole('button', { name: 'Gmail · 1' })).toBeInTheDocument()
+    expect(sources().getByRole('button', { name: 'an.nguyen@gmail.com · 1' })).toBeInTheDocument()
     expect(within(list().getByRole('link', { name: /Trần Minh Anh/ })).getByLabelText('Chưa đọc')).toBeInTheDocument()
     expect(asked).toEqual(['view=all&kind=email'])
   })
 
-  it('asks the server for the view and the source the user picks', async () => {
+  it('asks the server for the view and the account the user picks', async () => {
     const { asked } = backend()
-    const { router } = open('/inbox?source=gmail')
+    const { router } = open('/inbox?account=acc-1')
     const user = userEvent.setup()
     await list().findByRole('link', { name: /Trần Minh Anh/ })
 
-    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' }))
+    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: /^Chưa đọc/ }))
 
-    expect(router.state.location.search).toBe('?source=gmail&view=unread')
+    expect(router.state.location.search).toBe('?account=acc-1&view=unread')
     await vi.waitFor(() => expect(rowTitles()).toEqual(['Trần Minh Anh']))
-    expect(asked).toEqual(['view=all&kind=email&provider=gmail', 'view=unread&kind=email&provider=gmail'])
+    expect(asked).toEqual(['view=all&kind=email&accountId=acc-1', 'view=unread&kind=email&accountId=acc-1'])
   })
 
   it('keeps the filters and the rows that still match while another view loads', async () => {
@@ -148,7 +155,7 @@ describe('Hộp thư on the F05 API (FE-50)', () => {
     const user = userEvent.setup()
     expect(await list().findByRole('button', { name: 'Tải thêm' })).toBeInTheDocument()
 
-    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: 'Chưa đọc' }))
+    await user.click(within(pane().getByRole('group', { name: 'Lọc danh sách' })).getByRole('button', { name: /^Chưa đọc/ }))
     expect(rowTitles()).toEqual(['Trần Minh Anh'])
     expect(pane().getByRole('group', { name: 'Lọc danh sách' })).toBeInTheDocument()
     expect(list().queryByRole('button', { name: 'Tải thêm' })).toBeNull()

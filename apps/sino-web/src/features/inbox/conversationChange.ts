@@ -39,8 +39,20 @@ export function countsAfter(counts: InboxCounts, before: ConversationItem, after
       ? [...counts.byProvider, { provider: after.provider, unread }]
       : counts.byProvider
   const byKind = counts.unreadByKind
+  // Every account holding the thread moves by the same amount: its copy changed in each (messages-by-account, D-432).
+  const byAccount = { ...counts.byAccount }
+  const needsReply = is.needsReply - was.needsReply
+  const withAttachments = is.withAttachments - was.withAttachments
+  for (const id of after.accountIds) {
+    const entry = byAccount[id]
+    if (entry || unread !== 0 || needsReply !== 0 || withAttachments !== 0) {
+      const { unread: u = 0, needsReply: n = 0, withAttachments: w = 0 } = entry ?? {}
+      byAccount[id] = { unread: Math.max(0, u + unread), needsReply: Math.max(0, n + needsReply), withAttachments: Math.max(0, w + withAttachments) }
+    }
+  }
   return {
     ...counts,
+    byAccount,
     unread: Math.max(0, counts.unread + unread),
     byProvider,
     needsReply: Math.max(0, counts.needsReply + is.needsReply - was.needsReply),

@@ -21,7 +21,7 @@ export function NotificationsPage() {
 
   const { data: unreadData, isLoading } = useQuery({
     queryKey: ['inbox', 'notifications-page-list'],
-    queryFn: () => fetchConversations({ view: 'unread', source: null, account: null }, null),
+    queryFn: () => fetchConversations({ view: 'unread', account: null }, null),
     staleTime: 3_000,
   })
 
