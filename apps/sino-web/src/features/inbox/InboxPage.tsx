@@ -1,6 +1,6 @@
 import { Clock, Info } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, type To } from 'react-router'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import type { ProviderKind } from '@/shared/domain'
 import { providerNameOf } from '@/shared/format'
@@ -10,6 +10,7 @@ import { cn } from '@/shared/lib/utils'
 import { useNow } from '@/shared/time/useNow'
 import { Button } from '@/shared/ui/button'
 import { ChatThread } from './components/ChatThread'
+import { AccountPane } from './components/AccountPane'
 import { ConversationAvatars } from './components/ConversationAvatars'
 import { ConversationInfo } from './components/ConversationInfo'
 import { ConversationList } from './components/ConversationList'
@@ -94,6 +95,13 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   }, [elsewhere, navigate])
 
   const nameOf = providerNameOf(inbox?.providers ?? [])
+  // Where the list goes for a change of filter: an open conversation the new filter leaves out closes, back to the list (D-434).
+  const toFilter = (change: Partial<typeof filter>): To => {
+    const stays = !item || matchesAccountAndChat(item, { ...filter, ...change })
+    return stays ? { search: searchFor(change) } : { pathname: screen.path, search: searchFor(change) }
+  }
+  // The account column shows when no chat is open; an open chat gets the 64 px strip of MA-06 instead (D-437).
+  const accountColumn = !!inbox && (kind === 'EMAIL' || conversationId === undefined)
   const selected = conversationId !== undefined || compose
   const error = frameError ?? list.error
   const failedAt = frameFailedAt ?? list.failedAt
@@ -185,9 +193,16 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       <div
         className={cn(
           'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:*:overflow-hidden',
-          chat ? (showInfo ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]') : 'xl:grid-cols-[380px_minmax(0,1fr)]',
+          chat
+            ? showInfo
+              ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]'
+              : 'xl:grid-cols-[340px_minmax(0,1fr)]'
+            : accountColumn
+              ? 'xl:grid-cols-[232px_340px_minmax(0,1fr)] 2xl:grid-cols-[232px_380px_minmax(0,1fr)]'
+              : 'xl:grid-cols-[380px_minmax(0,1fr)]',
         )}
       >
+        {accountColumn && <AccountPane inbox={inbox} filter={filter} to={toFilter} nameOf={nameOf} className={`hidden xl:flex ${CARD}`} />}
         <ConversationList
           screen={screen}
           conversations={conversations ?? []}
@@ -195,15 +210,10 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
           total={inbox?.counts.unread ?? null}
           accountOptions={inbox ? accountCounts(inbox) : []}
           filter={filter}
-          onFilter={(change) => {
-            // An open conversation the new filter leaves out closes, back to the list with that filter (D-434).
-            const stays = !item || matchesAccountAndChat(item, { ...filter, ...change })
-            navigate(stays ? { search: searchFor(change) } : { pathname: screen.path, search: searchFor(change) })
-          }}
+          onFilter={(change) => navigate(toFilter(change))}
           selectedId={conversationId ?? null}
           search={search}
           now={now}
-          nameOf={nameOf}
           accounts={inbox?.accounts ?? []}
           body={listBody}
           switching={list.switching}

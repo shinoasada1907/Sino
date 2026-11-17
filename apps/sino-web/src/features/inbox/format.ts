@@ -157,15 +157,23 @@ export function sourceLabel(item: ConversationItem, nameOf: ProviderNameOf): str
 }
 
 /**
- * The accounts a row names when its source has more than one (D-97): every account holding the thread, the primary copy
- * first (f05b, D-182); none otherwise.
+ * The line under the title of a row (D-430): the account, then "nhóm N người" for a group, as "An · Công việc · nhóm 6 người".
+ * The account is left out when one account is chosen or the screen has only one; a thread found in several accounts
+ * names every one, the primary copy first (f05b, D-182). The provider is not written: its mark is on the avatar. Null when
+ * there is nothing to say.
  */
-export function rowAccounts<A extends { id: string; provider: string }>(item: ConversationItem, accounts: A[]): A[] {
-  const sameSource = accounts.filter((account) => account.provider === item.provider)
-  if (sameSource.length < 2) {
-    return []
+export function rowLabel(item: ConversationItem, accounts: { id: string; address: string }[], account: string | null): string | null {
+  const parts: string[] = []
+  if (account === null && accounts.length >= 2) {
+    const names = item.accountIds.flatMap((id) => accounts.filter((entry) => entry.id === id)).map((entry) => entry.address)
+    if (names.length > 0) {
+      parts.push(names.join(', '))
+    }
   }
-  return item.accountIds.flatMap((id) => sameSource.filter((account) => account.id === id))
+  if (item.memberCount) {
+    parts.push(`nhóm ${item.memberCount} người`)
+  }
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 /** The subtitle of a conversation in the mobile header: "Zalo · 6 người" for a group, the source name otherwise. */

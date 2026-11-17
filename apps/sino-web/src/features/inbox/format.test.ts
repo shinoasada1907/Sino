@@ -31,7 +31,7 @@ import {
   paragraphs,
   parseRecipients,
   previewText,
-  rowAccounts,
+  rowLabel,
   rowFlag,
   rowTime,
   sendBlock,
@@ -183,21 +183,24 @@ describe('row texts', () => {
     expect(sourceLabel(item({ provider: 'zalo', kind: 'CHAT', memberCount: 6 }), nameOf)).toBe('Zalo · nhóm 6 người')
   })
 
-  it('names the accounts of a row only when its source has more than one', () => {
-    const home = { id: 'acc-home', provider: 'gmail', address: 'an.nguyen@gmail.com' }
-    const work = { id: 'acc-work', provider: 'gmail', address: 'an@congty.vn' }
-    const zalo = { id: 'acc-zalo', provider: 'zalo', address: '+84 9•• ••• 218' }
-    const accounts = [home, zalo, work]
-    const on = (...accountIds: string[]) => item({ accountId: accountIds[0], accountIds })
+  it('labels a row with its account and the size of a group (D-430)', () => {
+    const home = { id: 'acc-home', address: 'an.nguyen@gmail.com' }
+    const work = { id: 'acc-work', address: 'an@congty.vn' }
+    const on = (accountIds: string[], memberCount: number | null = null) => item({ accountId: accountIds[0], accountIds, memberCount })
 
-    expect(rowAccounts(on('acc-work'), accounts)).toEqual([work])
-    expect(rowAccounts(on('acc-home'), accounts)).toEqual([home])
-    // A thread found in two accounts names both, the primary copy first (f05b, D-182).
-    expect(rowAccounts(on('acc-work', 'acc-home'), accounts)).toEqual([work, home])
-    expect(rowAccounts(on('acc-home', 'acc-gone'), accounts)).toEqual([home])
-    expect(rowAccounts({ ...on('acc-zalo'), provider: 'zalo' }, accounts)).toEqual([])
-    expect(rowAccounts(on('acc-home'), [home, zalo])).toEqual([])
-    expect(rowAccounts(on('acc-gone'), accounts)).toEqual([])
+    // Every account on the screen: the account of the row
+    expect(rowLabel(on(['acc-work']), [home, work], null)).toBe('an@congty.vn')
+    // A thread found in two accounts names both, the primary copy first (f05b, D-182)
+    expect(rowLabel(on(['acc-work', 'acc-home']), [home, work], null)).toBe('an@congty.vn, an.nguyen@gmail.com')
+    expect(rowLabel(on(['acc-home', 'acc-gone']), [home, work], null)).toBe('an.nguyen@gmail.com')
+    expect(rowLabel(on(['acc-gone']), [home, work], null)).toBeNull()
+    // A group adds its size; it stands alone when the account is not named
+    expect(rowLabel(on(['acc-work'], 6), [home, work], null)).toBe('an@congty.vn · nhóm 6 người')
+    expect(rowLabel(on(['acc-work'], 6), [home, work], 'acc-work')).toBe('nhóm 6 người')
+    // One account chosen, or only one on the screen: no account
+    expect(rowLabel(on(['acc-work']), [home, work], 'acc-work')).toBeNull()
+    expect(rowLabel(on(['acc-home']), [home], null)).toBeNull()
+    expect(rowLabel(on(['acc-home'], 3), [home], null)).toBe('nhóm 3 người')
   })
 
   it('counts what is unread', () => {

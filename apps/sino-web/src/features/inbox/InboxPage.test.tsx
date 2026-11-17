@@ -60,7 +60,8 @@ describe('Hộp thư on desktop', () => {
 
     expect(await pane().findAllByText('5 chưa đọc')).not.toHaveLength(0)
     const family = within(row(/Gia đình/))
-    expect(family.getByText('Zalo · nhóm 6 người')).toHaveClass('hidden', 'xl:inline')
+    // The line under the title: the account, then the size of the group; no provider name (D-430)
+    expect(family.getByText(/nhóm 6 người$/)).toHaveTextContent('+84 9•• ••• 218 · nhóm 6 người')
     expect(family.getByText('Hà: Con mua bánh bông lan trứng muối được không mẹ?')).toBeInTheDocument()
     expect(family.getByText('3')).toBeInTheDocument()
     expect(within(row(/Nhóm chạy bộ/)).getByText('Hiện lại theo hẹn · 14:00')).toBeInTheDocument()
@@ -83,14 +84,10 @@ describe('Hộp thư on desktop', () => {
     )
     renderApp('/inbox', { shell: createShellSample(NOW), inbox })
 
-    // Below 1280px the icon tells the source, so only the address shows; from 1280px "Gmail · …" as the canvas source.
+    // The line under the title names the account, not the provider: its mark is on the avatar (D-430).
     const work = await within(await list().findByRole('link', { name: /Thu Trang/ })).findByText('an@congty.vn')
-    expect(work).toHaveTextContent('Gmail · an@congty.vn')
     expect(work).not.toHaveClass('hidden')
-    expect(within(work).getByText('Gmail ·')).toHaveClass('hidden', 'xl:inline')
-    const home = within(row(/Trần Minh Anh/)).getByText('an.nguyen@gmail.com')
-    expect(home).toHaveTextContent('Gmail · an.nguyen@gmail.com')
-    expect(home).not.toHaveClass('hidden')
+    expect(within(row(/Trần Minh Anh/)).getByText('an.nguyen@gmail.com')).not.toHaveClass('hidden')
   })
 
   it('names every account of a thread found in two accounts, in its row and its header (f05b, D-182)', async () => {
@@ -100,7 +97,7 @@ describe('Hộp thư on desktop', () => {
     renderApp('/inbox/conv-1', { shell: createShellSample(NOW), inbox })
 
     const label = await within(await list().findByRole('link', { name: /Trần Minh Anh/ })).findByText('an.nguyen@gmail.com, an@congty.vn')
-    expect(label).toHaveTextContent('Gmail · an.nguyen@gmail.com, an@congty.vn')
+    expect(label).toBeInTheDocument()
     expect(await thread().findByText('Gmail · an.nguyen@gmail.com, an@congty.vn')).toBeInTheDocument()
   })
 

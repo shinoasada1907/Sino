@@ -1,7 +1,6 @@
 import { Calendar, CalendarClock, ChevronDown, Clock, ListFilter, Paperclip, Search, SquareCheck, SquarePen, StickyNote, TriangleAlert, type LucideIcon , Users } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { calendarDaysBetween } from '@/shared/time/local'
 import { Button } from '@/shared/ui/button'
@@ -16,10 +15,9 @@ import {
   groupConversations,
   newMailText,
   previewText,
-  rowAccounts,
   rowFlag,
+  rowLabel,
   rowTime,
-  sourceLabel,
   FOLDERS,
   type InboxFilter,
   type InboxView,
@@ -67,7 +65,6 @@ export function ConversationList({
   selectedId,
   search,
   now,
-  nameOf,
   accounts,
   body,
   switching = false,
@@ -88,8 +85,7 @@ export function ConversationList({
   selectedId: string | null
   search: string
   now: Date
-  nameOf: ProviderNameOf
-  /** The owner's accounts, to name those of a row when its source has more than one (D-97, f05b D-182). */
+  /** The accounts of the screen, to name those of a row when there is more than one (D-430, f05b D-182). */
   accounts: InboxAccount[]
   body?: ReactNode
   switching?: boolean
@@ -215,8 +211,7 @@ export function ConversationList({
                       arrived={arrived.ids.has(item.id) ? (arrived.slide ? 'slide' : 'show') : null}
                       search={search}
                       now={now}
-                      nameOf={nameOf}
-                      accounts={rowAccounts(item, accounts)}
+                      label={rowLabel(item, accounts, filter.account)}
                     />
                   ))}
                 </div>
@@ -266,21 +261,19 @@ function ConversationRow({
   arrived,
   search,
   now,
-  nameOf,
-  accounts,
+  label,
 }: {
   item: ConversationItem
   selected: boolean
   arrived: 'slide' | 'show' | null
   search: string
   now: Date
-  nameOf: ProviderNameOf
-  accounts: InboxAccount[]
+  /** The line of account and group size under the title (D-430). */
+  label: string | null
 }) {
   const unread = item.unreadCount > 0
   const flag = rowFlag(item, now)
   const today = calendarDaysBetween(new Date(item.lastMessageAt), now) === 0
-  const named = accounts.length > 0
 
   return (
     <Link
@@ -321,22 +314,10 @@ function ConversationRow({
         </span>
       )}
       <span className="flex min-w-0 flex-col gap-0.75">
-        {/* Each side takes its text; when both do not fit, they share the line evenly, so a long name keeps the account. */}
-        <span className="grid grid-cols-[minmax(0,auto)_minmax(0,auto)] items-baseline justify-start gap-x-2.5">
-          <span data-slot="row-title" className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>
-            {displayName(item)}
-          </span>
-          <Spec className={cn('truncate', !named && 'hidden xl:inline')}>
-            {named ? (
-              <>
-                <span className="hidden xl:inline">{sourceLabel(item, nameOf)} · </span>
-                {accounts.map((account) => account.address).join(', ')}
-              </>
-            ) : (
-              sourceLabel(item, nameOf)
-            )}
-          </Spec>
+        <span data-slot="row-title" className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>
+          {displayName(item)}
         </span>
+        {label && <Spec className="truncate">{label}</Spec>}
         {item.subject && (
           <span className={cn('truncate text-sm', unread ? 'font-bold text-foreground' : 'font-medium text-muted-foreground')}>{item.subject}</span>
         )}
