@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -114,6 +115,22 @@ class GmailApi {
             pageToken = page.nextPageToken();
         } while (pageToken != null && counted < atMost);
         return Math.min(counted, atMost);
+    }
+
+    /**
+     * The IDs of every message that matches the Gmail search {@code query} since {@code since}, page after page, asking
+     * for the IDs only. Gmail leaves spam and trash out of a search unless {@code includeSpamTrash}.
+     */
+    List<String> ids(String accessToken, Instant since, String query, boolean includeSpamTrash) {
+        String q = since == null ? query : query + " " + after(since);
+        List<String> found = new ArrayList<>();
+        String pageToken = null;
+        do {
+            MessageList page = list(accessToken, q, includeSpamTrash, pageToken, ID_PAGE_SIZE, ONLY_IDS);
+            found.addAll(page.ids());
+            pageToken = page.nextPageToken();
+        } while (pageToken != null);
+        return found;
     }
 
     /**
@@ -261,11 +278,22 @@ class GmailApi {
     }
 
     private MessageList list(String accessToken, Instant since, String pageToken, int maxResults, String fields) {
+        return list(accessToken, since == null ? null : after(since), false, pageToken, maxResults, fields);
+    }
+
+    private static String after(Instant since) {
+        return "after:" + since.getEpochSecond();
+    }
+
+    private MessageList list(String accessToken, String query, boolean includeSpamTrash, String pageToken,
+            int maxResults, String fields) {
         return call(() -> {
             try {
                 return answer(google.get().uri(uri -> withPageToken(uri.path(USER + "/messages")
                         .queryParam("maxResults", maxResults)
-                        .queryParamIfPresent("q", Optional.ofNullable(since).map(at -> "after:" + at.getEpochSecond()))
+                        .queryParamIfPresent("q", Optional.ofNullable(query))
+                        .queryParamIfPresent("includeSpamTrash",
+                                includeSpamTrash ? Optional.of(true) : Optional.empty())
                         .queryParamIfPresent("fields", Optional.ofNullable(fields)),
                         pageToken)).headers(bearer(accessToken)).retrieve().body(MessageList.class));
             } catch (RestClientResponseException failure) {

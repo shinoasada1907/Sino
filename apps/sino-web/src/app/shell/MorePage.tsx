@@ -6,7 +6,7 @@ import { cn } from '@/shared/lib/utils'
 import { useTheme } from '@/shared/theme/themeContext'
 import type { Theme } from '@/shared/theme/theme'
 import { useNow } from '@/shared/time/useNow'
-import { Avatar } from '@/shared/ui/avatar'
+import { MeAvatar } from './MeAvatar'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Segmented } from '@/shared/ui/segmented'
@@ -53,7 +53,7 @@ export function MorePage() {
       </header>
       <div className="flex flex-col gap-5 px-4 pt-1 pb-5">
         <div className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3.5 rounded-md border bg-surface p-4">
-          <Avatar className="size-12" />
+          <MeAvatar className="size-12" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-base font-semibold">{me?.displayName ?? shell?.owner.displayName}</span>
             {shell && shell.accountCount !== null && (

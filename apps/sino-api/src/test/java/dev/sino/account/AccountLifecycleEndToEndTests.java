@@ -17,12 +17,14 @@ import java.util.UUID;
 
 import jakarta.servlet.http.Cookie;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
@@ -66,6 +68,18 @@ class AccountLifecycleEndToEndTests {
     private static final String ACCESS = "ya29.e2e-sample-access-token";
     private static final String REFRESH = "1//e2e-sample-refresh-token";
     private static final String OWNER_PASSWORD = "test-owner-password";
+
+    /**
+     * Logback levels are JVM-wide, not per Spring context: without this the DEBUG levels set above would stay on
+     * for every test class that runs after this one and fill their captured output (e.g. request bodies).
+     */
+    @AfterAll
+    static void resetLogLevels() {
+        LoggingSystem logging = LoggingSystem.get(AccountLifecycleEndToEndTests.class.getClassLoader());
+        for (String logger : new String[] { "dev.sino", "org.springframework.web", "org.hibernate.SQL" }) {
+            logging.setLogLevel(logger, null);
+        }
+    }
 
     @Autowired
     private AccountRegistrationService registration;

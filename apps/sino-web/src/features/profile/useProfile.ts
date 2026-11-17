@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Me } from '@/features/auth/auth.api'
 import { ME_QUERY_KEY, useMe } from '@/features/auth/useAuth'
-import { fetchProfile, patchProfile } from './profile.api'
+import { deleteAvatar, fetchProfile, patchProfile, putAvatar } from './profile.api'
 import type { UserProfile } from './profile.types'
 
 export const PROFILE_QUERY_KEY = ['profile', 'me'] as const
@@ -29,13 +29,25 @@ export function useProfile() {
     avatarUrl: me?.avatarUrl ?? null,
   }
 
-  const updateProfile = useMutation({
-    mutationFn: patchProfile,
-    onSuccess: (saved) => {
-      queryClient.setQueryData<UserProfile>(PROFILE_QUERY_KEY, saved)
-      queryClient.setQueryData<Me | null>(ME_QUERY_KEY, (previous) =>
-        previous ? { ...previous, displayName: saved.displayName, avatarUrl: saved.avatarUrl } : previous,
-      )
+  /** A saved profile (or a picture change) goes into the `profile` cache and into `me`, which the top bar and the menu read. */
+  const remember = (saved: UserProfile) => {
+    queryClient.setQueryData<UserProfile>(PROFILE_QUERY_KEY, saved)
+    queryClient.setQueryData<Me | null>(ME_QUERY_KEY, (previous) =>
+      previous ? { ...previous, displayName: saved.displayName, avatarUrl: saved.avatarUrl } : previous,
+    )
+  }
+
+  const updateProfile = useMutation({ mutationFn: patchProfile, onSuccess: remember })
+
+  /** `PUT` answers the whole profile (D-481). */
+  const replaceAvatar = useMutation({ mutationFn: putAvatar, onSuccess: remember })
+
+  /** `DELETE` answers nothing: the picture is dropped from both caches by hand. */
+  const removeAvatar = useMutation({
+    mutationFn: deleteAvatar,
+    onSuccess: () => {
+      queryClient.setQueryData<UserProfile>(PROFILE_QUERY_KEY, (previous) => (previous ? { ...previous, avatarUrl: null } : previous))
+      queryClient.setQueryData<Me | null>(ME_QUERY_KEY, (previous) => (previous ? { ...previous, avatarUrl: null } : previous))
     },
   })
 
@@ -46,5 +58,7 @@ export function useProfile() {
     isError: query.isError,
     retry: () => void query.refetch(),
     updateProfile,
+    replaceAvatar,
+    removeAvatar,
   }
 }

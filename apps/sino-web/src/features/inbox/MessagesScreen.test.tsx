@@ -62,7 +62,7 @@ describe('Tin nhắn and Hộp thư (f05c)', () => {
 
     expect(await list().findByText('Nhóm sửa nhà')).toBeInTheDocument()
     expect(api.fetchInbox).toHaveBeenCalledWith('CHAT')
-    expect(api.fetchConversations).toHaveBeenCalledWith({ view: 'all', source: null, account: null }, null, 'CHAT')
+    expect(api.fetchConversations).toHaveBeenCalledWith({ view: 'all', source: null, account: null, folder: null }, null, 'CHAT')
     expect(pane().getAllByText('5 chưa đọc')).not.toHaveLength(0)
     expect(rowTitles()).not.toContain('Trần Minh Anh')
   })

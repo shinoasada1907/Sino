@@ -46,7 +46,7 @@ final class WithoutNul {
                 text(m.senderExternalParticipantId()), m.direction(), m.type(), text(m.textContent()), m.status(),
                 m.read(), text(m.replyToExternalMessageId()), m.sentAt(),
                 m.attachments().stream().map(WithoutNul::attachment).toList(), metadata, recipients(m.recipients()),
-                text(m.htmlContent()));
+                text(m.htmlContent()), m.mailbox());
     }
 
     static MessageContent of(MessageContent content) {

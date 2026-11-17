@@ -16,11 +16,12 @@ import { useMemo, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { useAccounts } from '@/features/accounts/useAccounts'
 import { cn } from '@/shared/lib/utils'
-import { Avatar } from '@/shared/ui/avatar'
+import { MeAvatar } from './MeAvatar'
 import { Button } from '@/shared/ui/button'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import type { ShellData } from './shell.types'
 import { UserMenu } from './UserMenu'
+import { folderOf } from '@/features/inbox/format'
 import { useInbox } from '@/features/inbox/useInbox'
 
 interface SubAccount {
@@ -33,7 +34,9 @@ interface SubAccount {
 
 // Desktop navigation (>= 1280 px), matching the user-customized multi-account structure.
 export function Sidebar({ shell, className }: { shell: ShellData | undefined; className?: string }) {
-  const { pathname } = useLocation()
+  const { pathname, search: locationSearch } = useLocation()
+  // Inside a mail folder (D-502) an email account stays in that folder.
+  const openFolder = pathname === '/inbox' || pathname.startsWith('/inbox/') ? folderOf(new URLSearchParams(locationSearch).get('folder')) : null
   const isProfileActive = pathname === '/profile'
   const { list } = useAccounts()
   const accounts = useMemo(() => list?.accounts ?? [], [list])
@@ -53,9 +56,9 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
         id: a.id,
         name: a.address || a.displayName || 'Gmail',
         count: emailInbox?.counts.byAccount?.[a.id]?.unread ?? 0,
-        to: `/inbox?account=${encodeURIComponent(a.id)}`,
+        to: `/inbox?account=${encodeURIComponent(a.id)}${openFolder ? `&folder=${openFolder}` : ''}`,
       }))
-  }, [accounts, emailInbox?.counts])
+  }, [accounts, emailInbox?.counts, openFolder])
 
   // Dynamic Zalo accounts from connected accounts
   const zaloAccounts: SubAccount[] = useMemo(() => {
@@ -83,7 +86,8 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
       }))
   }, [accounts, chatInbox?.counts])
 
-  const defaultEmailTo = emailAccounts[0]?.to ?? '/inbox'
+  // Hộp thư leaves the open folder: it is the way back to the inbox.
+  const defaultEmailTo = emailAccounts[0]?.to.replace(/&folder=\w+$/, '') ?? '/inbox'
   const emailUnread = shell?.navCounts?.inboxUnread
   const zaloTotal = (shell?.navCounts?.messagesUnread != null && shell.navCounts.messagesUnread > 0) ? shell.navCounts.messagesUnread : undefined
   const messengerUnread = chatInbox?.counts.byProvider?.find((p) => p.provider === 'messenger')?.unread ?? 0
@@ -205,7 +209,7 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
             className="group flex min-w-0 flex-1 items-center gap-2.5 outline-none cursor-pointer"
             aria-label="Hồ sơ cá nhân"
           >
-            <Avatar className="transition-transform group-hover:scale-105" />
+            <MeAvatar className="transition-transform group-hover:scale-105" />
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-semibold text-foreground">
                 {shell?.owner.displayName ?? 'Người dùng Sino'}
@@ -257,8 +261,13 @@ function SidebarMainItem({
   const currentSearch = search
 
   // Exact matching when query parameters are present, otherwise pathname match
-  const isMatch = (label === 'Hộp thư' || label === 'Hộp thư đến')
-    ? currentPath === '/inbox'
+  // A mail folder has its own item; Hộp thư is lit only while no folder is open.
+  const inInbox = currentPath === '/inbox' || currentPath.startsWith('/inbox/')
+  const targetFolder = folderOf(targetUrl.searchParams.get('folder'))
+  const isMatch = targetFolder
+    ? inInbox && folderOf(new URLSearchParams(currentSearch).get('folder')) === targetFolder
+    : (label === 'Hộp thư' || label === 'Hộp thư đến')
+    ? currentPath === '/inbox' && folderOf(new URLSearchParams(currentSearch).get('folder')) === null
     : targetUrl.search
       ? currentPath === targetUrl.pathname && currentSearch === targetUrl.search
       : currentPath === targetUrl.pathname

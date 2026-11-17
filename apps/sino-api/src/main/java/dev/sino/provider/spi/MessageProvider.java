@@ -126,6 +126,25 @@ public interface MessageProvider {
     }
 
     /**
+     * For a provider with folders: the IDs of its messages since {@code since} that are in spam, in trash or archived
+     * (mail-folders, D-501), only IDs. Empty by default, and always for a connector without folders.
+     */
+    default Optional<MailboxListing> listMailboxes(ProviderContext context, Instant since) {
+        return Optional.empty();
+    }
+
+    /**
+     * Reads the messages with these external IDs as a sync page would carry them; those from before {@code since}, or
+     * that the provider no longer has, are left out. Only called after {@link #listMailboxes} gave IDs.
+     *
+     * @throws ProviderException with {@code CAPABILITY_NOT_SUPPORTED} by default, without calling the provider
+     */
+    default SyncBatch fetchMessages(ProviderContext context, List<String> externalMessageIds, Instant since) {
+        throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
+                type() + " cannot read messages by ID");
+    }
+
+    /**
      * Asks the provider to notify Sino of changes to the account (D-76), or renews that while it is on; where the
      * notices go is the connector's own setup. Empty by default, and always for a connector without
      * {@link ProviderCapability#PUSH_WEBHOOK}, which never calls its provider for it.

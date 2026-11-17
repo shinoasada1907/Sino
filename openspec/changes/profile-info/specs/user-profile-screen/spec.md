@@ -12,11 +12,15 @@ Khối Thông tin cá nhân của `/profile` MUST đọc từ `GET /api/profile`
 - **THEN** dưới ô số điện thoại có dòng báo lỗi, các ô khác giữ nguyên chữ đã gõ
 
 ### Requirement: Đổi ảnh đại diện bằng tệp
-Hộp đổi ảnh MUST cho chọn một tệp ảnh, cắt vuông, thu về 256×256 trên trình duyệt (WebP, hoặc PNG khi trình duyệt không xuất được WebP), rồi gửi `PUT /api/profile/avatar`; và MUST có "Xóa ảnh" gọi `DELETE /api/profile/avatar`. Hộp MUST không còn ô nhập URL ảnh. Lưu xong, ảnh ở thẻ đầu trang, thanh trên và menu người dùng MUST đổi theo. Lỗi MUST hiện trong hộp và giữ ảnh cũ.
+Hộp đổi ảnh MUST cho chọn một tệp ảnh, chỉnh vùng cắt trong khung tròn (kéo, phóng to 1–3, xoay 90°, đặt lại), thu về 256×256 trên trình duyệt (WebP, hoặc PNG khi trình duyệt không xuất được WebP), rồi gửi `PUT /api/profile/avatar`; và MUST có "Xóa ảnh" gọi `DELETE /api/profile/avatar`. Hộp MUST không còn ô nhập URL ảnh. Lưu xong, ảnh ở thẻ đầu trang, thanh trên và menu người dùng MUST đổi theo. Lỗi MUST hiện trong hộp và giữ ảnh cũ.
 
 #### Scenario: Đổi ảnh
 - **WHEN** người dùng chọn một ảnh chụp 4000×3000 và xác nhận
 - **THEN** request gửi đi là một ảnh 256×256, và ảnh ở thanh trên đổi sang ảnh mới
+
+#### Scenario: Chỉnh vùng cắt trước khi lưu
+- **WHEN** người dùng chọn một ảnh, kéo, phóng to hoặc xoay ảnh trong khung tròn rồi bấm "Lưu ảnh"
+- **THEN** request gửi đi là đúng vùng đang thấy trong khung (theo ảnh đã xoay), thu về 256×256; chưa chạm vào khung thì là hình vuông lớn nhất ở giữa
 
 #### Scenario: Xóa ảnh
 - **WHEN** người dùng bấm "Xóa ảnh"

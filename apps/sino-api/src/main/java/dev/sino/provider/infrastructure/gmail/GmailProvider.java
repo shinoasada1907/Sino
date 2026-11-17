@@ -27,6 +27,7 @@ import dev.sino.provider.infrastructure.gmail.GmailApi.Watch;
 import dev.sino.provider.infrastructure.gmail.GmailMessage.Part;
 import dev.sino.provider.spi.AccountProfile;
 import dev.sino.provider.spi.AttachmentContent;
+import dev.sino.provider.spi.MailboxListing;
 import dev.sino.provider.spi.MessageContent;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
@@ -78,8 +79,8 @@ class GmailProvider implements MessageProvider {
     private static final ProviderCapabilities WITH_PUSH = ProviderCapabilities.of(ProviderCapability.READ_MESSAGES,
             ProviderCapability.SEND_MESSAGES, ProviderCapability.THREADS, ProviderCapability.ATTACHMENTS,
             ProviderCapability.PUSH_WEBHOOK);
-    // Not mail of the inbox: Sino leaves these out without counting them as skipped.
-    private static final Set<String> HIDDEN_LABELS = Set.of("DRAFT", "SPAM", "TRASH");
+    // Not mail Sino shows: left out without counting it as skipped. Spam and trash come in with their mailbox (D-498).
+    private static final Set<String> HIDDEN_LABELS = Set.of("DRAFT");
 
     private final OAuth2Connection connection;
     private final GmailApi api;
@@ -149,9 +150,9 @@ class GmailProvider implements MessageProvider {
     /**
      * The first sync (an initial cursor) lists the mail since {@code since}, {@value GmailApi#PAGE_SIZE} messages a
      * page, then goes on with the changes since the mailbox's history id when it started; later calls read those
-     * changes. Mail from before {@code since} never comes in, not even when a change touches it. Drafts, spam and
-     * trash are left out, and so is a message deleted meanwhile; a message Sino cannot read is a skipped item. Any
-     * other failure fails the whole call, never half a batch.
+     * changes. Mail from before {@code since} never comes in, not even when a change touches it. Spam and trash come
+     * in with their mailbox (D-498); drafts are left out, and so is a message deleted meanwhile; a message Sino
+     * cannot read is a skipped item. Any other failure fails the whole call, never half a batch.
      */
     @Override
     public SyncBatch fetchUpdates(ProviderContext context, SyncCursor cursor) {
@@ -188,6 +189,29 @@ class GmailProvider implements MessageProvider {
         }
         Long total = api.profile(accessToken).messagesTotal();
         return total == null || total < 0 ? OptionalLong.empty() : OptionalLong.of(total);
+    }
+
+    /**
+     * Three searches for IDs only (D-501): {@code in:spam} and {@code in:trash} with {@code includeSpamTrash}, and
+     * {@code -in:inbox -in:sent}, which Gmail runs without spam and trash: archived mail. Sent mail left alone has no
+     * mailbox (D-498), so it is in none of them.
+     */
+    @Override
+    public Optional<MailboxListing> listMailboxes(ProviderContext context, Instant since) {
+        String accessToken = accessTokenOf(context);
+        List<String> spam = api.ids(accessToken, since, "in:spam", true);
+        List<String> trash = api.ids(accessToken, since, "in:trash", true);
+        return Optional.of(new MailboxListing(spam, trash, api.ids(accessToken, since, "-in:inbox -in:sent", false)));
+    }
+
+    /** Reads each message the way a sync page does, with its mailbox from its labels. */
+    @Override
+    public SyncBatch fetchMessages(ProviderContext context, List<String> externalMessageIds, Instant since) {
+        String accessToken = accessTokenOf(context);
+        Profile profile = api.profile(accessToken);
+        // The cursor of the batch is not used by the caller.
+        return batchOf(accessToken, profile.emailAddress(), externalMessageIds, since,
+                GmailCursor.changesSince(historyIdOf(profile.historyId()), since), false);
     }
 
     /**
@@ -353,7 +377,7 @@ class GmailProvider implements MessageProvider {
         return new AttachmentContent(GmailMessageNormalizer.bytesOf(data), part.mimeType());
     }
 
-    // Archived mail is shown too: it still belongs to its thread.
+    // Archived, spam and trashed mail is shown too: it still belongs to its thread and carries its mailbox.
     private static boolean isShown(GmailMessage message) {
         return message.labelIds().stream().noneMatch(HIDDEN_LABELS::contains);
     }

@@ -146,6 +146,7 @@ final class ZaloMessageNormalizer {
                 body.attachments(),
                 body.metadata(),
                 null,
+                null,
                 null);
     }
 

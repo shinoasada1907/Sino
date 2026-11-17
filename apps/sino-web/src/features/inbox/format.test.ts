@@ -41,6 +41,9 @@ import {
   threadSubtitle,
   unreadLabel,
   withDayLines,
+  FOLDERS,
+  folderOf,
+  requestView,
 } from './format'
 
 const TZ = 'Asia/Ho_Chi_Minh'
@@ -256,6 +259,14 @@ describe('filters', () => {
     expect(ids('scheduled')).toEqual(['scheduled'])
     expect(ids('snoozed')).toEqual(['snoozed'])
     expect(ids('archived')).toEqual(['archived'])
+  })
+
+  it('leaves a mail folder to the server: only the source and the account narrow it (D-500)', () => {
+    const inFolder = (folder: 'sent' | 'trash' | 'archive', source: string | null = null) =>
+      filterConversations(all, { source, account: null, view: 'all', folder }, now).map((entry) => entry.id)
+    // Sent, junk and Gmail-archived threads carry flags the row does not, so nothing is dropped for being archived or snoozed.
+    expect(inFolder('sent')).toEqual(all.map((entry) => entry.id))
+    expect(inFolder('archive', 'zalo')).toEqual(['unread-zalo'])
   })
 
   it('keeps one source', () => {
@@ -557,5 +568,32 @@ describe('web addresses in the text of an email (FE-57)', () => {
   it('makes no link of other schemes or of a bare domain', () => {
     expect(linkParts('javascript:alert(1) www.acme.vn mailto:a@b.vn')).toEqual([{ text: 'javascript:alert(1) www.acme.vn mailto:a@b.vn', href: null }])
     expect(linkParts('')).toEqual([])
+  })
+})
+
+describe('mail folders (mail-folders, D-502)', () => {
+  it('knows the three folders and takes anything else for the inbox', () => {
+    expect(folderOf('sent')).toBe('sent')
+    expect(folderOf('trash')).toBe('trash')
+    expect(folderOf('archive')).toBe('archive')
+    for (const value of ['drafts', 'archived', 'toString', '', null, undefined]) {
+      expect(folderOf(value)).toBeNull()
+    }
+  })
+
+  it('asks for the view of the folder, whatever the inbox tab was', () => {
+    expect(requestView({ view: 'unread', folder: 'sent' })).toBe('sent')
+    expect(requestView({ view: 'all', folder: 'trash' })).toBe('trash')
+    expect(requestView({ view: 'all', folder: 'archive' })).toBe('archived')
+    expect(requestView({ view: 'unread', folder: null })).toBe('unread')
+    expect(requestView({ view: 'reply' })).toBe('reply')
+  })
+
+  it('names each folder and its empty list', () => {
+    expect(Object.values(FOLDERS).map((folder) => [folder.title, folder.empty])).toEqual([
+      ['Đã gửi', 'Chưa có thư đã gửi'],
+      ['Thư rác', 'Thư rác trống'],
+      ['Đã lưu trữ', 'Chưa có thư lưu trữ'],
+    ])
   })
 })

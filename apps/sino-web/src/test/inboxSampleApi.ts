@@ -2,6 +2,7 @@ import { vi } from 'vitest'
 import { applyChange, type ConversationChange } from '@/features/inbox/conversationChange'
 import { filterConversations, type InboxFilter } from '@/features/inbox/format'
 import type * as InboxApi from '@/features/inbox/inbox.api'
+import type { ConversationItem } from '@/features/inbox/inbox.types'
 import { createConversationSample, createInboxSample, frameOf, type InboxSample } from '@/features/inbox/inbox.sample'
 import { ApiError } from '@/shared/api/problem'
 import type { ProviderKind } from '@/shared/domain'
@@ -16,7 +17,15 @@ export function serveInboxSample(sample: InboxSample) {
 
 const served = () => (current ??= createInboxSample(new Date()))
 
-const notFound = () => new ApiError(404, 'CONVERSATION_NOT_FOUND', null)
+/**
+ * What the server holds in a mail folder. The sample has no sent or junk mail and no thread archived in Gmail, so
+ * "Đã lưu trữ" is the archived rows and the others are empty; outside a folder the rows are as they are.
+ */
+function inFolder(items: ConversationItem[], { folder }: InboxFilter): ConversationItem[] {
+  return folder ? (folder === 'archive' ? items.filter((item) => item.archived) : []) : items
+}
+
+const notFound =() => new ApiError(404, 'CONVERSATION_NOT_FOUND', null)
 
 /**
  * For `vi.mock('./inbox.api', …)` in the tests of the full contract (messages and sending, which the API does not have
@@ -28,7 +37,7 @@ export function sampleInboxApi(api: typeof InboxApi): typeof InboxApi {
     fetchUnreadByKind: vi.fn(async () => api.unreadByKindOf(served().counts)),
     fetchInbox: vi.fn(async (kind?: ProviderKind) => frameOf(served(), kind)),
     fetchConversations: vi.fn(async (filter: InboxFilter, _cursor: string | null, kind?: ProviderKind) => ({
-      items: filterConversations(served().conversations, filter, new Date()).filter((item) => !kind || item.kind === kind),
+      items: inFolder(filterConversations(served().conversations, filter, new Date()), filter).filter((item) => !kind || item.kind === kind),
       nextCursor: null,
     })),
     fetchConversation: vi.fn(async (conversationId: string) => {

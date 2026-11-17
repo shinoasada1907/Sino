@@ -9,7 +9,8 @@ import java.util.Map;
  * field; never raw payloads or secrets, and the connector documents its keys. {@link #BULK} and {@link #SUBJECT} are
  * the keys every connector shares. {@code recipients} is null when the connector cannot tell them, as for a chat.
  * {@code htmlContent} is the HTML body as the provider gives it, never cleaned, or null when the message has none; the
- * text stays the text Sino shows in lists and previews.
+ * text stays the text Sino shows in lists and previews. {@code mailbox} is the folder the provider keeps the message
+ * in, or null when the provider has no folders (D-498).
  */
 public record NormalizedMessage(
         String externalMessageId,
@@ -25,7 +26,18 @@ public record NormalizedMessage(
         List<NormalizedAttachment> attachments,
         Map<String, String> metadata,
         NormalizedRecipients recipients,
-        String htmlContent) {
+        String htmlContent,
+        Mailbox mailbox) {
+
+    /** A message of a provider without folders: {@code mailbox} is null. */
+    public NormalizedMessage(String externalMessageId, String externalConversationId,
+            String senderExternalParticipantId, MessageDirection direction, MessageType type, String textContent,
+            MessageStatus status, boolean read, String replyToExternalMessageId, Instant sentAt,
+            List<NormalizedAttachment> attachments, Map<String, String> metadata, NormalizedRecipients recipients,
+            String htmlContent) {
+        this(externalMessageId, externalConversationId, senderExternalParticipantId, direction, type, textContent,
+                status, read, replyToExternalMessageId, sentAt, attachments, metadata, recipients, htmlContent, null);
+    }
 
     /**
      * Metadata key, {@code "true"} when the message was sent in bulk: a newsletter, an advertisement, an automatic

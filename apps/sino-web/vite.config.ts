@@ -32,6 +32,9 @@ export default defineConfig({
     // The slowest tests (a whole sign-in, typing and sending a message) take 1.6-2.3 s alone and about 2.5 times that
     // when all files run in parallel, past the default 5 s; 15 s still stops a test that really hangs.
     testTimeout: 15_000,
+    // One worker per core (16 here) makes files that mount the whole app miss the 1 s findBy wait whenever the
+    // machine is busy, and a different test fails each run; a fixed small pool keeps the suite green.
+    maxWorkers: 4,
     unstubGlobals: true,
     // Times on screen depend on the time zone; fix it so tests read the same on every machine and in CI (UTC).
     env: { TZ: 'Asia/Ho_Chi_Minh' },

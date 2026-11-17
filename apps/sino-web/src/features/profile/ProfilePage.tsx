@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { MobilePageHeader } from '@/app/shell/MobilePageHeader'
 import { Button } from '@/shared/ui/button'
+import { AvatarDialog } from './components/AvatarDialog'
 import { ProfileHeaderCard } from './components/ProfileHeaderCard'
 import { ProfileInfoForm } from './components/ProfileInfoForm'
 import { SecuritySection } from './components/SecuritySection'
@@ -8,7 +10,8 @@ import { ActiveSessionsSection } from './components/ActiveSessionsSection'
 import { useProfile } from './useProfile'
 
 export function ProfilePage() {
-  const { profile, loaded, isLoading, isError, retry, updateProfile } = useProfile()
+  const { profile, loaded, isLoading, isError, retry, updateProfile, replaceAvatar, removeAvatar } = useProfile()
+  const [avatarOpen, setAvatarOpen] = useState(false)
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -24,7 +27,15 @@ export function ProfilePage() {
         </div>
 
         {/* Top Profile Summary Card */}
-        <ProfileHeaderCard profile={profile} />
+        <ProfileHeaderCard profile={profile} onAvatarChange={loaded ? () => setAvatarOpen(true) : undefined} />
+        <AvatarDialog
+          open={avatarOpen}
+          onOpenChange={setAvatarOpen}
+          displayName={profile.displayName}
+          avatarUrl={profile.avatarUrl}
+          onSave={(file) => replaceAvatar.mutateAsync(file)}
+          onRemove={() => removeAvatar.mutateAsync()}
+        />
 
         {/* 2-Column Responsive Layout */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">

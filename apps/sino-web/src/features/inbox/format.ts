@@ -13,10 +13,32 @@ import {
 import type { AccountSending, ConversationItem, InboxData, LinkedItem, LinkedKind, Member, Message, Recipient } from './inbox.types'
 
 export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
+/** The server-side views behind the mail folders; the server alone knows which conversations they hold (D-500). */
+export type FolderView = 'sent' | 'trash' | 'archived'
+/** `?folder=` of `/inbox` (mail-folders, D-502). */
+export type InboxFolder = 'sent' | 'trash' | 'archive'
 export interface InboxFilter {
   source: string | null
   account: string | null
   view: InboxView
+  /** A mail folder of Hộp thư; it replaces `view`, whose tabs are hidden while a folder is open. Absent or null: the inbox. */
+  folder?: InboxFolder | null
+}
+
+export const FOLDERS: Record<InboxFolder, { view: FolderView; title: string; empty: string }> = {
+  sent: { view: 'sent', title: 'Đã gửi', empty: 'Chưa có thư đã gửi' },
+  trash: { view: 'trash', title: 'Thư rác', empty: 'Thư rác trống' },
+  archive: { view: 'archived', title: 'Đã lưu trữ', empty: 'Chưa có thư lưu trữ' },
+}
+
+/** The folder an address names; an unknown value (`drafts`) is no folder, so the inbox shows. */
+export function folderOf(value: string | null | undefined): InboxFolder | null {
+  return value != null && Object.hasOwn(FOLDERS, value) ? (value as InboxFolder) : null
+}
+
+/** The `view` of `GET /api/conversations` for a filter: the folder's view, or the view of the inbox tabs. */
+export function requestView({ view, folder }: Pick<InboxFilter, 'view' | 'folder'>): InboxView | FolderView {
+  return folder ? FOLDERS[folder].view : view
 }
 export type RowFlag = {
   kind: 'SCHEDULE_FAILED' | 'RESURFACED' | 'SCHEDULED' | LinkedKind
@@ -177,14 +199,21 @@ const VIEW_TESTS: Record<Exclude<InboxView, 'snoozed' | 'archived'>, (item: Conv
   scheduled: (item) => item.scheduledSend !== null && !item.scheduledSend.failed,
 }
 
-/** The inbox hides archived and snoozed conversations; "Đang tạm ẩn" and "Đã lưu trữ" show only those. */
-export function filterConversations(items: ConversationItem[], { source, account, view }: InboxFilter, now: Date): ConversationItem[] {
+/**
+ * The inbox hides archived and snoozed conversations; "Đang tạm ẩn" and "Đã lưu trữ" show only those. A mail folder is
+ * the server's to decide (D-500: sent, junk and Gmail-archived threads carry flags the row does not), so only the source
+ * and the account narrow it here. The old `?view=archived` still filters on `archived`; the sidebar no longer links to it.
+ */
+export function filterConversations(items: ConversationItem[], { source, account, view, folder }: InboxFilter, now: Date): ConversationItem[] {
   return items.filter((item) => {
     if (source !== null && item.provider !== source) {
       return false
     }
     if (account !== null && !item.accountIds.includes(account) && item.accountId !== account) {
       return false
+    }
+    if (folder) {
+      return true
     }
     if (view === 'archived') {
       return item.archived

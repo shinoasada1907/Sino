@@ -50,6 +50,9 @@ final class GmailMessageNormalizer {
 
     private static final String SENT = "SENT";
     private static final String UNREAD = "UNREAD";
+    private static final String INBOX = "INBOX";
+    private static final String SPAM = "SPAM";
+    private static final String TRASH = "TRASH";
     // The tabs Gmail sorts bulk mail into; a list mail it keeps in Primary still has List-Unsubscribe (RFC 2369).
     private static final Set<String> BULK_LABELS = Set.of("CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL",
             "CATEGORY_UPDATES", "CATEGORY_FORUMS");
@@ -95,8 +98,27 @@ final class GmailMessageNormalizer {
                 attachments.stream().anyMatch(file -> file.contentId() == null) ? MessageType.MIXED : MessageType.TEXT,
                 textOf(payload),
                 sent ? MessageStatus.SENT : MessageStatus.UNKNOWN, !message.labelIds().contains(UNREAD), null, sentAt,
-                attachments, metadata, recipientsOf(payload), html);
+                attachments, metadata, recipientsOf(payload), html,
+                mailboxOf(message.labelIds()));
         return new NormalizedGmailMessage(normalized, titleOf(subject), participantsOf(payload, selfEmail, sent));
+    }
+
+    /**
+     * The mailbox of a message by its labels (D-498): TRASH, then SPAM, then INBOX, else ARCHIVE. A sent message with
+     * none of the three has no mailbox (null): Gmail gives it no INBOX until someone replies, and it is no archived
+     * mail.
+     */
+    static dev.sino.provider.spi.Mailbox mailboxOf(List<String> labels) {
+        if (labels.contains(TRASH)) {
+            return dev.sino.provider.spi.Mailbox.TRASH;
+        }
+        if (labels.contains(SPAM)) {
+            return dev.sino.provider.spi.Mailbox.SPAM;
+        }
+        if (labels.contains(INBOX)) {
+            return dev.sino.provider.spi.Mailbox.INBOX;
+        }
+        return labels.contains(SENT) ? null : dev.sino.provider.spi.Mailbox.ARCHIVE;
     }
 
     /**

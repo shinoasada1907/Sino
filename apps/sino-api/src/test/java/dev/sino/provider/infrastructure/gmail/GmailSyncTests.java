@@ -39,6 +39,8 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.matching.StringValuePattern;
 
+import dev.sino.provider.spi.Mailbox;
+import dev.sino.provider.spi.MailboxListing;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageProviderContractTest;
 import dev.sino.provider.spi.NormalizedConversation;
@@ -374,7 +376,7 @@ class GmailSyncTests {
     }
 
     @Test
-    void draftsSpamAndTrashAreLeftOut() {
+    void draftsAreLeftOutAndSpamAndTrashComeInWithTheirMailbox() {
         profile("", "1010");
         history("", "1000", absent(), """
                 {"history": [{"id": "1001", "messagesAdded": [{"message": {"id": "draft-1"}},
@@ -388,7 +390,10 @@ class GmailSyncTests {
 
         SyncBatch batch = gmailAt("").fetchUpdates(context(), new SyncCursor("v1|history|1000|-"));
 
-        assertThat(batch.messages()).extracting(NormalizedMessage::externalMessageId).containsExactly(REPORT);
+        assertThat(batch.messages()).extracting(NormalizedMessage::externalMessageId)
+                .containsExactly("spam-1", "trash-1", REPORT);
+        assertThat(batch.messages()).extracting(NormalizedMessage::mailbox)
+                .containsExactly(Mailbox.SPAM, Mailbox.TRASH, Mailbox.INBOX);
         assertThat(batch.skipped()).isEmpty();
     }
 
@@ -489,6 +494,39 @@ class GmailSyncTests {
     void aCursorGmailDidNotWriteIsRejectedWithoutAskingGmail(String value) {
         assertThatSyncFails(new SyncCursor(value), ProviderErrorCode.REQUEST_REJECTED);
         gmail.verify(0, anyRequestedFor(anyUrl()));
+    }
+
+    @Test
+    void theMailboxesAreListedByIdsOnlyForSpamTrashAndArchivedMailSinceTheMoment() {
+        list("", equalTo("in:spam " + AFTER_SINCE), absent(), null, "s-1");
+        list("", equalTo("in:trash " + AFTER_SINCE), absent(), null, "t-1", "t-2");
+        list("", equalTo("-in:inbox -in:sent " + AFTER_SINCE), absent(), "page-2", "a-1");
+        list("", equalTo("-in:inbox -in:sent " + AFTER_SINCE), equalTo("page-2"), null, "a-2");
+
+        MailboxListing listing = gmailAt("").listMailboxes(context(), SINCE).orElseThrow();
+
+        assertThat(listing.spam()).containsExactly("s-1");
+        assertThat(listing.trash()).containsExactly("t-1", "t-2");
+        assertThat(listing.archive()).containsExactly("a-1", "a-2");
+        gmail.verify(getRequestedFor(urlPathEqualTo(API + "/messages"))
+                .withQueryParam("q", equalTo("in:spam " + AFTER_SINCE))
+                .withQueryParam("includeSpamTrash", equalTo("true")).withQueryParam("maxResults", equalTo("500"))
+                .withQueryParam("fields", equalTo("messages/id,nextPageToken")));
+        gmail.verify(getRequestedFor(urlPathEqualTo(API + "/messages"))
+                .withQueryParam("q", equalTo("-in:inbox -in:sent " + AFTER_SINCE))
+                .withQueryParam("includeSpamTrash", absent()));
+        gmail.verify(0, getRequestedFor(urlPathMatching(API + "/messages/.+")));
+    }
+
+    @Test
+    void messagesAreReadByIdAndTheOnesBeforeTheMomentAreLeftOut() {
+        profile("", "1000");
+        message("", NEWS, "html-only.json");
+        message("", REPORT, "alternative.json");
+
+        SyncBatch batch = gmailAt("").fetchMessages(context(), java.util.List.of(NEWS, REPORT), SINCE);
+
+        assertThat(batch.messages()).extracting(NormalizedMessage::externalMessageId).containsExactly(NEWS);
     }
 
     @Nested

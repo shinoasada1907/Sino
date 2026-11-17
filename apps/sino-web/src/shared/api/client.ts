@@ -106,5 +106,7 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, json(body), undefined),
   /** A `POST` of a form, for files; the browser writes its Content-Type. The same form is sent again after a stale CSRF token. */
   upload: <T>(path: string, form: FormData) => request<T>('POST', path, { form }, undefined),
+  /** A `PUT` of a form, to replace a file (the profile picture; PI-05). Same rules as `upload`. */
+  putForm: <T>(path: string, form: FormData) => request<T>('PUT', path, { form }, undefined),
   delete: <T>(path: string) => request<T>('DELETE', path, undefined, undefined),
 }

@@ -1,7 +1,7 @@
 import { api } from '@/shared/api/client'
 import { toProviderInfo, type ProviderEntry } from '@/shared/api/providers'
 import type { AccountStatus, Instant, ProviderKind } from '@/shared/domain'
-import type { InboxFilter } from './format'
+import { requestView, type InboxFilter } from './format'
 import type { Reaction, ReactionKind } from './reactions'
 import type {
   Attachment,
@@ -299,8 +299,8 @@ export async function fetchInbox(kind?: ProviderKind): Promise<InboxData> {
 }
 
 /** `GET /api/conversations`: one page of a view, a source and a kind; `cursor` is the `nextCursor` of the page before. */
-export async function fetchConversations({ view, source, account }: InboxFilter, cursor: string | null, kind?: ProviderKind): Promise<ConversationPage> {
-  const params = new URLSearchParams({ view, ...kindQuery(kind) })
+export async function fetchConversations({ view, folder, source, account }: InboxFilter, cursor: string | null, kind?: ProviderKind): Promise<ConversationPage> {
+  const params = new URLSearchParams({ view: requestView({ view, folder }), ...kindQuery(kind) })
   if (source) {
     params.set('provider', source)
   }

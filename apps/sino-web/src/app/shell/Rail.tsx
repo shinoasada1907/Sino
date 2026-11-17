@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router'
 import { cn } from '@/shared/lib/utils'
-import { Avatar } from '@/shared/ui/avatar'
+import { MeAvatar } from './MeAvatar'
 import { SinoMark } from '@/shared/ui/sino-mark'
 import { badgeOf, NAV_ITEMS, type NavItem } from './navItems'
 import type { ShellData } from './shell.types'
@@ -37,7 +37,7 @@ export function Rail({ shell, className }: { shell: ShellData | undefined; class
           title={shell?.owner.displayName}
           className="mt-1.5 grid cursor-pointer place-items-center rounded-full outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
         >
-          <Avatar aria-hidden="true" />
+          <MeAvatar aria-hidden="true" />
         </button>
       </UserMenu>
     </nav>

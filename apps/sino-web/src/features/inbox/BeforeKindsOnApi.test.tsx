@@ -8,7 +8,7 @@ import { renderApp } from '@/test/renderApp'
 
 // Friday 2 October 2026, 14:05 in Vietnam.
 const NOW = new Date('2026-10-02T07:05:00Z')
-// Moving to the screen of the other kind builds the whole app twice, slow when every test file runs at once.
+// Moving to the screen of the other kind, or to the next conversation, re-renders the whole app: slow when every test file runs at once.
 const MOVE = { timeout: 8000 }
 
 /**
@@ -88,7 +88,7 @@ describe('Tin nhắn and Hộp thư on the backend before BE-110 and BE-111 (FE-
     expect(await screen.findByRole('heading', { name: 'Hợp đồng quý 4' }, MOVE)).toBeInTheDocument()
 
     await router.navigate('/inbox/c-2')
-    expect(await screen.findByRole('heading', { name: 'Sao kê tháng 9' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sao kê tháng 9' }, MOVE)).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/inbox/c-2')
   })
 })
