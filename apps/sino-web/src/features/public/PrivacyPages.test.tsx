@@ -22,7 +22,7 @@ const FILLED: OwnerDetails = {
 const LIMITED_USE =
   "Sino Messages' use and transfer to any other app of information received from Google APIs will adhere to Google API Services User Data Policy, including the Limited Use requirements."
 const POLICY_URL = 'https://developers.google.com/terms/api-services-user-data-policy'
-const SECTIONS = ['tom-tat', 'pham-vi', 'thu-thap', 'su-dung', 'nguoi-xem', 'ben-thu-ba', 'google', 'luu-giu', 'bao-mat', 'quyen', 'thay-doi', 'lien-he']
+const SECTIONS = ['tom-tat', 'pham-vi', 'thu-thap', 'su-dung', 'nguoi-xem', 'ben-thu-ba', 'google', 'zalo', 'luu-giu', 'bao-mat', 'quyen', 'thay-doi', 'lien-he']
 
 beforeAll(() => import('./PublicPages'), 30_000)
 
@@ -76,6 +76,16 @@ describe('the privacy policy in sino-web (WP-03, web-public-pages)', () => {
     expect(part('google').textContent).toContain(LIMITED_USE)
     expect([...part('google').querySelectorAll('a')].map((a) => a.getAttribute('href'))).toContain(POLICY_URL)
     expect([...part('google').querySelectorAll('code')].map((code) => code.textContent)).toEqual(['openid', 'email', 'gmail.readonly', 'gmail.send'])
+  })
+
+  it.each(['/privacy', '/en/privacy'] as const)('says Zalo is unofficial, can lock the account and logs Sino out in %s', async (path) => {
+    await open(path)
+
+    const text = part('zalo').textContent!
+    expect(text).toContain(path === '/privacy' ? 'không chính thức' : 'unofficial')
+    expect(text).toContain(path === '/privacy' ? 'khóa tài khoản' : 'lock accounts')
+    expect(text).toContain('Zalo Web')
+    expect(text).toContain(path === '/privacy' ? 'được mã hóa' : 'encrypted')
   })
 
   it('names the owner, the contact address, the host and the date it takes effect', async () => {

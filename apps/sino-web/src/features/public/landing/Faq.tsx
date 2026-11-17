@@ -6,7 +6,7 @@ import { SectionHead, sectionClass } from './SectionHead'
 const QUESTIONS = [
   {
     q: 'Sino hỗ trợ những dịch vụ nào?',
-    a: 'Hiện tại là Gmail, nhiều tài khoản cùng lúc. Zalo, Messenger và Telegram sẽ được thêm dần. Với mỗi dịch vụ, Sino chỉ hiện những thao tác dịch vụ đó cho phép.',
+    a: 'Hiện tại là Gmail và Zalo cá nhân, nhiều tài khoản cùng lúc. Zalo kết nối bằng mã QR theo cách không chính thức nên Zalo có thể khóa tài khoản; Sino cảnh báo trước khi bạn kết nối. Messenger và Telegram sẽ được thêm dần. Với mỗi dịch vụ, Sino chỉ hiện những thao tác dịch vụ đó cho phép.',
   },
   {
     q: 'Sino có dùng thư của tôi để quảng cáo hay huấn luyện AI không?',

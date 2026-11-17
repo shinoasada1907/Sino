@@ -40,7 +40,7 @@ export const PRIVACY_EN: PolicyDoc = {
         <>
           <P>
             This policy covers this site and the apps of Sino. Today Sino has one app: {GOOGLE_APP_NAME}, a unified inbox for
-            your Gmail accounts, with to-dos. The sections below are about the data of {GOOGLE_APP_NAME}. When a new app
+            your Gmail and Zalo accounts, with to-dos. The sections below are about the data of {GOOGLE_APP_NAME}. When a new app
             comes, this policy will get a part for it.
           </P>
           {/* Not the words of sino-site: there the pages are a static site with no cookie (D-316). */}
@@ -67,9 +67,17 @@ export const PRIVACY_EN: PolicyDoc = {
             the access and refresh tokens Google issues. Tokens are encrypted before they are stored.
           </li>
           <li>
+            <b>Zalo account you connect:</b> your Zalo ID, name and profile picture, and the sign-in session (cookies, imei
+            and user agent), encrypted before it is stored. Details under <A href="#zalo">Zalo</A>.
+          </li>
+          <li>
             <b>Mail:</b> subject, content (as text and HTML), sender, recipients, time, read state and the thread it belongs
             to. For attachments Sino stores only the name, type and size; the file itself is fetched from Gmail each time you
             open it and is not kept.
+          </li>
+          <li>
+            <b>Zalo messages:</b> the text, sender, time and conversation (name and picture of the person or group), only from
+            the moment you connect Zalo to Sino.
           </li>
           <li>
             <b>Sync state:</b> the last point Sino synced with Gmail, when, and any error, so it knows which mail to fetch next.
@@ -90,9 +98,12 @@ export const PRIVACY_EN: PolicyDoc = {
       body: (
         <>
           <Ul>
-            <li>To show your unified inbox, your threads and your attachments.</li>
-            <li>To update the inbox when new mail arrives.</li>
-            <li>To send a reply from the Gmail account that received the mail, only when you press Send. Sino never sends mail on its own.</li>
+            <li>To show your unified inbox, your threads, your Zalo messages and your attachments.</li>
+            <li>To update the inbox when new mail or messages arrive.</li>
+            <li>
+              To send a reply from the Gmail account that received the mail, or from the Zalo account that received the
+              message, only when you press Send. Sino never sends mail or messages on its own.
+            </li>
             <li>To keep and show your to-dos.</li>
             <li>To keep your account safe, for example by locking sign-in for 15 minutes after 5 wrong passwords in a row.</li>
           </Ul>
@@ -132,6 +143,10 @@ export const PRIVACY_EN: PolicyDoc = {
               <b>Google:</b> Sino calls the Gmail API within the permissions you granted, to read and send mail. To learn when
               new mail arrives, Gmail sends a notice through Google Cloud Pub/Sub; the notice holds only the Gmail address and
               a change marker, never the content of a message.
+            </li>
+            <li>
+              <b>Zalo:</b> Sino reaches Zalo through an unofficial library, to receive and send messages for you. See{' '}
+              <A href="#zalo">Zalo</A>.
             </li>
             <li>
               <b>Server provider:</b> <OwnerValue field="hosting" lang="en" />. Sino's data is stored there.
@@ -182,6 +197,53 @@ export const PRIVACY_EN: PolicyDoc = {
       ),
     },
     {
+      id: 'zalo',
+      title: 'Zalo',
+      body: (
+        <>
+          <P>
+            Sino connects your personal Zalo in an unofficial way: Zalo offers no such connection to outside apps, so Sino uses
+            an unofficial open-source library that acts like Zalo Web. You connect by scanning a QR code with the Zalo app on
+            your phone; your Zalo password never passes through Sino. Before the QR code is shown, Sino warns you of the risk
+            and goes on only when you agree.
+          </P>
+          <Ul>
+            <li>
+              <b>Sign-in session:</b> after the scan, Sino stores your Zalo sign-in session (cookies, imei and user agent),
+              encrypted before it is stored, so it can receive and send messages for you without scanning again.
+            </li>
+            <li>
+              <b>Profile:</b> your Zalo name and profile picture, to show on the connected account; and the name and picture of
+              the person or group in each conversation.
+            </li>
+            <li>
+              <b>Messages:</b> Sino only receives messages from the moment you connect and does not fetch old history from
+              Zalo. What is stored is the text, the sender, the time and the kind of message (photo, sticker, file...). For photos
+              and files Sino stores only the name, type, size and address on Zalo's servers, never the content; photos and
+              stickers are shown straight from Zalo's servers. Photos and files you send from your device through Sino are
+              passed straight to Zalo and not stored.
+            </li>
+            <li>
+              <b>What it is used for:</b> to show Zalo messages in the unified inbox, and to send replies, photos, files,
+              stickers or reactions when you press send. Zalo data is not used for advertising, not sold and not used to train
+              AI models either.
+            </li>
+          </Ul>
+          <Note>
+            Risk: because this is unofficial, Zalo may lock accounts that use it. A Zalo account has only one web connection:
+            if you open Zalo Web or Zalo PC with that account, Sino is signed out and you must scan the QR code again. Think
+            before connecting a Zalo account that matters to you.
+          </Note>
+          <P>
+            Disconnecting Zalo: when you delete or turn off a Zalo account in Sino, Sino stops receiving messages from Zalo
+            and stops the session it holds. You should also remove Sino's signed-in device in the Zalo app (Settings, Account
+            and security). Stored messages are kept like Gmail mail under <A href="#luu-giu">Keeping and deleting</A>; to have
+            them deleted, email as described there.
+          </P>
+        </>
+      ),
+    },
+    {
       id: 'luu-giu',
       title: 'Keeping and deleting',
       body: (
@@ -191,6 +253,10 @@ export const PRIVACY_EN: PolicyDoc = {
             When you disconnect a Gmail account, Sino revokes its permission at Google at once and deletes the tokens from
             Sino. The stored mail is kept but no longer shown in the inbox, so that you do not start from scratch if you
             connect again.
+          </li>
+          <li>
+            When you delete or turn off a Zalo account, Sino stops the session and receives no new messages; the encrypted
+            sign-in session is no longer used. Stored messages are kept like Gmail mail.
           </li>
           <li>To-dos are kept until you delete them.</li>
           <li>

@@ -43,7 +43,7 @@ export const PRIVACY_VI: PolicyDoc = {
         <>
           <P>
             Chính sách này áp dụng cho site này và cho các ứng dụng của Sino. Hiện Sino có một ứng dụng: {GOOGLE_APP_NAME},
-            một hộp thư chung cho các tài khoản Gmail của bạn, kèm việc cần làm. Các mục dưới đây nói về dữ liệu của{' '}
+            một hộp thư chung cho các tài khoản Gmail và Zalo của bạn, kèm việc cần làm. Các mục dưới đây nói về dữ liệu của{' '}
             {GOOGLE_APP_NAME}. Khi có ứng dụng mới, chính sách sẽ có thêm phần cho ứng dụng đó.
           </P>
           {/* Not the words of sino-site: there the pages are a static site with no cookie (D-316). */}
@@ -70,9 +70,17 @@ export const PRIVACY_VI: PolicyDoc = {
             truy cập và token làm mới mà Google cấp. Token được mã hóa trước khi lưu.
           </li>
           <li>
+            <b>Tài khoản Zalo bạn kết nối:</b> mã định danh, tên và ảnh đại diện Zalo của bạn, cùng phiên đăng nhập (cookie, imei
+            và user agent), được mã hóa trước khi lưu. Chi tiết ở mục <A href="#zalo">Zalo</A>.
+          </li>
+          <li>
             <b>Thư:</b> tiêu đề, nội dung (dạng chữ và HTML), người gửi, người nhận, thời gian, trạng thái đã đọc và chuỗi thư
             mà thư thuộc về. Với tệp đính kèm, Sino chỉ lưu tên, loại và dung lượng; nội dung tệp được lấy từ Gmail mỗi lần
             bạn mở và không được lưu lại.
+          </li>
+          <li>
+            <b>Tin nhắn Zalo:</b> nội dung tin, người gửi, thời gian và cuộc trò chuyện (tên, ảnh đại diện của người hay nhóm),
+            chỉ từ lúc bạn kết nối Zalo với Sino.
           </li>
           <li>
             <b>Trạng thái đồng bộ:</b> mốc đồng bộ gần nhất với Gmail, thời điểm và lỗi nếu có, để biết cần lấy thêm thư nào.
@@ -93,9 +101,12 @@ export const PRIVACY_VI: PolicyDoc = {
       body: (
         <>
           <Ul>
-            <li>Hiện hộp thư chung, các chuỗi thư và tệp đính kèm của bạn.</li>
-            <li>Cập nhật hộp thư khi có thư mới.</li>
-            <li>Gửi thư trả lời từ đúng tài khoản Gmail đã nhận thư, chỉ khi bạn bấm Gửi. Sino không tự gửi thư nào.</li>
+            <li>Hiện hộp thư chung, các chuỗi thư, tin nhắn Zalo và tệp đính kèm của bạn.</li>
+            <li>Cập nhật hộp thư khi có thư hay tin mới.</li>
+            <li>
+              Gửi thư trả lời từ đúng tài khoản Gmail đã nhận thư, hay gửi tin trả lời từ đúng tài khoản Zalo, chỉ khi bạn bấm
+              Gửi. Sino không tự gửi thư hay tin nào.
+            </li>
             <li>Lưu và hiện việc cần làm của bạn.</li>
             <li>Giữ tài khoản an toàn, ví dụ khóa đăng nhập 15 phút sau 5 lần nhập sai mật khẩu liên tiếp.</li>
           </Ul>
@@ -135,6 +146,10 @@ export const PRIVACY_VI: PolicyDoc = {
               <b>Google:</b> Sino gọi Gmail API trong phạm vi quyền bạn cấp, để đọc và gửi thư. Để biết khi nào có thư mới,
               Gmail gửi thông báo qua Google Cloud Pub/Sub; thông báo chỉ có địa chỉ Gmail và một mốc thay đổi, không có nội
               dung thư.
+            </li>
+            <li>
+              <b>Zalo:</b> Sino nối với Zalo bằng một thư viện không chính thức, để nhận và gửi tin thay bạn. Xem mục{' '}
+              <A href="#zalo">Zalo</A>.
             </li>
             <li>
               <b>Nhà cung cấp máy chủ:</b> <OwnerValue field="hosting" lang="vi" />. Dữ liệu của Sino được lưu ở đây.
@@ -187,6 +202,50 @@ export const PRIVACY_VI: PolicyDoc = {
       ),
     },
     {
+      id: 'zalo',
+      title: 'Zalo',
+      body: (
+        <>
+          <P>
+            Sino kết nối Zalo cá nhân của bạn bằng cách không chính thức: Zalo không cung cấp cách kết nối này cho ứng dụng
+            ngoài, nên Sino dùng một thư viện mã nguồn mở không chính thức, hoạt động giống Zalo Web. Bạn kết nối bằng cách quét
+            mã QR bằng app Zalo trên điện thoại; mật khẩu Zalo không đi qua Sino. Trước khi hiện mã QR, Sino cảnh báo rủi ro và
+            chỉ tiếp tục khi bạn đồng ý.
+          </P>
+          <Ul>
+            <li>
+              <b>Phiên đăng nhập:</b> sau khi quét, Sino lưu phiên đăng nhập Zalo của bạn (cookie, imei và user agent), được mã
+              hóa trước khi lưu, để nhận và gửi tin thay bạn mà không phải quét lại.
+            </li>
+            <li>
+              <b>Hồ sơ:</b> tên và ảnh đại diện Zalo của bạn, để hiện ở tài khoản đã kết nối; tên và ảnh đại diện của người hay
+              nhóm trong từng cuộc trò chuyện.
+            </li>
+            <li>
+              <b>Tin nhắn:</b> Sino chỉ nhận tin từ lúc bạn kết nối, không lấy lịch sử cũ trên Zalo. Tin được lưu trong Sino
+              gồm nội dung chữ, người gửi, thời gian và loại tin (ảnh, sticker, tệp…). Với ảnh và tệp, Sino chỉ lưu tên tệp,
+              loại, dung lượng và địa chỉ trên máy chủ của Zalo, không lưu nội dung; ảnh và sticker được hiện thẳng từ máy chủ
+              của Zalo. Ảnh và tệp bạn gửi từ máy qua Sino được chuyển thẳng cho Zalo, Sino không lưu.
+            </li>
+            <li>
+              <b>Dùng để làm gì:</b> hiện tin Zalo trong hộp thư chung, và gửi tin trả lời, ảnh, tệp, sticker hay biểu cảm khi
+              bạn bấm gửi. Dữ liệu Zalo cũng không dùng cho quảng cáo, không bán và không dùng để huấn luyện mô hình AI.
+            </li>
+          </Ul>
+          <Note>
+            Rủi ro: vì là cách không chính thức, Zalo có thể khóa tài khoản dùng cách này. Mỗi tài khoản Zalo chỉ có một kết
+            nối web: nếu bạn mở Zalo Web hay Zalo PC bằng tài khoản đó, Sino sẽ bị đăng xuất và bạn phải quét mã QR lại. Hãy
+            cân nhắc trước khi kết nối tài khoản Zalo quan trọng.
+          </Note>
+          <P>
+            Ngắt kết nối Zalo: xóa hay tắt tài khoản Zalo trong Sino thì Sino dừng nhận tin từ Zalo và dừng phiên đang giữ.
+            Bạn nên gỡ thêm thiết bị đăng nhập của Sino trong app Zalo (Cài đặt, Tài khoản và bảo mật). Tin đã lưu được giữ
+            lại như thư Gmail ở mục <A href="#luu-giu">Lưu giữ và xóa</A>; muốn xóa hẳn, gửi email theo mục đó.
+          </P>
+        </>
+      ),
+    },
+    {
       id: 'luu-giu',
       title: 'Lưu giữ và xóa',
       body: (
@@ -195,6 +254,10 @@ export const PRIVACY_VI: PolicyDoc = {
           <li>
             Khi bạn ngắt kết nối một tài khoản Gmail, Sino thu hồi quyền ở Google ngay và xóa hẳn token khỏi Sino. Thư đã lưu
             được giữ lại nhưng không còn hiện trong hộp thư, để nếu bạn kết nối lại thì không phải nhập lại từ đầu.
+          </li>
+          <li>
+            Khi bạn xóa hoặc tắt một tài khoản Zalo, Sino dừng phiên và không nhận tin mới; phiên đăng nhập đã mã hóa không còn
+            được dùng. Tin đã lưu được giữ lại như thư Gmail.
           </li>
           <li>Việc cần làm được giữ tới khi bạn xóa chúng.</li>
           <li>
