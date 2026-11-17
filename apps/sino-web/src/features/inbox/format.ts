@@ -10,16 +10,20 @@ import {
   weekdayNumbered,
   weekdayShort,
 } from '@/shared/time/local'
-import type { AccountSending, ConversationItem, InboxData, LinkedItem, LinkedKind, Member, Message, Recipient } from './inbox.types'
+import type { AccountSending, ConversationItem, InboxCounts, InboxData, LinkedItem, LinkedKind, Member, Message, Recipient } from './inbox.types'
 
 export type InboxView = 'all' | 'unread' | 'reply' | 'attachments' | 'scheduled' | 'snoozed' | 'archived'
 /** The server-side views behind the mail folders; the server alone knows which conversations they hold (D-500). */
 export type FolderView = 'sent' | 'trash' | 'archived'
 /** `?folder=` of `/inbox` (mail-folders, D-502). */
 export type InboxFolder = 'sent' | 'trash' | 'archive'
+/** `?chat=` of `/messages` (messages-by-account, D-428): one-to-one chats or groups. */
+export type ChatType = 'direct' | 'group'
 export interface InboxFilter {
-  source: string | null
+  /** The account whose conversations show; null: every account of the screen. */
   account: string | null
+  /** Only in Tin nhắn; absent or null: every chat. */
+  chatType?: ChatType | null
   view: InboxView
   /** A mail folder of Hộp thư; it replaces `view`, whose tabs are hidden while a folder is open. Absent or null: the inbox. */
   folder?: InboxFolder | null
@@ -29,6 +33,11 @@ export const FOLDERS: Record<InboxFolder, { view: FolderView; title: string; emp
   sent: { view: 'sent', title: 'Đã gửi', empty: 'Chưa có thư đã gửi' },
   trash: { view: 'trash', title: 'Thư rác', empty: 'Thư rác trống' },
   archive: { view: 'archived', title: 'Đã lưu trữ', empty: 'Chưa có thư lưu trữ' },
+}
+
+/** The chat type an address names; an unknown value (`channel`) is no type, so every chat shows. */
+export function chatTypeOf(value: string | null | undefined): ChatType | null {
+  return value === 'direct' || value === 'group' ? value : null
 }
 
 /** The folder an address names; an unknown value (`drafts`) is no folder, so the inbox shows. */
@@ -172,20 +181,39 @@ export function unreadLabel(count: number): string {
   return count > 0 ? `${count} chưa đọc` : 'Đã đọc hết'
 }
 
-/** One source of the inbox: its unread messages, or null when all its accounts need signing in again. */
-export interface SourceCount {
-  type: string
+/** One account of the screen: its unread conversations, or null when it needs signing in again. */
+export interface AccountCount {
+  id: string
   name: string
   unread: number | null
 }
 
-export function sourceCounts(inbox: Pick<InboxData, 'providers' | 'accounts' | 'counts'>, nameOf: ProviderNameOf): SourceCount[] {
-  return inbox.providers.map((provider) => {
-    const accounts = inbox.accounts.filter((account) => account.provider === provider.type)
-    const needsLogin = accounts.length > 0 && accounts.every((account) => account.status === 'AUTH_EXPIRED')
-    const unread = inbox.counts.byProvider.find((entry) => entry.provider === provider.type)?.unread ?? 0
-    return { type: provider.type, name: nameOf(provider.type), unread: needsLogin ? null : unread }
-  })
+export function accountCounts(inbox: Pick<InboxData, 'accounts' | 'counts'>): AccountCount[] {
+  return inbox.accounts.map((account) => ({
+    id: account.id,
+    name: account.address,
+    unread: account.status === 'AUTH_EXPIRED' ? null : (inbox.counts.byAccount[account.id]?.unread ?? 0),
+  }))
+}
+
+/**
+ * The numbers of the tabs and the quick filters: those of the chosen account, or the totals for every account (D-431).
+ * An account the counts do not list has none.
+ */
+export function countsFor(counts: InboxCounts, account: string | null): Pick<InboxCounts, 'unread' | 'needsReply' | 'withAttachments'> {
+  return account === null ? counts : (counts.byAccount[account] ?? { unread: 0, needsReply: 0, withAttachments: 0 })
+}
+
+const holdsAccount = (item: ConversationItem, account: string | null) => account === null || item.accountIds.includes(account) || item.accountId === account
+const matchesChatType = (item: ConversationItem, chatType: ChatType | null | undefined) =>
+  !chatType || (chatType === 'group' ? item.memberCount !== null : item.memberCount === null)
+
+/**
+ * Whether a conversation belongs to the chosen account and chat type; "Tất cả" and "Mọi chat" keep every conversation.
+ * It is also what decides whether an open conversation stays open when the filter changes (D-434).
+ */
+export function matchesAccountAndChat(item: ConversationItem, { account, chatType }: Pick<InboxFilter, 'account' | 'chatType'>): boolean {
+  return holdsAccount(item, account) && matchesChatType(item, chatType)
 }
 
 const isSnoozed = (item: ConversationItem, now: Date) =>
@@ -201,15 +229,12 @@ const VIEW_TESTS: Record<Exclude<InboxView, 'snoozed' | 'archived'>, (item: Conv
 
 /**
  * The inbox hides archived and snoozed conversations; "Đang tạm ẩn" and "Đã lưu trữ" show only those. A mail folder is
- * the server's to decide (D-500: sent, junk and Gmail-archived threads carry flags the row does not), so only the source
- * and the account narrow it here. The old `?view=archived` still filters on `archived`; the sidebar no longer links to it.
+ * the server's to decide (D-500: sent, junk and Gmail-archived threads carry flags the row does not), so only the account
+ * and the chat type narrow it here. The old `?view=archived` still filters on `archived`; the sidebar no longer links to it.
  */
-export function filterConversations(items: ConversationItem[], { source, account, view, folder }: InboxFilter, now: Date): ConversationItem[] {
+export function filterConversations(items: ConversationItem[], { account, chatType, view, folder }: InboxFilter, now: Date): ConversationItem[] {
   return items.filter((item) => {
-    if (source !== null && item.provider !== source) {
-      return false
-    }
-    if (account !== null && !item.accountIds.includes(account) && item.accountId !== account) {
+    if (!matchesAccountAndChat(item, { account, chatType })) {
       return false
     }
     if (folder) {

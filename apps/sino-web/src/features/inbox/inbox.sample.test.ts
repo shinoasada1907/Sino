@@ -55,7 +55,7 @@ describe('inbox sample data', () => {
       groupConversations(
         filterConversations(
           inbox.conversations.filter((item) => item.kind === kind),
-          { source: null, account: null, view: 'all' },
+          { account: null, view: 'all' },
           now,
         ),
         now,
@@ -70,8 +70,8 @@ describe('inbox sample data', () => {
       ['HÔM NAY', ['Nhóm chạy bộ Hồ Tây', 'Gia đình', 'Hà']],
       ['HÔM QUA', ['Lê Hoàng', 'Nhóm sửa nhà']],
     ])
-    expect(filterConversations(inbox.conversations, { source: null, account: null, view: 'snoozed' }, now)).toHaveLength(1)
-    expect(filterConversations(inbox.conversations, { source: null, account: null, view: 'archived' }, now)).toHaveLength(1)
+    expect(filterConversations(inbox.conversations, { account: null, view: 'snoozed' }, now)).toHaveLength(1)
+    expect(filterConversations(inbox.conversations, { account: null, view: 'archived' }, now)).toHaveLength(1)
   })
 
   it('gives every conversation messages whose last delivered one is the one the list shows', () => {

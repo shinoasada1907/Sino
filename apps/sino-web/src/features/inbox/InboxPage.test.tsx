@@ -15,8 +15,8 @@ function open(path: string) {
   return renderApp(path, { shell: createShellSample(NOW), inbox: createInboxSample(NOW) })
 }
 
-// The source chips above the list: the source column is gone at 1280px, the sidebar and the list tabs carry the rest.
-const sources = () => within(screen.getByRole('group', { name: 'Nguồn' }))
+// The account chips above the list (messages-by-account, D-428): the chips are per account, not per provider.
+const sources = () => within(screen.getByRole('group', { name: 'Tài khoản' }))
 const list = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }))
 // The header of the list (title, count, view buttons) sits above the scrolling rows, in the same column.
 const pane = () => within(screen.getByRole('region', { name: 'Danh sách cuộc trò chuyện' }).parentElement as HTMLElement)
@@ -70,9 +70,9 @@ describe('Hộp thư on desktop', () => {
     expect(within(row(/Nhóm sửa nhà/)).getByText('Kiến trúc sư: Em gửi lại bản vẽ tầng 2 đã chỉnh cầu thang.')).toBeInTheDocument()
 
     expect(sources().getByRole('button', { name: 'Tất cả · 5' })).toBeInTheDocument()
-    expect(sources().getByRole('button', { name: 'Zalo · 4' })).toBeInTheDocument()
-    expect(sources().getByRole('button', { name: 'Messenger' })).toBeInTheDocument()
-    expect(sources().queryByRole('button', { name: /Gmail/ })).toBeNull()
+    expect(sources().getByRole('button', { name: '+84 9•• ••• 218 · 4' })).toBeInTheDocument()
+    expect(sources().getByRole('button', { name: 'an.nguyen.92' })).toBeInTheDocument()
+    expect(sources().queryByRole('button', { name: /gmail/ })).toBeNull()
   })
 
   it('names the account of each row when a source has more than one, at every width', async () => {
@@ -108,8 +108,8 @@ describe('Hộp thư on desktop', () => {
     open('/inbox')
 
     expect(await sources().findByRole('button', { name: 'Tất cả · 7' })).toHaveAttribute('aria-pressed', 'true')
-    expect(sources().getByRole('button', { name: 'Gmail · 7' })).toBeInTheDocument()
-    expect(sources().queryByRole('button', { name: /Zalo|Messenger/ })).toBeNull()
+    expect(sources().getByRole('button', { name: 'an.nguyen@gmail.com · 7' })).toBeInTheDocument()
+    expect(sources().queryByRole('button', { name: /\+84|an\.nguyen\.92/ })).toBeNull()
     expect(screen.queryByRole('complementary', { name: 'Nguồn và bộ lọc' })).toBeNull()
   })
 
@@ -117,21 +117,21 @@ describe('Hộp thư on desktop', () => {
     const { router } = open('/inbox')
     const user = userEvent.setup()
 
-    await user.click(await sources().findByRole('button', { name: /Gmail/ }))
-    expect(router.state.location.search).toBe('?source=gmail')
+    await user.click(await sources().findByRole('button', { name: /an\.nguyen@gmail/ }))
+    expect(router.state.location.search).toBe('?account=acc-gmail')
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương', 'Thu Trang', 'Điện lực Hà Nội'])
     expect(pane().getAllByText('7 chưa đọc')).not.toHaveLength(0)
-    expect(sources().getByRole('button', { name: /Gmail/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(sources().getByRole('button', { name: /an\.nguyen@gmail/ })).toHaveAttribute('aria-pressed', 'true')
 
     const views = within(pane().getByRole('group', { name: 'Lọc danh sách' }))
     await user.click(views.getByRole('button', { name: 'Chưa đọc' }))
-    expect(router.state.location.search).toBe('?source=gmail&view=unread')
+    expect(router.state.location.search).toBe('?account=acc-gmail&view=unread')
     expect(rowTitles()).toEqual(['Trần Minh Anh', 'Phòng khám Ánh Dương'])
     expect(views.getByRole('button', { name: 'Chưa đọc' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('still filters by the views that no longer have a button, from the address', async () => {
-    open('/inbox?source=gmail&view=scheduled')
+    open('/inbox?account=acc-gmail&view=scheduled')
 
     expect(await list().findByRole('link', { name: /Thu Trang/ })).toBeInTheDocument()
     expect(rowTitles()).toEqual(['Thu Trang'])
@@ -196,7 +196,7 @@ describe('Hộp thư on desktop', () => {
     await user.click(row(/Phòng khám/))
 
     expect(await pane().findAllByText('6 chưa đọc')).not.toHaveLength(0)
-    expect(sources().getByRole('button', { name: 'Gmail · 6' })).toBeInTheDocument()
+    expect(sources().getByRole('button', { name: 'an.nguyen@gmail.com · 6' })).toBeInTheDocument()
     expect(within(row(/Phòng khám/)).queryByLabelText('Chưa đọc')).toBeNull()
   })
 

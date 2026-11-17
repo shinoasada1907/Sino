@@ -17,7 +17,7 @@ import { EmailThread } from './components/EmailThread'
 import { NewMail } from './components/NewMail'
 import { NicknameDialog } from './components/NicknameDialog'
 import { FirstSyncCard, ListSkeleton, LoadFailed, NoSources, OfflineBanner, RealtimeBanner, ThreadSkeleton } from './components/InboxStates'
-import { canSetNickname, displayName, FOLDERS, failureDetail, failureReason, mobileThreadSubtitle, sourceCounts, unreadLabel } from './format'
+import { canSetNickname, displayName, FOLDERS, failureDetail, failureReason, matchesAccountAndChat, mobileThreadSubtitle, accountCounts, countsFor, unreadLabel } from './format'
 import { useConversation, useConversationList, useInbox, useUpdateConversation } from './useInbox'
 import { useInboxFilter } from './useInboxFilter'
 import { useNewMailNotice } from './useNewMailNotice'
@@ -41,9 +41,10 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const now = new Date(Math.max(clock.getTime(), receivedAt))
   const navigate = useNavigate()
   const validAccounts = inbox?.accounts.map((account) => account.id) ?? null
-  const { filter, search, searchFor } = useInboxFilter(inbox ? inbox.providers.map((provider) => provider.type) : null, validAccounts, kind === 'EMAIL')
+  const { filter, search, searchFor } = useInboxFilter(validAccounts, kind)
   const list = useConversationList(kind, filter, now)
-  const notice = useNewMailNotice(inbox?.accounts.map((account) => account.id) ?? [])
+  // The notice counts the account being watched only; mail of another one moves its number in the account column (D-433).
+  const notice = useNewMailNotice(filter.account ? [filter.account] : (inbox?.accounts.map((account) => account.id) ?? []))
 
   const conversations = list.conversations
   const [showInfo, setShowInfo] = useState(true)
@@ -116,15 +117,11 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   }
 
   // The first sync of a new account
-  const wholeInbox = filter.view === 'all' && !filter.folder && filter.source === null
+  const wholeInbox = filter.view === 'all' && !filter.folder && filter.account === null && !filter.chatType
   const syncing =
     inbox && wholeInbox && conversations?.length === 0 && !list.switching ? inbox.accounts.filter((entry) => entry.syncProgress !== null) : []
   const folder = filter.folder ? FOLDERS[filter.folder] : null
-  const unread = filter.account && inbox?.counts.byAccount?.[filter.account]
-    ? inbox.counts.byAccount[filter.account].unread
-    : filter.source
-      ? (inbox?.counts.byProvider.find((entry) => entry.provider === filter.source)?.unread ?? 0)
-      : (inbox?.counts.unread ?? 0)
+  const unread = inbox ? countsFor(inbox.counts, filter.account).unread : 0
   const account = item && inbox?.accounts.find((entry) => entry.id === item.accountId)
   // Every account holding the open thread, the primary copy first (f05b, D-182).
   const threadAccounts = item && inbox ? item.accountIds.flatMap((id) => inbox.accounts.filter((entry) => entry.id === id)) : []
@@ -192,10 +189,14 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
           screen={screen}
           conversations={conversations ?? []}
           unread={listMeta}
-          total={unread}
-          sources={inbox ? sourceCounts(inbox, nameOf) : []}
+          total={inbox?.counts.unread ?? null}
+          accountOptions={inbox ? accountCounts(inbox) : []}
           filter={filter}
-          onFilter={(change) => navigate({ search: searchFor(change) })}
+          onFilter={(change) => {
+            // An open conversation the new filter leaves out closes, back to the list with that filter (D-434).
+            const stays = !item || matchesAccountAndChat(item, { ...filter, ...change })
+            navigate(stays ? { search: searchFor(change) } : { pathname: screen.path, search: searchFor(change) })
+          }}
           selectedId={conversationId ?? null}
           search={search}
           now={now}

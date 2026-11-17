@@ -20,9 +20,9 @@ export const inboxKey = (kind: ProviderKind) => [...FRAMES_KEY, kind] as const
 /** Apart from `['inbox']`: the shell keeps it on every page, and it is one light request (D-93). */
 export const INBOX_UNREAD_QUERY_KEY = ['inbox-unread'] as const
 const LISTS_KEY = ['inbox', 'list'] as const
-/** The pages of one kind, view and source. */
-export const conversationsKey = (kind: ProviderKind, { view, source, account, folder }: InboxFilter) =>
-  [...LISTS_KEY, kind, folder ?? view, source, account] as const
+/** The pages of one kind, view, account and chat type. */
+export const conversationsKey = (kind: ProviderKind, { view, account, chatType, folder }: InboxFilter) =>
+  [...LISTS_KEY, kind, folder ?? view, account, chatType ?? null] as const
 export const conversationKey = (conversationId: string) => ['inbox', 'conversation', conversationId] as const
 /** Under the conversation, so that a change the stream reports reads them again too (D-126). */
 export const messagesKey = (conversationId: string) => [...conversationKey(conversationId), 'messages'] as const
@@ -83,14 +83,14 @@ export interface ConversationListQuery {
 }
 
 /**
- * The conversations of one view and source, a page at a time (keyset, `nextCursor`). The server filters; the loaded rows
+ * The conversations of one view, account and chat type, a page at a time (keyset, `nextCursor`). The server filters; the loaded rows
  * are filtered again here so that a change (read, archived) shows at once, and the rows of the view shown before stay
  * while the new one loads.
  */
 export function useConversationList(kind: ProviderKind, filter: InboxFilter, now: Date): ConversationListQuery {
   const query = useInfiniteQuery({
     queryKey: conversationsKey(kind, filter),
-    queryFn: ({ pageParam }) => fetchConversations(filter.account ? filter : { view: filter.view, folder: filter.folder, source: filter.source, account: null }, pageParam, kind),
+    queryFn: ({ pageParam }) => fetchConversations(filter, pageParam, kind),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: Infinity,

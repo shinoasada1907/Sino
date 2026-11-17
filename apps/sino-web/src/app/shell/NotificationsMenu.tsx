@@ -45,7 +45,7 @@ export function NotificationsMenu({
   // Query unread conversations across both kinds (CHAT and EMAIL) only when menu is open
   const { data: unreadData } = useQuery({
     queryKey: ['inbox', 'notifications-unread-list'],
-    queryFn: () => fetchConversations({ view: 'unread', source: null, account: null }, null),
+    queryFn: () => fetchConversations({ view: 'unread', account: null }, null),
     enabled: open,
     staleTime: 3_000,
     refetchInterval: open ? 5_000 : false,

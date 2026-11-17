@@ -22,7 +22,7 @@ function backendBeforeKinds() {
     http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS.map(({ type, displayName, capabilities }) => ({ type, displayName, capabilities })))),
     http.get('/api/conversations/counts', ({ request }) => {
       asked.push(`counts?${new URL(request.url).searchParams}`)
-      return HttpResponse.json({ unread: 1, byProvider: { gmail: 1 }, needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0 })
+      return HttpResponse.json({ unread: 1, byProvider: { gmail: 1 }, byAccount: {}, needsReply: 1, withAttachments: 1, scheduled: 0, snoozed: 0 })
     }),
     http.get('/api/conversations', ({ request }) => {
       asked.push(`list?${new URL(request.url).searchParams}`)

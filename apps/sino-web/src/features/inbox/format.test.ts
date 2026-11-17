@@ -3,7 +3,9 @@ import { ApiError } from '@/shared/api/problem'
 import { providerNameOf } from '@/shared/format'
 import type { ConversationItem, LinkedItem, Message } from './inbox.types'
 import {
+  accountCounts,
   arrivedRows,
+  countsFor,
   bubbleMeta,
   chatDayLabel,
   dayGroupLabel,
@@ -238,15 +240,15 @@ describe('a new mail (f10-new-mail)', () => {
 
 describe('filters', () => {
   const visible = item({ id: 'visible' })
-  const unreadZalo = item({ id: 'unread-zalo', provider: 'zalo', unreadCount: 3, needsReply: true, hasAttachments: true })
+  const unreadZalo = item({ id: 'unread-zalo', provider: 'zalo', accountId: 'acc-zalo', accountIds: ['acc-zalo'], memberCount: 6, unreadCount: 3, needsReply: true, hasAttachments: true })
   const scheduled = item({ id: 'scheduled', scheduledSend: { at: vn('2026-10-03T08:00'), failed: false } })
   const failed = item({ id: 'failed', scheduledSend: { at: vn('2026-10-01T21:00'), failed: true } })
   const snoozed = item({ id: 'snoozed', snooze: { until: vn('2026-10-03T08:00'), resurfacedAt: null } })
   const back = item({ id: 'back', snooze: { until: vn('2026-10-02T14:00'), resurfacedAt: vn('2026-10-02T14:00') } })
   const archived = item({ id: 'archived', archived: true, unreadCount: 1 })
   const all = [visible, unreadZalo, scheduled, failed, snoozed, back, archived]
-  const ids = (view: Parameters<typeof filterConversations>[1]['view'], source: string | null = null) =>
-    filterConversations(all, { source, account: null, view }, now).map((entry) => entry.id)
+  const ids = (view: Parameters<typeof filterConversations>[1]['view'], account: string | null = null, chatType: 'direct' | 'group' | null = null) =>
+    filterConversations(all, { account, chatType, view }, now).map((entry) => entry.id)
 
   it('hides archived and snoozed conversations from the inbox', () => {
     expect(ids('all')).toEqual(['visible', 'unread-zalo', 'scheduled', 'failed', 'back'])
@@ -261,17 +263,25 @@ describe('filters', () => {
     expect(ids('archived')).toEqual(['archived'])
   })
 
-  it('leaves a mail folder to the server: only the source and the account narrow it (D-500)', () => {
-    const inFolder = (folder: 'sent' | 'trash' | 'archive', source: string | null = null) =>
-      filterConversations(all, { source, account: null, view: 'all', folder }, now).map((entry) => entry.id)
+  it('leaves a mail folder to the server: only the account and the chat type narrow it (D-500)', () => {
+    const inFolder = (folder: 'sent' | 'trash' | 'archive', account: string | null = null) =>
+      filterConversations(all, { account, view: 'all', folder }, now).map((entry) => entry.id)
     // Sent, junk and Gmail-archived threads carry flags the row does not, so nothing is dropped for being archived or snoozed.
     expect(inFolder('sent')).toEqual(all.map((entry) => entry.id))
-    expect(inFolder('archive', 'zalo')).toEqual(['unread-zalo'])
+    expect(inFolder('archive', 'acc-zalo')).toEqual(['unread-zalo'])
   })
 
-  it('keeps one source', () => {
-    expect(ids('all', 'zalo')).toEqual(['unread-zalo'])
-    expect(ids('unread', 'gmail')).toEqual([])
+  it('keeps one account, whichever copy of a thread it holds', () => {
+    expect(ids('all', 'acc-zalo')).toEqual(['unread-zalo'])
+    expect(ids('unread', 'acc-gmail')).toEqual([])
+    const twoCopies = item({ id: 'both', accountId: 'acc-gmail', accountIds: ['acc-gmail', 'acc-zalo'] })
+    expect(filterConversations([twoCopies], { account: 'acc-zalo', view: 'all' }, now)).toHaveLength(1)
+  })
+
+  it('keeps the groups or the one-to-one chats (messages-by-account, D-428)', () => {
+    expect(ids('all', null, 'group')).toEqual(['unread-zalo'])
+    expect(ids('all', null, 'direct')).toEqual(['visible', 'scheduled', 'failed', 'back'])
+    expect(ids('all', 'acc-gmail', 'group')).toEqual([])
   })
 })
 
@@ -594,6 +604,34 @@ describe('mail folders (mail-folders, D-502)', () => {
       ['Đã gửi', 'Chưa có thư đã gửi'],
       ['Thư rác', 'Thư rác trống'],
       ['Đã lưu trữ', 'Chưa có thư lưu trữ'],
+    ])
+  })
+})
+
+describe('the numbers of an account (messages-by-account, D-431)', () => {
+  const counts = {
+    unread: 5,
+    byProvider: [],
+    byAccount: { 'acc-1': { unread: 3, needsReply: 2, withAttachments: 1 }, 'acc-2': { unread: 3, needsReply: 0, withAttachments: 0 } },
+    needsReply: 2,
+    withAttachments: 1,
+    scheduled: 0,
+    snoozed: 0,
+    unreadByKind: null,
+  }
+
+  it('gives the totals for every account, the numbers of one account, or none for one the counts do not list', () => {
+    expect(countsFor(counts, null).unread).toBe(5)
+    expect(countsFor(counts, 'acc-1')).toEqual({ unread: 3, needsReply: 2, withAttachments: 1 })
+    expect(countsFor(counts, 'acc-9')).toEqual({ unread: 0, needsReply: 0, withAttachments: 0 })
+  })
+
+  it('lists each account with its unread count, and none for an account that must reconnect', () => {
+    const account = (id: string, status: 'CONNECTED' | 'AUTH_EXPIRED') => ({ id, address: `${id}@x.vn`, status }) as never
+    expect(accountCounts({ counts, accounts: [account('acc-1', 'CONNECTED'), account('acc-2', 'AUTH_EXPIRED'), account('acc-3', 'CONNECTED')] })).toEqual([
+      { id: 'acc-1', name: 'acc-1@x.vn', unread: 3 },
+      { id: 'acc-2', name: 'acc-2@x.vn', unread: null },
+      { id: 'acc-3', name: 'acc-3@x.vn', unread: 0 },
     ])
   })
 })

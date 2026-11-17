@@ -219,13 +219,21 @@ export function createInboxSample(now: Date): InboxSample {
 // Hộp thư and Tin nhắn as the canvas counts them (f05c, CV-01); the snoozed email is "Nhà sách Lumen".
 const unreadByKind = { EMAIL: 7, CHAT: 5 }
 const countsByKind: Record<ProviderKind, InboxCounts> = {
-  EMAIL: { unread: 7, byProvider: [{ provider: 'gmail', unread: 7 }], needsReply: 2, withAttachments: 3, scheduled: 1, snoozed: 1, unreadByKind },
+  EMAIL: {
+    unread: 7,
+    byProvider: [{ provider: 'gmail', unread: 7 }],
+    byAccount: { 'acc-gmail': { unread: 7, needsReply: 2, withAttachments: 3 } },
+    needsReply: 2, withAttachments: 3, scheduled: 1, snoozed: 1, unreadByKind },
   CHAT: {
     unread: 5,
     byProvider: [
       { provider: 'zalo', unread: 4 },
       { provider: 'messenger', unread: 1 },
     ],
+    byAccount: {
+      'acc-zalo': { unread: 4, needsReply: 1, withAttachments: 2 },
+      'acc-messenger': { unread: 1, needsReply: 0, withAttachments: 0 },
+    },
     needsReply: 1,
     withAttachments: 2,
     scheduled: 1,
@@ -244,6 +252,7 @@ function bothKinds({ EMAIL, CHAT }: Record<ProviderKind, InboxCounts>): InboxCou
   return {
     unread: EMAIL.unread + CHAT.unread,
     byProvider: [...EMAIL.byProvider, ...CHAT.byProvider],
+    byAccount: { ...EMAIL.byAccount, ...CHAT.byAccount },
     needsReply: EMAIL.needsReply + CHAT.needsReply,
     withAttachments: EMAIL.withAttachments + CHAT.withAttachments,
     scheduled: EMAIL.scheduled + CHAT.scheduled,

@@ -24,7 +24,7 @@ import {
   type InboxFilter,
   type InboxView,
   type RowFlag,
-  type SourceCount,
+  type AccountCount,
 } from '../format'
 import type { ConversationItem, InboxAccount } from '../inbox.types'
 import { SCREENS, type InboxScreen } from '../screen'
@@ -61,7 +61,7 @@ export function ConversationList({
   conversations,
   unread,
   total,
-  sources,
+  accountOptions,
   filter,
   onFilter,
   selectedId,
@@ -82,7 +82,7 @@ export function ConversationList({
   unread: string
   /** Unread messages of every source, for the "Tất cả" chip; null while unknown. */
   total: number | null
-  sources: SourceCount[]
+  accountOptions: AccountCount[]
   filter: InboxFilter
   onFilter: (change: Partial<InboxFilter>) => void
   selectedId: string | null
@@ -99,7 +99,7 @@ export function ConversationList({
   className?: string
 }) {
   const groups = groupConversations(conversations, now)
-  const arrived = useArrivedRows(conversations, `${filter.folder ?? filter.view} ${filter.source ?? ''} ${switching}`)
+  const arrived = useArrivedRows(conversations, `${filter.folder ?? filter.view} ${filter.account ?? ''} ${filter.chatType ?? ''} ${switching}`)
   const scroller = useRef<HTMLElement>(null)
   const label = (name: string, count: number | null) => (count ? `${name} · ${count}` : name)
   // A mail folder has no tabs of the inbox: its list is whatever the server holds in it (D-502).
@@ -130,13 +130,13 @@ export function ConversationList({
         </Button>
       </header>
       {filters && (
-        <div role="group" aria-label="Nguồn" className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] md:hidden">
-          <button type="button" aria-pressed={filter.source === null} onClick={() => onFilter({ source: null })} className={CHIP}>
+        <div role="group" aria-label="Tài khoản" className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] md:hidden">
+          <button type="button" aria-pressed={filter.account === null} onClick={() => onFilter({ account: null })} className={CHIP}>
             {label('Tất cả', total)}
           </button>
-          {sources.map((source) => (
-            <button key={source.type} type="button" aria-pressed={filter.source === source.type} onClick={() => onFilter({ source: source.type })} className={CHIP}>
-              {label(source.name, source.unread)}
+          {accountOptions.map((option) => (
+            <button key={option.id} type="button" aria-pressed={filter.account === option.id} onClick={() => onFilter({ account: option.id })} className={CHIP}>
+              {label(option.name, option.unread)}
             </button>
           ))}
         </div>
@@ -147,15 +147,15 @@ export function ConversationList({
         <div role="group" aria-label="Lọc" className="hidden flex-wrap gap-2 px-3 pt-3.5 pb-3 md:flex xl:hidden">
           <span className="relative inline-flex">
             <select
-              aria-label="Nguồn"
-              value={filter.source ?? ''}
-              onChange={(event) => onFilter({ source: event.target.value || null })}
-              className={cn(CHIP, 'appearance-none pr-8', filter.source && 'border-transparent bg-brand-soft text-brand-ink')}
+              aria-label="Tài khoản"
+              value={filter.account ?? ''}
+              onChange={(event) => onFilter({ account: event.target.value || null })}
+              className={cn(CHIP, 'appearance-none pr-8', filter.account && 'border-transparent bg-brand-soft text-brand-ink')}
             >
-              <option value="">Tất cả nguồn</option>
-              {sources.map((source) => (
-                <option key={source.type} value={source.type}>
-                  {label(source.name, source.unread)}
+              <option value="">Tất cả tài khoản</option>
+              {accountOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {label(option.name, option.unread)}
                 </option>
               ))}
             </select>
