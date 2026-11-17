@@ -6,6 +6,7 @@ import type { RelatedItem } from '@/features/tasks/tasks.types'
 import type { ProviderNameOf } from '@/shared/format'
 import { formatClock, weekdayShort } from '@/shared/time/local'
 import { Button } from '@/shared/ui/button'
+import { SoonButton } from '@/shared/ui/soon-button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
 import type { CalendarEvent } from '../calendar.types'
@@ -30,12 +31,12 @@ export function EventDetail({ event, now, nameOf, close }: { event: CalendarEven
       <div className="hidden items-center justify-between gap-3 md:flex">
         <span className="text-xs leading-4 font-semibold text-muted-foreground">{eventKindLabel(event)}</span>
         <div className="flex items-center gap-0.5">
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Sửa" title="Sửa">
+          <SoonButton variant="ghost" size="icon-sm" aria-label="Sửa">
             <Pencil strokeWidth={1.6} />
-          </Button>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Thêm thao tác" title="Thêm thao tác">
+          </SoonButton>
+          <SoonButton variant="ghost" size="icon-sm" aria-label="Thêm thao tác">
             <Ellipsis strokeWidth={1.6} />
-          </Button>
+          </SoonButton>
           <Button asChild variant="ghost" size="icon-sm">
             <Link to={close} aria-label="Đóng" title="Đóng">
               <X strokeWidth={1.6} />
@@ -112,14 +113,14 @@ export function EventDetail({ event, now, nameOf, close }: { event: CalendarEven
       )}
 
       <div className="mt-auto flex flex-wrap gap-2.5 border-t pt-5">
-        <Button type="button" variant="secondary" size="sm">
+        <SoonButton variant="secondary" size="sm">
           <Pencil strokeWidth={1.6} />
           Sửa
-        </Button>
-        <Button type="button" variant="danger" size="sm">
+        </SoonButton>
+        <SoonButton variant="danger" size="sm">
           <Trash2 strokeWidth={1.6} />
           Xóa lịch hẹn
-        </Button>
+        </SoonButton>
       </div>
     </>
   )

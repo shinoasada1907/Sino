@@ -6,6 +6,7 @@ import { formatDate } from '@/shared/time/local'
 import { useNow } from '@/shared/time/useNow'
 import { AccountAvatar } from '@/shared/ui/account-avatar'
 import { Button } from '@/shared/ui/button'
+import { SoonButton } from '@/shared/ui/soon-button'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
 import { ChannelRows } from './components/Channels'
@@ -106,10 +107,10 @@ export function AccountDetailPage() {
             )}
           </div>
           <div className="flex flex-wrap justify-end gap-2.5">
-            <Button type="button" variant="ghost" size="sm">
+            <SoonButton variant="ghost" size="sm">
               <ExternalLink strokeWidth={1.6} />
               Mở {name}
-            </Button>
+            </SoonButton>
             {account.firstImport?.state === 'RUNNING' || importDone ? (
               // An imported account syncs what changed (D-95); one still importing cannot.
               <Button type="button" variant="secondary" size="sm" disabled={!importDone || syncNow.isPending} onClick={() => syncNow.mutate(account.id)}>
@@ -132,14 +133,14 @@ export function AccountDetailPage() {
         )}
 
         <div className="grid grid-cols-12 gap-4">
-          <SectionCard title="Kênh đã kết nối" meta={<Spec>{channelSummary(account)}</Spec>} className="col-span-7">
+          <SectionCard title="Kênh đã kết nối" meta={<Spec>{channelSummary(account)}</Spec>} className="col-span-12 xl:col-span-7">
             <ChannelRows account={account} now={now} />
           </SectionCard>
-          <ScopesCard scopes={extras?.scopes ?? null} account={account} now={now} className="col-span-5" />
-          <SitesCard sites={extras?.sites ?? null} className="col-span-7" />
-          <SyncHistoryCard runs={extras?.syncRuns ?? null} account={account} now={now} className="col-span-5" />
-          <ActivityCard activity={extras?.activity ?? null} account={account} nameOf={nameOf} className="col-span-7" />
-          <SectionCard title="Ngắt kết nối tài khoản" danger className="col-span-5">
+          <ScopesCard scopes={extras?.scopes ?? null} account={account} now={now} className="col-span-12 xl:col-span-5" />
+          <SitesCard sites={extras?.sites ?? null} className="col-span-12 xl:col-span-7" />
+          <SyncHistoryCard runs={extras?.syncRuns ?? null} account={account} now={now} className="col-span-12 xl:col-span-5" />
+          <ActivityCard activity={extras?.activity ?? null} account={account} nameOf={nameOf} className="col-span-12 xl:col-span-7" />
+          <SectionCard title="Ngắt kết nối tài khoản" danger className="col-span-12 xl:col-span-5">
             <p className="text-sm text-muted-foreground">{disconnectNote(account)}</p>
             <DisconnectDialog
               account={account}

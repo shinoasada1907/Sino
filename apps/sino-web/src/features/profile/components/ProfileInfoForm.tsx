@@ -43,7 +43,7 @@ const isEditable = (field: string): field is EditableField => (EDITABLE_FIELDS a
 const inputClass = 'aria-invalid:border-danger'
 const FieldError = ({ id, message }: { id: string; message?: string }) =>
   message ? (
-    <p id={`${id}-error`} role="alert" className="text-[11px] text-destructive">
+    <p id={`${id}-error`} role="alert" className="text-[11px] text-danger-ink">
       {message}
     </p>
   ) : null
@@ -128,7 +128,7 @@ export function ProfileInfoForm({
       {showSuccess && (
         <div
           role="status"
-          className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-sm font-medium text-emerald-600 dark:text-emerald-400"
+          className="mt-4 flex items-center gap-2 rounded-lg border border-success/20 bg-success-soft px-3.5 py-2.5 text-sm font-medium text-success-ink"
         >
           <CheckCircle2 className="size-4 shrink-0" />
           <span>Đã lưu thay đổi thông tin cá nhân thành công!</span>
@@ -138,7 +138,7 @@ export function ProfileInfoForm({
       {failure && (
         <div
           role="alert"
-          className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-3.5 py-2.5 text-sm font-medium text-destructive"
+          className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-danger/20 bg-danger-soft px-3.5 py-2.5 text-sm font-medium text-danger-ink"
         >
           <span>{failure}</span>
           <Button type="button" variant="secondary" size="sm" onClick={() => void save()} disabled={isPending}>

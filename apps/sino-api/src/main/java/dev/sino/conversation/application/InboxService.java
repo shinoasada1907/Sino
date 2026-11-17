@@ -119,9 +119,10 @@ public class InboxService implements InboxIds {
      * keeps the groups with a copy in that account (D-187). One that is not in the inbox leaves nothing.
      *
      * @param kind only the accounts of this kind, or {@code null} for both (f05c, D-307)
+     * @param chatType only 1-1 chats or only groups, or {@code null} for both (D-426)
      */
-    public InboxPage page(UUID ownerId, InboxView view, ProviderKind kind, String provider, UUID accountId,
-            InboxCursor cursor, int limit) {
+    public InboxPage page(UUID ownerId, InboxView view, ProviderKind kind, ChatType chatType, String provider,
+            UUID accountId, InboxCursor cursor, int limit) {
         Map<UUID, ProviderType> accounts = kinds.ofKind(accountsOf(ownerId), kind);
         // Provider types are lower case; an empty provider filters nothing.
         String type = provider == null || provider.isBlank() ? null : provider.strip().toLowerCase(Locale.ROOT);
@@ -132,7 +133,8 @@ public class InboxService implements InboxIds {
         // Every group of the owner is worked out for each page: the time of a group is that of its newest copy, so no
         // index on one copy gives the order (F05b design, Risks). Keyset paging on the time and the ID of the group;
         // one more row than asked tells whether there is a next page.
-        String inbox = GROUPS.formatted("", accountId == null ? "" : "HAVING bool_or(c.account_id = :account)");
+        String inbox = GROUPS.formatted(chatType == null ? "" : "AND " + chatType.condition(),
+                accountId == null ? "" : "HAVING bool_or(c.account_id = :account)");
         JdbcClient.StatementSpec query = jdbc.sql("SELECT c.* FROM (" + inbox + ") c WHERE " + view.condition()
                 + (cursor == null ? "" : " AND (c.last_message_at, c.id) < (:after, :afterId)")
                 + " ORDER BY c.last_message_at DESC, c.id DESC LIMIT :rows")
@@ -189,16 +191,38 @@ public class InboxService implements InboxIds {
                 .toList();
         inKind.forEach(counts -> unreadByProvider.merge(accounts.get(counts.accountId()).value(), counts.unread(),
                 Long::sum));
-        Map<UUID, InboxCounts.AccountCount> byAccount = new LinkedHashMap<>();
-        for (UUID accountId : accounts.keySet()) {
-            byAccount.put(accountId, new InboxCounts.AccountCount(0, 0, 0));
-        }
-        for (AccountCounts c : inKind) {
-            byAccount.put(c.accountId(), new InboxCounts.AccountCount(c.unread(), c.needsReply(), c.withAttachments()));
-        }
         return new InboxCounts(inKind.stream().mapToLong(AccountCounts::unread).sum(), unreadByProvider,
                 inKind.stream().mapToLong(AccountCounts::needsReply).sum(),
-                inKind.stream().mapToLong(AccountCounts::withAttachments).sum(), unreadByKind, byAccount);
+                inKind.stream().mapToLong(AccountCounts::withAttachments).sum(), unreadByKind,
+                byAccount(accounts.keySet()));
+    }
+
+    /**
+     * The numbers of each account (D-425), from its own copies under the conditions of the inbox, so a thread found in
+     * two accounts counts in both. Every account has an entry, 0 when it holds nothing.
+     */
+    private Map<UUID, InboxCounts.AccountCount> byAccount(Collection<UUID> accounts) {
+        Map<UUID, InboxCounts.AccountCount> byAccount = new LinkedHashMap<>();
+        accounts.forEach(accountId -> byAccount.put(accountId, new InboxCounts.AccountCount(0, 0, 0)));
+        if (accounts.isEmpty()) {
+            return byAccount;
+        }
+        jdbc.sql("""
+                SELECT c.account_id,
+                       count(*) FILTER (WHERE c.unread_count > 0) AS unread,
+                       count(*) FILTER (WHERE c.needs_reply) AS needs_reply,
+                       count(*) FILTER (WHERE c.has_attachments) AS with_attachments
+                FROM conversation c
+                WHERE c.account_id IN (:accounts) AND %s
+                GROUP BY c.account_id
+                """.formatted(InboxView.ALL.condition()))
+                .param("accounts", accounts)
+                .query((row, n) -> new AccountCounts(row.getObject("account_id", UUID.class), row.getLong("unread"),
+                        row.getLong("needs_reply"), row.getLong("with_attachments")))
+                .list()
+                .forEach(c -> byAccount.put(c.accountId(),
+                        new InboxCounts.AccountCount(c.unread(), c.needsReply(), c.withAttachments())));
+        return byAccount;
     }
 
     /**

@@ -50,7 +50,7 @@ export function ProfilePage() {
             ) : (
               <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
                 {isError ? (
-                  <div role="alert" className="flex items-center justify-between gap-3 text-sm text-destructive">
+                  <div role="alert" className="flex items-center justify-between gap-3 text-sm text-danger-ink">
                     <span>Không tải được thông tin cá nhân.</span>
                     <Button type="button" variant="secondary" size="sm" onClick={retry}>
                       Thử lại

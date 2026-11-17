@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Tin nhắn di động theo tài khoản</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}}" style="width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg); overflow: hidden;">
+  <header style="padding: 16px 16px 8px; display: flex; align-items: center; gap: 8px;">
+    <h1 class="h1" style="font-size: 24px;">Tin nhắn</h1>
+    <button class="icon-btn" aria-label="Tìm" style="margin-left: auto; width: 44px; height: 44px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+  </header>
+  <div aria-label="Tài khoản" style="display: flex; gap: 6px; padding: 0 16px 10px; overflow: hidden;">
+    <sc-for list="{{accounts}}" as="a" hint-placeholder-count="4">
+      <button class="{{a.cls}}" aria-pressed="{{a.on}}" style="height: 34px; border: 0; font: inherit; font-size: 12.5px; font-weight: 700; flex: none;">
+        <sc-if value="{{a.pv}}" hint-placeholder-val="{{true}}"><span class="pv {{a.pv}}" style="width: 16px; height: 16px; flex-basis: 16px; font-size: 8px; border-radius: 5px;">{{a.pl}}</span></sc-if>
+        {{a.name}}
+        <sc-if value="{{a.n}}" hint-placeholder-val="{{true}}"><span style="font-weight: 800;">{{a.n}}</span></sc-if>
+      </button>
+    </sc-for>
+  </div>
+  <div style="padding: 0 16px 8px; display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; gap: 6px; align-items: center;">
+      <div class="seg" role="tablist" aria-label="Lọc" style="flex: 1;">
+        <button class="on" role="tab" aria-selected="true" style="flex: 1; padding: 0 6px; height: 34px;">Tất cả</button>
+        <button role="tab" aria-selected="false" style="flex: 1; padding: 0 6px; height: 34px;">Chưa đọc 5</button>
+        <button role="tab" aria-selected="false" style="flex: 1.4; padding: 0 6px; height: 34px;">Cần trả lời 2</button>
+      </div>
+      <button class="icon-btn" aria-label="Thêm bộ lọc" aria-haspopup="menu" style="width: 44px; height: 44px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+    </div>
+    <div style="display: flex; gap: 6px;">
+      <button class="tag solid" aria-pressed="true" style="border: 0; font: inherit; font-size: 12px; font-weight: 700; height: 32px;">Mọi chat</button>
+      <button class="tag" aria-pressed="false" style="border: 0; font: inherit; font-size: 12px; font-weight: 700; height: 32px;">Cá nhân</button>
+      <button class="tag" aria-pressed="false" style="border: 0; font: inherit; font-size: 12px; font-weight: 700; height: 32px;">Nhóm</button>
+    </div>
+  </div>
+  <div style="flex: 1; overflow: hidden; padding: 0 8px;">
+    <sc-for list="{{chats}}" as="c" hint-placeholder-count="6">
+      <a href="#" class="{{c.cls}}" style="align-items: center; min-height: 64px;">
+        <span class="av {{c.av}}">{{c.ini}}<span class="pv {{c.pv}}">{{c.pl}}</span></span>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; gap: 8px;"><span class="who trunc">{{c.who}}</span><span class="subtle small" style="margin-left: auto;">{{c.time}}</span></div>
+          <div class="tiny subtle trunc">{{c.label}}</div>
+          <div class="muted small trunc">{{c.last}}</div>
+        </div>
+      </a>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const a = (name, n, pv, pl, on) => ({ name, n, pv, pl, on: on ? 'true' : 'false', cls: on ? 'tag solid' : 'tag' });
+    const accounts = [a('Tất cả', '5', '', '', true), a('An Nguyễn', '3', 'zalo', 'Z'), a('An · Công việc', '2', 'zalo', 'Z'), a('@an.nguyen', '', 'tele', 'T')];
+    const c = (av, ini, pv, pl, who, label, time, last, n) => ({ av, ini, pv, pl, who, label, time, last, cls: 'row' + (n ? ' unread' : '') });
+    const chats = [
+      c('a4', 'GĐ', 'zalo', 'Z', 'Gia đình', 'An · Công việc · nhóm 6 người', '08:15', 'Mẹ: Nhớ mua bánh cho bà nhé', true),
+      c('a3', 'LH', 'zalo', 'Z', 'Lê Hoàng', 'An Nguyễn', '07:52', 'Ok, mai mình gửi file thiết kế bản cuối', true),
+      c('a2', 'TT', 'zalo', 'Z', 'Thu Trang', 'An Nguyễn', 'Hôm qua', 'Bạn: Ảnh đẹp quá, gửi nốt nhé', false),
+      c('a5', 'DA', 'tele', 'T', 'Dev Sài Gòn', '@an.nguyen · nhóm 24 người', 'Hôm qua', 'Quang: PR đã merge rồi mọi người', false),
+      c('a1', 'MA', 'zalo', 'Z', 'Trần Minh Anh', 'An · Công việc', 'Thứ 4', 'Em gửi anh file hợp đồng qua mail rồi ạ', false),
+      c('a3', 'CT', 'zalo', 'Z', 'Công ty — Văn phòng', 'An · Công việc · nhóm 38 người', '29/09', 'Thông báo nghỉ lễ 2/9', false)
+    ];
+    return { theme: this.props.theme === 'dark' ? 'dark' : 'light', accounts, chats };
+  }
+}
+</script>
+</body>
+</html>

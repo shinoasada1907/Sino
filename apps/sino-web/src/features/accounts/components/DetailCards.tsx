@@ -3,7 +3,7 @@ import { methodLabel, type ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
 import { formatDate } from '@/shared/time/local'
 import { Badge } from '@/shared/ui/badge'
-import { Button } from '@/shared/ui/button'
+import { SoonButton } from '@/shared/ui/soon-button'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
 import type { AccountActivity, AccountExtras, AccountItem } from '../accounts.types'
@@ -67,10 +67,10 @@ export function SitesCard({ sites, className }: { sites: AccountExtras['sites'];
       title="Website dùng danh tính này"
       meta={
         sites && (
-          <Button type="button" variant="ghost" size="sm" className="-mr-2">
+          <SoonButton variant="ghost" size="sm" className="-mr-2">
             Xem tất cả {sites.total}
             <ChevronRight strokeWidth={1.6} />
-          </Button>
+          </SoonButton>
         )
       }
       className={className}

@@ -166,7 +166,7 @@ function AvatarForm({
           {picked ? 'Chọn ảnh khác' : 'Chọn ảnh'}
         </Button>
         {error && (
-          <p role="alert" className="text-center text-sm text-destructive">
+          <p role="alert" className="text-center text-sm text-danger-ink">
             {error}
           </p>
         )}

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { ThemePreference } from '@/shared/theme/theme'
 import { sameAppearance, type Appearance } from '@/shared/theme/appearance'
 import { useTheme } from '@/shared/theme/themeContext'
@@ -56,13 +56,17 @@ function useAppearanceSync() {
   const { settings } = useSettings()
   const queryClient = useQueryClient()
   const sent = useRef<string | null>(null)
-  const saved: Appearance | null =
-    settings && settings.palette && settings.corners
-      ? { palette: settings.palette, accentColor: settings.accentColor ?? null, corners: settings.corners, decorations: settings.decorations !== false,
-          textTone: settings.textTone ?? 'TINTED',
-          lightBackground: settings.lightBackground ?? 'TINTED',
-        }
-      : null
+  const palette = settings?.palette
+  const corners = settings?.corners
+  const accentColor = settings?.accentColor ?? null
+  const decorations = settings?.decorations !== false
+  const textTone = settings?.textTone ?? 'TINTED'
+  const lightBackground = settings?.lightBackground ?? 'TINTED'
+  // Memoized on the saved fields: a new object every render would re-run the effect below each time.
+  const saved = useMemo<Appearance | null>(
+    () => (palette && corners ? { palette, accentColor, corners, decorations, textTone, lightBackground } : null),
+    [palette, corners, accentColor, decorations, textTone, lightBackground],
+  )
 
   useEffect(() => {
     if (saved === null || sameAppearance(saved, appearance)) {

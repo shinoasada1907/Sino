@@ -269,6 +269,24 @@ class MergedThreadsApiTests {
                 .andExpect(jsonPath("$.withAttachments").value(1));
     }
 
+    // D-425: byAccount counts the copies of each account, so the group is in both; the totals count it once.
+    @Test
+    void theCountsByAccountGiveAGroupToEveryAccountThatHoldsIt() throws Exception {
+        store(tien, "t-1", inbound("t-1", "t-a", ALICE, "<a@mail.test>", HELLO, false, file()));
+        store(sinon, "b-1", inbound("b-1", "b-a", ALICE, "<a@mail.test>", HELLO, false, file()));
+        store(tien, "t-2", inbound("t-2", "t-b", ALICE, "<only-tien@mail.test>", XIN_CHAO, false));
+
+        mvc.perform(get("/api/conversations/counts").param("kind", "email").with(user("owner@sino.test")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unread").value(2))
+                .andExpect(jsonPath("$.withAttachments").value(1))
+                .andExpect(jsonPath("$.byAccount.length()").value(2))
+                .andExpect(jsonPath("$.byAccount['" + tien + "'].unread").value(2))
+                .andExpect(jsonPath("$.byAccount['" + tien + "'].withAttachments").value(1))
+                .andExpect(jsonPath("$.byAccount['" + sinon + "'].unread").value(1))
+                .andExpect(jsonPath("$.byAccount['" + sinon + "'].withAttachments").value(1));
+    }
+
     // D-187: a group is in the list of an account when one of its copies is.
     @Test
     void theAccountFilterKeepsAGroupWithACopyInTheAccount() throws Exception {

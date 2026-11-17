@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Sino Sunset · Cột tài khoản</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./sunset.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="sn theme-{{theme}}" style="height: 100%; display: flex; background: transparent;">
+  <sc-if value="{{full}}" hint-placeholder-val="{{true}}">
+    <nav class="pane" aria-label="Tài khoản" style="width: 232px; flex: 0 0 232px; height: 876px; padding: 14px 10px; gap: 2px;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 2px 8px 10px;">
+        <span class="h3">Tài khoản</span>
+        <sc-if value="{{filtered}}" hint-placeholder-val="{{true}}"><a href="#" class="small ink" style="margin-left: auto; font-weight: 700; text-decoration: none;">Xem tài khoản</a></sc-if>
+      </div>
+      <a href="#" class="{{all.cls}}" aria-current="{{all.cur}}" style="height: 40px;">
+        <span class="unread-dot" style="background: var(--text-subtle); box-shadow: none; width: 8px; height: 8px; flex-basis: 8px;"></span>
+        <span>Tất cả</span>
+        <span class="count {{all.hot}}">{{all.count}}</span>
+      </a>
+      <sc-for list="{{providers}}" as="p" hint-placeholder-count="2">
+        <div class="nav-sec" style="display: flex; align-items: center; gap: 8px;"><span class="pv {{p.pv}}" style="width: 16px; height: 16px; flex-basis: 16px; font-size: 8px; border-radius: 5px;">{{p.pl}}</span>{{p.name}}</div>
+        <sc-for list="{{p.accounts}}" as="a" hint-placeholder-count="2">
+          <a href="#" class="{{a.cls}}" aria-current="{{a.cur}}" style="height: 40px;" title="{{a.title}}">
+            <span class="dot" style="color: {{a.tone}};" aria-hidden="true"></span>
+            <span class="trunc" style="flex: 1;">{{a.name}}</span>
+            <span class="count {{a.hot}}">{{a.count}}</span>
+          </a>
+        </sc-for>
+      </sc-for>
+    </nav>
+  </sc-if>
+  <sc-if value="{{compact}}" hint-placeholder-val="{{false}}">
+    <nav class="pane" aria-label="Tài khoản" style="width: 64px; flex: 0 0 64px; height: 876px; padding: 14px 0; gap: 10px; align-items: center;">
+      <a href="#" class="{{all.chip}}" aria-label="Tất cả tài khoản" aria-current="{{all.cur}}" style="width: 40px; height: 40px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 800; font-size: 12px;">Tất</a>
+      <div class="divider" style="width: 28px;"></div>
+      <sc-for list="{{flat}}" as="a" hint-placeholder-count="3">
+        <a href="#" class="{{a.chip}}" aria-label="{{a.title}}" aria-current="{{a.cur}}" style="width: 40px; height: 40px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 800; font-size: 13px; position: relative;">
+          {{a.ini}}
+          <span class="pv {{a.pv}}" style="position: absolute; right: -4px; bottom: -4px; width: 16px; height: 16px; flex-basis: 16px; font-size: 8px; border: 2px solid var(--surface); border-radius: 6px;">{{a.pl}}</span>
+          <sc-if value="{{a.n}}" hint-placeholder-val="{{true}}"><span class="tag solid" style="position: absolute; top: -6px; right: -8px; height: 18px; padding: 0 5px; font-size: 10.5px;">{{a.n}}</span></sc-if>
+          <sc-if value="{{a.relogin}}" hint-placeholder-val="{{false}}"><span style="position: absolute; top: -3px; left: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); border: 2px solid var(--surface);"></span></sc-if>
+        </a>
+      </sc-for>
+    </nav>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"compact":{"editor":"boolean","default":false},"kind":{"editor":"enum","options":["chat","email"],"default":"chat"},"selected":{"editor":"enum","options":["all","zalo-1","zalo-2","tele-1","gmail-1","gmail-2"],"default":"all"},"$preview":{"width":244,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const kind = this.props.kind === 'email' ? 'email' : 'chat';
+    const selected = this.props.selected || 'all';
+    const compact = !!this.props.compact;
+    const ok = 'var(--success)';
+    const bad = 'var(--danger)';
+    const acc = (id, name, ini, n, tone, relogin, pv, pl) => {
+      const on = id === selected;
+      return {
+        id, name, ini, n: n || '', count: n || '', pv, pl, relogin: !!relogin, tone,
+        title: relogin ? name + ' · cần đăng nhập lại' : name,
+        cls: on ? 'nav-item on' : 'nav-item',
+        chip: on ? 'tag solid' : 'tag',
+        cur: on ? 'page' : undefined,
+        hot: n && !on ? 'hot' : ''
+      };
+    };
+    const providers = kind === 'chat'
+      ? [
+          { name: 'Zalo', pv: 'zalo', pl: 'Z', accounts: [acc('zalo-1', 'An Nguyễn', 'AN', '3', ok, false, 'zalo', 'Z'), acc('zalo-2', 'An · Công việc', 'CV', '2', ok, false, 'zalo', 'Z')] },
+          { name: 'Telegram', pv: 'tele', pl: 'T', accounts: [acc('tele-1', '@an.nguyen', 'AT', '', bad, true, 'tele', 'T')] }
+        ]
+      : [
+          { name: 'Gmail', pv: 'gmail', pl: 'G', accounts: [acc('gmail-1', 'an.nguyen@gmail.com', 'AN', '5', ok, false, 'gmail', 'G'), acc('gmail-2', 'an@congty.vn', 'CT', '2', ok, false, 'gmail', 'G')] }
+        ];
+    const flat = providers.reduce((all, p) => all.concat(p.accounts), []);
+    const allOn = selected === 'all';
+    const total = kind === 'chat' ? '5' : '7';
+    const all = { cls: allOn ? 'nav-item on' : 'nav-item', chip: allOn ? 'tag solid' : 'tag', cur: allOn ? 'page' : undefined, count: total, hot: allOn ? '' : 'hot' };
+    return {
+      theme: this.props.theme === 'dark' ? 'dark' : 'light',
+      full: !compact, compact, filtered: !allOn, providers, flat, all
+    };
+  }
+}
+</script>
+</body>
+</html>

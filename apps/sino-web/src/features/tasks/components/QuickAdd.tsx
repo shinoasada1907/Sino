@@ -16,7 +16,7 @@ export function QuickAdd({ placeholder, onAdd, className }: { placeholder: strin
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      <label className="grid h-13 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg bg-surface shadow-card pr-2 pl-4 transition-colors duration-(--dur-hover) ease-out focus-within:border-solid focus-within:border-foreground">
+      <label className="grid h-13 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg bg-surface shadow-card pr-2 pl-4 transition-colors duration-(--dur-hover) ease-out focus-within:ring-2 focus-within:ring-ring">
         <Plus aria-hidden="true" className="size-5 text-muted-foreground" strokeWidth={1.6} />
         <input
           type="text"

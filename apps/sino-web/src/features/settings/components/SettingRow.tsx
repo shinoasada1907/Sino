@@ -87,7 +87,7 @@ export function SettingSelect<T extends string>({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value as T)}
-        className="h-11 w-full cursor-pointer appearance-none rounded-sm border border-border bg-surface pr-10 pl-3.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16 disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-11 w-full cursor-pointer appearance-none rounded-full border border-border-strong bg-surface pr-10 pl-3.5 text-sm text-foreground transition-[border-color,box-shadow] duration-(--dur-hover) ease-out outline-none hover:border-border-strong focus:border-foreground focus:ring-3 focus:ring-foreground/16 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
