@@ -496,6 +496,20 @@ class GmailSyncTests {
         gmail.verify(0, anyRequestedFor(anyUrl()));
     }
 
+    // zalo-reactions, D-383: Gmail has no reactions; it offers none and refuses to react without asking Gmail.
+    @Test
+    void gmailOffersNoReactionsAndRefusesToReactWithoutAskingGmail() {
+        MessageProvider provider = gmailAt("");
+
+        assertThat(provider.reactionSet()).isEmpty();
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> provider.react(context(), new dev.sino.provider.spi.ReactCommand("t-1",
+                        dev.sino.provider.spi.ConversationType.DIRECT, REPORT, java.util.Map.of(), "like")))
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+        gmail.verify(0, anyRequestedFor(anyUrl()));
+    }
+
     @Test
     void theMailboxesAreListedByIdsOnlyForSpamTrashAndArchivedMailSinceTheMoment() {
         list("", equalTo("in:spam " + AFTER_SINCE), absent(), null, "s-1");

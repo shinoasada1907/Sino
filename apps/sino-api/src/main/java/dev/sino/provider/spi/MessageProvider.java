@@ -93,6 +93,27 @@ public interface MessageProvider {
     }
 
     /**
+     * The reactions users can put on a message, the {@code quick} ones first (zalo-reactions, D-383). Empty by default;
+     * a connector with {@link ProviderCapability#REACTIONS} MUST return at least one.
+     */
+    default List<ReactionKind> reactionSet() {
+        return List.of();
+    }
+
+    /**
+     * Puts {@code command.code()} on the message as the account, or takes the account's reaction off it when the code is
+     * empty (D-383). Only for connectors with {@link ProviderCapability#REACTIONS}, which refuse a code not in
+     * {@link #reactionSet()} before calling the provider. A failure after which the provider may have taken the
+     * reaction has {@link ProviderErrorCode#OUTCOME_UNKNOWN}.
+     *
+     * @throws ProviderException with {@code CAPABILITY_NOT_SUPPORTED} by default, without calling the provider
+     */
+    default void react(ProviderContext context, ReactCommand command) {
+        throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
+                type() + " does not support " + ProviderCapability.REACTIONS);
+    }
+
+    /**
      * The provider's IDs of the messages that may be the one Sino sent with {@code command}, the send having started
      * at {@code startedAt} (F10, D-132), for a send whose outcome was unknown: the likeliest first, empty when the
      * provider has none. More than one can match, such as the same text sent twice, so the caller takes the first that

@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,6 +29,8 @@ import dev.sino.provider.spi.ProviderContext;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
+import dev.sino.provider.spi.ReactCommand;
+import dev.sino.provider.spi.ReactionKind;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SkippedItem;
 import dev.sino.provider.spi.SyncBatch;
@@ -121,6 +124,68 @@ class FakeMessageProviderContractTest {
         @Override
         protected Instant since() {
             return BETWEEN;
+        }
+
+    }
+
+    // A connector with REACTIONS (zalo-reactions): the kit's checks that run only with the capability run on it.
+    @Nested
+    class Reacting extends MessageProviderContractTest {
+
+        private final FakeMessageProvider provider = FakeMessageProvider.builder("fake-chat")
+                .page(message("m-1", SEPTEMBER), message("m-2", OCTOBER))
+                .reactions(new ReactionKind("/-heart", "❤️", "Tim", true),
+                        new ReactionKind(":>", "😆", "Haha", false))
+                .build();
+
+        @Override
+        protected MessageProvider provider() {
+            return provider;
+        }
+
+        @Override
+        protected MessageProvider providerWithOneBrokenMessage() {
+            return FakeMessageProvider.builder("fake-chat")
+                    .page(message("m-1"), messageWithoutSentAt("m-2"), message("m-3"))
+                    .reactions(new ReactionKind("/-heart", "❤️", "Tim", true))
+                    .build();
+        }
+
+        @Override
+        protected ProviderContext context() {
+            return CONTEXT;
+        }
+
+        @Override
+        protected Set<String> expectedMessageIds() {
+            return Set.of("m-1", "m-2");
+        }
+
+        @Override
+        protected Instant since() {
+            return BETWEEN;
+        }
+
+        @Test
+        void declaresReactionsNextToWhatItWasGiven() {
+            assertThat(provider.capabilities().values()).containsExactly(READ_MESSAGES, ProviderCapability.REACTIONS);
+        }
+
+        @Test
+        void aCodeOutsideTheSetNeverReachesTheFake() {
+            assertThatExceptionOfType(ProviderException.class)
+                    .isThrownBy(() -> provider.react(CONTEXT, new ReactCommand("c-1", ConversationType.GROUP, "m-1",
+                            Map.of(), "nope")));
+
+            assertThat(provider.reactions()).isEmpty();
+        }
+
+        @Test
+        void recordsTheReactionsThatReachedIt() {
+            provider.react(CONTEXT, new ReactCommand("c-1", ConversationType.GROUP, "m-1", Map.of(), ":>"));
+            provider.react(CONTEXT, new ReactCommand("c-1", ConversationType.GROUP, "m-1", Map.of(), ""));
+
+            assertThat(provider.reactions()).extracting(ReactCommand::code).containsExactly(":>", "");
         }
 
     }

@@ -2,6 +2,7 @@ package dev.sino.provider.spi;
 
 import static dev.sino.provider.ProviderCapability.PUSH_WEBHOOK;
 import static dev.sino.provider.ProviderCapability.READ_MESSAGES;
+import static dev.sino.provider.ProviderCapability.REACTIONS;
 import static dev.sino.provider.ProviderCapability.SEND_FILES;
 import static dev.sino.provider.ProviderCapability.SEND_IMAGES;
 import static dev.sino.provider.ProviderCapability.SEND_MESSAGES;
@@ -150,6 +151,58 @@ public abstract class MessageProviderContractTest {
         assumeTrue(provider().capabilities().supports(SEND_FILES), "the connector cannot send files");
 
         assertThat(provider().capabilities().supports(SEND_MESSAGES)).isTrue();
+    }
+
+    /** What the reaction checks put on a message; override when the fake provider needs a known conversation. */
+    protected ReactCommand reactCommand(String code) {
+        return new ReactCommand("conversation-1", ConversationType.DIRECT, "m-1", java.util.Map.of(), code);
+    }
+
+    // A connector without REACTIONS offers none and refuses to react, and its provider hears nothing (zalo-reactions, D-383).
+    @Test
+    void refusesToReactWithoutTheCapability() {
+        assumeFalse(provider().capabilities().supports(REACTIONS), "the connector can react");
+
+        assertThat(provider().reactionSet()).isEmpty();
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> provider().react(context(), reactCommand("/-heart")))
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    @Test
+    void aConnectorWithReactionsOffersAtLeastOne() {
+        assumeTrue(provider().capabilities().supports(REACTIONS), "the connector cannot react");
+
+        assertThat(provider().reactionSet()).isNotEmpty();
+        assertThat(provider().reactionSet()).extracting(ReactionKind::code).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void reactsWithACodeOfItsSetAndTakesItOffWithAnEmptyOne() {
+        assumeTrue(provider().capabilities().supports(REACTIONS), "the connector cannot react");
+        String code = provider().reactionSet().get(0).code();
+
+        provider().react(context(), reactCommand(code));
+        provider().react(context(), reactCommand(""));
+    }
+
+    @Test
+    void refusesACodeOutsideItsSet() {
+        assumeTrue(provider().capabilities().supports(REACTIONS), "the connector cannot react");
+
+        assertThatExceptionOfType(ProviderException.class)
+                .isThrownBy(() -> provider().react(context(), reactCommand("not-a-reaction-of-any-connector")))
+                .extracting(ProviderException::errorCode)
+                .isEqualTo(ProviderErrorCode.REQUEST_REJECTED);
+    }
+
+    @Test
+    void aSyncBatchOfAConnectorWithoutReactionsCarriesNone() {
+        assumeTrue(provider().capabilities().supports(READ_MESSAGES), "the connector cannot read messages");
+        assumeFalse(provider().capabilities().supports(REACTIONS), "the connector can react");
+
+        assertThat(provider().fetchUpdates(context(), SyncCursor.initial()).reactions()).isEmpty();
     }
 
     @Test
