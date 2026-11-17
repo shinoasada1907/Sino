@@ -100,7 +100,7 @@ Cần chốt: **D-01** (đề xuất làm F03 trước F02), **D-16**, **D-18**.
 
 ---
 
-### Phase 1 — Frontend nền (vertical slice cho F01–F03) · ~M
+### Phase 1 — Frontend nền (vertical slice cho F01–F03) · ~M · code xong, chờ nghiệm thu các màn
 
 Mục tiêu: có web app thật gọi API thật, để từ Phase 2 mỗi feature đều có cả FE.
 
@@ -313,5 +313,13 @@ Mục tiêu: biến tin nhắn thành việc cần làm, ghi chú, lịch hẹn;
 ## 5. Vị trí hiện tại
 
 - **Phase 0:** ✅ đóng 2026-10-07. F01, F03, F02 xong và đã archive; code vào `main` qua PR #3 (`9d1ff9b`, CI xanh). Còn mở (người dùng): Notion 02B, 04C/04D.
-- **Phase 1 (đang làm, mở 2026-10-07):** change 1 `fe-f01-web-foundation` đã lập kế hoạch (D-22 = A), chờ người dùng duyệt.
+- **Phase 1 (mở 2026-10-07, code xong, chưa đóng):** change 1 `fe-f01-web-foundation` (BE-27…BE-29 đăng nhập session/CSRF/remember-me, FE-01…FE-05) ✅ DONE và archive 2026-10-15. F01-FE/F02-FE/F03-FE dựng theo cách UI trước (D-42): `fe-ui-overview`, `fe-ui-accounts`, `fe-ui-connect` đã dựng và nối API; còn mỗi task nghiệm thu + archive (UI-04, AC-05, CN-04).
+- **Các phase sau làm song song, chưa phase nào đóng** (theo `tasks.md`, 2026-11-17):
+  - **Phase 2 (M1):** F04a, F04b, F05, F06 xong phần backend, đã chạy thật với Gmail. Còn mở: F04a ACC; các task "chạy với backend thật" của web (FE-50, FE-60) và archive. Mở rộng: `f05b-merged-threads` (còn FE-82, ACC), `f05c-messages-inbox-split` (còn ACC, archive), `messages-by-account` (MA-01…MA-03 xong, còn MA-05, MA-06, MA-20), `mail-folders` (còn MF-20).
+  - **Phase 3:** `f07-f08-realtime-inbox` xong phần backend, còn FE-56. F13 (scheduler) và F14 (Web Push) chưa mở; đã có thông báo trong app (`inbox-notifications`, còn NF-03).
+  - **Phase 4:** `f15-notes` (còn ACC, archive), `f16-f17-tasks-calendar` (còn FE-72, FE-73, ACC). Tạm ẩn cuộc trò chuyện chưa mở.
+  - **Phase 5:** `f10-reply` (còn FE-63, archive); `f10-new-mail` chưa làm backend (BE-84…BE-86). F09 chọn Zalo cá nhân qua `apps/sino-zalo` (zca-js): `zalo-personal` còn ZL-13, ZL-17; các change mở rộng `zalo-*`, `custom-stickers`, `sticker-packs` đang làm. Hẹn giờ gửi chưa mở.
+  - **Phase 6:** chưa mở.
+  - Ngoài phase: `fe-ui-sunset` (đổi giao diện toàn web theo canvas Sunset, SU-xx), `settings-backend`, `profile-info`, `shell-real-counts`, `web-public-pages`. Admin backend đã archive (`2026-10-13-admin-api`).
+- **Việc nên làm tiếp để đóng phase:** nghiệm thu và archive theo thứ tự phụ thuộc đã ghi trong các `tasks.md` (Phase 1 trước, rồi F04a → F04b → F05 → F06 → F10-reply…), vì nhiều change đang chờ nhau mới archive được.
 - `PROJECT_STATE.md` là nơi ghi trạng thái thật; file này chỉ là bản đồ và được cập nhật khi xong mỗi phase.
