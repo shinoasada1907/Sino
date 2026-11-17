@@ -23,6 +23,9 @@ import { useInboxFilter } from './useInboxFilter'
 import { useNewMailNotice } from './useNewMailNotice'
 import { SCREENS, screenFrame } from './screen'
 
+// The list and the info column are floating cards 12 px from the edge (canvas `.pane`); the thread is not a card, it sits on the page (`.main`).
+const CARD = 'md:rounded-panel md:bg-surface md:shadow-card'
+
 /**
  * Tin nhắn (`/messages`, chats; canvas `Messages`) and Hộp thư (`/inbox`, emails; canvas `Inbox`), one screen per kind
  * of provider (f05c, D-300).
@@ -181,7 +184,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
       {online && realtimeDown && <RealtimeBanner state={realtimeDown} />}
       <div
         className={cn(
-          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:*:overflow-hidden md:*:rounded-panel md:*:bg-surface md:*:shadow-card',
+          'grid min-h-0 flex-1 md:grid-cols-[320px_minmax(0,1fr)] md:gap-3 md:p-3 md:*:overflow-hidden',
           chat ? (showInfo ? 'xl:grid-cols-[340px_minmax(0,1fr)_340px]' : 'xl:grid-cols-[340px_minmax(0,1fr)]') : 'xl:grid-cols-[380px_minmax(0,1fr)]',
         )}
       >
@@ -206,7 +209,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
           switching={list.switching}
           more={list.more}
           notice={notice}
-          className={chat ? (selected ? 'hidden xl:flex' : 'flex') : selected ? 'hidden md:flex' : 'flex'}
+          className={cn(chat ? (selected ? 'hidden xl:flex' : 'flex') : selected ? 'hidden md:flex' : 'flex', CARD)}
         />
         {chat && item && account ? (
           <>
@@ -237,7 +240,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
                 now={now}
                 nameOf={nameOf}
                 onClose={() => setShowInfo(false)}
-                className="hidden h-full min-h-0 xl:flex"
+                className="hidden h-full min-h-0 border-l-0 xl:flex xl:rounded-panel xl:bg-surface xl:shadow-card"
               />
             )}
           </>

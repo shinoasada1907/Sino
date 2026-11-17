@@ -175,9 +175,9 @@ export function ConversationList({
           {compose && <NewMailLink search={search} className="ml-auto" />}
         </div>
       )}
-      <div className="hidden flex-col gap-3.5 px-4 pt-5 pb-3.5 xl:flex">
+      <div className="hidden flex-col gap-3.5 px-4 pt-4 pb-3 xl:flex">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{title}</h1>
+          <h1 className="text-[17px] leading-6 font-extrabold tracking-[-0.005em]">{title}</h1>
           <Spec className="ml-auto">{unread}</Spec>
           {compose && <NewMailLink search={search} />}
         </div>
@@ -287,7 +287,7 @@ function ConversationRow({
       to={{ pathname: `${SCREENS[item.kind].path}/${item.id}`, search }}
       aria-current={selected ? 'page' : undefined}
       data-arrived={arrived ?? undefined}
-      className="grid grid-cols-[40px_minmax(0,1fr)_auto] data-[arrived=slide]:motion-safe:animate-row-in data-[arrived=slide]:motion-reduce:animate-fade-in items-start gap-x-3 rounded-md px-3 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3.5 md:p-3.5 aria-[current=page]:bg-brand-soft"
+      className="grid grid-cols-[40px_minmax(0,1fr)_auto] data-[arrived=slide]:motion-safe:animate-row-in data-[arrived=slide]:motion-reduce:animate-fade-in items-start gap-x-3 rounded-md px-3 py-3 text-foreground transition-colors duration-(--dur-hover) ease-out outline-none hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid md:grid-cols-[36px_minmax(0,1fr)_auto] md:gap-x-3 md:px-3.5 md:py-3 md:in-[.corners-compact]:py-2 aria-[current=page]:bg-brand-soft"
     >
       {item.kind === 'CHAT' ? (
         <span className="relative grid size-10 shrink-0 place-items-center md:size-9">

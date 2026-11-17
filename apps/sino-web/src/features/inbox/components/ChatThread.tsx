@@ -128,7 +128,7 @@ export function ChatThread({
   return (
     <section
       aria-label={`Cuộc trò chuyện ${shownName}`}
-      className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] md:border-r bg-background"
+      className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] bg-background"
       onPaste={handlePaste}
       onDragOver={(event) => {
         if (carriesFiles(event)) event.preventDefault()
@@ -593,7 +593,7 @@ function Bubble({
   )
 
   return (
-    <div className={cn('group/bubble flex max-w-[88%] md:max-w-[75%] items-start gap-2.5', own ? 'flex-row-reverse self-end' : 'self-start')}>
+    <div className={cn('group/bubble flex max-w-[88%] md:max-w-[64%] items-start gap-2.5', own ? 'flex-row-reverse self-end' : 'self-start')}>
       {!own && (
         <div className="relative mt-1 shrink-0">
           <Avatar src={avatar} placeholder={memberPlaceholder(message.sender, members)} className="size-8">
