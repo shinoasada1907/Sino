@@ -64,7 +64,8 @@
 ## 4. Ghi chú sang change khác
 
 - [x] 4.1 **`f05c-messages-inbox-split`:** gạch task 2.2 BE-111, ghi "LÝ DO: chuyển sang `messages-by-account` MA-02 (người dùng duyệt 2026-11-02)"; ghi ở 5.1 / 5.2 rằng ACC và archive của `f05c` chờ MA-02 và đi trước archive của change này · quản lý
-- [ ] 4.2 **`zalo-nicknames`:** ghi ở NK-04 "làm sau MA-06 của `messages-by-account` (người dùng chọn 2026-11-02)"; báo phiên quản lý `sino-16` qua `PROJECT_STATE.md` · quản lý
+- [ ] ~~4.2 **`zalo-nicknames`:** ghi ở NK-04 "làm sau MA-06 của `messages-by-account` (người dùng chọn 2026-11-02)"; báo phiên quản lý `sino-16` qua `PROJECT_STATE.md` · quản lý~~
+  - **LÝ DO bỏ (2026-11-17, quản lý `sino-api-fb`, người dùng bảo làm 4.2):** NK-04 đã làm xong 2026-11-12 và commit trong `3a6e924` (SU-00), trước MA-06, nên thứ tự "NK-04 sau MA-06" không còn áp dụng; ghi câu đó vào NK-04 sẽ sai. Thay vào đó, MA-05 và MA-06 phải giữ biệt danh của NK-04 (`displayName`, `canSetNickname`, `NicknameDialog`) khi đổi hàng danh sách và đầu khung chat.
 
 ## 5. Nghiệm thu
 
