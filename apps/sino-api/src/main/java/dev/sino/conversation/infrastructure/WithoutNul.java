@@ -9,6 +9,7 @@ import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedParticipant;
+import dev.sino.provider.spi.NormalizedReaction;
 import dev.sino.provider.spi.NormalizedRecipients;
 import dev.sino.provider.spi.NormalizedRecipients.Address;
 import dev.sino.provider.spi.SyncBatch;
@@ -24,8 +25,13 @@ final class WithoutNul {
 
     static SyncBatch of(SyncBatch batch) {
         return new SyncBatch(batch.conversations().stream().map(WithoutNul::conversation).toList(),
-                batch.messages().stream().map(WithoutNul::message).toList(), batch.skipped(), batch.nextCursor(),
-                batch.hasMore());
+                batch.messages().stream().map(WithoutNul::message).toList(), batch.skipped(),
+                batch.reactions().stream().map(WithoutNul::reaction).toList(), batch.nextCursor(), batch.hasMore());
+    }
+
+    private static NormalizedReaction reaction(NormalizedReaction r) {
+        return new NormalizedReaction(text(r.externalConversationId()), text(r.externalMessageId()),
+                text(r.reactorExternalId()), text(r.reactorName()), r.self(), text(r.code()), r.reactedAt());
     }
 
     private static NormalizedConversation conversation(NormalizedConversation c) {

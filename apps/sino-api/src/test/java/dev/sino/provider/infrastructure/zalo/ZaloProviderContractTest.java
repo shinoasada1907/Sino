@@ -22,6 +22,8 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageProviderContractTest;
 import dev.sino.provider.spi.ProviderContext;
+import dev.sino.provider.spi.ReactCommand;
+import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.TokenCredentials;
 
 /**
@@ -51,6 +53,8 @@ class ZaloProviderContractTest extends MessageProviderContractTest {
     @BeforeEach
     void twoSessions() {
         sinoZalo.resetAll();
+        sinoZalo.stubFor(post(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/reactions"))
+                .willReturn(aResponse().withStatus(204)));
         sinoZalo.stubFor(put(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/session"))
                 .willReturn(aResponse().withStatus(204)));
         sinoZalo.stubFor(post(urlPathEqualTo("/accounts/" + ACCOUNT_ID + "/messages"))
@@ -104,6 +108,12 @@ class ZaloProviderContractTest extends MessageProviderContractTest {
         zalo = new ZaloProvider(new ZaloProperties(true, URI.create(sinoZalo.baseUrl()), SECRET));
         withOneBrokenMessage = new ZaloProvider(
                 new ZaloProperties(true, URI.create(sinoZalo.baseUrl() + "/broken"), SECRET));
+    }
+
+    @Override
+    protected ReactCommand reactCommand(String code) {
+        return new ReactCommand("conversation-1", ConversationType.DIRECT, "m-1",
+                java.util.Map.of("cliMsgId", "5001"), code);
     }
 
     @Override

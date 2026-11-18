@@ -240,6 +240,94 @@ class ZaloMessageNormalizerTests {
         });
     }
 
+    // zalo-reactions D-381: a reaction entry is no message, it becomes one NormalizedReaction per target.
+    @Test
+    void aReactionEntryBecomesAReactionOfTheFriendAndNoMessage() {
+        Message entry = reactionEntry(FRIEND, false, ":>", new ZaloClient.ReactionTarget("1001", "5001"));
+        Message text = new Message("1001", FRIEND, "USER", SELF, "Tôi", true, "webchat", "Chào", SENT_AT);
+
+        SyncBatch batch = ZaloMessageNormalizer.normalize(page(text, entry), SELF, null, SyncCursor.initial());
+
+        assertThat(batch.messages()).extracting(NormalizedMessage::externalMessageId).containsExactly("1001");
+        assertThat(batch.skipped()).isEmpty();
+        assertThat(batch.reactions()).singleElement().satisfies(reaction -> {
+            assertThat(reaction.externalConversationId()).isEqualTo(FRIEND);
+            assertThat(reaction.externalMessageId()).isEqualTo("1001");
+            assertThat(reaction.reactorExternalId()).isEqualTo(FRIEND);
+            assertThat(reaction.reactorName()).isEqualTo("Bình");
+            assertThat(reaction.self()).isFalse();
+            assertThat(reaction.code()).isEqualTo(":>");
+            assertThat(reaction.reactedAt()).isEqualTo(Instant.parse(SENT_AT));
+        });
+    }
+
+    @Test
+    void anOwnReactionIsTheAccountsAndAnEmptyIconIsARemoval() {
+        Message entry = reactionEntry(SELF, true, "", new ZaloClient.ReactionTarget("1001", "5001"),
+                new ZaloClient.ReactionTarget("1002", "5002"));
+
+        SyncBatch batch = ZaloMessageNormalizer.normalize(page(entry), SELF, null, SyncCursor.initial());
+
+        assertThat(batch.reactions()).hasSize(2).allSatisfy(reaction -> {
+            assertThat(reaction.self()).isTrue();
+            assertThat(reaction.reactorExternalId()).isEqualTo(SELF);
+            assertThat(reaction.code()).isEmpty();
+        });
+        assertThat(batch.reactions()).extracting(r -> r.externalMessageId()).containsExactly("1001", "1002");
+    }
+
+    @Test
+    void aReactionOlderThanTheSyncWindowIsStillKept() {
+        Message entry = reactionEntry(FRIEND, false, ":>", new ZaloClient.ReactionTarget("1001", "5001"));
+
+        SyncBatch batch = ZaloMessageNormalizer.normalize(page(entry), SELF,
+                Instant.parse("2026-12-01T00:00:00Z"), SyncCursor.initial());
+
+        assertThat(batch.reactions()).hasSize(1);
+    }
+
+    @Test
+    void aReactionWithoutTargetsIsSkippedAndTheRestStays() {
+        Message empty = reactionEntry(FRIEND, false, ":>");
+        Message text = new Message("1001", FRIEND, "USER", FRIEND, "Bình", false, "webchat", "Chào", SENT_AT);
+
+        SyncBatch batch = ZaloMessageNormalizer.normalize(page(empty, text), SELF, null, SyncCursor.initial());
+
+        assertThat(batch.reactions()).isEmpty();
+        assertThat(batch.messages()).hasSize(1);
+        assertThat(batch.skipped()).singleElement().satisfies(skipped -> {
+            assertThat(skipped.externalId()).isEqualTo("9001");
+            assertThat(skipped.reason()).isEqualTo(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED);
+        });
+    }
+
+    @Test
+    void theCliMsgIdIsKeptInTheMetadataOnlyWhenItIsAZaloId() {
+        Message good = withCliMsgId("1747200000001");
+        Message bad = withCliMsgId("12 34; drop");
+
+        assertThat(ZaloMessageNormalizer.normalize(good, SELF).metadata())
+                .containsEntry(NormalizedMessage.CLI_MSG_ID, "1747200000001");
+        assertThat(ZaloMessageNormalizer.normalize(bad, SELF).metadata())
+                .doesNotContainKey(NormalizedMessage.CLI_MSG_ID);
+    }
+
+    private static Message withCliMsgId(String cliMsgId) {
+        return new Message("1001", FRIEND, "USER", FRIEND, "Bình", false, "webchat", "Chào", SENT_AT, null, null,
+                null, cliMsgId, null, null, null, null, null);
+    }
+
+    private static Message reactionEntry(String from, boolean self, String icon,
+            ZaloClient.ReactionTarget... targets) {
+        return new Message("9001", FRIEND, "USER", from, "Bình", self, "reaction", null, SENT_AT, null, null, null,
+                null, null, null, null, null, new ZaloClient.ReactionEntry(icon, List.of(targets)));
+    }
+
+    private static MessagePage page(Message... messages) {
+        Conversation conv = new Conversation(FRIEND, "USER", "Bình", null, List.of(new Participant(FRIEND, "Bình")));
+        return new MessagePage(List.of(conv), List.of(messages), "9001", false);
+    }
+
     private static ThrowableAssertAlternative<ProviderException> assertThatNormalizationFails(Message message) {
         return assertThatExceptionOfType(ProviderException.class)
                 .isThrownBy(() -> ZaloMessageNormalizer.normalize(message, SELF))

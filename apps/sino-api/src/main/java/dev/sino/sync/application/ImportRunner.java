@@ -274,7 +274,7 @@ class ImportRunner implements DisposableBean {
                 } else if (!checkpoints.advanceSync(accountId, batch.nextCursor().value(), done)) {
                     throw new ImportStartedAgain();
                 }
-                if (stored.newMessages() + stored.updatedMessages() > 0) {
+                if (stored.newMessages() + stored.updatedMessages() + stored.reactionsChanged() > 0) {
                     events.publishEvent(new MailStored(accountId, stored.conversationIds(), stored.newInbound(),
                             pass == Pass.SYNC, Instant.now()));
                 }

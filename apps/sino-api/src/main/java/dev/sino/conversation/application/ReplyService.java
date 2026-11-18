@@ -21,19 +21,23 @@ import dev.sino.common.error.SinoException;
 import dev.sino.conversation.ConversationChanged;
 import dev.sino.conversation.SentMessages;
 import dev.sino.conversation.infrastructure.ConversationSummaries;
+import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageStatus;
+import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageType;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedRecipients;
 import dev.sino.provider.spi.OutgoingFile;
 import dev.sino.provider.spi.OutgoingImage;
+import dev.sino.provider.spi.QuotedMessage;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.sticker.StickerPictures;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Replies from Sino (F10, D-131…D-133). A message is written {@code PENDING} before the provider hears of it, the
@@ -67,10 +71,12 @@ public class ReplyService implements SentMessages {
     private final TransactionTemplate transactions;
     private final ApplicationEventPublisher events;
     private final StickerPictures stickers;
+    private final ProviderRegistry providers;
 
     ReplyService(JdbcClient jdbc, InboxService inbox, Replies replies, MessageHistory history,
             ConversationSummaries summaries, ProviderAccess access, AccountDirectory directory,
-            TransactionTemplate transactions, ApplicationEventPublisher events, StickerPictures stickers) {
+            TransactionTemplate transactions, ApplicationEventPublisher events, StickerPictures stickers,
+            ProviderRegistry providers) {
         this.jdbc = jdbc;
         this.inbox = inbox;
         this.replies = replies;
@@ -81,6 +87,7 @@ public class ReplyService implements SentMessages {
         this.transactions = transactions;
         this.events = events;
         this.stickers = stickers;
+        this.providers = providers;
     }
 
     /**
@@ -94,7 +101,17 @@ public class ReplyService implements SentMessages {
      *         {@code REPLY_NO_RECIPIENT} or {@code SEND_FAILED}
      */
     public Sent send(UUID ownerId, UUID conversationId, String text, UUID clientMessageId) {
-        return send(ownerId, conversationId, new Text(text), clientMessageId);
+        return send(ownerId, conversationId, text, clientMessageId, null);
+    }
+
+    /**
+     * As {@link #send(UUID, UUID, String, UUID)}, quoting the message {@code replyToMessageId} of the conversation
+     * (zalo-quote-reply, D-506): {@code MESSAGE_NOT_FOUND} when it is not in the conversation, {@code QUOTE_UNAVAILABLE}
+     * when the connector cannot quote it. Null quotes nothing. The same holds for {@link #sendSticker} and
+     * {@link #sendFile}.
+     */
+    public Sent send(UUID ownerId, UUID conversationId, String text, UUID clientMessageId, UUID replyToMessageId) {
+        return send(ownerId, conversationId, new Text(text), clientMessageId, replyToMessageId);
     }
 
     /**
@@ -109,7 +126,12 @@ public class ReplyService implements SentMessages {
      *         the state {@code NOT_SUPPORTED} where the connector sends no pictures
      */
     public Sent sendSticker(UUID ownerId, UUID conversationId, UUID stickerId, UUID clientMessageId) {
-        return send(ownerId, conversationId, new Sticker(stickerId), clientMessageId);
+        return sendSticker(ownerId, conversationId, stickerId, clientMessageId, null);
+    }
+
+    public Sent sendSticker(UUID ownerId, UUID conversationId, UUID stickerId, UUID clientMessageId,
+            UUID replyToMessageId) {
+        return send(ownerId, conversationId, new Sticker(stickerId), clientMessageId, replyToMessageId);
     }
 
     /**
@@ -123,12 +145,18 @@ public class ReplyService implements SentMessages {
      *         {@code NOT_SUPPORTED} where the connector or the account sends no files
      */
     public Sent sendFile(UUID ownerId, UUID conversationId, OutgoingFile file, UUID clientMessageId) {
-        return send(ownerId, conversationId, new Upload(file), clientMessageId);
+        return sendFile(ownerId, conversationId, file, clientMessageId, null);
     }
 
-    private Sent send(UUID ownerId, UUID conversationId, Outgoing outgoing, UUID clientMessageId) {
+    public Sent sendFile(UUID ownerId, UUID conversationId, OutgoingFile file, UUID clientMessageId,
+            UUID replyToMessageId) {
+        return send(ownerId, conversationId, new Upload(file), clientMessageId, replyToMessageId);
+    }
+
+    private Sent send(UUID ownerId, UUID conversationId, Outgoing outgoing, UUID clientMessageId,
+            UUID replyToMessageId) {
         InboxItem conversation = inbox.requireInInbox(ownerId, conversationId);
-        Attempt attempt = transactions.execute(status -> begin(ownerId, conversation, outgoing, clientMessageId));
+        Attempt attempt = transactions.execute(status -> begin(ownerId, conversation, outgoing, clientMessageId, replyToMessageId));
         if (attempt.alreadySent()) {
             return new Sent(read(attempt.conversationId(), attempt.messageId()), false);
         }
@@ -290,7 +318,8 @@ public class ReplyService implements SentMessages {
     // Transaction 1: what this clientMessageId already is decides; a new or failed message is written PENDING. A new
     // one goes in the primary copy (D-186). One sent before with it stays in the copy it was written to, even when
     // another copy has become the primary one since, so it is never sent twice nor from two accounts (D-131).
-    private Attempt begin(UUID ownerId, InboxItem conversation, Outgoing outgoing, UUID clientMessageId) {
+    private Attempt begin(UUID ownerId, InboxItem conversation, Outgoing outgoing, UUID clientMessageId,
+            UUID replyToMessageId) {
         summaries.lockAll(conversation.accountIds());
         // Every copy of the group, those of accounts out of the inbox too.
         Optional<Existing> existing = jdbc.sql("""
@@ -347,6 +376,11 @@ public class ReplyService implements SentMessages {
                 WHERE conversation_id = :conversation AND external_message_id NOT LIKE 'sino:%'
                 ORDER BY sent_at DESC, id DESC LIMIT 1
                 """).param("conversation", copy).query(String.class).optional().orElse(null);
+        // A reply that quotes answers that message: its provider ID goes where the newest message's would (D-506).
+        Quote quote = replyToMessageId == null ? null : quoteOf(conversation, copy, replyToMessageId);
+        if (quote != null) {
+            answered = quote.message().externalMessageId();
+        }
         // The name the account wrote in the latest mail it sent itself; Sino writes none of its own (BE-62).
         String senderName = jdbc.sql("""
                 SELECT p.display_name FROM message m
@@ -362,8 +396,9 @@ public class ReplyService implements SentMessages {
         // Read only now, after a message already sent has been answered above: a retry of a sticker that went out must
         // not fail because the sticker was deleted since. Nothing is written before it is known to be the owner's.
         OutgoingImage picture = outgoing instanceof Sticker sticker ? pictureOf(ownerId, sticker.id()) : null;
-        UUID messageId = existing.isPresent() ? resend(existing.get().id(), outgoing, answered, recipients)
-                : write(copy, clientMessageId, outgoing, answered, recipients);
+        String metadata = quote == null ? outgoing.metadata() : quote.preview(outgoing.metadata());
+        UUID messageId = existing.isPresent() ? resend(existing.get().id(), outgoing, metadata, answered, recipients)
+                : write(copy, clientMessageId, outgoing, metadata, answered, recipients);
         if (outgoing instanceof Upload upload) {
             name(messageId, clientMessageId, upload.file());
         }
@@ -371,8 +406,58 @@ public class ReplyService implements SentMessages {
         return new Attempt(messageId, accountId, copy, clientMessageId,
                 new SendMessageCommand(target.externalConversationId(), target.type(),
                         outgoing instanceof Text text ? text.text() : null, answered, to, clientMessageId, senderName,
-                        picture, outgoing instanceof Upload upload ? upload.file() : null),
+                        picture, outgoing instanceof Upload upload ? upload.file() : null,
+                        quote == null ? null : quote.message()),
                 false);
+    }
+
+    // The message a reply quotes, found in the copy the reply goes to, and checked against what the connector needs to
+    // quote it (D-506, D-508). Read inside the first transaction: nothing is written for a reply that cannot quote.
+    private Quote quoteOf(InboxItem conversation, UUID copy, UUID messageId) {
+        QuoteRow row = jdbc.sql("""
+                SELECT m.external_message_id, m.text_content, m.type, m.sent_at, m.metadata::text AS metadata,
+                       p.external_participant_id, p.display_name
+                FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
+                WHERE m.id = :message AND m.conversation_id = :copy
+                """).param("message", messageId).param("copy", copy)
+                .query((rs, n) -> new QuoteRow(rs.getString("external_message_id"), rs.getString("text_content"),
+                        rs.getString("type"), rs.getTimestamp("sent_at").toInstant(),
+                        MessageHistory.metadataOf(rs.getString("metadata")), rs.getString("external_participant_id"),
+                        rs.getString("display_name")))
+                .optional().orElseThrow(ConversationErrorCode::messageNotFound);
+        MessageProvider connector = providers.find(conversation.provider()).orElse(null);
+        if (connector == null || row.externalMessageId().startsWith(UNSENT) || row.senderId() == null
+                || !connector.canQuote(row.metadata())) {
+            throw ConversationErrorCode.quoteUnavailable();
+        }
+        return new Quote(new QuotedMessage(row.externalMessageId(), row.senderId(), row.text(), row.sentAt(),
+                row.metadata()), row);
+    }
+
+    // What the bubble shows of the quote: the words of a text, or only the kind of what was quoted (D-504).
+    private record Quote(QuotedMessage message, QuoteRow row) {
+
+        String preview(String metadata) {
+            ObjectNode node = (ObjectNode) JSON.readTree(metadata);
+            boolean text = "TEXT".equals(row.type());
+            node.put(NormalizedMessage.QUOTE_SENDER, row.senderName() == null ? "" : row.senderName());
+            node.put(NormalizedMessage.QUOTE_TEXT, !text || row.text() == null ? ""
+                    : row.text().length() > 120 ? row.text().substring(0, 120) : row.text());
+            node.put(NormalizedMessage.QUOTE_KIND, switch (row.type()) {
+                case "TEXT" -> "text";
+                case "IMAGE" -> "photo";
+                case "FILE" -> "file";
+                case "VIDEO" -> "video";
+                case "AUDIO" -> "voice";
+                default -> "other";
+            });
+            return JSON.writeValueAsString(node);
+        }
+
+    }
+
+    private record QuoteRow(String externalMessageId, String text, String type, Instant sentAt,
+            Map<String, String> metadata, String senderId, String senderName) {
     }
 
     private OutgoingImage pictureOf(UUID ownerId, UUID stickerId) {
@@ -380,8 +465,8 @@ public class ReplyService implements SentMessages {
                 .orElseThrow(ConversationErrorCode::stickerNotFound);
     }
 
-    private UUID write(UUID conversationId, UUID clientMessageId, Outgoing outgoing, String answered,
-            String recipients) {
+    private UUID write(UUID conversationId, UUID clientMessageId, Outgoing outgoing, String metadata,
+            String answered, String recipients) {
         return jdbc.sql("""
                 INSERT INTO message (conversation_id, sender_participant_id, external_message_id, direction, type,
                                      text_content, status, sent_at, reply_to_external_message_id, is_read,
@@ -395,7 +480,7 @@ public class ReplyService implements SentMessages {
                 RETURNING id
                 """).param("conversation", conversationId).param("external", UNSENT + clientMessageId)
                 .param("type", outgoing.type().name()).param("text", outgoing.storedText())
-                .param("metadata", outgoing.metadata()).param("answered", answered).param("recipients", recipients)
+                .param("metadata", metadata).param("answered", answered).param("recipients", recipients)
                 .param("client", clientMessageId).query(UUID.class).single();
     }
 
@@ -415,14 +500,15 @@ public class ReplyService implements SentMessages {
 
     // Under the lock, so no other request sends it meanwhile; should another have taken it all the same, the row is
     // no longer FAILED and this request does not send it too.
-    private UUID resend(UUID messageId, Outgoing outgoing, String answered, String recipients) {
+    private UUID resend(UUID messageId, Outgoing outgoing, String metadata, String answered,
+            String recipients) {
         int taken = jdbc.sql("""
                 UPDATE message SET status = 'PENDING', type = :type, text_content = :text,
                                    reply_to_external_message_id = :answered, metadata = cast(:metadata AS jsonb),
                                    recipients = cast(:recipients AS jsonb), sent_at = now(), updated_at = now()
                 WHERE id = :message AND status = 'FAILED'
                 """).param("type", outgoing.type().name()).param("text", outgoing.storedText())
-                .param("metadata", outgoing.metadata()).param("answered", answered).param("recipients", recipients)
+                .param("metadata", metadata).param("answered", answered).param("recipients", recipients)
                 .param("message", messageId).update();
         if (taken == 0) {
             throw ConversationErrorCode.sendInProgress();

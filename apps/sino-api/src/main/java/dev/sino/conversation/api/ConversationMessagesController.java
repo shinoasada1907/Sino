@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,6 +35,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import dev.sino.conversation.application.InboxMessage.Reaction;
 import dev.sino.conversation.application.MessageBodies;
 import dev.sino.conversation.application.MessageBody;
 import dev.sino.conversation.application.MessageCursor;
@@ -40,6 +43,7 @@ import dev.sino.conversation.application.MessageFile;
 import dev.sino.conversation.application.MessageFiles;
 import dev.sino.conversation.application.MessageHistory;
 import dev.sino.conversation.application.MessagePage;
+import dev.sino.conversation.application.ReactionService;
 import dev.sino.conversation.application.ReplyService;
 import dev.sino.conversation.application.ReplyService.Sent;
 import dev.sino.conversation.application.UploadedFiles;
@@ -58,14 +62,16 @@ class ConversationMessagesController {
     private final MessageBodies bodies;
     private final MessageFiles files;
     private final ReplyService replies;
+    private final ReactionService reactions;
     private final CurrentUser currentUser;
 
     ConversationMessagesController(MessageHistory history, MessageBodies bodies, MessageFiles files,
-            ReplyService replies, CurrentUser currentUser) {
+            ReplyService replies, ReactionService reactions, CurrentUser currentUser) {
         this.history = history;
         this.bodies = bodies;
         this.files = files;
         this.replies = replies;
+        this.reactions = reactions;
         this.currentUser = currentUser;
     }
 
@@ -77,9 +83,10 @@ class ConversationMessagesController {
     @PostMapping
     ResponseEntity<MessageResponse> send(@PathVariable UUID id, @Valid @RequestBody SendRequest request) {
         Sent sent = request.stickerId() == null
-                ? replies.send(currentUser.requireOwnerId(), id, request.text(), request.clientMessageId())
+                ? replies.send(currentUser.requireOwnerId(), id, request.text(), request.clientMessageId(),
+                        request.replyToMessageId())
                 : replies.sendSticker(currentUser.requireOwnerId(), id, request.stickerId(),
-                        request.clientMessageId());
+                        request.clientMessageId(), request.replyToMessageId());
         return ResponseEntity.status(sent.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(MessageResponse.from(sent.message()));
     }
@@ -91,9 +98,11 @@ class ConversationMessagesController {
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     ResponseEntity<MessageResponse> sendFile(@PathVariable UUID id, @RequestPart("file") MultipartFile file,
-            @RequestParam("clientMessageId") UUID clientMessageId) {
+            @RequestParam("clientMessageId") UUID clientMessageId,
+            @RequestParam(value = "replyToMessageId", required = false) UUID replyToMessageId) {
         Sent sent = replies.sendFile(currentUser.requireOwnerId(), id,
-                UploadedFiles.of(file.getOriginalFilename(), file.getContentType(), bytesOf(file)), clientMessageId);
+                UploadedFiles.of(file.getOriginalFilename(), file.getContentType(), bytesOf(file)), clientMessageId,
+                replyToMessageId);
         return ResponseEntity.status(sent.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(MessageResponse.from(sent.message()));
     }
@@ -111,6 +120,22 @@ class ConversationMessagesController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void discard(@PathVariable UUID id, @PathVariable UUID messageId) {
         replies.discard(currentUser.requireOwnerId(), id, messageId);
+    }
+
+    /**
+     * Drops or changes the user's reaction on a message (zalo-reactions, D-386): {@code 200} with the reactions of the
+     * message after it.
+     */
+    @PutMapping("/{messageId}/reaction")
+    ReactionsResponse react(@PathVariable UUID id, @PathVariable UUID messageId,
+            @Valid @RequestBody ReactionRequest request) {
+        return new ReactionsResponse(reactions.react(currentUser.requireOwnerId(), id, messageId, request.code()));
+    }
+
+    /** Takes the user's reaction off a message; the same answer as {@link #react}. */
+    @DeleteMapping("/{messageId}/reaction")
+    ReactionsResponse unreact(@PathVariable UUID id, @PathVariable UUID messageId) {
+        return new ReactionsResponse(reactions.react(currentUser.requireOwnerId(), id, messageId, null));
     }
 
     /** A {@code cursor} that this API did not hand out, like a {@code limit} out of range, is a 400. */
@@ -168,14 +193,23 @@ class ConversationMessagesController {
         }
     }
 
+    /** {@code code} is a code of {@code reactionSet} of the conversation. */
+    record ReactionRequest(@NotBlank @Size(max = 64) String code) {
+    }
+
+    record ReactionsResponse(List<Reaction> reactions) {
+    }
+
     record MessagePageResponse(List<MessageResponse> items, String nextCursor) {
     }
 
     /**
      * {@code clientMessageId}: made by the web for each message and sent again unchanged when it retries. Exactly one of
-     * {@code text} and {@code stickerId}: a text, or a sticker of the library (ZS-05, D-351).
+     * {@code text} and {@code stickerId}: a text, or a sticker of the library (ZS-05, D-351). The optional
+     * {@code replyToMessageId} is a message of the conversation the reply quotes (zalo-quote-reply).
      */
-    record SendRequest(@Size(max = 100_000) String text, UUID stickerId, @NotNull UUID clientMessageId) {
+    record SendRequest(@Size(max = 100_000) String text, UUID stickerId, @NotNull UUID clientMessageId,
+            UUID replyToMessageId) {
 
         @AssertTrue(message = "send either a text or a sticker, not both and not neither")
         boolean isTextOrSticker() {

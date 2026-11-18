@@ -16,11 +16,29 @@ import dev.sino.provider.spi.MessageStatus;
  * {@code image} is the picture of a photo (ZL-16), null for any other message and for a photo with no safe address.
  * {@code libraryStickerId} is the sticker of the user's library that a message Sino sent carries (ZS-05), null for any
  * other: the web shows it from {@code /api/stickers/{id}/content}, whatever address the provider gives its copy.
+ * {@code reactions} are the emoji on the message, most people first (empty for none); {@code canReact} and {@code canQuote}
+ * say whether the connector can react to and quote it (zalo-reactions D-387, zalo-quote-reply D-508); {@code quote} is
+ * the message it answers, or null.
  */
 public record InboxMessage(UUID id, MessageDirection direction, MessageStatus status, Instant sentAt, Sender sender,
         List<Address> to, List<Address> cc, String subject, String text, BodyFormat bodyFormat, boolean read,
         List<File> attachments, UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image,
-        UUID libraryStickerId) {
+        UUID libraryStickerId, List<Reaction> reactions, boolean canReact, Quote quote, boolean canQuote) {
+
+    /**
+     * One emoji on a message (zalo-reactions, D-387): the provider's {@code code}, its {@code emoji}, how many people
+     * dropped it, whether the user did, and who (the user as "Bạn").
+     */
+    public record Reaction(String code, String emoji, int count, boolean mine, List<String> names) {
+    }
+
+    /**
+     * The message this one answers (zalo-quote-reply): {@code messageId} is its ID in Sino, null when Sino does not hold
+     * it, {@code senderName} who sent it ("Bạn" for the user) and {@code text} its first words or "Ảnh", "Sticker", the
+     * name of a file.
+     */
+    public record Quote(UUID messageId, String senderName, String text) {
+    }
 
     /** Frames side by side in one row of the sheet at {@code url}, one run of them lasting {@code durationMs}. */
     public record StickerSprite(String url, int frames, int durationMs) {

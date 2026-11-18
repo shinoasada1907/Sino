@@ -76,6 +76,7 @@ public final class FakeMessageProvider implements MessageProvider {
     private final Map<String, String> nicknames;
     // Empty unless the builder called reactions(...): then the fake declares REACTIONS (zalo-reactions, D-383).
     private final List<ReactionKind> reactionSet;
+    private final boolean quotes;
     private final List<ReactCommand> reacted = new ArrayList<>();
     private final Queue<ProviderException> nicknameSetFailures = new ArrayDeque<>();
     private final List<SetNickname> nicknameSets = new ArrayList<>();
@@ -99,6 +100,7 @@ public final class FakeMessageProvider implements MessageProvider {
         this.pushFailure = builder.pushFailure;
         this.nicknames = builder.nicknames == null ? null : new HashMap<>(builder.nicknames);
         this.reactionSet = List.copyOf(builder.reactionSet);
+        this.quotes = builder.quotes;
         ProviderCapabilities capabilities = push == null && pushFailure == null ? builder.capabilities
                 : withPush(builder.capabilities);
         capabilities = this.nicknames == null ? capabilities : withNicknames(capabilities);
@@ -380,6 +382,7 @@ public final class FakeMessageProvider implements MessageProvider {
         cannotTellSends.clear();
         searches.clear();
         held = null;
+        reacted.clear();
         findsSends = true;
     }
 
@@ -479,6 +482,11 @@ public final class FakeMessageProvider implements MessageProvider {
         return reactionSet;
     }
 
+    @Override
+    public boolean canQuote(Map<String, String> messageMetadata) {
+        return quotes && messageMetadata != null && messageMetadata.containsKey("cliMsgId");
+    }
+
     /** Refuses a code outside the set before recording it, as a connector must; the provider never hears of it. */
     @Override
     public void react(ProviderContext context, ReactCommand command) {
@@ -565,6 +573,7 @@ public final class FakeMessageProvider implements MessageProvider {
         private ProviderException fileFailure;
         private Map<String, String> nicknames;
         private final List<ReactionKind> reactionSet = new ArrayList<>();
+        private boolean quotes;
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -598,6 +607,12 @@ public final class FakeMessageProvider implements MessageProvider {
          */
         public Builder nicknames(Map<String, String> initial) {
             this.nicknames = initial;
+            return this;
+        }
+
+        /** Makes the fake quote a message that has a {@code cliMsgId} in its metadata (zalo-quote-reply, D-508). */
+        public Builder quotes() {
+            quotes = true;
             return this;
         }
 

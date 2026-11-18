@@ -22,3 +22,4 @@ public record AccountConnected(UUID accountId, UUID ownerId, ProviderType provid
     }
 
 }
+

@@ -3,7 +3,11 @@ package dev.sino.provider.infrastructure.zalo;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import dev.sino.provider.ProviderCapabilities;
 import dev.sino.provider.ProviderCapability;
@@ -13,6 +17,8 @@ import dev.sino.provider.infrastructure.zalo.ZaloClient.FileMeta;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.ImageRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.LookupRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.QuoteRequest;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.ReactionRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.SendRequest;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sent;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.ThreadType;
@@ -22,6 +28,7 @@ import dev.sino.provider.spi.ConversationType;
 import dev.sino.provider.spi.MessageProvider;
 import dev.sino.provider.spi.MessageStatus;
 import dev.sino.provider.spi.Nicknames;
+import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.OutgoingFile;
 import dev.sino.provider.spi.OutgoingImage;
 import dev.sino.provider.spi.ProviderContext;
@@ -29,6 +36,9 @@ import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
 import dev.sino.provider.spi.QrLogin;
+import dev.sino.provider.spi.QuotedMessage;
+import dev.sino.provider.spi.ReactCommand;
+import dev.sino.provider.spi.ReactionKind;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.provider.spi.SyncBatch;
@@ -58,6 +68,8 @@ class ZaloProvider implements MessageProvider {
      */
     static final Duration PUSH_TTL = Duration.ofDays(3);
     static final int PAGE_SIZE = 100;
+    private static final String TEXT_TYPE = "webchat";
+    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private static final ProviderCapabilities CAPABILITIES = ProviderCapabilities.of(
             ProviderCapability.READ_MESSAGES,
@@ -66,7 +78,8 @@ class ZaloProvider implements MessageProvider {
             ProviderCapability.SEND_FILES,
             ProviderCapability.ATTACHMENTS,
             ProviderCapability.PUSH_WEBHOOK,
-            ProviderCapability.NICKNAMES);
+            ProviderCapability.NICKNAMES,
+            ProviderCapability.REACTIONS);
 
     private final boolean turnedOn;
     private final ZaloClient client;
@@ -160,7 +173,8 @@ class ZaloProvider implements MessageProvider {
             // A picture or file from the computer goes through sino-zalo's file route (zalo-send-files, D-374).
             Sent sent = client.sendFile(context, new FileMeta(command.externalConversationId(), threadType,
                     command.clientMessageId().toString(),
-                    file.kind() == OutgoingFile.Kind.PHOTO ? FileMeta.Kind.PHOTO : FileMeta.Kind.FILE, file.fileName()),
+                    file.kind() == OutgoingFile.Kind.PHOTO ? FileMeta.Kind.PHOTO : FileMeta.Kind.FILE, file.fileName(),
+                    quoteOf(command.quote())),
                     file.bytes());
             return new SendMessageResult(sent.msgId(), MessageStatus.SENT, sent.sentAt());
         }
@@ -169,8 +183,87 @@ class ZaloProvider implements MessageProvider {
                 threadType,
                 command.textContent(),
                 image == null ? null : ImageRequest.of(image),
-                command.clientMessageId().toString()));
+                command.clientMessageId().toString(),
+                quoteOf(command.quote())));
         return new SendMessageResult(sent.msgId(), MessageStatus.SENT, sent.sentAt());
+    }
+
+    /**
+     * A reply can quote a Zalo message that was stored with what sino-zalo needs to rebuild it for Zalo (zalo-quote-reply,
+     * D-505): its {@code cliMsgId}, {@code ttl} and {@code msgType}, and for a message that is not text its raw content.
+     */
+    @Override
+    public boolean canQuote(Map<String, String> messageMetadata) {
+        if (messageMetadata == null) {
+            return false;
+        }
+        String cliMsgId = messageMetadata.get(NormalizedMessage.CLI_MSG_ID);
+        String msgType = messageMetadata.get(NormalizedMessage.MSG_TYPE);
+        return cliMsgId != null && !cliMsgId.isBlank() && messageMetadata.get(NormalizedMessage.TTL) != null
+                && msgType != null && !msgType.isBlank()
+                && (TEXT_TYPE.equals(msgType) || messageMetadata.get(NormalizedMessage.RAW_CONTENT) != null);
+    }
+
+    private static QuoteRequest quoteOf(QuotedMessage quoted) {
+        if (quoted == null) {
+            return null;
+        }
+        Map<String, String> metadata = quoted.metadata();
+        String msgType = metadata.get(NormalizedMessage.MSG_TYPE);
+        JsonNode content = TEXT_TYPE.equals(msgType) ? JSON.valueToTree(quoted.text())
+                : json(metadata.get(NormalizedMessage.RAW_CONTENT));
+        try {
+            return new QuoteRequest(quoted.externalMessageId(), metadata.get(NormalizedMessage.CLI_MSG_ID),
+                    quoted.senderExternalId(), String.valueOf(quoted.sentAt().toEpochMilli()),
+                    Integer.parseInt(metadata.get(NormalizedMessage.TTL)), msgType, content,
+                    json(metadata.get(NormalizedMessage.PROPERTY_EXT)));
+        } catch (NumberFormatException failure) {
+            throw new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "The quoted message has no usable ttl");
+        }
+    }
+
+    private static JsonNode json(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return JSON.readTree(text);
+        } catch (RuntimeException failure) {
+            throw new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "The quoted message cannot be rebuilt");
+        }
+    }
+
+    /** Zalo needs the message's {@code cliMsgId}: one brought in before Sino stored it cannot be reacted to. */
+    @Override
+    public boolean canReact(Map<String, String> messageMetadata) {
+        String cliMsgId = messageMetadata == null ? null : messageMetadata.get(NormalizedMessage.CLI_MSG_ID);
+        return cliMsgId != null && !cliMsgId.isBlank();
+    }
+
+    @Override
+    public List<ReactionKind> reactionSet() {
+        return ZaloReactions.SET;
+    }
+
+    /**
+     * Puts the account's reaction on a Zalo message, or takes it off with an empty code (zalo-reactions, D-388). A code
+     * outside {@link ZaloReactions#SET} and a message stored without Zalo's {@code cliMsgId} are refused here, before
+     * sino-zalo is called.
+     */
+    @Override
+    public void react(ProviderContext context, ReactCommand command) {
+        if (!command.removal() && !ZaloReactions.offers(command.code())) {
+            throw new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "Zalo has no such reaction");
+        }
+        String cliMsgId = command.messageMetadata().get(NormalizedMessage.CLI_MSG_ID);
+        if (cliMsgId == null || cliMsgId.isBlank()) {
+            throw new ProviderException(ProviderErrorCode.REQUEST_REJECTED,
+                    "The message has no cliMsgId: Zalo cannot be told which message it is");
+        }
+        ThreadType threadType = command.conversationType() == ConversationType.GROUP
+                ? ThreadType.GROUP : ThreadType.USER;
+        client.react(context, new ReactionRequest(command.externalConversationId(), threadType,
+                command.externalMessageId(), cliMsgId, command.code()));
     }
 
     @Override

@@ -247,7 +247,8 @@ public class InboxService implements InboxIds {
                 .query((row, n) -> new InboxParticipant(row.getString(1), row.getString(2), row.getString(3),
                         row.getBoolean(4)))
                 .list();
-        return new InboxDetail(conversation, participants, replies.of(ownerId, conversation));
+        return new InboxDetail(conversation, participants, replies.of(ownerId, conversation),
+                replies.reactionSet(conversation));
     }
 
     /**

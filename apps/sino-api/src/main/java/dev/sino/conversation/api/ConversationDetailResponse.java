@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import dev.sino.conversation.application.InboxDetail;
 import dev.sino.conversation.application.InboxMessage.Address;
 import dev.sino.conversation.application.InboxParticipant;
+import dev.sino.provider.spi.ReactionKind;
 import dev.sino.conversation.application.Reply;
 
 /**
@@ -14,12 +15,13 @@ import dev.sino.conversation.application.Reply;
  * come from their own endpoint (F06).
  */
 record ConversationDetailResponse(@JsonUnwrapped ConversationResponse conversation,
-        List<ParticipantResponse> participants, ReplyResponse reply) {
+        List<ParticipantResponse> participants, ReplyResponse reply,
+        List<ReactionKind> reactionSet) {
 
     static ConversationDetailResponse from(InboxDetail detail) {
         return new ConversationDetailResponse(ConversationResponse.from(detail.conversation()),
                 detail.participants().stream().map(ParticipantResponse::from).toList(),
-                ReplyResponse.from(detail.reply()));
+                ReplyResponse.from(detail.reply()), detail.reactionSet());
     }
 
     /** {@code name} and {@code avatarUrl} may be null; {@code self} is the connected account. */

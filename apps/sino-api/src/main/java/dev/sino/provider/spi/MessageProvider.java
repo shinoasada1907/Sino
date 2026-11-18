@@ -2,6 +2,7 @@ package dev.sino.provider.spi;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -111,6 +112,23 @@ public interface MessageProvider {
     default void react(ProviderContext context, ReactCommand command) {
         throw new ProviderException(ProviderErrorCode.CAPABILITY_NOT_SUPPORTED,
                 type() + " does not support " + ProviderCapability.REACTIONS);
+    }
+
+    /**
+     * Whether a reaction can be put on a message stored with this {@code messageMetadata} (zalo-reactions, D-387): by
+     * default whenever the connector has {@link ProviderCapability#REACTIONS}; a connector that needs something of the
+     * message (Zalo's {@code cliMsgId}) says false for one that lacks it.
+     */
+    default boolean canReact(Map<String, String> messageMetadata) {
+        return capabilities().supports(ProviderCapability.REACTIONS);
+    }
+
+    /**
+     * Whether a reply can quote a message stored with this {@code messageMetadata} (zalo-quote-reply, D-508): false by
+     * default, so a connector that does not quote never receives a {@link QuotedMessage}.
+     */
+    default boolean canQuote(Map<String, String> messageMetadata) {
+        return false;
     }
 
     /**

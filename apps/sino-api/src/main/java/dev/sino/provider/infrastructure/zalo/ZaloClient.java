@@ -205,6 +205,17 @@ class ZaloClient {
     }
 
     /**
+     * Sets, changes or takes back the account's reaction on a message (zalo-reactions, D-389): sino-zalo answers 204 once
+     * Zalo took it. Refusals and outcomes as for {@link #send}: a failure after which the reaction may be set is
+     * {@code OUTCOME_UNKNOWN}. Setting the same reaction twice does no harm, so a retry after a missing session is safe.
+     */
+    void react(ProviderContext context, ReactionRequest request) {
+        UUID accountId = accountIdOf(context);
+        inSession(context, Call.SEND, () -> slow.post().uri(ACCOUNT + "/reactions", accountId)
+                .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().toBodilessEntity());
+    }
+
+    /**
      * Sets the nickname of a friend at sino-zalo (zalo-nicknames, D-415); sino-zalo answers 204 once Zalo agreed.
      * Unlike the message routes, sino-zalo answers no live session with one code for both an unknown account and an
      * ended session, {@code 409 NO_SESSION} (NK-01): {@link #inSession} still hands the stored session over and
@@ -449,10 +460,14 @@ class ZaloClient {
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     record SendRequest(String threadId, ThreadType threadType, String text, ImageRequest image,
-            String clientMessageId) {
+            String clientMessageId, QuoteRequest quote) {
+
+        SendRequest(String threadId, ThreadType threadType, String text, ImageRequest image, String clientMessageId) {
+            this(threadId, threadType, text, image, clientMessageId, null);
+        }
 
         SendRequest(String threadId, ThreadType threadType, String text, String clientMessageId) {
-            this(threadId, threadType, text, null, clientMessageId);
+            this(threadId, threadType, text, null, clientMessageId, null);
         }
 
     }
@@ -473,12 +488,38 @@ class ZaloClient {
     }
 
     /** What goes with the bytes of a picture or file (zalo-send-files, D-374); every field is there, none is null. */
-    record FileMeta(String threadId, ThreadType threadType, String clientMessageId, Kind kind, String fileName) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record FileMeta(String threadId, ThreadType threadType, String clientMessageId, Kind kind, String fileName,
+            QuoteRequest quote) {
+
+        FileMeta(String threadId, ThreadType threadType, String clientMessageId, Kind kind, String fileName) {
+            this(threadId, threadType, clientMessageId, kind, fileName, null);
+        }
 
         enum Kind {
             PHOTO, FILE
         }
 
+    }
+
+    /**
+     * The message a reply quotes, as sino-zalo takes it (zalo-quote-reply, D-506): {@code ts} is the time in
+     * milliseconds as text, {@code content} the text or the raw content of a message that is not text. The content
+     * never shows in a log line.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record QuoteRequest(String msgId, String cliMsgId, String uidFrom, String ts, int ttl, String msgType,
+            JsonNode content, JsonNode propertyExt) {
+
+        @Override
+        public String toString() {
+            return "QuoteRequest[msgId=" + msgId + ", msgType=" + msgType + ", content=****]";
+        }
+
+    }
+
+    /** A reaction to set, or to take back when {@code icon} is empty (zalo-reactions, D-389). */
+    record ReactionRequest(String threadId, ThreadType threadType, String msgId, String cliMsgId, String icon) {
     }
 
     record LookupRequest(String threadId, String clientMessageId, String text, Instant after) {
@@ -584,7 +625,15 @@ class ZaloClient {
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
-            String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file) {
+            String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file,
+            String cliMsgId, Integer ttl, JsonNode propertyExt, JsonNode rawContent, Quoted quote,
+            ReactionEntry reaction) {
+
+        Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
+                String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file) {
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, photo, file,
+                    null, null, null, null, null, null);
+        }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
                 String zaloType, String text, String sentAt, Sticker sticker, Photo photo) {
@@ -601,6 +650,29 @@ class ZaloClient {
             this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, null, null);
         }
 
+    }
+
+    /**
+     * What a message quotes, as sino-zalo gives it (zalo-quote-reply, D-503): {@code msgId} is the quoted message's,
+     * {@code kind} one of its names for the type, {@code ts} the time in milliseconds as text.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Quoted(String msgId, String cliMsgId, String fromId, String fromName, String text, String kind,
+            String ts) {
+    }
+
+    /** The reaction of a {@code reaction} entry (zalo-reactions, D-381): {@code icon} is empty for a removal. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ReactionEntry(String icon, List<ReactionTarget> targets) {
+
+        ReactionEntry {
+            targets = withoutNulls(targets);
+        }
+
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ReactionTarget(String msgId, String cliMsgId) {
     }
 
     /**
