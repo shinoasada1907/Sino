@@ -7,8 +7,9 @@ import { providerNameOf } from '@/shared/format'
 import { AccountAvatar } from '@/shared/ui/account-avatar'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { SoonButton } from '@/shared/ui/soon-button'
 import { Status } from '@/shared/ui/status'
-import { formatCount, formatMegabytes, EMPTY_SETTINGS_DATA } from '../settings.options'
+import { formatCount, formatMegabytes } from '../settings.options'
 import { useStorageUse } from '../useSettings'
 import { SettingRow, SettingSection } from './SettingRow'
 
@@ -33,9 +34,9 @@ export function PrivacyRows() {
         }
         inline
         control={
-          <Button type="button" variant="secondary" size="sm">
+          <SoonButton variant="secondary" size="sm">
             Xuất dữ liệu
-          </Button>
+          </SoonButton>
         }
       />
       <SettingRow
@@ -43,9 +44,9 @@ export function PrivacyRows() {
         description="Xóa mọi thư đã lưu và ngắt kết nối mọi tài khoản. Không hoàn tác được."
         inline
         control={
-          <Button type="button" variant="danger" size="sm">
+          <SoonButton variant="danger" size="sm">
             Xóa dữ liệu
-          </Button>
+          </SoonButton>
         }
       />
     </>
@@ -111,28 +112,15 @@ function SourcesLink() {
   )
 }
 
-/** "Đăng xuất thiết bị khác" does nothing yet (D-399). */
+/** Only what is true everywhere; the list of sessions and "Đăng xuất thiết bị khác" wait for a backend that has them. */
 export function SecurityRows() {
-  const { sessions } = EMPTY_SETTINGS_DATA
   return (
-    <>
-      <SettingRow
-        title="Mã hóa thông tin đăng nhập"
-        description="Token của các nhà cung cấp được mã hóa trước khi lưu, không ai đọc được dạng gốc."
-        inline
-        control={<Badge className="font-mono">AES-256-GCM</Badge>}
-      />
-      <SettingRow
-        title="Phiên đăng nhập"
-        description={`${sessions.count} thiết bị · ${sessions.summary}`}
-        inline
-        control={
-          <Button type="button" variant="ghost" size="sm">
-            Đăng xuất thiết bị khác
-          </Button>
-        }
-      />
-    </>
+    <SettingRow
+      title="Mã hóa thông tin đăng nhập"
+      description="Token của các nhà cung cấp được mã hóa trước khi lưu, không ai đọc được dạng gốc."
+      inline
+      control={<Badge className="font-mono">AES-256-GCM</Badge>}
+    />
   )
 }
 
@@ -144,34 +132,13 @@ export function SecuritySection() {
   )
 }
 
-/** The version is sample data: the web app has none yet (D-396). The privacy policy is the public page `/privacy`. */
+/** The privacy policy is the public page `/privacy`; version, terms and licences are left out until there is something real to show. */
 export function AboutSection() {
-  const { version, build } = EMPTY_SETTINGS_DATA
   return (
     <SettingSection id="ve-sino" title="Về Sino">
-      <SettingRow
-        title="Phiên bản"
-        description={
-          <span className="font-mono text-[11px] leading-4 font-medium">
-            Sino {version} · bản dựng {build}
-          </span>
-        }
-        inline
-        control={
-          <Button type="button" variant="ghost" size="sm">
-            Có gì mới
-          </Button>
-        }
-      />
       <div className="flex flex-wrap gap-2 py-3.5">
-        <Button type="button" variant="ghost" size="sm" className="-ml-3">
-          Điều khoản
-        </Button>
-        <Button asChild variant="ghost" size="sm">
+        <Button asChild variant="ghost" size="sm" className="-ml-3">
           <Link to="/privacy">Chính sách quyền riêng tư</Link>
-        </Button>
-        <Button type="button" variant="ghost" size="sm">
-          Phần mềm nguồn mở đã dùng
         </Button>
       </div>
     </SettingSection>

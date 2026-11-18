@@ -41,19 +41,11 @@ describe('the filters of Tin nhắn (MA-06, D-435, D-436)', () => {
     expect((await tabs()).getByRole('button', { name: /^Chưa đọc/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('keeps the other views in "Thêm", which then names the chosen one and leaves every tab unpressed', async () => {
-    const { router } = open('/messages')
-    const user = userEvent.setup()
+  it('has only the three tabs and no "Thêm" menu', async () => {
+    open('/messages')
     await tabs()
 
-    await user.click(screen.getByRole('button', { name: 'Thêm' }))
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Có tệp' }))
-
-    expect(router.state.location.search).toBe('?view=attachments')
-    expect(screen.getByRole('button', { name: 'Có tệp' })).toHaveAttribute('aria-pressed', 'true')
-    for (const tab of (await tabs()).getAllByRole('button')) {
-      expect(tab).toHaveAttribute('aria-pressed', 'false')
-    }
+    expect(screen.queryByRole('button', { name: 'Thêm' })).toBeNull()
   })
 
   it('filters by Cá nhân and Nhóm in the address, and Mọi chat clears it', async () => {
@@ -72,11 +64,12 @@ describe('the filters of Tin nhắn (MA-06, D-435, D-436)', () => {
     expect(router.state.location.search).toBe('')
   })
 
-  it('has no chips of chat type in Hộp thư, but the same tabs with dots', async () => {
+  it('has no chips of chat type in Hộp thư, but the same tabs with dots and no "Thêm" button', async () => {
     open('/inbox')
     const group = await tabs()
 
     expect(screen.queryByRole('group', { name: 'Loại chat' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Thêm' })).toBeNull()
     expect(group.getByRole('button', { name: /^Cần trả lời, \d+ chưa xử lý$/ })).toBeInTheDocument()
   })
 

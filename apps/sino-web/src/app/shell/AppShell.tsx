@@ -28,8 +28,8 @@ export function AppShell() {
   const { shell: base, receivedAt } = useShellData()
   // The counts of Tin nhắn and Hộp thư are the real ones (D-93, f05c), so that new mail changes them; the task counts come
   // from the task list (D-83, FE-70), so every change of a task shows on the navigation. The shell data brings the counts
-  // of accounts from the account list (D-326) and flags no notification or registration (D-325); the owner and the sync
-  // line are still sample data.
+  // of accounts from the account list (D-326) and flags no notification or registration (D-325); the owner comes from
+  // /api/auth/me and the sync line from the account list.
   const unread = useUnreadByKind()
   // The browser tab says there is news too (NF-01, D-317): chats and mail together, the chats as 0 while the backend cannot count them.
   useTabUnread(unread && unread.EMAIL + (unread.CHAT ?? 0))

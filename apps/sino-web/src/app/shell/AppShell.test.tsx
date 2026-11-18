@@ -48,7 +48,7 @@ describe('sidebar (desktop)', () => {
   it('links the screens of the sidebar, the mail and the chats by account', async () => {
     renderApp('/overview')
     const sidebar = within(shellPart('sidebar'))
-    await sidebar.findByText('An Nguyễn')
+    await sidebar.findAllByText('An Nguyễn')
 
     const expected: [string | RegExp, string][] = [
       [/^Hộp thư/, '/inbox?account=acc-gmail'],
@@ -74,10 +74,10 @@ describe('sidebar (desktop)', () => {
   it('lists the accounts under their source, and a way to add one', async () => {
     renderApp('/overview')
     const sidebar = within(shellPart('sidebar'))
-    await sidebar.findByText('An Nguyễn')
+    await sidebar.findAllByText('An Nguyễn')
 
     expect(sidebar.getByRole('link', { name: /^an\.nguyen@gmail\.com/ })).toHaveAttribute('href', '/inbox?account=acc-gmail')
-    expect(sidebar.getByRole('link', { name: /^Zalo — An Nguyễn/ })).toHaveAttribute('href', '/messages?account=acc-zalo')
+    expect(sidebar.getByRole('link', { name: /^An Nguyễn/ })).toHaveAttribute('href', '/messages?account=acc-zalo')
     expect(sidebar.getByRole('link', { name: 'Thêm tài khoản email' })).toHaveAttribute('href', '/accounts?add=gmail')
     expect(sidebar.getByRole('link', { name: 'Thêm tài khoản Zalo' })).toHaveAttribute('href', '/accounts?add=zalo')
     expect(sidebar.getByRole('link', { name: 'Thêm tài khoản Messenger' })).toHaveAttribute('href', '/accounts?add=messenger')
@@ -201,7 +201,7 @@ describe('the Sticker screen inside Cài đặt (SE-04, D-397)', () => {
   it('has no item of its own in the sidebar, the rail or Thêm', async () => {
     renderApp('/overview')
     const sidebar = within(shellPart('sidebar'))
-    await sidebar.findByText('An Nguyễn')
+    await sidebar.findAllByText('An Nguyễn')
 
     expect(sidebar.queryByRole('link', { name: 'Sticker' })).toBeNull()
     expect(within(shellPart('rail')).queryByRole('link', { name: 'Sticker' })).toBeNull()
@@ -393,7 +393,7 @@ describe('what has no source yet is not flagged (NS-02, D-325)', () => {
   it('flags nothing about the registrations: there is no link to them in the sidebar', async () => {
     renderApp('/overview')
 
-    await within(shellPart('sidebar')).findByText('An Nguyễn')
+    await within(shellPart('sidebar')).findAllByText('An Nguyễn')
     expect(within(shellPart('sidebar')).queryByRole('link', { name: /Đăng ký/ })).not.toBeInTheDocument()
   })
 

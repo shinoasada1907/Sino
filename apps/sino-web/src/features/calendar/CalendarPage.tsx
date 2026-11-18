@@ -80,8 +80,8 @@ export function CalendarPage() {
   }
 
   return (
-    <div className={cn('grid h-full min-h-0', itemId && 'xl:grid-cols-[minmax(0,1fr)_340px]')}>
-      <section aria-label="Lịch" className={cn('min-h-0 min-w-0 grid-rows-[auto_auto_minmax(0,1fr)]', itemId ? 'hidden xl:grid' : 'grid')}>
+    <div className={cn('grid h-full min-h-0 gap-3 p-3', itemId && 'xl:grid-cols-[minmax(0,1fr)_340px]')}>
+      <section aria-label="Lịch" className={cn('min-h-0 min-w-0 grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden rounded-panel bg-surface shadow-card', itemId ? 'hidden xl:grid' : 'grid')}>
         <CalendarHeader kicker={head.kicker} title={head.title} view={view} onView={setView} onShift={shift} onToday={goToday} />
         <CalendarLegend timeZone={timeZoneLabel(now)} />
         {view === 'week' ? (
@@ -94,7 +94,7 @@ export function CalendarPage() {
       </section>
 
       {itemId && (
-        <aside aria-label="Chi tiết lịch hẹn" className="flex min-h-0 flex-col gap-5 overflow-auto border-l bg-surface p-7 *:shrink-0">
+        <aside aria-label="Chi tiết lịch hẹn" className="flex min-h-0 flex-col gap-5 overflow-auto rounded-panel bg-surface p-7 shadow-card *:shrink-0">
           {detail}
         </aside>
       )}

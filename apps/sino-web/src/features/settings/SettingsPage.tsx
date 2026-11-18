@@ -10,7 +10,7 @@ import { useSettings } from './useSettings'
 
 /**
  * `/settings`, the canvas `Settings` (fe-ui-settings): the table of contents from 1280 px and the nine sections, on
- * saved settings of the user since settings-backend (D-405), the connected accounts, and sample data for the rest.
+ * saved settings of the user since settings-backend (D-405), the connected accounts, and what has no backend yet says "Sắp có".
  */
 export function SettingsPage() {
   const { hash } = useLocation()

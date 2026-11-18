@@ -143,7 +143,7 @@ export function TasksPage() {
       </section>
 
       {taskId && (
-        <aside aria-label="Chi tiết việc" className="flex min-h-0 flex-col overflow-auto bg-surface md:border-l">
+        <aside aria-label="Chi tiết việc" className="flex min-h-0 flex-col overflow-auto bg-surface md:m-3 md:rounded-panel md:shadow-card xl:ml-0">
           <MobilePageHeader back={{ to: `/tasks${search}`, label: 'Quay lại Việc cần làm' }} title="Chi tiết việc" />
           <div className="flex grow flex-col gap-5 p-4 *:shrink-0 md:p-7">
             {saveFailed}

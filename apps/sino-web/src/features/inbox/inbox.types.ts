@@ -249,8 +249,17 @@ export type Message =
       reactions?: Reaction[]
       /** The user can drop an emoji on it: the bar shows (D-387). */
       canReact?: boolean
+      /** The message this one answers (chat reply); absent for a message that answers none. */
+      quote?: Quote
     }
   | { id: string; kind: 'SYSTEM'; at: Instant; text: string }
+
+/** A chat message that another one answers: who sent it and its first words, or "Ảnh", "Sticker", the file's name. */
+export interface Quote {
+  messageId: string
+  senderName: string
+  text: string
+}
 
 export interface Member {
   name: string

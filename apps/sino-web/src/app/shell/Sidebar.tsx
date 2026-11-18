@@ -11,101 +11,127 @@ import {
   SquareCheck,
   Trash2,
   type LucideIcon,
-} from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router'
-import { useAccounts } from '@/features/accounts/useAccounts'
-import { cn } from '@/shared/lib/utils'
-import { MeAvatar } from './MeAvatar'
-import { Button } from '@/shared/ui/button'
-import { SinoMark } from '@/shared/ui/sino-mark'
-import type { ShellData } from './shell.types'
-import { UserMenu } from './UserMenu'
-import { folderOf } from '@/features/inbox/format'
-import { useInbox } from '@/features/inbox/useInbox'
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router";
+import { useAccounts } from "@/features/accounts/useAccounts";
+import { cn } from "@/shared/lib/utils";
+import { MeAvatar } from "./MeAvatar";
+import { Button } from "@/shared/ui/button";
+import { SinoMark } from "@/shared/ui/sino-mark";
+import type { ShellData } from "./shell.types";
+import { UserMenu } from "./UserMenu";
+import { folderOf } from "@/features/inbox/format";
+import { useInbox } from "@/features/inbox/useInbox";
 
 interface SubAccount {
-  id: string
-  name: string
-  count: number
-  dotClass?: string
-  to: string
+  id: string;
+  name: string;
+  count: number;
+  dotClass?: string;
+  to: string;
 }
 
 // Desktop navigation (>= 1280 px), matching the user-customized multi-account structure.
-export function Sidebar({ shell, className }: { shell: ShellData | undefined; className?: string }) {
-  const { pathname, search: locationSearch } = useLocation()
+export function Sidebar({
+  shell,
+  className,
+}: {
+  shell: ShellData | undefined;
+  className?: string;
+}) {
+  const { pathname, search: locationSearch } = useLocation();
   // Inside a mail folder (D-502) an email account stays in that folder.
-  const openFolder = pathname === '/inbox' || pathname.startsWith('/inbox/') ? folderOf(new URLSearchParams(locationSearch).get('folder')) : null
-  const isProfileActive = pathname === '/profile'
-  const { list } = useAccounts()
-  const accounts = useMemo(() => list?.accounts ?? [], [list])
-  const { inbox: emailInbox } = useInbox('EMAIL')
-  const { inbox: chatInbox } = useInbox('CHAT')
+  const openFolder =
+    pathname === "/inbox" || pathname.startsWith("/inbox/")
+      ? folderOf(new URLSearchParams(locationSearch).get("folder"))
+      : null;
+  const isProfileActive = pathname === "/profile";
+  const { list } = useAccounts();
+  const accounts = useMemo(() => list?.accounts ?? [], [list]);
+  const { inbox: emailInbox } = useInbox("EMAIL");
+  const { inbox: chatInbox } = useInbox("CHAT");
 
   // Collapse / expand states, default to open
-  const [emailOpen, setEmailOpen] = useState(true)
-  const [zaloOpen, setZaloOpen] = useState(true)
-  const [messengerOpen, setMessengerOpen] = useState(true)
+  const [emailOpen, setEmailOpen] = useState(true);
+  const [zaloOpen, setZaloOpen] = useState(true);
+  const [messengerOpen, setMessengerOpen] = useState(true);
 
   // Dynamic email accounts from connected accounts
   const emailAccounts: SubAccount[] = useMemo(() => {
     return accounts
-      .filter((a) => a.provider?.toLowerCase() === 'gmail')
+      .filter((a) => a.provider?.toLowerCase() === "gmail")
       .map((a) => ({
         id: a.id,
-        name: a.address || a.displayName || 'Gmail',
+        name: a.address || a.displayName || "Gmail",
         count: emailInbox?.counts.byAccount?.[a.id]?.unread ?? 0,
-        to: `/inbox?account=${encodeURIComponent(a.id)}${openFolder ? `&folder=${openFolder}` : ''}`,
-      }))
-  }, [accounts, emailInbox?.counts, openFolder])
+        to: `/inbox?account=${encodeURIComponent(a.id)}${openFolder ? `&folder=${openFolder}` : ""}`,
+      }));
+  }, [accounts, emailInbox?.counts, openFolder]);
 
   // Dynamic Zalo accounts from connected accounts
   const zaloAccounts: SubAccount[] = useMemo(() => {
     return accounts
-      .filter((a) => a.provider?.toLowerCase() === 'zalo')
+      .filter((a) => a.provider?.toLowerCase() === "zalo")
       .map((a) => ({
         id: a.id,
-        name: a.displayName ? `Zalo — ${a.displayName}` : a.address || 'Zalo',
+        name: a.displayName ? `${a.displayName}` : a.address || "Zalo",
         count: chatInbox?.counts.byAccount?.[a.id]?.unread ?? 0,
-        dotClass: 'bg-success',
+        dotClass: "bg-success",
         to: `/messages?account=${encodeURIComponent(a.id)}`,
-      }))
-  }, [accounts, chatInbox?.counts])
+      }));
+  }, [accounts, chatInbox?.counts]);
 
   // Dynamic Messenger accounts from connected accounts
   const messengerAccounts: SubAccount[] = useMemo(() => {
     return accounts
-      .filter((a) => a.provider?.toLowerCase() === 'messenger')
+      .filter((a) => a.provider?.toLowerCase() === "messenger")
       .map((a) => ({
         id: a.id,
-        name: a.displayName ? `Fanpage ${a.displayName}` : a.address || 'Messenger',
+        name: a.displayName
+          ? `Fanpage ${a.displayName}`
+          : a.address || "Messenger",
         count: chatInbox?.counts.byAccount?.[a.id]?.unread ?? 0,
-        dotClass: 'bg-muted-foreground/60',
+        dotClass: "bg-muted-foreground/60",
         to: `/messages?account=${encodeURIComponent(a.id)}`,
-      }))
-  }, [accounts, chatInbox?.counts])
+      }));
+  }, [accounts, chatInbox?.counts]);
 
   // Hộp thư leaves the open folder: it is the way back to the inbox.
-  const defaultEmailTo = emailAccounts[0]?.to.replace(/&folder=\w+$/, '') ?? '/inbox'
-  const emailUnread = shell?.navCounts?.inboxUnread
-  const zaloTotal = (shell?.navCounts?.messagesUnread != null && shell.navCounts.messagesUnread > 0) ? shell.navCounts.messagesUnread : undefined
-  const messengerUnread = chatInbox?.counts.byProvider?.find((p) => p.provider === 'messenger')?.unread ?? 0
-  const messengerTotal = messengerUnread > 0 ? messengerUnread : undefined
-  const tasksDue = shell?.navCounts?.tasksDue
+  const defaultEmailTo =
+    emailAccounts[0]?.to.replace(/&folder=\w+$/, "") ?? "/inbox";
+  const emailUnread = shell?.navCounts?.inboxUnread;
+  const zaloTotal =
+    shell?.navCounts?.messagesUnread != null &&
+    shell.navCounts.messagesUnread > 0
+      ? shell.navCounts.messagesUnread
+      : undefined;
+  const messengerUnread =
+    chatInbox?.counts.byProvider?.find((p) => p.provider === "messenger")
+      ?.unread ?? 0;
+  const messengerTotal = messengerUnread > 0 ? messengerUnread : undefined;
+  const tasksDue = shell?.navCounts?.tasksDue;
 
   return (
     <aside
       data-slot="sidebar"
-      className={cn('m-3 mr-0 w-61 flex-col overflow-y-auto rounded-panel bg-surface px-3.5 py-4 text-foreground shadow-card select-none', className)}
+      className={cn(
+        "m-3 mr-0 w-61 flex-col overflow-y-auto rounded-panel bg-surface px-3.5 py-4 text-foreground shadow-card select-none",
+        className,
+      )}
     >
       {/* Brand logo */}
       <div className="mb-3 flex h-9 items-center gap-2.5 px-1.5 text-foreground">
         <SinoMark className="size-7.5 text-brand-ink" />
-        <span className="text-[19px] font-extrabold tracking-[-0.02em]">Sino</span>
+        <span className="text-[19px] font-extrabold tracking-[-0.02em]">
+          Sino
+        </span>
       </div>
 
-      <nav aria-label="Điều hướng chính" className="flex grow flex-col gap-5 overflow-y-auto">
+      <nav
+        aria-label="Điều hướng chính"
+        className="flex grow flex-col gap-5 overflow-y-auto"
+      >
         {/* Section: THƯ ĐIỆN TỬ (GMAIL) */}
         <div className="flex flex-col gap-1">
           <SectionHeader>THƯ ĐIỆN TỬ (GMAIL)</SectionHeader>
@@ -116,7 +142,11 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
               to={defaultEmailTo}
               icon={Inbox}
               label="Hộp thư"
-              spoken={emailUnread !== undefined && emailUnread > 0 ? `${emailUnread} chưa đọc` : undefined}
+              spoken={
+                emailUnread !== undefined && emailUnread > 0
+                  ? `${emailUnread} chưa đọc`
+                  : undefined
+              }
               onToggle={() => setEmailOpen((prev) => !prev)}
             />
             {emailOpen && (
@@ -124,14 +154,25 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
                 {emailAccounts.map((acc) => (
                   <SubAccountLink key={acc.id} item={acc} />
                 ))}
-                <AddAccountLink to="/accounts?add=gmail" label="Thêm tài khoản email" />
+                <AddAccountLink
+                  to="/accounts?add=gmail"
+                  label="Thêm tài khoản email"
+                />
               </div>
             )}
           </div>
 
           <SidebarMainItem to="/inbox?folder=sent" icon={Send} label="Đã gửi" />
-          <SidebarMainItem to="/inbox?folder=trash" icon={Trash2} label="Thư rác" />
-          <SidebarMainItem to="/inbox?folder=archive" icon={Archive} label="Đã lưu trữ" />
+          <SidebarMainItem
+            to="/inbox?folder=trash"
+            icon={Trash2}
+            label="Thư rác"
+          />
+          <SidebarMainItem
+            to="/inbox?folder=archive"
+            icon={Archive}
+            label="Đã lưu trữ"
+          />
         </div>
 
         {/* Section: TIN NHẮN */}
@@ -144,8 +185,14 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
               to="/messages"
               icon={MessageSquare}
               label="Zalo"
-              badge={zaloTotal !== undefined && zaloTotal > 0 ? zaloTotal : undefined}
-              spoken={zaloTotal !== undefined && zaloTotal > 0 ? `${zaloTotal} chưa đọc` : undefined}
+              badge={
+                zaloTotal !== undefined && zaloTotal > 0 ? zaloTotal : undefined
+              }
+              spoken={
+                zaloTotal !== undefined && zaloTotal > 0
+                  ? `${zaloTotal} chưa đọc`
+                  : undefined
+              }
               onToggle={() => setZaloOpen((prev) => !prev)}
             />
             {zaloOpen && (
@@ -153,7 +200,10 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
                 {zaloAccounts.map((acc) => (
                   <SubAccountLink key={acc.id} item={acc} />
                 ))}
-                <AddAccountLink to="/accounts?add=zalo" label="Thêm tài khoản Zalo" />
+                <AddAccountLink
+                  to="/accounts?add=zalo"
+                  label="Thêm tài khoản Zalo"
+                />
               </div>
             )}
           </div>
@@ -173,7 +223,10 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
                 {messengerAccounts.map((acc) => (
                   <SubAccountLink key={acc.id} item={acc} />
                 ))}
-                <AddAccountLink to="/accounts?add=messenger" label="Thêm tài khoản Messenger" />
+                <AddAccountLink
+                  to="/accounts?add=messenger"
+                  label="Thêm tài khoản Messenger"
+                />
               </div>
             )}
           </div>
@@ -182,16 +235,32 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
         {/* Section: KẾ HOẠCH */}
         <div className="flex flex-col gap-1">
           <SectionHeader>KẾ HOẠCH</SectionHeader>
-          <SidebarMainItem to="/calendar" icon={Calendar} label="Lịch" showDotWhenActive />
+          <SidebarMainItem
+            to="/calendar"
+            icon={Calendar}
+            label="Lịch"
+            showDotWhenActive
+          />
           <SidebarMainItem
             to="/tasks"
             icon={SquareCheck}
             label="Việc cần làm"
-            badge={tasksDue !== undefined && tasksDue > 0 ? tasksDue : undefined}
-            spoken={tasksDue !== undefined && tasksDue > 0 ? `${tasksDue} tới hạn` : undefined}
+            badge={
+              tasksDue !== undefined && tasksDue > 0 ? tasksDue : undefined
+            }
+            spoken={
+              tasksDue !== undefined && tasksDue > 0
+                ? `${tasksDue} tới hạn`
+                : undefined
+            }
             showDotWhenActive
           />
-          <SidebarMainItem to="/notes" icon={PenLine} label="Ghi chú" showDotWhenActive />
+          <SidebarMainItem
+            to="/notes"
+            icon={PenLine}
+            label="Ghi chú"
+            showDotWhenActive
+          />
         </div>
       </nav>
 
@@ -200,8 +269,10 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
         <SidebarMainItem to="/settings" icon={Settings2} label="Cài đặt" />
         <div
           className={cn(
-            'flex items-center justify-between gap-2.5 rounded-lg p-2.5 transition-colors',
-            isProfileActive ? 'bg-active font-semibold' : 'bg-raised hover:bg-hover',
+            "flex items-center justify-between gap-2.5 rounded-lg p-2.5 transition-colors",
+            isProfileActive
+              ? "bg-active font-semibold"
+              : "bg-raised hover:bg-hover",
           )}
         >
           <Link
@@ -212,22 +283,29 @@ export function Sidebar({ shell, className }: { shell: ShellData | undefined; cl
             <MeAvatar className="transition-transform group-hover:scale-105" />
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-semibold text-foreground">
-                {shell?.owner.displayName ?? 'Người dùng Sino'}
+                {shell?.owner.displayName ?? "Người dùng Sino"}
               </span>
               <span className="truncate font-mono text-[11px] leading-4 text-muted-foreground">
-                {shell && shell.accountCount !== null ? `${shell.accountCount} tài khoản` : ''}
+                {shell && shell.accountCount !== null
+                  ? `${shell.accountCount} tài khoản`
+                  : ""}
               </span>
             </div>
           </Link>
           <UserMenu>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="Tài khoản Sino của bạn">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Tài khoản Sino của bạn"
+            >
               <Ellipsis strokeWidth={1.6} />
             </Button>
           </UserMenu>
         </div>
       </div>
     </aside>
-  )
+  );
 }
 
 function SectionHeader({ children }: { children: string }) {
@@ -235,7 +313,7 @@ function SectionHeader({ children }: { children: string }) {
     <div className="px-3 pt-2 pb-1 text-xs leading-4 font-bold text-subtle-foreground">
       {children}
     </div>
-  )
+  );
 }
 
 function SidebarMainItem({
@@ -247,32 +325,36 @@ function SidebarMainItem({
   showDotWhenActive = false,
   onToggle,
 }: {
-  to: string
-  icon: LucideIcon
-  label: string
-  badge?: number
-  spoken?: string
-  showDotWhenActive?: boolean
-  onToggle?: () => void
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  badge?: number;
+  spoken?: string;
+  showDotWhenActive?: boolean;
+  onToggle?: () => void;
 }) {
-  const { pathname, search } = useLocation()
-  const targetUrl = new URL(to, 'https://sino.local')
-  const currentPath = pathname
-  const currentSearch = search
+  const { pathname, search } = useLocation();
+  const targetUrl = new URL(to, "https://sino.local");
+  const currentPath = pathname;
+  const currentSearch = search;
 
   // Exact matching when query parameters are present, otherwise pathname match
   // A mail folder has its own item; Hộp thư is lit only while no folder is open.
-  const inInbox = currentPath === '/inbox' || currentPath.startsWith('/inbox/')
-  const targetFolder = folderOf(targetUrl.searchParams.get('folder'))
+  const inInbox = currentPath === "/inbox" || currentPath.startsWith("/inbox/");
+  const targetFolder = folderOf(targetUrl.searchParams.get("folder"));
   const isMatch = targetFolder
-    ? inInbox && folderOf(new URLSearchParams(currentSearch).get('folder')) === targetFolder
-    : (label === 'Hộp thư' || label === 'Hộp thư đến')
-    ? currentPath === '/inbox' && folderOf(new URLSearchParams(currentSearch).get('folder')) === null
-    : targetUrl.search
-      ? currentPath === targetUrl.pathname && currentSearch === targetUrl.search
-      : currentPath === targetUrl.pathname
+    ? inInbox &&
+      folderOf(new URLSearchParams(currentSearch).get("folder")) ===
+        targetFolder
+    : label === "Hộp thư" || label === "Hộp thư đến"
+      ? currentPath === "/inbox" &&
+        folderOf(new URLSearchParams(currentSearch).get("folder")) === null
+      : targetUrl.search
+        ? currentPath === targetUrl.pathname &&
+          currentSearch === targetUrl.search
+        : currentPath === targetUrl.pathname;
 
-  const accessibleName = spoken ? `${label}, ${spoken}` : label
+  const accessibleName = spoken ? `${label}, ${spoken}` : label;
 
   return (
     <NavLink
@@ -280,19 +362,23 @@ function SidebarMainItem({
       aria-label={accessibleName}
       onClick={() => {
         if (onToggle && isMatch) {
-          onToggle()
+          onToggle();
         }
       }}
       className={({ isActive }) => {
-        const active = isMatch || (isActive && !targetUrl.search && !currentSearch)
+        const active =
+          isMatch || (isActive && !targetUrl.search && !currentSearch);
         return cn(
-          'group flex h-10 shrink-0 items-center gap-3 rounded-full px-3.5 text-sm font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          active ? 'bg-brand-soft text-brand-ink' : 'text-muted-foreground hover:bg-hover hover:text-foreground'
-        )
+          "group flex h-10 shrink-0 items-center gap-3 rounded-full px-3.5 text-sm font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          active
+            ? "bg-brand-soft text-brand-ink"
+            : "text-muted-foreground hover:bg-hover hover:text-foreground",
+        );
       }}
     >
       {({ isActive }) => {
-        const active = isMatch || (isActive && !targetUrl.search && !currentSearch)
+        const active =
+          isMatch || (isActive && !targetUrl.search && !currentSearch);
         return (
           <>
             <Icon
@@ -311,33 +397,45 @@ function SidebarMainItem({
             )}
 
             {badge === undefined && showDotWhenActive && active && (
-              <span aria-hidden="true" className="ml-auto size-2 rounded-full bg-primary" />
+              <span
+                aria-hidden="true"
+                className="ml-auto size-2 rounded-full bg-primary"
+              />
             )}
           </>
-        )
+        );
       }}
     </NavLink>
-  )
+  );
 }
 
 function SubAccountLink({ item }: { item: SubAccount }) {
-  const { pathname, search } = useLocation()
-  const targetUrl = new URL(item.to, 'https://sino.local')
-  const active = pathname === targetUrl.pathname && search === targetUrl.search
+  const { pathname, search } = useLocation();
+  const targetUrl = new URL(item.to, "https://sino.local");
+  const active = pathname === targetUrl.pathname && search === targetUrl.search;
 
   return (
     <NavLink
       to={item.to}
       className={cn(
-        'flex h-7 items-center gap-2.5 rounded-full px-3 pl-7 text-xs font-bold transition-colors',
-        active ? 'bg-active text-foreground' : 'text-muted-foreground hover:bg-hover hover:text-foreground'
+        "flex h-7 items-center gap-2.5 rounded-full px-3 pl-7 text-xs font-bold transition-colors",
+        active
+          ? "bg-active text-foreground"
+          : "text-muted-foreground hover:bg-hover hover:text-foreground",
       )}
     >
-      <span className={cn('size-1.5 shrink-0 rounded-full', item.dotClass ?? 'bg-muted-foreground/60')} />
+      <span
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          item.dotClass ?? "bg-muted-foreground/60",
+        )}
+      />
       <span className="truncate">{item.name}</span>
-      <span className="ml-auto font-mono text-[11px] text-muted-foreground/80">{item.count}</span>
+      <span className="ml-auto font-mono text-[11px] text-muted-foreground/80">
+        {item.count}
+      </span>
     </NavLink>
-  )
+  );
 }
 
 function AddAccountLink({ to, label }: { to: string; label: string }) {
@@ -349,5 +447,5 @@ function AddAccountLink({ to, label }: { to: string; label: string }) {
       <Plus className="size-3.5 shrink-0" strokeWidth={1.75} />
       <span className="truncate">{label}</span>
     </NavLink>
-  )
+  );
 }

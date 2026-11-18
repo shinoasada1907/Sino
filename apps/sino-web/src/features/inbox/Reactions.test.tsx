@@ -148,7 +148,7 @@ describe('the emoji of a chat message', () => {
     await open([fromDad('m1')])
     const user = userEvent.setup()
 
-    await user.click(chat().getAllByRole('button', { name: 'Thả biểu cảm' })[0]!)
+    await user.hover(chat().getAllByRole('button', { name: 'Thả biểu cảm' })[0]!)
     const bar = within(await screen.findByRole('toolbar', { name: 'Biểu cảm nhanh' }))
     expect(bar.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Tim',
@@ -167,6 +167,17 @@ describe('the emoji of a chat message', () => {
     expect(calls).toEqual([{ method: 'PUT', messageId: 'm1', code: '/-heart' }])
   })
 
+  it('drops the thumb when the thumb button is pressed, without opening the bar', async () => {
+    const calls = serverReactions(() => [reaction(kind('/-strong', '👍', 'Thích', true), ['Bạn'], true)])
+    await open([fromDad('m1')])
+    const user = userEvent.setup()
+
+    await user.click(chat().getByRole('button', { name: 'Thả biểu cảm' }))
+
+    await waitFor(() => expect(calls).toEqual([{ method: 'PUT', messageId: 'm1', code: '/-strong' }]))
+    expect(screen.queryByRole('toolbar', { name: 'Biểu cảm nhanh' })).toBeNull()
+  })
+
   it('opens the bar over the bubble, not at the corner of the screen', async () => {
     // As a browser lays it out: a window of 1440 × 900, every element on the page at 400, 300 (200 × 40), and one taken
     // off the page at 0, 0, size 0.
@@ -182,7 +193,7 @@ describe('the emoji of a chat message', () => {
     await open([fromDad('m1')])
     const user = userEvent.setup()
 
-    await user.click(chat().getByRole('button', { name: 'Thả biểu cảm' }))
+    await user.hover(chat().getByRole('button', { name: 'Thả biểu cảm' }))
     const bar = await screen.findByRole('dialog', { name: 'Biểu cảm' })
 
     // Above the bubble, its start edge on the bubble's: 300 − the bar's height (jsdom has no `offsetHeight`, so 0) − 6.
@@ -195,7 +206,7 @@ describe('the emoji of a chat message', () => {
     await open([fromDad('m1', { reactions: [reaction(HEART, ['Bạn'], true), reaction(HAHA, ['Minh'])] })])
     const user = userEvent.setup()
 
-    await user.click(chat().getByRole('button', { name: 'Thả biểu cảm' }))
+    await user.hover(chat().getByRole('button', { name: 'Thả biểu cảm' }))
     const heart = within(await screen.findByRole('toolbar', { name: 'Biểu cảm nhanh' })).getByRole('button', { name: 'Tim' })
     expect(heart).toHaveAttribute('aria-pressed', 'true')
     await user.click(heart)
@@ -209,7 +220,7 @@ describe('the emoji of a chat message', () => {
     await open([fromDad('m1')])
     const user = userEvent.setup()
 
-    await user.click(chat().getByRole('button', { name: 'Thả biểu cảm' }))
+    await user.hover(chat().getByRole('button', { name: 'Thả biểu cảm' }))
     await user.click(await screen.findByRole('button', { name: 'Thêm biểu cảm' }))
     const all = within(screen.getByRole('group', { name: 'Tất cả biểu cảm' }))
     expect(all.getAllByRole('button')).toHaveLength(SET.length)
@@ -224,7 +235,7 @@ describe('the emoji of a chat message', () => {
     await open([fromDad('m1', { reactions: [reaction(HAHA, ['Minh'])] })])
     const user = userEvent.setup()
 
-    await user.click(chat().getByRole('button', { name: 'Thả biểu cảm' }))
+    await user.hover(chat().getByRole('button', { name: 'Thả biểu cảm' }))
     await user.click(within(await screen.findByRole('toolbar', { name: 'Biểu cảm nhanh' })).getByRole('button', { name: 'Tim' }))
 
     expect(await chat().findByRole('alert')).toHaveTextContent('Chậm lại một chút.')
@@ -237,7 +248,7 @@ describe('the emoji of a chat message', () => {
     const button = chat().getByRole('button', { name: 'Thả biểu cảm' })
 
     button.focus()
-    await user.keyboard('{Enter}')
+    await user.keyboard('{ArrowUp}')
     const bar = within(await screen.findByRole('toolbar', { name: 'Biểu cảm nhanh' }))
     bar.getByRole('button', { name: 'Tim' }).focus()
     await user.keyboard('{ArrowRight}')

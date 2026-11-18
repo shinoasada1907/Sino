@@ -1,29 +1,35 @@
-import { Plus, SmilePlus } from 'lucide-react'
+import { Copy, Plus, Quote, ThumbsUp } from 'lucide-react'
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Dialog as DialogPrimitive, Popover as PopoverPrimitive } from 'radix-ui'
 import { useMediaQuery } from '@/shared/lib/useMediaQuery'
 import { cn } from '@/shared/lib/utils'
-import { Button } from '@/shared/ui/button'
 import type { ReactionKind } from '../reactions'
 import { ReactionEmoji } from './ReactionEmoji'
 
 /** How long a finger rests on a bubble before the bar opens, and how far it may move meanwhile (D-390). */
 const HOLD_MS = 500
 const HOLD_SLOP_PX = 10
+/** How long the mouse rests on the thumb before the bar opens. */
+const HOVER_MS = 350
 /** Emoji in a row of the full set. */
 const COLUMNS = 8
 
 /**
- * The emoji bar of one chat message (zalo-reactions, D-390), built from the user's picture of Zalo's bar: a smiley
- * button beside the bubble shows on hover or focus; it opens the quick emoji and "+" above the bubble. On a phone a
- * finger resting on the bubble opens the same bar. "+" shows every emoji of the provider: in the bar from 768px, in a
- * sheet from the bottom below. Picking the user's own emoji again takes it off.
+ * The emoji bar of one chat message (zalo-reactions, D-390), laid out like Zalo's: a round thumb on the lower corner of
+ * the bubble shows on hover or focus. Pressing it drops the quick emoji (a thumb); resting the mouse on it, or ArrowUp,
+ * opens the quick emoji and "+" above the bubble. On a phone a finger resting on the bubble opens the same bar with
+ * "Trả lời tin này" and "Sao chép" under it (and, for a message that takes no emoji, with those two alone). "+" shows
+ * every emoji of the provider: in the bar from 768px, in a sheet from the bottom below. Picking the user's own emoji
+ * again takes it off.
  */
 export function ReactionPicker({
   kinds,
   mine,
   own,
   onPick,
+  onReply,
+  onCopy,
+  reacted,
   children,
 }: {
   kinds: ReactionKind[]
@@ -31,6 +37,12 @@ export function ReactionPicker({
   mine: string | null
   own: boolean
   onPick: (kind: ReactionKind) => void
+  /** Given where the message can be answered: "Trả lời tin này" under the bar on a phone (from 768px the bubble's side buttons do it). */
+  onReply?: () => void
+  /** Given where the message has text to copy: "Sao chép" under the bar on a phone. */
+  onCopy?: () => void
+  /** The message already has emoji: its chip sits at the foot of the bubble, so the thumb moves to the other corner of an own bubble. */
+  reacted?: boolean
   /** The bubble: the bar opens over it, and a finger resting on it opens the bar. */
   children: ReactNode
 }) {
@@ -38,8 +50,17 @@ export function ReactionPicker({
   const [open, setOpen] = useState(false)
   const [full, setFull] = useState(false)
   const [sheet, setSheet] = useState(false)
+  const reactive = kinds.length > 0
+  const rows = Boolean(onReply || onCopy)
   const button = useRef<HTMLButtonElement>(null)
   const hold = useHold(() => setOpen(true))
+  const hover = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopHover = () => {
+    if (hover.current) {
+      clearTimeout(hover.current)
+    }
+    hover.current = null
+  }
 
   const changeOpen = (next: boolean) => {
     setOpen(next)
@@ -52,6 +73,13 @@ export function ReactionPicker({
     changeOpen(false)
     setSheet(false)
   }
+  // The reply box takes the focus; the bar must not give it back to the smiley button as it closes.
+  const replied = useRef(false)
+  const reply = () => {
+    replied.current = true
+    changeOpen(false)
+    onReply?.()
+  }
   const showAll = () => {
     if (wide) {
       setFull(true)
@@ -61,34 +89,59 @@ export function ReactionPicker({
     }
   }
   const quick = kinds.filter((kind) => kind.quick)
+  // What pressing the thumb drops: the thumb of the set, else its first quick emoji.
+  const usual = kinds.find((kind) => kind.emoji.startsWith('👍')) ?? quick[0]
+  const copy = () => {
+    replied.current = true
+    changeOpen(false)
+    onCopy?.()
+  }
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={changeOpen}>
       <PopoverPrimitive.Anchor asChild>
-        <div className="min-w-0 [-webkit-touch-callout:none]" {...hold}>
+        <div className="relative min-w-0 [-webkit-touch-callout:none]" {...hold}>
           {children}
+          {reactive && usual && (
+            /*
+              Not a Popover.Trigger: beside a custom Anchor, Radix first anchors to the trigger, then mounts the trigger
+              again without its anchor and keeps the old, detached node, so the bar opened at the corner of the screen.
+              So this is a plain button, and what the trigger did (aria, the focus coming back) is done here.
+            */
+            <button
+              ref={button}
+              type="button"
+              aria-label="Thả biểu cảm"
+              title="Thả biểu cảm"
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              data-state={open ? 'open' : 'closed'}
+              onClick={() => {
+                stopHover()
+                pick(usual)
+              }}
+              onPointerEnter={(event) => {
+                if (event.pointerType === 'mouse' && !open) {
+                  hover.current = setTimeout(() => changeOpen(true), HOVER_MS)
+                }
+              }}
+              onPointerLeave={stopHover}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  changeOpen(true)
+                }
+              }}
+              className={cn(
+                'absolute -bottom-2.5 z-1 inline-flex size-7 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-raised text-muted-foreground opacity-0 shadow-popover outline-none transition-opacity duration-(--dur-hover) group-hover/bubble:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring focus-visible:outline-solid data-[state=open]:opacity-100 max-md:hidden',
+                own && reacted ? '-left-2' : '-right-2',
+              )}
+            >
+              <ThumbsUp className="size-3.5" strokeWidth={1.6} />
+            </button>
+          )}
         </div>
       </PopoverPrimitive.Anchor>
-      {/*
-        Not a Popover.Trigger: beside a custom Anchor, Radix first anchors to the trigger, then mounts the trigger again
-        without its anchor and keeps the old, detached node, so the bar opened at the corner of the screen. So this is a
-        plain button, and what the trigger did (toggle, aria, the focus coming back) is done here.
-      */}
-      <Button
-        ref={button}
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Thả biểu cảm"
-        title="Thả biểu cảm"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        data-state={open ? 'open' : 'closed'}
-        onClick={() => changeOpen(!open)}
-        className="shrink-0 self-center rounded-full text-muted-foreground opacity-0 transition-opacity duration-(--dur-hover) group-hover/bubble:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-      >
-        <SmilePlus strokeWidth={1.6} />
-      </Button>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           data-slot="reaction-bar"
@@ -101,6 +154,10 @@ export function ReactionPicker({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
+            if (replied.current) {
+              replied.current = false
+              return
+            }
             button.current?.focus()
           }}
           side="top"
@@ -109,13 +166,33 @@ export function ReactionPicker({
           collisionPadding={16}
           className={cn(
             'z-50 origin-(--radix-popover-content-transform-origin) border border-border-strong bg-popover text-popover-foreground shadow-popover duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-            full ? 'w-84 rounded-xl p-2' : 'rounded-full p-1',
+            full ? 'w-84 rounded-xl p-2' : cn('rounded-full p-1', rows && 'max-md:rounded-2xl'),
           )}
         >
           {full ? (
             <EmojiGrid kinds={kinds} mine={mine} onPick={pick} />
-          ) : (
+          ) : reactive ? (
             <QuickBar kinds={quick} mine={mine} onPick={pick} onMore={kinds.length > quick.length ? showAll : undefined} />
+          ) : null}
+          {onReply && !full && (
+            <button
+              type="button"
+              onClick={reply}
+              className="mt-1 flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-medium outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid md:hidden"
+            >
+              <Quote className="size-4" strokeWidth={1.6} />
+              Trả lời tin này
+            </button>
+          )}
+          {onCopy && !full && (
+            <button
+              type="button"
+              onClick={copy}
+              className="mt-1 flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-medium outline-none hover:bg-hover focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid md:hidden"
+            >
+              <Copy className="size-4" strokeWidth={1.6} />
+              Sao chép
+            </button>
           )}
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>

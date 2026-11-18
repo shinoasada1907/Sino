@@ -10,7 +10,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
+import tools.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +22,7 @@ import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Participant;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Photo;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.Quoted;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.SharedFile;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Sticker;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.StickerSprite;
@@ -30,6 +34,7 @@ import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedParticipant;
+import dev.sino.provider.spi.NormalizedReaction;
 import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.SkippedItem;
@@ -84,6 +89,14 @@ final class ZaloMessageNormalizer {
     /** The longest file name kept, as a file sent from Sino may have (zalo-send-files, D-371). */
     private static final int MAX_FILE_NAME = 255;
 
+    /** An ID of Zalo's that sino-zalo takes back: whole digits, as it writes them. */
+    private static final int MAX_PROPERTY_EXT = 2_000;
+    private static final int MAX_RAW_CONTENT = 8_000;
+    private static final int MAX_QUOTE_TEXT = 120;
+    private static final Set<String> QUOTE_KINDS = Set.of("text", "photo", "sticker", "file", "gif", "voice", "video",
+            "link", "location", "other");
+    private static final Pattern ZALO_ID = Pattern.compile("[0-9]{1,20}");
+
     private static final Logger LOG = LoggerFactory.getLogger(ZaloMessageNormalizer.class);
 
     private ZaloMessageNormalizer() {
@@ -97,8 +110,13 @@ final class ZaloMessageNormalizer {
         String selfId = clean(ownId);
         List<KeptMessage> kept = new ArrayList<>();
         List<SkippedItem> skipped = new ArrayList<>();
+        List<NormalizedReaction> reactions = new ArrayList<>();
 
         for (Message raw : page.messages()) {
+            if (isReaction(raw)) {
+                reactionsOf(raw, selfId, reactions, skipped);
+                continue;
+            }
             try {
                 NormalizedMessage normalized = normalize(raw, selfId);
                 if (since == null || !normalized.sentAt().isBefore(since)) {
@@ -113,7 +131,40 @@ final class ZaloMessageNormalizer {
         List<NormalizedConversation> conversations = conversationsOf(page.conversations(), kept, selfId);
         List<NormalizedMessage> messages = kept.stream().map(KeptMessage::normalized).toList();
         SyncCursor nextCursor = nextCursorOf(page, cursor);
-        return new SyncBatch(conversations, messages, skipped, nextCursor, page.hasMore());
+        return new SyncBatch(conversations, messages, skipped, reactions, nextCursor, page.hasMore());
+    }
+
+    private static boolean isReaction(Message raw) {
+        return raw != null && ("reaction".equals(raw.zaloType()) || raw.reaction() != null);
+    }
+
+    /**
+     * An event of reactions is no message: each target of it becomes one {@link NormalizedReaction} by the person who
+     * reacted, dated by the event, and it is never cut by {@code since} (a reaction is applied to a message Sino
+     * holds, whatever its age). An event that names no target or cannot be read is skipped, not failed.
+     */
+    private static void reactionsOf(Message raw, String selfId, List<NormalizedReaction> reactions,
+            List<SkippedItem> skipped) {
+        try {
+            String threadId = required(raw.threadId(), "threadId");
+            if (raw.reaction() == null || raw.reaction().targets().isEmpty()) {
+                throw new ProviderException(ProviderErrorCode.PAYLOAD_NORMALIZATION_FAILED,
+                        "The reaction names no message");
+            }
+            Instant reactedAt = parseSentAt(raw.sentAt());
+            String reactor = raw.isSelf() && selfId != null ? selfId : required(raw.fromId(), "fromId");
+            String icon = clean(raw.reaction().icon());
+            String name = clean(raw.fromName());
+            List<NormalizedReaction> found = new ArrayList<>();
+            for (ZaloClient.ReactionTarget target : raw.reaction().targets()) {
+                found.add(new NormalizedReaction(threadId, required(target.msgId(), "target msgId"), reactor, name,
+                        raw.isSelf(), icon, reactedAt));
+            }
+            reactions.addAll(found);
+        } catch (ProviderException failure) {
+            skipped.add(new SkippedItem(SkippedItem.Kind.MESSAGE, safeId(raw.msgId()), failure.errorCode(),
+                    failure.getMessage()));
+        }
     }
 
     static NormalizedMessage normalize(Message message, String ownId) {
@@ -141,13 +192,60 @@ final class ZaloMessageNormalizer {
                 body.text(),
                 status,
                 message.isSelf(),
-                null,
+                quotedId(message),
                 sentAt,
                 body.attachments(),
-                body.metadata(),
+                metadataOf(message, body),
                 null,
                 null,
                 null);
+    }
+
+    // Besides what the body says: the ID a reaction needs (zalo-reactions, D-382), what a quote of this message needs
+    // (zalo-quote-reply, D-505) and, when it quotes one, a preview of the quoted message (D-504). Each only when Zalo gave
+    // a usable one: a message without a cliMsgId can be neither reacted to nor quoted.
+    private static Map<String, String> metadataOf(Message message, Body body) {
+        Map<String, String> metadata = new LinkedHashMap<>(body.metadata());
+        String cliMsgId = clean(message.cliMsgId());
+        if (cliMsgId != null && ZALO_ID.matcher(cliMsgId).matches()) {
+            metadata.put(NormalizedMessage.CLI_MSG_ID, cliMsgId);
+            if (message.ttl() != null && message.ttl() >= 0) {
+                metadata.put(NormalizedMessage.TTL, String.valueOf(message.ttl()));
+            }
+            putIfPresent(metadata, NormalizedMessage.MSG_TYPE, clean(message.zaloType()));
+            putJson(metadata, NormalizedMessage.PROPERTY_EXT, message.propertyExt(), MAX_PROPERTY_EXT);
+            if (body.type() != MessageType.TEXT) {
+                putJson(metadata, NormalizedMessage.RAW_CONTENT, message.rawContent(), MAX_RAW_CONTENT);
+            }
+        }
+        Quoted quote = message.quote();
+        if (quotedId(message) != null) {
+            metadata.put(NormalizedMessage.QUOTE_SENDER, clean(quote.fromName()) == null ? "" : clean(quote.fromName()));
+            String text = clean(quote.text());
+            metadata.put(NormalizedMessage.QUOTE_TEXT, text == null ? ""
+                    : text.length() > MAX_QUOTE_TEXT ? text.substring(0, MAX_QUOTE_TEXT) : text);
+            String kind = clean(quote.kind());
+            metadata.put(NormalizedMessage.QUOTE_KIND, kind != null && QUOTE_KINDS.contains(kind) ? kind : "other");
+        }
+        return Map.copyOf(metadata);
+    }
+
+    /** The ID of the message this one quotes, when Zalo named one that is a usable ID. */
+    private static String quotedId(Message message) {
+        Quoted quote = message.quote();
+        String id = quote == null ? null : clean(quote.msgId());
+        return id != null && ZALO_ID.matcher(id).matches() ? id : null;
+    }
+
+    /** A JSON value as text for {@code metadata}; left out when missing or too long to be kept there. */
+    private static void putJson(Map<String, String> metadata, String key, JsonNode value, int max) {
+        if (value == null || value.isNull() || value.isMissingNode()) {
+            return;
+        }
+        String json = value.toString();
+        if (json.length() <= max) {
+            metadata.put(key, json);
+        }
     }
 
     private static List<NormalizedConversation> conversationsOf(List<Conversation> rawConversations,

@@ -182,7 +182,7 @@ export function ConversationList({
           <Spec className="ml-auto">{unread}</Spec>
           {compose && <NewMailLink search={search} />}
         </div>
-        {tabs && !chatFilters && <ViewTabs value={filter.view} counts={counts ?? { unread: 0, needsReply: 0 }} onChange={(view) => onFilter({ view })} className="self-start" />}
+        {tabs && !chatFilters && <ViewTabs value={filter.view} counts={counts ?? { unread: 0, needsReply: 0 }} onChange={(view) => onFilter({ view })} />}
       </div>
       {chatFilters && <ChatFilters filter={filter} counts={counts} onFilter={onFilter} />}
 

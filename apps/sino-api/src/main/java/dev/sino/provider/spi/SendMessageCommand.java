@@ -15,11 +15,13 @@ import dev.sino.provider.spi.NormalizedRecipients.Address;
  * {@code clientMessageId} is the ID Sino gave it (D-131). When the outcome of the send is unknown,
  * {@link MessageProvider#findSentMessages} gets the same command to find the message again (D-132). Only a connector
  * with {@code SEND_IMAGES} may be given a command with a picture, and only one with {@code SEND_FILES} a command with a
- * picture or file from the user's computer ({@code file}, zalo-send-files, D-372), which goes alone.
+ * picture or file from the user's computer ({@code file}, zalo-send-files, D-372), which goes alone. {@code quote} is the message the
+ * reply quotes (zalo-quote-reply, D-507), only for a connector whose {@code canQuote} said yes; any kind of message
+ * may carry one.
  */
 public record SendMessageCommand(String externalConversationId, ConversationType conversationType,
         String textContent, String replyToExternalMessageId, List<Address> to, UUID clientMessageId,
-        String senderName, OutgoingImage image, OutgoingFile file) {
+        String senderName, OutgoingImage image, OutgoingFile file, QuotedMessage quote) {
 
     public SendMessageCommand {
         if (externalConversationId == null || externalConversationId.isBlank()) {
@@ -39,12 +41,20 @@ public record SendMessageCommand(String externalConversationId, ConversationType
         senderName = senderName == null || senderName.isBlank() ? null : senderName.strip();
     }
 
+    /** A picture or file from the computer, or a text, without a quote. */
+    public SendMessageCommand(String externalConversationId, ConversationType conversationType,
+            String textContent, String replyToExternalMessageId, List<Address> to, UUID clientMessageId,
+            String senderName, OutgoingImage image, OutgoingFile file) {
+        this(externalConversationId, conversationType, textContent, replyToExternalMessageId, to, clientMessageId,
+                senderName, image, file, null);
+    }
+
     /** A text, or a picture of a sticker. */
     public SendMessageCommand(String externalConversationId, ConversationType conversationType,
             String textContent, String replyToExternalMessageId, List<Address> to, UUID clientMessageId,
             String senderName, OutgoingImage image) {
         this(externalConversationId, conversationType, textContent, replyToExternalMessageId, to, clientMessageId,
-                senderName, image, null);
+                senderName, image, null, null);
     }
 
     /** A text message. */
@@ -52,7 +62,7 @@ public record SendMessageCommand(String externalConversationId, ConversationType
             String textContent, String replyToExternalMessageId, List<Address> to, UUID clientMessageId,
             String senderName) {
         this(externalConversationId, conversationType, textContent, replyToExternalMessageId, to, clientMessageId,
-                senderName, null, null);
+                senderName, null, null, null);
     }
 
     public SendMessageCommand(String externalConversationId, String textContent,

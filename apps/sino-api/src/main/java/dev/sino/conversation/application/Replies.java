@@ -15,6 +15,8 @@ import dev.sino.conversation.application.InboxMessage.Address;
 import dev.sino.provider.ProviderCapability;
 import dev.sino.provider.ProviderRegistry;
 import dev.sino.provider.spi.MessageDirection;
+import dev.sino.provider.spi.MessageProvider;
+import dev.sino.provider.spi.ReactionKind;
 
 /**
  * Whether the owner can reply in a conversation from Sino, and who a reply goes to (F10, D-130, D-133). Sending
@@ -40,6 +42,13 @@ public class Replies {
      */
     public Reply of(UUID ownerId, InboxItem conversation) {
         return of(ownerId, conversation, conversation.primaryId());
+    }
+
+    /** The reactions the connector of the conversation offers, the quick ones first; none without {@code REACTIONS}. */
+    public List<ReactionKind> reactionSet(InboxItem conversation) {
+        return providers.find(conversation.provider())
+                .filter(connector -> connector.capabilities().supports(ProviderCapability.REACTIONS))
+                .map(MessageProvider::reactionSet).orElse(List.of());
     }
 
     /** From one copy of the conversation, and the account of that copy. */

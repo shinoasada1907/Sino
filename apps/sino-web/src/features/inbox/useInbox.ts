@@ -8,7 +8,7 @@ import { filterConversations, withOutbox, type InboxFilter } from './format'
 import { stickerTurns } from './stickerQueue'
 import { isPicture, outgoingFiles } from './outgoingFiles'
 import { createConversation, discardMessage, fetchConversation, fetchConversations, fetchInbox, fetchMessageBody, fetchMessages, fetchUnreadByKind, fileTypeOf, sendFile, sendMessage, sendSticker, updateConversation, updateNickname } from './inbox.api'
-import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation, UnreadByKind } from './inbox.types'
+import type { ConversationDetail, ConversationItem, ConversationPage, InboxData, Message, MessageBody, MessagePage, OpenConversation, Quote, UnreadByKind } from './inbox.types'
 import { LEAVE_FREELY, rememberSender, type NewMailDraft } from './newMail'
 import { SCREENS } from './screen'
 
@@ -321,7 +321,7 @@ export function useConversationActions(item: ConversationItem, backSearch: strin
 // a text, a sticker of the library (zalo-send-images), which the server turns into a picture, or a picture or file from
 // the computer (zalo-send-files). `paced`: it waits its turn in the queue of stickers and files.
 type Try =
-  | { kind: 'TEXT'; text: string; clientMessageId: string }
+  | { kind: 'TEXT'; text: string; clientMessageId: string; quote?: Quote }
   | { kind: 'STICKER'; stickerId: string; clientMessageId: string }
   | { kind: 'FILE'; file: File; clientMessageId: string }
 type Outgoing = Try & { attempt: number; paced: boolean }
@@ -388,6 +388,7 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
         linked: [],
         clientMessageId,
         local: true,
+        ...(outgoing.kind === 'TEXT' && outgoing.quote ? { quote: outgoing.quote } : {}),
       }
       editOutbox((mails) =>
         mails.some((mail) => mail.clientMessageId === clientMessageId)
@@ -395,8 +396,11 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
           : [...mails, pending],
       )
     },
-    onSuccess: (sent: Mail, { clientMessageId }: Outgoing) => {
-      editMail(clientMessageId, () => ({ ...sent, clientMessageId }))
+    onSuccess: (sent: Mail, outgoing: Outgoing) => {
+      const { clientMessageId } = outgoing
+      // A backend that does not echo the quote yet must not make it vanish from the bubble just sent.
+      const quote = outgoing.kind === 'TEXT' ? outgoing.quote : undefined
+      editMail(clientMessageId, () => ({ ...sent, clientMessageId, ...(quote && !sent.quote ? { quote } : {}) }))
       updateItem(queryClient, conversationId, (item) => ({
         ...item,
         snippet: sent.kind === 'MESSAGE' ? sent.text : item.snippet,
@@ -434,7 +438,9 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
       case 'FILE':
         return sendFile(conversationId, outgoing.file, outgoing.clientMessageId)
       default:
-        return sendMessage(conversationId, outgoing.text, outgoing.clientMessageId)
+        return outgoing.quote
+          ? sendMessage(conversationId, outgoing.text, outgoing.clientMessageId, outgoing.quote.messageId)
+          : sendMessage(conversationId, outgoing.text, outgoing.clientMessageId)
     }
   }
   const texts = useMutation({ ...callbacks, mutationFn: request })
@@ -491,25 +497,26 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
     if (mail.libraryStickerId) {
       return { kind: 'STICKER', stickerId: mail.libraryStickerId, clientMessageId }
     }
-    return mail.attachments.length > 0 ? null : { kind: 'TEXT', text: mail.text, clientMessageId }
+    return mail.attachments.length > 0 ? null : { kind: 'TEXT', text: mail.text, clientMessageId, ...(mail.quote ? { quote: mail.quote } : {}) }
   }
 
   return {
-    send: (text: string) => sendTry({ kind: 'TEXT', text, clientMessageId: crypto.randomUUID() }),
+    /** Sends a text; `quote` is the message it answers (a chat reply). */
+    send: (text: string, quote?: Quote) => sendTry({ kind: 'TEXT', text, clientMessageId: crypto.randomUUID(), ...(quote ? { quote } : {}) }),
     /** Sends a sticker of the user's library as a picture (zalo-send-images); it shows at once and goes in its turn. */
     sendSticker: (stickerId: string) => sendTry({ kind: 'STICKER', stickerId, clientMessageId: crypto.randomUUID() }),
     /**
      * Sends pictures and files from the computer, one message each in their order, then `text` when there is some
      * (zalo-send-files, D-377): all of them in turn, a little over a second apart. Each shows at once.
      */
-    sendFiles: (files: File[], text = '') => {
+    sendFiles: (files: File[], text = '', quote?: Quote) => {
       for (const file of files) {
         const clientMessageId = crypto.randomUUID()
         outgoingFiles.keep(clientMessageId, file)
         sendTry({ kind: 'FILE', file, clientMessageId })
       }
       if (text.trim() !== '') {
-        sendTry({ kind: 'TEXT', text: text.trim(), clientMessageId: crypto.randomUUID() }, true)
+        sendTry({ kind: 'TEXT', text: text.trim(), clientMessageId: crypto.randomUUID(), ...(quote ? { quote } : {}) }, true)
       }
     },
     /** Whether "Gửi lại" can send a failed message again: not a picture or file this page no longer holds. */

@@ -35,6 +35,8 @@ import dev.sino.provider.spi.ProviderErrorCode;
 import dev.sino.provider.spi.ProviderException;
 import dev.sino.provider.spi.PushRegistration;
 import dev.sino.provider.spi.QrLogin;
+import dev.sino.provider.spi.ReactCommand;
+import dev.sino.provider.spi.ReactionKind;
 import dev.sino.provider.spi.SendMessageCommand;
 import dev.sino.provider.spi.SendMessageResult;
 import dev.sino.provider.spi.SkippedItem;
@@ -72,6 +74,10 @@ public final class FakeMessageProvider implements MessageProvider {
     private final ProviderException fileFailure;
     // null unless the builder called nicknames(...): then the fake declares NICKNAMES (zalo-nicknames, D-417).
     private final Map<String, String> nicknames;
+    // Empty unless the builder called reactions(...): then the fake declares REACTIONS (zalo-reactions, D-383).
+    private final List<ReactionKind> reactionSet;
+    private final boolean quotes;
+    private final List<ReactCommand> reacted = new ArrayList<>();
     private final Queue<ProviderException> nicknameSetFailures = new ArrayDeque<>();
     private final List<SetNickname> nicknameSets = new ArrayList<>();
     private final AtomicInteger calls = new AtomicInteger();
@@ -93,9 +99,12 @@ public final class FakeMessageProvider implements MessageProvider {
         this.push = builder.push;
         this.pushFailure = builder.pushFailure;
         this.nicknames = builder.nicknames == null ? null : new HashMap<>(builder.nicknames);
+        this.reactionSet = List.copyOf(builder.reactionSet);
+        this.quotes = builder.quotes;
         ProviderCapabilities capabilities = push == null && pushFailure == null ? builder.capabilities
                 : withPush(builder.capabilities);
-        this.capabilities = this.nicknames == null ? capabilities : withNicknames(capabilities);
+        capabilities = this.nicknames == null ? capabilities : withNicknames(capabilities);
+        this.capabilities = reactionSet.isEmpty() ? capabilities : withReactions(capabilities);
         this.pages = List.copyOf(builder.pages);
         this.oauth2 = builder.oauth2;
         this.qrLogin = builder.qrLogin;
@@ -373,6 +382,7 @@ public final class FakeMessageProvider implements MessageProvider {
         cannotTellSends.clear();
         searches.clear();
         held = null;
+        reacted.clear();
         findsSends = true;
     }
 
@@ -455,10 +465,46 @@ public final class FakeMessageProvider implements MessageProvider {
         return new ProviderCapabilities(values);
     }
 
+    private static ProviderCapabilities withReactions(ProviderCapabilities capabilities) {
+        Set<ProviderCapability> values = EnumSet.of(ProviderCapability.REACTIONS);
+        values.addAll(capabilities.values());
+        return new ProviderCapabilities(values);
+    }
+
     private static ProviderCapabilities withNicknames(ProviderCapabilities capabilities) {
         Set<ProviderCapability> values = EnumSet.of(ProviderCapability.NICKNAMES);
         values.addAll(capabilities.values());
         return new ProviderCapabilities(values);
+    }
+
+    @Override
+    public List<ReactionKind> reactionSet() {
+        return reactionSet;
+    }
+
+    @Override
+    public boolean canQuote(Map<String, String> messageMetadata) {
+        return quotes && messageMetadata != null && messageMetadata.containsKey("cliMsgId");
+    }
+
+    /** Refuses a code outside the set before recording it, as a connector must; the provider never hears of it. */
+    @Override
+    public void react(ProviderContext context, ReactCommand command) {
+        if (!capabilities.supports(ProviderCapability.REACTIONS)) {
+            MessageProvider.super.react(context, command);
+            return;
+        }
+        if (!command.removal() && reactionSet.stream().noneMatch(kind -> kind.code().equals(command.code()))) {
+            throw new ProviderException(ProviderErrorCode.REQUEST_REJECTED, "reaction code is not in the reaction set");
+        }
+        synchronized (this) {
+            reacted.add(command);
+        }
+    }
+
+    /** The reactions that reached the fake provider, in order. */
+    public synchronized List<ReactCommand> reactions() {
+        return List.copyOf(reacted);
     }
 
     /** The commands that reached the fake provider, in order. */
@@ -526,6 +572,8 @@ public final class FakeMessageProvider implements MessageProvider {
         private final Map<String, AttachmentContent> files = new HashMap<>();
         private ProviderException fileFailure;
         private Map<String, String> nicknames;
+        private final List<ReactionKind> reactionSet = new ArrayList<>();
+        private boolean quotes;
 
         private Builder(String type) {
             this.type = ProviderType.of(type);
@@ -559,6 +607,18 @@ public final class FakeMessageProvider implements MessageProvider {
          */
         public Builder nicknames(Map<String, String> initial) {
             this.nicknames = initial;
+            return this;
+        }
+
+        /** Makes the fake quote a message that has a {@code cliMsgId} in its metadata (zalo-quote-reply, D-508). */
+        public Builder quotes() {
+            quotes = true;
+            return this;
+        }
+
+        /** Makes the fake declare {@code REACTIONS} and offer these reactions (zalo-reactions, D-383). */
+        public Builder reactions(ReactionKind... kinds) {
+            reactionSet.addAll(List.of(kinds));
             return this;
         }
 

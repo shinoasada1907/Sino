@@ -7,6 +7,8 @@ import type { Config } from "./config.ts";
 import type { ZaloGateway } from "./gateway/ZaloGateway.ts";
 import { LoginStore } from "./logins/LoginStore.ts";
 import { registerLoginRoutes } from "./logins/routes.ts";
+import { RateLimiter } from "./messages/RateLimiter.ts";
+import { registerReactionRoutes } from "./messages/reactionRoutes.ts";
 import { registerReadRoutes } from "./messages/readRoutes.ts";
 import { registerSendRoutes } from "./messages/sendRoutes.ts";
 import { type Notifier, WebhookNotifier } from "./notify.ts";
@@ -48,7 +50,10 @@ export function buildApp(
   registerLoginRoutes(app, new LoginStore(gateway, { log: app.log }));
   registerSessionRoutes(app, sessions);
   registerReadRoutes(app, sessions);
-  registerSendRoutes(app, sessions, { now: options.now, sendTimeoutMs: options.sendTimeoutMs });
+  // One message per second per account, shared by sends and reactions (D-280, D-389).
+  const rate = new RateLimiter({ intervalMs: 1_000, now: options.now });
+  registerSendRoutes(app, sessions, { now: options.now, sendTimeoutMs: options.sendTimeoutMs, rate });
+  registerReactionRoutes(app, sessions, rate, { timeoutMs: options.sendTimeoutMs });
   registerAliasRoutes(app, sessions, { now: options.now });
   registerContactRoutes(app, sessions, { timeoutMs: options.contactsTimeoutMs });
 

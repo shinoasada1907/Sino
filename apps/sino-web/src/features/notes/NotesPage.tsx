@@ -78,7 +78,7 @@ export function NotesPage() {
   const diagram = note ? note.kind === 'DIAGRAM' : creating && params.get('kind') === 'diagram'
 
   return (
-    <div className="grid h-full min-h-0 md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
+    <div className="grid h-full min-h-0 md:grid-cols-[332px_minmax(0,1fr)] xl:grid-cols-[432px_minmax(0,1fr)]">
       <NoteList
         notes={data.notes}
         filter={filter}

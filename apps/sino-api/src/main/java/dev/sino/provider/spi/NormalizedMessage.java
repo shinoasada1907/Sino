@@ -86,6 +86,37 @@ public record NormalizedMessage(
     public static final String LIBRARY_STICKER_ID = "libraryStickerId";
 
     /**
+     * Metadata key, the provider's second ID of a message that a reaction and a quote need besides its external ID
+     * (Zalo's {@code cliMsgId}, zalo-reactions D-382). Left out when the provider gave none.
+     */
+    public static final String CLI_MSG_ID = "cliMsgId";
+
+    /**
+     * Metadata keys of what the provider needs to quote a message (zalo-quote-reply, D-505): its time to live, its
+     * type, small extras ({@code propertyExt}, JSON) and, for a message that is no text, its raw content (JSON). A
+     * message lacking one of them cannot be quoted.
+     */
+    public static final String TTL = "ttl";
+
+    public static final String MSG_TYPE = "msgType";
+
+    public static final String PROPERTY_EXT = "propertyExt";
+
+    public static final String RAW_CONTENT = "rawContent";
+
+    /**
+     * Metadata keys of the message a chat message quotes (zalo-quote-reply, D-504): the name of its sender, its text
+     * (cut short) and its kind ({@code text}, {@code photo}, {@code sticker}, {@code file}, {@code gif}, {@code voice},
+     * {@code video}, {@code link}, {@code location} or {@code other}), the preview for when the quoted message is not
+     * in Sino. The ID of the quoted message is {@code replyToExternalMessageId}. All three or none.
+     */
+    public static final String QUOTE_SENDER = "quoteSender";
+
+    public static final String QUOTE_TEXT = "quoteText";
+
+    public static final String QUOTE_KIND = "quoteKind";
+
+    /**
      * Metadata key, the {@code Message-ID} of an email: the same in every mailbox that holds the message, so Sino finds
      * its copies in the other accounts of the owner (F05b, D-180). Left out when there is none.
      */

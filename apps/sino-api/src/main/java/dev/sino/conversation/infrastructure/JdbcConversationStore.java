@@ -13,6 +13,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
@@ -28,6 +30,7 @@ import dev.sino.provider.spi.NormalizedAttachment;
 import dev.sino.provider.spi.NormalizedConversation;
 import dev.sino.provider.spi.NormalizedMessage;
 import dev.sino.provider.spi.NormalizedParticipant;
+import dev.sino.provider.spi.NormalizedReaction;
 import dev.sino.provider.spi.SyncBatch;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -42,6 +45,8 @@ public class JdbcConversationStore implements ConversationStore {
 
     /** The longest HTML body kept (F06, D-120); a longer one is not kept and the message shows its text. */
     public static final int MAX_HTML_LENGTH = 1_000_000;
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcConversationStore.class);
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -93,7 +98,51 @@ public class JdbcConversationStore implements ConversationStore {
         summaries.summarize(touched);
         unarchive(unarchived);
         groups.group(otherAccounts, storedMessages);
-        return new StoreResult(created, updated, Set.copyOf(touched), createdInbound);
+        Set<UUID> shown = new LinkedHashSet<>(touched);
+        int reactionsChanged = storeReactions(accountId, batch.reactions(), shown);
+        return new StoreResult(created, updated, shown, createdInbound, reactionsChanged);
+    }
+
+    // Reactions (D-384, D-385): put on messages Sino already has; the unread count, the order and the summary do not
+    // move for them. A reaction is written only when newer than the row there, a removal keeps its row with a null code,
+    // and one on a message Sino does not have is dropped and counted in the log.
+    private int storeReactions(UUID accountId, List<NormalizedReaction> reactions, Set<UUID> conversationIds) {
+        int changed = 0;
+        int dropped = 0;
+        for (NormalizedReaction reaction : reactions) {
+            List<UUID> written = jdbc.sql("""
+                    INSERT INTO message_reaction AS r (message_id, reactor_external_id, reactor_name, is_self, code,
+                                                       reacted_at, updated_at)
+                    SELECT m.id, :reactor, :name, :self, :code, :reactedAt, now()
+                    FROM message m JOIN conversation c ON c.id = m.conversation_id
+                    WHERE c.account_id = :account AND c.external_conversation_id = :conversation
+                      AND m.external_message_id = :message
+                    ON CONFLICT (message_id, reactor_external_id) DO UPDATE
+                    SET reactor_name = COALESCE(EXCLUDED.reactor_name, r.reactor_name),
+                        is_self = EXCLUDED.is_self, code = EXCLUDED.code, reacted_at = EXCLUDED.reacted_at,
+                        updated_at = now()
+                    WHERE EXCLUDED.reacted_at > r.reacted_at
+                    RETURNING r.message_id
+                    """)
+                    .param("account", accountId).param("conversation", reaction.externalConversationId())
+                    .param("message", reaction.externalMessageId()).param("reactor", reaction.reactorExternalId())
+                    .param("name", reaction.reactorName()).param("self", reaction.self())
+                    .param("code", reaction.removal() ? null : reaction.code())
+                    .param("reactedAt", at(reaction.reactedAt())).query(UUID.class).list();
+            for (UUID messageId : written) {
+                jdbc.sql("SELECT conversation_id FROM message WHERE id = :id").param("id", messageId)
+                        .query(UUID.class).optional().ifPresent(conversationIds::add);
+            }
+            changed += written.size();
+            if (written.isEmpty()) {
+                dropped++;
+            }
+        }
+        if (dropped > 0) {
+            log.debug("{} of {} reactions not applied: message unknown or reaction not newer", dropped,
+                    reactions.size());
+        }
+        return changed;
     }
 
     // Mail from someone else that lands in the inbox (D-500): spam, trash and Gmail-archived mail is neither news nor

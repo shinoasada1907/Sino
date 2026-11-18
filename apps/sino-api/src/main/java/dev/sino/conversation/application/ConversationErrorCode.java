@@ -86,7 +86,31 @@ public enum ConversationErrorCode implements ErrorCode {
     NICKNAME_REJECTED(ErrorCategory.INVALID),
 
     /** The provider could not be reached to set the nickname (D-416); the one stored stays as it was. */
-    NICKNAME_UNAVAILABLE(ErrorCategory.PROVIDER_FAILED);
+    NICKNAME_UNAVAILABLE(ErrorCategory.PROVIDER_FAILED),
+
+    /**
+     * The message cannot take a reaction: its provider has none, or it was stored without what the provider needs
+     * (zalo-reactions, D-386). Nothing is sent.
+     */
+    REACTION_NOT_SUPPORTED(ErrorCategory.CONFLICT),
+
+    /** The code is not one of the reactions the provider offers for this conversation (D-386). Nothing is sent. */
+    REACTION_UNKNOWN(ErrorCategory.INVALID),
+
+    /** The provider asks the user to slow down (D-386); the web says "Chậm lại một chút". */
+    REACTION_TOO_FAST(ErrorCategory.RATE_LIMITED),
+
+    /** The provider refused the reaction or could not be reached: nothing was stored (D-386). */
+    REACTION_FAILED(ErrorCategory.PROVIDER_FAILED),
+
+    /** The provider gave no answer: the reaction may have gone, and the next sync tells (D-386). Nothing is stored. */
+    REACTION_OUTCOME_UNKNOWN(ErrorCategory.PROVIDER_OUTCOME_UNKNOWN),
+
+    /**
+     * The message to answer is not in this conversation, or the provider cannot quote it: its connector says no, or it
+     * was stored without what Zalo needs (zalo-quote-reply, D-505, D-507). Nothing is written or sent.
+     */
+    QUOTE_UNAVAILABLE(ErrorCategory.INVALID);
 
     private final ErrorCategory category;
     private final String code;
@@ -176,6 +200,31 @@ public enum ConversationErrorCode implements ErrorCode {
 
     static SinoException nicknameUnavailable() {
         return new SinoException(NICKNAME_UNAVAILABLE, "The nickname could not be set now; try again shortly.");
+    }
+
+    static SinoException reactionNotSupported() {
+        return new SinoException(REACTION_NOT_SUPPORTED, "This message cannot take a reaction.");
+    }
+
+    static SinoException reactionUnknown() {
+        return new SinoException(REACTION_UNKNOWN, "This reaction is not offered here.");
+    }
+
+    static SinoException reactionTooFast() {
+        return new SinoException(REACTION_TOO_FAST, "Reactions come too fast; wait a moment.",
+                Map.of("retryAfterSeconds", 2));
+    }
+
+    static SinoException reactionFailed() {
+        return new SinoException(REACTION_FAILED, "The reaction was not sent; try again.");
+    }
+
+    static SinoException reactionOutcomeUnknown() {
+        return new SinoException(REACTION_OUTCOME_UNKNOWN, "No answer came about this reaction.");
+    }
+
+    static SinoException quoteUnavailable() {
+        return new SinoException(QUOTE_UNAVAILABLE, "This message cannot be answered by quoting it.");
     }
 
     static SinoException noRecipient() {
