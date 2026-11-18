@@ -46,7 +46,7 @@ export function MonthView({
   return (
     <section aria-label={title} className="min-h-0 overflow-auto">
       <div role="grid" aria-readonly="true" aria-label={title} className="flex min-w-0 flex-col">
-        <div role="row" className="sticky top-0 z-1 grid grid-cols-7 border-b bg-background">
+        <div role="row" className="sticky top-0 z-1 grid grid-cols-7 border-b bg-surface">
           {HEADS.map((head, index) => (
             <span key={head} role="columnheader" className={cn('px-2.5 pt-2.5 pb-2 font-mono text-[11px] leading-4 font-medium text-muted-foreground', index > 0 && 'border-l')}>
               {head}

@@ -72,9 +72,9 @@ export function NoteList({
   }, [searchOpen])
 
   return (
-    <section aria-label="Danh sách ghi chú" className={cn('min-h-0 flex-col overflow-auto md:border-r', className)}>
+    <section aria-label="Danh sách ghi chú" className={cn('min-h-0 flex-col overflow-auto md:my-3 md:ml-3 md:rounded-panel md:bg-surface md:shadow-card', className)}>
       {phoneHeader}
-      <div className="z-1 flex flex-col gap-3.5 border-b bg-background px-4 pt-3 pb-3.5 md:sticky md:top-0 md:pt-5">
+      <div className="z-1 flex flex-col gap-3.5 border-b bg-background px-4 pt-3 pb-3.5 md:sticky md:top-0 md:bg-surface md:pt-5">
         <div className="flex items-center justify-between gap-3 max-md:hidden">
           <h1 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Ghi chú</h1>
           <NewNoteMenu
