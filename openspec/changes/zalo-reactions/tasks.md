@@ -8,7 +8,7 @@
 
 ## 1. Thử thật
 
-- [ ] 1.1 **RX-01 — Thử biểu cảm với Zalo thật, code bỏ đi (D-380)**
+- [x] 1.1 ~~**RX-01 — Thử biểu cảm với Zalo thật, code bỏ đi (D-380)**~~ → gộp vào lượt test tay của RX-02 và RX-03. **LÝ DO:** người dùng (2026-11-17): "đừng tạm làm thật nói gì làm nấy đi". Không dựng bản thử; RX-02/RX-03 dựng thật, log hình dạng sự kiện `reaction` / `old_reactions`, và trả lời ba câu của D-380 bằng lần chạy thật với Zalo (kết quả ghi ở RX-02/RX-03 và D-380).
   - **Goal:** trả lời ba câu của D-380 trước khi dựng: `msgId` của biểu cảm có cùng dãy với tin không (và `old_messages` có kèm biểu cảm không); thả lên tin thiếu `cliMsgId`, lên ảnh và sticker có được không; gỡ bằng `{ rType: -1, source: 6, icon: "" }` có được không.
   - **Files:** chỉ trên một nhánh tạm (không commit vào `dev`): log hình dạng của sự kiện `reaction` / `old_reactions` trong `ZcaGateway.ts`, một route thử gọi `addReaction`. Kết quả ghi vào task này và D-380.
   - **Acceptance criteria:** ba câu có câu trả lời kèm bằng chứng (log hình dạng, không có nội dung tin; ảnh hay lời người dùng kể điện thoại hiện gì); quyết định A hay B, `canReact` cho tin cũ, có nút gỡ hay không đã ghi.
@@ -25,6 +25,9 @@
   - **Test:** test tay: chạy `sino-zalo`, người dùng thả và gỡ từ điện thoại, gọi `GET /accounts/:id/messages?after=` bằng `curl` thấy mục; rồi Vitest với gateway giả (mục, nhiều đích, đọc bù, log).
   - **Depends on:** RX-01.
   - **Hints:** **Level 1:** một sự kiện, một mục, vì sao? **Level 2:** `MessageBuffer` khử trùng theo `msgId`.
+  - **Thực hiện (2026-11-17, CHƯA TICK: chờ lượt chạy thật):** `ZaloMessage` có `cliMsgId`, `ttl`, `propertyExt` thô (cho trả lời trích dẫn) và `reaction: { icon, targets[] }` + `reactionShape` (chỉ log). `ZcaGateway.toZaloReaction`: một sự kiện thành một mục `zaloType: "reaction"`, `text: null`, `msgId` của sự kiện, người thả là người gửi; `icon` rỗng khi `rIcon` rỗng hoặc `rType` -1. Sự kiện sống đi qua `events.message`; `old_reactions` qua `events.oldReactions` mới, `requestOldReactions` vào `ZaloListener`; `catchUpIfNeeded` chạy `catchUp` cho tin và cho biểu cảm song song (cùng cursor, cùng giới hạn; hàm `catchUp` dùng lại nguyên). Trang `old_reactions` không ai hỏi vẫn vào hàng chờ. Log có `reactionShape`, `reactionAboveNewest` (câu 1 của D-380), `targetsHeld` + `targetZaloTypes` (tin đích đang giữ là loại gì: câu 2), `hasCliMsgId` ở tin thường; không icon, tên, giá trị id.
+  - **Kiểm chứng:** Vitest `test/reactions.test.ts` (38 ca: ánh xạ sự kiện, nhiều đích, nhóm, của mình, gỡ, hàng chờ qua cursor, đọc bù, trang tự tới, log không lộ icon/tên). Tự bắt được lỗi regex `d` bị mất dấu  khi vá. Test tay với Zalo thật: **CHƯA CHẠY**, cần người dùng khởi động lại `sino-zalo` (xem báo cáo).
+  - **Câu trả lời D-380 (1), (2):** chờ lần chạy thật.
 
 - [ ] 2.2 **RX-03 — Route thả, đổi, gỡ biểu cảm (D-389)**
   - **Goal:** `POST /accounts/:accountId/reactions` gọi `addReaction`.
@@ -33,16 +36,21 @@
   - **Test:** test tay: `curl` thả ❤️, đổi 😆, gỡ, mã lạ; người dùng xem bên Zalo; rồi Vitest (`inject`: 400, 410, 422, 429, chung nhịp với gửi tin).
   - **Depends on:** RX-01.
   - **Hints:** **Level 1:** `Reactions.NONE` đi nhánh nào trong `addReaction`? **Level 2:** nhánh mặc định không đặt `source`.
+  - **Thực hiện (2026-11-17, CHƯA TICK: chờ lượt chạy thật):** `src/messages/reactionRoutes.ts`: `POST /accounts/:accountId/reactions` `{ threadId, threadType, msgId, cliMsgId, icon }` → `204`. Lược đồ: `icon` thuộc `["", ...REACTION_CODES]` (54 mã trong `ZaloGateway.ts`, test so bằng `Reactions` của zca-js), `msgId`/`cliMsgId` là số nguyên dạng chuỗi (zca-js `parseInt`). Thứ tự: 400, rồi 404/410, rồi `RateLimiter` **dùng chung** với gửi tin (`buildApp` tạo một cái, truyền cho cả hai; yêu cầu 400 không tốn lượt), rồi gọi Zalo, 504 sau `sendTimeoutMs`. `ZcaGateway.react`: gỡ bằng `{ rType: -1, source: 6, icon: "" }`; mã Zalo `ZaloApiError` có `code` → `ZaloRejectedError` (422), lỗi khác → `ZaloUnavailableError` (502). Không có `SentLog`. Log: id và `removed`, không icon.
+  - **Kiểm chứng:** test tay trên bản dựng với `FakeZaloGateway` (cổng 8091, đã tắt): thả `/-heart` 204, thả liền `:>` 429, gỡ 204, mã lạ 400, tài khoản lạ 404. Vitest cùng file `reactions.test.ts` (400 ×5, 404, 410, 422, 502, 504, 429 chung nhịp với gửi tin, secret, log). Với Zalo thật: **CHƯA CHẠY**.
+  - **Câu trả lời D-380 (2), (3):** chờ lần chạy thật.
 
 ## 3. `sino-api`
 
-- [ ] 3.1 **RX-04 — Contract: `NormalizedReaction`, `SyncBatch.reactions`, `reactionSet()`, `react(...)` (D-383)**
+- [x] 3.1 **RX-04 — Contract: `NormalizedReaction`, `SyncBatch.reactions`, `reactionSet()`, `react(...)` (D-383)**
   - **Goal:** kiểu và method của contract; mặc định không hỗ trợ; Gmail và connector giả trả rỗng hay từ chối.
   - **Files:** `provider/spi/{SyncBatch,MessageProvider}` + `NormalizedReaction`, `ReactionKind`, `ReactCommand`; contract test kit, connector giả; bảng ý nghĩa capability trong design.
   - **Acceptance criteria:** delta `provider-contract`; constructor cũ của `SyncBatch` giữ nguyên.
   - **Test:** test tay không áp dụng (chưa có đường gọi); test tự động: tự kiểm của kiểu mới, `toString` không lộ tên, Gmail ném không hỗ trợ không gọi ra ngoài, bộ test chung có ca biểu cảm.
   - **Depends on:** —.
   - **Hints:** **Level 1:** `OutgoingFile` (ZF-04) giữ constructor cũ của `SendMessageCommand` thế nào? **Level 2:** constructor phụ gọi constructor chính với danh sách rỗng.
+  - **Thực hiện (RX-04):** file mới `provider/spi/{NormalizedReaction,ReactionKind,ReactCommand}.java`; `SyncBatch` thêm `reactions` (constructor 5 tham số cũ giữ, gọi constructor chính với `List.of()`); `MessageProvider.reactionSet()` mặc định rỗng, `react(...)` mặc định ném `CAPABILITY_NOT_SUPPORTED`. `NormalizedReaction`: ID không rỗng, `reactedAt` bắt buộc, `code` null thành rỗng (gỡ), tối đa 64 ký tự và không ký tự điều khiển (vi phạm: `PAYLOAD_NORMALIZATION_FAILED`), `toString` không có tên và ID người thả. Gmail không đổi code: dùng mặc định. Connector giả (`FakeMessageProvider`) có `reactions(ReactionKind...)` khai `REACTIONS`, từ chối mã ngoài bảng (`REQUEST_REJECTED`) trước khi ghi. Bộ test chung (`MessageProviderContractTest`) thêm 5 ca: không có capability thì bảng rỗng và `react` bị từ chối, có capability thì bảng không rỗng và không trùng mã, thả bằng mã trong bảng và gỡ bằng mã rỗng, mã ngoài bảng bị từ chối, batch của connector không có `REACTIONS` không mang biểu cảm. Số migration: RX-04 không có; `V23` ghi cho RX-06 đã bị dùng (hiện tới `V31`), RX-06 phải lấy số trống tiếp theo lúc làm.
+    - **Kiểm chứng:** test tay không áp dụng (chưa có đường gọi). Trên worktree riêng từ `dev`: `./mvnw -B -ntp test -Dtest='FakeMessageProviderContractTest*,GmailSyncTests*,ZaloProviderContractTest,NormalizedReactionTests,SyncBatchTests,MessageProviderTests,ProviderContractArchitectureTests,ModularityTests'` 214 test, lần đầu 1 lỗi (lớp `Reacting` của connector giả chỉ có một tin nên ca "từ một mốc bỏ tin cũ" đỏ; sửa thành hai tin như `ReadOnly`), rồi `FakeMessageProviderContractTest*` 99/99 xanh; các lớp còn lại xanh ở lượt đầu. Chạy kèm cả `dev.sino.provider.**` bị treo ở một test sau `ZaloStickerTests` (không liên quan thay đổi này; tiến trình đã tắt, chưa tra nguyên nhân).
 
 - [ ] 3.2 **RX-05 — Connector Zalo: đọc biểu cảm, `cliMsgId`, bảng biểu cảm, thả (D-382, D-388)**
   - **Goal:** `ZaloMessageNormalizer` tách mục `reaction` thành `NormalizedReaction` (một mỗi đích) và ghi `metadata.cliMsgId`; `ZaloProvider` khai `REACTIONS`, có bảng biểu cảm, `react` gọi route của RX-03 qua `ZaloClient`.
@@ -53,8 +61,8 @@
   - **Hints:** **Level 1:** `ConversationType` của Sino đổi sang `threadType` của Zalo ở đâu khi gửi tin? **Level 2:** dùng lại đúng chỗ đó.
 
 - [ ] 3.3 **RX-06 — Lưu và áp biểu cảm (D-384, D-385)**
-  - **Goal:** `V23`, áp biểu cảm từ batch vào tin đã có, không đổi số chưa đọc, báo web.
-  - **Files:** `db/migration/V23__conversation_create_message_reaction.sql`, `conversation/ConversationStore` + `infrastructure/JdbcConversationStore`, `sync/application` (chuyển `reactions` của batch), sự kiện `conversations.changed`; test.
+  - **Goal:** migration (số trống kế tiếp; ~~V23~~ đã dùng), áp biểu cảm từ batch vào tin đã có, không đổi số chưa đọc, báo web.
+  - **Files:** `db/migration/V<số trống>__conversation_create_message_reaction.sql`, `conversation/ConversationStore` + `infrastructure/JdbcConversationStore`, `sync/application` (chuyển `reactions` của batch), sự kiện `conversations.changed`; test.
   - **Acceptance criteria:** spec `message-reactions` phần "Lưu biểu cảm của tin" và "Áp biểu cảm nhận về mà không thành tin mới".
   - **Test:** test tay: thả từ điện thoại, xem bảng `message_reaction` và số chưa đọc trước và sau, xem SSE bằng `curl -N`; rồi Testcontainers (thay, lộn thứ tự, dấu gỡ, tin không có, chưa đọc không đổi).
   - **Depends on:** RX-04, RX-05.

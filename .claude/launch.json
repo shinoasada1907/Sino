@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sino-web-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/sino-web", "exec", "vite", "--port", "5175", "--strictPort"],
+      "port": 5175
+    }
+  ]
+}

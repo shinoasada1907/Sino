@@ -72,7 +72,7 @@ Một phiên mở với brief "Bạn là kỹ sư …" là phiên kỹ sư: nó 
   4. **CHƯA KIỂM CHỨNG**, kèm lý do.
   5. Việc cho quản lý: hợp đồng cần app khác đổi, số migration đã dùng, dòng cần ghi vào `PROJECT_STATE.md`.
   6. Kiến thức: đã dùng gì của Java/Spring, React hay Node, để làm gì, vì sao (quản lý đưa vào `docs/knowledge/`).
-  7. Gợi ý commit message kiểu `feat(<scope>): …` như lịch sử git.
+  7. Gợi ý commit message kiểu `feat(<scope>): …`, phần mô tả bằng tiếng Việt có dấu (xem *Quy ước làm việc*).
 
 `apps/sino-site` đã xóa 2026-10-27 (bản cuối ở tag `sino-site-v0`): trang giới thiệu và Privacy chỉ còn trong `sino-web`. Site chung của nhà Sino dựng lại khi có sản phẩm thứ hai.
 
@@ -87,6 +87,8 @@ Một phiên mở với brief "Bạn là kỹ sư …" là phiên kỹ sư: nó 
 - Quyết định kiến trúc ("Decision Needed") do người dùng chốt; agent đưa phương án và đề xuất.
 - Người dùng đang học Java qua dự án (vai trò intern; agent là senior engineer): ở AUTO agent làm task rồi giải thích cái đã dùng và vì sao, ở TRAINING/HYBRID agent hướng dẫn như trên; người dùng quyết bước tiếp theo. Mỗi phase có một file kiến thức trong `docs/knowledge/`; ở AUTO xong mỗi task thì agent bổ sung phần của task đó vào file của phase, ở TRAINING/HYBRID chỉ khi người dùng yêu cầu. File `.md` là bản gốc; bản Word `.docx` cạnh nó được sinh lại sau mỗi lần sửa (máy này dùng GenOffice: `genoffice create --type docx --from <file>.md --out <file>.docx --force`), không sửa tay `.docx`. Sơ đồ trong file kiến thức vẽ bằng ký tự trong khối `text`, không dùng Mermaid, vì Word không hiển thị được Mermaid. Không dùng emoji trong file kiến thức: bản Word render bằng GenOffice mất toàn bộ chữ thường khi gặp emoji.
 - Nhánh làm việc `dev`. Không commit thẳng `main`. Ở AUTO, phiên quản lý commit lên `dev` sau mỗi task đã kiểm chứng **và được người dùng nghiệm thu** (người dùng, 2026-10-27); ở TRAINING/HYBRID chỉ commit khi người dùng yêu cầu. **Push, merge, mở PR chỉ khi người dùng yêu cầu**.
+- **Local và production giống hệt nhau** (người dùng, 2026-11-17, sau khi thả cảm xúc chỉ hiện ở `pnpm dev`): không làm tính năng, bản xem trước hay "kịch bản" chỉ bật ở development (`import.meta.env.DEV|MODE`, `NODE_ENV`, profile `dev`), không hiện dữ liệu giả hay nút không làm gì trong code chạy thật. Tính năng chưa có backend thì ẩn, hoặc hiện "Sắp có" giống nhau ở mọi môi trường. Dữ liệu mẫu chỉ dùng trong test (MSW, `src/test/**`, `*.sample.ts`). Thứ người dùng thấy ở local sau khi push phải có trên production.
+- **Commit và PR viết tiếng Việt có dấu** (người dùng, 2026-11-17, áp từ commit và PR sau ngày này; không viết lại commit hay PR cũ). Giữ tiền tố Conventional Commits bằng tiếng Anh (`feat`, `fix`, `docs`, `test`, `design`… và `(<scope>)`), phần mô tả, thân commit, tiêu đề và mô tả PR viết tiếng Việt; tên riêng, mã task, tên file, lệnh và tên API giữ nguyên. Ví dụ: `feat(web): lọc Tin nhắn và Hộp thư theo tài khoản trên địa chỉ (MA-04)`.
 - Làm khác kế hoạch thì gạch task cũ trong `tasks.md` và ghi **LÝ DO** ngay tại đó. Xong feature thì `openspec archive <change> -y`.
 - Không chạy thêm bước kiểm tra chậm ngoài phạm vi được giao mà chưa hỏi.
 - **Test tay trước, test tự động sau** (người dùng, 2026-10-20). Áp cho mọi task, backend lẫn frontend, ở mọi mode:
