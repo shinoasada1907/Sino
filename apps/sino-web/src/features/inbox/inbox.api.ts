@@ -17,6 +17,7 @@ import type {
   MessageImage,
   MessagePage,
   OpenConversation,
+  Quote,
   StickerSprite,
   UnreadByKind,
 } from './inbox.types'
@@ -25,7 +26,7 @@ import { pictureOf } from './sticker'
 
 /*
  * The requests of the Hộp thư screens, on the F05 and F06 APIs (D-56): what the API does not give yet is null. Sending
- * comes with F10 (D-72); `sendMessage` still answers with sample data.
+ * is F10 (D-72), through `sendMessage`.
  */
 
 /** The fields of `GET /api/accounts` the inbox uses (F02). */
@@ -164,6 +165,8 @@ interface MessageResponse {
   /** The emoji on the message (zalo-reactions, D-387); absent on a backend before it. */
   reactions?: Reaction[] | null
   canReact?: boolean
+  /** The message this one answers (chat reply); absent or null for a message that answers none, and on a backend before it. */
+  quote?: Quote | null
 }
 
 function toItem({ snippet, linked, accountIds, avatarUrl, nickname, ...rest }: ConversationResponse): ConversationItem {
@@ -241,7 +244,7 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId, reactions, canReact }: MessageResponse): Mail {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId, reactions, canReact, quote }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -266,6 +269,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     ...(libraryStickerId ? { libraryStickerId } : {}),
     ...(reactions?.length ? { reactions } : {}),
     ...(canReact ? { canReact } : {}),
+    ...(quote?.messageId ? { quote } : {}),
   }
 }
 
@@ -388,10 +392,15 @@ export async function markAllConversationsRead(kind?: ProviderKind): Promise<voi
 
 /**
  * `POST /api/conversations/{id}/messages` (F10, D-131): sends a reply and returns it as the server stored it. Sending
- * again with the same `clientMessageId` never sends twice.
+ * again with the same `clientMessageId` never sends twice. `replyToMessageId` is the Sino ID of the message it answers
+ * (a chat reply).
  */
-export async function sendMessage(conversationId: string, text: string, clientMessageId: string): Promise<Mail> {
-  const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, { text, clientMessageId })
+export async function sendMessage(conversationId: string, text: string, clientMessageId: string, replyToMessageId?: string): Promise<Mail> {
+  const sent = await api.post<MessageResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    text,
+    clientMessageId,
+    ...(replyToMessageId ? { replyToMessageId } : {}),
+  })
   return toMessage(conversationId, sent)
 }
 

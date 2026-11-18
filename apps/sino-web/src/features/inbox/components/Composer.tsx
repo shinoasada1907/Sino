@@ -1,10 +1,11 @@
-import { CalendarClock, ChevronDown, Paperclip, Send } from 'lucide-react'
+import { CalendarClock, ChevronDown, Paperclip, Send, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { useOnline } from '@/shared/lib/useOnline'
 import { Button } from '@/shared/ui/button'
 import { Kbd } from '@/shared/ui/kbd'
 import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
+import type { Quote } from '../inbox.types'
 import type { AttachmentTray } from '../useAttachmentTray'
 import { AttachmentTrayView } from './AttachmentTray'
 import { StickerPicker } from './StickerPicker'
@@ -33,6 +34,8 @@ export function Composer({
   onSendSticker,
   tray,
   onSendFiles,
+  quote,
+  onCancelQuote,
 }: {
   kind: 'EMAIL' | 'CHAT'
   label: string
@@ -47,7 +50,7 @@ export function Composer({
   from?: string
   /** "Trần Minh Anh <minhanh@acme.vn>": who the reply goes to. */
   to?: string
-  onSend: (text: string) => void
+  onSend: (text: string, quote?: Quote) => void
   /** Given only where a sticker can be sent (a chat whose account sends pictures): then the "Sticker" button shows. */
   onSendSticker?: (stickerId: string) => void
   /**
@@ -55,7 +58,10 @@ export function Composer({
    * paperclip and a drop on the chat put files in this tray, and sending sends them before the text.
    */
   tray?: AttachmentTray
-  onSendFiles?: (files: File[], text: string) => void
+  onSendFiles?: (files: File[], text: string, quote?: Quote) => void
+  /** The chat message the next text answers: a strip above the box names it, and the box takes the focus when it changes. */
+  quote?: Quote
+  onCancelQuote?: () => void
 }) {
   const id = useId()
   const box = useRef<HTMLTextAreaElement>(null)
@@ -72,6 +78,12 @@ export function Composer({
     }
     counted.current = files.length
   }, [files.length])
+  const quoted = quote?.messageId
+  useEffect(() => {
+    if (quoted) {
+      box.current?.focus()
+    }
+  }, [quoted])
   const online = useOnline()
   const sendLabel = online ? 'Gửi' : 'Xếp hàng gửi'
 
@@ -80,12 +92,15 @@ export function Composer({
       onSendFiles(
         files.map((item) => item.file),
         text.trim(),
+        quote,
       )
       tray?.clear()
       setText('')
+      onCancelQuote?.()
     } else if (!empty) {
-      onSend(text.trim())
+      onSend(text.trim(), quote)
       setText('')
+      onCancelQuote?.()
     }
   }
   // Only a paste that carries files goes to the tray; pasting text stays as it is.
@@ -98,6 +113,11 @@ export function Composer({
     }
   }
   const sendOnShortcut = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Escape' && quote && onCancelQuote) {
+      event.preventDefault()
+      onCancelQuote()
+      return
+    }
     // An input method (Telex, VNI…) uses Enter to finish a word; that Enter must not send.
     if (event.key !== 'Enter' || event.nativeEvent.isComposing) {
       return
@@ -120,6 +140,21 @@ export function Composer({
         <p className="order-first w-full text-sm [overflow-wrap:anywhere] text-muted-foreground md:order-none">
           Tới <span className="text-foreground">{to}</span>
         </p>
+      )}
+      {quote && (
+        <div
+          role="group"
+          aria-label="Đang trả lời"
+          className="order-first flex w-full min-w-0 items-center gap-2 rounded-md border-l-2 border-border-strong bg-surface py-1.5 pr-1.5 pl-3 md:order-none"
+        >
+          <div className="min-w-0 grow">
+            <span className="block truncate text-xs leading-4 font-semibold text-foreground">Trả lời {quote.senderName}</span>
+            <span className="block truncate text-xs leading-4 text-muted-foreground">{quote.text}</span>
+          </div>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Hủy trả lời" title="Hủy trả lời" onClick={onCancelQuote}>
+            <X strokeWidth={1.6} />
+          </Button>
+        </div>
       )}
       <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-surface py-2.5 pr-3 pl-3.5 transition-[border-color,box-shadow] duration-(--dur-hover) ease-out focus-within:border-foreground focus-within:ring-3 focus-within:ring-foreground/14 md:border-transparent md:shadow-card md:focus-within:border-foreground max-md:contents">
         {tray && onSendFiles && <AttachmentTrayView tray={tray} />}

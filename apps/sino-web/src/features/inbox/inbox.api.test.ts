@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS } from '@/test/fixtures/accountsApi'
 import { API_CONVERSATIONS, API_COUNTS, API_MESSAGES, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
 import { server } from '@/test/msw/server'
-import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, fetchUnreadByKind, sendSticker, updateConversation } from './inbox.api'
+import { fetchConversation, fetchConversations, fetchInbox, fetchMessages, fetchUnreadByKind, sendMessage, sendSticker, updateConversation } from './inbox.api'
 
 const NOT_FOUND = { title: 'Not found', status: 404, code: 'CONVERSATION_NOT_FOUND' }
 const problem = (body: object, status: number) => HttpResponse.json(body, { status, headers: { 'Content-Type': 'application/problem+json' } })
@@ -457,6 +457,21 @@ describe('a sticker of the library (zalo-send-images)', () => {
 
     expect(body).toEqual({ stickerId: 'lib-1', clientMessageId: 'cid-1' })
     expect(sent).toMatchObject({ id: 'm-9', direction: 'OUT', status: 'SENT', clientMessageId: 'cid-1', libraryStickerId: 'lib-1' })
+  })
+
+  it('sends replyToMessageId with a reply, and reads the quote the server returns', async () => {
+    let body: unknown
+    server.use(
+      http.post('/api/conversations/:id/messages', async ({ request }) => {
+        body = await request.json()
+        return HttpResponse.json({ ...API_MESSAGES[0], id: 'm-8', direction: 'OUTBOUND', status: 'SENT', clientMessageId: 'cid-2', quote: { messageId: 'm-1', senderName: 'Bố', text: 'Ăn cơm chưa' } }, { status: 201 })
+      }),
+    )
+
+    const sent = await sendMessage('c-1', 'Dạ rồi', 'cid-2', 'm-1')
+
+    expect(body).toEqual({ text: 'Dạ rồi', clientMessageId: 'cid-2', replyToMessageId: 'm-1' })
+    expect(sent).toMatchObject({ quote: { messageId: 'm-1', senderName: 'Bố', text: 'Ăn cơm chưa' } })
   })
 
   it('reads the emoji of each message and whether it takes one (zalo-reactions, D-387); a backend before it says nothing', async () => {

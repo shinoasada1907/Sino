@@ -41,6 +41,10 @@ import { useReactToMessage } from '../useReactToMessage'
 import { PREVIEW_SET, REACTIONS_PREVIEW } from '../reactionsPreview'
 import { ReactionChips } from './ReactionChips'
 import { ReactionPicker } from './ReactionPicker'
+import { MessageActions } from './MessageActions'
+import { QuoteBlock } from './QuoteBlock'
+import { quoteOf } from '../reply'
+import type { Quote } from '../inbox.types'
 
 type ChatMessage = Message & { kind: 'MESSAGE' }
 
@@ -83,7 +87,19 @@ export function ChatThread({
   const bodyRef = useRef<HTMLDivElement>(null)
   const sendMessage = useSendMessage(item.id)
   const previewReactions = REACTIONS_PREVIEW && item.kind === 'CHAT' && detail !== undefined && detail.reactionSet === undefined
-  const reacting = useReactToMessage(item.id, previewReactions)
+  const reactionSet = detail?.reactionSet ?? (previewReactions ? PREVIEW_SET : [])
+  const reacting = useReactToMessage(item.id)
+  const [replyTarget, setReplyTarget] = useState<{ convId: string; quote: Quote } | null>(null)
+  const replyingQuote = replyTarget?.convId === item.id ? replyTarget.quote : null
+
+  const jumpToMessage = (messageId: string) => {
+    const el = bodyRef.current?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('bg-hover/60', 'transition-colors', 'duration-500')
+      setTimeout(() => el.classList.remove('bg-hover/60'), 1500)
+    }
+  }
   const tray = useAttachmentTray()
   const block = sendBlock(account, detail?.canSend)
   const sendsFiles = detail?.canSendFiles !== false && !block
@@ -222,40 +238,40 @@ export function ChatThread({
         className="flex min-h-0 flex-col gap-4 overflow-auto px-4 py-5 md:px-5 xl:px-6"
       >
         {detail?.messages === null && <LatestPreview item={item} now={now} />}
-        {withDayLines(detail?.messages ?? [], now).map(({ message, dayLine }) => {
-          return (
-            <Fragment key={message.id}>
-              {dayLine && (
-                <div className="my-2 flex justify-center">
-                  <span className="rounded-full border border-border/70 bg-surface/80 px-3.5 py-1 font-mono text-[11px] font-medium text-muted-foreground shadow-xs">
-                    {dayLine}
-                  </span>
-                </div>
-              )}
-              {message.id === detail?.firstUnreadId && unreadAtOpen > 0 && (
-                <div data-slot="unread-line" className="flex items-center gap-3 font-mono text-[11px] font-medium text-foreground before:h-px before:grow before:bg-border-strong after:h-px after:grow after:bg-border-strong my-1">
-                  <span>{unreadAtOpen} tin chưa đọc</span>
-                </div>
-              )}
-              {message.kind === 'SYSTEM' ? (
-                <span className="self-center rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">{message.text}</span>
-              ) : (
-                <Bubble
-                  message={message}
-                  showName={group}
-                  members={members}
-                  conversationAvatar={item.avatarUrl}
-                  isGroup={group}
-                  sending={sendMessage}
-                  providerName={name}
-                  reactionSet={previewReactions ? PREVIEW_SET : (detail?.reactionSet ?? [])}
-                  previewReactions={previewReactions}
-                  reacting={reacting}
-                />
-              )}
-            </Fragment>
-          )
-        })}
+        {withDayLines(detail?.messages ?? [], now).map(({ message, dayLine }) => (
+          <Fragment key={message.id}>
+            {dayLine && (
+              <div className="my-2 flex justify-center">
+                <span className="rounded-full border border-border/70 bg-surface/80 px-3.5 py-1 font-mono text-[11px] font-medium text-muted-foreground shadow-xs">
+                  {dayLine}
+                </span>
+              </div>
+            )}
+            {message.id === detail?.firstUnreadId && unreadAtOpen > 0 && (
+              <div data-slot="unread-line" className="flex items-center gap-3 font-mono text-[11px] font-medium text-foreground before:h-px before:grow before:bg-border-strong after:h-px after:grow after:bg-border-strong my-1">
+                <span>{unreadAtOpen} tin chưa đọc</span>
+              </div>
+            )}
+            {message.kind === 'SYSTEM' ? (
+              <span className="self-center rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">{message.text}</span>
+            ) : (
+              <Bubble
+                message={message}
+                showName={group}
+                members={members}
+                conversationAvatar={item.avatarUrl}
+                isGroup={group}
+                sending={sendMessage}
+                providerName={name}
+                reactionSet={reactionSet}
+                previewReactions={previewReactions}
+                reacting={reacting}
+                onReply={detail?.canSend !== false ? (q) => setReplyTarget({ convId: item.id, quote: q }) : undefined}
+                onJump={detail?.messages?.some((m) => m.id === message.quote?.messageId) ? jumpToMessage : undefined}
+              />
+            )}
+          </Fragment>
+        ))}
         {expiredAt && detail && (
           <span className="self-center rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">{notArrivedSince(expiredAt, now)}</span>
         )}
@@ -271,10 +287,22 @@ export function ChatThread({
           placeholder={`Nhắn tin tới ${shownName}…`}
           account={account.address}
           via={`${name} · ${account.address}`}
-          onSend={sendMessage.send}
+          onSend={(text, quote) => {
+            sendMessage.send(text, quote)
+            setReplyTarget(null)
+          }}
           onSendSticker={detail.canSendImages ? sendMessage.sendSticker : undefined}
           tray={sendsFiles ? tray : undefined}
-          onSendFiles={sendsFiles ? sendMessage.sendFiles : undefined}
+          onSendFiles={
+            sendsFiles
+              ? (files, text, quote) => {
+                sendMessage.sendFiles(files, text, quote)
+                setReplyTarget(null)
+              }
+              : undefined
+          }
+          quote={replyingQuote ?? undefined}
+          onCancelQuote={() => setReplyTarget(null)}
         />
       ) : null}
     </section>
@@ -336,7 +364,7 @@ function LinkPreviewCard({ url, own }: { url: string; own: boolean }) {
             alt=""
             className="size-4 object-contain"
             onError={(e) => {
-              ;(e.currentTarget as HTMLElement).style.display = 'none'
+              ; (e.currentTarget as HTMLElement).style.display = 'none'
             }}
           />
         </div>
@@ -403,6 +431,8 @@ function Bubble({
   reactionSet,
   previewReactions,
   reacting,
+  onReply,
+  onJump,
 }: {
   message: ChatMessage
   showName: boolean
@@ -414,10 +444,15 @@ function Bubble({
   reactionSet: ReactionKind[]
   previewReactions: boolean
   reacting: ReturnType<typeof useReactToMessage>
+  onReply?: (quote: Quote) => void
+  onJump?: (messageId: string) => void
 }) {
   const own = message.direction === 'OUT'
   const reactions = message.reactions ?? []
-  const reactable = reactionSet.length > 0 && (message.canReact === true || previewReactions) && !message.local
+  const reactable = (reactionSet.length > 0 || previewReactions) && message.canReact !== false && !message.local
+  const isSticker = Boolean(message.sticker || message.stickerSprite || message.libraryStickerId)
+  const canReply = !message.local && onReply !== undefined
+  const canCopy = Boolean(message.text && !isSticker)
 
   const [brokenLibrary, setBrokenLibrary] = useState(false)
   const [brokenSticker, setBrokenSticker] = useState(false)
@@ -457,6 +492,7 @@ function Bubble({
         <StickerPicture still={still} sprite={library ? null : sprite} onSpriteError={() => setBrokenSprite(true)} onStillError={() => (library ? setBrokenLibrary(true) : setBrokenSticker(true))} />
       ) : photoSrc ? (
         <div className="flex flex-col gap-1.5">
+          {message.quote && <QuoteBlock quote={message.quote} own={own} onJump={onJump} />}
           <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
           {message.text && message.text !== '[Ảnh]' && message.text !== imageAttachment?.name && (
             <div
@@ -480,6 +516,7 @@ function Bubble({
               : 'rounded-[20px] rounded-bl-[8px] bg-raised text-foreground shadow-[inset_0_0_0_1px_var(--border)]',
           )}
         >
+          {message.quote && <QuoteBlock quote={message.quote} own={own} onJump={onJump} />}
           {message.quoteTag && (
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] font-medium text-foreground border border-border/60">
@@ -523,8 +560,9 @@ function Bubble({
             return null
           }
           if (file.url) {
-            return <PhotoPicture key={file.url} src={file.url} onError={() => {}} />
+            return <PhotoPicture key={file.url} src={file.url} onError={() => { }} />
           }
+
           return (
             <div
               key={file.name}
@@ -540,6 +578,7 @@ function Bubble({
       {/* Linked items */}
       {message.linked && message.linked.length > 0 && message.linked.map((linked) => {
         const { icon: Icon, to, name } = LINKED[linked.kind]
+
         return (
           <Link
             key={linked.title}
@@ -556,7 +595,7 @@ function Bubble({
 
       <ReactionChips reactions={reactions} kinds={reactionSet} own={own} />
       {reacting.failure && reacting.failure.messageId === message.id && (
-        <p role="alert" className="text-xs leading-4 text-danger-ink">
+        <p role="alert" className="text-xs leading-4 text-danger-ink animate-in fade-in-0 duration-200">
           {reacting.failure.text}
         </p>
       )}
@@ -594,7 +633,13 @@ function Bubble({
   )
 
   return (
-    <div className={cn('group/bubble flex max-w-[88%] md:max-w-[64%] items-start gap-2.5', own ? 'flex-row-reverse self-end' : 'self-start')}>
+    <div
+      data-message-id={message.id}
+      className={cn(
+        'group/bubble relative flex max-w-[88%] md:max-w-[64%] items-start gap-2.5',
+        own ? 'flex-row-reverse self-end' : 'self-start',
+      )}
+    >
       {!own && (
         <div className="relative mt-1 shrink-0">
           <Avatar src={avatar} placeholder={memberPlaceholder(message.sender, members)} className="size-8">
@@ -606,13 +651,27 @@ function Bubble({
           </Avatar>
         </div>
       )}
-      {reactable ? (
-        <ReactionPicker kinds={reactionSet} mine={mineOf(reactions)} own={own} onPick={(kind) => reacting.react(message.id, reactions, kind)}>
-          {content}
-        </ReactionPicker>
-      ) : (
-        content
-      )}
+      <div className={cn('flex items-center gap-1.5', own ? 'flex-row-reverse' : 'flex-row')}>
+        {reactable ? (
+          <ReactionPicker
+            kinds={reactionSet}
+            mine={mineOf(reactions)}
+            own={own}
+            reacted={reactions.length > 0}
+            onPick={(kind) => reacting.react(message.id, reactions, kind)}
+            onReply={canReply ? () => onReply(quoteOf(message)) : undefined}
+            onCopy={canCopy ? () => void navigator.clipboard.writeText(message.text) : undefined}
+          >
+            {content}
+          </ReactionPicker>
+        ) : (
+          content
+        )}
+        <MessageActions
+          onReply={canReply ? () => onReply(quoteOf(message)) : undefined}
+          onCopy={canCopy ? () => void navigator.clipboard.writeText(message.text) : undefined}
+        />
+      </div>
     </div>
   )
 }
