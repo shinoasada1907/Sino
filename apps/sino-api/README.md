@@ -520,6 +520,30 @@ Every error is an RFC 9457 problem response (`application/problem+json`) with a 
 
 The error code catalog is in the F01 design (`openspec/changes/archive/2026-10-01-be-f01-project-foundation/design.md`, section 8) and in each feature's design; the behaviour is specified in `openspec/specs/api-conventions/spec.md`.
 
+## Reminders: background jobs (RM-02)
+
+An appointment or task with a `reminder` (D-523) has one JobRunr job booked at the reminder time of its next occurrence
+(D-522). The job server runs inside sino-api (`jobrunr.background-job-server.enabled`, polling every 5 seconds); the
+dashboard is off everywhere and JobRunr never touches the schema (Flyway V34).
+
+- **Booked after the commit** of a change (create, replace, delete an appointment; create, schedule, done, reopen, delete a
+  task), by `ReminderScheduler` on a `ReminderChange` event. A rolled-back change books nothing.
+- **Job ID with a revision.** JobRunr skips a second job with an ID it has seen, even a deleted one, so the ID is
+  `UUID("reminder:<kind>:<id>:<rev>")` and `rev` is the row's `reminder_rev`, which goes up each time the job is booked
+  again. The old job is cancelled (state `DELETED`); a job whose `rev` is no longer the row's does nothing when it runs.
+- **When the job runs** it reads the row again; if the row is gone, the task is done, or the reminder time changed it
+  stops. Otherwise it calls `ReminderFiring` (RM-03 fills it in; for now it only logs `Reminder due: …`) and books the
+  next occurrence of a repeating appointment.
+- **After a restart** jobs are in PostgreSQL and run late, once a job server is up (a server that was killed can keep the
+  lead for about half a minute). A sweep at start-up books a job for every row that has a reminder to come and no job
+  that will still run.
+- **Retries:** a job that throws is tried again 3 times, after about 10 seconds, 100 seconds and 17 minutes
+  (`jobrunr.jobs.retry-back-off-time-seed: 10`, the wait is seed to the power of the failures). D-524 asks for 1, 5 and
+  15 minutes; JobRunr's back-off cannot give them, and the Spring starter only registers its own `RetryFilter`.
+- **Look at it:** `select id, state, scheduledat from jobrunr_jobs order by createdat;` and the `Reminder due` lines of the
+  log (`logging.level.dev.sino.planner=DEBUG` also shows each booking).
+- The tests run without the job server (`application-test.yaml`).
+
 ## Test
 
 | Goal | Command |

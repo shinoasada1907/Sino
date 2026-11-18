@@ -6,14 +6,17 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.sino.common.error.SinoException;
+import dev.sino.planner.application.reminder.ReminderChange;
 import dev.sino.planner.domain.Due;
 import dev.sino.planner.domain.PlannerErrorCode;
 import dev.sino.planner.domain.Recurrence;
 import dev.sino.planner.domain.Reminder;
+import dev.sino.planner.domain.ReminderKind;
 import dev.sino.planner.domain.Task;
 import dev.sino.planner.infrastructure.TaskRepository;
 
@@ -29,11 +32,13 @@ public class TaskService {
 
     private final TaskRepository tasks;
     private final PlannerProperties properties;
+    private final ApplicationEventPublisher publisher;
     private final Clock clock;
 
-    TaskService(TaskRepository tasks, PlannerProperties properties, Clock clock) {
+    TaskService(TaskRepository tasks, PlannerProperties properties, ApplicationEventPublisher publisher, Clock clock) {
         this.tasks = tasks;
         this.properties = properties;
+        this.publisher = publisher;
         this.clock = clock;
     }
 
@@ -57,7 +62,9 @@ public class TaskService {
         Instant now = clock.instant();
         Task task = Task.create(ownerId, draft.title(), draft.notes(), draft.due(), rule, now);
         task.changeReminder(draft.reminder(), now);
-        return tasks.save(task);
+        Task saved = tasks.save(task);
+        remindersChanged(saved);
+        return saved;
     }
 
     /** Renames and changes the notes; a {@code null} argument leaves that field as it is. */
@@ -85,6 +92,7 @@ public class TaskService {
         Instant now = clock.instant();
         task.reschedule(due, ruleOf(repeat), now);
         task.changeReminder(reminder, now);
+        remindersChanged(task);
         return task;
     }
 
@@ -101,6 +109,10 @@ public class TaskService {
             return new CompletedTask(task, null);
         }
         Task next = task.makeNextOccurrence(now).map(tasks::save).orElse(null);
+        remindersChanged(task);
+        if (next != null) {
+            remindersChanged(next);
+        }
         return new CompletedTask(task, next);
     }
 
@@ -109,13 +121,21 @@ public class TaskService {
     public Task reopen(UUID ownerId, UUID id) {
         Task task = owned(ownerId, id);
         task.reopen(clock.instant());
+        remindersChanged(task);
         return task;
     }
 
     /** Deletes this task only; the other occurrences of its series stay. */
     @Transactional
     public void delete(UUID ownerId, UUID id) {
-        tasks.delete(owned(ownerId, id));
+        Task task = owned(ownerId, id);
+        tasks.delete(task);
+        remindersChanged(task);
+    }
+
+    /** Tells the reminder code, which acts once this transaction has committed (D-522). */
+    private void remindersChanged(Task task) {
+        publisher.publishEvent(new ReminderChange(ReminderKind.TASK, task.id(), task.reminderRev()));
     }
 
     private Task owned(UUID ownerId, UUID id) {

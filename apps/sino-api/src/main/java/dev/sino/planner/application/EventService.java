@@ -4,14 +4,17 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.sino.common.error.SinoException;
+import dev.sino.planner.application.reminder.ReminderChange;
 import dev.sino.planner.domain.CalendarEvent;
 import dev.sino.planner.domain.PlannerErrorCode;
 import dev.sino.planner.domain.Recurrence;
 import dev.sino.planner.domain.Reminder;
+import dev.sino.planner.domain.ReminderKind;
 import dev.sino.planner.infrastructure.CalendarEventRepository;
 import dev.sino.settings.SettingsDirectory;
 
@@ -26,13 +29,15 @@ public class EventService {
     private final CalendarEventRepository events;
     private final PlannerProperties properties;
     private final SettingsDirectory settings;
+    private final ApplicationEventPublisher publisher;
     private final Clock clock;
 
     EventService(CalendarEventRepository events, PlannerProperties properties, SettingsDirectory settings,
-            Clock clock) {
+            ApplicationEventPublisher publisher, Clock clock) {
         this.events = events;
         this.properties = properties;
         this.settings = settings;
+        this.publisher = publisher;
         this.clock = clock;
     }
 
@@ -45,7 +50,9 @@ public class EventService {
         CalendarEvent event = CalendarEvent.create(ownerId, draft.title(), draft.location(), draft.notes(),
                 draft.time(), ruleOf(draft.repeat()), now);
         event.changeReminder(reminderOf(ownerId, draft), now);
-        return events.save(event);
+        CalendarEvent saved = events.save(event);
+        remindersChanged(saved);
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -64,13 +71,21 @@ public class EventService {
         Instant now = clock.instant();
         event.replace(draft.title(), draft.location(), draft.notes(), draft.time(), ruleOf(draft.repeat()), now);
         event.changeReminder(reminderOf(ownerId, draft), now);
+        remindersChanged(event);
         return event;
     }
 
     /** Deletes the appointment and, when it repeats, every occurrence of it (D-151). */
     @Transactional
     public void delete(UUID ownerId, UUID id) {
-        events.delete(owned(ownerId, id));
+        CalendarEvent event = owned(ownerId, id);
+        events.delete(event);
+        remindersChanged(event);
+    }
+
+    /** Tells the reminder code, which acts once this transaction has committed (D-522). */
+    private void remindersChanged(CalendarEvent event) {
+        publisher.publishEvent(new ReminderChange(ReminderKind.EVENT, event.id(), event.reminderRev()));
     }
 
     /**

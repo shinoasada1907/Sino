@@ -66,7 +66,9 @@ public class CalendarEvent {
     @Column(name = "reminder_offset_minutes")
     private Integer reminderOffsetMinutes;
 
-    @Column(name = "reminder_rev", nullable = false)
+    // Only the reminder code writes it, with SQL (ReminderScheduler); an entity that was loaded earlier must never put an
+    // old value back.
+    @Column(name = "reminder_rev", nullable = false, insertable = false, updatable = false)
     private int reminderRev;
 
     @Column(name = "created_at", nullable = false, updatable = false)
