@@ -245,6 +245,22 @@ class ConversationReactionQuoteApiTests {
     }
 
     @Test
+    void whatTheListOffersToQuoteIsWhatAReplyAccepts() throws Exception {
+        // A message with every key but no known sender is no more offered than refused.
+        jdbc.update("update message set sender_participant_id = null where external_message_id = 'm-1'");
+        String list = mvc.perform(get("/api/conversations/{id}/messages", conversation).with(user("owner@sino.test")))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(list).contains("\"canQuote\":false").doesNotContain("\"canQuote\":true");
+
+        for (String external : List.of("m-1", "m-2")) {
+            postJson("{\"text\": \"Ok\", \"clientMessageId\": \"" + UUID.randomUUID() + "\", \"replyToMessageId\": \""
+                    + messageId(external) + "\"}").andExpect(status().isUnprocessableContent())
+                    .andExpect(jsonPath("$.code").value("QUOTE_UNAVAILABLE"));
+        }
+        assertThat(chat.sentMessages()).isEmpty();
+    }
+
+    @Test
     void aMessageThatCannotBeQuotedIsRefusedAndNothingIsWritten() throws Exception {
         postJson("{\"text\": \"Ok\", \"clientMessageId\": \"" + UUID.randomUUID() + "\", \"replyToMessageId\": \""
                 + messageId("m-2") + "\"}").andExpect(status().isUnprocessableContent())

@@ -157,7 +157,8 @@ public class MessageHistory {
         boolean sent = !row.getString("external_message_id").startsWith(ReplyService.UNSENT);
         boolean canReact = sent && connector != null && connector.capabilities().supports(ProviderCapability.REACTIONS)
                 && connector.canReact(metadata);
-        boolean canQuote = sent && connector != null && connector.canQuote(metadata);
+        boolean canQuote = ReplyService.quoteRefusal(connector, row.getString("external_message_id"), sender, metadata)
+                == null;
         Quote quote = quoteOf(row, metadata);
         return new InboxMessage(row.getObject("id", UUID.class),
                 MessageDirection.valueOf(row.getString("direction")),
