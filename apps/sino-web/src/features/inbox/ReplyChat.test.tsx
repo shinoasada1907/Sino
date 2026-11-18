@@ -6,6 +6,7 @@ import { stubViewport } from '@/test/matchMedia'
 import { renderApp } from '@/test/renderApp'
 import * as api from './inbox.api'
 import { createInboxSample } from './inbox.sample'
+import { ApiError } from '@/shared/api/problem'
 import type { Message } from './inbox.types'
 import { quoteText } from './reply'
 
@@ -16,7 +17,7 @@ const NOW = new Date('2026-10-02T07:05:00Z')
 const chat = () => within(screen.getByRole('region', { name: 'Cuộc trò chuyện Gia đình' }))
 
 function fromDad(id: string, extra: Partial<Message & { kind: 'MESSAGE' }> = {}): Message & { kind: 'MESSAGE' } {
-  return { id, kind: 'MESSAGE', direction: 'IN', sender: 'Bố', to: null, at: '2026-10-02T07:00:00.000Z', text: `Tin ${id}`, attachments: [], status: null, linked: [], ...extra }
+  return { id, kind: 'MESSAGE', direction: 'IN', sender: 'Bố', to: null, at: '2026-10-02T07:00:00.000Z', text: `Tin ${id}`, attachments: [], status: null, linked: [], canQuote: true, ...extra }
 }
 
 async function open(items: Message[]) {
@@ -73,6 +74,26 @@ describe('replying to a chat message', () => {
   it('has a "Trả lời" on a stored message but not on one that is only in this browser', async () => {
     await open([fromDad('m1'), fromDad('m2', { direction: 'OUT', sender: 'Bạn', status: 'FAILED', local: true, clientMessageId: 'c2' })])
     expect(chat().getAllByRole('button', { name: 'Trả lời' })).toHaveLength(1)
+  })
+
+  it('has no "Trả lời" on a message the server says cannot be quoted, nor on one that does not say', async () => {
+    await open([fromDad('m1', { canQuote: false }), fromDad('m2', { canQuote: undefined }), fromDad('m3')])
+    expect(chat().getAllByRole('button', { name: 'Trả lời' })).toHaveLength(1)
+  })
+
+  it('leaves a refused quote out: says so, and "Gửi lại" sends the text alone', async () => {
+    await open([fromDad('m1')])
+    const user = userEvent.setup()
+    vi.mocked(api.sendMessage).mockRejectedValueOnce(new ApiError(422, 'QUOTE_UNAVAILABLE', null))
+
+    await user.click(chat().getByRole('button', { name: 'Trả lời' }))
+    await user.type(chat().getByRole('textbox'), 'Dạ con biết{Enter}')
+
+    expect(await chat().findByText(/Không trả lời được tin này/)).toBeInTheDocument()
+    const failed = chat().getByText('Dạ con biết').closest('[data-message-id]') as HTMLElement
+    expect(within(failed).queryByText('Tin m1')).not.toBeInTheDocument()
+    await user.click(chat().getByRole('button', { name: 'Gửi lại' }))
+    await waitFor(() => expect(api.sendMessage).toHaveBeenLastCalledWith('conv-2', 'Dạ con biết', expect.any(String)))
   })
 
   it('shows the quote strip, focuses the box, cancels with X and with Esc', async () => {

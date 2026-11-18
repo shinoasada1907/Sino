@@ -52,6 +52,26 @@ public class ReplyService implements SentMessages {
     /** The provider's ID of a message Sino has not sent yet is not known: this prefix and the clientMessageId. */
     static final String UNSENT = "sino:";
 
+    /**
+     * Why a message cannot be quoted, or null when it can (zalo-quote-reply, D-506, D-508). The one rule behind both
+     * {@code canQuote} of a message in the list and the refusal of a reply that quotes it, so one never offers what the
+     * other refuses. The reason names a condition only, never a text or a name.
+     */
+    static String quoteRefusal(MessageProvider connector, String externalMessageId, String senderId,
+            Map<String, String> metadata) {
+        if (connector == null) {
+            return "no connector";
+        }
+        if (externalMessageId == null || externalMessageId.startsWith(UNSENT)) {
+            return "not sent yet";
+        }
+        if (senderId == null || senderId.isBlank()) {
+            return "no sender";
+        }
+        return connector.canQuote(metadata) ? null : "missing what the provider needs (" + metadata.keySet().stream()
+                .filter(key -> !key.startsWith("quote")).sorted().toList() + ")";
+    }
+
     /** The text a sticker Sino sent is stored with, as a photo of Zalo is stored as {@code [Ảnh]}. */
     static final String STICKER_TEXT = "[Sticker]";
 
@@ -426,8 +446,9 @@ public class ReplyService implements SentMessages {
                         rs.getString("display_name")))
                 .optional().orElseThrow(ConversationErrorCode::messageNotFound);
         MessageProvider connector = providers.find(conversation.provider()).orElse(null);
-        if (connector == null || row.externalMessageId().startsWith(UNSENT) || row.senderId() == null
-                || !connector.canQuote(row.metadata())) {
+        String refusal = quoteRefusal(connector, row.externalMessageId(), row.senderId(), row.metadata());
+        if (refusal != null) {
+            log.info("Message {} cannot be quoted: {}", messageId, refusal);
             throw ConversationErrorCode.quoteUnavailable();
         }
         return new Quote(new QuotedMessage(row.externalMessageId(), row.senderId(), row.text(), row.sentAt(),

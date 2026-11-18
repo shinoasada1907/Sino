@@ -251,6 +251,10 @@ export type Message =
       canReact?: boolean
       /** The message this one answers (chat reply); absent for a message that answers none. */
       quote?: Quote
+      /** The user can answer it by quoting it; false or absent hides "Trả lời" (zalo-quote-reply, D-508). */
+      canQuote?: boolean
+      /** Only in this browser: the server refused the quote (QUOTE_UNAVAILABLE); the reply was left without it. */
+      quoteRefused?: boolean
     }
   | { id: string; kind: 'SYSTEM'; at: Instant; text: string }
 

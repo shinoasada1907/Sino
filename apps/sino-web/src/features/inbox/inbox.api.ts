@@ -167,6 +167,8 @@ interface MessageResponse {
   canReact?: boolean
   /** The message this one answers (chat reply); absent or null for a message that answers none, and on a backend before it. */
   quote?: Quote | null
+  /** Whether the message can be answered by quoting it (zalo-quote-reply, D-508); absent on a backend before it. */
+  canQuote?: boolean
 }
 
 function toItem({ snippet, linked, accountIds, avatarUrl, nickname, ...rest }: ConversationResponse): ConversationItem {
@@ -244,7 +246,7 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId, reactions, canReact, quote }: MessageResponse): Mail {
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId, reactions, canReact, quote, canQuote }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   return {
@@ -270,6 +272,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     ...(reactions?.length ? { reactions } : {}),
     ...(canReact ? { canReact } : {}),
     ...(quote?.messageId ? { quote } : {}),
+    ...(canQuote ? { canQuote } : {}),
   }
 }
 
