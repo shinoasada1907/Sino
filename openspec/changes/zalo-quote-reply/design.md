@@ -39,7 +39,18 @@ Phản hồi tin có `canQuote` = tin Zalo có đủ khóa D-505 và cuộc trò
 - Nút "Trả lời" (mũi tên cong) cạnh nút biểu cảm khi rê chuột; điện thoại: nằm trong menu nhấn giữ của biểu cảm.
 - Thanh "Đang trả lời <tên>" + xem trước, nút ✕, phía trên ô soạn; Esc hủy; gửi xong tự đóng.
 
+### D-510 — Tin gửi từ Sino trích dẫn được sau khi echo về · agent chốt 2026-11-18 (sửa lỗi lúc chạy thật)
+Lúc gửi, Sino chưa có `cliMsgId`/`ttl`/`msgType` của tin vì phản hồi gửi của `sino-zalo` chỉ có `msgId`. Các khóa này đến khi Zalo đẩy lại bản sao tin của chính mình (`selfListen`) qua sync, cùng `external_message_id`. Lúc ghi lại (`ON CONFLICT`), `metadata` được gộp: lấy bản của Zalo, nhưng giữ `quoteSender`/`quoteText`/`quoteKind` mà Sino đã ghi khi bản của Zalo không mang chúng (trước đó bị xóa trắng). Trong lúc chờ echo, tin vừa gửi có `canQuote = false`. Chưa làm: `sino-zalo` trả các khóa ngay trong phản hồi gửi (chưa rõ zca-js có cho lấy `cliMsgId` lúc gửi không).
+
+### D-511 — Một luật cho `canQuote` và cho việc từ chối · agent chốt 2026-11-18
+`ReplyService.quoteRefusal(connector, externalMessageId, senderId, metadata)` trả lý do từ chối, hoặc null nếu trích dẫn được. Danh sách tin (`canQuote`) và lệnh gửi (`422 QUOTE_UNAVAILABLE`) dùng chung hàm này, nên API không thể vừa cho bấm "Trả lời" vừa từ chối. Trước đó danh sách không xét tin thiếu người gửi. Khi từ chối, ghi log INFO nêu lý do (không có connector / chưa gửi / không người gửi / tên các khóa metadata đang có), không có chữ hay tên.
+
+### D-512 — Web khi bị từ chối trích dẫn · agent chốt 2026-11-18
+Nút "Trả lời" (cả cạnh bong bóng lẫn menu nhấn giữ) chỉ hiện khi tin có `canQuote === true`; tin chưa có cờ này (tin local, đang gửi) thì ẩn. Nếu gửi vẫn bị `422 QUOTE_UNAVAILABLE`, bong bóng chuyển "Không gửi được", bỏ phần trích dẫn, hiện "Không trả lời được tin này. Gửi lại sẽ không kèm trích dẫn."; "Gửi lại" gửi chữ không kèm `replyToMessageId`, "Bỏ" vẫn dùng được.
+
 ## Risks / Trade-offs
 
 - Hình dạng `quote` thật (nhất là `attach`, `cliMsgType` của ảnh/sticker) chưa thấy: kiểm ở lượt test tay với Zalo thật của QR-01, sửa bảng `kind` khi cần.
-- Tin cũ không trích dẫn được cho tới khi có `cliMsgId` (chấp nhận, D-508).
+- Tin cũ không trích dẫn được cho tới khi có `cliMsgId` (chấp nhận, D-508). Lúc chạy thật 2026-11-18: mọi tin nhận hay gửi trước khi `sino-zalo` mới chạy (17/11) đều không trích dẫn được, kể cả tin của chính mình.
+- Tin vừa gửi từ Sino chưa trích dẫn được cho tới lần sync kế (D-510).
+- Gửi trả lời bằng ảnh, tệp, sticker kèm trích dẫn mới có test tự động, chưa chạy với Zalo thật.

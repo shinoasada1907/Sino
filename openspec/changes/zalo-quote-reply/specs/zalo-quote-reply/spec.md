@@ -21,3 +21,15 @@ Người dùng MUST trả lời có trích dẫn trong chat Zalo 1-1 và nhóm k
 #### Scenario: Tin cũ không trích dẫn được
 - **WHEN** tin không có `cliMsgId`
 - **THEN** `canQuote` là false và web không hiện nút "Trả lời"
+
+#### Scenario: Trả lời tin mình vừa gửi từ Sino
+- **WHEN** người dùng gửi một tin từ Sino, rồi Zalo đẩy lại bản sao tin đó qua sync
+- **THEN** tin có `canQuote` true từ lúc bản sao về, và nếu tin đó là tin trả lời thì phần xem trước trích dẫn của nó vẫn còn
+
+#### Scenario: Danh sách và lệnh gửi không lệch nhau
+- **WHEN** một tin có `canQuote` false vì bất kỳ lý do nào (thiếu khóa Zalo, không có người gửi, chưa gửi xong)
+- **THEN** trả lời có trích dẫn tin đó bị từ chối với `QUOTE_UNAVAILABLE`; và một tin có `canQuote` true thì không bị từ chối vì những lý do đó
+
+#### Scenario: Bị từ chối trích dẫn khi gửi
+- **WHEN** gửi trả lời bị `QUOTE_UNAVAILABLE`
+- **THEN** web hiện "Không trả lời được tin này. Gửi lại sẽ không kèm trích dẫn." dưới bong bóng, và "Gửi lại" gửi chữ không kèm trích dẫn
