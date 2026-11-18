@@ -451,7 +451,7 @@ function Bubble({
   const reactions = message.reactions ?? []
   const reactable = (reactionSet.length > 0 || previewReactions) && message.canReact !== false && !message.local
   const isSticker = Boolean(message.sticker || message.stickerSprite || message.libraryStickerId)
-  const canReply = !message.local && onReply !== undefined
+  const canReply = !message.local && message.canQuote === true && onReply !== undefined
   const canCopy = Boolean(message.text && !isSticker)
 
   const [brokenLibrary, setBrokenLibrary] = useState(false)
@@ -607,6 +607,11 @@ function Bubble({
       {message.status === 'UNKNOWN' && (
         <p role="status" className="text-xs leading-4 text-muted-foreground">
           {message.local ? 'Mất kết nối khi gửi. Gửi lại không làm tin bị gửi hai lần.' : `Sino đang kiểm tra với ${providerName}.`}
+        </p>
+      )}
+      {message.quoteRefused && (
+        <p role="alert" className="text-xs leading-4 text-danger-ink">
+          Không trả lời được tin này. Gửi lại sẽ không kèm trích dẫn.
         </p>
       )}
       {(message.status === 'FAILED' || (message.status === 'UNKNOWN' && message.local)) && message.clientMessageId && !sending.canResend(message) && (
