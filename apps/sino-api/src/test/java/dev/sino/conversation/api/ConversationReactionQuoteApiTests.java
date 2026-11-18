@@ -213,6 +213,38 @@ class ConversationReactionQuoteApiTests {
     }
 
     @Test
+    void aReplySentFromSinoBecomesQuotableWhenItsEchoComesBack() throws Exception {
+        UUID client = UUID.randomUUID();
+        postJson("{\"text\": \"Ok mình tới\", \"clientMessageId\": \"" + client + "\", \"replyToMessageId\": \""
+                + messageId("m-1") + "\"}").andExpect(status().isCreated());
+        String external = jdbc.queryForObject("select external_message_id from message where client_message_id = ?",
+                String.class, client);
+        UUID sent = messageId(external);
+
+        // Before the echo: stored as Sino wrote it, no cliMsgId, so it cannot be quoted yet.
+        mvc.perform(get("/api/conversations/{id}/messages", conversation).with(user("owner@sino.test")))
+                .andExpect(jsonPath("$.items[?(@.text == 'Ok mình tới')].canQuote").value(false));
+        postJson("{\"text\": \"Nữa\", \"clientMessageId\": \"" + UUID.randomUUID() + "\", \"replyToMessageId\": \""
+                + sent + "\"}").andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("QUOTE_UNAVAILABLE"));
+
+        // The echo of our own message brings the keys, and says nothing of the quote Sino already showed.
+        transactions.executeWithoutResult(t -> store.store(account, batch(new NormalizedMessage(external, "8001",
+                ME.externalParticipantId(), MessageDirection.OUTBOUND, MessageType.TEXT, "Ok mình tới",
+                MessageStatus.SENT, true, "m-1", MONDAY.plusSeconds(120), List.of(), REACTABLE, null, null))));
+
+        assertThat(jdbc.queryForObject("select count(*) from message where external_message_id = ?", Long.class,
+                external)).isOne();
+        assertThat(jdbc.queryForObject("select metadata::text from message where id = ?", String.class, sent))
+                .contains("\"cliMsgId\"").contains("\"quoteText\"").contains("Chiều nay họp");
+        mvc.perform(get("/api/conversations/{id}/messages", conversation).with(user("owner@sino.test")))
+                .andExpect(jsonPath("$.items[?(@.text == 'Ok mình tới')].canQuote").value(true))
+                .andExpect(jsonPath("$.items[?(@.text == 'Ok mình tới')].quote.text").value("Chiều nay họp"));
+        postJson("{\"text\": \"Nữa\", \"clientMessageId\": \"" + UUID.randomUUID() + "\", \"replyToMessageId\": \""
+                + sent + "\"}").andExpect(status().isCreated());
+    }
+
+    @Test
     void aMessageThatCannotBeQuotedIsRefusedAndNothingIsWritten() throws Exception {
         postJson("{\"text\": \"Ok\", \"clientMessageId\": \"" + UUID.randomUUID() + "\", \"replyToMessageId\": \""
                 + messageId("m-2") + "\"}").andExpect(status().isUnprocessableContent())

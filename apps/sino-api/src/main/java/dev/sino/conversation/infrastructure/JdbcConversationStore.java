@@ -50,6 +50,18 @@ public class JdbcConversationStore implements ConversationStore {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
+    /**
+     * The metadata a message keeps when stored again: what the provider says now; the library sticker Sino sent it as
+     * stays (D-352), and so does the preview of the quote Sino wrote when the provider's copy brings none
+     * (zalo-quote-reply D-504: the echo of a reply sent from Sino must not blank its quote).
+     */
+    private static final String MERGED_METADATA = """
+            jsonb_strip_nulls(jsonb_build_object(cast(:quoteSender AS text), m.metadata -> cast(:quoteSender AS text),
+                                                 cast(:quoteText AS text), m.metadata -> cast(:quoteText AS text),
+                                                 cast(:quoteKind AS text), m.metadata -> cast(:quoteKind AS text)))
+            || EXCLUDED.metadata
+            || jsonb_strip_nulls(jsonb_build_object(cast(:libraryKey AS text), m.metadata -> cast(:libraryKey AS text)))""";
+
     private final JdbcClient jdbc;
     private final ConversationSummaries summaries;
     private final ThreadGroups groups;
@@ -284,8 +296,7 @@ public class JdbcConversationStore implements ConversationStore {
                     status = EXCLUDED.status,
                     sent_at = EXCLUDED.sent_at,
                     reply_to_external_message_id = EXCLUDED.reply_to_external_message_id,
-                    metadata = EXCLUDED.metadata || jsonb_strip_nulls(jsonb_build_object(cast(:libraryKey AS text),
-                                                                   m.metadata -> cast(:libraryKey AS text))),
+                    metadata = {MERGED},
                     recipients = coalesce(EXCLUDED.recipients, m.recipients),
                     html_content = coalesce(m.html_content, EXCLUDED.html_content),
                     body_format = CASE WHEN coalesce(m.html_content, EXCLUDED.html_content) IS NULL THEN 'TEXT'
@@ -301,13 +312,12 @@ public class JdbcConversationStore implements ConversationStore {
                       IS DISTINCT FROM
                       (EXCLUDED.sender_participant_id, EXCLUDED.direction, EXCLUDED.type, EXCLUDED.text_content,
                        EXCLUDED.status, EXCLUDED.sent_at, EXCLUDED.reply_to_external_message_id,
-                       EXCLUDED.metadata || jsonb_strip_nulls(jsonb_build_object(cast(:libraryKey AS text),
-                                                                   m.metadata -> cast(:libraryKey AS text))),
+                       {MERGED},
                        coalesce(EXCLUDED.recipients, m.recipients),
                        CASE WHEN coalesce(m.html_content, EXCLUDED.html_content) IS NULL THEN 'TEXT' ELSE 'HTML' END,
                        EXCLUDED.provider_read, EXCLUDED.mailbox)
                 RETURNING id, xmax = 0
-                """)
+                """.replace("{MERGED}", MERGED_METADATA))
                 .param("conversation", conversationId).param("sender", senderId)
                 .param("externalId", message.externalMessageId()).param("direction", message.direction().name())
                 .param("type", message.type().name()).param("text", message.textContent())
@@ -315,6 +325,8 @@ public class JdbcConversationStore implements ConversationStore {
                 .param("replyTo", message.replyToExternalMessageId()).param("read", message.read())
                 .param("metadata", JSON.writeValueAsString(message.metadata()))
                 .param("libraryKey", NormalizedMessage.LIBRARY_STICKER_ID)
+                .param("quoteSender", NormalizedMessage.QUOTE_SENDER).param("quoteText", NormalizedMessage.QUOTE_TEXT)
+                .param("quoteKind", NormalizedMessage.QUOTE_KIND)
                 .param("recipients", message.recipients() == null ? null
                         : JSON.writeValueAsString(message.recipients()))
                 .param("html", keptHtml(message.htmlContent()))
