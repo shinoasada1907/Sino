@@ -46,6 +46,7 @@ import dev.sino.common.error.SinoException;
 import dev.sino.planner.domain.Due;
 import dev.sino.planner.domain.Frequency;
 import dev.sino.planner.domain.PlannerErrorCode;
+import dev.sino.planner.domain.Reminder;
 import dev.sino.planner.domain.Task;
 import dev.sino.planner.domain.TaskStatus;
 import dev.sino.planner.infrastructure.TaskRepository;
@@ -55,7 +56,7 @@ import dev.sino.planner.infrastructure.TaskRepository;
  * test methods are not transactional, so every call commits or rolls back as it would in the application. The clock
  * is moved by hand.
  */
-@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)
+@ApplicationModuleTest(mode = BootstrapMode.ALL_DEPENDENCIES)
 @Import({ TestcontainersConfiguration.class, TaskServiceTests.Clocks.class })
 @ActiveProfiles("test")
 class TaskServiceTests {
@@ -211,15 +212,38 @@ class TaskServiceTests {
     }
 
     @Test
+    void storesTheReminderOfATaskWithADueAndReplacesItWithTheSchedule() {
+        Task task = service.create(owner, new NewTask("Nộp báo cáo", null, mondayAt9(), null, new Reminder(15)));
+        assertThat(tasks.findById(task.id()).orElseThrow().reminder()).isEqualTo(new Reminder(15));
+
+        service.schedule(owner, task.id(), mondayAt9(), null, new Reminder(60));
+        assertThat(tasks.findById(task.id()).orElseThrow().reminder()).isEqualTo(new Reminder(60));
+
+        service.schedule(owner, task.id(), mondayAt9(), null, null);
+        assertThat(tasks.findById(task.id()).orElseThrow().reminder()).isNull();
+    }
+
+    @Test
+    void aReminderNeedsADueThatItFits() {
+        assertThatThrownBy(() -> service.create(owner, new NewTask("Không hạn", null, null, null, new Reminder(15))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.create(owner,
+                new NewTask("Hạn có giờ", null, mondayAt9(), null, new Reminder(900))))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(tasks.findAll()).isEmpty();
+    }
+
+    @Test
     void schedulesAndClearsTheDueAndRule() {
         Task task = create("Báo cáo tuần");
 
-        Task scheduled = service.schedule(owner, task.id(), mondayAt9(), MONDAYS);
+        Task scheduled = service.schedule(owner, task.id(), mondayAt9(), MONDAYS, null);
         assertThat(scheduled.due()).isEqualTo(mondayAt9());
         assertThat(scheduled.recurrence().byWeekdays()).containsExactly(MONDAY);
         assertThat(scheduled.seriesId()).isNotNull();
 
-        Task cleared = service.schedule(owner, task.id(), null, null);
+        Task cleared = service.schedule(owner, task.id(), null, null, null);
         Task stored = tasks.findById(task.id()).orElseThrow();
         assertThat(cleared.due()).isNull();
         assertThat(stored.due()).isNull();
@@ -287,7 +311,7 @@ class TaskServiceTests {
         UUID id = theirs.id();
 
         List<Runnable> calls = List.of(() -> service.get(owner, id), () -> service.update(owner, id, "x", null),
-                () -> service.schedule(owner, id, null, null), () -> service.complete(owner, id),
+                () -> service.schedule(owner, id, null, null, null), () -> service.complete(owner, id),
                 () -> service.reopen(owner, id), () -> service.delete(owner, id));
         for (Runnable call : calls) {
             assertThatThrownBy(call::run).isInstanceOfSatisfying(SinoException.class,

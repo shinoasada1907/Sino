@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -94,6 +95,33 @@ class TasksApiTests {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(body, "$.id");
+    }
+
+    @Test
+    void aTaskKeepsItsReminderAndTheScheduleReplacesIt() throws Exception {
+        String id = create("{\"title\": \"Nộp báo cáo\", \"dueAt\": \"2030-01-07T02:00:00Z\", "
+                + "\"reminder\": {\"offsetMinutes\": 30}}");
+
+        mvc.perform(get("/api/tasks/{id}", id).with(user("owner@sino.test")))
+                .andExpect(jsonPath("$.reminder.at").value("2030-01-07T01:30:00Z"))
+                .andExpect(jsonPath("$.reminder.offsetMinutes").value(30))
+                .andExpect(jsonPath("$.reminder.state").value("PENDING"));
+        mvc.perform(asOwner(put("/api/tasks/{id}/schedule", id))
+                        .content("{\"dueDate\": \"2030-01-08\", \"reminder\": {\"offsetMinutes\": 900}}"))
+                .andExpect(jsonPath("$.reminder.at").value("2030-01-07T02:00:00Z"));
+        mvc.perform(asOwner(put("/api/tasks/{id}/schedule", id)).content("{\"dueDate\": \"2030-01-08\"}"))
+                .andExpect(jsonPath("$.reminder").value(nullValue()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"title\": \"X\", \"reminder\": {\"offsetMinutes\": 15}}",
+            "{\"title\": \"X\", \"dueDate\": \"2030-01-08\", \"reminder\": {\"offsetMinutes\": 15}}",
+            "{\"title\": \"X\", \"dueAt\": \"2030-01-07T02:00:00Z\", \"reminder\": {\"offsetMinutes\": 7}}" })
+    void refusesAReminderWithoutADueOrOutsideTheAllowedOffsets(String json) throws Exception {
+        mvc.perform(asOwner(post("/api/tasks")).content(json))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("reminderAllowed"));
     }
 
     @Test

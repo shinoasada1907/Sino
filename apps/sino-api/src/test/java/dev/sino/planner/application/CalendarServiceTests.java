@@ -44,7 +44,7 @@ import dev.sino.planner.domain.TaskStatus;
  * Module test of the calendar (spec {@code calendar}, "Xem lịch theo khoảng ngày") on a real PostgreSQL. Today is
  * Friday 02/10/2026 in Vietnam, the time of the canvas, as in the scenarios of the spec.
  */
-@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)
+@ApplicationModuleTest(mode = BootstrapMode.ALL_DEPENDENCIES)
 @Import({ TestcontainersConfiguration.class, CalendarServiceTests.Clocks.class })
 @ActiveProfiles("test")
 class CalendarServiceTests {

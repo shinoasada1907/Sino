@@ -20,6 +20,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import dev.sino.identity.CurrentUser;
 import dev.sino.planner.application.EventService;
+import dev.sino.planner.application.ReminderViews;
 import dev.sino.planner.domain.CalendarEvent;
 
 /**
@@ -31,31 +32,37 @@ import dev.sino.planner.domain.CalendarEvent;
 class EventsController {
 
     private final EventService events;
+    private final ReminderViews reminders;
     private final CurrentUser currentUser;
 
-    EventsController(EventService events, CurrentUser currentUser) {
+    EventsController(EventService events, ReminderViews reminders, CurrentUser currentUser) {
+        this.reminders = reminders;
         this.events = events;
         this.currentUser = currentUser;
     }
 
     @PostMapping
     ResponseEntity<EventResponse> create(@Valid @RequestBody EventRequest request) {
-        CalendarEvent event = events.create(currentUser.requireOwnerId(), request.toNewEvent());
+        CalendarEvent event = events.create(currentUser.requireOwnerId(), request.toNewEvent(true));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(event.id())
                 .toUri();
-        return ResponseEntity.created(location).body(EventResponse.from(event));
+        return ResponseEntity.created(location).body(response(event));
     }
 
     /** The appointment as a whole: its first occurrence and its rule. */
     @GetMapping("/{id}")
     EventResponse get(@PathVariable UUID id) {
-        return EventResponse.from(events.get(currentUser.requireOwnerId(), id));
+        return response(events.get(currentUser.requireOwnerId(), id));
     }
 
     /** Replaces the whole appointment (D-153), every occurrence of a repeating one with it (D-151). */
     @PutMapping("/{id}")
     EventResponse replace(@PathVariable UUID id, @Valid @RequestBody EventRequest request) {
-        return EventResponse.from(events.replace(currentUser.requireOwnerId(), id, request.toNewEvent()));
+        return response(events.replace(currentUser.requireOwnerId(), id, request.toNewEvent(false)));
+    }
+
+    private EventResponse response(CalendarEvent event) {
+        return EventResponse.from(event, reminders.of(event));
     }
 
     @DeleteMapping("/{id}")

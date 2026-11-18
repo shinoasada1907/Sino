@@ -1,6 +1,7 @@
 package dev.sino.planner.application;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -10,7 +11,9 @@ import dev.sino.common.error.SinoException;
 import dev.sino.planner.domain.CalendarEvent;
 import dev.sino.planner.domain.PlannerErrorCode;
 import dev.sino.planner.domain.Recurrence;
+import dev.sino.planner.domain.Reminder;
 import dev.sino.planner.infrastructure.CalendarEventRepository;
+import dev.sino.settings.SettingsDirectory;
 
 /**
  * The appointments of a user (spec {@code calendar}, F17): create, read, replace, delete. A repeating appointment is
@@ -22,11 +25,14 @@ public class EventService {
 
     private final CalendarEventRepository events;
     private final PlannerProperties properties;
+    private final SettingsDirectory settings;
     private final Clock clock;
 
-    EventService(CalendarEventRepository events, PlannerProperties properties, Clock clock) {
+    EventService(CalendarEventRepository events, PlannerProperties properties, SettingsDirectory settings,
+            Clock clock) {
         this.events = events;
         this.properties = properties;
+        this.settings = settings;
         this.clock = clock;
     }
 
@@ -35,8 +41,11 @@ public class EventService {
      */
     @Transactional
     public CalendarEvent create(UUID ownerId, NewEvent draft) {
-        return events.save(CalendarEvent.create(ownerId, draft.title(), draft.location(), draft.notes(),
-                draft.time(), ruleOf(draft.repeat()), clock.instant()));
+        Instant now = clock.instant();
+        CalendarEvent event = CalendarEvent.create(ownerId, draft.title(), draft.location(), draft.notes(),
+                draft.time(), ruleOf(draft.repeat()), now);
+        event.changeReminder(reminderOf(ownerId, draft), now);
+        return events.save(event);
     }
 
     @Transactional(readOnly = true)
@@ -52,8 +61,9 @@ public class EventService {
     @Transactional
     public CalendarEvent replace(UUID ownerId, UUID id, NewEvent draft) {
         CalendarEvent event = owned(ownerId, id);
-        event.replace(draft.title(), draft.location(), draft.notes(), draft.time(), ruleOf(draft.repeat()),
-                clock.instant());
+        Instant now = clock.instant();
+        event.replace(draft.title(), draft.location(), draft.notes(), draft.time(), ruleOf(draft.repeat()), now);
+        event.changeReminder(reminderOf(ownerId, draft), now);
         return event;
     }
 
@@ -61,6 +71,18 @@ public class EventService {
     @Transactional
     public void delete(UUID ownerId, UUID id) {
         events.delete(owned(ownerId, id));
+    }
+
+    /**
+     * The reminder to keep: the one given, or for a new timed appointment that left it out the default of the user's
+     * settings when it is one a timed appointment allows (D-523); otherwise none.
+     */
+    private Reminder reminderOf(UUID ownerId, NewEvent draft) {
+        if (draft.reminder() != null || !draft.useDefaultReminder() || draft.time().isWholeDays()) {
+            return draft.reminder();
+        }
+        return settings.defaultReminderMinutes(ownerId).filter(minutes -> Reminder.isAllowed(minutes, false))
+                .map(Reminder::new).orElse(null);
     }
 
     private CalendarEvent owned(UUID ownerId, UUID id) {

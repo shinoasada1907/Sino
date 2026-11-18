@@ -72,6 +72,12 @@ public class Task {
     @Embedded
     private Recurrence recurrence;
 
+    @Column(name = "reminder_offset_minutes")
+    private Integer reminderOffsetMinutes;
+
+    @Column(name = "reminder_rev", nullable = false)
+    private int reminderRev;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -125,6 +131,11 @@ public class Task {
         setSchedule(due, recurrence);
         if (recurrence != null) {
             occurrenceIndex = 0;
+        }
+        boolean fits = due != null && reminderOffsetMinutes != null
+                && Reminder.isAllowed(reminderOffsetMinutes, due.date() != null);
+        if (!fits) {
+            reminderOffsetMinutes = null;
         }
         updatedAt = now;
     }
@@ -182,6 +193,7 @@ public class Task {
                 : Due.on(occurrence.date());
         Task next = create(ownerId, title, notes, nextDue, recurrence, now);
         next.seriesId = seriesId;
+        next.reminderOffsetMinutes = reminderOffsetMinutes;
         next.occurrenceIndex = occurrence.index();
         return next;
     }
@@ -243,6 +255,29 @@ public class Task {
             return null;
         }
         return new Due(dueAt, dueDate);
+    }
+
+    /** {@code null} when the task has no reminder (D-523). */
+    public Reminder reminder() {
+        return reminderOffsetMinutes == null ? null : new Reminder(reminderOffsetMinutes);
+    }
+
+    /**
+     * Sets or removes the reminder (D-523).
+     *
+     * @throws IllegalArgumentException when the task has no due or the offset does not fit the kind of its due
+     */
+    public void changeReminder(Reminder reminder, Instant now) {
+        if (reminder != null && (due() == null || !Reminder.isAllowed(reminder.offsetMinutes(), dueDate != null))) {
+            throw new IllegalArgumentException("this reminder does not fit the due of the task");
+        }
+        this.reminderOffsetMinutes = reminder == null ? null : reminder.offsetMinutes();
+        this.updatedAt = now;
+    }
+
+    /** The revision of the background job of this task (D-522). */
+    public int reminderRev() {
+        return reminderRev;
     }
 
     public TaskStatus status() {

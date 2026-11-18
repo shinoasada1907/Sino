@@ -80,6 +80,8 @@ class EventsApiTests {
     @BeforeEach
     void startFromNoEvents() {
         jdbc.update("delete from calendar_event");
+        // A default reminder left by another test would change what a new appointment gets (15 without a row).
+        jdbc.update("delete from user_settings");
         jdbc.update("delete from app_user where email <> 'owner@sino.test'");
         otherUser = users.save(new AppUser("other@example.com", "Other")).id();
     }
@@ -115,7 +117,8 @@ class EventsApiTests {
                 .andExpect(jsonPath("$.location").value("Phòng 3"))
                 .andExpect(jsonPath("$.notes").value("Mang laptop"))
                 .andExpect(jsonPath("$.recurrence").value(nullValue()))
-                .andExpect(jsonPath("$.reminder").value(nullValue()))
+                // Left out, so the default of the settings: 15 minutes for a user who changed nothing.
+                .andExpect(jsonPath("$.reminder.offsetMinutes").value(15))
                 .andExpect(jsonPath("$.source").value(nullValue()))
                 .andExpect(jsonPath("$.related").value(nullValue()))
                 .andExpect(jsonPath("$.createdAt").isString())
@@ -127,6 +130,53 @@ class EventsApiTests {
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.title").value("Họp nhóm"))
                 .andExpect(jsonPath("$.startsAt").value(STARTS));
+    }
+
+    @Test
+    void createsAnAppointmentWithAReminderAndReadsItBackThroughPutAndGet() throws Exception {
+        String json = "{\"title\": \"Họp\", " + TIMED + ", \"reminder\": {\"offsetMinutes\": 15}}";
+        String id = JsonPath.read(mvc.perform(asOwner(post("/api/events")).content(json))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reminder.at").value("2030-01-07T01:45:00Z"))
+                .andExpect(jsonPath("$.reminder.offsetMinutes").value(15))
+                .andExpect(jsonPath("$.reminder.state").value("PENDING"))
+                .andReturn().getResponse().getContentAsString(), "$.id");
+
+        mvc.perform(get("/api/events/{id}", id).with(user("owner@sino.test")))
+                .andExpect(jsonPath("$.reminder.at").value("2030-01-07T01:45:00Z"));
+        mvc.perform(asOwner(put("/api/events/{id}", id)).content("{\"title\": \"Họp\", " + TIMED + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reminder").value(nullValue()));
+    }
+
+    @Test
+    void aWholeDayReminderOfNineTheDayBeforeFiresInTheZoneOfSino() throws Exception {
+        mvc.perform(asOwner(post("/api/events")).content("{\"title\": \"Sinh nhật Hà\", \"startDate\": \"2030-10-01\", "
+                        + "\"endDate\": \"2030-10-02\", \"reminder\": {\"offsetMinutes\": 900}}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reminder.at").value("2030-09-30T02:00:00Z"));
+    }
+
+    @Test
+    void anExplicitNullReminderIsNone() throws Exception {
+        mvc.perform(asOwner(post("/api/events")).content("{\"title\": \"Họp\", " + TIMED + ", \"reminder\": null}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reminder").value(nullValue()));
+    }
+
+    @ParameterizedTest
+    @MethodSource("badReminders")
+    void refusesAReminderThatIsNotAllowedForThatKindOfTime(String time, String reminder) throws Exception {
+        mvc.perform(asOwner(post("/api/events")).content("{\"title\": \"Họp\", " + time + ", \"reminder\": " + reminder + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("reminderAllowed"));
+    }
+
+    static Stream<Arguments> badReminders() {
+        String day = "\"startDate\": \"2030-10-01\", \"endDate\": \"2030-10-02\"";
+        return Stream.of(Arguments.of(TIMED, "{\"offsetMinutes\": 7}"), Arguments.of(TIMED, "{\"offsetMinutes\": 900}"),
+                Arguments.of(day, "{\"offsetMinutes\": 15}"), Arguments.of(TIMED, "{\"offsetMinutes\": \"15\"}"),
+                Arguments.of(TIMED, "{}"), Arguments.of(TIMED, "15"));
     }
 
     @Test

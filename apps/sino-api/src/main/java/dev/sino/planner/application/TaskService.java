@@ -13,6 +13,7 @@ import dev.sino.common.error.SinoException;
 import dev.sino.planner.domain.Due;
 import dev.sino.planner.domain.PlannerErrorCode;
 import dev.sino.planner.domain.Recurrence;
+import dev.sino.planner.domain.Reminder;
 import dev.sino.planner.domain.Task;
 import dev.sino.planner.infrastructure.TaskRepository;
 
@@ -53,7 +54,10 @@ public class TaskService {
     @Transactional
     public Task create(UUID ownerId, NewTask draft) {
         Recurrence rule = ruleOf(draft.repeat());
-        return tasks.save(Task.create(ownerId, draft.title(), draft.notes(), draft.due(), rule, clock.instant()));
+        Instant now = clock.instant();
+        Task task = Task.create(ownerId, draft.title(), draft.notes(), draft.due(), rule, now);
+        task.changeReminder(draft.reminder(), now);
+        return tasks.save(task);
     }
 
     /** Renames and changes the notes; a {@code null} argument leaves that field as it is. */
@@ -71,14 +75,16 @@ public class TaskService {
     }
 
     /**
-     * Replaces the due and the repeat rule together; {@code null} is none (D-153).
+     * Replaces the due, the repeat rule and the reminder together; {@code null} is none (D-153).
      *
      * @throws SinoException {@link PlannerErrorCode#INVALID_RECURRENCE} when the rule does not fit the due
      */
     @Transactional
-    public Task schedule(UUID ownerId, UUID id, Due due, RepeatRule repeat) {
+    public Task schedule(UUID ownerId, UUID id, Due due, RepeatRule repeat, Reminder reminder) {
         Task task = owned(ownerId, id);
-        task.reschedule(due, ruleOf(repeat), clock.instant());
+        Instant now = clock.instant();
+        task.reschedule(due, ruleOf(repeat), now);
+        task.changeReminder(reminder, now);
         return task;
     }
 

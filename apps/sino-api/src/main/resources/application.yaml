@@ -29,6 +29,17 @@ spring:
       max-file-size: 26MB
       max-request-size: 26MB
 
+jobrunr:
+  database:
+    # Flyway owns the schema (V34); JobRunr must not create or migrate tables itself.
+    skip-create: true
+  dashboard:
+    # No dashboard anywhere: local = production, and no extra port (D-521).
+    enabled: false
+  background-job-server:
+    # RM-02 turns the server on (`enabled: true`) when the reminder jobs exist; until then nothing is booked or run.
+    enabled: false
+
 management:
   endpoints:
     web:
