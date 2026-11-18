@@ -1,8 +1,6 @@
-import { Monitor, Smartphone, type LucideIcon } from 'lucide-react'
+import { Globe, Smartphone, type LucideIcon } from 'lucide-react'
 import { useId } from 'react'
 import { Badge } from '@/shared/ui/badge'
-import { Button } from '@/shared/ui/button'
-import { Status } from '@/shared/ui/status'
 import {
   DEFAULT_REMINDERS,
   MORNINGS,
@@ -14,11 +12,9 @@ import {
   reminderLabel,
   reminderOf,
   reminderValue,
-  EMPTY_SETTINGS_DATA,
   TIME_ZONES,
   WEEK_STARTS,
   withCurrent,
-  type PushDevice,
 } from '../settings.options'
 import { useSettingValues } from '../useSettings'
 import { SettingRow, SettingSection, SettingSelect, SwitchRow } from './SettingRow'
@@ -75,35 +71,16 @@ export function NotifySwitches() {
   )
 }
 
-/** The browsers that receive notifications: still the canvas sample, and the buttons do nothing yet (fe-ui-settings D-399). */
-export function PushDevices({ devices = EMPTY_SETTINGS_DATA.devices }: { devices?: PushDevice[] }) {
-  const here = EMPTY_SETTINGS_DATA.pushOnThisDevice
+/** Push to browsers and phones has no backend yet: both rows say "Sắp có", the same everywhere. */
+export function PushDevices() {
   return (
     <>
       <SettingRow
-        title="Thông báo trình duyệt (Web Push)"
-        description="Tới được cả khi đã đóng tab, miễn trình duyệt còn chạy. Chỉ có tiêu đề và đường dẫn, không có nội dung tin nhắn."
-        control={
-          <div className="flex items-center gap-3">
-            <Status tone={here ? 'ok' : 'off'}>{here ? 'Đã bật trên máy này' : 'Chưa bật trên máy này'}</Status>
-            <Button type="button" variant="secondary" size="sm">
-              Gửi thử
-            </Button>
-          </div>
-        }
+        title={<Who icon={Globe} name="Thông báo trình duyệt (Web Push)" note="SẮP CÓ · TỚI CẢ KHI ĐÃ ĐÓNG TAB" />}
+        inline
+        stale
+        control={<Badge>Sắp có</Badge>}
       />
-      {devices.map((device) => (
-        <SettingRow
-          key={device.id}
-          title={<Who icon={Monitor} name={device.name} note={device.note} />}
-          inline
-          control={
-            <Button type="button" variant="ghost" size="sm" aria-label={`Gỡ ${device.name}`}>
-              Gỡ
-            </Button>
-          }
-        />
-      ))}
       <SettingRow title={<Who icon={Smartphone} name="Sino cho iOS và Android" note="SẮP CÓ · PUSH TRÊN ĐIỆN THOẠI ĐI CÙNG APP MOBILE" />} inline stale control={<Badge>Sắp có</Badge>} />
     </>
   )

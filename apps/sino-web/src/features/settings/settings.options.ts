@@ -1,19 +1,5 @@
 import type { UserSettings } from './settings.api'
 
-export interface PushDevice {
-  id: string
-  name: string
-  note: string
-}
-
-export const EMPTY_SETTINGS_DATA = {
-  pushOnThisDevice: false,
-  devices: [] as PushDevice[],
-  sessions: { count: 1, summary: '' },
-  version: '0.2.0',
-  build: '2026.10.02',
-}
-
 type Option<T extends string> = { value: T; label: string }
 
 export const DATE_FORMATS: Option<UserSettings['dateFormat']>[] = [
