@@ -3,6 +3,8 @@ import {
   type Credentials,
   LoginQRCallbackEventType,
   type Message,
+  type Reaction,
+  type Reactions,
   type StickerDetail,
   ThreadType as ZcaThreadType,
   type UploadAttachmentImageResponse,
@@ -23,8 +25,12 @@ import {
   type ZaloGateway,
   type ZaloFile,
   type ZaloImage,
+  REACTION_CODES,
+  type ReactionRequest,
   type ZaloMessage,
   type ZaloPhoto,
+  type ZaloQuote,
+  type ZaloQuoted,
   type ZaloSharedFile,
   ZaloRejectedError,
   type ZaloSession,
@@ -128,6 +134,10 @@ export class ZcaGateway implements ZaloGateway {
         listener.on("old_messages", (messages, type) =>
           events.oldMessages(messages.map(toZaloMessage), threadTypeOf(type)),
         );
+        listener.on("reaction", (reaction) => events.message(toZaloReaction(reaction)));
+        listener.on("old_reactions", (reactions, isGroup) =>
+          events.oldReactions(reactions.map(toZaloReaction), isGroup ? "GROUP" : "USER"),
+        );
         listener.on("closed", (code, reason) => events.closed(code, reason));
         // An "error" event nobody listens to would crash the process.
         listener.on("error", (error) => events.error(reasonOf(error)));
@@ -138,15 +148,18 @@ export class ZcaGateway implements ZaloGateway {
           stop: () => listener.stop(),
           requestOldMessages: (threadType, lastId) =>
             listener.requestOldMessages(zcaThreadType(threadType), lastId),
+          requestOldReactions: (threadType, lastId) =>
+            listener.requestOldReactions(zcaThreadType(threadType), lastId),
         };
       },
-      sendText: (threadId, threadType, text) => sendText(api.sendMessage, threadId, threadType, text),
+      sendText: (threadId, threadType, text, quote) => sendText(api.sendMessage, threadId, threadType, text, quote),
       // A GIF keeps zca-js's own GIF branch; a still picture goes as a sticker without the photo frame.
-      sendImage: (threadId, threadType, image) =>
+      sendImage: (threadId, threadType, image, quote, onQuoteDropped) =>
         image.fileName.endsWith(".gif")
-          ? sendImage(api.sendMessage, threadId, threadType, image)
-          : sendPhotoSticker(api.uploadAttachment, photoUrl, threadId, threadType, image),
-      sendFile: (threadId, threadType, file) => sendFile(api.sendMessage, threadId, threadType, file),
+          ? sendImage(api.sendMessage, threadId, threadType, image, quote)
+          : sendPhotoSticker(api.uploadAttachment, photoUrl, threadId, threadType, image, quote, onQuoteDropped),
+      sendFile: (threadId, threadType, file, quote) => sendFile(api.sendMessage, threadId, threadType, file, quote),
+      react: (request) => react(api.addReaction, request),
       stickerArt: async (stickerId, catId) => {
         try {
           // `await` here, or a rejection would pass the catch below.
@@ -306,6 +319,11 @@ export function toZaloMessage(message: Message): ZaloMessage {
   const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
   const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
   const mediaShape = MEASURED_TYPES.has(data.msgType) ? photoShapeOf(data) : undefined;
+  const quote = quotedOf(data.quote);
+  const rawContent =
+    typeof data.content === "object" && data.content !== null && !Array.isArray(data.content)
+      ? (data.content as Record<string, unknown>)
+      : undefined;
   return {
     msgId: data.msgId,
     threadId: message.threadId,
@@ -322,7 +340,197 @@ export function toZaloMessage(message: Message): ZaloMessage {
     ...(contentShape === undefined ? {} : { contentShape }),
     ...(photoShape === undefined ? {} : { photoShape }),
     ...(mediaShape === undefined ? {} : { mediaShape }),
+    ...(typeof data.cliMsgId === "string" && data.cliMsgId !== "" ? { cliMsgId: data.cliMsgId } : {}),
+    ...(typeof data.ttl === "number" ? { ttl: data.ttl } : {}),
+    ...(typeof data.propertyExt === "object" && data.propertyExt !== null ? { propertyExt: data.propertyExt } : {}),
+    ...(rawContent === undefined ? {} : { rawContent }),
+    ...(quote === undefined ? {} : { quote, quoteShape: quoteShapeOf(data.quote) }),
   };
+}
+
+/** The client message types Zalo puts in a quote (cliMsgType) as the kind of the quoted message (D-503). */
+const QUOTED_KINDS: Readonly<Record<number, ZaloQuoted["kind"]>> = {
+  1: "text",
+  31: "voice",
+  32: "photo",
+  36: "sticker",
+  38: "link",
+  43: "location",
+  44: "video",
+  46: "file",
+  49: "gif",
+};
+
+/**
+ * The message a message quotes (D-503), from the quote zca-js reads: globalMsgId is the msgId of the quoted message,
+ * ownerId who sent it, fromD their name, msg the text (cut to 200 characters). undefined when the message quotes nothing.
+ */
+function quotedOf(quote: Message["data"]["quote"]): ZaloQuoted | undefined {
+  if (typeof quote !== "object" || quote === null || quote.globalMsgId === undefined || quote.globalMsgId === null) {
+    return undefined;
+  }
+  const ts = Number(quote.ts);
+  return {
+    msgId: String(quote.globalMsgId),
+    cliMsgId: String(quote.cliMsgId ?? ""),
+    fromId: String(quote.ownerId ?? ""),
+    fromName: typeof quote.fromD === "string" ? quote.fromD : "",
+    text: typeof quote.msg === "string" ? Array.from(quote.msg).slice(0, 200).join("") : "",
+    kind: QUOTED_KINDS[Number(quote.cliMsgType)] ?? "other",
+    ts: new Date(ts > 0 ? ts : Date.now()).toISOString(),
+  };
+}
+
+/** What a quote looked like, for the log: its type number and kind, whether attach and msg are there, whether the ids are exact. */
+function quoteShapeOf(quote: Message["data"]["quote"]): string {
+  if (typeof quote !== "object" || quote === null) {
+    return "none";
+  }
+  const attach =
+    typeof quote.attach === "string" ? (quote.attach === "" ? "empty" : `string(${quote.attach.length})`) : kindOf(quote.attach);
+  const msg = typeof quote.msg === "string" ? (quote.msg === "" ? "empty" : "text") : kindOf(quote.msg);
+  return [
+    `cliMsgType:${String(quote.cliMsgType)}`,
+    `kind:${QUOTED_KINDS[Number(quote.cliMsgType)] ?? "other"}`,
+    `attach:${attach}`,
+    `msg:${msg}`,
+    `globalMsgIdSafe:${Number.isSafeInteger(quote.globalMsgId)}`,
+    `cliMsgIdSafe:${Number.isSafeInteger(quote.cliMsgId)}`,
+  ].join(",");
+}
+
+type SendQuote = NonNullable<Exclude<Parameters<API["sendMessage"]>[0], string>["quote"]>;
+
+/** The quote of a reply as zca-js's sendMessage wants it (D-506). */
+function sendQuoteOf(quote: ZaloQuote): SendQuote {
+  return {
+    content: quote.content as SendQuote["content"],
+    msgType: quote.msgType,
+    propertyExt: quote.propertyExt as SendQuote["propertyExt"],
+    uidFrom: quote.uidFrom,
+    msgId: quote.msgId,
+    cliMsgId: quote.cliMsgId,
+    ts: quote.ts,
+    ttl: quote.ttl,
+  };
+}
+
+/** The client type zca-js puts in qmsgType for the type of a quoted message (its getClientMessageType). */
+const CLIENT_TYPES: Readonly<Record<string, number>> = {
+  webchat: 1,
+  "chat.voice": 31,
+  "chat.photo": 32,
+  "chat.sticker": 36,
+  "chat.doodle": 37,
+  "chat.recommended": 38,
+  "chat.link": 38,
+  "chat.video.msg": 44,
+  "share.file": 46,
+  "chat.gif": 49,
+  "chat.location.new": 43,
+};
+
+/**
+ * The fields zca-js adds to a message that quotes another (sendMessage.js, handleMessage), for the request of a photo
+ * sent as a sticker, which zca-js does not build (D-506). Whether Zalo shows a quote on that request is what the run
+ * with Zalo has to tell. qmsgAttach is only for a group, as in zca-js.
+ */
+export function quoteParams(quote: ZaloQuote, group: boolean): Record<string, unknown> {
+  const text = typeof quote.content === "string";
+  const content = text ? {} : (quote.content as Record<string, unknown>);
+  return {
+    qmsgOwner: quote.uidFrom,
+    qmsgId: quote.msgId,
+    qmsgCliId: quote.cliMsgId,
+    qmsgType: CLIENT_TYPES[quote.msgType] ?? 1,
+    qmsgTs: quote.ts,
+    qmsg: text ? quote.content : "",
+    ...(group
+      ? {
+          qmsgAttach: JSON.stringify(
+            text ? quote.propertyExt : { ...content, thumbUrl: content.thumb, oriUrl: content.href, normalUrl: content.href },
+          ),
+        }
+      : {}),
+    qmsgTTL: quote.ttl,
+  };
+}
+
+/**
+ * A zca-js reaction event as one entry of the queue (zalo-reactions, D-381): `msgId` is the event's own, the reactor is
+ * the sender, and `reaction` holds the code and every message it is on (Zalo allows several). A removal comes with an
+ * empty `rIcon` or with `rType` -1 (what `react` sends to remove); both read as an empty icon. Nothing here goes to the
+ * log but `reactionShape`.
+ */
+export function toZaloReaction(reaction: Reaction): ZaloMessage {
+  const data = reaction.data;
+  const content = data.content;
+  const ts = Number(data.ts);
+  const targets = (Array.isArray(content?.rMsg) ? content.rMsg : []).map((target) => ({
+    msgId: String(target.gMsgID),
+    cliMsgId: String(target.cMsgID),
+  }));
+  const removed = content?.rType === -1 || typeof content?.rIcon !== "string" || content.rIcon === "";
+  return {
+    msgId: String(data.msgId),
+    threadId: reaction.threadId,
+    threadType: reaction.isGroup ? "GROUP" : "USER",
+    fromId: data.uidFrom,
+    fromName: data.dName ?? "",
+    isSelf: reaction.isSelf,
+    zaloType: "reaction",
+    text: null,
+    sentAt: new Date(ts > 0 ? ts : Date.now()).toISOString(),
+    ...(typeof data.cliMsgId === "string" && data.cliMsgId !== "" ? { cliMsgId: data.cliMsgId } : {}),
+    reaction: { icon: removed ? "" : String(content?.rIcon), targets },
+    reactionShape: reactionShapeOf(data, targets, removed),
+  };
+}
+
+/** What a reaction event looked like, for the log: counts, kinds and flags, never the icon, a name or an id's value. */
+function reactionShapeOf(
+  data: Reaction["data"],
+  targets: readonly { msgId: string; cliMsgId: string }[],
+  removed: boolean,
+): string {
+  const content = data.content;
+  const kinds = (Array.isArray(content?.rMsg) ? content.rMsg : []).map((target) => String(target.msgType)).join("/");
+  const numeric = (value: string) => /^\d+$/.test(value);
+  return [
+    `targets:${targets.length}`,
+    `targetMsgTypes:${kinds}`,
+    `removed:${removed}`,
+    `rType:${typeof content?.rType === "number" ? (content.rType < 0 ? "negative" : "positive") : kindOf(content?.rType)}`,
+    `source:${typeof content?.source === "number" ? content.source : kindOf(content?.source)}`,
+    `eventMsgId:${numeric(String(data.msgId)) ? "numeric" : "not-numeric"}`,
+    `targetIds:${targets.every((t) => numeric(t.msgId) && numeric(t.cliMsgId)) ? "numeric" : "not-numeric"}`,
+    `eventCliMsgId:${typeof data.cliMsgId === "string" && data.cliMsgId !== "" ? "present" : "missing"}`,
+  ].join(",");
+}
+
+/**
+ * Sets, changes or takes back a reaction through zca-js (D-389). `addReaction` takes the codes of `Reactions`, but
+ * `Reactions.NONE` throws "Invalid reaction" (no `source` is set for it), so a removal goes as the custom
+ * `{ rType: -1, source: 6, icon: "" }`. A code Zalo does not know never gets here (the route checks it). A Zalo error
+ * code is a refusal; any other failure is Zalo not being reachable.
+ */
+export async function react(add: API["addReaction"], request: ReactionRequest): Promise<void> {
+  if (request.icon !== "" && !REACTION_CODES.includes(request.icon)) {
+    throw new ZaloRejectedError("Not a reaction code of Zalo");
+  }
+  const icon = request.icon === "" ? { rType: -1, source: 6, icon: "" } : (request.icon as Reactions);
+  try {
+    await add(icon, {
+      data: { msgId: request.msgId, cliMsgId: request.cliMsgId },
+      threadId: request.threadId,
+      type: zcaThreadType(request.threadType),
+    });
+  } catch (error) {
+    if (error instanceof ZaloApiError && error.code !== null) {
+      throw new ZaloRejectedError(reasonOf(error));
+    }
+    throw new ZaloUnavailableError(reasonOf(error));
+  }
 }
 
 /**
@@ -672,8 +880,9 @@ export async function sendText(
   threadId: string,
   threadType: ThreadType,
   text: string,
+  quote?: ZaloQuote,
 ): Promise<string> {
-  const response = await deliver(send, text, threadId, threadType);
+  const response = await deliver(send, quote === undefined ? text : { msg: text, quote: sendQuoteOf(quote) }, threadId, threadType);
   const msgId = response.message?.msgId;
   if (msgId === undefined) {
     throw new Error("Zalo answered the send without a msgId");
@@ -692,11 +901,13 @@ export async function sendImage(
   threadId: string,
   threadType: ThreadType,
   image: ZaloImage,
+  quote?: ZaloQuote,
 ): Promise<string> {
   const response = await deliver(
     send,
     {
       msg: "",
+      ...(quote === undefined ? {} : { quote: sendQuoteOf(quote) }),
       attachments: [
         {
           data: image.data,
@@ -759,6 +970,8 @@ export async function sendPhotoSticker(
   threadId: string,
   threadType: ThreadType,
   image: ZaloImage,
+  quote?: ZaloQuote,
+  onQuoteDropped?: () => void,
 ): Promise<string> {
   let uploaded: UploadAttachmentImageResponse;
   try {
@@ -781,7 +994,23 @@ export async function sendPhotoSticker(
     throw new ZaloRejectedError(`Upload failed: ${reasonOf(error)}`);
   }
   try {
-    const answer = await photoUrl(threadType === "GROUP", photoStickerParams(threadId, threadType, image, uploaded));
+    const params = photoStickerParams(threadId, threadType, image, uploaded);
+    let answer: unknown;
+    if (quote === undefined) {
+      answer = await photoUrl(threadType === "GROUP", params);
+    } else {
+      // zca-js has no quote for this request (D-506): the quote fields of its text message are tried. Zalo refusing
+      // them is a refusal of nothing sent, so the picture goes again without the quote and the caller is told.
+      try {
+        answer = await photoUrl(threadType === "GROUP", { ...params, ...quoteParams(quote, threadType === "GROUP") });
+      } catch (error) {
+        if (!(error instanceof ZaloApiError && error.code !== null)) {
+          throw error;
+        }
+        onQuoteDropped?.();
+        answer = await photoUrl(threadType === "GROUP", params);
+      }
+    }
     const msgId = (answer as { msgId?: unknown } | null)?.msgId;
     if (msgId === undefined || msgId === null) {
       throw new Error("Zalo answered the photo sticker without a msgId");
@@ -837,6 +1066,7 @@ export async function sendFile(
   threadId: string,
   threadType: ThreadType,
   file: ZaloFile,
+  quote?: ZaloQuote,
 ): Promise<string> {
   const metadata =
     file.kind === "PHOTO"
@@ -844,7 +1074,11 @@ export async function sendFile(
       : { totalSize: file.data.length };
   const response = await deliver(
     send,
-    { msg: "", attachments: [{ data: file.data, filename: file.fileName as `${string}.${string}`, metadata }] },
+    {
+      msg: "",
+      ...(quote === undefined ? {} : { quote: sendQuoteOf(quote) }),
+      attachments: [{ data: file.data, filename: file.fileName as `${string}.${string}`, metadata }],
+    },
     threadId,
     threadType,
   );

@@ -143,6 +143,101 @@ export interface ZaloMessage {
    * a path or a value), so a real message shows how Zalo gives these. sino-api ignores it.
    */
   readonly mediaShape?: string | undefined;
+  /**
+   * The `cliMsgId` Zalo gave the message (the sender's own id for it), when it gave one (zalo-reactions, D-381): a
+   * reaction names its target by `msgId` and `cliMsgId`, and so will a reply that quotes it.
+   */
+  readonly cliMsgId?: string | undefined;
+  /** How long Zalo keeps the message, in seconds, as Zalo gave it; a quote of the message carries it back. */
+  readonly ttl?: number | undefined;
+  /** What Zalo put beside the content (`color`, `size`, `type`, `subType`, `ext`), untouched, for a quote to carry back. */
+  readonly propertyExt?: Readonly<Record<string, unknown>> | undefined;
+  /**
+   * Only on a `reaction` entry (D-381): one reaction event of Zalo, not a message. `msgId` is the event's own,
+   * `fromId`, `fromName`, `isSelf` and `sentAt` are the reactor's and the moment, `text` is null. `icon` is the code of
+   * Zalo's `Reactions`, empty when the reactor took the reaction back; `targets` are the messages it is on (Zalo allows
+   * several in one event).
+   */
+  readonly reaction?: ZaloReaction | undefined;
+  /**
+   * Only on a `reaction` entry: what the event looked like, never the icon or a name, so the log can say how Zalo
+   * sends a removal or a reaction on a photo (zalo-reactions, D-380). sino-api ignores it.
+   */
+  readonly reactionShape?: string | undefined;
+  /**
+   * Only on a message that quotes another (zalo-quote-reply, D-503): the message it quotes, as Zalo names it. The text is
+   * cut to 200 characters. Never logged; only quoteShape is.
+   */
+  readonly quote?: ZaloQuoted | undefined;
+  /** Only with quote: what the quote looked like (kind, the numeric type, whether it has attach), never a text or a name. */
+  readonly quoteShape?: string | undefined;
+  /**
+   * The content of a message whose content is not text (a photo, a sticker, a file...), untouched: a reply that quotes
+   * such a message has to give it back to Zalo (zalo-quote-reply, D-505). Absent for text.
+   */
+  readonly rawContent?: Readonly<Record<string, unknown>> | undefined;
+}
+
+/** What Zalo says about the message a message quotes (D-503). */
+export interface ZaloQuoted {
+  /** The Zalo msgId of the quoted message (globalMsgId). */
+  readonly msgId: string;
+  readonly cliMsgId: string;
+  /** Who sent the quoted message (ownerId). */
+  readonly fromId: string;
+  readonly fromName: string;
+  /** The text of the quoted message, at most 200 characters; empty for a picture or a sticker. */
+  readonly text: string;
+  readonly kind: "text" | "photo" | "sticker" | "file" | "gif" | "voice" | "video" | "link" | "location" | "other";
+  readonly ts: string;
+}
+
+/**
+ * A message to quote in a reply (D-506): what zca-js asks of the original message (the fields of Zalo's own message).
+ * content is the text, or for a message that is not text the raw content it had.
+ */
+export interface ZaloQuote {
+  readonly msgId: string;
+  readonly cliMsgId: string;
+  readonly uidFrom: string;
+  readonly ts: string;
+  readonly ttl: number;
+  readonly msgType: string;
+  readonly content: string | Readonly<Record<string, unknown>>;
+  readonly propertyExt?: Readonly<Record<string, unknown>> | undefined;
+}
+
+/** The reaction a `reaction` entry carries (zalo-reactions, D-381). */
+export interface ZaloReaction {
+  readonly icon: string;
+  readonly targets: readonly ZaloReactionTarget[];
+}
+
+/** A message a reaction is on, named as Zalo wants it back when a reaction is set (`addReaction`). */
+export interface ZaloReactionTarget {
+  readonly msgId: string;
+  readonly cliMsgId: string;
+}
+
+/**
+ * The reaction codes Zalo takes (`Reactions` of zca-js 2.2.0, D-389), without the empty one, which cannot be sent: zca-js
+ * throws "Invalid reaction" for it, so a removal goes another way. Only `ZcaGateway` imports zca-js, so the list is
+ * here; a test checks it still equals the library's.
+ */
+export const REACTION_CODES: readonly string[] = [
+  "/-heart", "/-strong", ":>", ":o", ":-((", ":-h", ":-*", ":')", "/-shit", "/-rose", "/-break", "/-weak", ";xx", ";-/",
+  ";-)", "/-fade", "/-li", "/-bd", "/-bome", "/-ok", "/-v", "/-thanks", "/-punch", "/-share", "_()_", "/-no", "/-bad",
+  "/-loveu", "--b", ":((", "x-)", "8-)", ";-d", "b-)", ":--|", "p-(", ":-bye", "|-)", ":wipe", ":-dig", "&-(", ":handclap",
+  ">-|", ":-f", ":-l", ":-r", ";-x", ":-o", ";-s", ";-a", ":-<", ":))", "$-)", "/-beer",
+];
+
+/** Where a reaction goes: the message (`msgId`, `cliMsgId`) in its thread, and the reaction (`icon`, empty to remove). */
+export interface ReactionRequest {
+  readonly threadId: string;
+  readonly threadType: ThreadType;
+  readonly msgId: string;
+  readonly cliMsgId: string;
+  readonly icon: string;
 }
 
 /** A thread's name and picture; null where Zalo gave none. */
@@ -187,6 +282,8 @@ export interface ListenerEvents {
   message(message: ZaloMessage): void;
   /** One page answering `requestOldMessages`. */
   oldMessages(messages: ZaloMessage[], threadType: ThreadType): void;
+  /** One page answering `requestOldReactions`, each reaction as a `reaction` entry (D-381). */
+  oldReactions(reactions: ZaloMessage[], threadType: ThreadType): void;
   closed(code: number, reason: string): void;
   error(reason: string): void;
 }
@@ -197,6 +294,8 @@ export interface ZaloListener {
   stop(): void;
   /** Asks for the messages after `lastId`; the page comes back as `oldMessages`. */
   requestOldMessages(threadType: ThreadType, lastId: string): void;
+  /** Asks for the reactions after `lastId`; the page comes back as `oldReactions`. */
+  requestOldReactions(threadType: ThreadType, lastId: string): void;
 }
 
 /** A session Zalo has accepted. */
@@ -214,17 +313,30 @@ export interface ZaloConnection {
    * Sends a text and resolves with Zalo's msgId. Throws ZaloRejectedError when Zalo refused it;
    * any other failure leaves it unknown whether the message went out.
    */
-  sendText(threadId: string, threadType: ThreadType, text: string): Promise<string>;
+  sendText(threadId: string, threadType: ThreadType, text: string, quote?: ZaloQuote): Promise<string>;
   /**
    * Sends a picture alone, with no text, and resolves with the msgId of the picture's message. Throws ZaloRejectedError
    * when Zalo refused it; any other failure leaves it unknown whether it went out (D-353).
    */
-  sendImage(threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string>;
+  sendImage(
+    threadId: string,
+    threadType: ThreadType,
+    image: ZaloImage,
+    quote?: ZaloQuote,
+    /** Called when a picture sent as a sticker could not carry the quote and went without it (D-506). */
+    onQuoteDropped?: () => void,
+  ): Promise<string>;
   /**
    * Sends a picture or file from the computer alone and resolves with its message's msgId (zalo-send-files, D-375).
    * Throws ZaloRejectedError when Zalo refused it; any other failure leaves it unknown whether it went out.
    */
-  sendFile(threadId: string, threadType: ThreadType, file: ZaloFile): Promise<string>;
+  sendFile(threadId: string, threadType: ThreadType, file: ZaloFile, quote?: ZaloQuote): Promise<string>;
+  /**
+   * Sets, changes or takes back the account's reaction on a message (zalo-reactions, D-389). `icon` is a code of
+   * `REACTION_CODES`, or empty to take the reaction back. Throws ZaloRejectedError when Zalo answered with an error;
+   * ZaloUnavailableError for any other failure.
+   */
+  react(request: ReactionRequest): Promise<void>;
   /**
    * The still picture of a sticker and its sprite sheet, or null when Zalo does not know the sticker or names
    * no picture for it, also in its category (`catId`, from the message). Throws ZaloUnavailableError when Zalo

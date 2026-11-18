@@ -103,7 +103,10 @@ describe("mediaShape of a voice message, a video and a link", () => {
 
   it("does not change the message itself: no voice, video or link field", () => {
     const message = toZaloMessage(new UserMessage("7001", zcaData("chat.voice", VOICE)));
-    const { mediaShape: _shape, ...rest } = message;
+    const { mediaShape: _shape, rawContent, ...rest } = message;
+
+    // The raw content is kept for a reply that quotes this message (zalo-quote-reply, D-505).
+    expect(rawContent).toEqual(VOICE);
 
     expect(rest).toEqual({
       msgId: "100",

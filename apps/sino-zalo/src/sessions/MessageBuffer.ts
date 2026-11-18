@@ -62,6 +62,12 @@ export class MessageBuffer {
     return this.ids.has(msgId);
   }
 
+  /** The highest msgId held, or null when the buffer is empty. */
+  newest(): bigint | null {
+    this.forgetOld();
+    return this.entries.at(-1)?.id ?? null;
+  }
+
   oldest(): bigint | null {
     this.forgetOld();
     return this.entries[0]?.id ?? null;

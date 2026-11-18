@@ -4,6 +4,7 @@ import {
   type ZaloFriendContact,
   type ZaloGroupContact,
   type ListenerEvents,
+  type ReactionRequest,
   type QrLoginEvents,
   type QrLoginHandle,
   SessionRejectedError,
@@ -15,6 +16,7 @@ import {
   type ZaloImage,
   type ZaloListener,
   type ZaloMessage,
+  type ZaloQuote,
   ZaloRejectedError,
   type ZaloSession,
   type ZaloStickerArt,
@@ -41,6 +43,9 @@ export class FakeQrLogin implements QrLoginHandle {
 export interface FakeOldMessages {
   readonly oldPages: Record<ThreadType, ZaloMessage[][]>;
   silentOldMessages: boolean;
+  /** The same for `requestOldReactions`: queued pages per type, then empty pages, or nothing at all. */
+  readonly oldReactionPages: Record<ThreadType, ZaloMessage[][]>;
+  silentOldReactions: boolean;
 }
 
 /** A listener the test closes the way Zalo would; stopping it reports a 1000 close later, as zca-js does. */
@@ -63,6 +68,17 @@ export class FakeListener implements ZaloListener {
     }
     const page = this.zalo.oldPages[threadType].shift() ?? [];
     queueMicrotask(() => this.events.oldMessages(page, threadType));
+  }
+
+  readonly reactionRequests: { threadType: ThreadType; lastId: string }[] = [];
+
+  requestOldReactions(threadType: ThreadType, lastId: string): void {
+    this.reactionRequests.push({ threadType, lastId });
+    if (this.zalo.silentOldReactions) {
+      return;
+    }
+    const page = this.zalo.oldReactionPages[threadType].shift() ?? [];
+    queueMicrotask(() => this.events.oldReactions(page, threadType));
   }
 
   /** Zalo pushes a new message. */
@@ -125,18 +141,25 @@ export class FakeConnection implements ZaloConnection {
     return new Map(userIds.map((userId) => [userId, this.zalo.avatars.get(userId) ?? null]));
   }
 
-  async sendText(threadId: string, threadType: ThreadType, text: string): Promise<string> {
-    this.zalo.sent.push({ threadId, threadType, text });
+  async sendText(threadId: string, threadType: ThreadType, text: string, quote?: ZaloQuote): Promise<string> {
+    this.zalo.sent.push({ threadId, threadType, text, ...(quote === undefined ? {} : { quote }) });
     return this.settleSend();
   }
 
-  async sendImage(threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string> {
-    this.zalo.sentImages.push({ threadId, threadType, image });
+  async sendImage(
+    threadId: string,
+    threadType: ThreadType,
+    image: ZaloImage,
+    quote?: ZaloQuote,
+    onQuoteDropped?: () => void,
+  ): Promise<string> {
+    this.zalo.sentImages.push({ threadId, threadType, image, ...(quote === undefined ? {} : { quote }) });
+    if (quote !== undefined && this.zalo.dropQuoteOnImages) onQuoteDropped?.();
     return this.settleSend();
   }
 
-  async sendFile(threadId: string, threadType: ThreadType, file: ZaloFile): Promise<string> {
-    this.zalo.sentFiles.push({ threadId, threadType, file });
+  async sendFile(threadId: string, threadType: ThreadType, file: ZaloFile, quote?: ZaloQuote): Promise<string> {
+    this.zalo.sentFiles.push({ threadId, threadType, file, ...(quote === undefined ? {} : { quote }) });
     return this.settleSend();
   }
 
@@ -155,6 +178,22 @@ export class FakeConnection implements ZaloConnection {
       throw new TypeError("fetch failed");
     }
     return String(this.zalo.nextMsgId++);
+  }
+
+  async react(request: ReactionRequest): Promise<void> {
+    this.zalo.reactions.push(request);
+    const outcome = this.zalo.nextReact;
+    this.zalo.nextReact = "accept";
+    await Promise.resolve();
+    if (outcome === "hold") {
+      await new Promise<void>((release) => this.zalo.heldReacts.push(release));
+    }
+    if (outcome === "reject") {
+      throw new ZaloRejectedError("ZcaApiError: Tham số không hợp lệ");
+    }
+    if (outcome === "fail") {
+      throw new ZaloUnavailableError("TypeError: fetch failed");
+    }
   }
 
   async stickerArt(stickerId: string, _catId?: string): Promise<ZaloStickerArt | null> {
@@ -232,6 +271,13 @@ export class FakeZaloGateway implements ZaloGateway {
   nextSession: "accept" | "reject" | "unavailable" = "accept";
   readonly oldPages: Record<ThreadType, ZaloMessage[][]> = { USER: [], GROUP: [] };
   silentOldMessages = false;
+  readonly oldReactionPages: Record<ThreadType, ZaloMessage[][]> = { USER: [], GROUP: [] };
+  silentOldReactions = false;
+  /** Every reaction set or taken back (zalo-reactions), refused or not, in order. */
+  readonly reactions: ReactionRequest[] = [];
+  /** What Zalo does with the next reaction: take it, refuse it, fail as unreachable, or hold it until released. One-shot. */
+  nextReact: "accept" | "reject" | "fail" | "hold" = "accept";
+  readonly heldReacts: (() => void)[] = [];
   /** Names Zalo gives threads, by thread id; any other thread has none. */
   readonly threadInfos = new Map<string, ThreadInfo>();
   readonly threadInfoCalls: string[] = [];
@@ -245,11 +291,13 @@ export class FakeZaloGateway implements ZaloGateway {
   readonly stickerArts = new Map<string, ZaloStickerArt>();
   stickerFails = false;
   /** Every text sent, refused or not, in order. */
-  readonly sent: { threadId: string; threadType: ThreadType; text: string }[] = [];
+  readonly sent: { threadId: string; threadType: ThreadType; text: string; quote?: ZaloQuote }[] = [];
+  /** Whether a picture that carries a quote goes without it, as Zalo may do with a sticker (D-506): then it calls onQuoteDropped. */
+  dropQuoteOnImages = false;
   /** Every picture sent, refused or not, in order; the texts are in `sent`. `nextSend` rules both. */
-  readonly sentImages: { threadId: string; threadType: ThreadType; image: ZaloImage }[] = [];
+  readonly sentImages: { threadId: string; threadType: ThreadType; image: ZaloImage; quote?: ZaloQuote }[] = [];
   /** Every picture or file from the computer sent (zalo-send-files), refused or not, in order. */
-  readonly sentFiles: { threadId: string; threadType: ThreadType; file: ZaloFile }[] = [];
+  readonly sentFiles: { threadId: string; threadType: ThreadType; file: ZaloFile; quote?: ZaloQuote }[] = [];
   /** What Zalo does with the next send: take it, refuse it, break midway, or hold it until released. */
   nextSend: "accept" | "reject" | "fail" | "hold" = "accept";
   nextMsgId = 9000;
@@ -280,6 +328,11 @@ export class FakeZaloGateway implements ZaloGateway {
   /** Zalo answers the alias lists it held, with what it had when each was asked. */
   releaseHeldAliasLists(): void {
     for (const release of this.heldAliasLists.splice(0)) release();
+  }
+
+  /** Zalo answers the reactions it held, taking them. */
+  releaseHeldReacts(): void {
+    for (const release of this.heldReacts.splice(0)) release();
   }
 
   /** Zalo answers the sends it held: takes them, or refuses them. */

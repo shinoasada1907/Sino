@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { type ThreadType, type ZaloFile, type ZaloImage, ZaloRejectedError } from "../gateway/ZaloGateway.ts";
+import { type ThreadType, type ZaloFile, type ZaloImage, type ZaloQuote, ZaloRejectedError } from "../gateway/ZaloGateway.ts";
 import type { OwnMessages, SessionManager } from "../sessions/SessionManager.ts";
 import { sendSessionError } from "../sessions/routes.ts";
 import { pictureSize } from "./pictureSize.ts";
+import { INVALID_QUOTE, parseQuote } from "./quote.ts";
 import { RateLimiter } from "./RateLimiter.ts";
 import { type SentRecord, SentLog } from "./SentLog.ts";
 
@@ -13,6 +14,8 @@ export interface SendRoutesOptions {
   readonly sendTimeoutMs?: number;
   /** The same for a picture or file from the computer, which Zalo has to take whole first (zalo-send-files, D-375). */
   readonly fileTimeoutMs?: number;
+  /** The one-per-second turn of each account; a reaction takes its turn on the same one (zalo-reactions, D-389). */
+  readonly rate?: RateLimiter;
 }
 
 interface AccountParams {
@@ -33,6 +36,8 @@ interface SendBody {
   /** The text of a text message; empty or missing beside a picture. */
   text?: string;
   image?: ImageBody;
+  /** The message this one replies to (zalo-quote-reply, D-506); checked by `parseQuote`. */
+  quote?: unknown;
   clientMessageId: string;
 }
 
@@ -65,6 +70,7 @@ const sendBodySchema = {
         height: { type: "integer", minimum: 1, maximum: 16384 },
       },
     },
+    quote: { type: "object" },
     clientMessageId: id,
   },
 };
@@ -97,7 +103,7 @@ export function registerSendRoutes(
 ): void {
   const sentLog = new SentLog({ now: options.now });
   // One message per second per account, so Zalo does not take the account for a bot (D-280).
-  const rate = new RateLimiter({ intervalMs: 1_000, now: options.now });
+  const rate = options.rate ?? new RateLimiter({ intervalMs: 1_000, now: options.now });
   const sendTimeoutMs = options.sendTimeoutMs ?? 10_000;
 
   app.post<{ Params: AccountParams; Body: SendBody }>(
@@ -122,6 +128,10 @@ export function registerSendRoutes(
       const content = contentOf(request.body);
       if ("code" in content) {
         return reply.code(400).send(content);
+      }
+      const quote = request.body.quote === undefined ? undefined : parseQuote(request.body.quote);
+      if (request.body.quote !== undefined && quote === undefined) {
+        return reply.code(400).send(INVALID_QUOTE);
       }
       // What happened to an earlier send is true whatever the session is now: a 410 here would let
       // sino-api mark a message that went out as failed.
@@ -149,6 +159,7 @@ export function registerSendRoutes(
         accountId,
         threadId,
         clientMessageId,
+        ...(quote === undefined ? {} : { quoted: true }),
         ...(content.kind === "text"
           ? { length: content.text.length }
           : { imageType: content.type, imageBytes: content.image.data.length }),
@@ -157,8 +168,10 @@ export function registerSendRoutes(
         accountId,
         clientMessageId,
         content.kind === "text"
-          ? sessions.sendText(accountId, threadId, threadType, content.text)
-          : sessions.sendImage(accountId, threadId, threadType, content.image),
+          ? sessions.sendText(accountId, threadId, threadType, content.text, quote)
+          : sessions.sendImage(accountId, threadId, threadType, content.image, quote, () =>
+              request.log.warn(details, "Zalo did not take the quote on the picture, sent without it"),
+            ),
       );
       try {
         const record = await within(sending, sendTimeoutMs);
@@ -229,8 +242,19 @@ export function registerSendRoutes(
       }
 
       // IDs, the kind and the size only: never the bytes or the name of the file (D-282).
-      const details = { accountId, threadId: meta.threadId, clientMessageId: meta.clientMessageId, kind: file.kind, bytes: file.data.length };
-      const sending = sentLog.track(accountId, meta.clientMessageId, sessions.sendFile(accountId, meta.threadId, meta.threadType, file));
+      const details = {
+        accountId,
+        threadId: meta.threadId,
+        clientMessageId: meta.clientMessageId,
+        kind: file.kind,
+        bytes: file.data.length,
+        ...(meta.quote === undefined ? {} : { quoted: true }),
+      };
+      const sending = sentLog.track(
+        accountId,
+        meta.clientMessageId,
+        sessions.sendFile(accountId, meta.threadId, meta.threadType, file, meta.quote),
+      );
       try {
         const record = await within(sending, fileTimeoutMs);
         if (record === TIME_UP) {
@@ -337,6 +361,7 @@ interface FileMeta {
   readonly clientMessageId: string;
   readonly kind: "PHOTO" | "FILE";
   readonly fileName: string;
+  readonly quote?: ZaloQuote;
 }
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -365,7 +390,7 @@ async function fileRequestOf(contentType: string | undefined, body: unknown): Pr
   }
   const meta = metaOf(metaPart);
   if (meta === null) {
-    return badFileRequest("meta needs threadId, threadType, clientMessageId, kind and fileName");
+    return badFileRequest("meta needs threadId, threadType, clientMessageId, kind and fileName, and a quote, if any, as a quote is");
   }
   const data = Buffer.from(await filePart.arrayBuffer());
   if (data.length === 0) {
@@ -397,7 +422,8 @@ function metaOf(text: string): FileMeta | null {
   if (typeof value !== "object" || value === null) {
     return null;
   }
-  const { threadId, threadType, clientMessageId, kind, fileName } = value as Record<string, unknown>;
+  const { threadId, threadType, clientMessageId, kind, fileName, quote: rawQuote } = value as Record<string, unknown>;
+  const quote = rawQuote === undefined ? undefined : parseQuote(rawQuote);
   const isId = (field: unknown): field is string => typeof field === "string" && field.length >= 1 && field.length <= 200;
   const isName =
     typeof fileName === "string" && fileName.length >= 1 && fileName.length <= 255 && !/[/\\\u0000-\u001f]/.test(fileName);
@@ -407,7 +433,10 @@ function metaOf(text: string): FileMeta | null {
   if ((threadType !== "USER" && threadType !== "GROUP") || (kind !== "PHOTO" && kind !== "FILE")) {
     return null;
   }
-  return { threadId, threadType, clientMessageId, kind, fileName };
+  if (rawQuote !== undefined && quote === undefined) {
+    return null;
+  }
+  return { threadId, threadType, clientMessageId, kind, fileName, ...(quote === undefined ? {} : { quote }) };
 }
 
 function sendOutcomeUnknown(reply: FastifyReply) {

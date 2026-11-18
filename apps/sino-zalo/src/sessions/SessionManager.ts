@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   SessionRejectedError,
+  type ReactionRequest,
   type ThreadType,
   type ZaloConnection,
   type ZaloGateway,
@@ -8,6 +9,7 @@ import {
   type ZaloImage,
   type ZaloListener,
   type ZaloMessage,
+  type ZaloQuote,
   type ZaloSession,
 } from "../gateway/ZaloGateway.ts";
 import type { Notifier } from "../notify.ts";
@@ -65,6 +67,8 @@ interface LiveSession {
   readonly whenReady: (() => void)[];
   /** The catch-up waiting for a page of each thread type. */
   readonly pages: Map<ThreadType, (messages: ZaloMessage[]) => void>;
+  /** The same for the reactions the catch-up asked for (zalo-reactions, D-381). */
+  readonly reactionPages: Map<ThreadType, (reactions: ZaloMessage[]) => void>;
   /** The lowest cursor this session has caught up from (D-278). */
   caughtUpFrom: bigint | null;
   catchingUp: Promise<void> | null;
@@ -181,18 +185,33 @@ export class SessionManager {
   }
 
   /** Sends a text through the account's live session and resolves with Zalo's msgId. */
-  sendText(accountId: string, threadId: string, threadType: ThreadType, text: string): Promise<string> {
-    return this.liveSession(accountId).connection.sendText(threadId, threadType, text);
+  sendText(accountId: string, threadId: string, threadType: ThreadType, text: string, quote?: ZaloQuote): Promise<string> {
+    return this.liveSession(accountId).connection.sendText(threadId, threadType, text, quote);
   }
 
   /** Sends a picture through the account's live session and resolves with the msgId of its message (D-353). */
-  sendImage(accountId: string, threadId: string, threadType: ThreadType, image: ZaloImage): Promise<string> {
-    return this.liveSession(accountId).connection.sendImage(threadId, threadType, image);
+  sendImage(
+    accountId: string,
+    threadId: string,
+    threadType: ThreadType,
+    image: ZaloImage,
+    quote?: ZaloQuote,
+    onQuoteDropped?: () => void,
+  ): Promise<string> {
+    return this.liveSession(accountId).connection.sendImage(threadId, threadType, image, quote, onQuoteDropped);
   }
 
   /** A picture or file from the computer (zalo-send-files), as `sendImage`: throws at once without a live session. */
-  sendFile(accountId: string, threadId: string, threadType: ThreadType, file: ZaloFile): Promise<string> {
-    return this.liveSession(accountId).connection.sendFile(threadId, threadType, file);
+  sendFile(accountId: string, threadId: string, threadType: ThreadType, file: ZaloFile, quote?: ZaloQuote): Promise<string> {
+    return this.liveSession(accountId).connection.sendFile(threadId, threadType, file, quote);
+  }
+
+  /**
+   * Sets, changes or takes back the account's reaction through its live session (zalo-reactions, D-389): throws at once
+   * without a live session, ZaloRejectedError when Zalo refused it.
+   */
+  react(accountId: string, request: ReactionRequest): Promise<void> {
+    return this.liveSession(accountId).connection.react(request);
   }
 
   /** The account's own messages in a thread with this text, sent after `after` (epoch ms). */
@@ -261,10 +280,24 @@ export class SessionManager {
         },
         message: (message) => this.received(accountId, session, message),
         oldMessages: (messages, threadType) => {
-          for (const message of messages) this.logMessage(accountId, message, "catch-up");
+          for (const message of messages) this.logMessage(accountId, message, "catch-up", session);
           const resolve = session.pages.get(threadType);
           session.pages.delete(threadType);
           resolve?.(messages);
+        },
+        oldReactions: (reactions, threadType) => {
+          for (const reaction of reactions) this.logMessage(accountId, reaction, "catch-up", session);
+          const resolve = session.reactionPages.get(threadType);
+          session.reactionPages.delete(threadType);
+          // Whoever asked for the page adds it to the buffer; a page nobody asked for (Zalo may send one on its own) is
+          // added here, so no reaction is lost.
+          if (resolve === undefined) {
+            if (this.sessions.get(accountId) === session && session.buffer.add(reactions).length > 0) {
+              this.notifier.messagesArrived(session.ownId);
+            }
+            return;
+          }
+          resolve(reactions);
         },
         closed: (code) => {
           session.ready = false;
@@ -280,6 +313,7 @@ export class SessionManager {
       ready: false,
       whenReady: [],
       pages: new Map(),
+      reactionPages: new Map(),
       caughtUpFrom: null,
       catchingUp: null,
     };
@@ -291,7 +325,7 @@ export class SessionManager {
     if (this.sessions.get(accountId) !== session) {
       return;
     }
-    this.logMessage(accountId, message);
+    this.logMessage(accountId, message, undefined, session);
     // Into the buffer first: whatever happens to the webhook, sino-api finds the message at its next pull.
     if (session.buffer.add([message]).length > 0) {
       this.notifier.messagesArrived(session.ownId);
@@ -302,7 +336,7 @@ export class SessionManager {
    * One log line for a message Zalo gave: from the live listener, or (`source`) from the catch-up, which takes
    * the messages sent while sino-zalo was off and so is where most of them come from after a restart.
    */
-  private logMessage(accountId: string, message: ZaloMessage, source?: "catch-up"): void {
+  private logMessage(accountId: string, message: ZaloMessage, source?: "catch-up", session?: LiveSession): void {
     // IDs, type and length only: never the text (D-282). For a photo also whether a picture was found, never its
     // address (it opens the picture) or its caption. For a sticker its ids, which are numbers. When the pipeline could
     // not show the message as it means to (no picture, no sticker, a type nobody has handled): the keys of the content
@@ -324,10 +358,30 @@ export class SessionManager {
         ...(message.contentShape === undefined ? {} : { contentShape: message.contentShape }),
         ...(message.photoShape === undefined ? {} : { photoShape: message.photoShape }),
         ...(message.mediaShape === undefined ? {} : { mediaShape: message.mediaShape }),
+        ...(message.quoteShape === undefined ? {} : { quoteShape: message.quoteShape }),
+        ...(message.reaction === undefined || session === undefined ? {} : this.reactionDetails(message, session)),
+        ...(message.cliMsgId === undefined || message.reaction !== undefined ? {} : { hasCliMsgId: true }),
         ...(source === undefined ? {} : { source }),
       },
       "Zalo message",
     );
+  }
+
+  /**
+   * What the log says about a reaction (zalo-reactions, D-380): the shape of the event, whether its own msgId is above
+   * the newest message held (the same sequence as messages, or not), and how many of its targets are held and of which
+   * types. Never the icon or a name.
+   */
+  private reactionDetails(message: ZaloMessage, session: LiveSession): object {
+    const newest = session.buffer.newest();
+    const ids = new Set(message.reaction?.targets.map((target) => target.msgId));
+    const held = session.buffer.filter((other) => ids.has(other.msgId));
+    return {
+      ...(message.reactionShape === undefined ? {} : { reactionShape: message.reactionShape }),
+      reactionAboveNewest: newest === null || !/^\d+$/.test(message.msgId) ? null : BigInt(message.msgId) > newest,
+      targetsHeld: held.length,
+      ...(held.length === 0 ? {} : { targetZaloTypes: held.map((other) => other.zaloType).join(",") }),
+    };
   }
 
   private async catchUpIfNeeded(accountId: string, session: LiveSession, cursor: bigint): Promise<void> {
@@ -343,18 +397,29 @@ export class SessionManager {
     }
     session.caughtUpFrom = cursor;
     const run = async () => {
-      const reports = await catchUp(
-        (threadType, lastId) => this.requestPage(session, threadType, lastId),
-        session.buffer,
-        cursor.toString(),
-        { timeoutMs: this.catchUpTimeoutMs },
-      );
-      for (const report of reports) {
-        if (!report.joined) {
-          this.log.warn(
-            { accountId, threadType: report.threadType, pages: report.pages, messages: report.messages },
-            "Catch-up stopped before it joined the buffer",
-          );
+      // Messages and reactions side by side: each page type has its own answer (zalo-reactions, D-381).
+      const [reports, reactionReports] = await Promise.all([
+        catchUp(
+          (threadType, lastId) => this.requestPage(session, threadType, lastId),
+          session.buffer,
+          cursor.toString(),
+          { timeoutMs: this.catchUpTimeoutMs },
+        ),
+        catchUp(
+          (threadType, lastId) => this.requestPage(session, threadType, lastId, "reactions"),
+          session.buffer,
+          cursor.toString(),
+          { timeoutMs: this.catchUpTimeoutMs },
+        ),
+      ]);
+      for (const [kind, list] of [["Catch-up", reports], ["Reaction catch-up", reactionReports]] as const) {
+        for (const report of list) {
+          if (!report.joined) {
+            this.log.warn(
+              { accountId, threadType: report.threadType, pages: report.pages, messages: report.messages },
+              `${kind} stopped before it joined the buffer`,
+            );
+          }
         }
       }
     };
@@ -368,6 +433,7 @@ export class SessionManager {
     session: LiveSession,
     threadType: ThreadType,
     lastId: string,
+    kind: "messages" | "reactions" = "messages",
   ): Promise<ZaloMessage[]> {
     if (!session.ready) {
       // Bounded like the catch-up, so a catch-up that gave up never asks Zalo later.
@@ -382,8 +448,10 @@ export class SessionManager {
         throw new Error("The Zalo listener is not ready");
       }
     }
-    const page = new Promise<ZaloMessage[]>((resolve) => session.pages.set(threadType, resolve));
-    session.listener.requestOldMessages(threadType, lastId);
+    const waiting = kind === "messages" ? session.pages : session.reactionPages;
+    const page = new Promise<ZaloMessage[]>((resolve) => waiting.set(threadType, resolve));
+    if (kind === "messages") session.listener.requestOldMessages(threadType, lastId);
+    else session.listener.requestOldReactions(threadType, lastId);
     return page;
   }
 
