@@ -8,6 +8,7 @@ import dev.sino.conversation.application.InboxMessage;
 import dev.sino.conversation.application.InboxMessage.Address;
 import dev.sino.conversation.application.InboxMessage.File;
 import dev.sino.conversation.application.InboxMessage.Image;
+import dev.sino.conversation.application.InboxMessage.Location;
 import dev.sino.conversation.application.InboxMessage.Quote;
 import dev.sino.conversation.application.InboxMessage.Reaction;
 import dev.sino.conversation.application.InboxMessage.Sender;
@@ -19,14 +20,15 @@ import dev.sino.conversation.application.InboxMessage.StickerSprite;
  */
 record MessageResponse(UUID id, String direction, String status, Instant sentAt, Sender sender, List<Address> to,
         List<Address> cc, String subject, String text, String bodyFormat, boolean read, List<File> attachments,
-        UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image, UUID libraryStickerId,
+        UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image, Location location,
+        UUID libraryStickerId,
         List<Reaction> reactions, boolean canReact, Quote quote, boolean canQuote) {
 
     static MessageResponse from(InboxMessage message) {
         return new MessageResponse(message.id(), message.direction().name(), message.status().name(),
                 message.sentAt(), message.sender(), message.to(), message.cc(), message.subject(), message.text(),
                 message.bodyFormat().name(), message.read(), message.attachments(), message.clientMessageId(),
-                message.sticker(), message.stickerSprite(), message.image(), message.libraryStickerId(),
+                message.sticker(), message.stickerSprite(), message.image(), message.location(), message.libraryStickerId(),
                 message.reactions(), message.canReact(), message.quote(), message.canQuote());
     }
 

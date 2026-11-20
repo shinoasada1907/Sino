@@ -160,6 +160,20 @@ class ConversationsApiTests {
     }
 
     @Test
+    void aLocationMessageIsTheSnippetOfItsThreadByItsSummaryText() throws Exception {
+        UUID gmail = connect(owner, "gmail", "owner@gmail.test");
+        store(gmail, thread("report", "Chia sẻ vị trí", ALICE, OWNER),
+                message("report", "m-1", MessageDirection.INBOUND, "alice@example.test", MONDAY,
+                        "[Vị trí] Heyman Coffee", false,
+                        Map.of("zaloType", "chat.location.new", NormalizedMessage.LOCATION_LAT, "10.7769",
+                                NormalizedMessage.LOCATION_LNG, "106.70098")));
+
+        mvc.perform(get("/api/conversations").with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].snippet").value("[Vị trí] Heyman Coffee"));
+    }
+
+    @Test
     void anEmailThreadShowsItsCounterpartSubjectAndSnippet() throws Exception {
         UUID gmail = connect(owner, "gmail", "owner@gmail.test");
         store(gmail, thread("report", "Báo cáo tháng 9", ALICE, OWNER),

@@ -627,12 +627,20 @@ class ZaloClient {
     record Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
             String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file,
             String cliMsgId, Integer ttl, JsonNode propertyExt, JsonNode rawContent, Quoted quote,
-            ReactionEntry reaction) {
+            ReactionEntry reaction, Location location) {
+
+        Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
+                String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file,
+                String cliMsgId, Integer ttl, JsonNode propertyExt, JsonNode rawContent, Quoted quote,
+                ReactionEntry reaction) {
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, photo, file,
+                    cliMsgId, ttl, propertyExt, rawContent, quote, reaction, null);
+        }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
                 String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file) {
             this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, photo, file,
-                    null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
         }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
@@ -650,6 +658,16 @@ class ZaloClient {
             this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, null, null);
         }
 
+    }
+
+    /**
+     * A shared location as sino-zalo gives it (zalo-location-card, D-529). The coordinates are {@code Double}, so a
+     * missing one reads as null and is refused with the rest; {@code current} is true when the sender shared where
+     * they are. Nothing here is checked yet.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Location(Double latitude, Double longitude, String title, String address, String previewUrl,
+            Boolean current) {
     }
 
     /**

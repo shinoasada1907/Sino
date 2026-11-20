@@ -325,6 +325,56 @@ class ConversationMessagesApiTests {
     }
 
     @Test
+    void aLocationMessageListsItsPlaceAndAnyOtherMessageListsNone() throws Exception {
+        store(gmail, thread("report"), fromAlice("m-1", TUESDAY, "Chữ"),
+                new NormalizedMessage("m-2", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.TEXT, "[Vị trí] Heyman Coffee", MessageStatus.UNKNOWN, false, null, MONDAY,
+                        List.of(),
+                        Map.of("zaloType", "chat.location.new", NormalizedMessage.LOCATION_LAT, "10.7769",
+                                NormalizedMessage.LOCATION_LNG, "106.70098",
+                                NormalizedMessage.LOCATION_TITLE, "Heyman Coffee",
+                                NormalizedMessage.LOCATION_ADDRESS, "12 Nguyễn Huệ,\nQuận 1",
+                                NormalizedMessage.LOCATION_PREVIEW_URL, "https://maps-zpc.zdn.vn/a/b.png",
+                                NormalizedMessage.LOCATION_CURRENT, "true"),
+                        null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].location").value(nullValue()))
+                .andExpect(jsonPath("$.items[1].text").value("[Vị trí] Heyman Coffee"))
+                .andExpect(jsonPath("$.items[1].location.latitude").value(10.7769))
+                .andExpect(jsonPath("$.items[1].location.longitude").value(106.70098))
+                .andExpect(jsonPath("$.items[1].location.title").value("Heyman Coffee"))
+                .andExpect(jsonPath("$.items[1].location.address").value("12 Nguyễn Huệ,\nQuận 1"))
+                .andExpect(jsonPath("$.items[1].location.previewUrl").value("https://maps-zpc.zdn.vn/a/b.png"))
+                .andExpect(jsonPath("$.items[1].location.current").value(true))
+                .andExpect(jsonPath("$.items[1].metadata").doesNotExist());
+    }
+
+    @Test
+    void aLocationWithOnlyCoordinatesListsNullsAndNotCurrentAndOneWithUnreadableCoordinatesListsNone()
+            throws Exception {
+        store(gmail, thread("report"),
+                new NormalizedMessage("m-1", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.TEXT, "[Vị trí]", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(),
+                        Map.of("zaloType", "chat.location.new", NormalizedMessage.LOCATION_LAT, "-33.8688",
+                                NormalizedMessage.LOCATION_LNG, "151.2093"), null, null),
+                new NormalizedMessage("m-2", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.TEXT, "[Vị trí]", MessageStatus.UNKNOWN, false, null, MONDAY, List.of(),
+                        Map.of("zaloType", "chat.location.new", NormalizedMessage.LOCATION_LAT, "abc",
+                                NormalizedMessage.LOCATION_LNG, "151.2093"), null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].location.latitude").value(-33.8688))
+                .andExpect(jsonPath("$.items[0].location.title").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].location.address").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].location.previewUrl").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].location.current").value(false))
+                .andExpect(jsonPath("$.items[1].location").value(nullValue()));
+    }
+
+    @Test
     void addresseesAreUnknownForMailStoredWithoutThemAndAMessageMayHaveNoSenderOrText() throws Exception {
         NormalizedMessage notice = new NormalizedMessage("m-1", "report", null, MessageDirection.INBOUND,
                 MessageType.SYSTEM, null, MessageStatus.UNKNOWN, true, null, MONDAY, List.of(), Map.of(), null, null);

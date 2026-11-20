@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import dev.sino.conversation.application.InboxMessage.File;
 import dev.sino.conversation.application.InboxMessage.Image;
+import dev.sino.conversation.application.InboxMessage.Location;
 import dev.sino.conversation.application.InboxMessage.Quote;
 import dev.sino.conversation.application.InboxMessage.Reaction;
 import dev.sino.conversation.application.InboxMessage.Sender;
@@ -53,6 +54,12 @@ public class MessageHistory {
                    m.metadata ->> :imageThumbUrl AS image_thumb_url,
                    m.metadata ->> :imageCaption AS image_caption,
                    m.metadata ->> :libraryStickerId AS library_sticker_id,
+                   m.metadata ->> :locationLat AS location_lat,
+                   m.metadata ->> :locationLng AS location_lng,
+                   m.metadata ->> :locationTitle AS location_title,
+                   m.metadata ->> :locationAddress AS location_address,
+                   m.metadata ->> :locationPreviewUrl AS location_preview_url,
+                   m.metadata ->> :locationCurrent AS location_current,
                    p.external_participant_id AS sender, p.display_name AS sender_name, p.avatar_url AS sender_avatar_url, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
             JOIN conversation c ON c.id = m.conversation_id JOIN connected_account a ON a.id = c.account_id
@@ -146,7 +153,13 @@ public class MessageHistory {
                 .param("imageUrl", NormalizedMessage.IMAGE_URL)
                 .param("imageThumbUrl", NormalizedMessage.IMAGE_THUMB_URL)
                 .param("imageCaption", NormalizedMessage.IMAGE_CAPTION)
-                .param("libraryStickerId", NormalizedMessage.LIBRARY_STICKER_ID);
+                .param("libraryStickerId", NormalizedMessage.LIBRARY_STICKER_ID)
+                .param("locationLat", NormalizedMessage.LOCATION_LAT)
+                .param("locationLng", NormalizedMessage.LOCATION_LNG)
+                .param("locationTitle", NormalizedMessage.LOCATION_TITLE)
+                .param("locationAddress", NormalizedMessage.LOCATION_ADDRESS)
+                .param("locationPreviewUrl", NormalizedMessage.LOCATION_PREVIEW_URL)
+                .param("locationCurrent", NormalizedMessage.LOCATION_CURRENT);
     }
 
     private InboxMessage messageOf(ResultSet row) throws SQLException {
@@ -173,6 +186,9 @@ public class MessageHistory {
                         row.getString("sticker_duration_ms")),
                 imageOf(row.getString("image_url"), row.getString("image_thumb_url"),
                         row.getString("image_caption")),
+                locationOf(row.getString("location_lat"), row.getString("location_lng"),
+                        row.getString("location_title"), row.getString("location_address"),
+                        row.getString("location_preview_url"), row.getString("location_current")),
                 libraryStickerOf(row.getString("library_sticker_id")), List.of(), canReact, quote, canQuote);
     }
 
@@ -227,6 +243,23 @@ public class MessageHistory {
     }
 
     /**
+     * The place of a location message as the connector stored it (zalo-location-card, D-530): none unless both
+     * coordinates read back as numbers, since the metadata is text.
+     */
+    private static Location locationOf(String lat, String lng, String title, String address, String previewUrl,
+            String current) {
+        if (lat == null || lng == null) {
+            return null;
+        }
+        try {
+            return new Location(Double.parseDouble(lat), Double.parseDouble(lng), title, address, previewUrl,
+                    "true".equals(current));
+        } catch (NumberFormatException unreadable) {
+            return null;
+        }
+    }
+
+    /**
      * The sprite sheet of a sticker as the connector stored it (ZL-15). The metadata is text, so it is read back with
      * care: all three values must be there and the numbers whole and above zero, else the sticker lists no sprite and
      * shows still.
@@ -262,7 +295,7 @@ public class MessageHistory {
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
                 List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId(), m.sticker(),
-                m.stickerSprite(), m.image(), m.libraryStickerId(), reactions.getOrDefault(m.id(), List.of()),
+                m.stickerSprite(), m.image(), m.location(), m.libraryStickerId(), reactions.getOrDefault(m.id(), List.of()),
                 m.canReact(), m.quote(), m.canQuote())).toList();
     }
 

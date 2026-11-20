@@ -117,6 +117,23 @@ public record NormalizedMessage(
     public static final String QUOTE_KIND = "quoteKind";
 
     /**
+     * Metadata keys of a shared location (zalo-location-card, D-530): latitude and longitude as plain decimal text,
+     * the place's name and address, the address of a map picture, and {@code "true"} when the sender shared where they
+     * are rather than a place. Coordinates are always together and valid; the others are left out when there is none.
+     */
+    public static final String LOCATION_LAT = "locationLat";
+
+    public static final String LOCATION_LNG = "locationLng";
+
+    public static final String LOCATION_TITLE = "locationTitle";
+
+    public static final String LOCATION_ADDRESS = "locationAddress";
+
+    public static final String LOCATION_PREVIEW_URL = "locationPreviewUrl";
+
+    public static final String LOCATION_CURRENT = "locationCurrent";
+
+    /**
      * Metadata key, the {@code Message-ID} of an email: the same in every mailbox that holds the message, so Sino finds
      * its copies in the other accounts of the owner (F05b, D-180). Left out when there is none.
      */
