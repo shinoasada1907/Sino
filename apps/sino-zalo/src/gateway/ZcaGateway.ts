@@ -536,8 +536,11 @@ export async function react(add: API["addReaction"], request: ReactionRequest): 
 /**
  * The types whose content is only measured, not read yet (zalo-media-library, ML-01, D-475): a voice message, a video, a
  * recommended link and a link card. Each gets `mediaShape` in the log, built as `photoShape` is (keys, kinds, hosts).
+ * `chat.location.new` (a shared location) joins them (zalo-location-card, ZC-01, D-529, D-532), and `chat.recommended`
+ * is also the contact card: the keys tell them apart. A coordinate, a name, a phone number or an address is never
+ * printed: a number is `number`, a text is `string(length)`, an address only its host.
  */
-const MEASURED_TYPES = new Set(["chat.voice", "chat.video.msg", "chat.recommended", "chat.link"]);
+const MEASURED_TYPES = new Set(["chat.voice", "chat.video.msg", "chat.recommended", "chat.link", "chat.location.new"]);
 
 /** The types of message the pipeline knows what to do with (D-279); any other is shown as a placeholder. */
 const KNOWN_TYPES = new Set(["webchat", "chat.photo", "chat.sticker", "chat.gif", "share.file", "chat.voice"]);
