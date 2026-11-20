@@ -4,6 +4,7 @@ import static java.time.DayOfWeek.MONDAY;
 import static java.time.DayOfWeek.THURSDAY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -15,6 +16,7 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -37,6 +39,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.ApplicationModuleTest.BootstrapMode;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -46,13 +49,15 @@ import dev.sino.planner.domain.CalendarEvent;
 import dev.sino.planner.domain.EventTime;
 import dev.sino.planner.domain.Frequency;
 import dev.sino.planner.domain.PlannerErrorCode;
+import dev.sino.planner.domain.Reminder;
 import dev.sino.planner.infrastructure.CalendarEventRepository;
+import dev.sino.settings.SettingsDirectory;
 
 /**
  * Module test of the appointments, on a real PostgreSQL. The test methods are not transactional, so every call commits
  * or rolls back as it would in the application.
  */
-@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)
+@ApplicationModuleTest(mode = BootstrapMode.ALL_DEPENDENCIES)
 @Import({ TestcontainersConfiguration.class, EventServiceTests.Clocks.class })
 @ActiveProfiles("test")
 class EventServiceTests {
@@ -71,6 +76,9 @@ class EventServiceTests {
 
     @Autowired
     private MovableClock clock;
+
+    @MockitoBean
+    private SettingsDirectory settings;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -344,6 +352,51 @@ class EventServiceTests {
         String sql = "insert into calendar_event (" + String.join(", ", row.keySet()) + ") values ("
                 + "?, ".repeat(row.size() - 1) + "?)";
         jdbc.update(sql, row.values().toArray());
+    }
+
+    @Test
+    void storesReplacesAndRemovesTheReminder() {
+        CalendarEvent event = service.create(owner,
+                new NewEvent("Họp", null, null, meeting(), null, new Reminder(15), false));
+        assertThat(events.findById(event.id()).orElseThrow().reminder()).isEqualTo(new Reminder(15));
+
+        service.replace(owner, event.id(), new NewEvent("Họp", null, null, meeting(), null, new Reminder(60), false));
+        assertThat(events.findById(event.id()).orElseThrow().reminder()).isEqualTo(new Reminder(60));
+
+        service.replace(owner, event.id(), new NewEvent("Họp", null, null, meeting(), null));
+        assertThat(events.findById(event.id()).orElseThrow().reminder()).isNull();
+    }
+
+    @Test
+    void aNewTimedAppointmentWithoutAReminderTakesTheDefaultOfTheSettings() {
+        when(settings.defaultReminderMinutes(owner)).thenReturn(Optional.of(30));
+
+        CalendarEvent event = service.create(owner, new NewEvent("Họp", null, null, meeting(), null, null, true));
+
+        assertThat(events.findById(event.id()).orElseThrow().reminder()).isEqualTo(new Reminder(30));
+    }
+
+    @Test
+    void theDefaultOnlyFillsAMissingReminderOfATimedAppointment() {
+        when(settings.defaultReminderMinutes(owner)).thenReturn(Optional.of(30));
+        EventTime birthday = EventTime.wholeDays(LocalDate.parse("2026-10-01"), LocalDate.parse("2026-10-02"));
+        CalendarEvent none = service.create(owner, new NewEvent("Họp", null, null, meeting(), null, null, false));
+        CalendarEvent wholeDay = service.create(owner, new NewEvent("Sinh nhật", null, null, birthday, null, null, true));
+        when(settings.defaultReminderMinutes(owner)).thenReturn(Optional.of(10));
+        CalendarEvent unsupported = service.create(owner,
+                new NewEvent("Họp 2", null, null, meeting(), null, null, true));
+
+        assertThat(events.findById(none.id()).orElseThrow().reminder()).isNull();
+        assertThat(events.findById(wholeDay.id()).orElseThrow().reminder()).isNull();
+        assertThat(events.findById(unsupported.id()).orElseThrow().reminder()).isNull();
+    }
+
+    @Test
+    void aReminderThatDoesNotFitTheTimeOfTheAppointmentIsRefusedAndNothingIsStored() {
+        assertThatThrownBy(() -> service.create(owner, new NewEvent("Họp", null, null, meeting(), null,
+                new Reminder(900), false))).isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(events.findAll()).isEmpty();
     }
 
     /** The clock of these tests, moved by hand. */

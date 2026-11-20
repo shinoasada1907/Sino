@@ -63,6 +63,14 @@ public class CalendarEvent {
     @Embedded
     private Recurrence recurrence;
 
+    @Column(name = "reminder_offset_minutes")
+    private Integer reminderOffsetMinutes;
+
+    // Only the reminder code writes it, with SQL (ReminderScheduler); an entity that was loaded earlier must never put an
+    // old value back.
+    @Column(name = "reminder_rev", nullable = false, insertable = false, updatable = false)
+    private int reminderRev;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -110,6 +118,9 @@ public class CalendarEvent {
         this.startDate = time.startDate();
         this.endDate = time.endDate();
         this.recurrence = anchored;
+        if (reminderOffsetMinutes != null && !Reminder.isAllowed(reminderOffsetMinutes, time.isWholeDays())) {
+            reminderOffsetMinutes = null;
+        }
         this.updatedAt = now;
     }
 
@@ -171,6 +182,29 @@ public class CalendarEvent {
     /** {@code null} when the appointment does not repeat. */
     public Recurrence recurrence() {
         return recurrence;
+    }
+
+    /** {@code null} when the appointment has no reminder (D-523). */
+    public Reminder reminder() {
+        return reminderOffsetMinutes == null ? null : new Reminder(reminderOffsetMinutes);
+    }
+
+    /**
+     * Sets or removes the reminder (D-523).
+     *
+     * @throws IllegalArgumentException when the offset does not fit the kind of time of the appointment
+     */
+    public void changeReminder(Reminder reminder, Instant now) {
+        if (reminder != null && !Reminder.isAllowed(reminder.offsetMinutes(), time().isWholeDays())) {
+            throw new IllegalArgumentException("this reminder does not fit the time of the appointment");
+        }
+        this.reminderOffsetMinutes = reminder == null ? null : reminder.offsetMinutes();
+        this.updatedAt = now;
+    }
+
+    /** The revision of the background job of this appointment (D-522). */
+    public int reminderRev() {
+        return reminderRev;
     }
 
     public Instant createdAt() {

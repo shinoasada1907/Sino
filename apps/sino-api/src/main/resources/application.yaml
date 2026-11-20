@@ -29,6 +29,23 @@ spring:
       max-file-size: 26MB
       max-request-size: 26MB
 
+jobrunr:
+  database:
+    # Flyway owns the schema (V34); JobRunr must not create or migrate tables itself.
+    skip-create: true
+  dashboard:
+    # No dashboard anywhere: local = production, and no extra port (D-521).
+    enabled: false
+  background-job-server:
+    # Runs the reminder jobs of planner (D-522). Tests turn it off (application-test.yaml).
+    enabled: true
+    # How often it looks for a job that is due: a reminder is at most this late.
+    poll-interval-in-seconds: 5
+  jobs:
+    # D-524: a reminder job that fails is tried again, 3 times at most, after about seed^n seconds (10, 100, 1000).
+    default-number-of-retries: 3
+    retry-back-off-time-seed: 10
+
 management:
   endpoints:
     web:

@@ -5,6 +5,11 @@ spring:
   application:
     name: sino-api
 
+jobrunr:
+  background-job-server:
+    # No job server in the tests: a job of one test must not run in another. A test that needs it sets this to true.
+    enabled: false
+
 sino:
   sync:
     live:

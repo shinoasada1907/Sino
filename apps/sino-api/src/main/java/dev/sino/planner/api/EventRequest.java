@@ -11,9 +11,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import tools.jackson.databind.JsonNode;
+
 import dev.sino.planner.application.NewEvent;
 import dev.sino.planner.domain.CalendarEvent;
 import dev.sino.planner.domain.EventTime;
+import dev.sino.planner.domain.Reminder;
 
 /**
  * Body of {@code POST /api/events} and {@code PUT /api/events/{id}} (the {@code PUT} replaces the whole appointment,
@@ -31,7 +34,8 @@ record EventRequest(
         @Pattern(regexp = Texts.WITHOUT_NUL, message = Texts.WITHOUT_NUL_MESSAGE) String location,
         @Size(max = CalendarEvent.MAX_NOTES_LENGTH)
         @Pattern(regexp = Texts.WITHOUT_NUL, message = Texts.WITHOUT_NUL_MESSAGE) String notes,
-        @Valid RepeatBody recurrence) {
+        @Valid RepeatBody recurrence,
+        JsonNode reminder) {
 
     private boolean timed() {
         return startsAt != null && endsAt != null && startDate == null && endDate == null;
@@ -69,10 +73,21 @@ record EventRequest(
                 && (endDate == null || EventTime.isSupported(endDate));
     }
 
-    /** Call only once the request is valid. */
-    NewEvent toNewEvent() {
+    @AssertTrue(message = "a reminder is 0, 5, 15, 30, 60 or 1440 minutes before a start, -540 or 900 before a whole day")
+    boolean isReminderAllowed() {
+        return ReminderBody.isAllowed(reminder, wholeDays());
+    }
+
+    /**
+     * Call only once the request is valid.
+     *
+     * @param create whether this is a new appointment: a reminder left out then takes the default of the settings
+     */
+    NewEvent toNewEvent(boolean create) {
         EventTime time = timed() ? EventTime.timed(startsAt, endsAt) : EventTime.wholeDays(startDate, endDate);
-        return new NewEvent(title, location, notes, time, recurrence == null ? null : recurrence.toRule());
+        Reminder chosen = ReminderBody.reminderOf(reminder);
+        return new NewEvent(title, location, notes, time, recurrence == null ? null : recurrence.toRule(), chosen,
+                create && ReminderBody.isLeftOut(reminder));
     }
 
 }

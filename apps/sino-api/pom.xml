@@ -175,6 +175,13 @@
             <version>3.13.2</version>
             <scope>test</scope>
         </dependency>
+        <!-- D-521: background jobs of the reminders, stored in the PostgreSQL we have. 9.0.5 is the line for Spring
+             Boot 4 (RM-00); the schema comes from Flyway (V34), not from JobRunr. -->
+        <dependency>
+            <groupId>org.jobrunr</groupId>
+            <artifactId>jobrunr-spring-boot-4-starter</artifactId>
+            <version>9.0.5</version>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
