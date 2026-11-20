@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { MemoryRouter, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useCalendar, useCalendarView } from './useCalendar'
-// The real request answers an empty calendar until F17 (D-42); these tests read the canvas sample.
+// These tests read the canvas sample; the real request (calendar.api.ts) is tested on MSW in CalendarOnApi.test.tsx.
 vi.mock('./calendar.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./calendar.api')>()
   const { createCalendarSample } = await import('./calendar.sample')

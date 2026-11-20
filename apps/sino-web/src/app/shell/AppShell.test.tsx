@@ -11,6 +11,7 @@ import { CANVAS_NOW } from '@/shared/time/canvasClock'
 import { accountsWithStatus } from '@/test/accountsWithStatus'
 import { stubViewport } from '@/test/matchMedia'
 import { server } from '@/test/msw/server'
+import { serveEmptyCalendar } from '@/test/fixtures/calendarApi'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { createShellSample } from './shell.sample'
 import type { ShellData } from './shell.types'
@@ -84,6 +85,7 @@ describe('sidebar (desktop)', () => {
   })
 
   it('marks only the open screen as current', async () => {
+    serveEmptyCalendar()
     renderApp('/calendar')
     const sidebar = within(shellPart('sidebar'))
 

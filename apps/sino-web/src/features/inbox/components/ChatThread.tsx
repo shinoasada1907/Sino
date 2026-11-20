@@ -451,7 +451,7 @@ function Bubble({
   const reactions = message.reactions ?? []
   const reactable = (reactionSet.length > 0 || previewReactions) && message.canReact !== false && !message.local
   const isSticker = Boolean(message.sticker || message.stickerSprite || message.libraryStickerId)
-  const canReply = !message.local && message.canQuote === true && onReply !== undefined
+  const canReply = !message.local && onReply !== undefined
   const canCopy = Boolean(message.text && !isSticker)
 
   const [brokenLibrary, setBrokenLibrary] = useState(false)

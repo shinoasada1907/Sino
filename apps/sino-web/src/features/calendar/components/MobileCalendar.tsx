@@ -1,21 +1,23 @@
 import { Plus } from 'lucide-react'
+import { Link } from 'react-router'
 import type { LocalDate } from '@/shared/domain'
 import { cn } from '@/shared/lib/utils'
 import { WEEKDAY_NAMES } from '@/shared/time/local'
 import { dayMonthOfDate, weekdayOfDate } from '@/shared/time/localDate'
 import { Button } from '@/shared/ui/button'
-import { SoonButton } from '@/shared/ui/soon-button'
 import { Spec } from '@/shared/ui/spec'
 import type { CalendarData, CalendarRange } from '../calendar.types'
 import { itemsOfDay, weekDays } from '../format'
 import { AgendaView } from './AgendaView'
+import type { EventFormState } from './EventForm'
 
 // Dots under a day of the strip: one a item, three at most (canvas `.mw-dots`).
 const MAX_DOTS = 3
+const fromCalendar: EventFormState = { fromCalendar: true }
 
 /**
- * Canvas `MobileCalendar`: "Lịch" with the month, "Hôm nay", "Thêm lịch hẹn" (no flow yet, D-85), the seven days of the
- * week with a dot for each item, and the agenda from the picked day.
+ * Canvas `MobileCalendar`: "Lịch" with the month, "Hôm nay", "Thêm lịch hẹn" (opens `/calendar/new`, D-158), the seven
+ * days of the week with a dot for each item, and the agenda from the picked day.
  */
 export function MobileCalendar({
   data,
@@ -48,9 +50,11 @@ export function MobileCalendar({
         <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={onToday}>
           Hôm nay
         </Button>
-        <SoonButton variant="ghost" size="icon" aria-label="Thêm lịch hẹn">
-          <Plus strokeWidth={1.6} />
-        </SoonButton>
+        <Button asChild variant="ghost" size="icon">
+          <Link to={`/calendar/new${search}`} state={fromCalendar} aria-label="Thêm lịch hẹn" title="Thêm lịch hẹn">
+            <Plus strokeWidth={1.6} />
+          </Link>
+        </Button>
       </header>
       <div role="group" aria-label={`Tuần ${weekTitle}`} className="grid shrink-0 grid-cols-7 gap-1 px-3 pb-3">
         {weekDays(week, today).map((day) => {

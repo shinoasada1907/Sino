@@ -14,8 +14,7 @@ const KINDS: { value: ChatType | null; label: string }[] = [
 ]
 
 /**
- * The three tabs of a list: Tất cả, Chưa đọc, Cần trả lời. A tab with something in it has a small red dot instead of its
- * number, which would wrap in a narrow column; the number stays in the accessible name.
+ * The three tabs of a list: Tất cả, Chưa đọc, Cần trả lời. Tab "Chưa đọc" hiển thị chấm đỏ khi có tin nhắn/email chưa đọc.
  */
 export function ViewTabs({
   value,
@@ -24,11 +23,11 @@ export function ViewTabs({
   className,
 }: {
   value: InboxView
-  counts: { unread: number; needsReply: number }
+  counts: { unread: number; needsReply?: number }
   onChange: (view: InboxView) => void
   className?: string
 }) {
-  const countOf = (view: InboxView) => (view === 'unread' ? counts.unread : view === 'reply' ? counts.needsReply : 0)
+  const countOf = (view: InboxView) => (view === 'unread' ? counts.unread : 0)
   return (
     <div role="group" aria-label="Lọc danh sách" className={cn('flex w-full gap-0.5 rounded-full bg-raised p-1 shadow-[inset_0_0_0_1px_var(--border)]', className)}>
       {TABS.map((tab) => {

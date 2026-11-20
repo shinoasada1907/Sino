@@ -123,23 +123,22 @@ describe('the emoji of a chat message', () => {
   })
 
   it('shows a chip with up to three emoji and how many people, and lists who dropped which', async () => {
-    // The emoji are drawn in the app's line style (ReactionEmoji): the variation selector of the colour heart is left out.
     await open([fromDad('m1', { reactions: [reaction(HEART, ['Lan', 'Bạn'], true), reaction(HAHA, ['Minh'])] })])
     const user = userEvent.setup()
 
     expect(chip()).toHaveAccessibleName('3 người đã thả biểu cảm: Tim 2, Haha 1')
-    expect(chip()).toHaveTextContent('❤😆3')
+    expect(chip()).toHaveTextContent('❤️😆3')
 
     await user.click(chip())
 
     const people = within(await screen.findByRole('dialog', { name: 'Người đã thả biểu cảm' }))
-    expect(people.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Lan❤', 'Bạn❤', 'Minh😆'])
+    expect(people.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Lan❤️', 'Bạn❤️', 'Minh😆'])
   })
 
   it('shows no count for one person, and no chip without emoji', async () => {
     await open([fromDad('m1', { reactions: [reaction(HEART, ['Lan'])] }), fromDad('m2')])
 
-    expect(chip()).toHaveTextContent(/^❤$/)
+    expect(chip()).toHaveTextContent(/^❤️$/)
     expect(chat().getAllByRole('button', { name: /người đã thả biểu cảm/ })).toHaveLength(1)
   })
 

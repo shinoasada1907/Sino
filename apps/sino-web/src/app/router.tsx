@@ -68,7 +68,17 @@ export const routes: RouteObject[] = [
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
           },
           {
+            path: 'calendar/new',
+            element: <CalendarPage />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
             path: 'calendar/:itemId',
+            element: <CalendarPage />,
+            handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
+          },
+          {
+            path: 'calendar/:itemId/edit',
             element: <CalendarPage />,
             handle: { mobilePageHeader: true, hideTabBar: true } satisfies ShellHandle,
           },

@@ -133,11 +133,11 @@ export function ReactionPicker({
                 }
               }}
               className={cn(
-                'absolute -bottom-2.5 z-1 inline-flex size-7 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-raised text-muted-foreground opacity-0 shadow-popover outline-none transition-opacity duration-(--dur-hover) group-hover/bubble:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring focus-visible:outline-solid data-[state=open]:opacity-100 max-md:hidden',
-                own && reacted ? '-left-2' : '-right-2',
+                'absolute -bottom-2 z-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-border bg-raised text-muted-foreground opacity-0 shadow-xs outline-none transition-opacity duration-(--dur-hover) group-hover/bubble:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring focus-visible:outline-solid data-[state=open]:opacity-100 max-md:hidden',
+                own && reacted ? '-left-1.5' : '-right-1.5',
               )}
             >
-              <ThumbsUp className="size-3.5" strokeWidth={1.6} />
+              <ThumbsUp className="size-3" strokeWidth={1.6} />
             </button>
           )}
         </div>
