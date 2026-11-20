@@ -20,7 +20,11 @@
 
 ## Decisions
 
-### DN-1 — Thẻ vị trí hiện thế nào · **người dùng chốt A** (2026-11-20)
+### DN-1 — Thẻ vị trí hiện thế nào · ~~người dùng chốt A~~ → **người dùng đổi sang C** (2026-11-20)
+
+**Đổi (người dùng 2026-11-20, kèm ảnh Zalo desktop `zalo-desktop-location.png` trong thư mục change: "làm như này đi cho nhanh … đính vị trí và link gg map"):** thẻ vị trí làm như Zalo desktop: **bản đồ Google nhúng** ở trên, nút **"Maps"** mở Google Maps ở tab mới, bên dưới là tên địa điểm (đậm) và địa chỉ, hoặc "Vị trí hiện tại" khi người gửi chia sẻ vị trí của chính họ. **LÝ DO:** người dùng muốn giống Zalo và nhanh; ảnh Zalo desktop thay canvas cho thẻ vị trí. **Đánh đổi chấp nhận:** mỗi lần thẻ hiện ra, trình duyệt gửi toạ độ của tin tới Google, và trang nặng thêm một iframe. Nhúng bằng địa chỉ không cần key (`output=embed`), không phải Maps Embed API chính thức; nếu Google bỏ kiểu nhúng này thì thẻ vẫn còn tên, địa chỉ và nút "Maps" (D-531). Trang Privacy phải nói việc này (ZC-20).
+
+Bảng gốc, giữ để biết vì sao lúc đầu chọn A:
 
 | | A. Địa chỉ + nút "Mở bản đồ" (đề xuất) | B. Ảnh bản đồ tĩnh + nút | C. Bản đồ nhúng (iframe) |
 |---|---|---|---|
@@ -64,25 +68,32 @@
 `ZaloMessage` có thêm hai trường tùy chọn, theo mẫu `photo`, `file`:
 
 ```text
-location:    { latitude, longitude, title|null, address|null, previewUrl|null }
+location:    { latitude, longitude, title|null, address|null, previewUrl|null, current }
 contactCard: { userId|null, name, avatarUrl|null, phone|null }
 ```
 
 - Khóa Zalo nào đổ vào trường nào thì ZC-01 đo rồi ghi ở `tasks.md`.
 - `latitude` trong [-90, 90], `longitude` trong [-180, 180], đều là số. Sai hay thiếu thì không gửi `location`, tin ở lại dạng giữ chỗ, có log hình dạng.
+- `current` (boolean): người gửi chia sẻ vị trí hiện tại của chính họ, không phải một địa điểm, lấy từ `params.isUserLocation` (khác 0). Thêm 2026-11-20 sau khi thấy Zalo desktop hiện "Vị trí của bạn" cho loại này và tên + địa chỉ cho địa điểm (DN-1 đổi sang C). ZC-02 kiểm trên tin thật: tên địa điểm có thể nằm trong `description` cùng địa chỉ (vì `title` trống ở cả hai tin đo được).
 - `avatarUrl`, `previewUrl` chỉ giữ khi nằm trên tên miền ảnh của Zalo (`PICTURE_DOMAINS`).
 - `chat.recommended` là danh thiếp thì gửi `contactCard`; là link thì giữ nguyên như hôm nay (phần của ML-02).
 
 ### D-530 — Lưu ở `sino-api` · agent chốt (theo DN-2 = A)
 
-- Vị trí: `TEXT`, chữ `[Vị trí] <title hoặc address>`, hoặc `[Vị trí]` khi không có cả hai. `metadata`: `locationLat`, `locationLng`, `locationTitle`, `locationAddress`, `locationPreviewUrl`.
+- Vị trí: `TEXT`, chữ `[Vị trí] <title hoặc address>`, hoặc `[Vị trí]` khi không có cả hai. `metadata`: `locationLat`, `locationLng`, `locationTitle`, `locationAddress`, `locationPreviewUrl`, `locationCurrent`.
 - Danh thiếp: `TEXT`, chữ `[Danh thiếp] <name>`. `metadata`: `contactName`, `contactAvatarUrl`, `contactPhone`, `contactUserId`.
 - Khóa đặt trong `NormalizedMessage` như `IMAGE_URL`; tên của Zalo không lọt vào lõi.
 - `MessageResponse` có thêm `location` và `contactCard`, `null` với mọi tin khác. Thư Gmail không đổi.
 
-### D-531 — Khung chat · agent chốt, canvas (ZC-05) quyết hình
+### D-531 — Khung chat · agent chốt; thẻ vị trí theo ảnh Zalo desktop (DN-1 = C), thẻ danh thiếp theo canvas (ZC-05)
 
-- Thẻ vị trí: icon ghim, tiêu đề hoặc địa chỉ, toạ độ 5 chữ số thập phân; nút "Mở bản đồ" là link `https://www.google.com/maps/search/?api=1&query=<lat>,<lng>`, `target="_blank"`, `rel="noopener noreferrer"`.
+- ~~Thẻ vị trí: icon ghim, tiêu đề hoặc địa chỉ, toạ độ 5 chữ số thập phân; nút "Mở bản đồ"~~ (**LÝ DO:** DN-1 đổi sang C, người dùng 2026-11-20).
+- Thẻ vị trí, theo `zalo-desktop-location.png`:
+  - Trên: `<iframe>` bản đồ `https://maps.google.com/maps?q=<lat>,<lng>&z=16&output=embed`, `loading="lazy"`, `referrerpolicy="no-referrer"`, có `title` cho trình đọc màn hình, khung tỉ lệ cố định (khoảng 16:10), bo góc như ảnh trong chat.
+  - Góc trên trái của bản đồ: nút "Maps" kèm icon mở tab mới, là link `https://www.google.com/maps/search/?api=1&query=<lat>,<lng>`, `target="_blank"`, `rel="noopener noreferrer"`.
+  - Dưới: tên địa điểm (đậm) và địa chỉ; `current` mà không có tên thì "Vị trí hiện tại"; không có gì thì "Vị trí".
+  - iframe không tải được thì tên, địa chỉ và nút "Maps" vẫn dùng được.
+  - Màu theo theme Sino (Sunset), không chép màu của Zalo.
 - Thẻ danh thiếp: avatar (chữ cái đầu khi không có), tên, số điện thoại nếu có; số điện thoại là link `tel:`. Không có nút "Nhắn tin" trong change này.
 - Tên, địa chỉ là chữ của người khác: chỉ hiện dạng chữ.
 - Danh sách hội thoại và thông báo dùng chữ tóm tắt của D-530, không cần sửa.
