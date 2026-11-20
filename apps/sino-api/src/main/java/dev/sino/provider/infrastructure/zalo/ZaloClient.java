@@ -627,20 +627,28 @@ class ZaloClient {
     record Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
             String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file,
             String cliMsgId, Integer ttl, JsonNode propertyExt, JsonNode rawContent, Quoted quote,
-            ReactionEntry reaction, Location location) {
+            ReactionEntry reaction, Location location, ContactCard contactCard) {
+
+        Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
+                String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file,
+                String cliMsgId, Integer ttl, JsonNode propertyExt, JsonNode rawContent, Quoted quote,
+                ReactionEntry reaction, Location location) {
+            this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, photo, file,
+                    cliMsgId, ttl, propertyExt, rawContent, quote, reaction, location, null);
+        }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
                 String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file,
                 String cliMsgId, Integer ttl, JsonNode propertyExt, JsonNode rawContent, Quoted quote,
                 ReactionEntry reaction) {
             this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, photo, file,
-                    cliMsgId, ttl, propertyExt, rawContent, quote, reaction, null);
+                    cliMsgId, ttl, propertyExt, rawContent, quote, reaction, null, null);
         }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
                 String zaloType, String text, String sentAt, Sticker sticker, Photo photo, SharedFile file) {
             this(msgId, threadId, threadType, fromId, fromName, isSelf, zaloType, text, sentAt, sticker, photo, file,
-                    null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null);
         }
 
         Message(String msgId, String threadId, String threadType, String fromId, String fromName, boolean isSelf,
@@ -668,6 +676,14 @@ class ZaloClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Location(Double latitude, Double longitude, String title, String address, String previewUrl,
             Boolean current) {
+    }
+
+    /**
+     * A shared contact card as sino-zalo gives it (zalo-location-card, D-529). {@code userId} is the person's Zalo ID,
+     * {@code qrUrl} the picture of their QR code when Zalo sent one. Nothing here is checked yet.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ContactCard(String userId, String name, String avatarUrl, String phone, String qrUrl) {
     }
 
     /**

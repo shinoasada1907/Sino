@@ -63,6 +63,8 @@ class ConversationMessagesApiTests {
 
     private static final Instant MONDAY = Instant.parse("2026-10-05T08:00:00Z");
     private static final Instant TUESDAY = Instant.parse("2026-10-06T08:00:00.123456Z");
+    private static final Instant WEDNESDAY = Instant.parse("2026-10-07T08:00:00Z");
+    private static final Instant THURSDAY = Instant.parse("2026-10-08T08:00:00Z");
     private static final NormalizedParticipant ALICE = new NormalizedParticipant("alice@example.test", "Alice", null,
             false);
     private static final NormalizedParticipant OWNER = new NormalizedParticipant("owner@gmail.test", null, null,
@@ -372,6 +374,70 @@ class ConversationMessagesApiTests {
                 .andExpect(jsonPath("$.items[0].location.previewUrl").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].location.current").value(false))
                 .andExpect(jsonPath("$.items[1].location").value(nullValue()));
+    }
+
+    private static NormalizedMessage card(String id, Instant sentAt, Map<String, String> person) {
+        Map<String, String> metadata = new java.util.HashMap<>(person);
+        metadata.put("zaloType", "chat.recommended");
+        return new NormalizedMessage(id, "report", "alice@example.test", MessageDirection.INBOUND, MessageType.TEXT,
+                "[Danh thiếp] " + person.getOrDefault(NormalizedMessage.CONTACT_NAME, ""), MessageStatus.UNKNOWN,
+                false, null, sentAt, List.of(), metadata, null, null);
+    }
+
+    private static NormalizedConversation chat(String id) {
+        return new NormalizedConversation(id, ConversationType.DIRECT, "Chat " + id, null, List.of(ALICE, OWNER),
+                null);
+    }
+
+    @Test
+    void aContactCardListsThePersonAndTheChatTheInboxAlreadyHasWithThemButNeverTheirProviderId() throws Exception {
+        store(gmail, chat("u-9"), fromAlice("u-9", "c-0", MONDAY, "Chào"));
+        store(gmail, thread("report"), fromAlice("m-1", MONDAY, "Chữ"),
+                card("m-2", TUESDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Jason Lê",
+                        NormalizedMessage.CONTACT_AVATAR_URL, "https://s160-26-ava-talk.zadn.vn/a.jpg",
+                        NormalizedMessage.CONTACT_PHONE, "0901234567",
+                        NormalizedMessage.CONTACT_QR_URL, "https://qr-talk.zadn.vn/q.png",
+                        NormalizedMessage.CONTACT_USER_ID, "u-9")));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].text").value("[Danh thiếp] Jason Lê"))
+                .andExpect(jsonPath("$.items[0].contactCard.name").value("Jason Lê"))
+                .andExpect(jsonPath("$.items[0].contactCard.avatarUrl").value("https://s160-26-ava-talk.zadn.vn/a.jpg"))
+                .andExpect(jsonPath("$.items[0].contactCard.phone").value("0901234567"))
+                .andExpect(jsonPath("$.items[0].contactCard.qrUrl").value("https://qr-talk.zadn.vn/q.png"))
+                .andExpect(jsonPath("$.items[0].contactCard.conversationId").value(conversationId("u-9").toString()))
+                .andExpect(jsonPath("$.items[0].contactCard.userId").doesNotExist())
+                .andExpect(jsonPath("$.items[0].metadata").doesNotExist())
+                .andExpect(jsonPath("$.items[1].contactCard").value(nullValue()));
+    }
+
+    @Test
+    void aContactCardHasNoChatWhenThereIsNoneWhenItIsAGroupWhenItIsInAnotherAccountOrWhenItHasNoId()
+            throws Exception {
+        UUID second = connect(owner, "second@gmail.test");
+        store(second, chat("u-8"), fromAlice("u-8", "c-1", MONDAY, "Chào"));
+        store(gmail, new NormalizedConversation("g-7", ConversationType.GROUP, "Nhóm", null, List.of(ALICE, OWNER),
+                null), fromAlice("g-7", "c-2", MONDAY, "Chào"));
+        store(gmail, thread("report"),
+                card("m-1", MONDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Không chat",
+                        NormalizedMessage.CONTACT_USER_ID, "u-1")),
+                card("m-2", TUESDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Tài khoản khác",
+                        NormalizedMessage.CONTACT_USER_ID, "u-8")),
+                card("m-3", WEDNESDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Nhóm",
+                        NormalizedMessage.CONTACT_USER_ID, "g-7")),
+                card("m-4", THURSDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Không ID")));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[3].contactCard.name").value("Không chat"))
+                .andExpect(jsonPath("$.items[3].contactCard.conversationId").value(nullValue()))
+                .andExpect(jsonPath("$.items[2].contactCard.conversationId").value(nullValue()))
+                .andExpect(jsonPath("$.items[1].contactCard.conversationId").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].contactCard.name").value("Không ID"))
+                .andExpect(jsonPath("$.items[0].contactCard.conversationId").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].contactCard.phone").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].contactCard.qrUrl").value(nullValue()));
     }
 
     @Test

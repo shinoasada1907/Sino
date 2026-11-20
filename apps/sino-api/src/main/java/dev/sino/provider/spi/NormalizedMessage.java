@@ -134,6 +134,21 @@ public record NormalizedMessage(
     public static final String LOCATION_CURRENT = "locationCurrent";
 
     /**
+     * Metadata keys of a shared contact card (zalo-location-card, D-530): the person's name (always there), their
+     * picture and the picture of their QR code (addresses checked like {@link #STICKER_URL}), their phone number and
+     * the provider's ID of them, which is how the web finds the chat with them. Left out when there is none.
+     */
+    public static final String CONTACT_NAME = "contactName";
+
+    public static final String CONTACT_AVATAR_URL = "contactAvatarUrl";
+
+    public static final String CONTACT_PHONE = "contactPhone";
+
+    public static final String CONTACT_USER_ID = "contactUserId";
+
+    public static final String CONTACT_QR_URL = "contactQrUrl";
+
+    /**
      * Metadata key, the {@code Message-ID} of an email: the same in every mailbox that holds the message, so Sino finds
      * its copies in the other accounts of the owner (F05b, D-180). Left out when there is none.
      */

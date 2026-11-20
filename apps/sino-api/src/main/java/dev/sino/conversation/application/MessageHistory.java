@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.sino.conversation.application.InboxMessage.File;
+import dev.sino.conversation.application.InboxMessage.ContactCard;
 import dev.sino.conversation.application.InboxMessage.Image;
 import dev.sino.conversation.application.InboxMessage.Location;
 import dev.sino.conversation.application.InboxMessage.Quote;
@@ -60,6 +61,10 @@ public class MessageHistory {
                    m.metadata ->> :locationAddress AS location_address,
                    m.metadata ->> :locationPreviewUrl AS location_preview_url,
                    m.metadata ->> :locationCurrent AS location_current,
+                   m.metadata ->> :contactName AS contact_name,
+                   m.metadata ->> :contactAvatarUrl AS contact_avatar_url,
+                   m.metadata ->> :contactPhone AS contact_phone,
+                   m.metadata ->> :contactQrUrl AS contact_qr_url,
                    p.external_participant_id AS sender, p.display_name AS sender_name, p.avatar_url AS sender_avatar_url, p.is_self
             FROM message m LEFT JOIN conversation_participant p ON p.id = m.sender_participant_id
             JOIN conversation c ON c.id = m.conversation_id JOIN connected_account a ON a.id = c.account_id
@@ -128,7 +133,8 @@ public class MessageHistory {
             query = query.param("before", cursor.sentAt().atOffset(ZoneOffset.UTC)).param("beforeId", cursor.id());
         }
         List<InboxMessage> rows = query.query((row, n) -> messageOf(row)).list();
-        List<InboxMessage> items = withFiles(rows.size() <= limit ? rows : rows.subList(0, limit));
+        List<InboxMessage> items = withContactChats(ownerId,
+                withFiles(rows.size() <= limit ? rows : rows.subList(0, limit)));
         if (rows.size() <= limit) {
             return new MessagePage(items, null);
         }
@@ -159,7 +165,11 @@ public class MessageHistory {
                 .param("locationTitle", NormalizedMessage.LOCATION_TITLE)
                 .param("locationAddress", NormalizedMessage.LOCATION_ADDRESS)
                 .param("locationPreviewUrl", NormalizedMessage.LOCATION_PREVIEW_URL)
-                .param("locationCurrent", NormalizedMessage.LOCATION_CURRENT);
+                .param("locationCurrent", NormalizedMessage.LOCATION_CURRENT)
+                .param("contactName", NormalizedMessage.CONTACT_NAME)
+                .param("contactAvatarUrl", NormalizedMessage.CONTACT_AVATAR_URL)
+                .param("contactPhone", NormalizedMessage.CONTACT_PHONE)
+                .param("contactQrUrl", NormalizedMessage.CONTACT_QR_URL);
     }
 
     private InboxMessage messageOf(ResultSet row) throws SQLException {
@@ -189,6 +199,8 @@ public class MessageHistory {
                 locationOf(row.getString("location_lat"), row.getString("location_lng"),
                         row.getString("location_title"), row.getString("location_address"),
                         row.getString("location_preview_url"), row.getString("location_current")),
+                contactOf(row.getString("contact_name"), row.getString("contact_avatar_url"),
+                        row.getString("contact_phone"), row.getString("contact_qr_url")),
                 libraryStickerOf(row.getString("library_sticker_id")), List.of(), canReact, quote, canQuote);
     }
 
@@ -240,6 +252,49 @@ public class MessageHistory {
     /** The picture of a photo as the connector stored it (ZL-16): none without its address, whatever else is there. */
     private static Image imageOf(String url, String thumbUrl, String caption) {
         return url == null ? null : new Image(url, thumbUrl, caption);
+    }
+
+    /** The person of a contact card as the connector stored it (D-530): none without a name; the chat is found later. */
+    private static ContactCard contactOf(String name, String avatarUrl, String phone, String qrUrl) {
+        return name == null ? null : new ContactCard(name, avatarUrl, phone, qrUrl, null);
+    }
+
+    /**
+     * Gives each contact card of the messages the chat the inbox already has with its person (D-530): the 1-1 chat of
+     * the same account whose ID at the provider is the {@code contactUserId} the card was stored with, named as the
+     * inbox names it (the oldest copy of a group). One statement for the page, none when it has no card. A card with
+     * no ID, or no chat yet, keeps {@code null}.
+     */
+    private List<InboxMessage> withContactChats(UUID ownerId, List<InboxMessage> messages) {
+        List<UUID> cards = messages.stream().filter(m -> m.contactCard() != null).map(InboxMessage::id).toList();
+        if (cards.isEmpty()) {
+            return messages;
+        }
+        Map<UUID, UUID> chatOf = new HashMap<>();
+        jdbc.sql("""
+                SELECT m.id AS message_id, chat.id AS chat_id
+                FROM message m
+                JOIN conversation c ON c.id = m.conversation_id
+                JOIN conversation chat ON chat.account_id = c.account_id AND chat.type = 'DIRECT'
+                     AND chat.external_conversation_id = m.metadata ->> :userId
+                WHERE m.id IN (:messages)
+                """).param("userId", NormalizedMessage.CONTACT_USER_ID).param("messages", cards)
+                .query(row -> {
+                    chatOf.put(row.getObject("message_id", UUID.class), row.getObject("chat_id", UUID.class));
+                });
+        Map<UUID, UUID> shown = inbox.shownIds(ownerId, chatOf.values());
+        return messages.stream().map(m -> {
+            UUID chat = chatOf.get(m.id());
+            if (m.contactCard() == null || chat == null || !shown.containsKey(chat)) {
+                return m;
+            }
+            ContactCard card = m.contactCard();
+            return new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(), m.to(), m.cc(),
+                    m.subject(), m.text(), m.bodyFormat(), m.read(), m.attachments(), m.clientMessageId(), m.sticker(),
+                    m.stickerSprite(), m.image(), m.location(),
+                    new ContactCard(card.name(), card.avatarUrl(), card.phone(), card.qrUrl(), shown.get(chat)),
+                    m.libraryStickerId(), m.reactions(), m.canReact(), m.quote(), m.canQuote());
+        }).toList();
     }
 
     /**
@@ -295,7 +350,7 @@ public class MessageHistory {
         return messages.stream().map(m -> new InboxMessage(m.id(), m.direction(), m.status(), m.sentAt(), m.sender(),
                 m.to(), m.cc(), m.subject(), m.text(), m.bodyFormat(), m.read(),
                 List.copyOf(files.getOrDefault(m.id(), List.of())), m.clientMessageId(), m.sticker(),
-                m.stickerSprite(), m.image(), m.location(), m.libraryStickerId(), reactions.getOrDefault(m.id(), List.of()),
+                m.stickerSprite(), m.image(), m.location(), m.contactCard(), m.libraryStickerId(), reactions.getOrDefault(m.id(), List.of()),
                 m.canReact(), m.quote(), m.canQuote())).toList();
     }
 
