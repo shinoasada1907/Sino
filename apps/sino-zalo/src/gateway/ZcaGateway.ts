@@ -31,6 +31,7 @@ import {
   type ZaloPhoto,
   type ZaloQuote,
   type ZaloQuoted,
+  type ZaloContactCard,
   type ZaloLocation,
   type ZaloSharedFile,
   ZaloRejectedError,
@@ -318,10 +319,20 @@ export function toZaloMessage(message: Message): ZaloMessage {
     data.msgType === "chat.photo" ? photoOf(data.content, data.propertyExt?.type === NO_BORDER) : undefined;
   const file = data.msgType === "share.file" ? sharedFileOf(data.content) : undefined;
   const location = data.msgType === "chat.location.new" ? locationOf(data.content) : undefined;
+  const card = data.msgType === "chat.recommended" ? contactCardOf(data.content) : undefined;
+  // A card with its QR address is read in full; one without it is sent, but the log says what its description held.
+  const cardComplete = card?.qrUrl != null;
   const contentShape =
-    unseen(data.msgType, photo, sticker) && location === undefined ? contentShapeOf(data.content) : undefined;
+    card !== undefined
+      ? cardComplete
+        ? undefined
+        : contentShapeOf(objectOf(data.content)?.description)
+      : unseen(data.msgType, photo, sticker) && location === undefined
+        ? contentShapeOf(data.content)
+        : undefined;
   const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
-  const mediaShape = MEASURED_TYPES.has(data.msgType) && location === undefined ? photoShapeOf(data) : undefined;
+  const mediaShape =
+    MEASURED_TYPES.has(data.msgType) && location === undefined && !cardComplete ? photoShapeOf(data) : undefined;
   const quote = quotedOf(data.quote);
   const rawContent =
     typeof data.content === "object" && data.content !== null && !Array.isArray(data.content)
@@ -341,6 +352,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
     ...(photo === undefined ? {} : { photo }),
     ...(file === undefined ? {} : { file }),
     ...(location === undefined ? {} : { location }),
+    ...(card === undefined ? {} : { contactCard: card }),
     ...(contentShape === undefined ? {} : { contentShape }),
     ...(photoShape === undefined ? {} : { photoShape }),
     ...(mediaShape === undefined ? {} : { mediaShape }),
@@ -591,7 +603,7 @@ function sharedFileOf(content: unknown): ZaloSharedFile | undefined {
  * place name (empty so far) and `thumb` the map picture (empty: Zalo gives none). undefined when a coordinate is
  * missing, is not a plain number or lies outside [-90, 90] / [-180, 180]; the message then stays a placeholder and its
  * shape is logged (`mediaShape`), never a coordinate. `previewUrl` is a web address as Zalo gave it; sino-api decides
- * which hosts it trusts, as for a photo. `params.isUserLocation` is left out of the contract.
+ * which hosts it trusts, as for a photo. `params.isUserLocation` (a number) says whether it is the sender's own current position (`current`).
  */
 function locationOf(content: unknown): ZaloLocation | undefined {
   const fields = objectOf(content);
@@ -611,6 +623,35 @@ function locationOf(content: unknown): ZaloLocation | undefined {
     address: textOf(fields.description, 300),
     previewUrl: webAddress(fields.thumb),
     current: typeof params.isUserLocation === "number" && params.isUserLocation !== 0 && Number.isFinite(params.isUserLocation),
+  };
+}
+
+/**
+ * The contact card a `chat.recommended` content names (zalo-location-card, ZC-02, D-529). Zalo uses the same type for a
+ * link; `action` tells them apart (`recommened.user`, Zalo's own spelling). Read from the one real card seen (ZC-01):
+ * `title` is the name, `thumb` the avatar, `params` the user id as digits, and `description` (a JSON text, as zca-js's
+ * `sendCard` builds it: `qrCodeUrl`, `phone`) the QR address and the phone. Those two parts are INFERRED, never seen:
+ * a description that is no JSON object gives `phone` and `qrUrl` null, and the log says what it held (`contentShape`,
+ * never a value). undefined for any other `action`, or when there is no name. Web addresses are as Zalo gave them;
+ * sino-api decides which hosts it trusts.
+ */
+function contactCardOf(content: unknown): ZaloContactCard | undefined {
+  const fields = objectOf(content);
+  if (fields?.action !== "recommened.user") {
+    return undefined;
+  }
+  const name = textOf(fields.title, 200);
+  if (name === null) {
+    return undefined;
+  }
+  const described = objectOf(fields.description) ?? {};
+  const pick = (key: string): unknown => Object.entries(described).find(([k]) => k.toLowerCase() === key)?.[1];
+  return {
+    userId: typeof fields.params === "string" && /^\d{5,25}$/.test(fields.params.trim()) ? fields.params.trim() : null,
+    name,
+    avatarUrl: webAddress(fields.thumb),
+    phone: textOf(pick("phone"), 30),
+    qrUrl: webAddress(pick("qrcodeurl")),
   };
 }
 
