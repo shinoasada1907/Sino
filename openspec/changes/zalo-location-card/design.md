@@ -69,7 +69,7 @@ Bảng gốc, giữ để biết vì sao lúc đầu chọn A:
 
 ```text
 location:    { latitude, longitude, title|null, address|null, previewUrl|null, current }
-contactCard: { userId|null, name, avatarUrl|null, phone|null }
+contactCard: { userId|null, name, avatarUrl|null, phone|null, qrUrl|null }
 ```
 
 - Khóa Zalo nào đổ vào trường nào thì ZC-01 đo rồi ghi ở `tasks.md`.
@@ -77,11 +77,13 @@ contactCard: { userId|null, name, avatarUrl|null, phone|null }
 - `current` (boolean): người gửi chia sẻ vị trí hiện tại của chính họ, không phải một địa điểm, lấy từ `params.isUserLocation` (khác 0). Thêm 2026-11-20 sau khi thấy Zalo desktop hiện "Vị trí của bạn" cho loại này và tên + địa chỉ cho địa điểm (DN-1 đổi sang C). ZC-02 kiểm trên tin thật: tên địa điểm có thể nằm trong `description` cùng địa chỉ (vì `title` trống ở cả hai tin đo được).
 - `avatarUrl`, `previewUrl` chỉ giữ khi nằm trên tên miền ảnh của Zalo (`PICTURE_DOMAINS`).
 - `chat.recommended` là danh thiếp thì gửi `contactCard`; là link thì giữ nguyên như hôm nay (phần của ML-02).
+- `qrUrl`: ảnh mã QR của người trong danh thiếp, chỉ khi Zalo gửi sẵn (Zalo desktop hiện QR, xem `zalo-desktop-contact-card.png`); chỉ giữ trên tên miền ảnh của Zalo. Sino không tự tạo QR. Thêm 2026-11-20 theo ảnh của người dùng; ZC-01 đo xem có không.
 
 ### D-530 — Lưu ở `sino-api` · agent chốt (theo DN-2 = A)
 
 - Vị trí: `TEXT`, chữ `[Vị trí] <title hoặc address>`, hoặc `[Vị trí]` khi không có cả hai. `metadata`: `locationLat`, `locationLng`, `locationTitle`, `locationAddress`, `locationPreviewUrl`, `locationCurrent`.
-- Danh thiếp: `TEXT`, chữ `[Danh thiếp] <name>`. `metadata`: `contactName`, `contactAvatarUrl`, `contactPhone`, `contactUserId`.
+- Danh thiếp: `TEXT`, chữ `[Danh thiếp] <name>`. `metadata`: `contactName`, `contactAvatarUrl`, `contactPhone`, `contactUserId`, `contactQrUrl`.
+- `MessageResponse.contactCard` = `{ name, avatarUrl, phone, qrUrl, conversationId }`. `conversationId` là chat 1-1 **đang có trong hộp thư** giữa tài khoản nhận tin và người có `contactUserId` (trên Zalo, `threadId` của chat 1-1 là ID người kia), tìm lúc đọc tin, không lưu; `null` khi chưa có chat hoặc không có `userId`. Kiểm quyền như mọi chat (chỉ chat của tài khoản người dùng). `userId` không trả cho web. Thêm 2026-11-20 (người dùng: "oke làm theo đề xuất đi") để nút "Nhắn Tin" mở được chat có sẵn.
 - Khóa đặt trong `NormalizedMessage` như `IMAGE_URL`; tên của Zalo không lọt vào lõi.
 - `MessageResponse` có thêm `location` và `contactCard`, `null` với mọi tin khác. Thư Gmail không đổi.
 
@@ -94,7 +96,14 @@ contactCard: { userId|null, name, avatarUrl|null, phone|null }
   - Dưới: tên địa điểm (đậm) và địa chỉ; `current` mà không có tên thì "Vị trí hiện tại"; không có gì thì "Vị trí".
   - iframe không tải được thì tên, địa chỉ và nút "Maps" vẫn dùng được.
   - Màu theo theme Sino (Sunset), không chép màu của Zalo.
-- Thẻ danh thiếp: avatar (chữ cái đầu khi không có), tên, số điện thoại nếu có; số điện thoại là link `tel:`. Không có nút "Nhắn tin" trong change này.
+- ~~Thẻ danh thiếp: avatar (chữ cái đầu khi không có), tên, số điện thoại nếu có; số điện thoại là link `tel:`. Không có nút "Nhắn tin" trong change này.~~ **LÝ DO:** người dùng 2026-11-20 gửi ảnh danh thiếp của Zalo desktop làm mẫu và chọn có nút "Nhắn Tin".
+- Thẻ danh thiếp, theo `zalo-desktop-contact-card.png` (thay canvas, như thẻ vị trí), màu theo theme Sino:
+  - Trên: avatar (chữ cái đầu khi không có) và tên; ảnh QR bên phải khi có `qrUrl`.
+  - Dưới: hai nút ngang nhau.
+    - **"Gọi Điện"**: link `tel:<phone>`, chỉ hiện khi có số điện thoại.
+    - **"Nhắn Tin"**: mở `/messages/<conversationId>`, chỉ hiện khi có `conversationId`. Chưa có chat thì **ẩn**, không để nút chết; nó hiện cho mọi danh thiếp khi CT-03 của `zalo-contacts` (tin đầu tiên mở chat) xong.
+    - Không nút nào hiện thì bỏ hàng nút.
+  - Số điện thoại không hiện thành chữ trên thẻ, giống Zalo; chỉ nằm trong nút "Gọi Điện".
 - Tên, địa chỉ là chữ của người khác: chỉ hiện dạng chữ.
 - Danh sách hội thoại và thông báo dùng chữ tóm tắt của D-530, không cần sửa.
 

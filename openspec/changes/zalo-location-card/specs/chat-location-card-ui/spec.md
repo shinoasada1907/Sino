@@ -16,11 +16,23 @@ Tin có `location` MUST hiện thành thẻ vị trí có bản đồ Google nh�
 - **THEN** thẻ hiện bản đồ và chữ "Vị trí hiện tại"
 
 ### Requirement: Thẻ danh thiếp trong khung chat
-Tin có `contactCard` MUST hiện thành thẻ có avatar (hoặc chữ cái đầu khi không có), tên, và số điện thoại khi có. Số điện thoại MUST bấm được để gọi trên thiết bị hỗ trợ.
+Tin có `contactCard` MUST hiện thành thẻ có avatar (hoặc chữ cái đầu khi không có), tên, và ảnh QR khi có. Thẻ MUST có nút "Gọi Điện" khi danh thiếp có số điện thoại, và nút "Nhắn Tin" khi Sino đã có chat 1-1 với người đó. Nút không làm được việc của nó MUST NOT hiện.
 
 #### Scenario: Danh thiếp không có avatar
 - **WHEN** tin có `contactCard` không có avatar
 - **THEN** thẻ hiện chữ cái đầu của tên ở chỗ avatar
+
+#### Scenario: Gọi điện
+- **WHEN** danh thiếp có số điện thoại và người dùng bấm "Gọi Điện"
+- **THEN** thiết bị mở việc gọi tới số đó (`tel:`)
+
+#### Scenario: Nhắn tin với người đã có chat
+- **WHEN** Sino đã có chat 1-1 với người trong danh thiếp và người dùng bấm "Nhắn Tin"
+- **THEN** khung chat chuyển sang chat đó
+
+#### Scenario: Chưa có chat, không có số điện thoại
+- **WHEN** danh thiếp không có số điện thoại và Sino chưa có chat với người đó
+- **THEN** thẻ không có nút "Gọi Điện" lẫn "Nhắn Tin"
 
 ### Requirement: Nội dung của người khác chỉ là chữ
 Tên, địa chỉ trong thẻ vị trí và danh thiếp MUST được hiện dạng chữ, không diễn giải thành HTML.
