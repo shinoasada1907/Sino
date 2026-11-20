@@ -76,12 +76,12 @@ describe('replying to a chat message', () => {
     expect(chat().getAllByRole('button', { name: 'Trả lời' })).toHaveLength(1)
   })
 
-  it('has no "Trả lời" on a message the server says cannot be quoted, nor on one that does not say', async () => {
+  it('shows "Trả lời" on every stored message regardless of canQuote', async () => {
     await open([fromDad('m1', { canQuote: false }), fromDad('m2', { canQuote: undefined }), fromDad('m3')])
-    expect(chat().getAllByRole('button', { name: 'Trả lời' })).toHaveLength(1)
+    expect(chat().getAllByRole('button', { name: 'Trả lời' })).toHaveLength(3)
   })
 
-  it('leaves a refused quote out: says so, and "Gửi lại" sends the text alone', async () => {
+  it('keeps the quote in the bubble when refused, says so, and "Gửi lại" retries the reply', async () => {
     await open([fromDad('m1')])
     const user = userEvent.setup()
     vi.mocked(api.sendMessage).mockRejectedValueOnce(new ApiError(422, 'QUOTE_UNAVAILABLE', null))
@@ -91,9 +91,9 @@ describe('replying to a chat message', () => {
 
     expect(await chat().findByText(/Không trả lời được tin này/)).toBeInTheDocument()
     const failed = chat().getByText('Dạ con biết').closest('[data-message-id]') as HTMLElement
-    expect(within(failed).queryByText('Tin m1')).not.toBeInTheDocument()
+    expect(within(failed).getByText('Tin m1')).toBeInTheDocument()
     await user.click(chat().getByRole('button', { name: 'Gửi lại' }))
-    await waitFor(() => expect(api.sendMessage).toHaveBeenLastCalledWith('conv-2', 'Dạ con biết', expect.any(String)))
+    await waitFor(() => expect(api.sendMessage).toHaveBeenLastCalledWith('conv-2', 'Dạ con biết', expect.any(String), 'm1'))
   })
 
   it('shows the quote strip, focuses the box, cancels with X and with Esc', async () => {

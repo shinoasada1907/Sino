@@ -4,7 +4,7 @@ import { cn } from '@/shared/lib/utils'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/dropdown-menu'
 
 const ROUND =
-  'inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border-strong bg-raised text-muted-foreground outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring focus-visible:outline-solid [&_svg]:size-3.5'
+  'inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border bg-raised text-muted-foreground outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring focus-visible:outline-solid [&_svg]:size-3'
 
 /**
  * The round buttons at the side of a chat bubble, as Zalo's: "Trả lời", "Chuyển tiếp" and "Thêm" (a menu with "Sao chép").

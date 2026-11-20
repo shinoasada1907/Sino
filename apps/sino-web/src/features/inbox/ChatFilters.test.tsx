@@ -29,6 +29,7 @@ describe('the filters of Tin nhắn (MA-06, D-435, D-436)', () => {
     const unread = group.getByRole('button', { name: /^Chưa đọc, \d+ chưa xử lý$/ })
     expect(unread.querySelector('.bg-danger')).not.toBeNull()
     expect(group.getByRole('button', { name: 'Tất cả' }).querySelector('.bg-danger')).toBeNull()
+    expect(group.getByRole('button', { name: 'Cần trả lời' }).querySelector('.bg-danger')).toBeNull()
   })
 
   it('puts the tab in the address', async () => {
@@ -70,7 +71,7 @@ describe('the filters of Tin nhắn (MA-06, D-435, D-436)', () => {
 
     expect(screen.queryByRole('group', { name: 'Loại chat' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Thêm' })).toBeNull()
-    expect(group.getByRole('button', { name: /^Cần trả lời, \d+ chưa xử lý$/ })).toBeInTheDocument()
+    expect(group.getByRole('button', { name: 'Cần trả lời' })).toBeInTheDocument()
   })
 
   it('opens the info of a chat over it with "Thông tin", and Esc closes it', async () => {

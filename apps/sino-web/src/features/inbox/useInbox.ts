@@ -392,7 +392,7 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
       }
       editOutbox((mails) =>
         mails.some((mail) => mail.clientMessageId === clientMessageId)
-          ? mails.map((mail) => (mail.clientMessageId === clientMessageId ? { ...mail, status: 'SENDING' } : mail))
+          ? mails.map((mail) => (mail.clientMessageId === clientMessageId ? { ...mail, status: 'SENDING', quoteRefused: false } : mail))
           : [...mails, pending],
       )
     },
@@ -417,14 +417,12 @@ export function useSendMessage(conversationId: string, afterDiscard?: () => void
       const id = storedId(error)
       // No answer at all: the request may have reached the server, so it is not "Không gửi được" (D-132).
       const unknown = code === 'SEND_OUTCOME_UNKNOWN' || code === NETWORK_ERROR
-      editMail(clientMessageId, (mail) => {
-        if (code === 'QUOTE_UNAVAILABLE') {
-          // The quote can never be sent: drop it so "Gửi lại" sends the text alone (D-509 note).
-          const { quote: _refused, ...rest } = mail
-          return { ...rest, status: 'FAILED', quoteRefused: true }
-        }
-        return { ...mail, status: unknown ? 'UNKNOWN' : 'FAILED', ...(id ? { id, local: false } : {}) }
-      })
+      editMail(clientMessageId, (mail) => ({
+        ...mail,
+        status: unknown ? 'UNKNOWN' : 'FAILED',
+        ...(code === 'QUOTE_UNAVAILABLE' ? { quoteRefused: true } : {}),
+        ...(id ? { id, local: false } : {}),
+      }))
       if (code === 'REPLY_NOT_ALLOWED') {
         void queryClient.invalidateQueries({ queryKey: conversationKey(conversationId), exact: true })
       }
