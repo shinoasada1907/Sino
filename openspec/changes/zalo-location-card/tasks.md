@@ -1,0 +1,58 @@
+# Vị trí và danh thiếp trong chat Zalo · Implementation Plan
+
+> **AUTO** (người dùng 2026-11-20: "Duyệt, AUTO"). **Đề án được duyệt 2026-11-20:** DN-1…DN-4 đều chọn A. Đội Sino (`CLAUDE.md`, *Đội Sino*): mỗi task ghi kỹ sư phụ trách; kỹ sư không commit; quản lý nghiệm thu nội bộ, người dùng nghiệm thu, rồi quản lý commit (mỗi task một commit trên `dev`).
+> **Thứ tự:** ZC-01 (phần log) trước, rồi người dùng quét QR và gửi thử, cùng buổi với ML-01 của `zalo-media-library` nếu được. Đo xong mới giao ZC-02, rồi ZC-03. ZC-05 (canvas) chạy song song; người dùng duyệt hình trước khi giao ZC-04. ZC-04 sau ZC-03. ZC-20 sau tất cả, có người dùng.
+> **File chung với `zalo-media-library`** (DN-3): `ZcaGateway.ts`, `ZaloMessageNormalizer.java`, `MessageResponse`, `ChatThread.tsx`. Không giao hai change cùng lúc cho cùng một app.
+> **Mỗi task:** viết code, **test tay trước** cho tới khi chạy đúng, rồi mới viết test tự động kiểm lại đúng hành vi đó. Bằng chứng ghi ngắn ở task: test tay đã làm gì, thấy gì; lệnh và kết quả.
+> **Lệnh kiểm tra.** `apps/sino-zalo`: `pnpm lint`, `pnpm typecheck`, `pnpm test`. `apps/sino-api`: `./mvnw test -Dtest=…` cho phần đụng tới, kèm `ModularityTests`, trong worktree riêng khi người dùng đang chạy app. `apps/sino-web`: `pnpm lint`, `pnpm exec tsc -b`, `pnpm test`, `pnpm build`.
+
+## 1. Đo trên Zalo thật
+
+- [ ] 1.1 **ZC-01 — `sino-zalo`: log hình dạng, đo tin vị trí và danh thiếp (D-529, D-532)** · `sino-zalo`, có người dùng
+  - **Goal:** biết Zalo giao tin vị trí và danh thiếp qua listener thế nào, và khóa nào tách danh thiếp khỏi thẻ link, trước khi viết phần đọc.
+  - **Files:** `src/gateway/ZcaGateway.ts` (thêm `chat.location.new` vào `MEASURED_TYPES`; `chat.recommended` đã có từ ML-01); test.
+  - **Acceptance criteria:** `tasks.md` ghi cho mỗi loại: `zaloType`, các khóa kể cả trong `params`, loại giá trị, host; bảng khóa Zalo → trường của D-529; khóa nào cho biết `chat.recommended` là danh thiếp; Zalo có giao ảnh bản đồ không (DN-1). Log không có toạ độ, tên, số điện thoại, địa chỉ đầy đủ.
+  - **Test:** Vitest cho log với nội dung mẫu, kiểm không có giá trị trong dòng log. Rồi chạy thật: người dùng quét QR; từ nick khác gửi một vị trí có địa chỉ, một vị trí ghim trên bản đồ, một danh thiếp có số điện thoại, một danh thiếp không có, và một link (để so với danh thiếp), ở chat 1-1 và một nhóm nếu được. Người dùng đưa các dòng log "Zalo message" vì agent không đọc được terminal của người dùng. Không mở `chat.zalo.me`.
+  - **Depends on:** đề án được duyệt; người dùng quét QR.
+  - **Thực hiện (phần code, `sino-zalo`, 2026-11-20):** thêm `chat.location.new` vào `MEASURED_TYPES` ở `ZcaGateway.ts` (cập nhật comment). `photoShapeOf` giữ nguyên, đủ dùng: chỉ in tên khóa (kể cả `params.` và một cấp sâu hơn), `number`, `string(độ dài)`, `url(host)`; toạ độ số là `number`, toạ độ chuỗi là `string(n)`, không in giá trị. Tin vị trí còn có `contentShape` (khóa cấp 1, cũng không giá trị) vì không nằm trong `KNOWN_TYPES`. README không liệt kê các loại được đo nên không sửa. Phần đo thật còn chờ người dùng quét QR; chưa tick.
+  - **Kiểm chứng (phần code):** test tay bằng script tạm (đã xóa) qua `toZaloMessage` + `SessionManager` + `FakeZaloGateway`: vị trí cá nhân ra `mediaShape: title:string(10),description:string(9),href:url(maps.google.com),params:string(34),params.latitude:number,params.lng:string(5)`; danh thiếp trong nhóm ra `…,params.phone:string(10)`; không có toạ độ, tên, số điện thoại hay địa chỉ trong cả dòng log. Vitest: thêm 5 test vào `test/mediaShape.test.ts` (khóa và loại giá trị, một cấp sâu, không lộ giá trị, nhóm, cả dòng log); `pnpm test` 433/433, `pnpm typecheck` sạch, `pnpm lint` chỉ còn cảnh báo cũ ở `photoSticker.test.ts`. Hai lần sửa test là do tôi: host `zalo.me` được phép hiện, và đếm sai độ dài chuỗi.
+
+## 2. Đọc và lưu tin
+
+- [ ] 2.1 **ZC-02 — `sino-zalo`: đọc vị trí và danh thiếp (D-529)** · `sino-zalo`
+  - **Goal:** `ZaloMessage` mang `location`, `contactCard` theo bảng khóa ZC-01.
+  - **Files:** `src/gateway/{ZaloGateway,ZcaGateway,FakeZaloGateway}.ts`, README *API so far*; test.
+  - **Acceptance criteria:** spec `zalo-location-card-messages`; toạ độ sai hoặc thiếu thì không gửi `location` và có log hình dạng; avatar, ảnh bản đồ ngoài tên miền ảnh của Zalo bị bỏ; thẻ link không có `contactCard`; loại tin khác không đổi. Bỏ `mediaShape` khỏi tin đã đọc được.
+  - **Test:** test tay với `buildApp` và `FakeZaloGateway`: tin mẫu đúng từ ZC-01 đi qua `GET /accounts/:id/messages` có đủ trường. Rồi Vitest: đủ khóa, toạ độ là chữ, toạ độ ngoài khoảng, avatar ngoài tên miền, thẻ link.
+  - **Depends on:** ZC-01.
+
+- [ ] 2.2 **ZC-03 — `sino-api`: lưu và trả vị trí, danh thiếp (D-530)** · `sino-api`
+  - **Goal:** tin vị trí và danh thiếp lưu đúng chữ tóm tắt và `metadata`; lịch sử tin trả `location`, `contactCard`.
+  - **Files:** `provider/spi/NormalizedMessage.java`, `provider/infrastructure/zalo/{ZaloClient,ZaloMessageNormalizer}.java`, `conversation/{InboxMessage,MessageHistory}.java`, `conversation/api/MessageResponse.java`, README *Endpoints available today*; test, `ModularityTests`.
+  - **Acceptance criteria:** spec `zalo-location-card-messages`; không có migration; thư Gmail và các loại tin Zalo khác trả như cũ (`location`, `contactCard` là `null`); log không có giá trị (D-532).
+  - **Test:** test tay: gọi webhook của `sino-zalo` vào `sino-api` với tin mẫu từ ZC-01 (trên bản sao DB, không phải DB `sino` của người dùng), rồi `GET /api/conversations/{id}/messages` thấy đủ trường, danh sách hội thoại thấy chữ tóm tắt. Rồi test tự động cho chuẩn hóa và API.
+  - **Depends on:** ZC-02 (hợp đồng chốt).
+
+## 3. Giao diện
+
+- [ ] 3.1 **ZC-05 — Canvas: thẻ vị trí và thẻ danh thiếp (DN-1, D-531)** · quản lý
+  - **Goal:** hình của hai thẻ trong khung chat, cả tin đến và tin trong nhóm, desktop và 390, sáng và tối.
+  - **Files:** canvas "Sino UI", bản sao `design/sino-ui/project/`.
+  - **Acceptance criteria:** người dùng duyệt trên link.
+  - **Depends on:** DN-1 chốt.
+
+- [ ] 3.2 **ZC-04 — Web: vẽ thẻ vị trí và danh thiếp trong khung chat (D-531)** · `sino-web`
+  - **Goal:** khung chat hiện hai thẻ theo canvas.
+  - **Files:** `features/inbox/{inbox.types.ts,inbox.api.ts}`, `components/ChatThread.tsx`, `components/LocationCard.tsx`, `components/ContactCard.tsx`; test.
+  - **Acceptance criteria:** spec `chat-location-card-ui`; link bản đồ có `rel="noopener noreferrer"`; không gọi dịch vụ bản đồ khi chưa bấm; khớp canvas.
+  - **Test:** test tay trên Chrome thật ở desktop và 390, với dữ liệu thật từ ZC-03. Rồi Vitest: đủ trường, thiếu địa chỉ, thiếu avatar, tên có HTML.
+  - **Depends on:** ZC-03, ZC-05; không có thay đổi chưa commit của người khác trong `ChatThread.tsx` hoặc người dùng đã quyết.
+
+## 4. Kết thúc
+
+- [ ] 4.1 **ZC-20 — Chạy thật với Zalo, tài liệu, kết thúc** · quản lý, có người dùng
+  - **Goal:** chứng minh trên Zalo thật, ghi lại, archive.
+  - **Acceptance criteria:** từ nick khác gửi vị trí và danh thiếp tới tài khoản của người dùng: khung chat hiện đúng, "Mở bản đồ" mở đúng chỗ, danh sách hội thoại có chữ tóm tắt; thẻ link vẫn như trước. Đối chiếu trang Privacy về số điện thoại và vị trí (DN-4).
+  - **Files:** `docs/knowledge/` (mục mới từ phần Kiến thức của các kỹ sư) và `.docx` sinh lại, `genoffice docs check`; `PROJECT_STATE.md`; `openspec archive zalo-location-card -y`.
+  - **Test:** mọi lệnh kiểm tra của ba app xanh; `openspec validate zalo-location-card --strict` hợp lệ; người dùng đã xem.
+  - **Depends on:** ZC-01…ZC-05.
