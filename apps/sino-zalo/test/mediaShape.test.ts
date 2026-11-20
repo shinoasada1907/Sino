@@ -122,14 +122,14 @@ describe("mediaShape of a voice message, a video and a link", () => {
   });
 });
 
-// ZC-01 (D-529, D-532): a location and a contact card. Content below is a made-up sample, not what Zalo gives (that is
+// ZC-01 (D-529, D-532): a location and a contact card. The location sample has a latitude out of range, so it stays unread (ZC-02) and keeps its shape. Content below is a made-up sample, not what Zalo gives (that is
 // what the real run measures); the point is that no value of any kind reaches the shape.
 const LOCATION = {
   title: "Quán Cà Phê Riêng Tư",
   description: "12 Đường Bí Mật, Quận 1",
   href: "https://maps.google.com/?q=10.7769,106.7009",
   thumb: "https://map.zdn.vn/t/secret-map.jpg",
-  params: JSON.stringify({ latitude: 10.7769, longitude: 106.7009, lat: "10.7769", lng: "106.7009" }),
+  params: JSON.stringify({ latitude: 910.7769, longitude: 106.7009, lat: "10.7769", lng: "106.7009" }),
 };
 const CARD = {
   title: "Nguyễn Văn Riêng",

@@ -31,6 +31,7 @@ import {
   type ZaloPhoto,
   type ZaloQuote,
   type ZaloQuoted,
+  type ZaloLocation,
   type ZaloSharedFile,
   ZaloRejectedError,
   type ZaloSession,
@@ -316,9 +317,11 @@ export function toZaloMessage(message: Message): ZaloMessage {
   const photo =
     data.msgType === "chat.photo" ? photoOf(data.content, data.propertyExt?.type === NO_BORDER) : undefined;
   const file = data.msgType === "share.file" ? sharedFileOf(data.content) : undefined;
-  const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
+  const location = data.msgType === "chat.location.new" ? locationOf(data.content) : undefined;
+  const contentShape =
+    unseen(data.msgType, photo, sticker) && location === undefined ? contentShapeOf(data.content) : undefined;
   const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
-  const mediaShape = MEASURED_TYPES.has(data.msgType) ? photoShapeOf(data) : undefined;
+  const mediaShape = MEASURED_TYPES.has(data.msgType) && location === undefined ? photoShapeOf(data) : undefined;
   const quote = quotedOf(data.quote);
   const rawContent =
     typeof data.content === "object" && data.content !== null && !Array.isArray(data.content)
@@ -337,6 +340,7 @@ export function toZaloMessage(message: Message): ZaloMessage {
     ...(sticker === undefined ? {} : { sticker }),
     ...(photo === undefined ? {} : { photo }),
     ...(file === undefined ? {} : { file }),
+    ...(location === undefined ? {} : { location }),
     ...(contentShape === undefined ? {} : { contentShape }),
     ...(photoShape === undefined ? {} : { photoShape }),
     ...(mediaShape === undefined ? {} : { mediaShape }),
@@ -579,6 +583,52 @@ function sharedFileOf(content: unknown): ZaloSharedFile | undefined {
   }
   const size = Number(objectOf(fields.params)?.fileSize);
   return { name, url, sizeBytes: Number.isSafeInteger(size) && size >= 0 ? size : null };
+}
+
+/**
+ * The place a `chat.location.new` content names (zalo-location-card, ZC-02, D-529), as the real messages showed it
+ * (ZC-01): `params`, a JSON text, holds `latitude` and `longitude` as TEXT; `description` is the address, `title` the
+ * place name (empty so far) and `thumb` the map picture (empty: Zalo gives none). undefined when a coordinate is
+ * missing, is not a plain number or lies outside [-90, 90] / [-180, 180]; the message then stays a placeholder and its
+ * shape is logged (`mediaShape`), never a coordinate. `previewUrl` is a web address as Zalo gave it; sino-api decides
+ * which hosts it trusts, as for a photo. `params.isUserLocation` is left out of the contract.
+ */
+function locationOf(content: unknown): ZaloLocation | undefined {
+  const fields = objectOf(content);
+  const params = objectOf(fields?.params);
+  if (fields === null || params === null) {
+    return undefined;
+  }
+  const latitude = coordinateOf(params.latitude, 90);
+  const longitude = coordinateOf(params.longitude, 180);
+  if (latitude === null || longitude === null) {
+    return undefined;
+  }
+  return {
+    latitude,
+    longitude,
+    title: textOf(fields.title, 200),
+    address: textOf(fields.description, 300),
+    previewUrl: webAddress(fields.thumb),
+    current: typeof params.isUserLocation === "number" && params.isUserLocation !== 0 && Number.isFinite(params.isUserLocation),
+  };
+}
+
+/** A coordinate given as a number or as plain decimal text, within `limit`; null for anything else (empty text too). */
+function coordinateOf(value: unknown, limit: number): number | null {
+  const number =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^-?\d{1,3}(\.\d{1,15})?$/.test(value.trim())
+        ? Number(value.trim())
+        : Number.NaN;
+  return Number.isFinite(number) && Math.abs(number) <= limit ? number : null;
+}
+
+/** Text trimmed and cut to `max` characters, null when there is none. */
+function textOf(value: unknown, max: number): string | null {
+  const text = typeof value === "string" ? Array.from(value.trim()).slice(0, max).join("") : "";
+  return text === "" ? null : text;
 }
 
 /**
