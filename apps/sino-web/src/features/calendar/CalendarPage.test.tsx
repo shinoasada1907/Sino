@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { stubViewport } from '@/test/matchMedia'
 import { renderApp } from '@/test/renderApp'
-// The real request answers an empty calendar until F17 (D-42); these tests read the canvas sample.
+// These tests read the canvas sample; the real request (calendar.api.ts) is tested on MSW in CalendarOnApi.test.tsx.
 vi.mock('./calendar.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./calendar.api')>()
   const { createCalendarSample } = await import('./calendar.sample')
@@ -162,19 +162,15 @@ describe('Lịch on desktop', () => {
     expect(router.state.location.pathname).toBe('/tasks/task-rent')
   })
 
-  it('leaves everything as it is when a button without a flow yet is pressed', async () => {
-    const { router } = open('/calendar/event-home?date=2026-10-03')
-    const user = userEvent.setup()
+  it('links "Lịch hẹn" and "Sửa" to their forms with the view and the day kept, and hides "Thêm thao tác"', async () => {
+    open('/calendar/event-home?date=2026-10-03')
     await (await findDetail()).findByRole('heading', { level: 2, name: 'Về nhà ăn cơm' })
 
-    await user.click(calendar().getByRole('button', { name: 'Lịch hẹn' }))
-    expect(calendar().getByRole('button', { name: 'Lịch hẹn' })).toHaveAttribute('aria-disabled', 'true')
-    for (const button of [...detail().getAllByRole('button', { name: 'Sửa' }), detail().getByRole('button', { name: 'Thêm thao tác' }), detail().getByRole('button', { name: 'Xóa lịch hẹn' })]) {
-      expect(button).toHaveAttribute('aria-disabled', 'true')
-      await user.click(button)
+    expect(detail().queryByRole('button', { name: 'Thêm thao tác' })).toBeNull()
+    expect(calendar().getByRole('link', { name: 'Lịch hẹn' })).toHaveAttribute('href', '/calendar/new?date=2026-10-03')
+    for (const link of detail().getAllByRole('link', { name: 'Sửa' })) {
+      expect(link).toHaveAttribute('href', '/calendar/event-home/edit?date=2026-10-03')
     }
-
-    expect(router.state.location.pathname).toBe('/calendar/event-home')
-    expect(week().getByRole('link', { name: /Về nhà ăn cơm/ })).toBeInTheDocument()
+    expect(detail().getByRole('button', { name: 'Xóa lịch hẹn' })).toBeInTheDocument()
   })
 })

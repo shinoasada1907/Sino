@@ -1,4 +1,4 @@
-import { Bell, Calendar, ChevronRight, Ellipsis, Pencil, Repeat, SquareCheck, StickyNote, Trash2, X, type LucideIcon } from 'lucide-react'
+import { Bell, Calendar, ChevronRight, Pencil, Repeat, SquareCheck, StickyNote, Trash2, X, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { recurrenceLabel } from '@/features/tasks/format'
@@ -6,11 +6,12 @@ import type { RelatedItem } from '@/features/tasks/tasks.types'
 import type { ProviderNameOf } from '@/shared/format'
 import { formatClock, weekdayShort } from '@/shared/time/local'
 import { Button } from '@/shared/ui/button'
-import { SoonButton } from '@/shared/ui/soon-button'
 import { ProviderIcon } from '@/shared/ui/provider-icon'
 import { Spec } from '@/shared/ui/spec'
 import type { CalendarEvent } from '../calendar.types'
 import { eventKindLabel, eventReminder, eventWhen } from '../format'
+import { DeleteEventDialog } from './DeleteEventDialog'
+import type { EventFormState } from './EventForm'
 
 const RELATED: Record<RelatedItem['kind'], { icon: LucideIcon; to: (item: RelatedItem) => string }> = {
   TASK: { icon: SquareCheck, to: (item) => `/tasks/${item.id}` },
@@ -18,12 +19,27 @@ const RELATED: Record<RelatedItem['kind'], { icon: LucideIcon; to: (item: Relate
   NOTE: { icon: StickyNote, to: () => '/notes' },
 }
 
+const fromDetail: EventFormState = { fromDetail: true }
+
 /**
  * Canvas `Calendar`, block "Chi tiết lịch hẹn": kind, title and when, reminder, repeat rule and place, the message it
- * came from (opens the inbox), notes, related items. "Sửa", "Thêm thao tác" and "Xóa lịch hẹn" have no flow yet
- * (D-85); "Đóng" goes back to the calendar.
+ * came from (opens the inbox), notes, related items; what the backend does not have (reminder, source, related) is left
+ * out, as is "Thêm thao tác" (FE-72). "Sửa" opens `/calendar/:itemId/edit` and "Xóa lịch hẹn" asks before deleting
+ * (FE-73); "Đóng" goes back to the calendar.
  */
-export function EventDetail({ event, now, nameOf, close }: { event: CalendarEvent; now: Date; nameOf: ProviderNameOf; close: string }) {
+export function EventDetail({
+  event,
+  now,
+  nameOf,
+  close,
+  edit,
+}: {
+  event: CalendarEvent
+  now: Date
+  nameOf: ProviderNameOf
+  close: string
+  edit: string
+}) {
   const rule = recurrenceLabel(event.recurrence)
 
   return (
@@ -31,12 +47,11 @@ export function EventDetail({ event, now, nameOf, close }: { event: CalendarEven
       <div className="hidden items-center justify-between gap-3 md:flex">
         <span className="text-xs leading-4 font-semibold text-muted-foreground">{eventKindLabel(event)}</span>
         <div className="flex items-center gap-0.5">
-          <SoonButton variant="ghost" size="icon-sm" aria-label="Sửa">
-            <Pencil strokeWidth={1.6} />
-          </SoonButton>
-          <SoonButton variant="ghost" size="icon-sm" aria-label="Thêm thao tác">
-            <Ellipsis strokeWidth={1.6} />
-          </SoonButton>
+          <Button asChild variant="ghost" size="icon-sm">
+            <Link to={edit} state={fromDetail} aria-label="Sửa" title="Sửa">
+              <Pencil strokeWidth={1.6} />
+            </Link>
+          </Button>
           <Button asChild variant="ghost" size="icon-sm">
             <Link to={close} aria-label="Đóng" title="Đóng">
               <X strokeWidth={1.6} />
@@ -51,10 +66,12 @@ export function EventDetail({ event, now, nameOf, close }: { event: CalendarEven
       </div>
 
       <dl className="m-0 grid grid-cols-[104px_minmax(0,1fr)] items-baseline gap-x-4 gap-y-3">
-        <Fact term="Nhắc">
-          {event.reminder && <Bell aria-hidden="true" className="mr-1.25 inline size-3.25 align-[-2px] text-muted-foreground" strokeWidth={1.6} />}
-          {eventReminder(event)}
-        </Fact>
+        {event.reminder && (
+          <Fact term="Nhắc">
+            <Bell aria-hidden="true" className="mr-1.25 inline size-3.25 align-[-2px] text-muted-foreground" strokeWidth={1.6} />
+            {eventReminder(event)}
+          </Fact>
+        )}
         <Fact term="Lặp lại">
           {rule && <Repeat aria-hidden="true" className="mr-1.25 inline size-3.25 align-[-2px] text-muted-foreground" strokeWidth={1.6} />}
           {rule ?? 'Không'}
@@ -113,14 +130,22 @@ export function EventDetail({ event, now, nameOf, close }: { event: CalendarEven
       )}
 
       <div className="mt-auto flex flex-wrap gap-2.5 border-t pt-5">
-        <SoonButton variant="secondary" size="sm">
-          <Pencil strokeWidth={1.6} />
-          Sửa
-        </SoonButton>
-        <SoonButton variant="danger" size="sm">
-          <Trash2 strokeWidth={1.6} />
-          Xóa lịch hẹn
-        </SoonButton>
+        <Button asChild variant="secondary" size="sm">
+          <Link to={edit} state={fromDetail}>
+            <Pencil strokeWidth={1.6} />
+            Sửa
+          </Link>
+        </Button>
+        <DeleteEventDialog
+          event={event}
+          after={close}
+          trigger={
+            <Button type="button" variant="danger" size="sm">
+              <Trash2 strokeWidth={1.6} />
+              Xóa lịch hẹn
+            </Button>
+          }
+        />
       </div>
     </>
   )

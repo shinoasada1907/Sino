@@ -68,3 +68,22 @@ export interface CalendarReminder {
   state: 'PENDING' | 'FIRED'
   source: TaskSource | null
 }
+
+/** One appointment as a whole (`GET/POST/PUT /api/events`), with the first occurrence and the rule of a repeating one. */
+export interface StoredEvent extends Omit<CalendarEvent, 'id' | 'eventId'> {
+  id: string
+  createdAt: Instant
+  updatedAt: Instant
+}
+
+/** Body of `POST /api/events` and `PUT /api/events/{id}` (D-153). */
+export interface EventBody {
+  title: string
+  startsAt: Instant | null
+  endsAt: Instant | null
+  startDate: LocalDate | null
+  endDate: LocalDate | null
+  location: string | null
+  notes: string | null
+  recurrence: Recurrence | null
+}

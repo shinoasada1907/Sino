@@ -1,9 +1,10 @@
 import { Bell, ChevronLeft, ChevronRight, Mail, Plus, Repeat } from 'lucide-react'
+import { Link } from 'react-router'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { SoonButton } from '@/shared/ui/soon-button'
 import { Segmented } from '@/shared/ui/segmented'
 import type { CalendarView } from '../format'
+import type { EventFormState } from './EventForm'
 
 const VIEWS: { value: CalendarView; label: string }[] = [
   { value: 'week', label: 'Tuần' },
@@ -11,14 +12,17 @@ const VIEWS: { value: CalendarView; label: string }[] = [
   { value: 'agenda', label: 'Lịch trình' },
 ]
 
+const fromCalendar: EventFormState = { fromCalendar: true }
+
 /**
  * Canvas `.cal-head`: the small line and the title of the range, "Hôm nay", the range before and after, the views and
- * "Lịch hẹn" (no flow yet, D-85).
+ * "Lịch hẹn" (opens `/calendar/new` keeping the view and the day, D-158).
  */
 export function CalendarHeader({
   kicker,
   title,
   view,
+  newEvent,
   onView,
   onShift,
   onToday,
@@ -27,6 +31,7 @@ export function CalendarHeader({
   kicker: string
   title: string
   view: CalendarView
+  newEvent: string
   onView: (view: CalendarView) => void
   onShift: (step: -1 | 1) => void
   onToday: () => void
@@ -50,10 +55,12 @@ export function CalendarHeader({
         </Button>
       </div>
       <Segmented label="Chế độ xem" value={view} options={VIEWS} onChange={onView} />
-      <SoonButton variant="primary" size="sm">
-        <Plus strokeWidth={1.6} />
-        Lịch hẹn
-      </SoonButton>
+      <Button asChild variant="primary" size="sm">
+        <Link to={newEvent} state={fromCalendar}>
+          <Plus strokeWidth={1.6} />
+          Lịch hẹn
+        </Link>
+      </Button>
     </header>
   )
 }

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { stubViewport } from '@/test/matchMedia'
 import { renderApp } from '@/test/renderApp'
-// The real request answers an empty calendar until F17 (D-42); these tests read the canvas sample.
+// These tests read the canvas sample; the real request (calendar.api.ts) is tested on MSW in CalendarOnApi.test.tsx.
 vi.mock('./calendar.api', async (importOriginal) => {
   const api = await importOriginal<typeof import('./calendar.api')>()
   const { createCalendarSample } = await import('./calendar.sample')

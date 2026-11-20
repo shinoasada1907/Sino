@@ -11,6 +11,7 @@ import { createInboxSample } from '@/features/inbox/inbox.sample'
 import { INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
 import { createTasksSample } from '@/features/tasks/tasks.sample'
 import { TASKS_QUERY_KEY } from '@/features/tasks/useTasks'
+import { serveEmptyCalendar } from '@/test/fixtures/calendarApi'
 import { renderApp, shellPart } from '@/test/renderApp'
 import { AppShell } from './AppShell'
 import { MobilePageHeader } from './MobilePageHeader'
@@ -108,6 +109,7 @@ describe('mobile sub-pages', () => {
 describe('tab bar "Thêm"', () => {
   it('is the current tab on the screens that live under Thêm', async () => {
     // Lịch moved behind Thêm when Tin nhắn took its tab (f05c, D-301).
+    serveEmptyCalendar()
     for (const path of ['/calendar', '/settings', '/accounts', '/notes', '/more']) {
       const view = renderApp(path)
       const tabbar = within(shellPart('tabbar'))

@@ -107,14 +107,11 @@ describe('Lịch on a phone', () => {
     expect(document.querySelector('[data-slot="tabbar"]')).toBeNull()
   })
 
-  it('has a button to add an appointment that does nothing yet', async () => {
-    const { router } = open('/calendar')
-    const user = userEvent.setup()
+  it('links "Thêm lịch hẹn" to the new appointment form, keeping the view and the day', async () => {
+    open('/calendar?view=agenda&date=2026-10-04')
     await findStrip()
 
-    await user.click(screen.getByRole('button', { name: 'Thêm lịch hẹn' }))
-
-    expect(router.state.location.pathname).toBe('/calendar')
+    expect(screen.getByRole('link', { name: 'Thêm lịch hẹn' })).toHaveAttribute('href', '/calendar/new?view=agenda&date=2026-10-04')
   })
 })
 

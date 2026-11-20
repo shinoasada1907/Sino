@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { serveEmptyCalendar } from '@/test/fixtures/calendarApi'
 import { renderApp } from '@/test/renderApp'
 import { createAccountsSample } from '@/features/accounts/accounts.sample'
 import { createOverviewSample } from './overview.sample'
@@ -153,6 +154,7 @@ describe('Tổng quan', () => {
   // The links are checked by address and one is followed: going to and back from three whole screens made this test
   // slow enough to fail when every test file runs at once.
   it('opens the inbox, the calendar and the notifications from their links', async () => {
+    serveEmptyCalendar()
     const user = userEvent.setup()
     const { router } = openOverview()
     await screen.findByRole('heading', { level: 1 })
