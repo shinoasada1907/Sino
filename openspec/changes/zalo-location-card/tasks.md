@@ -63,6 +63,9 @@
   - **Acceptance criteria:** spec `chat-location-card-ui`; link bản đồ có `rel="noopener noreferrer"`; không gọi dịch vụ bản đồ khi chưa bấm; khớp canvas.
   - **Test:** test tay trên Chrome thật ở desktop và 390, với dữ liệu thật từ ZC-03. Rồi Vitest: đủ trường, thiếu địa chỉ, thiếu avatar, tên có HTML.
   - **Depends on:** ZC-03, ZC-05; không có thay đổi chưa commit của người khác trong `ChatThread.tsx` hoặc người dùng đã quyết.
+  - ~~"không gọi dịch vụ bản đồ khi chưa bấm"~~ **LÝ DO:** DN-1 đổi sang C (bản đồ nhúng), người dùng 2026-11-20.
+  - **Thực hiện (phần vị trí, Antigravity, 2026-11-20):** `MessageLocation` trong `inbox.types.ts`; `inbox.api.ts` đọc `location` và bỏ toạ độ ngoài khoảng; `components/LocationCard.tsx` (iframe `maps.google.com … output=embed`, `loading="lazy"`, `referrerPolicy="no-referrer"`; nút "Maps" mở tab mới với `noopener noreferrer`; tên đậm, địa chỉ, "Vị trí hiện tại"/"Vị trí"); `ChatThread.tsx` vẽ thẻ, giữ khối trích dẫn; `LocationCard.test.tsx` (4 test).
+  - **Kiểm chứng (phần vị trí, quản lý):** `pnpm lint` 0 lỗi, `tsc -b` 0, `pnpm test` 149 file 1554/1554, `pnpm build` đạt (cây web lúc đó có cả bản sửa đánh dấu đã đọc chưa commit). Thử thật trên Zalo do **người dùng** xem và xác nhận ("đã ok rồi"); quản lý không xem được trên trình duyệt vì lúc kiểm DB chưa có tin vị trí lưu bằng code mới. **Còn mở:** địa chỉ có xuống dòng bị dồn một dòng (thiếu `whitespace-pre-line`), chưa sửa. Chưa tick: còn thẻ danh thiếp.
 
 ## 4. Kết thúc
 

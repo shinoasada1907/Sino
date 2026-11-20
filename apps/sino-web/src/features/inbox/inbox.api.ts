@@ -15,6 +15,7 @@ import type {
   Message,
   MessageBody,
   MessageImage,
+  MessageLocation,
   MessagePage,
   OpenConversation,
   Quote,
@@ -160,6 +161,8 @@ interface MessageResponse {
   stickerSprite?: StickerSprite | null
   /** The picture of a photo (ZL-16); absent or null for any other message. */
   image?: MessageImage | null
+  /** The shared place of a chat location message (zalo-location-card, D-530); absent or null for any other message. */
+  location?: MessageLocation | null
   /** The sticker of the library that a message Sino sent is (zalo-send-images); absent or null for any other. */
   libraryStickerId?: string | null
   /** The emoji on the message (zalo-reactions, D-387); absent on a backend before it. */
@@ -246,9 +249,21 @@ function senderName(sender: MessageResponse['sender'], outbound: boolean): strin
   return sender.self ? 'Bạn' : (sender.name ?? sender.address)
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, libraryStickerId, reactions, canReact, quote, canQuote }: MessageResponse): Mail {
+function locationOf(location: MessageLocation | null | undefined): MessageLocation | undefined {
+  if (!location) {
+    return undefined
+  }
+  const { latitude, longitude } = location
+  if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+    return undefined
+  }
+  return location
+}
+
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, location, libraryStickerId, reactions, canReact, quote, canQuote }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
+  const validLocation = locationOf(location)
   return {
     id,
     kind: 'MESSAGE',
@@ -268,6 +283,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     ...(sticker ? { sticker } : {}),
     ...(stickerSprite ? { stickerSprite } : {}),
     ...(image ? { image } : {}),
+    ...(validLocation ? { location: validLocation } : {}),
     ...(libraryStickerId ? { libraryStickerId } : {}),
     ...(reactions?.length ? { reactions } : {}),
     ...(canReact ? { canReact } : {}),

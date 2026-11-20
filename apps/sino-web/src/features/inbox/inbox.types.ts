@@ -201,6 +201,19 @@ export interface MessageImage {
   caption: string | null
 }
 
+/**
+ * A shared place on a chat message (zalo-location-card, D-529, D-530): coordinates in [-90, 90] / [-180, 180],
+ * optional place title and street address, and `current` when the sender shared their own current position.
+ */
+export interface MessageLocation {
+  latitude: number
+  longitude: number
+  title: string | null
+  address: string | null
+  previewUrl: string | null
+  current: boolean
+}
+
 export type Message =
   | {
       id: string
@@ -234,6 +247,8 @@ export type Message =
       stickerSprite?: StickerSprite
       /** The picture of a photo (ZL-16); absent when the message is no photo or has no picture the backend trusts. */
       image?: MessageImage
+      /** The place shared in a chat location message (zalo-location-card, D-530); absent for any other message. */
+      location?: MessageLocation
       /**
        * The sticker of the user's library that this message Sino sent is (zalo-send-images, D-352); the picture is
        * `/api/stickers/{id}/content`, whatever address the provider gives its copy. Absent for any other message.

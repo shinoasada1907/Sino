@@ -25,6 +25,7 @@ import type { ConversationDetail, ConversationItem, InboxAccount, LinkedKind, Me
 import { useSendMessage } from '../useInbox'
 import { ConversationAvatars } from './ConversationAvatars'
 import { LatestPreview } from './LatestPreview'
+import { LocationCard } from './LocationCard'
 import { ThreadNotice } from './ThreadNotice'
 import { photoOf } from '../photo'
 import { pictureOf, spriteOf } from '../sticker'
@@ -506,6 +507,11 @@ function Bubble({
               <MessageText text={message.text} own={own} />
             </div>
           )}
+        </div>
+      ) : message.location ? (
+        <div className="flex flex-col gap-1.5">
+          {message.quote && <QuoteBlock quote={message.quote} own={own} onJump={onJump} />}
+          <LocationCard location={message.location} own={own} />
         </div>
       ) : (
         <div
