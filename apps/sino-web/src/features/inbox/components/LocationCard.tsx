@@ -47,7 +47,7 @@ export function LocationCard({ location, own }: { location: MessageLocation; own
       <div className="flex flex-col gap-0.5 px-1.5 pt-2 pb-0.5 text-left">
         <span className="text-[13px] leading-snug font-semibold break-words">{title}</span>
         {address && (
-          <span className={cn('text-xs leading-relaxed break-words', own ? 'text-primary-foreground/85' : 'text-muted-foreground')}>
+          <span className={cn('text-xs leading-relaxed break-words whitespace-pre-line', own ? 'text-primary-foreground/85' : 'text-muted-foreground')}>
             {address}
           </span>
         )}

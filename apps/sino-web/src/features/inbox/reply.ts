@@ -13,6 +13,12 @@ export function quoteText(message: ChatMessage): string {
   if (message.image || message.attachments.some((file) => file.image)) {
     return 'Ảnh'
   }
+  if (message.contactCard) {
+    return 'Danh thiếp'
+  }
+  if (message.location) {
+    return 'Vị trí'
+  }
   const text = message.text.trim().replace(/\s+/g, ' ')
   if (message.attachments.length > 0 && (text === '' || text === message.attachments[0]?.name)) {
     return message.attachments[0]?.name ?? 'Tệp'

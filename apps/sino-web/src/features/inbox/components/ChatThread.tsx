@@ -4,6 +4,7 @@ import {
   Clock,
   Code2,
   ExternalLink,
+  Loader2,
   PanelRight,
   Pencil,
   Pin,
@@ -12,7 +13,7 @@ import {
   StickyNote,
   type LucideIcon,
 } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent } from 'react'
 import { Link } from 'react-router'
 import type { ProviderNameOf } from '@/shared/format'
 import { cn } from '@/shared/lib/utils'
@@ -22,8 +23,9 @@ import { Spec } from '@/shared/ui/spec'
 import { Status } from '@/shared/ui/status'
 import { bubbleMeta, disconnectedSince, displayName, formatFileSize, getInitials, linkParts, memberAvatar, memberPlaceholder, notArrivedSince, sendBlock, threadSubtitle, withDayLines } from '../format'
 import type { ConversationDetail, ConversationItem, InboxAccount, LinkedKind, Member, Message } from '../inbox.types'
-import { useSendMessage } from '../useInbox'
+import { useSendMessage, type MessageHistory } from '../useInbox'
 import { ConversationAvatars } from './ConversationAvatars'
+import { ContactCard } from './ContactCard'
 import { LatestPreview } from './LatestPreview'
 import { LocationCard } from './LocationCard'
 import { ThreadNotice } from './ThreadNotice'
@@ -56,11 +58,13 @@ const LINKED: Record<LinkedKind, { icon: LucideIcon; to: string; name: string }>
 }
 
 const BOTTOM_SLACK = 80
+const TOP_LOAD_THRESHOLD = 200
 const nearBottom = (body: HTMLElement) => body.scrollHeight - body.scrollTop - body.clientHeight <= BOTTOM_SLACK
 
 export function ChatThread({
   item,
   detail,
+  history,
   account,
   backSearch,
   now,
@@ -71,6 +75,7 @@ export function ChatThread({
 }: {
   item: ConversationItem
   detail: ConversationDetail | undefined
+  history?: MessageHistory
   account: InboxAccount
   backSearch: string
   now: Date
@@ -105,11 +110,31 @@ export function ChatThread({
   const block = sendBlock(account, detail?.canSend)
   const sendsFiles = detail?.canSendFiles !== false && !block
   const placed = useRef(false)
-  const newest = detail?.messages?.at(-1)
+  const messages = detail?.messages ?? null
+  const oldestId = messages?.[0]?.id
+  const newest = messages?.at(-1)
   const newestId = newest?.id
   const newestIsOwn = newest?.kind === 'MESSAGE' && newest.direction === 'OUT'
   const atBottom = useRef(true)
+  const prevOldestId = useRef<string | undefined>(undefined)
+  const scrollBeforeLoad = useRef<number | null>(null)
   const expiredAt = account.status === 'AUTH_EXPIRED' ? account.statusChangedAt : null
+
+  const older = history?.older
+  const hasMoreOlder = older?.hasMore ?? false
+  const loadingOlder = older?.loading ?? false
+  const failedOlder = older?.failed ?? false
+  const loadOlder = older?.load
+  const canLoadOlder = hasMoreOlder && !loadingOlder && !failedOlder
+
+  const requestOlder = useCallback(() => {
+    if (!loadOlder || loadingOlder) return
+    const body = bodyRef.current
+    if (body) {
+      scrollBeforeLoad.current = body.scrollHeight
+    }
+    loadOlder()
+  }, [loadOlder, loadingOlder])
 
   const handlePaste = (e: React.ClipboardEvent) => {
     // If paste occurred inside textarea or input, Composer handles it directly.
@@ -124,7 +149,23 @@ export function ChatThread({
     }
   }
 
-  useEffect(() => {
+  // Keep the reader's spot when an older page prepends messages at the top.
+  useLayoutEffect(() => {
+    const body = bodyRef.current
+    if (!body || oldestId === undefined) return
+    const previousOldest = prevOldestId.current
+    prevOldestId.current = oldestId
+    if (placed.current && previousOldest !== undefined && previousOldest !== oldestId && scrollBeforeLoad.current !== null) {
+      const delta = body.scrollHeight - scrollBeforeLoad.current
+      scrollBeforeLoad.current = null
+      if (delta > 0) {
+        body.scrollTop += delta
+      }
+      atBottom.current = nearBottom(body)
+    }
+  }, [oldestId])
+
+  useLayoutEffect(() => {
     const body = bodyRef.current
     if (!body || newestId === undefined) return
     if (placed.current) {
@@ -137,6 +178,22 @@ export function ChatThread({
     }
     atBottom.current = nearBottom(body)
   }, [newestId, newestIsOwn])
+
+  // Clear any saved height if an older-page load ended without prepending (error or empty page).
+  useEffect(() => {
+    if (!loadingOlder) {
+      scrollBeforeLoad.current = null
+    }
+  }, [loadingOlder, failedOlder])
+
+  // If the viewport is still not filled or stays within the top threshold after a page renders (or after a refetch), keep loading older messages.
+  useEffect(() => {
+    const body = bodyRef.current
+    if (!body || !placed.current || !canLoadOlder) return
+    if (body.clientHeight > 0 && (body.scrollHeight <= body.clientHeight || body.scrollTop < TOP_LOAD_THRESHOLD)) {
+      requestOlder()
+    }
+  }, [messages, canLoadOlder, requestOlder])
 
   useEffect(() => () => outgoingFiles.releasePreviews(), [])
 
@@ -229,15 +286,47 @@ export function ChatThread({
       <div
         ref={bodyRef}
         onScroll={(event) => {
-          atBottom.current = nearBottom(event.currentTarget)
+          const body = event.currentTarget
+          atBottom.current = nearBottom(body)
+          if (placed.current && body.scrollTop < TOP_LOAD_THRESHOLD && canLoadOlder) {
+            requestOlder()
+          }
         }}
         onLoadCapture={(event) => {
           if (atBottom.current && event.target instanceof HTMLImageElement) {
             event.currentTarget.scrollTop = event.currentTarget.scrollHeight
           }
         }}
-        className="flex min-h-0 flex-col gap-4 overflow-auto px-4 py-5 md:px-5 xl:px-6"
+        className="flex min-h-0 flex-col gap-4 overflow-auto [overflow-anchor:none] px-4 py-5 md:px-5 xl:px-6"
       >
+        {loadingOlder ? (
+          <div role="status" className="my-1 flex justify-center">
+            <div className="flex items-center gap-2.5 rounded-xl border border-border/70 bg-surface/95 px-3.5 py-2 shadow-xs">
+              <span
+                aria-hidden="true"
+                className="grid size-6 shrink-0 place-items-center rounded-lg bg-hover text-muted-foreground"
+              >
+                <Loader2 className="size-3.5 motion-safe:animate-spin" strokeWidth={1.8} />
+              </span>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-foreground">Đang tải…</span>
+                <div aria-hidden="true" className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-16 rounded-full bg-hover motion-safe:animate-pulse" />
+                  <span className="h-1.5 w-9 rounded-full bg-hover motion-safe:animate-pulse [animation-delay:150ms]" />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : failedOlder ? (
+          <div role="alert" className="my-1 flex justify-center">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 rounded-xl border border-border/70 bg-surface/95 px-3.5 py-2 text-xs text-muted-foreground shadow-xs">
+              <span>Không tải được tin cũ hơn.</span>
+              <Button type="button" variant="secondary" size="sm" onClick={requestOlder}>
+                Thử lại
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {detail?.messages === null && <LatestPreview item={item} now={now} />}
         {withDayLines(detail?.messages ?? [], now).map(({ message, dayLine }) => (
           <Fragment key={message.id}>
@@ -255,22 +344,33 @@ export function ChatThread({
             )}
             {message.kind === 'SYSTEM' ? (
               <span className="self-center rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">{message.text}</span>
-            ) : (
-              <Bubble
-                message={message}
-                showName={group}
-                members={members}
-                conversationAvatar={item.avatarUrl}
-                isGroup={group}
-                sending={sendMessage}
-                providerName={name}
-                reactionSet={reactionSet}
-                previewReactions={previewReactions}
-                reacting={reacting}
-                onReply={detail?.canSend !== false ? (q) => setReplyTarget({ convId: item.id, quote: q }) : undefined}
-                onJump={detail?.messages?.some((m) => m.id === message.quote?.messageId) ? jumpToMessage : undefined}
-              />
-            )}
+            ) : (() => {
+              const quoted = message.quote?.messageId
+                ? detail?.messages?.find((m) => m.kind === 'MESSAGE' && m.id === message.quote?.messageId)
+                : undefined
+              // Zalo shares cliMsgType 38 between links and contact cards; until the backend distinguishes them in quoteKind,
+              // show "Danh thiếp" whenever the quoted message in the thread is a contact card.
+              const displayMessage =
+                message.quote && quoted?.kind === 'MESSAGE' && quoted.contactCard && message.quote.text === 'Liên kết'
+                  ? { ...message, quote: { ...message.quote, text: 'Danh thiếp' } }
+                  : message
+              return (
+                <Bubble
+                  message={displayMessage}
+                  showName={group}
+                  members={members}
+                  conversationAvatar={item.avatarUrl}
+                  isGroup={group}
+                  sending={sendMessage}
+                  providerName={name}
+                  reactionSet={reactionSet}
+                  previewReactions={previewReactions}
+                  reacting={reacting}
+                  onReply={detail?.canSend !== false ? (q) => setReplyTarget({ convId: item.id, quote: q }) : undefined}
+                  onJump={quoted ? jumpToMessage : undefined}
+                />
+              )
+            })()}
           </Fragment>
         ))}
         {expiredAt && detail && (
@@ -512,6 +612,11 @@ function Bubble({
         <div className="flex flex-col gap-1.5">
           {message.quote && <QuoteBlock quote={message.quote} own={own} onJump={onJump} />}
           <LocationCard location={message.location} own={own} />
+        </div>
+      ) : message.contactCard ? (
+        <div className="flex flex-col gap-1.5">
+          {message.quote && <QuoteBlock quote={message.quote} own={own} onJump={onJump} />}
+          <ContactCard contactCard={message.contactCard} own={own} />
         </div>
       ) : (
         <div

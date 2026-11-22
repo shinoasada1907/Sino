@@ -214,6 +214,18 @@ export interface MessageLocation {
   current: boolean
 }
 
+/**
+ * A shared contact card on a chat message (zalo-location-card, D-530): display name, optional avatar and QR image
+ * (https only), optional phone number (used only for the "Gọi Điện" tel: link), and optional existing 1-1 chat ID.
+ */
+export interface MessageContactCard {
+  name: string
+  avatarUrl: string | null
+  phone: string | null
+  qrUrl: string | null
+  conversationId: string | null
+}
+
 export type Message =
   | {
       id: string
@@ -249,6 +261,8 @@ export type Message =
       image?: MessageImage
       /** The place shared in a chat location message (zalo-location-card, D-530); absent for any other message. */
       location?: MessageLocation
+      /** The contact shared in a chat contact-card message (zalo-location-card, D-530); absent for any other message. */
+      contactCard?: MessageContactCard
       /**
        * The sticker of the user's library that this message Sino sent is (zalo-send-images, D-352); the picture is
        * `/api/stickers/{id}/content`, whatever address the provider gives its copy. Absent for any other message.

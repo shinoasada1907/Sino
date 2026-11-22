@@ -14,6 +14,7 @@ import type {
   Member,
   Message,
   MessageBody,
+  MessageContactCard,
   MessageImage,
   MessageLocation,
   MessagePage,
@@ -163,6 +164,8 @@ interface MessageResponse {
   image?: MessageImage | null
   /** The shared place of a chat location message (zalo-location-card, D-530); absent or null for any other message. */
   location?: MessageLocation | null
+  /** The shared contact of a chat contact-card message (zalo-location-card, D-530); absent or null for any other message. */
+  contactCard?: MessageContactCard | null
   /** The sticker of the library that a message Sino sent is (zalo-send-images); absent or null for any other. */
   libraryStickerId?: string | null
   /** The emoji on the message (zalo-reactions, D-387); absent on a backend before it. */
@@ -260,10 +263,28 @@ function locationOf(location: MessageLocation | null | undefined): MessageLocati
   return location
 }
 
-function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, location, libraryStickerId, reactions, canReact, quote, canQuote }: MessageResponse): Mail {
+function contactCardOf(card: MessageContactCard | null | undefined): MessageContactCard | undefined {
+  if (!card) {
+    return undefined
+  }
+  const name = card.name?.trim()
+  if (!name) {
+    return undefined
+  }
+  return {
+    name,
+    avatarUrl: pictureOf(card.avatarUrl),
+    phone: card.phone?.trim() || null,
+    qrUrl: pictureOf(card.qrUrl),
+    conversationId: card.conversationId?.trim() || null,
+  }
+}
+
+function toMessage(conversationId: string, { id, direction, status, sentAt, sender, to, text, bodyFormat, attachments, clientMessageId, sticker, stickerSprite, image, location, contactCard, libraryStickerId, reactions, canReact, quote, canQuote }: MessageResponse): Mail {
   const outbound = direction === 'OUTBOUND'
   const recipients = to?.map((person) => person.name ?? person.address).join(', ')
   const validLocation = locationOf(location)
+  const validContactCard = contactCardOf(contactCard)
   return {
     id,
     kind: 'MESSAGE',
@@ -284,6 +305,7 @@ function toMessage(conversationId: string, { id, direction, status, sentAt, send
     ...(stickerSprite ? { stickerSprite } : {}),
     ...(image ? { image } : {}),
     ...(validLocation ? { location: validLocation } : {}),
+    ...(validContactCard ? { contactCard: validContactCard } : {}),
     ...(libraryStickerId ? { libraryStickerId } : {}),
     ...(reactions?.length ? { reactions } : {}),
     ...(canReact ? { canReact } : {}),
@@ -377,10 +399,17 @@ export async function createConversation(draft: NewMailDraft, clientMessageId: s
 }
 
 /** `GET /api/conversations/{id}/messages` (F06): one page, newest first; `cursor` is the `nextCursor` of the page before. */
-export async function fetchMessages(conversationId: string, cursor: string | null): Promise<MessagePage> {
-  const query = cursor ? `?${new URLSearchParams({ cursor })}` : ''
+export async function fetchMessages(conversationId: string, cursor: string | null, limit?: number): Promise<MessagePage> {
+  const params = new URLSearchParams()
+  if (cursor) {
+    params.set('cursor', cursor)
+  }
+  if (limit !== undefined) {
+    params.set('limit', String(limit))
+  }
+  const query = params.toString()
   const page = await api.get<{ items: MessageResponse[]; nextCursor: string | null }>(
-    `/api/conversations/${encodeURIComponent(conversationId)}/messages${query}`,
+    `/api/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ''}`,
   )
   return { items: page.items.map((message) => toMessage(conversationId, message)), nextCursor: page.nextCursor }
 }
