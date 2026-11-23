@@ -37,6 +37,7 @@ import { useAttachmentTray } from '../useAttachmentTray'
 import { Composer } from './Composer'
 import { extractClipboardFiles } from '../clipboard'
 import { MailFile } from './EmailThread'
+import { PhotoLightbox, type LightboxPhoto } from './PhotoLightbox'
 import { PhotoPicture } from './PhotoPicture'
 import { StickerPicture } from './StickerPicture'
 import { mineOf, type ReactionKind } from '../reactions'
@@ -97,6 +98,36 @@ export function ChatThread({
   const reacting = useReactToMessage(item.id)
   const [replyTarget, setReplyTarget] = useState<{ convId: string; quote: Quote } | null>(null)
   const replyingQuote = replyTarget?.convId === item.id ? replyTarget.quote : null
+  const [lightbox, setLightbox] = useState<{ photos: LightboxPhoto[]; index: number } | null>(null)
+
+  const galleryPhotos: LightboxPhoto[] = []
+  for (const msg of detail?.messages ?? []) {
+    if (msg.kind !== 'MESSAGE') continue
+    const photo = photoOf(msg.image)
+    const preview = msg.direction === 'OUT' && !photo && msg.clientMessageId ? outgoingFiles.previewOf(msg.clientMessageId) : null
+    let primarySrc: string | null = null
+    if (preview) {
+      primarySrc = preview
+      galleryPhotos.push({ src: preview, caption: null, sender: msg.sender })
+    } else if (photo) {
+      primarySrc = photo.url
+      galleryPhotos.push({ src: photo.url, caption: photo.caption, sender: msg.sender })
+    }
+    for (const file of msg.attachments) {
+      if (file.image && file.url && file.url !== primarySrc) {
+        galleryPhotos.push({ src: file.url, caption: file.caption ?? null, sender: msg.sender })
+      }
+    }
+  }
+
+  const openPhoto = (clicked: LightboxPhoto) => {
+    const idx = galleryPhotos.findIndex((entry) => entry.src === clicked.src)
+    if (idx >= 0) {
+      setLightbox({ photos: galleryPhotos, index: idx })
+    } else {
+      setLightbox({ photos: [clicked], index: 0 })
+    }
+  }
 
   const jumpToMessage = (messageId: string) => {
     const el = bodyRef.current?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`)
@@ -368,6 +399,7 @@ export function ChatThread({
                   reacting={reacting}
                   onReply={detail?.canSend !== false ? (q) => setReplyTarget({ convId: item.id, quote: q }) : undefined}
                   onJump={quoted ? jumpToMessage : undefined}
+                  onOpenPhoto={openPhoto}
                 />
               )
             })()}
@@ -406,6 +438,13 @@ export function ChatThread({
           onCancelQuote={() => setReplyTarget(null)}
         />
       ) : null}
+
+      <PhotoLightbox
+        photos={lightbox?.photos ?? []}
+        index={lightbox?.index ?? null}
+        onClose={() => setLightbox(null)}
+        onIndexChange={(next) => setLightbox((current) => (current ? { ...current, index: next } : null))}
+      />
     </section>
   )
 }
@@ -534,6 +573,7 @@ function Bubble({
   reacting,
   onReply,
   onJump,
+  onOpenPhoto,
 }: {
   message: ChatMessage
   showName: boolean
@@ -547,6 +587,7 @@ function Bubble({
   reacting: ReturnType<typeof useReactToMessage>
   onReply?: (quote: Quote) => void
   onJump?: (messageId: string) => void
+  onOpenPhoto?: (photo: LightboxPhoto) => void
 }) {
   const own = message.direction === 'OUT'
   const reactions = message.reactions ?? []
@@ -594,7 +635,13 @@ function Bubble({
       ) : photoSrc ? (
         <div className="flex flex-col gap-1.5">
           {message.quote && <QuoteBlock quote={message.quote} own={own} onJump={onJump} />}
-          <PhotoPicture src={photoSrc} onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')} />
+          <PhotoPicture
+            src={photoSrc}
+            caption={photo?.caption ?? imageAttachment?.caption}
+            sender={message.sender}
+            onOpen={onOpenPhoto ? () => onOpenPhoto({ src: photoSrc, caption: photo?.caption ?? imageAttachment?.caption, sender: message.sender }) : undefined}
+            onError={() => setPhotoStep(photoStep === 'FULL' && photo?.thumbUrl ? 'THUMB' : 'BROKEN')}
+          />
           {message.text && message.text !== '[Ảnh]' && message.text !== imageAttachment?.name && (
             <div
               className={cn(
@@ -671,7 +718,17 @@ function Bubble({
             return null
           }
           if (file.url) {
-            return <PhotoPicture key={file.url} src={file.url} onError={() => { }} />
+            const url = file.url
+            return (
+              <PhotoPicture
+                key={url}
+                src={url}
+                caption={file.caption}
+                sender={message.sender}
+                onOpen={onOpenPhoto ? () => onOpenPhoto({ src: url, caption: file.caption, sender: message.sender }) : undefined}
+                onError={() => { }}
+              />
+            )
           }
 
           return (

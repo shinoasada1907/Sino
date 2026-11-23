@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createShellSample } from '@/app/shell/shell.sample'
 import { renderApp } from '@/test/renderApp'
@@ -65,15 +66,54 @@ describe('a photo in a chat (ZL-16)', () => {
     expect(picture).toHaveAttribute('referrerpolicy', 'no-referrer')
   })
 
-  it('opens the picture in a new tab without handing that tab the page or the address of Sino', async () => {
-    serve(photoMessage('p-1', { image: { url: FULL, thumbUrl: THUMB, caption: null } }))
+  it('opens the picture in a floating modal on the chat tab while keeping a safe "Mở trong tab mới" link', async () => {
+    const user = userEvent.setup()
+    serve(photoMessage('p-1', { image: { url: FULL, thumbUrl: THUMB, caption: 'Chuyến đi Đà Lạt' } }))
 
-    const link = (await chat().findByRole('img', { name: 'Ảnh' })).closest('a')
+    const picture = await chat().findByRole('img', { name: 'Ảnh' })
+    expect(picture.closest('a')).toBeNull()
 
+    await user.click(picture)
+
+    const dialog = await screen.findByRole('dialog', { name: 'Ảnh từ Bố' })
+    const modalImg = within(dialog).getByRole('img', { name: 'Chuyến đi Đà Lạt' })
+    expect(modalImg).toHaveAttribute('src', FULL)
+    expect(modalImg).toHaveAttribute('referrerpolicy', 'no-referrer')
+    expect(within(dialog).getByText('Chuyến đi Đà Lạt')).toBeInTheDocument()
+
+    const link = within(dialog).getByRole('link', { name: 'Mở trong tab mới' })
     expect(link).toHaveAttribute('href', FULL)
     expect(link).toHaveAttribute('target', '_blank')
-    expect(link?.getAttribute('rel')).toContain('noopener')
-    expect(link?.getAttribute('rel')).toContain('noreferrer')
+    expect(link.getAttribute('rel')).toContain('noopener')
+    expect(link.getAttribute('rel')).toContain('noreferrer')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Đóng' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('lets the reader step between multiple photos inside the modal', async () => {
+    const user = userEvent.setup()
+    const SECOND = 'https://f21-zpc.zdn.vn/jpg/5678/second.jpg'
+    // `fetchMessages` returns newest first; `useConversation` reverses into chronological order (p-1 then p-2).
+    serve(
+      photoMessage('p-2', { at: '2026-10-02T07:01:00.000Z', image: { url: SECOND, thumbUrl: null, caption: 'Ảnh hai' } }),
+      photoMessage('p-1', { at: '2026-10-02T07:00:00.000Z', image: { url: FULL, thumbUrl: null, caption: 'Ảnh đầu' } }),
+    )
+
+    const pictures = await chat().findAllByRole('img', { name: 'Ảnh' })
+    await user.click(pictures[0]!)
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('1 / 2')).toBeInTheDocument()
+    expect(within(dialog).getByRole('img', { name: 'Ảnh đầu' })).toHaveAttribute('src', FULL)
+
+    await user.click(within(dialog).getByRole('button', { name: 'Ảnh tiếp theo' }))
+    expect(within(dialog).getByText('2 / 2')).toBeInTheDocument()
+    expect(within(dialog).getByRole('img', { name: 'Ảnh hai' })).toHaveAttribute('src', SECOND)
+
+    await user.keyboard('{ArrowLeft}')
+    expect(within(dialog).getByText('1 / 2')).toBeInTheDocument()
+    expect(within(dialog).getByRole('img', { name: 'Ảnh đầu' })).toHaveAttribute('src', FULL)
   })
 
   it('shows the caption under the picture', async () => {
