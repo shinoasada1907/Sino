@@ -63,6 +63,8 @@ class ConversationMessagesApiTests {
 
     private static final Instant MONDAY = Instant.parse("2026-10-05T08:00:00Z");
     private static final Instant TUESDAY = Instant.parse("2026-10-06T08:00:00.123456Z");
+    private static final Instant WEDNESDAY = Instant.parse("2026-10-07T08:00:00Z");
+    private static final Instant THURSDAY = Instant.parse("2026-10-08T08:00:00Z");
     private static final NormalizedParticipant ALICE = new NormalizedParticipant("alice@example.test", "Alice", null,
             false);
     private static final NormalizedParticipant OWNER = new NormalizedParticipant("owner@gmail.test", null, null,
@@ -322,6 +324,120 @@ class ConversationMessagesApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].text").value("[Ảnh]"))
                 .andExpect(jsonPath("$.items[0].image").value(nullValue()));
+    }
+
+    @Test
+    void aLocationMessageListsItsPlaceAndAnyOtherMessageListsNone() throws Exception {
+        store(gmail, thread("report"), fromAlice("m-1", TUESDAY, "Chữ"),
+                new NormalizedMessage("m-2", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.TEXT, "[Vị trí] Heyman Coffee", MessageStatus.UNKNOWN, false, null, MONDAY,
+                        List.of(),
+                        Map.of("zaloType", "chat.location.new", NormalizedMessage.LOCATION_LAT, "10.7769",
+                                NormalizedMessage.LOCATION_LNG, "106.70098",
+                                NormalizedMessage.LOCATION_TITLE, "Heyman Coffee",
+                                NormalizedMessage.LOCATION_ADDRESS, "12 Nguyễn Huệ,\nQuận 1",
+                                NormalizedMessage.LOCATION_PREVIEW_URL, "https://maps-zpc.zdn.vn/a/b.png",
+                                NormalizedMessage.LOCATION_CURRENT, "true"),
+                        null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].location").value(nullValue()))
+                .andExpect(jsonPath("$.items[1].text").value("[Vị trí] Heyman Coffee"))
+                .andExpect(jsonPath("$.items[1].location.latitude").value(10.7769))
+                .andExpect(jsonPath("$.items[1].location.longitude").value(106.70098))
+                .andExpect(jsonPath("$.items[1].location.title").value("Heyman Coffee"))
+                .andExpect(jsonPath("$.items[1].location.address").value("12 Nguyễn Huệ,\nQuận 1"))
+                .andExpect(jsonPath("$.items[1].location.previewUrl").value("https://maps-zpc.zdn.vn/a/b.png"))
+                .andExpect(jsonPath("$.items[1].location.current").value(true))
+                .andExpect(jsonPath("$.items[1].metadata").doesNotExist());
+    }
+
+    @Test
+    void aLocationWithOnlyCoordinatesListsNullsAndNotCurrentAndOneWithUnreadableCoordinatesListsNone()
+            throws Exception {
+        store(gmail, thread("report"),
+                new NormalizedMessage("m-1", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.TEXT, "[Vị trí]", MessageStatus.UNKNOWN, false, null, TUESDAY, List.of(),
+                        Map.of("zaloType", "chat.location.new", NormalizedMessage.LOCATION_LAT, "-33.8688",
+                                NormalizedMessage.LOCATION_LNG, "151.2093"), null, null),
+                new NormalizedMessage("m-2", "report", "alice@example.test", MessageDirection.INBOUND,
+                        MessageType.TEXT, "[Vị trí]", MessageStatus.UNKNOWN, false, null, MONDAY, List.of(),
+                        Map.of("zaloType", "chat.location.new", NormalizedMessage.LOCATION_LAT, "abc",
+                                NormalizedMessage.LOCATION_LNG, "151.2093"), null, null));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].location.latitude").value(-33.8688))
+                .andExpect(jsonPath("$.items[0].location.title").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].location.address").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].location.previewUrl").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].location.current").value(false))
+                .andExpect(jsonPath("$.items[1].location").value(nullValue()));
+    }
+
+    private static NormalizedMessage card(String id, Instant sentAt, Map<String, String> person) {
+        Map<String, String> metadata = new java.util.HashMap<>(person);
+        metadata.put("zaloType", "chat.recommended");
+        return new NormalizedMessage(id, "report", "alice@example.test", MessageDirection.INBOUND, MessageType.TEXT,
+                "[Danh thiếp] " + person.getOrDefault(NormalizedMessage.CONTACT_NAME, ""), MessageStatus.UNKNOWN,
+                false, null, sentAt, List.of(), metadata, null, null);
+    }
+
+    private static NormalizedConversation chat(String id) {
+        return new NormalizedConversation(id, ConversationType.DIRECT, "Chat " + id, null, List.of(ALICE, OWNER),
+                null);
+    }
+
+    @Test
+    void aContactCardListsThePersonAndTheChatTheInboxAlreadyHasWithThemButNeverTheirProviderId() throws Exception {
+        store(gmail, chat("u-9"), fromAlice("u-9", "c-0", MONDAY, "Chào"));
+        store(gmail, thread("report"), fromAlice("m-1", MONDAY, "Chữ"),
+                card("m-2", TUESDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Jason Lê",
+                        NormalizedMessage.CONTACT_AVATAR_URL, "https://s160-26-ava-talk.zadn.vn/a.jpg",
+                        NormalizedMessage.CONTACT_PHONE, "0901234567",
+                        NormalizedMessage.CONTACT_QR_URL, "https://qr-talk.zadn.vn/q.png",
+                        NormalizedMessage.CONTACT_USER_ID, "u-9")));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].text").value("[Danh thiếp] Jason Lê"))
+                .andExpect(jsonPath("$.items[0].contactCard.name").value("Jason Lê"))
+                .andExpect(jsonPath("$.items[0].contactCard.avatarUrl").value("https://s160-26-ava-talk.zadn.vn/a.jpg"))
+                .andExpect(jsonPath("$.items[0].contactCard.phone").value("0901234567"))
+                .andExpect(jsonPath("$.items[0].contactCard.qrUrl").value("https://qr-talk.zadn.vn/q.png"))
+                .andExpect(jsonPath("$.items[0].contactCard.conversationId").value(conversationId("u-9").toString()))
+                .andExpect(jsonPath("$.items[0].contactCard.userId").doesNotExist())
+                .andExpect(jsonPath("$.items[0].metadata").doesNotExist())
+                .andExpect(jsonPath("$.items[1].contactCard").value(nullValue()));
+    }
+
+    @Test
+    void aContactCardHasNoChatWhenThereIsNoneWhenItIsAGroupWhenItIsInAnotherAccountOrWhenItHasNoId()
+            throws Exception {
+        UUID second = connect(owner, "second@gmail.test");
+        store(second, chat("u-8"), fromAlice("u-8", "c-1", MONDAY, "Chào"));
+        store(gmail, new NormalizedConversation("g-7", ConversationType.GROUP, "Nhóm", null, List.of(ALICE, OWNER),
+                null), fromAlice("g-7", "c-2", MONDAY, "Chào"));
+        store(gmail, thread("report"),
+                card("m-1", MONDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Không chat",
+                        NormalizedMessage.CONTACT_USER_ID, "u-1")),
+                card("m-2", TUESDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Tài khoản khác",
+                        NormalizedMessage.CONTACT_USER_ID, "u-8")),
+                card("m-3", WEDNESDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Nhóm",
+                        NormalizedMessage.CONTACT_USER_ID, "g-7")),
+                card("m-4", THURSDAY, Map.of(NormalizedMessage.CONTACT_NAME, "Không ID")));
+
+        mvc.perform(get("/api/conversations/{id}/messages", conversationId("report")).with(apiUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[3].contactCard.name").value("Không chat"))
+                .andExpect(jsonPath("$.items[3].contactCard.conversationId").value(nullValue()))
+                .andExpect(jsonPath("$.items[2].contactCard.conversationId").value(nullValue()))
+                .andExpect(jsonPath("$.items[1].contactCard.conversationId").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].contactCard.name").value("Không ID"))
+                .andExpect(jsonPath("$.items[0].contactCard.conversationId").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].contactCard.phone").value(nullValue()))
+                .andExpect(jsonPath("$.items[0].contactCard.qrUrl").value(nullValue()));
     }
 
     @Test

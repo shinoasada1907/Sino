@@ -80,6 +80,34 @@ export interface ZaloPhoto {
   readonly sticker?: true | undefined;
 }
 
+/**
+ * The place a `chat.location.new` message shares (zalo-location-card, D-529). The coordinates are numbers, already in
+ * range; `title` and `address` are the texts Zalo gave (cut), `previewUrl` the map picture when Zalo gives one (it has
+ * not so far), as a web address that sino-api checks against its hosts.
+ */
+export interface ZaloLocation {
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly title: string | null;
+  readonly address: string | null;
+  readonly previewUrl: string | null;
+  /** true for the sender's own current position ("Vị trí của bạn" in Zalo), from `params.isUserLocation` other than 0. */
+  readonly current: boolean;
+}
+
+/**
+ * The contact card a `chat.recommended` message shares (zalo-location-card, D-529). `userId` is the Zalo user's id (digits)
+ * when `params` is one; `phone` and `qrUrl` come from Zalo's `description` and are null when it says none. Addresses
+ * are web addresses that sino-api checks against its hosts.
+ */
+export interface ZaloContactCard {
+  readonly userId: string | null;
+  readonly name: string;
+  readonly avatarUrl: string | null;
+  readonly phone: string | null;
+  readonly qrUrl: string | null;
+}
+
 /** A file a `share.file` message carries, as Zalo names it: its name, where Zalo serves it, its size when said. */
 export interface ZaloSharedFile {
   readonly name: string;
@@ -126,6 +154,10 @@ export interface ZaloMessage {
   readonly photo?: ZaloPhoto | undefined;
   /** Only on a `share.file` message whose content names a file and where Zalo serves it (zalo-send-files, ZF-08). */
   readonly file?: ZaloSharedFile | undefined;
+  /** Only on a `chat.recommended` message that is a contact card with a name (zalo-location-card, ZC-02); a link has none. */
+  readonly contactCard?: ZaloContactCard | undefined;
+  /** Only on a `chat.location.new` message whose content named a valid place (zalo-location-card, ZC-02). */
+  readonly location?: ZaloLocation | undefined;
   /**
    * Only on a `chat.photo` message whose content named no picture: the keys of the content with the kind of each
    * value, never a value, so the log can say what Zalo sent (ZL-16). sino-api ignores it.
@@ -138,7 +170,7 @@ export interface ZaloMessage {
    */
   readonly photoShape?: string | undefined;
   /**
-   * Only on a `chat.voice`, `chat.video.msg`, `chat.recommended` or `chat.link` message (ML-01, D-475): the same
+   * Only on a `chat.voice`, `chat.video.msg`, `chat.recommended`, `chat.link` or `chat.location.new` message (ML-01, D-475; ZC-01), a location only when it could not be read (no `location`) and a contact card only when its description did not give the QR address: the same
    * description as `photoShape` (keys of the content and of `params`, kind of each value, host of each address, never
    * a path or a value), so a real message shows how Zalo gives these. sino-api ignores it.
    */

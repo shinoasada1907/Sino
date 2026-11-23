@@ -387,11 +387,20 @@ public class InboxService implements InboxIds {
 
     @Override
     public List<UUID> of(UUID ownerId, Collection<UUID> conversationIds) {
+        Map<UUID, UUID> shown = shownIds(ownerId, conversationIds);
+        return conversationIds.stream().map(id -> shown.getOrDefault(id, id)).distinct().toList();
+    }
+
+    /**
+     * The ID the inbox shows for each of these conversations that is one of the owner's, in one statement; one that is
+     * not is left out of the map (see {@link #of}).
+     */
+    Map<UUID, UUID> shownIds(UUID ownerId, Collection<UUID> conversationIds) {
         Map<UUID, ProviderType> accounts = accountsOf(ownerId);
-        if (conversationIds.isEmpty() || accounts.isEmpty()) {
-            return conversationIds.stream().distinct().toList();
-        }
         Map<UUID, UUID> shown = new HashMap<>();
+        if (conversationIds.isEmpty() || accounts.isEmpty()) {
+            return shown;
+        }
         jdbc.sql("""
                 SELECT c.id,
                        (SELECT g.id FROM conversation g
@@ -403,7 +412,7 @@ public class InboxService implements InboxIds {
                 .query(row -> {
                     shown.put(row.getObject("id", UUID.class), row.getObject("shown", UUID.class));
                 });
-        return conversationIds.stream().map(id -> shown.getOrDefault(id, id)).distinct().toList();
+        return shown;
     }
 
     // The group of any of its copies in the inbox (D-183), read in one statement, so its copies are those of one moment.

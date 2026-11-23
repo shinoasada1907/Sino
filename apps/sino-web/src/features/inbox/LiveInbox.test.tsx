@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { API_ACCOUNTS, API_PROVIDERS, apiInitialSync } from '@/test/fixtures/accountsApi'
-import { API_CONVERSATIONS } from '@/test/fixtures/inboxApi'
+import { API_CONVERSATIONS, API_MESSAGES, API_PARTICIPANTS } from '@/test/fixtures/inboxApi'
 import { lastStream } from '@/test/eventSource'
 import { server } from '@/test/msw/server'
 import { renderApp, shellPart } from '@/test/renderApp'
@@ -165,5 +165,84 @@ describe('the notice of each screen (f05c)', () => {
     // The list stays silent about the chats; the bell of the top bar, on every screen, tells them in its menu (NF-02).
     await userEvent.setup().click((await screen.findAllByRole('button', { name: /^Thông báo/ }))[0])
     expect(await screen.findByText('1 tin mới')).toBeInTheDocument()
+  })
+})
+
+describe('reading an open conversation when a new message arrives', () => {
+  function openBackend() {
+    const state: Item[] = API_CONVERSATIONS.map((item) => ({ ...item }))
+    const changes: [string, { read?: boolean; archived?: boolean }][] = []
+    const unread = () => state.filter((item) => !item.archived && item.unreadCount > 0).length
+    server.use(
+      http.get('/api/accounts', () => HttpResponse.json(API_ACCOUNTS)),
+      http.get('/api/providers', () => HttpResponse.json(API_PROVIDERS)),
+      http.get('/api/accounts/:id/initial-sync', () => HttpResponse.json(apiInitialSync())),
+      http.get('/api/conversations/counts', () =>
+        HttpResponse.json({ unread: unread(), byProvider: { gmail: unread() }, byAccount: {}, needsReply: 0, withAttachments: 0, scheduled: 0, snoozed: 0 }),
+      ),
+      http.get('/api/conversations', () => HttpResponse.json({ items: state.filter((item) => !item.archived), nextCursor: null })),
+      http.get('/api/conversations/:id', ({ params }) => {
+        const found = state.find((entry) => entry.id === params.id)
+        return found ? HttpResponse.json({ ...found, participants: API_PARTICIPANTS }) : HttpResponse.json({}, { status: 404 })
+      }),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json({ items: API_MESSAGES, nextCursor: null })),
+      http.patch('/api/conversations/:id', async ({ params, request }) => {
+        const body = (await request.json()) as { read?: boolean; archived?: boolean }
+        changes.push([String(params.id), body])
+        const found = state.find((entry) => entry.id === params.id)!
+        if (body.read !== undefined) {
+          found.unreadCount = body.read ? 0 : 1
+        }
+        return HttpResponse.json({ ...found })
+      }),
+    )
+    return { state, changes }
+  }
+
+  it('marks the open conversation read again when a new message arrives over realtime', async () => {
+    const { state, changes } = openBackend()
+    renderApp('/inbox/c-1', { inbox: null })
+
+    await vi.waitFor(() => expect(changes).toEqual([['c-1', { read: true }]]))
+    expect(within(row('Trần Minh Anh')).queryByLabelText('Chưa đọc')).toBeNull()
+
+    // A new inbound message lands in the open conversation: newer lastMessageAt and unreadCount > 0.
+    state[0].lastMessageAt = '2026-10-02T07:05:00.000Z'
+    state[0].unreadCount = 1
+    lastStream().open()
+    lastStream().emit('conversations.changed', { ...event('sync', 1), conversationIds: ['c-1'] })
+
+    await vi.waitFor(() => expect(changes).toEqual([['c-1', { read: true }], ['c-1', { read: true }]]))
+    await vi.waitFor(() => expect(within(row('Trần Minh Anh')).queryByLabelText('Chưa đọc')).toBeNull())
+  })
+
+  it('keeps an open conversation unread when the user marks it unread (even if it was already read)', async () => {
+    const { changes } = openBackend()
+    const { router } = renderApp('/inbox/c-2', { inbox: null })
+    const user = userEvent.setup()
+
+    const thread = within(await screen.findByRole('region', { name: 'Cuộc trò chuyện đang mở' }))
+    await user.click(await thread.findByRole('button', { name: 'Đánh dấu chưa đọc' }))
+
+    expect(router.state.location.pathname).toBe('/inbox')
+    expect(within(row('Ngân hàng ACB')).getByLabelText('Chưa đọc')).toBeInTheDocument()
+    await vi.waitFor(() => expect(changes).toEqual([['c-2', { read: false }]]))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(changes).toEqual([['c-2', { read: false }]])
+  })
+
+  it('does not mark an open conversation read again when unreadCount rises without a newer lastMessageAt', async () => {
+    const { state, changes } = openBackend()
+    renderApp('/inbox/c-2', { inbox: null })
+    await screen.findByRole('heading', { level: 2, name: 'Sao kê tháng 9' })
+
+    // Marked unread from elsewhere (same lastMessageAt, no new message).
+    state[1].unreadCount = 1
+    lastStream().open()
+    lastStream().emit('conversations.changed', { ...event('user', 0), conversationIds: ['c-2'] })
+
+    expect(await within(row('Ngân hàng ACB')).findByLabelText('Chưa đọc')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(changes).toEqual([])
   })
 })

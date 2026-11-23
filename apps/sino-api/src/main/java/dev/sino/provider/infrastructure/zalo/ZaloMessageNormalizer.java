@@ -1,5 +1,6 @@
 package dev.sino.provider.infrastructure.zalo;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
@@ -17,7 +18,9 @@ import tools.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import dev.sino.provider.infrastructure.zalo.ZaloClient.ContactCard;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Conversation;
+import dev.sino.provider.infrastructure.zalo.ZaloClient.Location;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Message;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.MessagePage;
 import dev.sino.provider.infrastructure.zalo.ZaloClient.Participant;
@@ -85,6 +88,14 @@ final class ZaloMessageNormalizer {
      * and Zalo's own; the picture hosts of other services are not among them.
      */
     static final List<String> FILE_DOMAINS = List.of("dlfl.vn", "zadn.vn", "zdn.vn", "zaloapp.com", "zalo.me");
+
+    /** Zalo's own limits sino-zalo cuts to, kept here too: an input from another service is not trusted (D-530). */
+    private static final int MAX_LOCATION_TITLE = 200;
+    private static final int MAX_LOCATION_ADDRESS = 300;
+    private static final int MAX_CONTACT_NAME = 200;
+    private static final int MAX_CONTACT_PHONE = 32;
+    private static final double MAX_LATITUDE = 90.0;
+    private static final double MAX_LONGITUDE = 180.0;
 
     /** The longest file name kept, as a file sent from Sino may have (zalo-send-files, D-371). */
     private static final int MAX_FILE_NAME = 255;
@@ -214,7 +225,8 @@ final class ZaloMessageNormalizer {
             }
             putIfPresent(metadata, NormalizedMessage.MSG_TYPE, clean(message.zaloType()));
             putJson(metadata, NormalizedMessage.PROPERTY_EXT, message.propertyExt(), MAX_PROPERTY_EXT);
-            if (body.type() != MessageType.TEXT) {
+            if (body.type() != MessageType.TEXT || body.metadata().containsKey(NormalizedMessage.LOCATION_LAT)
+                    || body.metadata().containsKey(NormalizedMessage.CONTACT_NAME)) {
                 putJson(metadata, NormalizedMessage.RAW_CONTENT, message.rawContent(), MAX_RAW_CONTENT);
             }
         }
@@ -357,9 +369,82 @@ final class ZaloMessageNormalizer {
             case "chat.sticker" -> stickerBody("chat.sticker", "[Sticker]", message.sticker());
             case "chat.gif" -> stickerBody("chat.gif", "[GIF]", message.sticker());
             case "share.file" -> fileBody(message.file());
+            case "chat.location.new" -> locationBody(message.location());
+            case "chat.recommended" -> contactBody(message.contactCard());
             case "chat.voice" -> new Body(MessageType.AUDIO, "[Tin nhắn thoại]", Map.of(ZALO_TYPE_KEY, "chat.voice"));
             default -> new Body(MessageType.UNKNOWN, "[Tin Zalo chưa hỗ trợ]", Map.of(ZALO_TYPE_KEY, zaloType));
         };
+    }
+
+    /**
+     * A shared location is a {@code TEXT} {@code [Vị trí] <title or address>} (or {@code [Vị trí]}), with the place in
+     * {@code metadata} (zalo-location-card, D-530). sino-zalo's word is not taken as given: coordinates that are
+     * missing, not finite or outside the globe leave the message the unsupported placeholder, and the log says only
+     * that, never a value (D-532). The map picture is kept only on {@link #PICTURE_DOMAINS}.
+     */
+    private static Body locationBody(Location location) {
+        Double lat = location == null ? null : location.latitude();
+        Double lng = location == null ? null : location.longitude();
+        if (lat == null || lng == null || !Double.isFinite(lat) || !Double.isFinite(lng)
+                || Math.abs(lat) > MAX_LATITUDE || Math.abs(lng) > MAX_LONGITUDE) {
+            if (location != null) {
+                LOG.warn("Zalo gave a location whose coordinates Sino does not accept");
+            }
+            return new Body(MessageType.UNKNOWN, "[Tin Zalo chưa hỗ trợ]", Map.of(ZALO_TYPE_KEY, "chat.location.new"));
+        }
+        String title = clean(location.title());
+        title = title == null ? null : cut(title, MAX_LOCATION_TITLE);
+        String address = clean(location.address());
+        address = address == null ? null : cut(address, MAX_LOCATION_ADDRESS);
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put(ZALO_TYPE_KEY, "chat.location.new");
+        metadata.put(NormalizedMessage.LOCATION_LAT, BigDecimal.valueOf(lat).toPlainString());
+        metadata.put(NormalizedMessage.LOCATION_LNG, BigDecimal.valueOf(lng).toPlainString());
+        putIfPresent(metadata, NormalizedMessage.LOCATION_TITLE, title);
+        putIfPresent(metadata, NormalizedMessage.LOCATION_ADDRESS, address);
+        String preview = pictureAddress(location.previewUrl());
+        if (preview == null) {
+            warnRefused("location picture", location.previewUrl());
+        }
+        putIfPresent(metadata, NormalizedMessage.LOCATION_PREVIEW_URL, preview);
+        metadata.put(NormalizedMessage.LOCATION_CURRENT, String.valueOf(Boolean.TRUE.equals(location.current())));
+        String label = title != null ? title : address;
+        String text = label == null ? "[Vị trí]" : "[Vị trí] " + label.replaceAll("\\s+", " ");
+        return new Body(MessageType.TEXT, text, metadata);
+    }
+
+    /**
+     * A shared contact card is a {@code TEXT} {@code [Danh thiếp] <name>} with the person in {@code metadata}
+     * (zalo-location-card, D-530). Without a card or a name the message stays the unsupported placeholder, as before.
+     * The pictures are kept only on {@link #PICTURE_DOMAINS}; a refused one is warned about by host alone. The log
+     * never carries a name, number or ID (D-532). The Zalo ID is kept only when it is a usable one: it is what finds
+     * the chat with the person.
+     */
+    private static Body contactBody(ContactCard card) {
+        String name = card == null ? null : clean(card.name());
+        if (name == null) {
+            return new Body(MessageType.UNKNOWN, "[Tin Zalo chưa hỗ trợ]", Map.of(ZALO_TYPE_KEY, "chat.recommended"));
+        }
+        name = cut(name, MAX_CONTACT_NAME);
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put(ZALO_TYPE_KEY, "chat.recommended");
+        metadata.put(NormalizedMessage.CONTACT_NAME, name);
+        String avatar = pictureAddress(card.avatarUrl());
+        if (avatar == null) {
+            warnRefused("contact picture", card.avatarUrl());
+        }
+        putIfPresent(metadata, NormalizedMessage.CONTACT_AVATAR_URL, avatar);
+        String qr = pictureAddress(card.qrUrl());
+        if (qr == null) {
+            warnRefused("contact QR code", card.qrUrl());
+        }
+        putIfPresent(metadata, NormalizedMessage.CONTACT_QR_URL, qr);
+        String phone = clean(card.phone());
+        putIfPresent(metadata, NormalizedMessage.CONTACT_PHONE, phone == null ? null : cut(phone, MAX_CONTACT_PHONE));
+        String userId = clean(card.userId());
+        putIfPresent(metadata, NormalizedMessage.CONTACT_USER_ID,
+                userId != null && ZALO_ID.matcher(userId).matches() ? userId : null);
+        return new Body(MessageType.TEXT, "[Danh thiếp] " + name.replaceAll("\\s+", " "), metadata);
     }
 
     /**

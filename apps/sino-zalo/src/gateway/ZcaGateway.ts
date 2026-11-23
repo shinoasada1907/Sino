@@ -31,6 +31,8 @@ import {
   type ZaloPhoto,
   type ZaloQuote,
   type ZaloQuoted,
+  type ZaloContactCard,
+  type ZaloLocation,
   type ZaloSharedFile,
   ZaloRejectedError,
   type ZaloSession,
@@ -316,9 +318,21 @@ export function toZaloMessage(message: Message): ZaloMessage {
   const photo =
     data.msgType === "chat.photo" ? photoOf(data.content, data.propertyExt?.type === NO_BORDER) : undefined;
   const file = data.msgType === "share.file" ? sharedFileOf(data.content) : undefined;
-  const contentShape = unseen(data.msgType, photo, sticker) ? contentShapeOf(data.content) : undefined;
+  const location = data.msgType === "chat.location.new" ? locationOf(data.content) : undefined;
+  const card = data.msgType === "chat.recommended" ? contactCardOf(data.content) : undefined;
+  // A card with its QR address is read in full; one without it is sent, but the log says what its description held.
+  const cardComplete = card?.qrUrl != null;
+  const contentShape =
+    card !== undefined
+      ? cardComplete
+        ? undefined
+        : contentShapeOf(objectOf(data.content)?.description)
+      : unseen(data.msgType, photo, sticker) && location === undefined
+        ? contentShapeOf(data.content)
+        : undefined;
   const photoShape = data.msgType === "chat.photo" ? photoShapeOf(data) : undefined;
-  const mediaShape = MEASURED_TYPES.has(data.msgType) ? photoShapeOf(data) : undefined;
+  const mediaShape =
+    MEASURED_TYPES.has(data.msgType) && location === undefined && !cardComplete ? photoShapeOf(data) : undefined;
   const quote = quotedOf(data.quote);
   const rawContent =
     typeof data.content === "object" && data.content !== null && !Array.isArray(data.content)
@@ -337,6 +351,8 @@ export function toZaloMessage(message: Message): ZaloMessage {
     ...(sticker === undefined ? {} : { sticker }),
     ...(photo === undefined ? {} : { photo }),
     ...(file === undefined ? {} : { file }),
+    ...(location === undefined ? {} : { location }),
+    ...(card === undefined ? {} : { contactCard: card }),
     ...(contentShape === undefined ? {} : { contentShape }),
     ...(photoShape === undefined ? {} : { photoShape }),
     ...(mediaShape === undefined ? {} : { mediaShape }),
@@ -536,8 +552,11 @@ export async function react(add: API["addReaction"], request: ReactionRequest): 
 /**
  * The types whose content is only measured, not read yet (zalo-media-library, ML-01, D-475): a voice message, a video, a
  * recommended link and a link card. Each gets `mediaShape` in the log, built as `photoShape` is (keys, kinds, hosts).
+ * `chat.location.new` (a shared location) joins them (zalo-location-card, ZC-01, D-529, D-532), and `chat.recommended`
+ * is also the contact card: the keys tell them apart. A coordinate, a name, a phone number or an address is never
+ * printed: a number is `number`, a text is `string(length)`, an address only its host.
  */
-const MEASURED_TYPES = new Set(["chat.voice", "chat.video.msg", "chat.recommended", "chat.link"]);
+const MEASURED_TYPES = new Set(["chat.voice", "chat.video.msg", "chat.recommended", "chat.link", "chat.location.new"]);
 
 /** The types of message the pipeline knows what to do with (D-279); any other is shown as a placeholder. */
 const KNOWN_TYPES = new Set(["webchat", "chat.photo", "chat.sticker", "chat.gif", "share.file", "chat.voice"]);
@@ -576,6 +595,81 @@ function sharedFileOf(content: unknown): ZaloSharedFile | undefined {
   }
   const size = Number(objectOf(fields.params)?.fileSize);
   return { name, url, sizeBytes: Number.isSafeInteger(size) && size >= 0 ? size : null };
+}
+
+/**
+ * The place a `chat.location.new` content names (zalo-location-card, ZC-02, D-529), as the real messages showed it
+ * (ZC-01): `params`, a JSON text, holds `latitude` and `longitude` as TEXT; `description` is the address, `title` the
+ * place name (empty so far) and `thumb` the map picture (empty: Zalo gives none). undefined when a coordinate is
+ * missing, is not a plain number or lies outside [-90, 90] / [-180, 180]; the message then stays a placeholder and its
+ * shape is logged (`mediaShape`), never a coordinate. `previewUrl` is a web address as Zalo gave it; sino-api decides
+ * which hosts it trusts, as for a photo. `params.isUserLocation` (a number) says whether it is the sender's own current position (`current`).
+ */
+function locationOf(content: unknown): ZaloLocation | undefined {
+  const fields = objectOf(content);
+  const params = objectOf(fields?.params);
+  if (fields === null || params === null) {
+    return undefined;
+  }
+  const latitude = coordinateOf(params.latitude, 90);
+  const longitude = coordinateOf(params.longitude, 180);
+  if (latitude === null || longitude === null) {
+    return undefined;
+  }
+  return {
+    latitude,
+    longitude,
+    title: textOf(fields.title, 200),
+    address: textOf(fields.description, 300),
+    previewUrl: webAddress(fields.thumb),
+    current: typeof params.isUserLocation === "number" && params.isUserLocation !== 0 && Number.isFinite(params.isUserLocation),
+  };
+}
+
+/**
+ * The contact card a `chat.recommended` content names (zalo-location-card, ZC-02, D-529). Zalo uses the same type for a
+ * link; `action` tells them apart (`recommened.user`, Zalo's own spelling). Read from the one real card seen (ZC-01):
+ * `title` is the name, `thumb` the avatar, `params` the user id as digits, and `description` (a JSON text, as zca-js's
+ * `sendCard` builds it: `qrCodeUrl`, `phone`) the QR address and the phone. Those two parts are INFERRED, never seen:
+ * a description that is no JSON object gives `phone` and `qrUrl` null, and the log says what it held (`contentShape`,
+ * never a value). undefined for any other `action`, or when there is no name. Web addresses are as Zalo gave them;
+ * sino-api decides which hosts it trusts.
+ */
+function contactCardOf(content: unknown): ZaloContactCard | undefined {
+  const fields = objectOf(content);
+  if (fields?.action !== "recommened.user") {
+    return undefined;
+  }
+  const name = textOf(fields.title, 200);
+  if (name === null) {
+    return undefined;
+  }
+  const described = objectOf(fields.description) ?? {};
+  const pick = (key: string): unknown => Object.entries(described).find(([k]) => k.toLowerCase() === key)?.[1];
+  return {
+    userId: typeof fields.params === "string" && /^\d{5,25}$/.test(fields.params.trim()) ? fields.params.trim() : null,
+    name,
+    avatarUrl: webAddress(fields.thumb),
+    phone: textOf(pick("phone"), 30),
+    qrUrl: webAddress(pick("qrcodeurl")),
+  };
+}
+
+/** A coordinate given as a number or as plain decimal text, within `limit`; null for anything else (empty text too). */
+function coordinateOf(value: unknown, limit: number): number | null {
+  const number =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^-?\d{1,3}(\.\d{1,15})?$/.test(value.trim())
+        ? Number(value.trim())
+        : Number.NaN;
+  return Number.isFinite(number) && Math.abs(number) <= limit ? number : null;
+}
+
+/** Text trimmed and cut to `max` characters, null when there is none. */
+function textOf(value: unknown, max: number): string | null {
+  const text = typeof value === "string" ? Array.from(value.trim()).slice(0, max).join("") : "";
+  return text === "" ? null : text;
 }
 
 /**

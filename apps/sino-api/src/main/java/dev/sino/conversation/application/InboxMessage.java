@@ -14,6 +14,8 @@ import dev.sino.provider.spi.MessageStatus;
  * the address of a sticker's picture, as its connector checked it (NormalizedMessage.STICKER_URL), null for any other.
  * {@code stickerSprite} is the sprite sheet of a sticker that moves (ZL-15), null for a still sticker or any other message.
  * {@code image} is the picture of a photo (ZL-16), null for any other message and for a photo with no safe address.
+ * {@code location} is the place a Zalo location message shares (zalo-location-card, D-530), null for any other.
+ * {@code contactCard} is the person a Zalo contact card shares (zalo-location-card, D-530), null for any other.
  * {@code libraryStickerId} is the sticker of the user's library that a message Sino sent carries (ZS-05), null for any
  * other: the web shows it from {@code /api/stickers/{id}/content}, whatever address the provider gives its copy.
  * {@code reactions} are the emoji on the message, most people first (empty for none); {@code canReact} and {@code canQuote}
@@ -23,7 +25,7 @@ import dev.sino.provider.spi.MessageStatus;
 public record InboxMessage(UUID id, MessageDirection direction, MessageStatus status, Instant sentAt, Sender sender,
         List<Address> to, List<Address> cc, String subject, String text, BodyFormat bodyFormat, boolean read,
         List<File> attachments, UUID clientMessageId, String sticker, StickerSprite stickerSprite, Image image,
-        UUID libraryStickerId, List<Reaction> reactions, boolean canReact, Quote quote, boolean canQuote) {
+        Location location, ContactCard contactCard, UUID libraryStickerId, List<Reaction> reactions, boolean canReact, Quote quote, boolean canQuote) {
 
     /**
      * One emoji on a message (zalo-reactions, D-387): the provider's {@code code}, its {@code emoji}, how many people
@@ -49,6 +51,22 @@ public record InboxMessage(UUID id, MessageDirection direction, MessageStatus st
      * or null, {@code caption} the text the sender typed with it or null.
      */
     public record Image(String url, String thumbUrl, String caption) {
+    }
+
+    /**
+     * A shared place: the coordinates (always valid), its {@code title} and {@code address} or null, the address of a map
+     * picture the connector checked or null, and {@code current} when the sender shared where they are.
+     */
+    public record Location(double latitude, double longitude, String title, String address, String previewUrl,
+            boolean current) {
+    }
+
+    /**
+     * A shared person: the {@code name}, their picture, phone number and QR picture or null. {@code conversationId} is
+     * the 1-1 chat the inbox already has with them in the account that got the card, as the inbox names it, or null;
+     * it is found when the message is read, never stored. Their provider ID is not given out.
+     */
+    public record ContactCard(String name, String avatarUrl, String phone, String qrUrl, UUID conversationId) {
     }
 
     /** {@code address} is the email for mail, the provider's ID of the sender otherwise. */

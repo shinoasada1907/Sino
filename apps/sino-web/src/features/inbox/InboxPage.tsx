@@ -57,6 +57,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const opened = useConversation(
     conversationId,
     list.loaded.find((conversation) => conversation.id === conversationId),
+    kind,
   )
   const { item: found, detail, notFound } = opened
   const { mutate: update } = useUpdateConversation()
@@ -82,16 +83,20 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
   const online = useOnline()
   const realtimeDown = useRealtimeDown()
   const readOnce = useRef<string | null>(null)
+  const readMarker = item && canonicalId === null ? `${conversationId}@${item.lastMessageAt}` : null
 
-  // Opening a conversation reads it, once per opening
+  // Opening a conversation reads it, and a new message arriving while it is open reads it again — once per lastMessageAt,
+  // so marking unread or a failed read does not trigger another PATCH.
   useEffect(() => {
     if (!conversationId) {
       readOnce.current = null
-    } else if (unreadOpen && readOnce.current !== conversationId) {
-      readOnce.current = conversationId
-      update({ id: conversationId, change: { read: true } })
+    } else if (readMarker && readOnce.current !== readMarker) {
+      readOnce.current = readMarker
+      if (unreadOpen) {
+        update({ id: conversationId, change: { read: true } })
+      }
     }
-  }, [unreadOpen, conversationId, update])
+  }, [unreadOpen, conversationId, readMarker, update])
 
   useEffect(() => {
     if (canonicalId) {
@@ -234,6 +239,7 @@ export function InboxPage({ kind, compose = false }: { kind: ProviderKind; compo
               key={item.id}
               item={item}
               detail={detail}
+              history={opened.history}
               account={account}
               backSearch={search}
               now={now}

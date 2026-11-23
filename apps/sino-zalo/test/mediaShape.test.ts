@@ -122,6 +122,61 @@ describe("mediaShape of a voice message, a video and a link", () => {
   });
 });
 
+// ZC-01 (D-529, D-532): a location and a contact card. The location sample has a latitude out of range, so it stays unread (ZC-02) and keeps its shape. Content below is a made-up sample, not what Zalo gives (that is
+// what the real run measures); the point is that no value of any kind reaches the shape.
+const LOCATION = {
+  title: "Quán Cà Phê Riêng Tư",
+  description: "12 Đường Bí Mật, Quận 1",
+  href: "https://maps.google.com/?q=10.7769,106.7009",
+  thumb: "https://map.zdn.vn/t/secret-map.jpg",
+  params: JSON.stringify({ latitude: 910.7769, longitude: 106.7009, lat: "10.7769", lng: "106.7009" }),
+};
+const CARD = {
+  title: "Nguyễn Văn Riêng",
+  description: "0912345678",
+  href: "https://zalo.me/0912345678",
+  thumb: "https://avatar.zdn.vn/a/secret-avatar.jpg",
+  params: JSON.stringify({ userId: "999888777", phone: "0912345678", nested: { phone: "0912345678", avatar: "https://avatar.zdn.vn/b/x.jpg" } }),
+};
+const PLACE_SECRETS = ["10.77", "106.70", "Riêng", "Bí Mật", "Quận", "0912", "345678", "999888", "secret", "Nguyễn"];
+
+describe("mediaShape of a location and a contact card (ZC-01)", () => {
+  it("describes a location by keys and kinds; a coordinate is a number or a text length, never a value", () => {
+    const shape = shapeOf("chat.location.new", LOCATION) ?? "";
+
+    expect(shape).toContain("title:string(20),description:string(23),href:url(maps.google.com),thumb:url(map.zdn.vn)");
+    expect(shape).toContain("params.latitude:number,params.longitude:number,params.lat:string(7),params.lng:string(8)");
+  });
+
+  it("describes a contact card the same way, one object deeper too", () => {
+    const shape = shapeOf("chat.recommended", CARD) ?? "";
+
+    expect(shape).toContain("href:url(zalo.me)");
+    expect(shape).toContain("params.userId:string(9),params.phone:string(10),params.nested:object");
+    expect(shape).toContain("params.nested.phone:string(10),params.nested.avatar:url(avatar.zdn.vn)");
+  });
+
+  it("never carries a coordinate, a name, a phone number, an address or an id", () => {
+    for (const [type, content] of [["chat.location.new", LOCATION], ["chat.recommended", CARD]] as const) {
+      const shape = shapeOf(type, content) ?? "";
+      for (const secret of PLACE_SECRETS) {
+        expect(shape).not.toContain(secret);
+      }
+      expect(shape).not.toContain("http");
+      expect(shape).toMatch(/^[A-Za-z0-9_.:(),-]*$/);
+    }
+  });
+
+  it("is given in a group too, and a location with no params still says what it has", () => {
+    const group = zcaData("chat.location.new", LOCATION) as unknown as { idTo: string };
+    group.idTo = "9001";
+
+    expect(toZaloMessage(new GroupMessage("7001", group as never)).mediaShape).toContain("params.latitude:number");
+    expect(shapeOf("chat.location.new", { title: "x" })).toBe("title:string(1)");
+  });
+
+});
+
 class QuietNotifier implements Notifier {
   async sessionEnded(): Promise<void> {}
   messagesArrived(): void {}
@@ -158,6 +213,18 @@ describe("SessionManager logs mediaShape", () => {
     expect(all).toContain("mediaShape");
     for (const secret of SECRETS) {
       expect(all).not.toContain(secret);
+    }
+  });
+
+  it("keeps the whole log line of a location and a contact card free of values (ZC-01)", async () => {
+    for (const [type, content] of [["chat.location.new", LOCATION], ["chat.recommended", CARD]] as const) {
+      const lines = await lineOf(type, content);
+      const all = JSON.stringify(lines);
+
+      expect(lines.find((l) => l.message === "Zalo message")?.details).toMatchObject({ zaloType: type, mediaShape: expect.any(String) });
+      for (const secret of PLACE_SECRETS) {
+        expect(all).not.toContain(secret);
+      }
     }
   });
 

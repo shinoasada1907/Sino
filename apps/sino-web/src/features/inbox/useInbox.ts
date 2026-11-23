@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient, type QueryKey } from '@tanstack/react-query'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError, NETWORK_ERROR } from '@/shared/api/problem'
 import type { ProviderKind } from '@/shared/domain'
@@ -153,6 +153,9 @@ export interface MessageHistory {
   older: LoadMore
 }
 
+/** Chat bubbles are light and read in long bursts (50 per page); emails omit `limit` and stay at the server default of 20. */
+const CHAT_MESSAGE_PAGE_LIMIT = 50
+
 /**
  * One conversation: `listed` (its row in the loaded list) shows at once; the request then brings the row as the server
  * has it and the detail. A conversation of another view or an older page opens too (a link, a reload). Its messages
@@ -162,6 +165,7 @@ export interface MessageHistory {
 export function useConversation(
   conversationId: string | undefined,
   listed: ConversationItem | undefined,
+  kind?: ProviderKind,
 ): {
   item: ConversationItem | undefined
   detail: ConversationDetail | undefined
@@ -170,6 +174,7 @@ export function useConversation(
   failed: boolean
   retry: () => void
 } {
+  const pageLimit = kind === 'CHAT' ? CHAT_MESSAGE_PAGE_LIMIT : undefined
   const { data, error, refetch } = useQuery({
     queryKey: conversationKey(conversationId ?? ''),
     queryFn: () => fetchConversation(conversationId!),
@@ -178,7 +183,7 @@ export function useConversation(
   })
   const messages = useInfiniteQuery({
     queryKey: messagesKey(conversationId ?? ''),
-    queryFn: ({ pageParam }) => fetchMessages(conversationId!, pageParam),
+    queryFn: ({ pageParam }) => fetchMessages(conversationId!, pageParam, pageLimit),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     enabled: conversationId !== undefined,
@@ -186,8 +191,28 @@ export function useConversation(
   })
   // Filled by `useSendMessage` only; kept for the session.
   const { data: outbox } = useQuery<Mail[]>({ queryKey: outboxKey(conversationId ?? ''), queryFn: () => [], enabled: false, gcTime: Infinity })
-  const { fetchNextPage } = messages
-  const loadOlder = useCallback(() => void fetchNextPage({ cancelRefetch: false }), [fetchNextPage])
+  const { fetchNextPage, isFetching, isFetchingNextPage, hasNextPage } = messages
+  // TanStack Query ignores `fetchNextPage({ cancelRefetch: false })` while a background refetch is running; keep the intent until it settles.
+  const wantOlder = useRef(false)
+  useEffect(() => {
+    wantOlder.current = false
+  }, [conversationId])
+  useEffect(() => {
+    if (wantOlder.current && !isFetching && hasNextPage) {
+      wantOlder.current = false
+      void fetchNextPage({ cancelRefetch: false })
+    }
+  }, [isFetching, hasNextPage, fetchNextPage])
+  const loadOlder = useCallback(() => {
+    if (isFetchingNextPage) {
+      return
+    }
+    if (isFetching) {
+      wantOlder.current = true
+      return
+    }
+    void fetchNextPage({ cancelRefetch: false })
+  }, [isFetching, isFetchingNextPage, fetchNextPage])
   const open = conversationId === undefined ? undefined : data
   // A message can come twice when one arrived between two pages.
   const seen = new Set<string>()
