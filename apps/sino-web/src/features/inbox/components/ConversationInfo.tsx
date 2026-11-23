@@ -19,6 +19,7 @@ import { Button } from '@/shared/ui/button'
 import { Switch } from '@/shared/ui/switch'
 import { displayName, formatFileSize, getInitials, linkParts } from '../format'
 import type { ConversationDetail, ConversationItem, InboxAccount } from '../inbox.types'
+import { PhotoLightbox } from './PhotoLightbox'
 
 export function ConversationInfo({
   item,
@@ -39,6 +40,7 @@ export function ConversationInfo({
 }) {
   const [muted, setMuted] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(true)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   const primaryMember = detail?.members?.[0]
   const avatarUrl = primaryMember?.avatarUrl || item.avatarUrl
@@ -82,6 +84,9 @@ export function ConversationInfo({
   }, [detail?.files, detail?.messages])
 
   const photos = allFiles.filter((f) => f.image)
+  const lightboxPhotos = photos
+    .filter((f): f is typeof f & { url: string } => Boolean(f.url))
+    .map((f) => ({ src: f.url, caption: f.name !== 'Ảnh' ? f.name : null, alt: f.name }))
   const docs = allFiles.filter((f) => !f.image)
 
   const extractedLinks = useMemo(() => {
@@ -216,24 +221,39 @@ export function ConversationInfo({
               <span className="font-mono text-[11px] font-semibold text-muted-foreground tracking-tight">
                 ẢNH & VIDEO ĐÃ CHIA SẺ ({detail?.files?.total ?? photos.length})
               </span>
-              <button type="button" className="text-[11px] font-medium text-foreground hover:underline cursor-pointer">
-                Xem tất cả
-              </button>
+              {lightboxPhotos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex(0)}
+                  className="text-[11px] font-medium text-foreground hover:underline cursor-pointer"
+                >
+                  Xem tất cả
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {photos.slice(0, 4).map((file, idx) => (
-                <div key={idx} className="group relative aspect-4/3 overflow-hidden rounded-lg border border-border/80 bg-surface">
-                  {file.url ? (
+              {photos.slice(0, 4).map((file, idx) => {
+                const viewIndex = file.url ? lightboxPhotos.findIndex((entry) => entry.src === file.url) : -1
+                return file.url ? (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => viewIndex >= 0 && setLightboxIndex(viewIndex)}
+                    className="group relative aspect-4/3 cursor-zoom-in overflow-hidden rounded-lg border border-border/80 bg-surface text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+                  >
                     <img
                       src={file.url}
                       alt={file.name}
+                      referrerPolicy="no-referrer"
                       className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
                     />
-                  ) : (
+                  </button>
+                ) : (
+                  <div key={idx} className="group relative aspect-4/3 overflow-hidden rounded-lg border border-border/80 bg-surface">
                     <div className="h-full w-full bg-[repeating-linear-gradient(135deg,var(--surface)_0_8px,var(--raised)_8px_16px)]" />
-                  )}
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -351,6 +371,13 @@ export function ConversationInfo({
           <span>SSL 256-bit</span>
         </div>
       </footer>
+
+      <PhotoLightbox
+        photos={lightboxPhotos}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+      />
     </aside>
   )
 }
