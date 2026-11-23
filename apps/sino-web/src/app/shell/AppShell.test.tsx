@@ -530,4 +530,33 @@ describe('the notice of new messages (NF-02, D-318, D-319)', () => {
     // The list says "1 tin mới" itself (D-92).
     expect(await screen.findByRole('button', { name: '1 tin mới' })).toBeInTheDocument()
   })
+
+  it('keeps the browser tab in sync with an arrival notice and clears both once unread updates to 0', async () => {
+    const icon = document.createElement('link')
+    icon.rel = 'icon'
+    icon.setAttribute('href', '/favicon.svg')
+    document.head.append(icon)
+    document.title = 'Sino'
+
+    try {
+      const { queryClient } = renderApp('/tasks', { inbox: inboxWithUnread(0, 0) })
+      await screen.findByRole('main')
+
+      sync(ZALO, 1)
+
+      await waitFor(() => expect(document.title).toBe('(1) Sino'))
+      expect(icon).toHaveAttribute('href', '/favicon-unread.svg')
+      expect(await within(shellPart('topbar')).findAllByRole('button', { name: 'Thông báo, 1 mới' })).toHaveLength(2)
+
+      // A fresher unread-counts answer confirms the message was already read elsewhere.
+      act(() => queryClient.setQueryData(INBOX_UNREAD_QUERY_KEY, { EMAIL: 0, CHAT: 0 }))
+
+      await waitFor(() => expect(document.title).toBe('Sino'))
+      expect(icon).toHaveAttribute('href', '/favicon.svg')
+      expect(await within(shellPart('topbar')).findAllByRole('button', { name: 'Thông báo' })).toHaveLength(2)
+    } finally {
+      icon.remove()
+      document.title = ''
+    }
+  })
 })

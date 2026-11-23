@@ -31,10 +31,12 @@ export function AppShell() {
   // of accounts from the account list (D-326) and flags no notification or registration (D-325); the owner comes from
   // /api/auth/me and the sync line from the account list.
   const unread = useUnreadByKind()
-  // The browser tab says there is news too (NF-01, D-317): chats and mail together, the chats as 0 while the backend cannot count them.
-  useTabUnread(unread && unread.EMAIL + (unread.CHAT ?? 0))
   // And a bar under the top bar says the new messages that came while the owner was elsewhere (NF-02, D-318).
   const { notices, dismiss } = useArrivalNotices()
+  const noticeCount = notices.reduce((sum, notice) => sum + notice.count, 0)
+  const realUnread = unread && unread.EMAIL + (unread.CHAT ?? 0)
+  // The browser tab says there is news too (NF-01, D-317): keep it in sync with the bell across chats, mail, and live notices.
+  useTabUnread(realUnread === undefined ? (noticeCount > 0 ? noticeCount : undefined) : Math.max(realUnread, noticeCount))
   const { tasks } = useTasks()
   // Ticks every minute, so a task due at noon counts as late once noon has passed.
   const now = useNow()

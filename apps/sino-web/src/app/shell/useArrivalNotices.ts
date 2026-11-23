@@ -2,9 +2,9 @@ import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router'
 import { fetchInbox } from '@/features/inbox/inbox.api'
-import type { InboxData } from '@/features/inbox/inbox.types'
+import type { InboxData, UnreadByKind } from '@/features/inbox/inbox.types'
 import { kindOfProvider, SCREENS } from '@/features/inbox/screen'
-import { inboxKey } from '@/features/inbox/useInbox'
+import { INBOX_UNREAD_QUERY_KEY, inboxKey } from '@/features/inbox/useInbox'
 import { NOTICE_MS } from '@/features/inbox/useNewMailNotice'
 import type { ProviderKind } from '@/shared/domain'
 import { onConversationsChanged } from '@/shared/realtime/streamState'
@@ -59,7 +59,8 @@ async function kindOfAccount(queryClient: QueryClient, accountId: string): Promi
  * "N tin mới" / "N thư mới" for the bar under the top bar of every screen (NF-02, D-318): what background sync brought
  * while the owner was elsewhere in the app, or in another tab. Imports and the owner's own changes do not count (as in
  * D-92), nor does what the open list shows by itself with its own notice. A kind goes when its screen is opened, when it
- * is dismissed, or 6 seconds after the tab shows again on that screen.
+ * is dismissed, when a fresh unread-counts update confirms nothing of that kind is unread, or 6 seconds after the tab
+ * shows again on that screen.
  */
 export function useArrivalNotices(): { notices: ArrivalNotice[]; dismiss: (kind: ProviderKind) => void } {
   const queryClient = useQueryClient()
@@ -95,6 +96,26 @@ export function useArrivalNotices(): { notices: ArrivalNotice[]; dismiss: (kind:
     }
   }, [queryClient])
 
+  // If the user read the message elsewhere (another tab, phone, or open thread), a fresh 0-unread update clears the stale notice.
+  useEffect(() => {
+    return queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== 'updated' || event.action.type !== 'success') {
+        return
+      }
+      if (event.query.queryKey[0] !== INBOX_UNREAD_QUERY_KEY[0]) {
+        return
+      }
+      const latest = event.query.state.data as UnreadByKind | undefined
+      if (!latest) {
+        return
+      }
+      setCounts((shown) => {
+        const cleared = KINDS.filter((kind) => shown[kind] > 0 && latest[kind] === 0)
+        return cleared.length === 0 ? shown : { ...shown, ...Object.fromEntries(cleared.map((kind) => [kind, 0])) }
+      })
+    })
+  }, [queryClient])
+
   // Opening a screen is looking at what its notice points to. Done while rendering, as React advises for a state that follows
   // a value (here the path), not in an effect, which would draw the screen once more with the notice still there.
   const [shownAt, setShownAt] = useState(pathname)
@@ -118,6 +139,6 @@ export function useArrivalNotices(): { notices: ArrivalNotice[]; dismiss: (kind:
 
   return {
     notices: KINDS.filter((kind) => counts[kind] > 0).map((kind) => ({ kind, count: counts[kind] })),
-    dismiss: (kind) => setCounts((shown) => ({ ...shown, [kind]: 0 })),
+    dismiss: (kind) => setCounts((shown) => (shown[kind] === 0 ? shown : { ...shown, [kind]: 0 })),
   }
 }
