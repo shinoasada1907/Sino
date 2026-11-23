@@ -274,6 +274,19 @@ function moveCounts(queryClient: QueryClient, before: ConversationItem, after: C
       return { ...inbox, counts: kind === after.kind ? moved : { ...inbox.counts, unreadByKind: moved.unreadByKind } }
     })
   }
+  const unreadDelta = (!after.archived && after.unreadCount > 0 ? 1 : 0) - (!before.archived && before.unreadCount > 0 ? 1 : 0)
+  if (unreadDelta !== 0) {
+    queryClient.setQueryData<UnreadByKind>(INBOX_UNREAD_QUERY_KEY, (current) => {
+      if (!current) {
+        return current
+      }
+      const prev = current[after.kind]
+      if (prev === null) {
+        return current
+      }
+      return { ...current, [after.kind]: Math.max(0, prev + unreadDelta) }
+    })
+  }
 }
 
 /**
@@ -286,7 +299,10 @@ export function useUpdateConversation() {
   return useMutation({
     mutationFn: ({ id, change }: { id: string; change: ConversationChange }) => updateConversation(id, change),
     onMutate: ({ id, change }) => {
-      const saved: [QueryKey, unknown][] = queryClient.getQueriesData({ queryKey: INBOX_QUERY_KEY })
+      const saved: [QueryKey, unknown][] = [
+        ...queryClient.getQueriesData({ queryKey: INBOX_QUERY_KEY }),
+        ...queryClient.getQueriesData({ queryKey: INBOX_UNREAD_QUERY_KEY }),
+      ]
       const before = cachedItem(queryClient, id)
       const guess = before && applyChange(before, change)
       if (before && guess) {

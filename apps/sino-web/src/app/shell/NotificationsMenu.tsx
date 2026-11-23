@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { fetchConversations, markAllConversationsRead, updateConversation } from '@/features/inbox/inbox.api'
 import { newMailText } from '@/features/inbox/format'
+import type { UnreadByKind } from '@/features/inbox/inbox.types'
 import { SCREENS } from '@/features/inbox/screen'
+import { INBOX_QUERY_KEY, INBOX_UNREAD_QUERY_KEY } from '@/features/inbox/useInbox'
 import type { ProviderKind } from '@/shared/domain'
 import { cn } from '@/shared/lib/utils'
 import { formatAgo } from '@/shared/time/relative'
@@ -70,7 +72,13 @@ export function NotificationsMenu({
       onDismissNotice?.('EMAIL')
       onDismissNotice?.('CHAT')
       queryClient.setQueryData(['inbox', 'notifications-unread-list'], { items: [], total: 0, nextCursor: null })
-      await queryClient.invalidateQueries({ queryKey: ['inbox'] })
+      queryClient.setQueryData<UnreadByKind>(INBOX_UNREAD_QUERY_KEY, (current) =>
+        current ? { EMAIL: 0, CHAT: current.CHAT === null ? null : 0 } : current,
+      )
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: INBOX_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: INBOX_UNREAD_QUERY_KEY }),
+      ])
     } catch (err) {
       console.error('Failed to mark all conversations as read:', err)
     } finally {
@@ -92,7 +100,7 @@ export function NotificationsMenu({
           {totalCount > 0 && (
             <span
               aria-hidden="true"
-              className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white ring-2 ring-background"
+              className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] leading-none font-bold text-white ring-2 ring-background"
             >
               {totalCount > 99 ? '99+' : totalCount}
             </span>
